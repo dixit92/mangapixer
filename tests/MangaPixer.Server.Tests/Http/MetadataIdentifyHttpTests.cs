@@ -458,6 +458,7 @@ public sealed class MetadataNetworkWebApplicationFactory : WebApplicationFactory
             {
                 MetadataHttp.MangaUpdatesApiClient, MetadataHttp.MangaUpdatesImageClient, MetadataHttp.AniListClient,
                 MetadataHttp.MangaDexApiClient, MetadataHttp.MangaDexImageClient, UpdateCheckService.HttpClientName,
+                MetadataHttp.WikipediaClient, MetadataHttp.WikidataClient,
             })
                 services.AddHttpClient(name).ConfigurePrimaryHttpMessageHandler(() => Handler);
 

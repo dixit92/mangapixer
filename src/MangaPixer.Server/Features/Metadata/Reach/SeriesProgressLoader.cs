@@ -22,9 +22,10 @@ public sealed record SeriesProgressTarget(long NodeId, long RecordId, double? Ch
 /// One series' progress with the archive rows it was computed from (the linked folder and its unit subfolders) and the number
 /// of volume / chapter archives (the Missing report's counts).
 /// </summary>
-public sealed record SeriesProgressEntry(ProgressResult Result, IReadOnlyList<GroupingRow> Rows, int VolumeArchives, int ChapterArchives)
+public sealed record SeriesProgressEntry(
+    ProgressResult Result, IReadOnlyList<GroupingRow> Rows, int VolumeArchives, int ChapterArchives, ListCreditDto? ListCredit = null)
 {
-    public SeriesProgressDto Dto => SeriesProgress.ToDto(Result);
+    public SeriesProgressDto Dto => SeriesProgress.ToDto(Result) with { ListCredit = ListCredit };
 }
 
 /// <summary>
@@ -89,6 +90,9 @@ public sealed class SeriesProgressLoader(MangaPixerDbContext db)
         var recordIds = targets.Select(t => t.RecordId).Distinct().ToList();
         var maps = (await db.SeriesVolumeMaps.AsNoTracking().Where(m => recordIds.Contains(m.RecordId)).ToListAsync(ct))
             .ToLookup(m => m.RecordId);
+        var wikipediaPages = (await db.WikipediaLists.AsNoTracking().Where(l => recordIds.Contains(l.RecordId) && l.PagesJson != null)
+                .Select(l => new { l.RecordId, l.PagesJson }).ToListAsync(ct))
+            .ToDictionary(l => l.RecordId, l => l.PagesJson);
         var records = await db.MetadataRecords.AsNoTracking().Where(r => recordIds.Contains(r.Id))
             .Select(r => new RecordRow(r.Id, r.Origin, r.OriginStatus, r.OriginVolumes, r.StatusText, r.LatestChapter, r.PublishersJson,
                 r.LicensedEn, r.TranslationComplete))
@@ -115,9 +119,21 @@ public sealed class SeriesProgressLoader(MangaPixerDbContext db)
             var progress = SeriesProgress.Evaluate(rows, map, facts, restarts);
             var units = rows.Select(VolumeGrouping.UnitsOf).ToList();
             result[target.NodeId] = new SeriesProgressEntry(progress, rows,
-                units.Count(u => u.Chapter is null && u.Volume is not null), units.Count(u => u.Chapter is not null));
+                units.Count(u => u.Chapter is null && u.Volume is not null), units.Count(u => u.Chapter is not null),
+                ListCreditOf(maps[target.RecordId].ToList(), wikipediaPages.GetValueOrDefault(target.RecordId)));
         }
         return result;
+    }
+
+    /// <summary>
+    /// The Wikipedia credit of a series (1.32.0): set only when the list a view shows was actually completed from the page - the stored
+    /// Wikipedia list placed a volume or chapter MangaDex's did not - linking the first page the list was read from.
+    /// </summary>
+    public static ListCreditDto? ListCreditOf(IReadOnlyList<SeriesVolumeMapEntity> maps, string? pagesJson)
+    {
+        if (!ExactList(maps).WikipediaFilled || Volumes.Wikipedia.WikipediaVolumeService.ReadPages(pagesJson) is not [var first, ..])
+            return null;
+        return new ListCreditDto { Name = "Wikipedia", Url = Volumes.Wikipedia.WikipediaApi.PageUrl(first.Title), Title = first.Title };
     }
 
     /// <summary>The stored record fields the progress reads.</summary>

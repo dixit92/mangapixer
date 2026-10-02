@@ -134,12 +134,7 @@ public sealed class WikipediaVolumeService
             row.CheckedAt = now;
             row.NextCheckAt = CompanionSchedule.AfterFailure(now);
         }
-        catch (MetadataGatewayException)
-        {
-            if (isNew)
-                _db.Entry(row).State = EntityState.Detached;
-            throw;
-        }
+        // A refusal (switches, allowlist, backoff, budget) propagates untouched: nothing was stored for this look.
 
         if (isNew)
             _db.WikipediaLists.Add(row);
@@ -157,9 +152,12 @@ public sealed class WikipediaVolumeService
     {
         var next = CompanionSchedule.NextCheck(series, now);
 
-        // Known pages: one cheap revision check; the wikitext is downloaded only when a revision changed.
+        // Known pages of a list that was found (or refused): one cheap revision check; the wikitext is downloaded only when a revision
+        // changed, and then only the main page is read again (a hub page names its range pages afresh). A "no list" result is looked
+        // for again from the start on schedule - a list page may have been created since.
         var stored = ReadPages(row.PagesJson);
-        if (!adminAsked && stored.Count > 0 && row.State is (int)WikipediaListState.Found or (int)WikipediaListState.Rejected or (int)WikipediaListState.NotFound)
+        IReadOnlyList<string> toRead;
+        if (!adminAsked && stored.Count > 0 && row.State is (int)WikipediaListState.Found or (int)WikipediaListState.Rejected)
         {
             var infos = await CallAsync("revisions", libraryId, c => _api.RevisionsAsync(stored.Select(p => p.Title).ToList(), c), call, ct);
             if (stored.All(p => infos.Any(i => !i.Missing && i.RevisionId == p.Revision && string.Equals(i.Title, p.Title, StringComparison.Ordinal))))
@@ -168,17 +166,21 @@ public sealed class WikipediaVolumeService
                 row.NextCheckAt = next;
                 return;
             }
+            toRead = [stored[0].Title];
         }
-
-        var (article, method, guessed) = await DiscoverAsync(series, libraryId, row, call, ct);
-        row.Method = (int)method;
-        if (article is null)
+        else
         {
-            Settle(row, WikipediaListState.NotFound, "no_page", [], now, next);
-            return;
+            var (article, method, guessed) = await DiscoverAsync(series, libraryId, row, call, ct);
+            row.Method = (int)method;
+            if (article is null)
+            {
+                Settle(row, WikipediaListState.NotFound, "no_page", [], now, next);
+                return;
+            }
+            toRead = WikipediaDiscovery.TitlesToRead(article, includeArticle: !guessed);
         }
 
-        var read = (await CallAsync("pages", libraryId, c => _api.PagesAsync(WikipediaDiscovery.TitlesToRead(article, includeArticle: !guessed), c), call, ct))
+        var read = (await CallAsync("pages", libraryId, c => _api.PagesAsync(toRead, c), call, ct))
             .Where(p => !p.Missing && p.Wikitext is not null && p.RevisionId is not null)
             .DistinctBy(p => p.Title, StringComparer.Ordinal)
             .Select(p => (Page: p, Parse: WikipediaChapterListParser.Parse(p.Wikitext!)))

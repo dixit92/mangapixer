@@ -68,7 +68,7 @@ public sealed class VolumePassHarness : IDisposable
             QueueLimit = 10,
             AutoReplenishment = true,
         };
-        Auto = new AutoMatchHarness(db, new MetadataRateLimitOptions { AutomaticInterval = TimeSpan.Zero, MangaDexApi = fast, MangaDexImages = fast });
+        Auto = new AutoMatchHarness(db, new MetadataRateLimitOptions { AutomaticInterval = TimeSpan.Zero, MangaDexApi = fast, MangaDexImages = fast, Wikipedia = fast });
         Root = Path.Combine(Path.GetTempPath(), "mangapixer-vc-" + Guid.NewGuid().ToString("N")[..8]);
         Store = new VolumeCoverStore(Path.Combine(Root, VolumeCoverStore.FolderName));
         Scratch = new ScratchWorkspaceManager(Path.Combine(Root, "scratch"));

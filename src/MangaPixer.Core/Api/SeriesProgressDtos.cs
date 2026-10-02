@@ -141,6 +141,12 @@ public sealed record SeriesProgressDto
     public required SeriesCompletion Completion { get; init; }
     public CompletionBasis? CompletionBasis { get; init; }
 
+    /// <summary>
+    /// 1.32.0: set when the series' volume list was completed from a Wikipedia page ("Volume list: MangaDex, completed from Wikipedia"):
+    /// the credit and link every surface that shows such a list carries. Null when no Wikipedia data was used.
+    /// </summary>
+    public ListCreditDto? ListCredit { get; init; }
+
     /// <summary>The number of volumes (bases OfficialVolumes / OriginRun by volumes) or chapters the completion is about.</summary>
     public int? CompletionTarget { get; init; }
 
