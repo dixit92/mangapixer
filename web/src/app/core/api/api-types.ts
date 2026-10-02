@@ -1903,7 +1903,7 @@ export type CardCoverSource = 'File' | 'Crop' | 'WebVolume' | 'WebMain' | 'Poste
 /** Exact: file names / ComicInfo, the provider list, or bounded by neighbours. Estimated: shown "~ Volume N". */
 export type VolumeStackConfidence = 'Exact' | 'Estimated';
 
-export type VolumeListSource = 'FileNames' | 'MangaDex' | 'AniList' | 'Mixed';
+export type VolumeListSource = 'FileNames' | 'MangaDex' | 'AniList' | 'Mixed' | 'Wikipedia';
 
 /** A virtual volume stack as a browse entry (CatalogNodeDto.volumeStack). Unit numbers are strings ("3", "45.5"). */
 export interface VolumeStackSummaryDto {
@@ -1943,6 +1943,8 @@ export interface VolumeStackDto {
   coverUrl?: string | null;
   confidence: VolumeStackConfidence;
   source: VolumeListSource;
+  /** 1.32.0: the Wikipedia page the series' volume list was completed from, or null (the source line links it). */
+  listCredit?: ListCreditDto | null;
   presentCount: number;
   chapterCount?: number | null;
   /** 1.29.0 RC: complete chapters of chapterCount. */
@@ -2051,6 +2053,8 @@ export interface SeriesProgressDto {
   completionTarget?: number | null;
   completionHeld?: number | null;
   completionInChapters?: boolean;
+  /** 1.32.0: set when the series' volume list was completed from a Wikipedia page ("Volume list: MangaDex, completed from Wikipedia"). */
+  listCredit?: ListCreditDto | null;
 }
 
 // --- Official releases tab (1.30.0) ---
@@ -2329,4 +2333,48 @@ export interface EmptyTrashResultDto {
 export interface TrashHeldLibraryDto {
   libraryId: string;
   hold: TrashHold;
+}
+
+// --- Wikipedia companion (1.32.0) ---
+
+/** Where a volume list was read from: a small source line with a link. */
+export interface ListCreditDto {
+  name: string;
+  url: string;
+  title: string;
+}
+
+export type WikipediaListState = 'Found' | 'NotFound' | 'Rejected' | 'None' | 'Failed';
+export type WikipediaListMethod = 'Wikidata' | 'Title' | 'Admin';
+
+export interface WikipediaPageDto {
+  title: string;
+  url: string;
+  revision?: number;
+}
+
+export interface WikipediaVolumeDto {
+  volume: string;
+  /** The earliest English release date as the page states it: 2026-12-08, 2002-02 or 2002. May be in the future (announced). */
+  englishDate?: string | null;
+  /** The first valid English ISBN, digits only. */
+  englishIsbn?: string | null;
+}
+
+/** The Wikipedia companion of a linked series (GET /admin/metadata/nodes/{nodeId}/wikipedia). */
+export interface WikipediaListDto {
+  state: WikipediaListState;
+  method: WikipediaListMethod;
+  /** A sanitized code for why the last list was refused or the last attempt failed (no_page, no_list, disagrees_with_mangadex ...). */
+  code?: string | null;
+  adminTitle?: string | null;
+  pages?: WikipediaPageDto[];
+  volumes?: number;
+  details?: WikipediaVolumeDto[];
+  checkedAt?: string | null;
+  nextCheckAt?: string | null;
+}
+
+export interface WikipediaPageRequest {
+  page: string;
 }

@@ -84,6 +84,16 @@ describe('VolumeStackViewComponent', () => {
     expect(el.querySelector('[data-testid="stack-source"]')!.textContent).toBe("Grouped by the series' volume list");
   });
 
+  it('1.32.0: credits Wikipedia with a link when the volume list was completed from it, and says nothing otherwise', () => {
+    const credited = setup(stack({ source: 'Wikipedia', listCredit: { name: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/List_of_Example_chapters', title: 'List of Example chapters' } }));
+    const link = credited.el.querySelector('[data-testid="list-credit-link"]') as HTMLAnchorElement;
+    expect(credited.el.querySelector('[data-testid="list-credit"]')!.textContent).toContain('Volume list completed from Wikipedia');
+    expect(link.href).toBe('https://en.wikipedia.org/wiki/List_of_Example_chapters');
+    expect(link.rel).toBe('noopener noreferrer');
+    TestBed.resetTestingModule();
+    expect(setup(stack()).el.querySelector('[data-testid="list-credit"]')).toBeNull();
+  });
+
   it('names the REAL folder in the breadcrumbs and never a provider on the page', () => {
     const { el } = setup(stack());
 

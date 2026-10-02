@@ -15,6 +15,7 @@ import { ReviewLibraryOption } from '../review/review-dashboard.component';
 import { MissingReportApiService } from './missing-report-api.service';
 import { reachSentence, upgradeText } from '../progress/series-progress-labels';
 import { CompletionMarkComponent } from '../official/completion-mark.component';
+import { ListCreditComponent } from '../../../shared/list-credit.component';
 import {
   MISSING_CONFIDENCE_LABELS, MISSING_VERDICT_LABELS, batchSentence, conversionLine, gapDetail, gapsOf, haveSentence, noVerdictReason, totalTooltip,
 } from './missing-labels';
@@ -33,7 +34,7 @@ type Filter = 'missing' | 'all';
   standalone: true,
   imports: [
     RouterLink, MatButtonModule, MatButtonToggleModule, MatFormFieldModule, MatIconModule, MatProgressSpinnerModule, MatSelectModule,
-    MatTooltipModule, CompletionMarkComponent,
+    MatTooltipModule, CompletionMarkComponent, ListCreditComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -100,6 +101,7 @@ type Filter = 'missing' | 'all';
                 </header>
                 <p class="meta">{{ row.recordTitle }} · {{ row.libraryName }}@if (row.linkState === 'Auto') { · <span class="auto">automatic link</span> }</p>
                 @if (reachSentence(row.progress); as r) { <p class="reach" data-testid="missing-reach">{{ r }}</p> }
+                <app-list-credit [credit]="row.progress?.listCredit" />
                 @if (row.progress && upgradeText(row.progress); as u) { <p class="note upgrade" data-testid="missing-upgrade">{{ u }} (an upgrade, not missing)</p> }
                 @for (gap of gapsOf(row); track gap.kind) {
                   <p class="gap" data-testid="missing-gap">
