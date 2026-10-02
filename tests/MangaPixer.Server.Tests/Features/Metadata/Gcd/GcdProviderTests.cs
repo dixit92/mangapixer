@@ -325,3 +325,18 @@ public sealed class GcdMappingUnitTests
         Assert.Empty(GcdMapping.CreditNames("?"));
     }
 }
+
+/// <summary>The longest name part GCD's literal substring search can still find (1.32.0).</summary>
+public sealed class GcdNamePartTests
+{
+    [Theory]
+    [InlineData("Death - The High Cost of Living", "The High Cost of Living")]
+    [InlineData("Batman: Year One", "Year One")]
+    [InlineData("Saga", null)]
+    [InlineData("Ab - Cd", null)]
+    [InlineData("", null)]
+    public void LongestNamePart(string name, string? part)
+    {
+        Assert.Equal(part, GcdMapping.LongestNamePart(name));
+    }
+}

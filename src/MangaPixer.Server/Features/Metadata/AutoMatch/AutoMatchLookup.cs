@@ -68,10 +68,11 @@ public sealed class AutoMatchLookup
     private const string ComicsProvider = GcdMapping.ProviderId;
 
     /// <summary>
-    /// GCD searches per comics work (1.32.0): the name with its start year, then without it (or the next name variant) - every
-    /// request counts at 25 an hour, and a GCD search answers with whole series, so no GET follows.
+    /// GCD searches per comics work (1.32.0): the name with its start year, the longest part of a name with a title separator
+    /// (GCD's search is a literal substring match), then the name without its year or the next variant - every request counts at
+    /// 25 an hour, and a GCD search answers with whole series, so no GET follows.
     /// </summary>
-    public const int MaxComicsSearchesPerWork = 2;
+    public const int MaxComicsSearchesPerWork = 3;
 
     /// <summary>How long a comics work waits when GCD refused without saying until when (one token period).</summary>
     public static readonly TimeSpan DefaultDeferral = TimeSpan.FromSeconds(144);
@@ -167,8 +168,9 @@ public sealed class AutoMatchLookup
             : _gateway.GetSeriesAsync(reference.Provider, libraryId, reference.ExternalId, ct, call);
 
     /// <summary>
-    /// The GCD searches of a comics work (1.32.0): the name with the start year of its <c>(YYYY)</c>, then the name without the year
-    /// when that found nothing at the review floor, else the next name variant - at most <see cref="MaxComicsSearchesPerWork"/>. Each
+    /// The GCD searches of a comics work (1.32.0): the name with the start year of its <c>(YYYY)</c>, then - while nothing reached the
+    /// review floor - the longest part of a name with a title separator (<see cref="GcdMapping.LongestNamePart"/>), the name without
+    /// the year, the next name variant - at most <see cref="MaxComicsSearchesPerWork"/>. Each
     /// hit is a whole series (no GET). A tie on the title between two GCD editions of a volume-shaped work may compare their first
     /// issues' cover thumbnails with the local cover (Automatic matching's consent; best effort, never deferred).
     /// </summary>
@@ -184,6 +186,8 @@ public sealed class AutoMatchLookup
             return _scorer.Score(query, [], thresholds);
         var year = query.Context.ComicsEvidence?.StartYear;
         var attempts = new List<(string Text, int? Year)> { (texts[0], year) };
+        if (GcdMapping.LongestNamePart(texts[0]) is { } part)
+            attempts.Add((part, year));
         if (year is not null)
             attempts.Add((texts[0], null));
         attempts.AddRange(texts.Skip(1).Select(t => (t, (int?)null)));

@@ -120,6 +120,25 @@ public static partial class GcdMapping
         return ComicsShape.Unknown;
     }
 
+    private static readonly string[] s_nameSeparators = [" - ", " – ", " — ", ": ", " ~ ", "~", " | ", " / "];
+
+    /// <summary>
+    /// The longest part of a name split at a title separator (<c>Death - The High Cost of Living</c> -> <c>The High Cost of
+    /// Living</c>), or null when the name has none or the part is too short to search (1.32.0). GCD's name search is a literal
+    /// substring match, so a folder that writes <c> - </c> where GCD writes <c>:</c> finds nothing with the whole name; the longest
+    /// part still matches inside GCD's own spelling.
+    /// </summary>
+    public static string? LongestNamePart(string? name)
+    {
+        var text = MetadataGateway.NormalizeQuery(name);
+        if (text.Length == 0 || !s_nameSeparators.Any(sep => text.Contains(sep, StringComparison.Ordinal)))
+            return null;
+        var best = text.Split(s_nameSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .OrderByDescending(p => p.Length)
+            .FirstOrDefault();
+        return best is { Length: >= 6 } && best.Any(char.IsLetter) && !string.Equals(best, text, StringComparison.Ordinal) ? best : null;
+    }
+
     /// <summary>A GCD id from one of its API URLs (<c>https://www.comics.org/api/publisher/672/?format=json</c> -> 672).</summary>
     public static long? IdFromApiUrl(string? url, string kind)
     {

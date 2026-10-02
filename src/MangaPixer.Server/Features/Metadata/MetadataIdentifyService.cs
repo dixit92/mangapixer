@@ -137,6 +137,9 @@ public sealed class MetadataIdentifyService
             Add(v);
         if (local.ComicInfoSeries is { } ciSeries)
             Add(TitleNormalizer.Normalize(ciSeries).Primary is { Length: > 0 } p ? p : ciSeries);
+        // 1.32.0: GCD's name search is a literal substring match - the longest part of a name with a title separator is offered too.
+        if (ComicsAvailable)
+            Add(GcdMapping.LongestNamePart(normalized.Primary));
         if (suggestions.Count == 0)
             Add(node.DisplayName);
 

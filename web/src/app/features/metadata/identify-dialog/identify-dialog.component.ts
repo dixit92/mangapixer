@@ -161,7 +161,8 @@ type Step = 'search' | 'preview';
               <button mat-button type="button" [disabled]="busy()" (click)="moreResults()">More results</button>
             }
           } @else if (searched() && !busy()) {
-            <p class="muted">No results. Try another spelling, the original title, or paste the series URL.</p>
+            <p class="muted" data-testid="identify-no-results">No results. Try another spelling, the original title, or paste the series URL.
+              @if (resultsSite() === 'gcd') { The Grand Comics Database finds names spelled exactly as it writes them: try a shorter part of the name (without “ - ” or “:”). }</p>
           } @else {
             <p class="muted small">Budget: {{ budgetUsed() }}/{{ budgetLimit() }} requests today.</p>
           }
