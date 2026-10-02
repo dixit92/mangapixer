@@ -7,6 +7,15 @@ import { MatSelectModule } from '@angular/material/select';
 import { ApiService } from '../../../core/api/api.service';
 import { LibraryDto, LibraryScanSchedule } from '../../../core/api/api-types';
 
+/** The 24 hours of the "At" select (server time) and the weekdays of "On" (0 = Sunday, as the server counts). */
+export const SCAN_HOURS: readonly number[] = Array.from({ length: 24 }, (_, h) => h);
+export const WEEKDAYS: readonly string[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/** "03:00" for an hour. */
+export function hourLabel(h: number): string {
+  return `${String(h).padStart(2, '0')}:00`;
+}
+
 /** Preset labels in the order the server lists `LibraryScanSchedules.Allowed`. */
 export const SCAN_SCHEDULE_OPTIONS: readonly { value: LibraryScanSchedule; label: string }[] = [
   { value: 'off', label: 'Off' },
@@ -23,7 +32,9 @@ export const SCAN_SCHEDULE_OPTIONS: readonly { value: LibraryScanSchedule; label
  * DTO (`scanSchedule`, `nextScheduledScanAt`, which the catalog listing the
  * card is built from does not carry) and saves the preset itself. It re-reads
  * whenever the host's row changes scan state, so "Last scan" / "Next scan"
- * follow scans started from the card or by the scheduler.
+ * follow scans started from the card or by the scheduler. 1.32.0: Daily and Weekly take
+ * a time of day ("At", server time; "Any time" = one interval after the last scan) and
+ * Weekly a weekday ("On"); the request always carries the whole schedule.
  */
 @Component({
   selector: 'app-library-scan-schedule',
@@ -41,6 +52,29 @@ export const SCAN_SCHEDULE_OPTIONS: readonly { value: LibraryScanSchedule; label
           }
         </mat-select>
       </mat-form-field>
+      @if (takesHour()) {
+        <mat-form-field appearance="fill" class="time-select" floatLabel="always" subscriptSizing="dynamic">
+          <mat-label>At (server time)</mat-label>
+          <mat-select [value]="hour() ?? -1" [disabled]="saving()" (selectionChange)="saveHour($event.value)"
+                      aria-label="Scan time of day" data-testid="scan-hour">
+            <mat-option [value]="-1">Any time</mat-option>
+            @for (h of hours; track h) {
+              <mat-option [value]="h">{{ hourLabel(h) }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        @if (schedule() === '7d' && hour() !== null) {
+          <mat-form-field appearance="fill" class="time-select" floatLabel="always" subscriptSizing="dynamic">
+            <mat-label>On</mat-label>
+            <mat-select [value]="weekday() ?? 0" [disabled]="saving()" (selectionChange)="saveWeekday($event.value)"
+                        aria-label="Scan weekday" data-testid="scan-weekday">
+              @for (d of weekdays; track $index) {
+                <mat-option [value]="$index">{{ d }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        }
+      }
       <span class="schedule-info">
         <span class="last">Last scan:
           @if (lastScan(); as last) { {{ last | date:'short' }} } @else { never }
@@ -64,6 +98,7 @@ export const SCAN_SCHEDULE_OPTIONS: readonly { value: LibraryScanSchedule; label
       font-size: 13px;
     }
     .schedule-select { width: 150px; }
+    .time-select { width: 140px; }
     .schedule-info { display: inline-flex; flex-wrap: wrap; gap: 4px 16px; opacity: 0.75; }
     .schedule-error { color: var(--mp-warn, #ff8a80); }
     @media (max-width: 600px) {
@@ -79,8 +114,16 @@ export class LibraryScanScheduleComponent {
   readonly library = input.required<LibraryDto>();
 
   readonly options = SCAN_SCHEDULE_OPTIONS;
+  readonly hours = SCAN_HOURS;
+  readonly weekdays = WEEKDAYS;
+  readonly hourLabel = hourLabel;
 
   readonly schedule = signal<LibraryScanSchedule | null>(null);
+  /** Server-local hour of a Daily / Weekly scan, or null ("Any time"). */
+  readonly hour = signal<number | null>(null);
+  /** Weekday of a Weekly scan with an hour (0 = Sunday), or null (Sunday). */
+  readonly weekday = signal<number | null>(null);
+  readonly takesHour = computed(() => this.schedule() === '1d' || this.schedule() === '7d');
   readonly lastScan = signal<string | null>(null);
   readonly nextScan = signal<string | null>(null);
   readonly saving = signal(false);
@@ -105,13 +148,34 @@ export class LibraryScanScheduleComponent {
     });
   }
 
+  /** A new preset: the time of day stays for Daily / Weekly, the weekday for Weekly only. */
   save(value: LibraryScanSchedule): void {
+    const takesHour = value === '1d' || value === '7d';
+    const hour = takesHour ? this.hour() : null;
+    this.persist(value, hour, value === '7d' && hour !== null ? this.weekday() : null);
+  }
+
+  /** "At": an hour, or -1 for "Any time". */
+  saveHour(value: number): void {
+    const schedule = this.schedule() ?? '1d';
+    const hour = value < 0 ? null : value;
+    this.persist(schedule, hour, schedule === '7d' && hour !== null ? this.weekday() : null);
+  }
+
+  /** "On": a weekday (0 = Sunday). */
+  saveWeekday(value: number): void {
+    this.persist(this.schedule() ?? '7d', this.hour(), value);
+  }
+
+  private persist(value: LibraryScanSchedule, hour: number | null, weekday: number | null): void {
     const id = this.library().id;
-    const previous = this.schedule();
+    const previous = [this.schedule(), this.hour(), this.weekday()] as const;
     this.schedule.set(value);
+    this.hour.set(hour);
+    this.weekday.set(weekday);
     this.saving.set(true);
     this.error.set(null);
-    this.api.setLibraryScanSchedule(id, value)
+    this.api.setLibraryScanSchedule(id, value, hour, weekday)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: dto => {
@@ -119,7 +183,9 @@ export class LibraryScanScheduleComponent {
           this.saving.set(false);
         },
         error: () => {
-          this.schedule.set(previous);
+          this.schedule.set(previous[0]);
+          this.hour.set(previous[1]);
+          this.weekday.set(previous[2]);
           this.saving.set(false);
           this.error.set('Could not save the scan schedule.');
         },
@@ -137,6 +203,8 @@ export class LibraryScanScheduleComponent {
 
   private apply(dto: LibraryDto): void {
     this.schedule.set(dto.scanSchedule ?? '1d');
+    this.hour.set(dto.scanHour ?? null);
+    this.weekday.set(dto.scanWeekday ?? null);
     this.lastScan.set(dto.lastScanCompleted);
     this.nextScan.set(dto.nextScheduledScanAt ?? null);
   }

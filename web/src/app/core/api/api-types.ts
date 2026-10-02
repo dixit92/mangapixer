@@ -265,6 +265,10 @@ export interface LibraryDto {
    * scheduler pass. Null when off / scheduler disabled; admin responses only.
    */
   nextScheduledScanAt?: string | null;
+  /** Server-local hour (0-23) of a Daily / Weekly scan (1.32.0); null = any time. Admin responses only. */
+  scanHour?: number | null;
+  /** Weekday of a Weekly scan with an hour (0 = Sunday ... 6); null = Sunday. Admin responses only. */
+  scanWeekday?: number | null;
 }
 
 /** Request to set a library's icon (1.22.0). Null clears back to the default. */
@@ -279,6 +283,9 @@ export type LibraryScanSchedule = (typeof LIBRARY_SCAN_SCHEDULES)[number];
 /** Request to set a library's automatic scan schedule (1.23.0). Null clears back to the daily default. */
 export interface SetLibraryScanScheduleRequest {
   scanSchedule: LibraryScanSchedule | null;
+  /** 1.32.0: the whole schedule - hour (Daily / Weekly only; null = any time) and weekday (Weekly with an hour only). */
+  scanHour?: number | null;
+  scanWeekday?: number | null;
 }
 
 /** Resolved effective default reader mode for an item (1.2.0). */
@@ -2329,4 +2336,79 @@ export interface EmptyTrashResultDto {
 export interface TrashHeldLibraryDto {
   libraryId: string;
   hold: TrashHold;
+}
+
+// --- Scheduled jobs (1.32.0): /admin/jobs ---
+
+export type ScheduledJobKind = 'daily' | 'weekly' | 'interval' | 'continuous' | 'startup' | 'onDemand';
+
+/** GET /admin/jobs: every job MangaPixer runs on its own, on the server's clock. */
+export interface ScheduledJobsDto {
+  serverTime: string;
+  /** IANA zone id of the server (every hour is in this zone). */
+  timeZone: string;
+  utcOffsetMinutes: number;
+  jobs: ScheduledJobDto[];
+  refresh: RefreshCadenceDto;
+}
+
+export interface ScheduledJobDto {
+  key: string;
+  /** The library of a `library-scan` row. */
+  libraryId?: string | null;
+  libraryName?: string | null;
+  kind: ScheduledJobKind;
+  enabled: boolean;
+  configurable: boolean;
+  managedByConfig?: boolean;
+  hour?: number | null;
+  defaultHour?: number | null;
+  weekday?: number | null;
+  intervalHours?: number | null;
+  scanSchedule?: string | null;
+  lastStartedAt?: string | null;
+  lastFinishedAt?: string | null;
+  lastOutcome?: string | null;
+  lastDetail?: string | null;
+  nextRunAt?: string | null;
+  waitingCode?: string | null;
+  running?: boolean;
+}
+
+export interface RefreshCadenceDto {
+  ongoingDays: number;
+  finishedDays: number;
+  followPace: boolean;
+  allowedOngoingDays: number[];
+  allowedFinishedDays: number[];
+  usedToday: number;
+  maxPerDay: number;
+  overdue: number;
+  byDays: RefreshCadenceCountDto[];
+}
+
+export interface RefreshCadenceCountDto {
+  days: number;
+  count: number;
+}
+
+/** PUT /admin/jobs/{key}: the hour of a daily job; null = its default (backups: any time). */
+export interface UpdateJobScheduleRequest {
+  hour?: number | null;
+}
+
+/** PUT /admin/jobs/metadata-refresh/cadence: a missing field keeps its value. */
+export interface UpdateRefreshCadenceRequest {
+  ongoingDays?: number | null;
+  finishedDays?: number | null;
+  followPace?: boolean | null;
+}
+
+/** GET /admin/jobs/metadata-refresh/series/{nodeId}: one linked series' refresh cadence (admin only). */
+export interface SeriesRefreshCadenceDto {
+  days: number;
+  reason: 'finished' | 'choice' | 'pace' | 'paused';
+  volumeIntervalDays?: number | null;
+  fetchedAt: string;
+  nextCheckAt: string;
 }
