@@ -271,6 +271,94 @@ describe('IdentifyDialogComponent', () => {
     expect(c.busy()).toBe(false);
   });
 
+  // --- 1.32.0: the site switch (MangaUpdates | Grand Comics Database) ---
+
+  const sites = [
+    { id: 'mangaupdates', name: 'MangaUpdates', available: true },
+    { id: 'gcd', name: 'Grand Comics Database', available: true, note: 'Comics and graphic novels. Answers about 25 requests an hour.' },
+  ];
+  const comicsCtx = () => ctx({
+    displayName: 'Bone (1991)', provider: 'gcd', providerName: 'Grand Comics Database', comicsSignalled: true, sites,
+    local: { displayName: 'Bone (1991)', itemCount: 2, yearHint: 1991 },
+  });
+  const gcdResults: IdentifySearchResultDto = {
+    provider: 'gcd', page: 1, totalHits: 3, budgetUsedToday: 1, dailyBudget: 5000,
+    candidates: [{ externalId: '4347', title: 'Bone', providerType: 'was ongoing series', origin: 'EnglishOriginal', year: 1991,
+      language: 'en', unitCount: 20, unitKind: 'issues', score: 1, strength: 'Strong' }],
+  };
+
+  it('shows no site switch with a single site', () => {
+    const { q } = create();
+    expect(q('[data-testid="identify-site"]')).toBeNull();
+  });
+
+  it('starts on the comics site for a comics folder, with its pace note and the start-year option', () => {
+    const { c, q } = create(comicsCtx());
+    expect(c.site()).toBe('gcd');
+    expect(q('[data-testid="identify-site"]')).not.toBeNull();
+    expect(q('[data-testid="identify-site-note"]')!.textContent).toContain('25 requests an hour');
+    expect(q('[data-testid="identify-start-year"]')!.textContent).toContain('Only series that began in 1991');
+    expect(q('[data-testid="identify-hide-doujinshi"]')).toBeNull();
+    expect(q('mat-label')!.textContent).toContain('Search Grand Comics Database');
+  });
+
+  it('searches the comics site with the name\'s start year; unticked, without it; previews from that site', () => {
+    const { c, api, render } = create(comicsCtx());
+    api.search.mockReturnValue(of(gcdResults));
+    c.runSearch();
+    expect(api.search).toHaveBeenLastCalledWith('n1', 'Berserk', 1, false, 'gcd', 1991);
+    render();
+    c.usePreview(c.resultsSite(), '4347', 'Search', gcdResults.candidates[0]);
+    expect(api.preview).toHaveBeenCalledWith('n1', { provider: 'gcd', externalId: '4347' });
+    c.back();
+    c.useStartYear.set(false);
+    c.runSearch();
+    expect(api.search).toHaveBeenLastCalledWith('n1', 'Berserk', 1, false, 'gcd', null);
+  });
+
+  it('switching to MangaUpdates clears the comics results and searches MangaUpdates with its type filter', () => {
+    const { c, api, render } = create(comicsCtx());
+    api.search.mockReturnValueOnce(of(gcdResults));
+    c.runSearch();
+    render();
+    expect(c.candidates().length).toBe(1);
+    c.chooseSite('mangaupdates');
+    render();
+    expect(c.candidates()).toEqual([]);
+    c.runSearch();
+    expect(api.search).toHaveBeenLastCalledWith('n1', 'Berserk', 1, true);
+  });
+
+  it('a removed site is shown but cannot be chosen; the dialog stays usable on the other one', () => {
+    const { c, q } = create(ctx({
+      fetchAvailable: false, unavailableCode: 'provider_not_allowed', provider: 'gcd',
+      sites: [sites[0], { ...sites[1], available: false, unavailableCode: 'provider_not_allowed' }],
+    }));
+    expect(q('[data-testid="identify-unavailable"]')).toBeNull();
+    expect(c.site()).toBe('mangaupdates');
+    const gcd = q('[data-site="gcd"] button') as HTMLButtonElement;
+    expect(gcd.disabled).toBe(true);
+    expect(c.siteUnavailable({ ...sites[1], available: false, unavailableCode: 'provider_not_allowed' })).toContain('allowlist');
+  });
+
+  it('shows the CC BY-SA credit of a comics preview', () => {
+    const { c, api, q, render } = create(comicsCtx());
+    api.preview.mockReturnValueOnce(of({ ...preview, provider: 'gcd', providerName: 'Grand Comics Database',
+      credit: 'Data: Grand Comics Database, CC BY-SA 4.0', siteUrl: 'https://www.comics.org/series/4347/' }));
+    c.usePreview('gcd', '4347', 'Search');
+    render();
+    expect(q('[data-testid="identify-credit"]')!.textContent).toContain('CC BY-SA 4.0');
+    expect(q('[data-testid="identify-credit"]')!.textContent).toContain('keeps its own cover');
+  });
+
+  it('a slow comics site answers "busy" with the time to try again', () => {
+    const { c, api, q, render } = create(comicsCtx());
+    api.search.mockReturnValueOnce(throwError(() => ({ error: 'provider_busy', message: 'Grand Comics Database answers only about 25 requests an hour.', detail: '2026-10-02T14:05:00Z' })));
+    c.runSearch();
+    render();
+    expect(q('[role="alert"]')!.textContent).toMatch(/25 requests an hour\. Try again after /);
+  });
+
   it('restorePrevious puts back a Don\'t match or an earlier record', () => {
     const { api } = create();
     const svc = api as unknown as MetadataApiService;
