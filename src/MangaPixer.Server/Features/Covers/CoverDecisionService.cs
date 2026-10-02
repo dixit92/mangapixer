@@ -528,8 +528,11 @@ public sealed class CoverDecisionService
         return removed > 0 ? CoverDecisionOutcome.Cleared : CoverDecisionOutcome.Unchanged;
     }
 
-    /// <summary>The record's refresh cadence (<see cref="RefreshCadence"/>; 1.32.0: a cancelled series counts as finished here too).</summary>
-    private static TimeSpan RecheckInterval(MetadataRecordEntity? record) => RefreshCadence.AgeFor(record?.OriginStatus);
+    /// <summary>
+    /// The record's refresh cadence (<see cref="RefreshCadence"/>; 1.32.0: a cancelled series counts as finished here too, and the
+    /// stored per-record cadence - the admin's choice and the series' pace - wins once computed).
+    /// </summary>
+    private static TimeSpan RecheckInterval(MetadataRecordEntity? record) => RefreshCadence.AgeFor(record?.RefreshCadenceDays, record?.OriginStatus);
 
     private static string Key(params object?[] parts)
     {

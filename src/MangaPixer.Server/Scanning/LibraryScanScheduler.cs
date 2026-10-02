@@ -46,7 +46,8 @@ public sealed class LibraryScanSchedulerOptions
 /// <see cref="EvaluateAsync"/> is one evaluation pass.
 ///
 /// A library is due when its schedule is not off and at least one interval has
-/// passed since its last completed scan, manual or scheduled
+/// passed since its last completed scan, manual or scheduled - or, with a time of
+/// day (1.32.0, Daily / Weekly), when that hour passed since its last completed scan
 /// (<see cref="LibraryEntity.LastScanCompleted"/>, stamped by
 /// <see cref="LibraryScanCoordinator"/>); a never-scanned library is due at once. A pass starts nothing while any scan is running
 /// (SQLite is single-writer and the post-scan analysis shares the worker pool),
@@ -100,12 +101,12 @@ public sealed class LibraryScanScheduler
     /// its schedule is off or the scheduler is disabled. Past-due libraries
     /// report their due time (the next evaluation picks them up).
     /// </summary>
-    public DateTimeOffset? EstimateNextScan(string? storedSchedule, DateTimeOffset? lastCompleted)
+    public DateTimeOffset? EstimateNextScan(string? storedSchedule, DateTimeOffset? lastCompleted, int? hour = null, int? weekday = null)
     {
         if (!Options.Enabled)
             return null;
         var now = _time.GetUtcNow();
-        var due = LibraryScanSchedules.NextDue(storedSchedule, lastCompleted, now);
+        var due = LibraryScanSchedules.NextDue(storedSchedule, lastCompleted, now, hour, weekday, _time.LocalTimeZone);
         if (due is { } d && FirstEvaluationUtc is { } first && first > d)
             return first;
         return due;
@@ -153,7 +154,9 @@ public sealed class LibraryScanScheduler
 
             if (library.State is not ("active" or "maintenance"))
                 continue;
-            if (!LibraryScanSchedules.IsDue(token, library.LastScanCompleted, now))
+            // 1.32.0: a Daily / Weekly library with an hour runs at that hour (server time); without one, an interval after its last scan.
+            if (LibraryScanSchedules.NextDue(token, library.LastScanCompleted, now, library.ScanHour, library.ScanWeekday, _time.LocalTimeZone) is not { } due
+                || due > now)
                 continue;
             if (_lastFailedAttempt.TryGetValue(library.Id, out var failedAt)
                 && now - failedAt < Min(RetryBackoff, LibraryScanSchedules.IntervalOf(token)!.Value))

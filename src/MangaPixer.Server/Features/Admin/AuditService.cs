@@ -245,6 +245,11 @@ public static class AuditActions
     public const string TrashEmptyAuto = "trash.empty.auto";
     public const string TrashBundlesClean = "trash.bundles.clean";
     public const string TrashBundlesCleanAuto = "trash.bundles.clean.auto";
+
+    // 1.32.0 Scheduled jobs: the job key and the hour / cadence in the result verb (no names).
+    public const string JobScheduleChange = "job.schedule.change";
+    public const string LibraryScanScheduleChange = "library.scan_schedule.change";
+    public const string MetadataRefreshCadenceChange = "metadata.refresh.cadence";
 }
 
 /// <summary>Canonical audit result verbs (kept short — the column is 32 chars).</summary>

@@ -40,6 +40,7 @@ import { LibraryDeclaredFactsComponent } from '../metadata/declared/library-decl
 import { ConsentRenewalBannerComponent } from '../metadata/consent-renewal-banner.component';
 import { AnalyticsCardComponent } from './analytics-card/analytics-card.component';
 import { MoveConflictsLinkComponent } from './move-conflicts/move-conflicts-link.component';
+import { ScheduledJobsComponent } from './scheduled-jobs/scheduled-jobs.component';
 import { TrashCardComponent } from './trash-card/trash-card.component';
 
 /**
@@ -58,7 +59,7 @@ import { TrashCardComponent } from './trash-card/trash-card.component';
     DebugLogCardComponent,
     UpdateCheckCardComponent,
     MoveConflictsLinkComponent,
-    TrashCardComponent,
+    TrashCardComponent, ScheduledJobsComponent,
     AnalyticsCardComponent,
     BackupSettingsCardComponent,
     FormsModule,
@@ -557,6 +558,7 @@ import { TrashCardComponent } from './trash-card/trash-card.component';
 
     <!-- Update Checker (opt-in, off by default) -->
     <app-trash-card />
+    <app-scheduled-jobs />
     <app-update-check-card />
 
     <!-- Admin Analytics dashboard v1 (1.22.0 lane E) -->

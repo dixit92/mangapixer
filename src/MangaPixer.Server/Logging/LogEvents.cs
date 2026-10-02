@@ -351,6 +351,11 @@ public static class LogEvents
         public const int TrashSettingsChanged = 7033;
         public const int TrashRunFailed = 7034;
         public const int TrashHoldReleased = 7035;
+
+        // 1.32.0 Scheduled jobs: job keys, hours and counts only.
+        public const int JobScheduleChanged = 7040;
+        public const int JobRunRecordFailed = 7041;
+        public const int CacheEvictionPass = 7042;
     }
 
     /// <summary>App-level request pipeline errors (unhandled 500s).</summary>

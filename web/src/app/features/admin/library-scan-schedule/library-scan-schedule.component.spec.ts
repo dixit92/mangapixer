@@ -33,6 +33,7 @@ class FakeApi {
   adminDto: LibraryDto = lib({ scanSchedule: '1d', nextScheduledScanAt: '2099-01-01T00:00:00Z' });
   getCalls: string[] = [];
   putCalls: { id: string; value: LibraryScanSchedule | null }[] = [];
+  timeCalls: { hour: number | null; weekday: number | null }[] = [];
   failPut = false;
 
   getLibrary(id: string): Observable<LibraryDto> {
@@ -40,10 +41,14 @@ class FakeApi {
     return of(this.adminDto);
   }
 
-  setLibraryScanSchedule(id: string, value: LibraryScanSchedule | null): Observable<LibraryDto> {
+  setLibraryScanSchedule(id: string, value: LibraryScanSchedule | null, hour: number | null = null, weekday: number | null = null): Observable<LibraryDto> {
     this.putCalls.push({ id, value });
+    this.timeCalls.push({ hour, weekday });
     if (this.failPut) return throwError(() => new Error('nope'));
-    return of({ ...this.adminDto, scanSchedule: value, nextScheduledScanAt: value === 'off' ? null : this.adminDto.nextScheduledScanAt });
+    return of({
+      ...this.adminDto, scanSchedule: value, scanHour: hour, scanWeekday: weekday,
+      nextScheduledScanAt: value === 'off' ? null : this.adminDto.nextScheduledScanAt,
+    });
   }
 }
 
@@ -129,5 +134,46 @@ describe('LibraryScanScheduleComponent', () => {
     expect(cmp.schedule()).toBe('1d');
     expect(cmp.saving()).toBe(false);
     expect(f.nativeElement.querySelector('[role="alert"]').textContent).toContain('Could not save');
+  });
+
+  it('offers a time of day for Daily and Weekly only, and a weekday for Weekly with a time (1.32.0)', () => {
+    const f = create();
+    const cmp = component(f);
+    expect(f.nativeElement.querySelector('[data-testid="scan-hour"]')).not.toBeNull();
+    expect(f.nativeElement.querySelector('[data-testid="scan-weekday"]')).toBeNull();
+
+    cmp.saveHour(3);
+    f.detectChanges();
+    expect(api.timeCalls.at(-1)).toEqual({ hour: 3, weekday: null });
+    expect(cmp.hour()).toBe(3);
+
+    // Weekly keeps the hour and offers the weekday.
+    cmp.save('7d');
+    f.detectChanges();
+    expect(api.timeCalls.at(-1)).toEqual({ hour: 3, weekday: null });
+    expect(f.nativeElement.querySelector('[data-testid="scan-weekday"]')).not.toBeNull();
+    cmp.saveWeekday(1);
+    expect(api.timeCalls.at(-1)).toEqual({ hour: 3, weekday: 1 });
+
+    // Hourly drops the time; "Any time" clears it.
+    cmp.save('1h');
+    f.detectChanges();
+    expect(api.timeCalls.at(-1)).toEqual({ hour: null, weekday: null });
+    expect(f.nativeElement.querySelector('[data-testid="scan-hour"]')).toBeNull();
+    cmp.save('1d');
+    cmp.saveHour(5);
+    cmp.saveHour(-1);
+    expect(api.timeCalls.at(-1)).toEqual({ hour: null, weekday: null });
+  });
+
+  it('labels hours as server time', () => {
+    const f = create();
+    expect(f.nativeElement.textContent).toContain('At (server time)');
+  });
+
+  it('shows last and next scan in a given server zone (Scheduled jobs section)', () => {
+    const f = create();
+    const cmp = component(f);
+    expect(cmp.inZone('2026-10-03T07:00:00Z')).toBe('Sat 3 Oct, 07:00');
   });
 });

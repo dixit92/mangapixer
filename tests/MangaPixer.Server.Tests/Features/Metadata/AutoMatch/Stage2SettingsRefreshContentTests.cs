@@ -185,7 +185,7 @@ public sealed class Stage2SettingsRefreshContentTests : IAsyncLifetime
         _h.Records[811] = MuJson.Get(811, "Record 811 Renamed");
         await _h.EnableAutomaticAsync();
 
-        Assert.Equal(2, await _h.Refresh().RunPassAsync());
+        Assert.Equal(2, (await _h.Refresh().RunPassAsync()).Refreshed);
 
         Assert.Equal(["/v1/series/811", "/v1/series/814"], _h.Handler.Seen.Select(s => s.Uri.AbsolutePath).Order().ToArray());
         Assert.All(_h.Handler.Seen, s => Assert.Equal(HttpMethod.Get, s.Method)); // never a search: no name is sent
@@ -206,7 +206,7 @@ public sealed class Stage2SettingsRefreshContentTests : IAsyncLifetime
         _h.Records[841] = MuJson.Get(841, "Record 841", status: "5 Volumes (Ongoing)");
         await _h.EnableAutomaticAsync();
 
-        Assert.Equal(1, await _h.Refresh().RunPassAsync());
+        Assert.Equal(1, (await _h.Refresh().RunPassAsync()).Refreshed);
 
         _db.Db.ChangeTracker.Clear();
         var link = await _db.Db.NodeSeriesLinks.SingleAsync(l => l.NodeId == folder.Id);
@@ -222,19 +222,19 @@ public sealed class Stage2SettingsRefreshContentTests : IAsyncLifetime
     {
         await LinkedRecordAsync("821", MetadataOriginStatus.Ongoing, TimeSpan.FromDays(40));
         await _h.EnableAutomaticAsync(automatic: false);
-        Assert.Equal(0, await _h.Refresh().RunPassAsync());
+        Assert.Equal(0, (await _h.Refresh().RunPassAsync()).Refreshed);
 
         await _h.EnableAutomaticAsync();
         var row = await _db.Db.AppSettings.FirstAsync();
         row.MetadataRefreshDayUtc = _h.Net.Budget().Today();
         row.MetadataRefreshUsed = MetadataRefreshService.MaxPerDay;
         await _db.Db.SaveChangesAsync();
-        Assert.Equal(0, await _h.Refresh().RunPassAsync());
+        Assert.Equal(0, (await _h.Refresh().RunPassAsync()).Refreshed);
         Assert.Equal(0, _h.Handler.CallCount);
 
-        _h.Time.Advance(TimeSpan.FromDays(1)); // a new UTC day
+        _h.Time.Advance(TimeSpan.FromDays(1)); // a new budget day
         _h.Records[821] = MuJson.Get(821, "Record 821");
-        Assert.Equal(1, await _h.Refresh().RunPassAsync());
+        Assert.Equal(1, (await _h.Refresh().RunPassAsync()).Refreshed);
         Assert.Equal(1, _h.Handler.CallCount);
     }
 }

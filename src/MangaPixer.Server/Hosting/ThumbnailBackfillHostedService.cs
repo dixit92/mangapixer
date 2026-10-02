@@ -64,6 +64,11 @@ public sealed class ThumbnailBackfillHostedService : IHostedService
 
     private async Task RunBackfillAsync(CancellationToken ct)
     {
+        // 1.32.0: recorded as the thumbnails job's run (read-only in the Scheduled jobs section).
+        var runs = _services.GetService<Features.Jobs.JobRunRecorder>();
+        var started = runs is null ? DateTimeOffset.UtcNow : await runs.StartedAsync(Features.Jobs.ScheduledJobKeys.Thumbnails, CancellationToken.None);
+        var outcome = Features.Jobs.JobOutcomes.Failed;
+        string? detail = null;
         try
         {
             using var scope = _services.CreateScope();
@@ -97,15 +102,25 @@ public sealed class ThumbnailBackfillHostedService : IHostedService
             if (totalAttempted > 0)
                 _logger.LogInformation(LogEvents.Worker.ThumbnailBackfillEnqueued,
                     "Startup thumbnail backfill complete: {Count} thumbnails processed", totalAttempted);
+            outcome = Features.Jobs.JobOutcomes.Ok;
+            detail = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{totalAttempted} processed");
         }
         catch (OperationCanceledException)
         {
             // Shutdown — expected.
+            outcome = Features.Jobs.JobOutcomes.Skipped;
+            detail = "stopped";
         }
         catch (Exception ex)
         {
+            detail = ex.GetType().Name;
             _logger.LogWarning(LogEvents.Worker.ThumbnailGenerationFailed,
                 ex, "Startup thumbnail backfill failed: {Error}", ex.GetType().Name);
+        }
+        finally
+        {
+            if (runs is not null)
+                await runs.FinishedAsync(Features.Jobs.ScheduledJobKeys.Thumbnails, started, outcome, detail, CancellationToken.None);
         }
     }
 }

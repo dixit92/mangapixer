@@ -4,6 +4,7 @@ using com.lifepixer.mangapixer.Server.Media;
 using com.lifepixer.mangapixer.Server.Operations;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Features.Import.YacReader;
+using com.lifepixer.mangapixer.Server.Features.Jobs;
 using com.lifepixer.mangapixer.Server.Features.Library.Moves;
 using com.lifepixer.mangapixer.Server.Features.Reading;
 using com.lifepixer.mangapixer.Server.Features.Trash;
@@ -41,6 +42,8 @@ public static class HostingServicesExtensions
         services.AddLibraryMoves();
         // Empty trash + Clean bundles (1.31.0): the admin card's API and the daily automatic run.
         services.AddTrash();
+        // Scheduled jobs (1.32.0): persisted last runs (job_runs) and the admin Scheduled jobs section's API.
+        services.AddScheduledJobs();
         services.AddSingleton(sp => LibraryScanSchedulerOptions.FromConfiguration(
             sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()));
         services.AddSingleton<LibraryScanScheduler>();

@@ -430,7 +430,7 @@ public sealed class MetadataGateway
 
     private static MetadataGatewayException BudgetExhausted() =>
         new(StatusCodes.Status429TooManyRequests, "budget_exhausted",
-            "Today's metadata request budget is used up. It resets at 00:00 UTC; an admin can raise it in Metadata Manager.");
+            "Today's metadata request budget is used up. It resets at midnight server time; an admin can raise it in Metadata Manager.");
 
     /// <summary>"The metadata provider" for MangaUpdates (the wording of 1.24.0), else the provider's name.</summary>
     private static string NameOf(string providerId) =>

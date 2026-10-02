@@ -93,6 +93,8 @@ public sealed class MangaPixerDbContext : DbContext
     public DbSet<MoveConflictEntity> MoveConflicts => Set<MoveConflictEntity>();
     public DbSet<WikipediaListEntity> WikipediaLists => Set<WikipediaListEntity>();
     public DbSet<FolderCoverPreferenceEntity> FolderCoverPreferences => Set<FolderCoverPreferenceEntity>();
+    public DbSet<JobRunEntity> JobRuns => Set<JobRunEntity>();
+    public DbSet<MetadataRecordObservationEntity> MetadataRecordObservations => Set<MetadataRecordObservationEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -124,6 +126,7 @@ public sealed class MangaPixerDbContext : DbContext
         ConfigureNodeMoves(modelBuilder);
         ConfigureWikipediaLists(modelBuilder);
         ConfigureFolderCoverPreferences(modelBuilder);
+        ConfigureJobSchedules(modelBuilder);
     }
 
     private static void ConfigureAppSettings(ModelBuilder mb)
@@ -924,6 +927,31 @@ public sealed class MangaPixerDbContext : DbContext
             e.Property(x => x.AdminTitle).HasMaxLength(300);
             e.Property(x => x.RejectCode).HasMaxLength(32);
             e.HasIndex(x => x.RecordId).IsUnique();
+            e.HasOne(x => x.Record)
+                .WithMany()
+                .HasForeignKey(x => x.RecordId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    /// <summary>Scheduled jobs and the refresh cadence (1.32.0, migration AddJobSchedules).</summary>
+    private static void ConfigureJobSchedules(ModelBuilder mb)
+    {
+        mb.Entity<JobRunEntity>(e =>
+        {
+            e.ToTable("job_runs");
+            e.HasKey(x => x.Key);
+            e.Property(x => x.Key).HasMaxLength(64);
+            e.Property(x => x.LastOutcome).HasMaxLength(32);
+            e.Property(x => x.LastDetail).HasMaxLength(128);
+        });
+
+        mb.Entity<MetadataRecordObservationEntity>(e =>
+        {
+            e.ToTable("metadata_record_observations");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.HasIndex(x => new { x.RecordId, x.ObservedAt });
             e.HasOne(x => x.Record)
                 .WithMany()
                 .HasForeignKey(x => x.RecordId)
