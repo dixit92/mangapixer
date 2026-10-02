@@ -197,18 +197,22 @@ public sealed class VolumeCoverPass
                 }
             }
 
-            // 2. Volume 1 of every series, then 3. the volumes each series holds.
+            // 2. Volume 1 of every series, then 3. the volumes each series holds - except the series whose every linked folder
+            // prefers the file's cover (1.32.0): no new web cover is fetched for them (the lists above are kept).
+            var fileCovers = await FileCoverSeriesAsync(series, ct);
             foreach (var s in series)
             {
                 if (call.RequestsSent >= SliceRequests)
                     break;
-                if (await DownloadVolumeAsync(s, 1, settings.Language, call, ct))
+                if (!fileCovers.Contains(s.RecordId) && await DownloadVolumeAsync(s, 1, settings.Language, call, ct))
                     stored++;
             }
             foreach (var s in series)
             {
                 if (call.RequestsSent >= SliceRequests)
                     break;
+                if (fileCovers.Contains(s.RecordId))
+                    continue;
                 stored += await DownloadHeldVolumesAsync(s, settings.Language, call, ct);
             }
             _state.Set(null, null, _time.GetUtcNow());
@@ -229,6 +233,27 @@ public sealed class VolumeCoverPass
                 checkedSeries, stored, call.RequestsSent);
         return new VolumeCoverPassResult(call.RequestsSent, checkedSeries, stored, null);
     }
+
+    /// <summary>
+    /// The series (record ids) that need no web cover (1.32.0): every folder or file they are linked from sits under the folder cover
+    /// preference "File covers" (the nearest ancestor with a row wins). A series linked from one such folder and one other keeps
+    /// downloading - its covers are shared by the record. One query for the whole batch.
+    /// </summary>
+    internal async Task<HashSet<long>> FileCoverSeriesAsync(IReadOnlyList<VolumeSeries> series, CancellationToken ct)
+    {
+        var result = new HashSet<long>();
+        var preferences = await Covers.FolderCoverPreferences.NearestAsync(_db, series.SelectMany(s => s.NodeIds).ToList(), ct);
+        if (preferences.Count == 0)
+            return result;
+        foreach (var s in series)
+            if (s.NodeIds.Count > 0 && s.NodeIds.All(id => preferences.TryGetValue(id, out var p) && FolderCoverRules.SkipsWebWork(p.Preference)))
+                result.Add(s.RecordId);
+        return result;
+    }
+
+    /// <summary>True when the pass fetches no web cover for a series linked from these nodes (see <see cref="FileCoverSeriesAsync"/>).</summary>
+    public async Task<bool> SkipsCoverDownloadsAsync(long recordId, IReadOnlyList<long> nodeIds, CancellationToken ct = default) =>
+        (await FileCoverSeriesAsync([new VolumeSeries(recordId, 0, nodeIds, null, default)], ct)).Contains(recordId);
 
     /// <summary>New covers were stored: the cover layer decides again soon instead of at its next periodic sweep.</summary>
     private void CoversStored(int stored)

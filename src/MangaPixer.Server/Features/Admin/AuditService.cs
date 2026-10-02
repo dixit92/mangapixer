@@ -223,6 +223,10 @@ public static class AuditActions
     // 1.29.0: per-folder view overrides (the Volumes view); ids only.
     public const string FolderViewSettingsChange = "folder.view.change";
 
+    // 1.32.0: a folder's cover preference (Web covers when available / File covers); ids only.
+    public const string FolderCoverPreferenceSet = "folder.cover-preference.set";
+    public const string FolderCoverPreferenceClear = "folder.cover-preference.clear";
+
     // 1.29.0: the MangaDex companion chosen / refused / re-checked by an admin, and "Delete stored volume covers" (ids, counts).
     public const string MetadataCompanionChange = "metadata.companion.change";
     public const string MetadataVolumeCoversDelete = "metadata.volume_covers.delete";

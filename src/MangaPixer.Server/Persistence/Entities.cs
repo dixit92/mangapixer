@@ -1800,3 +1800,17 @@ public sealed class WikipediaListEntity
     public MetadataRecordEntity? Record { get; set; }
 }
 
+
+/// <summary>
+/// A folder's cover preference (1.32.0), a 1:1 copy of <see cref="FolderReaderDefaultEntity"/>: applies to the folder and its subtree,
+/// the nearest row (self first, then ancestors) wins over the library's "Show web covers" switch; absence means "inherit".
+/// <c>FolderCoverPreference</c>: 0 web covers when available, 1 the file's cover. Deleted with its node.
+/// </summary>
+public sealed class FolderCoverPreferenceEntity
+{
+    public long Id { get; set; }
+    public long NodeId { get; set; }
+    public int Preference { get; set; }
+
+    public CatalogNodeEntity? Node { get; set; }
+}
