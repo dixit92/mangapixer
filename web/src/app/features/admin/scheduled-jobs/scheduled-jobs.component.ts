@@ -123,7 +123,7 @@ function rhythm(job: ScheduledJobDto): string {
 
                 @switch (job.key) {
                   @case ('library-scan') {
-                    <app-library-scan-schedule class="scan" [library]="libraryOf(job)" />
+                    <app-library-scan-schedule class="scan" [library]="libraryOf(job)" [serverZone]="j.timeZone" />
                   }
                   @case ('metadata-refresh') {
                     <div class="row">

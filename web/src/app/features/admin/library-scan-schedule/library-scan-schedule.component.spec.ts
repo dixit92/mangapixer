@@ -170,4 +170,10 @@ describe('LibraryScanScheduleComponent', () => {
     const f = create();
     expect(f.nativeElement.textContent).toContain('At (server time)');
   });
+
+  it('shows last and next scan in a given server zone (Scheduled jobs section)', () => {
+    const f = create();
+    const cmp = component(f);
+    expect(cmp.inZone('2026-10-03T07:00:00Z')).toBe('Sat 3 Oct, 07:00');
+  });
 });

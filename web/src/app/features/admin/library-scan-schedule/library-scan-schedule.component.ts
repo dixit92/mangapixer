@@ -77,12 +77,12 @@ export const SCAN_SCHEDULE_OPTIONS: readonly { value: LibraryScanSchedule; label
       }
       <span class="schedule-info">
         <span class="last">Last scan:
-          @if (lastScan(); as last) { {{ last | date:'short' }} } @else { never }
+          @if (lastScan(); as last) { {{ serverZone() ? inZone(last) : (last | date:'short') }} } @else { never }
         </span>
         <span class="next">Next scan (approx.):
           @if (schedule() === 'off') { off }
           @else if (nextScan(); as next) {
-            @if (isDue()) { shortly } @else { {{ next | date:'short' }} }
+            @if (isDue()) { shortly } @else { {{ serverZone() ? inZone(next) : (next | date:'short') }} }
           } @else { — }
         </span>
       </span>
@@ -113,6 +113,9 @@ export class LibraryScanScheduleComponent {
   /** The library row from the admin card (catalog DTO). */
   readonly library = input.required<LibraryDto>();
 
+  /** 1.32.0: an IANA zone (the Scheduled jobs section passes the server's) - last / next scan are then shown in that zone. */
+  readonly serverZone = input<string | null>(null);
+
   readonly options = SCAN_SCHEDULE_OPTIONS;
   readonly hours = SCAN_HOURS;
   readonly weekdays = WEEKDAYS;
@@ -128,6 +131,17 @@ export class LibraryScanScheduleComponent {
   readonly nextScan = signal<string | null>(null);
   readonly saving = signal(false);
   readonly error = signal<string | null>(null);
+
+  /** An instant in {@link serverZone} ("Fri 2 Oct, 03:00"). */
+  inZone(iso: string): string {
+    const zone = this.serverZone() ?? 'UTC';
+    const options: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' };
+    try {
+      return new Intl.DateTimeFormat('en-GB', { ...options, timeZone: zone }).format(new Date(iso));
+    } catch {
+      return new Intl.DateTimeFormat('en-GB', { ...options, timeZone: 'UTC' }).format(new Date(iso));
+    }
+  }
 
   /** A past (or present) next-scan time: the next scheduler pass picks it up. */
   readonly isDue = computed(() => {
