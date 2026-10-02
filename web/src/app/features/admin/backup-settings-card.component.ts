@@ -206,7 +206,8 @@ export const SNAPSHOT_MOVE_POLL_MS = 1000;
     </mat-card>
   `,
   styles: [`
-    mat-card { margin-bottom: 16px; }
+    :host { display: block; min-width: 0; }
+    mat-card { margin: 0; }
     .row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 10px 0; font-size: 14px; }
     .row label { min-width: 110px; }
     input[type=number] { width: 72px; }

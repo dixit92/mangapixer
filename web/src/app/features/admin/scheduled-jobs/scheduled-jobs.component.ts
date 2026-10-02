@@ -1,12 +1,22 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, output, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { Observable } from 'rxjs';
 
 import { ApiService } from '../../../core/api/api.service';
-import { LibraryDto, RefreshCadenceDto, ScheduledJobDto, ScheduledJobsDto, UpdateRefreshCadenceRequest } from '../../../core/api/api-types';
+import {
+  ApiError,
+  LibraryDto,
+  RefreshCadenceDto,
+  ScheduledJobDto,
+  ScheduledJobsDto,
+  TrashOverviewDto,
+  UpdateRefreshCadenceRequest,
+} from '../../../core/api/api-types';
 import { LibraryScanScheduleComponent, hourLabel } from '../library-scan-schedule/library-scan-schedule.component';
+import { trashCountsText } from '../trash-card/trash-card.component';
 
 /** Each job's name and one plain line on what it does. */
 export const JOB_TEXT: Record<string, { name: string; what: string }> = {
@@ -16,7 +26,7 @@ export const JOB_TEXT: Record<string, { name: string; what: string }> = {
     what: 'Fetches the series you have linked again from MangaUpdates, by record number. Needs Automatic matching.',
   },
   backup: { name: 'Database backup', what: 'Takes a copy of the database and keeps the newest ones.' },
-  trash: { name: 'Empty trash and clean bundles', what: 'Empties the trash and removes unused files, when automatic cleaning is on.' },
+  trash: { name: 'Empty trash and clean bundles', what: 'Empties the trash and removes unused files once a day, when automatic cleaning is on. Libraries with a hold are skipped.' },
   'cache-eviction': { name: 'Cache clean-up', what: 'Removes the oldest cached pages when the cache is over its size limit.' },
   'auto-match': { name: 'Automatic matching', what: 'Matches new series folders to MangaUpdates records.' },
   'volume-covers': { name: 'Volume covers and volume lists', what: 'Reads volume lists and covers of linked series.' },
@@ -91,13 +101,13 @@ function rhythm(job: ScheduledJobDto): string {
 /**
  * Scheduled jobs (1.32.0), self-contained (`<app-scheduled-jobs />`): every job MangaPixer runs on its own, with its last and
  * next run in server time. The admin chooses the hour of the daily jobs (series information refresh, backups, trash, cache
- * clean-up), each library's scan time (the scan schedule control of the Libraries card) and the refresh cadence. The other jobs
+ * clean-up; for the trash also the automatic-cleaning switch), each library's scan time (the scan schedule control of the Libraries card) and the refresh cadence. The other jobs
  * keep their own rhythm and are listed read-only.
  */
 @Component({
   selector: 'app-scheduled-jobs',
   standalone: true,
-  imports: [MatCardModule, MatSlideToggleModule, LibraryScanScheduleComponent],
+  imports: [MatButtonModule, MatCardModule, MatSlideToggleModule, LibraryScanScheduleComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <mat-card data-testid="scheduled-jobs">
@@ -113,7 +123,8 @@ function rhythm(job: ScheduledJobDto): string {
           </p>
           <ul class="jobs">
             @for (job of j.jobs; track job.key + (job.libraryId ?? '')) {
-              <li [attr.data-testid]="'job-' + job.key + (job.libraryId ? '-' + job.libraryId : '')">
+              <li [attr.data-testid]="'job-' + job.key + (job.libraryId ? '-' + job.libraryId : '')"
+                  [attr.id]="job.libraryId ? null : 'job-' + job.key">
                 <div class="head">
                   <span class="name">{{ name(job) }}</span>
                   @if (job.running) { <span class="badge">Running</span> }
@@ -181,6 +192,10 @@ function rhythm(job: ScheduledJobDto): string {
                     }
                   }
                   @case ('trash') {
+                    <mat-slide-toggle [checked]="job.enabled" [disabled]="busy() || trashAsk() !== null" data-testid="job-trash-auto"
+                                      (change)="onTrashToggle($event.checked, $event.source)">
+                      Turn automatic cleaning on
+                    </mat-slide-toggle>
                     <div class="row">
                       <label for="job-trash-hour">Run automatic cleaning at</label>
                       <select id="job-trash-hour" data-testid="job-hour-trash" [disabled]="busy()"
@@ -188,7 +203,21 @@ function rhythm(job: ScheduledJobDto): string {
                         @for (h of hours; track h) { <option [value]="h" [selected]="h === job.hour">{{ hourLabel(h) }}</option> }
                       </select>
                     </div>
-                    @if (!job.enabled) { <p class="hint">Off - turn automatic cleaning on in the Trash card.</p> }
+                    @if (!job.enabled) {
+                      <p class="hint">Off: nothing is removed unless you choose "Empty trash now" or "Clean bundles now" in the Trash card.</p>
+                    }
+                    @if (trashAsk(); as ask) {
+                      <div class="confirm" role="alertdialog" aria-labelledby="job-trash-confirm-h" data-testid="job-trash-confirm">
+                        <h5 id="job-trash-confirm-h">Turn automatic cleaning on?</h5>
+                        <p>{{ trashConfirmText(ask, job.hour ?? job.defaultHour ?? 4) }}</p>
+                        <div class="actions">
+                          <button mat-flat-button color="warn" type="button" data-testid="job-trash-confirm-yes" [disabled]="busy()"
+                                  (click)="confirmTrashOn()">Turn on</button>
+                          <button mat-button type="button" data-testid="job-trash-confirm-no" [disabled]="busy()"
+                                  (click)="cancelTrashOn()">Cancel</button>
+                        </div>
+                      </div>
+                    }
                   }
                   @case ('cache-eviction') {
                     <div class="row">
@@ -220,9 +249,11 @@ function rhythm(job: ScheduledJobDto): string {
     </mat-card>
   `,
   styles: [`
-    mat-card { margin-bottom: 16px; }
+    :host { display: block; min-width: 0; }
+    mat-card { margin: 0; }
     .clock { font-size: 14px; margin: 4px 0 10px; }
-    .jobs { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+    /* The jobs sit side by side as far as the card is wide (one column on a phone). */
+    .jobs { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 10px; }
     .jobs li { border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 8px 10px; min-width: 0; }
     .head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
     .name { font-weight: 500; overflow-wrap: anywhere; }
@@ -235,6 +266,10 @@ function rhythm(job: ScheduledJobDto): string {
     .runs { display: flex; flex-wrap: wrap; gap: 4px 16px; }
     .scan ::ng-deep .scan-schedule { padding: 4px 0 0; }
     .error { color: #f44336; font-size: 14px; margin: 8px 0; }
+    .confirm { border: 1px solid rgba(244, 67, 54, 0.5); border-radius: 6px; padding: 10px 12px; margin: 10px 0; font-size: 14px; }
+    .confirm h5 { margin: 0 0 6px; font-size: 14px; }
+    .confirm p { margin: 4px 0; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
   `],
 })
 export class ScheduledJobsComponent implements OnInit {
@@ -247,6 +282,14 @@ export class ScheduledJobsComponent implements OnInit {
   readonly hours = Array.from({ length: 24 }, (_, h) => h);
   readonly hourLabel = hourLabel;
   readonly cadence = cadenceLabel;
+
+  /** Raised after a save that changed the trash's automatic cleaning (switch or hour), so the Trash card refreshes its status line. */
+  readonly trashChanged = output<void>();
+
+  /** The trash preview shown while the admin confirms turning automatic cleaning on (null when no confirm is open). */
+  readonly trashAsk = signal<TrashOverviewDto | null>(null);
+  /** The slide toggle that asked, put back if the admin cancels. */
+  private trashToggle: { checked: boolean } | null = null;
 
   readonly offset = computed(() => offsetLabel(this.jobs()?.utcOffsetMinutes ?? 0));
 
@@ -317,20 +360,94 @@ export class ScheduledJobsComponent implements OnInit {
   }
 
   setHour(key: string, hour: number): void {
-    this.save(this.api.setJobHour(key, hour < 0 ? null : hour));
+    this.save(this.api.setJobHour(key, hour < 0 ? null : hour), key === 'trash');
+  }
+
+  /**
+   * Automatic trash cleaning is switched here (1.32.0; it was the Trash card's switch). Turning it on is the approval of automatic
+   * purging, so it asks first with what the first run would remove; turning it off saves at once. Same endpoint and audit as before.
+   */
+  onTrashToggle(on: boolean, source: { checked: boolean }): void {
+    if (!on) {
+      this.saveTrash(false);
+      return;
+    }
+    this.trashToggle = source;
+    this.error.set(null);
+    this.api.getTrash().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: o => this.trashAsk.set(o),
+      error: (e: ApiError) => {
+        this.resetTrashToggle();
+        this.error.set(e?.message || 'The trash could not be read. Automatic cleaning stays off.');
+      },
+    });
+  }
+
+  trashConfirmText(o: TrashOverviewDto, hour: number): string {
+    return `Every day at ${hourLabel(hour)} (server time) the trash is emptied and unused files are removed. `
+      + `The first run removes what is ready now: ${trashCountsText(o.total)}, and ${o.bundles.files} unused `
+      + `${o.bundles.files === 1 ? 'file' : 'files'}. Libraries with a hold are skipped. This cannot be undone.`;
+  }
+
+  confirmTrashOn(): void {
+    if (this.busy()) return;
+    this.trashToggle = null;
+    this.saveTrash(true);
+  }
+
+  cancelTrashOn(): void {
+    this.trashAsk.set(null);
+    this.resetTrashToggle();
+  }
+
+  private resetTrashToggle(): void {
+    if (this.trashToggle) {
+      this.trashToggle.checked = this.jobs()?.jobs.find(j => j.key === 'trash')?.enabled ?? false;
+      this.trashToggle = null;
+    }
+  }
+
+  private saveTrash(automaticCleaning: boolean): void {
+    this.busy.set(true);
+    this.error.set(null);
+    this.api.updateTrashSettings({ automaticCleaning }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: () => {
+        this.trashAsk.set(null);
+        // The jobs list carries the trash row's enabled flag and next run: read it again, then tell the Trash card.
+        this.api.getScheduledJobs().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+          next: dto => {
+            this.jobs.set(dto);
+            this.busy.set(false);
+            this.trashChanged.emit();
+          },
+          error: () => {
+            this.busy.set(false);
+            this.error.set('Saved, but the list could not be reloaded.');
+            this.trashChanged.emit();
+          },
+        });
+      },
+      error: (e: ApiError) => {
+        this.busy.set(false);
+        this.trashAsk.set(null);
+        this.resetTrashToggle();
+        this.error.set(e?.message || 'Could not save. The previous setting is kept.');
+      },
+    });
   }
 
   setCadence(request: UpdateRefreshCadenceRequest): void {
     this.save(this.api.setRefreshCadence(request));
   }
 
-  private save(call: Observable<ScheduledJobsDto>): void {
+  private save(call: Observable<ScheduledJobsDto>, trash = false): void {
     this.busy.set(true);
     this.error.set(null);
     call.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: dto => {
         this.jobs.set(dto);
         this.busy.set(false);
+        if (trash) this.trashChanged.emit();
       },
       error: () => {
         this.busy.set(false);

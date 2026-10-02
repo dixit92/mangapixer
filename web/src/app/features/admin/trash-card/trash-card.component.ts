@@ -3,7 +3,6 @@ import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } 
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { Observable } from 'rxjs';
 
 import { ApiService } from '../../../core/api/api.service';
@@ -33,9 +32,21 @@ export const HOLD_TEXT: Record<TrashHold, string> = {
   burst: 'More than half of this library would go - a disk or folder may have been offline when it was scanned.',
 };
 
+/** "3 items (2 files, 1 folder) · 4 reading-state entries · 6.0 KB" - what a trash count holds, also used by the jobs row's confirm. */
+export function trashCountsText(c: TrashCountsDto): string {
+  if (c.nodes === 0) return 'nothing';
+  const parts = [`${c.nodes} ${c.nodes === 1 ? 'item' : 'items'}`];
+  const detail: string[] = [];
+  if (c.archives > 0) detail.push(`${c.archives} ${c.archives === 1 ? 'file' : 'files'}`);
+  if (c.folders > 0) detail.push(`${c.folders} ${c.folders === 1 ? 'folder' : 'folders'}`);
+  if (detail.length > 0) parts[0] += ` (${detail.join(', ')})`;
+  if (c.userStateRows > 0) parts.push(`${c.userStateRows} reading-state ${c.userStateRows === 1 ? 'entry' : 'entries'}`);
+  parts.push(formatBytes(c.bytes));
+  return parts.join(' · ');
+}
+
 /** What a confirm step is about. */
 type Pending =
-  | { kind: 'enable' }
   | { kind: 'empty-all' }
   | { kind: 'empty-library'; library: TrashLibraryDto }
   | { kind: 'clean' };
@@ -45,15 +56,15 @@ type Pending =
  * (`<app-trash-card />`).
  * - The move window, which is also the trash retention: how long a moved or renamed series is recognised (keeping its
  *   reading state) and how long removed items stay in the trash before they can be emptied.
- * - "Turn automatic cleaning on" (off by default - turning it on is the admin's approval): once a day both actions run;
- *   libraries with a hold are skipped.
+ * - A status line for automatic cleaning (off by default); the switch and the hour moved to the Scheduled jobs card in 1.32.0,
+ *   so each job time is set in one place. A daily run empties the trash and cleans bundles; libraries with a hold are skipped.
  * - "Empty trash now" (all libraries, or one - which also releases its hold) and "Clean bundles now", each confirmed
  *   with what it removes.
  */
 @Component({
   selector: 'app-trash-card',
   standalone: true,
-  imports: [CommonModule, MatButtonModule, MatCardModule, MatIconModule, MatSlideToggleModule],
+  imports: [CommonModule, MatButtonModule, MatCardModule, MatIconModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <mat-card data-testid="trash-card">
@@ -79,26 +90,17 @@ type Pending =
             After it, removed items can leave the trash - with their reading progress, read marks, bookmarks and favorites.
           </p>
 
-          <mat-slide-toggle [checked]="o.settings.automaticCleaning" [disabled]="busy()" data-testid="trash-auto"
-                            (change)="onAutomaticToggle($event.checked, $event.source)">
-            Turn automatic cleaning on
-          </mat-slide-toggle>
-          <div class="row">
-            <label for="trash-hour">Run automatic cleaning at</label>
-            <select id="trash-hour" data-testid="trash-hour" [disabled]="busy()"
-                    (change)="setHour(+$any($event.target).value)">
-              @for (h of hours; track h) {
-                <option [value]="h" [selected]="h === o.settings.automaticHour">{{ hour(h) }}</option>
+          <p class="auto" data-testid="trash-auto-status">
+            <mat-icon inline>schedule</mat-icon>
+            <span>
+              Automatic cleaning:
+              @if (o.settings.automaticCleaning) {
+                daily at {{ hour(o.settings.automaticHour) }} (server time); libraries with a hold are skipped.
+              } @else {
+                Off. Nothing is removed unless you choose "Empty trash now" or "Clean bundles now".
               }
-            </select>
-          </div>
-          <p class="hint">
-            @if (o.settings.automaticCleaning) {
-              Once a day at {{ hour(o.settings.automaticHour) }} (server time) the trash is emptied and bundles are cleaned.
-              Libraries with a hold are skipped.
-            } @else {
-              Off: nothing is removed unless you choose "Empty trash now" or "Clean bundles now".
-            }
+              <button type="button" class="link" data-testid="trash-auto-link" (click)="showSchedule()">Change in Scheduled jobs</button>
+            </span>
           </p>
 
           <h4>In the trash</h4>
@@ -187,11 +189,15 @@ type Pending =
     </mat-card>
   `,
   styles: [`
-    mat-card { margin-bottom: 16px; }
+    :host { display: block; min-width: 0; }
+    mat-card { margin: 0; }
     .row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 10px 0; font-size: 14px; }
     .row label { min-width: 110px; }
     select { font: inherit; padding: 4px 6px; max-width: 100%; }
     .hint, .muted { color: #999; font-size: 13px; margin: 6px 0; }
+    .auto { display: flex; align-items: flex-start; gap: 6px; font-size: 14px; margin: 10px 0; }
+    .auto mat-icon { flex: 0 0 auto; margin-top: 3px; }
+    .link { background: none; border: none; padding: 0; margin-left: 4px; font: inherit; color: #b39ddb; text-decoration: underline; cursor: pointer; }
     h4 { margin: 16px 0 6px; }
     h5 { margin: 0 0 6px; font-size: 14px; }
     .libs { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
@@ -219,9 +225,6 @@ export class TrashCardComponent implements OnInit {
   readonly pending = signal<Pending | null>(null);
   readonly message = signal<string | null>(null);
   readonly error = signal<string | null>(null);
-
-  /** The slide toggle that asked to turn automatic cleaning on, reset if the admin cancels. */
-  private enableSource: { checked: boolean } | null = null;
 
   readonly heldCount = computed(() => this.overview()?.libraries.filter((l) => !!l.hold && l.eligible.nodes > 0).length ?? 0);
 
@@ -259,53 +262,33 @@ export class TrashCardComponent implements OnInit {
   }
 
   countsText(c: TrashCountsDto): string {
-    if (c.nodes === 0) return 'nothing';
-    const parts = [`${c.nodes} ${c.nodes === 1 ? 'item' : 'items'}`];
-    const detail: string[] = [];
-    if (c.archives > 0) detail.push(`${c.archives} ${c.archives === 1 ? 'file' : 'files'}`);
-    if (c.folders > 0) detail.push(`${c.folders} ${c.folders === 1 ? 'folder' : 'folders'}`);
-    if (detail.length > 0) parts[0] += ` (${detail.join(', ')})`;
-    if (c.userStateRows > 0) parts.push(`${c.userStateRows} reading-state ${c.userStateRows === 1 ? 'entry' : 'entries'}`);
-    parts.push(formatBytes(c.bytes));
-    return parts.join(' · ');
-  }
-
-  /** The 24 hours an admin can choose for the daily automatic run (server time). */
-  readonly hours = Array.from({ length: 24 }, (_, h) => h);
-
-  setHour(h: number): void {
-    this.saveSettings({ automaticHour: h }, `Automatic cleaning runs at ${this.hour(h)} (server time).`);
+    return trashCountsText(c);
   }
 
   setRetention(days: number): void {
     this.saveSettings({ retentionDays: days }, `Removed items are kept for ${this.retentionLabel(days).toLowerCase()}.`);
   }
 
-  onAutomaticToggle(on: boolean, source: { checked: boolean }): void {
-    if (on) {
-      // Turning it on is the approval of automatic purging: confirm with what the first run would remove.
-      this.enableSource = source;
-      this.ask({ kind: 'enable' });
-      return;
-    }
-    this.saveSettings({ automaticCleaning: false }, 'Automatic cleaning is off.');
+  /** Moves the page to the Scheduled jobs row where automatic cleaning is switched on and timed (1.32.0). */
+  showSchedule(): void {
+    const row = document.getElementById('job-trash');
+    if (!row) return;
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    row.querySelector<HTMLElement>('[data-testid="job-trash-auto"] button, [data-testid="job-trash-auto"]')?.focus({ preventScroll: true });
   }
 
   ask(p: Pending): void {
-    if (this.pending()?.kind === 'enable' && p.kind !== 'enable') this.resetToggle();
     this.message.set(null);
     this.error.set(null);
     this.pending.set(p);
   }
 
   cancel(): void {
-    if (this.pending()?.kind === 'enable') this.resetToggle();
     this.pending.set(null);
   }
 
   confirmTitle(p: Pending): string {
     switch (p.kind) {
-      case 'enable': return 'Turn automatic cleaning on?';
       case 'empty-all': return 'Empty the trash now?';
       case 'empty-library': return `Empty the trash of ${p.library.name}?`;
       case 'clean': return 'Clean bundles now?';
@@ -314,10 +297,6 @@ export class TrashCardComponent implements OnInit {
 
   confirmText(p: Pending, o: TrashOverviewDto): string {
     switch (p.kind) {
-      case 'enable':
-        return `Every day at ${this.hour(o.settings.automaticHour)} the trash is emptied and unused files are removed. `
-          + `The first run removes what is ready now: ${this.countsText(o.total)}, and ${o.bundles.files} unused `
-          + `${o.bundles.files === 1 ? 'file' : 'files'}. This cannot be undone.`;
       case 'empty-all': {
         const held = this.heldCount();
         return `This removes ${this.countsText(o.total)}. This cannot be undone.`
@@ -332,7 +311,6 @@ export class TrashCardComponent implements OnInit {
 
   confirmButton(p: Pending): string {
     switch (p.kind) {
-      case 'enable': return 'Turn on';
       case 'clean': return 'Clean bundles';
       default: return 'Empty trash';
     }
@@ -342,10 +320,6 @@ export class TrashCardComponent implements OnInit {
     const p = this.pending();
     if (!p || this.busy()) return;
     switch (p.kind) {
-      case 'enable':
-        this.enableSource = null;
-        this.saveSettings({ automaticCleaning: true }, 'Automatic cleaning is on.');
-        break;
       case 'empty-all':
         this.empty(null, false);
         break;
@@ -401,16 +375,8 @@ export class TrashCardComponent implements OnInit {
       error: (e: ApiError) => {
         this.busy.set(false);
         this.pending.set(null);
-        this.resetToggle();
         this.error.set(e?.message || 'The setting could not be saved.');
       },
     });
-  }
-
-  private resetToggle(): void {
-    if (this.enableSource) {
-      this.enableSource.checked = this.overview()?.settings.automaticCleaning ?? false;
-      this.enableSource = null;
-    }
   }
 }
