@@ -263,7 +263,8 @@ export function validateThresholds(
                 MangaDex's image server (uploads.mangadex.org). It checks again on the refresh schedule until a cover in your preferred language
                 appears. When MangaDex has no volume list for a series, it asks AniList for the series' totals - by AniList
                 record number when known, otherwise by the MangaUpdates title. You can switch volume covers off below.</p>
-              <p><strong>Volume lists from Wikipedia:</strong> for linked series, MangaPixer may also read the series' English
+              <p><strong>Volume lists from Wikipedia:</strong> while volume covers from the web are on, for linked series MangaPixer may
+                also read the series' English
                 "List of ... chapters" page on Wikipedia - found through Wikidata by the MangaUpdates record number, or by the
                 linked series' MangaUpdates title, never a folder or file name - to learn which chapters make up each volume
                 where MangaDex's list has gaps, with English release dates and ISBNs. It checks the page again on the refresh

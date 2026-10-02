@@ -6,11 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Comics, graphic novels and BD albums are recognised from your files.** MangaPixer reads the usual comics naming - issue numbers (`#12`, `Issue 12`, `No. 12`), annuals and specials, album numbers (`Tome 3`, `T03`, `Band 3`, `Deel 3`), collected-edition words (`TPB`, `HC`, `OGN`, `Intégrale`) and a `(2012)` start year after the series name - and notes, from your files alone, whether a work looks like a Western comic: declared **Comic** / **Graphic novel**, a comics category folder, a Grand Comics Database / Comic Vine / Metron link or a Western publisher in `ComicInfo.xml`. Nothing is sent to work this out, and manga stays manga: `#12` or `Omnibus` alone means nothing, `No. 8` inside a title stays part of the title, and a folder declared manga, under a `Manga` folder or tagged as manga in `ComicInfo.xml` is never taken for a comic.
+- **Comics category folders:** `Comic Books`, `Graphic Novels`, `BD`, `Bandes dessinées`, `Fumetti`, `Tebeos`, `Historietas`, `Stripboeken`, `US Comics`, `European Comics` and `Eurocomics` are category folders like `Manga`; the language ones prefer records from that country (French, Spanish, Italian, Dutch, English-language).
+- **Comics from the Grand Comics Database.** **Identify** has a **Search on: MangaUpdates | Grand Comics Database** switch, starting on the Grand Comics Database for a folder declared Comic or Graphic novel or kept in a comics folder, and accepts a pasted `comics.org/series/...` address. With Automatic matching on, such folders are searched there first (with the start year from a name like `Bone (1991)`), and on MangaUpdates only when nothing close is found; a Grand Comics Database link in `ComicInfo.xml` is used directly. The year, language, shape (single issues or collected books) and `ComicInfo.xml` publisher help pick the right edition - new Review chips **Start year fits**, **Other language**, **Issues or books?** and **Publisher fits**. A linked series credits "Data: Grand Comics Database, CC BY-SA 4.0".
+- **Volume lists completed from Wikipedia.** Where MangaDex's volume list has gaps - the newest volumes of a running series, chapters it leaves in no volume, or no list at all - MangaPixer can read the series' English Wikipedia "List of ... chapters" page (found through Wikidata by the MangaUpdates record number, or by the linked series' title) and fill the gap: the Volumes view, the Missing report and the volume covers then use exact volumes instead of estimates. MangaDex stays where it places a chapter; a page that fails its checks is never used. Each volume's English release date and ISBN are kept; the page is re-checked on the series' refresh schedule and downloaded again only when it changed; a small line credits Wikipedia where such a list is shown. In the background it needs **Automatic matching** with **Volume covers from the web**; Wikipedia can be removed from the allowed sites.
+- **Grand Comics Database and Metron links** from `ComicInfo.xml` are shown in the series information panel, like Comic Vine links.
+
 ### Changed
 
 - **Series information: a new consent (version 4).** Two sites join the allowed sites - the **Grand Comics Database** (comics and graphic novels) and **Wikipedia** (which chapters make up each volume, for series already linked to MangaUpdates) - so fetching from the web, and Automatic matching, pause after the update until an admin reads and accepts the new texts in Metadata Manager. Either site can be removed from the allowed sites like the others.
 - **Requests to the allowed sites name MangaPixer.** Their `User-Agent` is now `MangaPixer/<version> (+https://github.com/dixit92/mangapixer)` (was `MangaPixer-Metadata`) - the same on every server of a version, as MangaDex and Wikimedia ask; it does not identify your server.
+- **Comics keep their own cover:** a folder linked to the Grand Comics Database never gets a cover from the web. The Grand Comics Database answers anonymous visitors about 25 requests an hour, so MangaPixer sends it at most that many and keeps two for Identify; when none is left, Identify says when to try again and automatic matching moves on (manga never wait behind a comic).
+- **Matching rules revision 2:** after the update, works waiting in **Needs review** are checked once more under the new rules (comics naming, the Grand Comics Database, Webtoon folders, 1.31.1's "Episode N" rule) - paced, inside the daily budget; works you have linked, confirmed or marked "Don't match" are not touched.
 - Series origins gain **Italian** and **Dutch**. A series cancelled at the source now has its web covers re-checked on the slower "finished" schedule (every 90 days), like its refresh.
+
+### Fixed
+
+- Album numbers in European file names (`Tome 03`, `Band 03`, `T03`) are read as volumes in the Volumes view, the Missing report and automatic matching, and no longer end up in the searched title.
+- A `Webtoon` / `Webtoons` category folder now counts as the hint it was meant to be (Korean or Chinese origin); it was compared in the wrong form and never did.
 
 ## [1.31.1] - 2026-10-01
 
