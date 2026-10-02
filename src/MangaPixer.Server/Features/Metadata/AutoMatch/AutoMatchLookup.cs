@@ -268,7 +268,8 @@ public sealed class AutoMatchLookup
         }
         catch (MetadataGatewayException ex) when (ex.Code is "provider_busy" or "provider_backoff")
         {
-            throw new AutoMatchDeferredException(ex.Code, ex.RetryAt ?? DateTimeOffset.UtcNow + DefaultDeferral);
+            // No retry time from the gateway: MinValue lets the service's own clock apply DefaultDeferral (never the wall clock here).
+            throw new AutoMatchDeferredException(ex.Code, ex.RetryAt ?? DateTimeOffset.MinValue);
         }
     }
 

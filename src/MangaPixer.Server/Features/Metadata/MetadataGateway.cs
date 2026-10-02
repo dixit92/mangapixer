@@ -419,7 +419,7 @@ public sealed class MetadataGateway
             lease.Dispose();
         }
         throw Refuse(libraryId, new MetadataGatewayException(StatusCodes.Status429TooManyRequests, "provider_busy",
-            $"{name} answers only about 25 requests an hour. Try again in a few minutes.", DateTimeOffset.UtcNow + retry));
+            $"{name} answers only about 25 requests an hour. Try again in a few minutes.", _budget.UtcNow() + retry));
     }
 
     private MetadataGatewayException Refuse(long libraryId, MetadataGatewayException refusal)

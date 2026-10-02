@@ -67,6 +67,9 @@ public sealed class MetadataBudget
         }
     }
 
+    /// <summary>"Now" on the metadata clock (the injected <see cref="TimeProvider"/>) - for the gateway's retry times.</summary>
+    public DateTimeOffset UtcNow() => _time.GetUtcNow();
+
     /// <summary>The start of the current budget day (the stored day key), in UTC.</summary>
     public DateTimeOffset Today() => DayStart(_time.GetUtcNow(), _time.LocalTimeZone);
 
