@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.32.0] - 2026-10-02
+
 ### Added
 
 - **Comics, graphic novels and BD albums are recognised from your files.** MangaPixer reads the usual comics naming - issue numbers (`#12`, `Issue 12`, `No. 12`), annuals and specials, album numbers (`Tome 3`, `T03`, `Band 3`, `Deel 3`), collected-edition words (`TPB`, `HC`, `OGN`, `Intégrale`) and a `(2012)` start year after the series name - and notes, from your files alone, whether a work looks like a Western comic: declared **Comic** / **Graphic novel**, a comics category folder, a Grand Comics Database / Comic Vine / Metron link or a Western publisher in `ComicInfo.xml`. Nothing is sent to work this out, and manga stays manga: `#12` or `Omnibus` alone means nothing, `No. 8` inside a title stays part of the title, and a folder declared manga, under a `Manga` folder or tagged as manga in `ComicInfo.xml` is never taken for a comic.
@@ -35,6 +37,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - For a preferred language other than English, a series is finished in that language's chapters when its released chapter list reaches the last chapter of the original run.
 - **Matching rules revision 2:** after the update, works waiting in **Needs review** are checked once more under the new rules (comics naming, the Grand Comics Database, Webtoon folders, 1.31.1's "Episode N" rule) - paced, inside the daily budget; works you have linked, confirmed or marked "Don't match" are not touched.
 - Series origins gain **Italian** and **Dutch**. A series cancelled at the source now has its web covers re-checked on the slower "finished" schedule (every 90 days), like its refresh.
+- **Upgrade note:** this version adds three small database migrations (`AddWikipediaVolumeLists`, `AddJobSchedules`, `AddFolderCoverPreferences`: new tables and new columns only; a snapshot is taken before they run). **Series information needs a new consent (version 4)**: after the update, fetching from the web and Automatic matching pause until an admin reads and accepts the new texts in Metadata Manager (a banner points there). Once accepted, with Automatic matching on: the works waiting in **Needs review** are checked once more under matching rules revision 2 (about two or three MangaUpdates requests each); linked series stored before 1.30.0 read English publisher details are refreshed once; both run inside the daily budget at one request per second. The daily budget now starts at midnight server time (the update day is counted once). The media worker protocol is unchanged (5).
 
 ### Fixed
 
