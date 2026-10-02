@@ -253,7 +253,7 @@ function rhythm(job: ScheduledJobDto): string {
     mat-card { margin: 0; }
     .clock { font-size: 14px; margin: 4px 0 10px; }
     /* The jobs sit side by side as far as the card is wide (one column on a phone). */
-    .jobs { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 10px; }
+    .jobs { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 10px; align-items: start; }
     .jobs li { border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 8px 10px; min-width: 0; }
     .head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
     .name { font-weight: 500; overflow-wrap: anywhere; }
