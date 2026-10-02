@@ -83,7 +83,8 @@ public sealed class RecoveredRaceLoggingTests : IClassFixture<MangaPixerWebAppli
     {
         var errors = HostLogLines().Where(l => l.Contains("[ERROR]", StringComparison.Ordinal)).ToList();
         Assert.True(errors.Count == 0, "The host logged " + errors.Count + " error line(s): "
-            + string.Join(" || ", errors.Select(l => l.Length > 300 ? l[..300] : l)));
+            + string.Join(" || ", errors.Take(2).Select(l => l[..Math.Min(l.Length, 120)])) + " ## "
+            + string.Join(" || ", HostLogLines().Where(l => !l.Contains("[ERROR]", StringComparison.Ordinal) && !l.StartsWith("20", StringComparison.Ordinal)).Take(6).Select(l => l[..Math.Min(l.Length, 250)])));
     }
 
     private IEnumerable<string> HostLogLines()
