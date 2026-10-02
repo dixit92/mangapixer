@@ -76,7 +76,7 @@ public static class RefreshCadence
         if (evidence.LatestChapter is >= 2 and var chapters)
         {
             var perVolume = evidence.ChaptersPerVolume is > 0 ? evidence.ChaptersPerVolume.Value : ChaptersPerVolumeFallback;
-            return lifetime / chapters.Value * perVolume;
+            return lifetime / chapters * perVolume;
         }
         return null;
     }
