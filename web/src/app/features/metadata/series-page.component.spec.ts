@@ -28,6 +28,7 @@ describe('SeriesPageComponent', () => {
     const api = {
       browseLibrary: vi.fn(() => of({ items: [], totalCount: 0, nextCursor: null, hasMore: false, nextUnread })),
       getNode: vi.fn(() => of(archiveNode as CatalogNodeDto)),
+      getSeriesRefreshCadence: vi.fn(() => of(null)),
     };
     TestBed.configureTestingModule({
       imports: [SeriesPageComponent],
