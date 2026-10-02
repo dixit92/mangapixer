@@ -211,7 +211,9 @@ public sealed class ReachHttpTests : IClassFixture<MangaPixerWebApplicationFacto
 
         var all = await OkAsync<OfficialReleasesPageDto>(await admin.GetAsync($"/api/v1/admin/metadata/official-releases?library={LibPubId}&filter=All&limit=2"));
         Assert.Equal((3, 2, "2"), (all.Total, all.Items.Count, all.NextCursor));
-        Assert.Equal(["rcOwner", "rcDone"], all.Items.Select(i => i.NodeId)); // upgrades first, then complete collections
+        // 1.32.0: All orders by answer - have it all first, then everything so far by name.
+        Assert.Equal(["rcDone", "rcMixed"], all.Items.Select(i => i.NodeId));
+        Assert.Equal((1, 0, 2, 0, 0), (all.Summary.HaveItAll, all.Summary.FinishedMissing, all.Summary.UpToDate, all.Summary.MissingSome, all.Summary.CantTell));
 
         // The basis filter (owner, 1.30.0 RC): only finished / complete series of that basis.
         var official = await OkAsync<OfficialReleasesPageDto>(await admin.GetAsync($"/api/v1/admin/metadata/official-releases?library={LibPubId}&filter=All&basis=OfficialVolumes"));
@@ -221,6 +223,29 @@ public sealed class ReachHttpTests : IClassFixture<MangaPixerWebApplicationFacto
         Assert.Equal(3, fan.Summary.Series); // the summary counts every linked series, whatever the filter
 
         Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync("/api/v1/admin/metadata/official-releases?library=no-such-lib")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Completion_FiltersByAnswer_AndUpgrades_AndCarriesTheAnswer()
+    {
+        var admin = await AdminAsync();
+        var url = $"/api/v1/admin/metadata/official-releases?library={LibPubId}";
+
+        var haveItAll = await OkAsync<OfficialReleasesPageDto>(await admin.GetAsync($"{url}&answer=HaveItAll"));
+        var done = Assert.Single(haveItAll.Items);
+        Assert.Equal(("rcDone", SeriesAnswer.HaveItAll, SeriesAnswerReason.None), (done.NodeId, done.Progress.Answer, done.Progress.AnswerReason));
+        Assert.Equal(1, haveItAll.Total);
+
+        // The answer wins over the 1.30.0 filter; the running series read "everything released so far", by name.
+        var soFar = await OkAsync<OfficialReleasesPageDto>(await admin.GetAsync($"{url}&answer=UpToDate&filter=Complete"));
+        Assert.Equal(["rcMixed", "rcOwner"], soFar.Items.Select(i => i.NodeId));
+        Assert.All(soFar.Items, i => Assert.Equal(SeriesAnswerReason.Running, i.Progress.AnswerReason));
+
+        // Upgrades only: the owner example holds English volume 15 as chapters; the counts follow the switch.
+        var upgrades = await OkAsync<OfficialReleasesPageDto>(await admin.GetAsync($"{url}&filter=All&upgrades=true"));
+        Assert.Equal(["rcOwner"], upgrades.Items.Select(i => i.NodeId));
+        Assert.Equal((0, 1, 3), (upgrades.Summary.HaveItAll, upgrades.Summary.UpToDate, upgrades.Summary.Series));
+        Assert.Empty((await OkAsync<OfficialReleasesPageDto>(await admin.GetAsync($"{url}&answer=HaveItAll&upgrades=true"))).Items);
     }
 
     [Fact]
