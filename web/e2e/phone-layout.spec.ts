@@ -231,3 +231,35 @@ test('the admin trash card with held libraries and a confirm step fits a phone a
   }
   expect(failures, `the trash card does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
 });
+
+test('the Scheduled jobs section fits a phone and a tablet screen, and saves an hour', async ({ page }) => {
+  // 1.32.0: every job with its last / next run in server time; the library rows carry the scan time of day.
+  test.setTimeout(180_000);
+  await login(page);
+  await ensureLibrary(page);
+  const failures: string[] = [];
+  for (const size of SIZES) {
+    await page.setViewportSize(size);
+    await page.goto('/admin');
+    const card = page.getByTestId('scheduled-jobs');
+    await card.scrollIntoViewIfNeeded();
+    await expect(card.getByTestId('jobs-clock')).toContainText('Times are server time');
+    await expect(card.getByTestId('job-metadata-refresh')).toContainText('Series information refresh');
+    await settle(page);
+    if (SHOTS) await card.screenshot({ path: `${SHOTS}/layout-${size.width}-scheduled-jobs.png` });
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px scheduled jobs: ${p.kind}: ${p.what} - ${p.detail}`);
+  }
+  expect(failures, `the Scheduled jobs section does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
+
+  // Save the cache clean-up's hour, reload, see it kept; then put the default back.
+  const card = page.getByTestId('scheduled-jobs');
+  const select = card.getByTestId('job-hour-cache-eviction');
+  const saved = page.waitForResponse((r) => r.request().method() === 'PUT' && r.url().endsWith('/api/v1/admin/jobs/cache-eviction'));
+  await select.selectOption('2');
+  expect((await saved).ok()).toBeTruthy();
+  await page.reload();
+  await expect(page.getByTestId('scheduled-jobs').getByTestId('job-hour-cache-eviction')).toHaveValue('2');
+  const restored = page.waitForResponse((r) => r.request().method() === 'PUT' && r.url().endsWith('/api/v1/admin/jobs/cache-eviction'));
+  await page.getByTestId('scheduled-jobs').getByTestId('job-hour-cache-eviction').selectOption('5');
+  expect((await restored).ok()).toBeTruthy();
+});
