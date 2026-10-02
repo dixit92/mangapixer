@@ -13,7 +13,7 @@ import { ScheduledJobDto, ScheduledJobsDto } from '../../../core/api/api-types';
  */
 describe('ScheduledJobsComponent', () => {
   const URL = '/api/v1/admin/jobs';
-  let httpMock: HttpTestingController;
+  let httpMock: HttpTestingController | undefined;
 
   const job = (key: string, overrides: Partial<ScheduledJobDto> = {}): ScheduledJobDto => ({
     key, kind: 'daily', enabled: true, configurable: true, ...overrides,
@@ -49,10 +49,10 @@ describe('ScheduledJobsComponent', () => {
     const fixture = TestBed.createComponent(ScheduledJobsComponent);
     httpMock = TestBed.inject(HttpTestingController);
     fixture.detectChanges();
-    httpMock.expectOne((r) => r.method === 'GET' && r.url === URL).flush(initial);
+    httpMock!.expectOne((r) => r.method === 'GET' && r.url === URL).flush(initial);
     fixture.detectChanges();
     // The library row's scan schedule control reads its admin DTO.
-    httpMock.match((r) => r.url === '/api/v1/admin/libraries/lib1').forEach((r) => r.flush({
+    httpMock!.match((r) => r.url === '/api/v1/admin/libraries/lib1').forEach((r) => r.flush({
       id: 'lib1', name: 'Manga', isScanning: false, itemCount: 1, lastScanCompleted: null, defaultReaderMode: null, icon: null, scanSchedule: '1d',
     }));
     fixture.detectChanges();
@@ -61,7 +61,8 @@ describe('ScheduledJobsComponent', () => {
 
   const text = (el: HTMLElement, testId: string) => (el.querySelector(`[data-testid="${testId}"]`) as HTMLElement).textContent ?? '';
 
-  afterEach(() => httpMock.verify());
+  beforeEach(() => { httpMock = undefined; });
+  afterEach(() => httpMock?.verify());
 
   it('formats times in the server zone, offsets and cadences', () => {
     expect(serverTime('2026-10-03T07:00:00Z', 'America/New_York')).toBe('Sat 3 Oct, 03:00');
@@ -99,7 +100,7 @@ describe('ScheduledJobsComponent', () => {
     const select = el.querySelector('[data-testid="job-hour-cache-eviction"]') as HTMLSelectElement;
     select.value = '2';
     select.dispatchEvent(new Event('change'));
-    const put = httpMock.expectOne((r) => r.method === 'PUT' && r.url === `${URL}/cache-eviction`);
+    const put = httpMock!.expectOne((r) => r.method === 'PUT' && r.url === `${URL}/cache-eviction`);
     expect(put.request.body).toEqual({ hour: 2 });
     put.flush(dto({ jobs: [job('cache-eviction', { hour: 2 }), job('backup', { kind: 'interval', intervalHours: 24, hour: null })] }));
     f.detectChanges();
@@ -109,7 +110,7 @@ describe('ScheduledJobsComponent', () => {
     expect(backup.disabled).toBe(false);
     backup.value = '-1';
     backup.dispatchEvent(new Event('change'));
-    const clear = httpMock.expectOne((r) => r.method === 'PUT' && r.url === `${URL}/backup`);
+    const clear = httpMock!.expectOne((r) => r.method === 'PUT' && r.url === `${URL}/backup`);
     expect(clear.request.body).toEqual({ hour: null });
     clear.flush(dto());
   });
@@ -120,13 +121,13 @@ describe('ScheduledJobsComponent', () => {
     const ongoing = el.querySelector('[data-testid="job-cadence-ongoing"]') as HTMLSelectElement;
     ongoing.value = '7';
     ongoing.dispatchEvent(new Event('change'));
-    const put = httpMock.expectOne((r) => r.method === 'PUT' && r.url === `${URL}/metadata-refresh/cadence`);
+    const put = httpMock!.expectOne((r) => r.method === 'PUT' && r.url === `${URL}/metadata-refresh/cadence`);
     expect(put.request.body).toEqual({ ongoingDays: 7 });
     put.flush(dto());
     f.detectChanges();
 
     f.componentInstance.setCadence({ followPace: false });
-    const pace = httpMock.expectOne((r) => r.method === 'PUT' && r.url === `${URL}/metadata-refresh/cadence`);
+    const pace = httpMock!.expectOne((r) => r.method === 'PUT' && r.url === `${URL}/metadata-refresh/cadence`);
     expect(pace.request.body).toEqual({ followPace: false });
     pace.flush(dto());
   });
@@ -134,10 +135,10 @@ describe('ScheduledJobsComponent', () => {
   it('reports a failed save and reloads', () => {
     const f = createLoaded();
     f.componentInstance.setHour('metadata-refresh', 1);
-    httpMock.expectOne((r) => r.method === 'PUT').flush({ error: 'invalid_hour' }, { status: 400, statusText: 'Bad Request' });
-    httpMock.expectOne((r) => r.method === 'GET' && r.url === URL).flush(dto());
+    httpMock!.expectOne((r) => r.method === 'PUT').flush({ error: 'invalid_hour' }, { status: 400, statusText: 'Bad Request' });
+    httpMock!.expectOne((r) => r.method === 'GET' && r.url === URL).flush(dto());
     f.detectChanges();
-    httpMock.match((r) => r.url === '/api/v1/admin/libraries/lib1').forEach((r) => r.flush({ id: 'lib1', name: 'Manga', isScanning: false,
+    httpMock!.match((r) => r.url === '/api/v1/admin/libraries/lib1').forEach((r) => r.flush({ id: 'lib1', name: 'Manga', isScanning: false,
       itemCount: 1, lastScanCompleted: null, defaultReaderMode: null, icon: null, scanSchedule: '1d' }));
     expect((f.nativeElement as HTMLElement).querySelector('[role="alert"]')?.textContent).toContain('Could not save');
   });
