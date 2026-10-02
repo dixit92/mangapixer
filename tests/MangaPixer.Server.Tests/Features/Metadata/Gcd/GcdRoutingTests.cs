@@ -71,10 +71,11 @@ public sealed class GcdRoutingTests : IAsyncLifetime
 
         await _h.MatchLibraryAsync();
 
-        var search = Assert.Single(_h.GcdRequests);
-        Assert.Equal("/api/series/name/Bone/year/1991/", search.Uri.AbsolutePath);
+        // One search (whole series, no GET), then the linked series' publisher name (a token was spare).
+        Assert.Equal(["/api/series/name/Bone/year/1991/", "/api/publisher/672/"], _h.GcdRequests.Select(r => r.Uri.AbsolutePath));
         Assert.Empty(_h.MuRequests);
         var (link, record) = await LinkOfAsync(bone);
+        Assert.Contains("Cartoon Books", record!.PublishersJson, StringComparison.Ordinal);
         Assert.Equal((int)SeriesLinkState.Auto, link!.State);
         Assert.Equal("gcd", record!.Provider);
         Assert.Equal("4347", record.ExternalId);
