@@ -200,10 +200,10 @@ public static partial class ComicsSignals
     private static partial Regex BracketGroup();
 
     /// <summary>
-    /// Comics category words (positive-only, whole folder name, by scoring form). They are also
+    /// Comics category words (positive-only, whole folder name, compared by scoring form). They are also
     /// <see cref="AutoMatchText.CategoryFolderWords"/> (the one category list), so they never become a creator.
     /// </summary>
-    public static IReadOnlySet<string> CategoryWords { get; } = new HashSet<string>(StringComparer.Ordinal)
+    public static IReadOnlySet<string> CategoryWords { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         "comic", "comics", "comic books", "graphic novel", "graphic novels", "bd", "bande dessinee", "bandes dessinees",
         "fumetti", "tebeos", "historietas", "stripboeken", "us comics", "european comics", "eurocomics",
@@ -213,9 +213,9 @@ public static partial class ComicsSignals
     /// Western comics publishers (ComicInfo <c>Publisher</c>, whole value by scoring form) - a strong sign. Left out on
     /// purpose: Dark Horse and Drawn &amp; Quarterly (large manga lines: Berserk, Mizuki...), bare Glenat and Panini
     /// (Glenat Manga, Panini Manga / Planet Manga) - a manga under them must not be sent to the comics site first. An
-    /// imprint naming manga (<c>Planet Manga</c>, <c>Sakka</c>) cancels the sign.
+    /// imprint naming manga (<c>Planet Manga</c>, <c>Sakka</c>) cancels the sign. Compared by scoring form.
     /// </summary>
-    public static IReadOnlySet<string> WesternPublishers { get; } = new HashSet<string>(StringComparer.Ordinal)
+    public static IReadOnlySet<string> WesternPublishers { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         // US: the big two and the large independents (no manga lines).
         "marvel", "marvel comics", "dc", "dc comics", "image", "image comics", "idw", "idw publishing",
@@ -227,10 +227,13 @@ public static partial class ComicsSignals
         "bonelli", "sergio bonelli", "sergio bonelli editore", "panini comics", "standaard", "standaard uitgeverij",
     };
 
-    private static readonly HashSet<string> s_mangaCategories = new(StringComparer.Ordinal)
-    {
-        "manga", "manhwa", "manhua", "webtoon", "webtoons", "doujin", "doujinshi", "dojin", "dojinshi",
-    };
+    // The scoring forms of the lists above (ScoringForm folds long vowels too: "comic books" -> "comic boks").
+    private static readonly HashSet<string> s_categoryForms = new(CategoryWords.Select(TitleNormalizer.ScoringForm), StringComparer.Ordinal);
+    private static readonly HashSet<string> s_publisherForms = new(WesternPublishers.Select(TitleNormalizer.ScoringForm), StringComparer.Ordinal);
+
+    private static readonly HashSet<string> s_mangaCategories = new(
+        new[] { "manga", "manhwa", "manhua", "webtoon", "webtoons", "doujin", "doujinshi" }.Select(TitleNormalizer.ScoringForm),
+        StringComparer.Ordinal);
 
     /// <summary>The comics signs of a work. See the class remarks for the rules that keep manga where it is.</summary>
     public static ComicsSignal Of(ComicsSignalInput input)
@@ -251,7 +254,7 @@ public static partial class ComicsSignals
 
         // The category hint is not read while a type is declared (the declaration wins, as in the scorer).
         var category = declared is null ? TitleNormalizer.ScoringForm(input.CategoryHint) : string.Empty;
-        if (CategoryWords.Contains(category))
+        if (s_categoryForms.Contains(category))
             kinds |= ComicsSignalKind.CategoryFolder;
         var mangaSide = s_mangaCategories.Contains(category) || input.ComicInfoSaysManga;
 
@@ -280,7 +283,7 @@ public static partial class ComicsSignals
             : new ComicsSignal(kinds) { PageShape = PageShapeOf(input.MedianPageCount), StartYear = startYear, Ids = ids };
 
     /// <summary>Whether a category hint (an ancestor folder's whole name) names comics.</summary>
-    public static bool IsComicsCategory(string? categoryHint) => CategoryWords.Contains(TitleNormalizer.ScoringForm(categoryHint));
+    public static bool IsComicsCategory(string? categoryHint) => s_categoryForms.Contains(TitleNormalizer.ScoringForm(categoryHint));
 
     /// <summary>The page-count shape of a median page count (<see cref="ComicsPageShape"/>).</summary>
     public static ComicsPageShape PageShapeOf(int? medianPageCount) => medianPageCount switch
@@ -304,7 +307,7 @@ public static partial class ComicsSignals
     /// </summary>
     public static bool IsWesternPublisher(string? publisher, string? imprint = null)
     {
-        if (!WesternPublishers.Contains(TitleNormalizer.ScoringForm(publisher)))
+        if (!s_publisherForms.Contains(TitleNormalizer.ScoringForm(publisher)))
             return false;
         var imprintForm = TitleNormalizer.ScoringForm(imprint);
         return !(imprintForm.Length > 0 && (AutoMatchText.ContainsTokens(imprintForm, "manga") || imprintForm == "sakka"));

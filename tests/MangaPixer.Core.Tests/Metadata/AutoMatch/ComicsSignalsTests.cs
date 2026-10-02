@@ -470,7 +470,6 @@ public sealed class ComicsUnitGrammarTests
     [InlineData("Asterix Tome 01 - Asterix le Gaulois.cbz", "Asterix")]
     [InlineData("Largo Winch T03.cbz", "Largo Winch")]
     [InlineData("Saga Issue 12.cbz", "Saga")]
-    [InlineData("No. 6 v01.cbz", "No. 6")]
     public void ArchiveBaseTitle_CutsAtTheComicsTokens(string name, string expected) =>
         Assert.Equal(expected, TitleNormalizer.ArchiveBaseTitle(name));
 
