@@ -16,7 +16,7 @@ Every export endpoint needs one of:
   MangaPixer Administration; a token is shown once, and it works on the export endpoints only - nowhere else in MangaPixer.
 - an **admin's** browser login (useful to look at the answers by hand).
 
-Never put a token in a URL. A reader account gets `403`.
+Never put a token in a URL. A reader account gets `403`. Tokens are read-only: any request other than `GET` or `HEAD` with a token gets `401`. `GET /api/v1/export/ping` answers `{ "ok": true, "serverTime": "...", "auth": "token" }` - use it to test a token. See [API tokens](api-tokens.md).
 
 ## Endpoints
 
@@ -147,11 +147,11 @@ Errors are `{ "error": "<code>" }`.
 | Status | `error` | |
 |---|---|---|
 | 400 | `libraryRequired`, `invalidUpdatedSince`, `invalidCursor`, `invalidInclude` | Fix the request. |
-| 401 | | No credentials, or a token that is wrong, revoked or expired. |
-| 403 | | Signed in, but not allowed (a reader account, or a token without the `metadata:read` scope). |
+| 401 | | No credentials; a token that is wrong, revoked or expired, or whose admin is no longer an active admin; or a token on a request other than `GET` / `HEAD`. The `WWW-Authenticate` header says `Bearer error="invalid_token"` when a token was refused. |
+| 403 | | Signed in with a browser login that is not an admin's (a reader account). |
 | 404 | `libraryNotFound` | The library id is unknown (it may have been removed: call `/libraries`). |
 | 409 | `fullSyncRequired` | See above. |
-| 429 | | Too many requests: wait for the `Retry-After` header's seconds. |
+| 429 | `rate_limited`, `too_many_attempts` | Wait for the `Retry-After` header's seconds. `rate_limited`: this token made more requests a minute than the server allows (600 by default). `too_many_attempts`: too many wrong tokens came from your address; every token request from it is refused for a few minutes. |
 
 ## Versioning
 
