@@ -90,6 +90,7 @@ public sealed class ReachCheckService(MangaPixerDbContext db, TimeProvider time,
         link.State = (int)SeriesLinkState.NeedsReview;
         link.RecordId = null;
         link.UpdatedAt = now;
+        link.LaterAt = null;
         db.MetadataMatchCandidates.RemoveRange(db.MetadataMatchCandidates.Where(c => c.NodeId == link.NodeId));
         db.MetadataMatchCandidates.Add(new MetadataMatchCandidateEntity
         {

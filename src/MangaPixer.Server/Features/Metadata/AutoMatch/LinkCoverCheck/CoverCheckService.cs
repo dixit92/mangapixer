@@ -393,6 +393,7 @@ public sealed class CoverCheckService(
         link.State = (int)SeriesLinkState.NeedsReview;
         link.RecordId = null;
         link.UpdatedAt = now;
+        link.LaterAt = null;
         db.MetadataMatchCandidates.RemoveRange(db.MetadataMatchCandidates.Where(c => c.NodeId == row.NodeId));
         db.MetadataMatchCandidates.Add(new MetadataMatchCandidateEntity
         {

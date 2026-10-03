@@ -37,9 +37,9 @@ public sealed class MetadataReviewController : ControllerBase
     [ProducesResponseType<MetadataReviewPageDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> List([FromQuery] MetadataReviewTab tab = MetadataReviewTab.NeedsReview, [FromQuery] string? library = null,
-        [FromQuery] string? cursor = null, [FromQuery] int limit = 50, CancellationToken ct = default)
+        [FromQuery] string? cursor = null, [FromQuery] int limit = 50, [FromQuery] bool? later = null, CancellationToken ct = default)
     {
-        var (error, page) = await _review.ListAsync(tab, library, cursor, limit, ct);
+        var (error, page) = await _review.ListAsync(tab, library, cursor, limit, ct, later);
         return error switch
         {
             null => Ok(page),
@@ -72,6 +72,27 @@ public sealed class MetadataReviewController : ControllerBase
             return MetadataIdentifyController.Error(this, ex);
         }
     }
+
+    /// <summary>Sets a Needs review row aside ("Later", 1.33.0): it is listed after the others until it is decided or checked again.</summary>
+    [HttpPost("review/{nodeId}/later")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> SetLater(string nodeId, CancellationToken ct) =>
+        LaterResult(await _review.SetLaterAsync(nodeId, later: true, Actor, ct));
+
+    /// <summary>Brings a row set aside back into the normal order.</summary>
+    [HttpDelete("review/{nodeId}/later")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ClearLater(string nodeId, CancellationToken ct) =>
+        LaterResult(await _review.SetLaterAsync(nodeId, later: false, Actor, ct));
+
+    private IActionResult LaterResult(string code) => code switch
+    {
+        "ok" => NoContent(),
+        "not_found" => NotFound(),
+        _ => Conflict(new ApiError { Error = code, Message = "Only a work waiting in Needs review can be set aside for later." }),
+    };
 
     [HttpPost("review/bulk")]
     [ProducesResponseType<MetadataReviewBulkResultDto>(StatusCodes.Status200OK)]

@@ -895,6 +895,7 @@ public sealed class MetadataAutoMatchService
                         link.MatchMethod = (int)MetadataMatchMethod.Auto;
                         link.MatchScore = Math.Round(Math.Clamp(top.TitleScore, 0, 1), 4);
                         link.UpdatedAt = now;
+                        link.LaterAt = null;
                     }
                     break;
 
@@ -909,6 +910,7 @@ public sealed class MetadataAutoMatchService
                     anchorLink.MatchMethod = (int)MetadataMatchMethod.Auto;
                     anchorLink.MatchScore = top is null ? null : Math.Round(Math.Clamp(top.TitleScore, 0, 1), 4);
                     anchorLink.UpdatedAt = now;
+                    anchorLink.LaterAt = null; // Re-checked in place: a fresh result is no longer "Later" (1.33.0).
                     AddCandidates(work.Work.AnchorNodeId, outcome.ToPersist.Count > 0 ? outcome.ToPersist : outcome.Ranked.Take(1).ToList(), lookup, now);
                     break;
 

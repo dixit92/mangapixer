@@ -93,6 +93,12 @@ public enum MetadataReviewBulkAction
 
     /// <summary>Removes each row's own link (inheritance resumes).</summary>
     Unlink = 4,
+
+    /// <summary>1.33.0: sets each Needs review row aside ("Later": listed after the others until it is decided or checked again).</summary>
+    Later = 5,
+
+    /// <summary>1.33.0: brings each row set aside back into the normal order.</summary>
+    ClearLater = 6,
 }
 
 /// <summary>Why a user flagged a series.</summary>
@@ -146,6 +152,9 @@ public sealed record MetadataMatchThresholdBoundsDto
 public sealed record MetadataReviewSummaryDto
 {
     public required int NeedsReview { get; init; }
+
+    /// <summary>1.33.0: the Needs review rows set aside ("Later"); included in <see cref="NeedsReview"/>.</summary>
+    public int Later { get; init; }
     public required int AutoLinked { get; init; }
     public required int Unmatched { get; init; }
     public required int OpenFlags { get; init; }
@@ -291,6 +300,12 @@ public sealed record MetadataReviewItemDto
     /// changed how matches are scored). The reasons and candidates shown are the earlier result until it is done.
     /// </summary>
     public bool CheckingAgain { get; init; }
+
+    /// <summary>
+    /// 1.33.0 (Needs review): when an admin set the row aside ("Later"); such rows are listed after the others, the same for every
+    /// admin, until the work is decided or checked again. Null when it is not set aside.
+    /// </summary>
+    public DateTimeOffset? LaterAt { get; init; }
 
     /// <summary>
     /// 1.31.0 (folder works): how many chapter numbers more than one file of the same folder below it states ("2 duplicate chapters").

@@ -1181,6 +1181,12 @@ public sealed class NodeSeriesLinkEntity
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 
+    /// <summary>
+    /// 1.33.0: when an admin set this Needs-review row aside ("Later"); it sorts to the end of Needs review. Null otherwise.
+    /// Every path that decides the work or re-checks it (accept, link, Don't match, the matcher's outcome, a demotion) clears it.
+    /// </summary>
+    public DateTimeOffset? LaterAt { get; set; }
+
     public CatalogNodeEntity? Node { get; set; }
     public MetadataRecordEntity? Record { get; set; }
 }
