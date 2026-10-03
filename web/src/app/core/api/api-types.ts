@@ -2526,3 +2526,148 @@ export interface SeriesRefreshCadenceDto {
   fetchedAt: string;
   nextCheckAt: string;
 }
+
+// --- Metadata export (1.33.0, for MangaList): GET /api/v1/export/*. Not used by the web client; mirrored for the contract check. ---
+
+export interface ExportErrorDto {
+  error: string;
+}
+
+export interface ExportLibrariesDto {
+  schemaVersion: number;
+  serverTime: string;
+  libraries: ExportLibraryDto[];
+}
+
+export interface ExportLibraryDto {
+  id: string;
+  displayName: string;
+  kind?: string | null;
+  folderCount?: number | null;
+  itemCount?: number | null;
+  lastScanAt?: string | null;
+}
+
+export interface ExportLibraryRefDto {
+  id: string;
+  displayName: string;
+  kind?: string | null;
+}
+
+export interface ExportMetadataPageDto {
+  schemaVersion: number;
+  serverTime: string;
+  library: ExportLibraryRefDto;
+  items: ExportItemDto[];
+  removed: ExportRemovalDto[];
+  nextCursor?: string | null;
+}
+
+export interface ExportRemovalDto {
+  nodeId: string;
+  reason: 'nodeGone' | 'linkCleared' | 'movedToOtherLibrary';
+  at: string;
+}
+
+export interface ExportItemDto {
+  nodeId: string;
+  nodeKind: 'folder' | 'archive';
+  carriedFrom?: string | null;
+  trail: string[];
+  updatedAt: string;
+  link: ExportLinkDto;
+  record?: ExportRecordDto | null;
+  companions: ExportCompanionsDto;
+  officialLinks: ExportOfficialLinkDto[];
+  volumes?: ExportVolumesDto | null;
+  completion?: ExportCompletionDto | null;
+  refresh?: ExportRefreshDto | null;
+}
+
+export interface ExportLinkDto {
+  state: 'Confirmed' | 'Auto' | 'NeedsReview' | 'DontMatch';
+  method?: string | null;
+  score?: number | null;
+  updatedAt: string;
+}
+
+export interface ExportRecordDto {
+  provider: string;
+  externalId: string;
+  siteUrl?: string | null;
+  title: string;
+  altTitles: string[];
+  type?: string | null;
+  originStatus?: string | null;
+  originVolumes?: number | null;
+  latestChapter?: string | null;
+  totalChapters?: number | null;
+  statusText?: string | null;
+  licensedEn?: boolean | null;
+  translationComplete?: boolean | null;
+  completedInOrigin?: boolean | null;
+  englishPublishers: ExportPublisherDto[];
+  fetchedAt: string;
+}
+
+export interface ExportPublisherDto {
+  name: string;
+  volumes?: number | null;
+  chapters?: number | null;
+  status?: string | null;
+  omnibus: boolean;
+}
+
+export interface ExportCompanionsDto {
+  mangadex?: string | null;
+  anilist?: ExportAniListDto | null;
+}
+
+export interface ExportAniListDto {
+  id: number;
+  chapters?: number | null;
+  volumes?: number | null;
+}
+
+export interface ExportOfficialLinkDto {
+  kind: 'publisher' | 'store';
+  label: string;
+  url: string;
+  source: 'mangadex';
+}
+
+export interface ExportVolumesDto {
+  source: 'mangadex' | 'wikipedia' | 'merged';
+  fetchedAt?: string | null;
+  items: ExportVolumeDto[];
+}
+
+export interface ExportVolumeDto {
+  volume: string;
+  title?: string | null;
+  chapters?: ExportChapterRangeDto | null;
+  englishDate?: string | null;
+  englishDateKind?: 'released' | 'announced' | null;
+  isbn?: string | null;
+  sources: string[];
+}
+
+export interface ExportChapterRangeDto {
+  from: string;
+  to: string;
+}
+
+export interface ExportCompletionDto {
+  answer: 'CantTell' | 'HaveItAll' | 'FinishedMissing' | 'UpToDate' | 'MissingSome';
+  reason: string;
+  upgradeAvailable: boolean;
+  upgradeVolumes: number[];
+  computedAt: string;
+  basedOnScanAt?: string | null;
+}
+
+export interface ExportRefreshDto {
+  lastFetchedAt: string;
+  nextDueAt: string;
+  intervalDays: number;
+}
