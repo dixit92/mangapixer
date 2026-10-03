@@ -161,12 +161,14 @@ public sealed class ApiTokenHttpTests
         Assert.False(result.Succeeded);
         Assert.Equal("method_not_allowed", result.Failure?.Message);
 
-        var getContext = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
+        // A request scope of its own: the scoped handler provider caches a scheme's handler (and its result) per request.
+        using var getScope = factory.Services.CreateScope();
+        var getContext = new DefaultHttpContext { RequestServices = getScope.ServiceProvider };
         getContext.Request.Method = "GET";
         getContext.Request.Path = Ping;
         getContext.Request.Headers.Authorization = "Bearer " + created.Secret;
         var get = await getContext.AuthenticateAsync(ExportApi.TokenScheme);
-        Assert.True(get.Succeeded);
+        Assert.True(get.Succeeded, get.Failure?.Message ?? "no result");
         Assert.False(get.Principal!.IsInRole("admin"));
         Assert.Null(get.Principal.Identity!.Name);
     }
