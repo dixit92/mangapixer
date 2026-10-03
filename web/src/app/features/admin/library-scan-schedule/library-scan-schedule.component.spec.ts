@@ -29,6 +29,15 @@ class HostComponent {
   readonly library = signal<LibraryDto>(lib());
 }
 
+@Component({
+  standalone: true,
+  imports: [LibraryScanScheduleComponent],
+  template: `<app-library-scan-schedule [library]="library()" [summary]="true" />`,
+})
+class SummaryHostComponent {
+  readonly library = signal<LibraryDto>(lib());
+}
+
 class FakeApi {
   adminDto: LibraryDto = lib({ scanSchedule: '1d', nextScheduledScanAt: '2099-01-01T00:00:00Z' });
   getCalls: string[] = [];
@@ -175,5 +184,60 @@ describe('LibraryScanScheduleComponent', () => {
     const f = create();
     const cmp = component(f);
     expect(cmp.inZone('2026-10-03T07:00:00Z')).toBe('Sat 3 Oct, 07:00');
+  });
+
+  describe('summary (Libraries card, 1.33.0)', () => {
+    function createSummary(dto: Partial<LibraryDto>) {
+      api = new FakeApi();
+      api.adminDto = lib({ scanSchedule: '1d', nextScheduledScanAt: '2099-01-01T00:00:00Z', ...dto });
+      TestBed.configureTestingModule({
+        imports: [SummaryHostComponent],
+        providers: [provideNoopAnimations(), { provide: ApiService, useValue: api }],
+      });
+      const fixture = TestBed.createComponent(SummaryHostComponent);
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    function line(f: { nativeElement: HTMLElement }): string {
+      return (f.nativeElement.querySelector('[data-testid="scan-summary"]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    }
+
+    it('shows the schedule as text with a link and no controls', () => {
+      const f = createSummary({ scanSchedule: '1d', scanHour: 3 });
+      expect(line(f)).toContain('Auto-scan: Daily at 03:00 (server time)');
+      expect(f.nativeElement.querySelector('mat-select')).toBeNull();
+      expect(f.nativeElement.querySelector('[data-testid="scan-schedule-link"]')?.textContent).toContain('Change in Scheduled jobs');
+      expect(f.nativeElement.textContent).toContain('Last scan:');
+    });
+
+    it('names the weekday of a timed weekly scan, and nothing more for "any time" or off', () => {
+      expect(line(createSummary({ scanSchedule: '7d', scanHour: 5, scanWeekday: 1 }))).toContain('Weekly on Monday at 05:00 (server time)');
+      TestBed.resetTestingModule();
+      expect(line(createSummary({ scanSchedule: '7d', scanHour: null, scanWeekday: null }))).toMatch(/Auto-scan: Weekly Change/);
+      TestBed.resetTestingModule();
+      expect(line(createSummary({ scanSchedule: '1d', scanHour: null }))).toMatch(/Auto-scan: Daily Change/);
+      TestBed.resetTestingModule();
+      expect(line(createSummary({ scanSchedule: 'off' }))).toMatch(/Auto-scan: Off Change/);
+    });
+
+    it('moves to the library\'s Scheduled jobs row and focuses its schedule select', () => {
+      const f = createSummary({ scanSchedule: '1d' });
+      const row = document.createElement('li');
+      row.setAttribute('data-testid', 'job-library-scan-lib1');
+      const select = document.createElement('mat-select');
+      select.tabIndex = 0;
+      row.appendChild(select);
+      document.body.appendChild(row);
+      const scrolled = vi.fn();
+      row.scrollIntoView = scrolled;
+      try {
+        (f.nativeElement.querySelector('[data-testid="scan-schedule-link"]') as HTMLButtonElement).click();
+        expect(scrolled).toHaveBeenCalled();
+        expect(document.activeElement).toBe(select);
+      } finally {
+        row.remove();
+      }
+    });
   });
 });

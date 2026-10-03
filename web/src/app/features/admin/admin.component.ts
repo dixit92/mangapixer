@@ -177,7 +177,7 @@ import { TrashCardComponent } from './trash-card/trash-card.component';
                   </button>
                 </span>
               </mat-list-item>
-              <app-library-scan-schedule [library]="lib" />
+              <app-library-scan-schedule [library]="lib" [summary]="true" />
               <app-library-declared-facts [library]="lib" />
 
               @if (iconPickerLibId() === lib.id) {
