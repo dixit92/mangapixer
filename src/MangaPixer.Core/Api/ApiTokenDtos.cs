@@ -59,7 +59,7 @@ public sealed record CreateApiTokenResponse
     public required string Secret { get; init; }
 
     public override string ToString() =>
-        $"CreateApiTokenResponse {{ Token = {Token.Id}, Secret = [redacted] }}";
+        $"CreateApiTokenResponse {{ Token = {Token?.Id}, Secret = [redacted] }}";
 }
 
 /// <summary>Limits of the token API, shared by the server and the client.</summary>
