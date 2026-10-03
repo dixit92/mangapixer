@@ -55,8 +55,9 @@ public sealed class ApiTokenAuthenticationHandler : AuthenticationHandler<Authen
         var address = Context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
         if (_failures.RetryAfter(address) is { } wait)
         {
+            // Debug only: the Warning was written once, when the address became blocked (no log flood from a blocked client).
             Context.Items[RetryAfterItem] = wait;
-            Logger.LogWarning(LogEvents.Auth.ApiTokenFailuresLimited,
+            Logger.LogDebug(LogEvents.Auth.ApiTokenFailuresLimited,
                 "Bearer request refused: too many failed token attempts from this address; retry in {RetryAfter}s",
                 (int)Math.Ceiling(wait.TotalSeconds));
             return AuthenticateResult.Fail("too_many_failures");
@@ -73,7 +74,13 @@ public sealed class ApiTokenAuthenticationHandler : AuthenticationHandler<Authen
         var result = await tokens.ValidateAsync(presented, Context.RequestAborted);
         if (!result.Succeeded)
         {
-            _failures.RecordFailure(address);
+            if (_failures.RecordFailure(address))
+            {
+                // Never the address itself (privacy invariant, as for the login limiter).
+                Logger.LogWarning(LogEvents.Auth.ApiTokenFailuresLimited,
+                    "Too many failed token attempts from one address; its bearer requests are refused for {Window}s",
+                    (int)_failures.Window.TotalSeconds);
+            }
             Context.Items[RefusedItem] = true;
             // The public id is known only for a stored token (revoked / expired / owner); never the presented value.
             Logger.LogInformation(LogEvents.Auth.ApiTokenRefused, "API token {TokenId} refused: {Reason}",

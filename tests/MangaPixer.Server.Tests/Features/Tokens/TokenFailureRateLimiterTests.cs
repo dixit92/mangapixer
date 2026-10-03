@@ -23,8 +23,10 @@ public sealed class TokenFailureRateLimiterTests
         for (var i = 0; i < 3; i++)
         {
             Assert.Null(limiter.RetryAfter("203.0.113.1"));
-            limiter.RecordFailure("203.0.113.1");
+            // Only the failure that blocks the address says so (the caller logs the block once).
+            Assert.Equal(i == 2, limiter.RecordFailure("203.0.113.1"));
         }
+        Assert.False(limiter.RecordFailure("203.0.113.1"));
 
         clock.Advance(TimeSpan.FromMinutes(1));
         Assert.Equal(TimeSpan.FromMinutes(4), limiter.RetryAfter("203.0.113.1"));

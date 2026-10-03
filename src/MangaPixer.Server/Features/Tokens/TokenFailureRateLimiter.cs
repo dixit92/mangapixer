@@ -13,6 +13,12 @@ public sealed class TokenFailureRateLimiter
     /// <summary>Above this many tracked addresses, expired entries are dropped on the next failure.</summary>
     private const int PruneThreshold = 10_000;
 
+    /// <summary>
+    /// Hard cap on tracked addresses: while it is reached even after pruning, failures from NEW addresses are not tracked, so a
+    /// flood from many addresses cannot grow the memory without bound (addresses already tracked keep being counted).
+    /// </summary>
+    private const int MaxTracked = 100_000;
+
     private readonly ConcurrentDictionary<string, Entry> _failures = new(StringComparer.Ordinal);
     private readonly ApiTokenOptions _options;
     private readonly TimeProvider _clock;
@@ -22,6 +28,9 @@ public sealed class TokenFailureRateLimiter
         _options = options;
         _clock = clock;
     }
+
+    /// <summary>How long an address stays blocked after its last counted failure window started.</summary>
+    public TimeSpan Window => _options.FailedAttemptsWindow;
 
     /// <summary>Null when <paramref name="address"/> may try a token; otherwise how long it must wait.</summary>
     public TimeSpan? RetryAfter(string address)
@@ -34,11 +43,14 @@ public sealed class TokenFailureRateLimiter
         return remaining;
     }
 
-    /// <summary>Counts one failed authentication from <paramref name="address"/>.</summary>
-    public void RecordFailure(string address)
+    /// <summary>
+    /// Counts one failed authentication from <paramref name="address"/>. True when this failure is the one that blocks the
+    /// address (so the caller logs the block once, not on every refused request).
+    /// </summary>
+    public bool RecordFailure(string address)
     {
         if (_options.FailedAttemptsDisabled)
-            return;
+            return false;
         var now = _clock.GetUtcNow();
         var window = _options.FailedAttemptsWindow;
         if (_failures.Count > PruneThreshold)
@@ -48,13 +60,16 @@ public sealed class TokenFailureRateLimiter
                 if (value.WindowStart + window <= now)
                     _failures.TryRemove(key, out _);
             }
+            if (_failures.Count >= MaxTracked && !_failures.ContainsKey(address))
+                return false;
         }
-        _failures.AddOrUpdate(
+        var entry = _failures.AddOrUpdate(
             address,
             _ => new Entry(now, 1),
             (_, existing) => existing.WindowStart + window <= now
                 ? new Entry(now, 1)
                 : existing with { Count = existing.Count + 1 });
+        return entry.Count == _options.FailedAttemptsPerIp;
     }
 
     private sealed record Entry(DateTimeOffset WindowStart, int Count);

@@ -63,7 +63,8 @@ public static class ApiTokenServicesExtensions
                     : 60;
                 http.Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture);
                 http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(ApiTokenService))
-                    .LogWarning(LogEvents.Auth.ApiTokenRequestsLimited, "API token {TokenId} over its request ceiling; retry in {RetryAfter}s",
+                    // Debug: a client stuck in a loop would otherwise write one line per refused request.
+                    .LogDebug(LogEvents.Auth.ApiTokenRequestsLimited, "API token {TokenId} over its request ceiling; retry in {RetryAfter}s",
                         http.User.FindFirst(ApiTokenClaims.TokenId)?.Value ?? "-", seconds);
                 await http.Response.WriteAsJsonAsync(new ApiError
                 {
