@@ -95,6 +95,7 @@ public sealed class MangaPixerDbContext : DbContext
     public DbSet<FolderCoverPreferenceEntity> FolderCoverPreferences => Set<FolderCoverPreferenceEntity>();
     public DbSet<JobRunEntity> JobRuns => Set<JobRunEntity>();
     public DbSet<MetadataRecordObservationEntity> MetadataRecordObservations => Set<MetadataRecordObservationEntity>();
+    public DbSet<ApiTokenEntity> ApiTokens => Set<ApiTokenEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -127,6 +128,7 @@ public sealed class MangaPixerDbContext : DbContext
         ConfigureWikipediaLists(modelBuilder);
         ConfigureFolderCoverPreferences(modelBuilder);
         ConfigureJobSchedules(modelBuilder);
+        ConfigureApiTokens(modelBuilder);
     }
 
     private static void ConfigureAppSettings(ModelBuilder mb)
@@ -971,6 +973,29 @@ public sealed class MangaPixerDbContext : DbContext
             e.HasOne(x => x.Node)
                 .WithMany()
                 .HasForeignKey(x => x.NodeId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    /// <summary>Personal access tokens for the export (1.33.0, migration AddApiTokens).</summary>
+    private static void ConfigureApiTokens(ModelBuilder mb)
+    {
+        mb.Entity<ApiTokenEntity>(e =>
+        {
+            e.ToTable("api_tokens");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.PublicId).HasMaxLength(32).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Prefix).HasMaxLength(16).IsRequired();
+            e.Property(x => x.SecretHash).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Scopes).HasMaxLength(256).IsRequired();
+            e.HasIndex(x => x.PublicId).IsUnique();
+            e.HasIndex(x => x.SecretHash).IsUnique();
+            e.HasIndex(x => x.UserId);
+            e.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }
