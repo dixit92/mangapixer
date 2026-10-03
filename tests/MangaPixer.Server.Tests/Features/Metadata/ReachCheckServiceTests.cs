@@ -74,12 +74,15 @@ public sealed class ReachCheckServiceTests : IDisposable
         var wrong = await SeriesAsync(db, lib, "Synthetic Long", record.Id, SeriesLinkState.Auto, Enumerable.Range(1, 30).Select(v => $"v{v:00}").ToArray());
         var confirmed = await SeriesAsync(db, lib, "Synthetic Kept", record.Id, SeriesLinkState.Confirmed, Enumerable.Range(1, 30).Select(v => $"v{v:00}").ToArray());
         var fits = await SeriesAsync(db, lib, "Synthetic Fits", record.Id, SeriesLinkState.Auto, "v01", "v02", "v03");
+        db.NodeSeriesLinks.Single(l => l.NodeId == wrong.Id).LaterAt = DateTimeOffset.UnixEpoch; // a stale "Later" (1.33.0)
+        await db.SaveChangesAsync();
 
         Assert.Equal(1, await Service(db).CheckRecordAsync(record.Id));
 
         db.ChangeTracker.Clear();
         var link = await db.NodeSeriesLinks.SingleAsync(l => l.NodeId == wrong.Id);
         Assert.Equal(((int)SeriesLinkState.NeedsReview, (long?)null), (link.State, link.RecordId));
+        Assert.Null(link.LaterAt); // back in review as a fresh result, not set aside
         var candidate = await db.MetadataMatchCandidates.SingleAsync(c => c.NodeId == wrong.Id);
         Assert.Equal((record.ExternalId, 1, (int)MatchReason.ReachConflict, 0.97), (candidate.ExternalId, candidate.Rank, candidate.Reasons, candidate.TitleScore));
         var queue = await db.MetadataMatchQueue.SingleAsync(q => q.NodeId == wrong.Id);
