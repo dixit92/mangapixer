@@ -232,6 +232,44 @@ test('the admin trash card with held libraries and a confirm step fits a phone a
   expect(failures, `the trash card does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
 });
 
+test('the API tokens card with long names, a new secret and a confirm step fits a phone and a tablet screen', async ({ page }) => {
+  // 1.33.0: contract-shaped data - a long token name and owner, every status, the secret panel after "Create token" and the
+  // revoke confirm. The create answer is mocked; nothing is created or revoked.
+  test.setTimeout(120_000);
+  const token = (id: string, status: string, extra: Record<string, unknown> = {}) => ({
+    id, name: 'A synthetic token with a rather long name that has to wrap on a phone screen', prefix: 'mpx_AbCd',
+    scopes: ['metadata:read'], ownerUserName: 'an-admin-with-a-rather-long-user-name', createdAt: '2026-10-01T10:00:00Z',
+    expiresAt: '2027-10-01T10:00:00Z', lastUsedAt: '2026-10-03T09:15:00Z', revokedAt: null, status, ...extra,
+  });
+  const tokens = [
+    token('tok-a', 'active'),
+    token('tok-b', 'ownerInactive', { expiresAt: null }),
+    token('tok-c', 'revoked', { revokedAt: '2026-10-02T10:00:00Z' }),
+  ];
+  await page.route(/\/api\/v1\/admin\/tokens$/, (r) => r.request().method() === 'GET'
+    ? r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(tokens) })
+    : r.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ token: token('tok-new', 'active'), secret: 'mpx_' + 'Zx9-'.repeat(10) + 'abc' }) }));
+  await login(page);
+  const failures: string[] = [];
+  for (const size of SIZES) {
+    await page.setViewportSize(size);
+    await page.goto('/admin');
+    const card = page.getByTestId('api-tokens-card');
+    await card.scrollIntoViewIfNeeded();
+    await expect(card.getByTestId('api-token-tok-b')).toContainText('Paused');
+    await card.getByTestId('api-token-name').fill('MangaList');
+    await card.getByTestId('api-token-create').click();
+    await expect(card.getByTestId('api-token-secret')).toBeVisible();
+    await card.getByTestId('api-token-revoke-tok-a').click();
+    await expect(card.getByTestId('api-token-confirm-tok-a')).toBeVisible();
+    await settle(page);
+    if (SHOTS) await card.screenshot({ path: `${SHOTS}/layout-${size.width}-api-tokens.png` });
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px API tokens card: ${p.kind}: ${p.what} - ${p.detail}`);
+  }
+  expect(failures, `the API tokens card does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
+});
+
 test('the identify dialog with its site switch fits a phone and a tablet screen', async ({ page }) => {
   // 1.32.0: "Search on: MangaUpdates | Grand Comics Database", the GCD pace note and the start-year option. Contract-shaped
   // context (a comics folder with both sites allowed); nothing is searched, so nothing is sent.

@@ -42,6 +42,7 @@ import { AnalyticsCardComponent } from './analytics-card/analytics-card.componen
 import { MoveConflictsLinkComponent } from './move-conflicts/move-conflicts-link.component';
 import { ScheduledJobsComponent } from './scheduled-jobs/scheduled-jobs.component';
 import { TrashCardComponent } from './trash-card/trash-card.component';
+import { ApiTokensCardComponent } from './api-tokens/api-tokens-card.component';
 
 /**
  * Admin component. Shows library and user administration.
@@ -78,6 +79,7 @@ import { TrashCardComponent } from './trash-card/trash-card.component';
     LibraryScanScheduleComponent,
     LibraryDeclaredFactsComponent,
     ConsentRenewalBannerComponent,
+    ApiTokensCardComponent,
   ],
   template: `
     <div class="page" data-testid="admin-page">
@@ -447,6 +449,7 @@ import { TrashCardComponent } from './trash-card/trash-card.component';
         }
       </mat-card-content>
     </mat-card>
+    <app-api-tokens-card />
 
     <!-- Audit trail (1.18.0): read side of the previously write-only audit store. -->
     <mat-card>
