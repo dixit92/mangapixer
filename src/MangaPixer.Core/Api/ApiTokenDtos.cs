@@ -40,8 +40,11 @@ public sealed record CreateApiTokenRequest
     /// <summary>A label (1-64 characters), e.g. <c>MangaList</c>.</summary>
     public required string Name { get; init; }
 
-    /// <summary>One of <see cref="ApiTokenLimits.AllowedExpiryDays"/> (30, 90, 365), or null for a token that never expires.</summary>
-    public int? ExpiresInDays { get; init; }
+    /// <summary>
+    /// One of <see cref="ApiTokenLimits.AllowedExpiryDays"/> (30, 90, 365), or null for a token that never expires. Required, so
+    /// "never" is always an explicit choice.
+    /// </summary>
+    public required int? ExpiresInDays { get; init; }
 }
 
 /// <summary>
