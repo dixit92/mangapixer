@@ -187,6 +187,8 @@ public sealed class MetadataAutoMatchHttpTests
             () => reader.PostAsJsonAsync("/api/v1/admin/metadata/review/bulk", new MetadataReviewBulkRequest { Action = MetadataReviewBulkAction.Confirm, NodeIds = ["amAuto"] }),
             () => reader.PostAsync("/api/v1/admin/metadata/review/amReview/later", null),
             () => reader.DeleteAsync("/api/v1/admin/metadata/review/amReview/later"),
+            () => reader.GetAsync("/api/v1/admin/metadata/review/authors"),
+            () => reader.GetAsync("/api/v1/admin/metadata/review?tab=NeedsReview&author=syntheticcircle"),
             () => reader.PostAsJsonAsync("/api/v1/admin/metadata/review/bulk", new MetadataReviewBulkRequest { Action = MetadataReviewBulkAction.Later, NodeIds = ["amReview"] }),
             () => reader.GetAsync("/api/v1/admin/metadata/runs"),
             () => reader.PostAsync("/api/v1/admin/metadata/runs/mmseed/cancel", null),
@@ -432,6 +434,50 @@ public sealed class MetadataAutoMatchHttpTests
             Assert.Equal(["set", "clear", "set"], await db.AuditEvents.AsNoTracking()
                 .Where(a => a.Action == "metadata.review.later").OrderBy(a => a.Id).Select(a => a.Result).ToListAsync());
         }
+        Assert.Equal(0, factory.Handler.CallCount);
+    }
+
+    [Fact]
+    public async Task Review_SameAuthorAndSameFolder_HintsFiltersAndTheAuthorsList()
+    {
+        using var factory = new MetadataNetworkWebApplicationFactory(failOnAnyRequest: true, configureServices: Fakes);
+        await SeedAsync(factory);
+        using (var scope = factory.Services.CreateScope())
+        {
+            // Two works by one circle in a folder (a balanced and an unbalanced leading tag), next to the seeded amReview.
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+            var lib = await db.Libraries.SingleAsync(l => l.PublicId == LibPub);
+            var folder = Node("amDoujins", lib.Id, null, CatalogNodeKind.Folder, "Doujins");
+            db.CatalogNodes.Add(folder);
+            await db.SaveChangesAsync();
+            var one = Node("amC1", lib.Id, folder.Id, CatalogNodeKind.Archive, "[Synthetic Circle (Some Artist)] First Story.cbz");
+            var two = Node("amC2", lib.Id, folder.Id, CatalogNodeKind.Archive, "Synthetic Circle] Second Story.cbz");
+            db.CatalogNodes.AddRange(one, two);
+            await db.SaveChangesAsync();
+            foreach (var n in new[] { one, two })
+                db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity { NodeId = n.Id, LibraryId = lib.Id, State = (int)SeriesLinkState.NeedsReview, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow });
+            await db.SaveChangesAsync();
+        }
+        var admin = await factory.LoginAsAdminWithChangedPasswordAsync();
+        const string Review = "/api/v1/admin/metadata/review";
+
+        var page = await OkAsync<MetadataReviewPageDto>(await admin.GetAsync($"{Review}?tab=NeedsReview"));
+        var c1 = page.Items.Single(i => i.NodeId == "amC1");
+        Assert.Equal(("syntheticcircle", "Synthetic Circle", 1), (c1.SameAuthor!.Key, c1.SameAuthor.Label, c1.SameAuthor.Others));
+        Assert.Equal(("amDoujins", "Doujins", 1), (c1.SameFolder!.Key, c1.SameFolder.Label, c1.SameFolder.Others));
+        Assert.Null(page.Items.Single(i => i.NodeId == "amReview").SameAuthor);
+
+        var authors = await OkAsync<MetadataReviewAuthorsDto>(await admin.GetAsync($"{Review}/authors?library={LibPub}"));
+        Assert.Equal(("syntheticcircle", "Synthetic Circle", 2), (authors.Items.Single().Key, authors.Items.Single().Label, authors.Items.Single().Count));
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync($"{Review}/authors?library=nolib")).StatusCode);
+
+        var byAuthor = await OkAsync<MetadataReviewPageDto>(await admin.GetAsync($"{Review}?tab=NeedsReview&author=syntheticcircle&limit=1"));
+        Assert.Equal((2, true), (byAuthor.Total, byAuthor.HasMore));
+        var byFolder = await OkAsync<MetadataReviewPageDto>(await admin.GetAsync($"{Review}?tab=NeedsReview&folder=amDoujins"));
+        Assert.Equal(["amC2", "amC1"], byFolder.Items.Select(i => i.NodeId));
+        var both = await admin.GetAsync($"{Review}?tab=NeedsReview&author=syntheticcircle&folder=amDoujins");
+        Assert.Equal(HttpStatusCode.BadRequest, both.StatusCode);
+        Assert.Equal("invalid_filter", (await ErrorAsync(both)).Error);
         Assert.Equal(0, factory.Handler.CallCount);
     }
 
