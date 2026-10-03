@@ -14,7 +14,7 @@ internal sealed class ReviewGroupIndex
     /// <summary>A waiting work: its author names (may be empty), its parent folder, and whether it is set aside.</summary>
     public sealed record Work(long NodeId, IReadOnlyList<ReviewAuthorNames.Name> Names, long? ParentId, bool Later);
 
-    /// <summary>An author group: the filter key (stable while its members are), the name to show, the members, how many are Later.</summary>
+    /// <summary>An author group: the filter key (the shown name's key), the name to show, the members, how many are Later.</summary>
     public sealed record AuthorGroup(string Key, string Label, IReadOnlyList<long> NodeIds, int Later);
 
     private readonly Dictionary<long, AuthorGroup> _byNode = [];
@@ -54,7 +54,7 @@ internal sealed class ReviewGroupIndex
                 .OrderByDescending(g => g.Count()).ThenBy(g => g.Key.Length).ThenBy(g => g.Key, StringComparer.Ordinal)
                 .First().Key;
             var group = new AuthorGroup(
-                names.Select(n => n.Key).Min(StringComparer.Ordinal)!,
+                names.First(n => n.Label.Equals(label, StringComparison.OrdinalIgnoreCase)).Key, // the shown name's own key
                 label,
                 members.Select(i => works[i].NodeId).ToList(),
                 members.Count(i => works[i].Later));

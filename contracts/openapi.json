@@ -3396,6 +3396,20 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "author",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "folder",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -3435,6 +3449,44 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/metadata/review/authors": {
+      "get": {
+        "tags": [
+          "MetadataReview"
+        ],
+        "parameters": [
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetadataReviewAuthorsDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetadataReviewAuthorsDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetadataReviewAuthorsDto"
                 }
               }
             }
@@ -10290,6 +10342,52 @@
           }
         }
       },
+      "MetadataReviewAuthorDto": {
+        "required": [
+          "key",
+          "label",
+          "count"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "later": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "MetadataReviewAuthorsDto": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MetadataReviewAuthorDto"
+            }
+          }
+        }
+      },
       "MetadataReviewBulkAction": {
         "type": "integer"
       },
@@ -10479,6 +10577,30 @@
           }
         }
       },
+      "MetadataReviewGroupHintDto": {
+        "required": [
+          "key",
+          "label",
+          "others"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "others": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "MetadataReviewItemDto": {
         "required": [
           "nodeId",
@@ -10612,6 +10734,26 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "sameAuthor": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MetadataReviewGroupHintDto"
+              }
+            ]
+          },
+          "sameFolder": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MetadataReviewGroupHintDto"
+              }
+            ]
           },
           "duplicateChapters": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
