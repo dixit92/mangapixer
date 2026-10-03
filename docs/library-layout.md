@@ -169,7 +169,7 @@ Favorites belong to your account and follow you to every device. They respect Pr
 
 **Each library is rescanned automatically on a schedule, daily by default.** There is no file watcher. In **MangaPixer Administration** > **Libraries**:
 
-- **Auto-scan**, under each library's row, sets how often that library is rescanned: **Off**, **Hourly**, **Every 6 hours**, **Daily** (the default) or **Weekly**. Next to it, **Last scan** shows when the library was last scanned and **Next scan (approx.)** when the next automatic scan is expected. See [Automatic scans](#automatic-scans).
+- **Auto-scan** sets how often a library is rescanned: **Off**, **Hourly**, **Every 6 hours**, **Daily** (the default) or **Weekly**. It is set in the library's row of **Scheduled jobs**; under each library's row on the **Libraries** card a line shows the schedule with a **Change in Scheduled jobs** link. Next to it, **Last scan** shows when the library was last scanned and **Next scan (approx.)** when the next automatic scan is expected. See [Automatic scans](#automatic-scans).
 - **Scan now** (the circular-arrow icon) on a library's row scans that library.
 - **Scan all libraries** scans every library. Libraries that are already scanning are skipped.
 - **Cancel** stops a running scan.

@@ -59,7 +59,7 @@ services:
 then start it and open <http://127.0.0.1:8080> to create the first admin account:
 
 ```bash
-MANGAPIXER_VERSION=1.32.0 docker compose -f compose.yaml -f compose.override.yaml up -d
+MANGAPIXER_VERSION=1.33.0 docker compose -f compose.yaml -f compose.override.yaml up -d
 ```
 
 Details, upgrades and reaching it from other devices: [Install with Docker](docs/install-docker.md).
@@ -72,6 +72,8 @@ In every case, add your libraries under **Administration** after signing in. In 
 - **A reader for every screen:** paged (left-to-right or manga), double-page spreads and vertical webtoon, with touch and keyboard controls and on-device upscaling (**Crisp** and **Enhance**).
 - **Per-user reading state:** progress, read marks, "Continue reading" and "New chapters" for every user.
 - **Series information:** read from `ComicInfo.xml`, and optionally from MangaUpdates, linked by hand or automatically, with volume covers and volume lists from MangaDex and chapters per volume from AniList (all off by default). A linked series shows what you have, what is missing in your language and when it is finished.
+- **Reviewing matches:** works the automatic matcher was unsure of wait in **Needs review**, where you can set hard ones aside for **Later** and see which waiting works share an author or a folder, so a whole circle's doujins can be handled together.
+- **For other apps:** a read-only [metadata export](docs/metadata-export.md) with admin-created [API tokens](docs/api-tokens.md), so a tool such as MangaList can use what MangaPixer already knows instead of looking it up again.
 - **Multi-user:** admin and reader roles, per-library access, activation links, private libraries and Incognito.
 - **Low-maintenance:** scheduled scans, persistent thumbnails, automatic database backups, and YACReader progress import.
 - **Private by default:** no telemetry or analytics, no default credentials, and your media folders are only ever read. Nothing leaves your server until an admin turns on an optional internet feature ([details](docs/privacy-and-security.md)).
@@ -85,7 +87,7 @@ All guides live in [`docs/`](docs/README.md):
 
 - **Install:** [Unraid](docs/install-unraid.md), [Windows](docs/install-windows.md), [Docker](docs/install-docker.md)
 - **Set up and run:** [Configuration reference](docs/configuration.md), [Library layout](docs/library-layout.md), [Users and access](docs/users-and-access.md), [Backup and restore](docs/backup-and-restore.md), [Reverse proxy and HTTPS](docs/reverse-proxy-and-https.md)
-- **Use:** [Features](docs/features.md), [Reader](docs/reader.md), [Series information](docs/series-information.md)
+- **Use:** [Features](docs/features.md), [Reader](docs/reader.md), [Series information](docs/series-information.md), [Metadata export API](docs/metadata-export.md) and [API tokens](docs/api-tokens.md)
 - **Help:** [Troubleshooting](docs/troubleshooting.md), [FAQ](docs/faq.md), [Privacy and security](docs/privacy-and-security.md)
 
 ## Building from source and contributing

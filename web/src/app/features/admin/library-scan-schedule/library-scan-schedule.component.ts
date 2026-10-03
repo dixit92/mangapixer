@@ -43,6 +43,12 @@ export const SCAN_SCHEDULE_OPTIONS: readonly { value: LibraryScanSchedule; label
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="scan-schedule">
+      @if (summary()) {
+        <span class="summary" data-testid="scan-summary">
+          Auto-scan: {{ summaryText() }}
+          <button type="button" class="link" data-testid="scan-schedule-link" (click)="showInJobs()">Change in Scheduled jobs</button>
+        </span>
+      } @else {
       <mat-form-field appearance="fill" class="schedule-select" floatLabel="always" subscriptSizing="dynamic">
         <mat-label>Auto-scan</mat-label>
         <mat-select [value]="schedule()" [disabled]="schedule() === null || saving()"
@@ -75,6 +81,7 @@ export const SCAN_SCHEDULE_OPTIONS: readonly { value: LibraryScanSchedule; label
           </mat-form-field>
         }
       }
+      }
       <span class="schedule-info">
         <span class="last">Last scan:
           @if (lastScan(); as last) { {{ serverZone() ? inZone(last) : (last | date:'short') }} } @else { never }
@@ -101,6 +108,7 @@ export const SCAN_SCHEDULE_OPTIONS: readonly { value: LibraryScanSchedule; label
     .time-select { width: 140px; }
     .schedule-info { display: inline-flex; flex-wrap: wrap; gap: 4px 16px; opacity: 0.75; }
     .schedule-error { color: var(--mp-warn, #ff8a80); }
+    .link { background: none; border: none; padding: 0; margin-left: 4px; font: inherit; color: #b39ddb; text-decoration: underline; cursor: pointer; }
     @media (max-width: 600px) {
       .scan-schedule { padding-left: 16px; }
     }
@@ -115,6 +123,12 @@ export class LibraryScanScheduleComponent {
 
   /** 1.32.0: an IANA zone (the Scheduled jobs section passes the server's) - last / next scan are then shown in that zone. */
   readonly serverZone = input<string | null>(null);
+
+  /**
+   * 1.33.0: read-only - the schedule as one line with a link to its Scheduled jobs row, where it is changed (the
+   * Libraries card shows it this way, so the schedule is edited in one place).
+   */
+  readonly summary = input(false);
 
   readonly options = SCAN_SCHEDULE_OPTIONS;
   readonly hours = SCAN_HOURS;
@@ -141,6 +155,25 @@ export class LibraryScanScheduleComponent {
     } catch {
       return new Intl.DateTimeFormat('en-GB', { ...options, timeZone: 'UTC' }).format(new Date(iso));
     }
+  }
+
+  /** "Daily at 03:00 (server time)", "Weekly on Monday at 03:00 (server time)", "Off" - the read-only line of {@link summary}. */
+  readonly summaryText = computed(() => {
+    const schedule = this.schedule();
+    if (schedule === null) return '…';
+    const label = this.options.find(o => o.value === schedule)?.label ?? schedule;
+    if (!this.takesHour()) return label;
+    const hour = this.hour();
+    const day = schedule === '7d' && hour !== null ? ` on ${this.weekdays[this.weekday() ?? 0]}` : '';
+    return hour === null ? `${label}${day}` : `${label}${day} at ${hourLabel(hour)} (server time)`;
+  });
+
+  /** Moves the page to this library's row in Scheduled jobs and focuses its schedule select. */
+  showInJobs(): void {
+    const row = document.querySelector<HTMLElement>(`[data-testid="job-library-scan-${this.library().id}"]`);
+    if (!row) return;
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    row.querySelector<HTMLElement>('mat-select')?.focus({ preventScroll: true });
   }
 
   /** A past (or present) next-scan time: the next scheduler pass picks it up. */

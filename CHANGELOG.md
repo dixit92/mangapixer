@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.33.0] - 2026-10-03
+
+### Added
+
+- **Later in Needs review.** **Later** sets a work aside so you can accept the easy matches first: it moves to the end of **Needs review** with a **Later** tag, for every admin and after a reload, until the work is decided (accepted, identified, marked **Don't match**) or checked again by the matcher. **Not later** brings it back. Works set aside are listed oldest first after all the others; while any are set aside, **All**, **To review** and **Later** above the list choose what to show, with a count. Also a bulk action and the `l` key. See [Review](docs/series-information.md#review).
+- **Same author and same folder in Needs review.** Doujins and artist collections often wait in groups: a row now says when other works waiting for review are by the same circle or artist - **4 more by Circle Name**, read from the leading tag of the works' own names (`[Circle (Artist)] Title`, also without the opening bracket; a circle and its artist count as one author) - or sit in the same folder. Tap it (or press `g`) to list them together, then **Select all** and a bulk action such as **Later** or **Don't match**. **Authors** above the list shows every author with two or more works waiting, largest first. Built from the names on your server only: nothing is looked up and matching is unchanged. See [Review](docs/series-information.md#review).
+- **API tokens** for other apps (Administration > **API tokens**): create a token with a name and an expiry (30 days, 90 days, 1 year - the default - or never), copy it once (it is never shown again), see when each token was last used, and revoke it. A token can only read the new metadata export, nothing else; it works only while the admin who created it is an active admin. MangaList is the first app that uses one. `GET /api/v1/export/ping` lets an app check its token. See [API tokens](docs/api-tokens.md).
+- **Metadata export for MangaList and other tools.** A read-only API (`GET /api/v1/export/libraries`, `GET /api/v1/export/metadata`) hands another program on your network what MangaPixer knows about your series: every folder or archive with its own link, the linked record, its MangaDex and AniList companions, the volume list with English release dates and ISBNs, the Completion answer and when the information is looked at again. Clients sync incrementally (`updatedSince`, with removals and the old id of a renamed folder) and page through large libraries. Names only - never a path - and calling it never contacts a website. See [Metadata export API](docs/metadata-export.md).
+- **Official sources from MangaDex.** When MangaPixer reads a series' MangaDex record (as it already does for volume lists and covers), it now also keeps the official links that record lists - the publisher's pages and stores - and offers them in the export. No new request: they fill in as each series' MangaDex record is next read.
+
+### Changed
+
+- **A library's scan schedule is set in Scheduled jobs only.** The **Libraries** card shows it as one line ("Auto-scan: Daily at 03:00 (server time)") with a **Change in Scheduled jobs** link to the library's row, next to the last and next scan.
+
+- **Upgrade note:** this version adds three small database migrations (`AddReviewLater`, `AddExportState`, `AddApiTokens`: one new column and five new tables only; a snapshot is taken before they run). No new consent is needed and matching is unchanged: works waiting in **Needs review** are not checked again. MangaDex official links fill in as each series' MangaDex record is next read (no extra request). The metadata export builds its first snapshot of a library on the first export request; every client's first incremental call is answered with a full sync. The media worker protocol is unchanged (5).
+
+### Security
+
+- API tokens are stored only as a SHA-256 fingerprint, never logged, and refused for anything but reading the export. Too many wrong tokens from one address are answered with 429 for 5 minutes; one token may make up to 600 requests a minute.
+
 ## [1.32.0] - 2026-10-02
 
 ### Added

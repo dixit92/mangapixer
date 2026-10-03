@@ -82,7 +82,7 @@ The Unraid Compose file sets the three roots to `/config/data`, `/config/cache` 
 | `MangaPixer:Scanning:Scheduler:StartupDelaySeconds` (`MangaPixer__Scanning__Scheduler__StartupDelaySeconds`) | `180` | Seconds after start-up before the first check for due libraries, so a restart does not start scans straight away. |
 | `MangaPixer:Scanning:Scheduler:TickSeconds` (`MangaPixer__Scanning__Scheduler__TickSeconds`) | `60` | Seconds between checks for due libraries. |
 
-How often each library is scanned is set per library in the web app (**Auto-scan**: Off, Hourly, Every 6 hours, Daily or Weekly; daily by default). A value that cannot be read is ignored and the default is used. See [Automatic scans](library-layout.md#automatic-scans).
+How often each library is scanned is set per library in **MangaPixer Administration** > **Scheduled jobs** (**Auto-scan**: Off, Hourly, Every 6 hours, Daily or Weekly; daily by default). A value that cannot be read is ignored and the default is used. See [Automatic scans](library-layout.md#automatic-scans).
 
 ## Backups
 
@@ -106,6 +106,8 @@ The schedule, retention and location can also be changed in the **Backup setting
 | `MangaPixer:Security:RateLimit:MaxAttemptsPerUser` (`MangaPixer__Security__RateLimit__MaxAttemptsPerUser`) | `5` | Failed sign-ins allowed for one username per window. |
 | `MangaPixer:Security:RateLimit:Window` (`MangaPixer__Security__RateLimit__Window`) | `00:05:00` | Length of the counting window, as `hh:mm:ss`. |
 | `MangaPixer:Security:RateLimit:Disabled` (`MangaPixer__Security__RateLimit__Disabled`) | `false` | Turns the limiter off. Only for testing. |
+| `MangaPixer:Security:ApiTokens:RequestsPerMinute` (`MangaPixer__Security__ApiTokens__RequestsPerMinute`) | `600` | Requests a minute one API token may make to the export; above it the answer is 429 with `Retry-After`. 0 = no ceiling. |
+| `MangaPixer:Security:ApiTokens:FailedAttemptsPerIp` (`MangaPixer__Security__ApiTokens__FailedAttemptsPerIp`) | `20` | Requests with a wrong token from one address within 5 minutes before that address's token requests are refused for the rest of the 5 minutes. |
 
 The counters are held in memory and reset when the server restarts. Separately, an account locks for 15 minutes after 5 wrong passwords; that is not configurable. Behind a reverse proxy the limit counts each client's real address, as long as the proxy is trusted and sends `X-Forwarded-For` (see [Reverse proxy and HTTPS](reverse-proxy-and-https.md#what-the-server-sees-behind-a-proxy)).
 
@@ -133,7 +135,7 @@ A few server-wide settings are changed by an admin in **MangaPixer Administratio
 - **Backup settings**: schedule, retention and location (configuration values above take precedence).
 - **Update Checker**: off by default. When an admin ticks **Check for updates**, the server asks the GitHub Releases API for MangaPixer's latest release at most once a day (or when you select **Check now**) and shows **Update available** or **Up to date** in the admin page. The request carries no instance identifier, user data, paths or telemetry; apart from web series information (below), it is the only call MangaPixer makes to the internet, and only while this setting is on.
 - **Metadata Manager** (its own page, `/admin/metadata`, opened from the account menu, **Settings** tab): **Show series information**, **Fetch from the web** (off by default; turning it on needs the consent tick), **Automatic matching** (off by default, with its own consent tick), the **Daily request budget** (5000 by default) and the per-library switches. See [Series information](series-information.md#admin-settings). `Metadata__NetworkDisabled=true` (config key `Metadata:NetworkDisabled`) turns web lookups off regardless of the admin setting, for operators who want certainty; the Metadata Manager page then says so.
-- **Library icons, reading directions and automatic scan schedules**, set per library on the **Libraries** card.
+- **Library icons and reading directions**, set per library on the **Libraries** card, and **automatic scan schedules**, set per library in **Scheduled jobs**.
 - **Scheduled jobs** (*1.32.0*): the hours of the daily jobs (series information refresh, backups, trash, cache clean-up), each library's scan time and how often series information is refreshed. See [Scheduled jobs](scheduled-jobs.md).
 
 ## Fixed behavior

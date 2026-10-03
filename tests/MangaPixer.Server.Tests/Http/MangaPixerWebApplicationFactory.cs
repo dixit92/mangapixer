@@ -132,12 +132,17 @@ public sealed class MangaPixerWebApplicationFactory : WebApplicationFactory<Prog
         return merged;
     }
 
+    /// <summary>The exceptions behind this host's HTTP 500s, for assertion messages (1.33.0).</summary>
+    public UnhandledErrorCapture UnhandledErrors { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
 
         builder.ConfigureTestServices(services =>
         {
+            services.AddSingleton<IStartupFilter>(UnhandledErrors);
+
             // Remove the worker pool hosted service so tests don't spawn workers.
             var workerHostedDescriptor = services.FirstOrDefault(
                 d => d.ImplementationType == typeof(MediaWorkerHostedService));
@@ -188,16 +193,16 @@ public sealed class MangaPixerWebApplicationFactory : WebApplicationFactory<Prog
                 Username = "admin",
                 Password = password,
             });
-            loginResponse.EnsureSuccessStatusCode();
+            await UnhandledErrors.EnsureSuccessAsync(loginResponse);
         }
         else
         {
-            setupResponse.EnsureSuccessStatusCode();
+            await UnhandledErrors.EnsureSuccessAsync(setupResponse);
         }
 
         // Get CSRF token AFTER sign-in — the token is tied to the authenticated identity.
         var csrfResponse = await client.GetAsync("/api/v1/auth/csrf");
-        csrfResponse.EnsureSuccessStatusCode();
+        await UnhandledErrors.EnsureSuccessAsync(csrfResponse);
         var csrf = await csrfResponse.Content.ReadFromJsonAsync<CsrfTokenDto>();
         Assert.NotNull(csrf);
         client.DefaultRequestHeaders.Add("X-MangaPixer-Csrf", csrf!.Token);
@@ -231,7 +236,7 @@ public sealed class MangaPixerWebApplicationFactory : WebApplicationFactory<Prog
             CurrentPassword = currentPassword,
             NewPassword = newPassword,
         });
-        changeResponse.EnsureSuccessStatusCode();
+        await UnhandledErrors.EnsureSuccessAsync(changeResponse);
 
         // Re-login with new password (sessions were revoked)
         var freshClient = CreateClient();
@@ -240,11 +245,11 @@ public sealed class MangaPixerWebApplicationFactory : WebApplicationFactory<Prog
             Username = "admin",
             Password = newPassword,
         });
-        loginResponse.EnsureSuccessStatusCode();
+        await UnhandledErrors.EnsureSuccessAsync(loginResponse);
 
         // Get CSRF token after re-login
         var csrfResponse = await freshClient.GetAsync("/api/v1/auth/csrf");
-        csrfResponse.EnsureSuccessStatusCode();
+        await UnhandledErrors.EnsureSuccessAsync(csrfResponse);
         var csrf = await csrfResponse.Content.ReadFromJsonAsync<CsrfTokenDto>();
         Assert.NotNull(csrf);
         freshClient.DefaultRequestHeaders.Add("X-MangaPixer-Csrf", csrf!.Token);

@@ -1181,6 +1181,12 @@ public sealed class NodeSeriesLinkEntity
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 
+    /// <summary>
+    /// 1.33.0: when an admin set this Needs-review row aside ("Later"); it sorts to the end of Needs review. Null otherwise.
+    /// Every path that decides the work or re-checks it (accept, link, Don't match, the matcher's outcome, a demotion) clears it.
+    /// </summary>
+    public DateTimeOffset? LaterAt { get; set; }
+
     public CatalogNodeEntity? Node { get; set; }
     public MetadataRecordEntity? Record { get; set; }
 }
@@ -1878,4 +1884,123 @@ public sealed class MetadataRecordObservationEntity
     public int? OriginStatus { get; set; }
 
     public MetadataRecordEntity? Record { get; set; }
+}
+
+/// <summary>
+/// One exported item of the metadata export (1.33.0, for MangaList): the canonical JSON of a node with its own series link, as the
+/// last export rebuild of its library computed it, served as is when paging. <see cref="Fingerprint"/> (SHA-256 hex of the JSON
+/// without its volatile times) decides whether a rebuild changed the item; <see cref="UpdatedAt"/> is the time of that rebuild.
+/// <see cref="NodeId"/> deliberately has no foreign key: a purged node keeps its row until the next rebuild pools its removal.
+/// Cascades with the library. Holds names, never a path.
+/// </summary>
+public sealed class ExportItemEntity
+{
+    public long Id { get; set; }
+    public long LibraryId { get; set; }
+    public long NodeId { get; set; }
+
+    /// <summary>The node's public id (max 64).</summary>
+    public string NodePublicId { get; set; } = string.Empty;
+
+    public string Json { get; set; } = string.Empty;
+
+    /// <summary>SHA-256 (64 hex) of the canonical JSON without <c>updatedAt</c> and the completion times.</summary>
+    public string Fingerprint { get; set; } = string.Empty;
+
+    public DateTimeOffset UpdatedAt { get; set; }
+
+    public LibraryEntity? Library { get; set; }
+}
+
+/// <summary>
+/// A node that left a library's export (1.33.0), kept for the removal window so an incremental export call reports it. At most one
+/// row per (library, node); a node that comes back as an item loses its row. Cascades with the library.
+/// </summary>
+public sealed class ExportRemovalEntity
+{
+    public long Id { get; set; }
+    public long LibraryId { get; set; }
+
+    /// <summary>The removed node's public id (max 64).</summary>
+    public string NodePublicId { get; set; } = string.Empty;
+
+    /// <summary><c>nodeGone</c>, <c>linkCleared</c> or <c>movedToOtherLibrary</c> (max 32).</summary>
+    public string Reason { get; set; } = string.Empty;
+
+    public DateTimeOffset At { get; set; }
+
+    public LibraryEntity? Library { get; set; }
+}
+
+/// <summary>
+/// The export state of one library (1.33.0): the last rebuild and the start of its removal pool (<see cref="WatermarkAt"/>; an
+/// incremental call from before it needs a full sync). Cascades with the library.
+/// </summary>
+public sealed class ExportLibraryStateEntity
+{
+    public long LibraryId { get; set; }
+    public DateTimeOffset WatermarkAt { get; set; }
+    public DateTimeOffset LastRebuildAt { get; set; }
+    public long LastRebuildMs { get; set; }
+    public int ItemCount { get; set; }
+
+    public LibraryEntity? Library { get; set; }
+}
+
+/// <summary>
+/// A series link that folder carry-over (or a manual re-attach) moved from a removed node to a new one (1.33.0): the export shows the
+/// old node's public id as the new item's <c>carriedFrom</c> instead of a removal. Written by <c>MetadataCarryOverService</c>, kept for
+/// the removal window; no foreign keys (the old node is a tombstone the trash may purge).
+/// </summary>
+public sealed class ExportCarryEntity
+{
+    public long Id { get; set; }
+    public long NewNodeId { get; set; }
+    public long OldNodeId { get; set; }
+
+    /// <summary>The old node's public id (max 64).</summary>
+    public string OldNodePublicId { get; set; } = string.Empty;
+
+    public DateTimeOffset At { get; set; }
+}
+
+/// <summary>
+/// A personal access token (1.33.0): an admin-created credential that reads the metadata export (<c>/api/v1/export/*</c>) and
+/// nothing else. Only the SHA-256 hash of the secret is stored; the secret is shown once at creation. The token works only while
+/// its owner exists and is an active admin, and it is deleted with its owner.
+/// </summary>
+public sealed class ApiTokenEntity
+{
+    public long Id { get; set; }
+
+    /// <summary>Opaque public id (max 32): shown in the list, used by the revoke route, logged and audited.</summary>
+    public string PublicId { get; set; } = string.Empty;
+
+    /// <summary>The admin who created the token.</summary>
+    public long UserId { get; set; }
+
+    /// <summary>The admin's label (max 64), e.g. <c>MangaList</c>.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>The first characters of the token (max 16), shown so an admin can tell tokens apart. Not enough to use it.</summary>
+    public string Prefix { get; set; } = string.Empty;
+
+    /// <summary>SHA-256 of the whole token, lowercase hex (64 chars, unique).</summary>
+    public string SecretHash { get; set; } = string.Empty;
+
+    /// <summary>Space-separated scopes (max 256); today only <c>metadata:read</c>.</summary>
+    public string Scopes { get; set; } = string.Empty;
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    /// <summary>When the token stops working; null = never.</summary>
+    public DateTimeOffset? ExpiresAt { get; set; }
+
+    /// <summary>The last accepted request, written at most about once a minute.</summary>
+    public DateTimeOffset? LastUsedAt { get; set; }
+
+    /// <summary>Set when an admin revokes the token; a revoked token never works again.</summary>
+    public DateTimeOffset? RevokedAt { get; set; }
+
+    public UserEntity? User { get; set; }
 }

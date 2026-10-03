@@ -21,7 +21,9 @@ using Microsoft.EntityFrameworkCore;
 /// (cursor = the last row id) with an optional library filter:
 /// - Needs review / Auto-linked / Confirmed / Don't match: own link rows of that
 ///   state on live nodes (Auto-linked lists work anchors only, not archive-group
-///   members, newest first);
+///   members, newest first). Needs review lists the rows an admin set aside
+///   ("Later", 1.33.0) after all the others, oldest set-aside first, with a
+///   compound cursor (see <see cref="ReviewCursor"/>);
 /// - Unmatched: decided works with no confident match (and works that failed);
 /// - Flags: anchors with open flags, automatic links first;
 /// - Missing folders: removed folders still carrying admin rows.
@@ -41,6 +43,7 @@ public sealed class MetadataReviewService
     private readonly AuditService _audit;
     private readonly ILogger<MetadataReviewService> _logger;
     private readonly ICoverResolver _covers;
+    private readonly TimeProvider _time;
 
     public MetadataReviewService(
         MangaPixerDbContext db,
@@ -49,8 +52,10 @@ public sealed class MetadataReviewService
         MetadataAutoMatchService autoMatch,
         MetadataCarryOverService carryOver,
         AuditService audit,
-        ILogger<MetadataReviewService> logger)
+        ILogger<MetadataReviewService> logger,
+        TimeProvider time)
     {
+        _time = time;
         _db = db;
         _links = links;
         _identify = identify;
@@ -74,6 +79,7 @@ public sealed class MetadataReviewService
         return new MetadataReviewSummaryDto
         {
             NeedsReview = await LinksOf(SeriesLinkState.NeedsReview, libraryId).CountAsync(ct),
+            Later = await LinksOf(SeriesLinkState.NeedsReview, libraryId).CountAsync(l => l.LaterAt != null, ct),
             AutoLinked = await AutoAnchors(libraryId).CountAsync(ct),
             Unmatched = await UnmatchedRows(libraryId).CountAsync(ct),
             OpenFlags = await OpenFlags(libraryId).CountAsync(ct),
@@ -118,8 +124,12 @@ public sealed class MetadataReviewService
 
     // --- List ---
 
+    /// <param name="later">Needs review only: true lists only the rows set aside ("Later"), false only the others, null both.</param>
+    /// <param name="author">Needs review only (1.33.0): only the works of this author group (<see cref="MetadataReviewGroupHintDto.Key"/>).</param>
+    /// <param name="folder">Needs review only (1.33.0): only the works directly in this folder (its node id). Not with <paramref name="author"/>.</param>
     public async Task<(string? Error, MetadataReviewPageDto? Page)> ListAsync(
-        MetadataReviewTab tab, string? libraryPublicId, string? cursor, int limit, CancellationToken ct = default)
+        MetadataReviewTab tab, string? libraryPublicId, string? cursor, int limit, CancellationToken ct = default, bool? later = null,
+        string? author = null, string? folder = null)
     {
         if (!Enum.IsDefined(tab))
             return ("invalid_tab", null);
@@ -129,18 +139,39 @@ public sealed class MetadataReviewService
         limit = Math.Clamp(limit, 1, 100);
         long? after = long.TryParse(cursor, NumberStyles.None, CultureInfo.InvariantCulture, out var c) ? c : null;
 
-        List<(long Key, long NodeId)> rows;
+        List<(string Key, long NodeId)> rows;
         int total;
+        ReviewGroupIndex? groups = null;
         switch (tab)
         {
             case MetadataReviewTab.NeedsReview:
+                {
+                    if (!string.IsNullOrEmpty(author) && !string.IsNullOrEmpty(folder))
+                        return ("invalid_filter", null);
+                    groups = await GroupIndexAsync(libraryId, ct);
+                    var q = LinksOf(SeriesLinkState.NeedsReview, libraryId);
+                    if (later is { } onlyLater)
+                        q = q.Where(l => (l.LaterAt != null) == onlyLater);
+                    if (!string.IsNullOrEmpty(author))
+                    {
+                        var members = groups.Find(author)?.NodeIds.ToList() ?? [];
+                        q = q.Where(l => members.Contains(l.NodeId));
+                    }
+                    if (!string.IsNullOrEmpty(folder))
+                    {
+                        var folderId = await _db.CatalogNodes.Where(n => n.PublicId == folder).Select(n => (long?)n.Id).FirstOrDefaultAsync(ct) ?? -1;
+                        q = q.Where(l => _db.CatalogNodes.Any(n => n.Id == l.NodeId && n.ParentId == folderId));
+                    }
+                    total = await q.CountAsync(ct);
+                    rows = await NeedsReviewPageAsync(q, ReviewCursor.Parse(cursor), limit + 1, ct);
+                    break;
+                }
             case MetadataReviewTab.AutoLinked:
             case MetadataReviewTab.Confirmed:
             case MetadataReviewTab.DontMatch:
                 {
                     var q = tab switch
                     {
-                        MetadataReviewTab.NeedsReview => LinksOf(SeriesLinkState.NeedsReview, libraryId),
                         MetadataReviewTab.AutoLinked => AutoAnchors(libraryId),
                         MetadataReviewTab.Confirmed => LinksOf(SeriesLinkState.Confirmed, libraryId),
                         _ => LinksOf(SeriesLinkState.DontMatch, libraryId),
@@ -149,7 +180,7 @@ public sealed class MetadataReviewService
                     if (after is { } a)
                         q = q.Where(l => l.Id < a);
                     rows = (await q.OrderByDescending(l => l.Id).Take(limit + 1).Select(l => new { l.Id, l.NodeId }).ToListAsync(ct))
-                        .Select(x => (x.Id, x.NodeId)).ToList();
+                        .Select(x => (Key(x.Id), x.NodeId)).ToList();
                     break;
                 }
             case MetadataReviewTab.Unmatched:
@@ -159,7 +190,7 @@ public sealed class MetadataReviewService
                     if (after is { } a)
                         q = q.Where(r => r.Id < a);
                     rows = (await q.OrderByDescending(r => r.Id).Take(limit + 1).Select(r => new { r.Id, r.NodeId }).ToListAsync(ct))
-                        .Select(x => (x.Id, x.NodeId)).ToList();
+                        .Select(x => (Key(x.Id), x.NodeId)).ToList();
                     break;
                 }
             case MetadataReviewTab.Flags:
@@ -169,7 +200,7 @@ public sealed class MetadataReviewService
                     total = await q.CountAsync(ct);
                     if (after is { } a)
                         q = q.Where(x => x.Key < a);
-                    rows = (await q.OrderByDescending(x => x.Key).Take(limit + 1).ToListAsync(ct)).Select(x => (x.Key, x.NodeId)).ToList();
+                    rows = (await q.OrderByDescending(x => x.Key).Take(limit + 1).ToListAsync(ct)).Select(x => (Key(x.Key), x.NodeId)).ToList();
                     break;
                 }
             default:
@@ -178,14 +209,14 @@ public sealed class MetadataReviewService
                     total = await q.CountAsync(ct);
                     if (after is { } a)
                         q = q.Where(id => id < a);
-                    rows = (await q.OrderByDescending(id => id).Take(limit + 1).ToListAsync(ct)).Select(id => (id, id)).ToList();
+                    rows = (await q.OrderByDescending(id => id).Take(limit + 1).ToListAsync(ct)).Select(id => (Key(id), id)).ToList();
                     break;
                 }
         }
 
         var hasMore = rows.Count > limit;
         rows = rows.Take(limit).ToList();
-        var items = await BuildItemsAsync(tab, rows.Select(r => r.NodeId).ToList(), ct);
+        var items = await BuildItemsAsync(tab, rows.Select(r => r.NodeId).ToList(), ct, groups);
         if (tab == MetadataReviewTab.Flags)
             items = items.OrderByDescending(i => i.Link?.State == SeriesLinkState.Auto).ToList();
         return (null, new MetadataReviewPageDto
@@ -194,8 +225,38 @@ public sealed class MetadataReviewService
             Items = items,
             Total = total,
             HasMore = hasMore,
-            NextCursor = hasMore ? rows[^1].Key.ToString(CultureInfo.InvariantCulture) : null,
+            NextCursor = hasMore ? rows[^1].Key : null,
         });
+    }
+
+    private static string Key(long id) => id.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// One Needs review page in the order "not Later first (newest row first), then Later (set aside first, oldest first)". The
+    /// cursor names the last row shown and its bucket, so a page boundary never repeats or skips a row, also across the buckets.
+    /// </summary>
+    private static async Task<List<(string Key, long NodeId)>> NeedsReviewPageAsync(
+        IQueryable<NodeSeriesLinkEntity> q, ReviewCursor? after, int take, CancellationToken ct)
+    {
+        var rows = new List<(string Key, long NodeId)>();
+        if (after is not { LaterAt: not null })
+        {
+            var fresh = q.Where(l => l.LaterAt == null);
+            if (after is { Id: var id })
+                fresh = fresh.Where(l => l.Id < id);
+            rows.AddRange((await fresh.OrderByDescending(l => l.Id).Take(take).Select(l => new { l.Id, l.NodeId }).ToListAsync(ct))
+                .Select(x => (Key(x.Id), x.NodeId)));
+        }
+        if (rows.Count < take)
+        {
+            var aside = q.Where(l => l.LaterAt != null);
+            if (after is { LaterAt: { } at, Id: var id })
+                aside = aside.Where(l => l.LaterAt > at || (l.LaterAt == at && l.Id > id));
+            rows.AddRange((await aside.OrderBy(l => l.LaterAt).ThenBy(l => l.Id).Take(take - rows.Count)
+                    .Select(l => new { l.Id, l.NodeId, l.LaterAt }).ToListAsync(ct))
+                .Select(x => (new ReviewCursor(x.LaterAt, x.Id).ToString(), x.NodeId)));
+        }
+        return rows;
     }
 
     private async Task<(bool Ok, long? LibraryId)> LibraryFilterAsync(string? libraryPublicId, CancellationToken ct)
@@ -206,10 +267,91 @@ public sealed class MetadataReviewService
         return (id is not null, id);
     }
 
+    // --- Same author / same folder (1.33.0) ---
+
+    /// <summary>The Authors list: author groups with at least two waiting works, largest first.</summary>
+    public async Task<MetadataReviewAuthorsDto?> AuthorsAsync(string? libraryPublicId, CancellationToken ct = default)
+    {
+        var (ok, libraryId) = await LibraryFilterAsync(libraryPublicId, ct);
+        if (!ok)
+            return null;
+        var index = await GroupIndexAsync(libraryId, ct);
+        return new MetadataReviewAuthorsDto
+        {
+            Items = index.Groups.Where(g => g.NodeIds.Count >= 2)
+                .OrderByDescending(g => g.NodeIds.Count).ThenBy(g => g.Label, StringComparer.OrdinalIgnoreCase).ThenBy(g => g.Key, StringComparer.Ordinal)
+                .Select(g => new MetadataReviewAuthorDto { Key = g.Key, Label = g.Label, Count = g.NodeIds.Count, Later = g.Later })
+                .ToList(),
+        };
+    }
+
+    /// <summary>
+    /// The author and folder groups of every work waiting in Needs review (with the library filter). Names only, read in a fixed
+    /// number of queries: each work's own name; for an artist-collection work without a tag, the artist folder's name; then, for a
+    /// work still without a name, the ComicInfo writers and pencillers of the archive (a folder: of its archives) - never a
+    /// translator. Nothing is stored or sent.
+    /// </summary>
+    private async Task<ReviewGroupIndex> GroupIndexAsync(long? libraryId, CancellationToken ct)
+    {
+        var rows = await (
+            from l in LinksOf(SeriesLinkState.NeedsReview, libraryId)
+            join n in _db.CatalogNodes on l.NodeId equals n.Id
+            join q in _db.MetadataMatchQueue on n.Id equals q.NodeId into qs
+            from q in qs.DefaultIfEmpty()
+            join p in _db.CatalogNodes on n.ParentId equals (long?)p.Id into ps
+            from p in ps.DefaultIfEmpty()
+            select new
+            {
+                n.Id,
+                n.DisplayName,
+                n.Kind,
+                n.ParentId,
+                ParentName = p == null ? null : p.DisplayName,
+                WorkClass = q == null ? null : q.WorkClass,
+                Later = l.LaterAt != null,
+            }).ToListAsync(ct);
+
+        var folderKind = (int)CatalogNodeKind.Folder;
+        var names = new Dictionary<long, IReadOnlyList<ReviewAuthorNames.Name>>();
+        foreach (var r in rows)
+        {
+            var own = ReviewAuthorNames.FromWorkName(r.DisplayName);
+            if (own.Count == 0 && r.WorkClass == (int)WorkClass.ArtistCollection)
+                own = ReviewAuthorNames.FromPlainName(r.Kind == folderKind ? r.DisplayName : r.ParentName);
+            names[r.Id] = own;
+        }
+
+        var bare = rows.Where(r => names[r.Id].Count == 0).ToList();
+        if (bare.Count > 0)
+        {
+            var archiveIds = bare.Where(r => r.Kind != folderKind).Select(r => r.Id).ToList();
+            var folderIds = bare.Where(r => r.Kind == folderKind).Select(r => r.Id).ToList();
+            var infos = await (
+                from e in _db.EmbeddedMetadata.AsNoTracking()
+                join c in _db.CatalogNodes on e.NodeId equals c.Id
+                where e.State == 1 && e.CreatorsJson != null
+                    && (archiveIds.Contains(e.NodeId) || (c.ParentId != null && folderIds.Contains(c.ParentId.Value)))
+                select new { e.NodeId, c.ParentId, e.CreatorsJson }).ToListAsync(ct);
+            foreach (var r in bare)
+            {
+                var creators = infos.Where(i => r.Kind == folderKind ? i.ParentId == r.Id : i.NodeId == r.Id)
+                    .SelectMany(i => MetadataJson.ReadList<MetadataJson.Creator>(i.CreatorsJson))
+                    .Where(c => c.Role is "writer" or "penciller")
+                    .SelectMany(c => ReviewAuthorNames.FromPlainName(c.Name))
+                    .DistinctBy(n => n.Key)
+                    .ToList();
+                names[r.Id] = creators;
+            }
+        }
+
+        return new ReviewGroupIndex(rows.Select(r => new ReviewGroupIndex.Work(r.Id, names[r.Id], r.ParentId, r.Later)).ToList());
+    }
+
     private sealed record NodeRow(long Id, string PublicId, long LibraryId, long? ParentId, int Kind, string DisplayName, int Availability);
 
     /// <summary>Builds the rows of a page with a fixed number of queries (no per-row query).</summary>
-    private async Task<List<MetadataReviewItemDto>> BuildItemsAsync(MetadataReviewTab tab, IReadOnlyList<long> nodeIds, CancellationToken ct)
+    private async Task<List<MetadataReviewItemDto>> BuildItemsAsync(MetadataReviewTab tab, IReadOnlyList<long> nodeIds, CancellationToken ct,
+        ReviewGroupIndex? groups = null)
     {
         if (nodeIds.Count == 0)
             return [];
@@ -247,8 +389,8 @@ public sealed class MetadataReviewService
         var memberPublic = await _db.CatalogNodes.AsNoTracking().Where(n => memberIds.Contains(n.Id))
             .ToDictionaryAsync(n => n.Id, n => n.PublicId, ct);
         var parentIds = nodes.Values.Where(n => n.ParentId != null).Select(n => n.ParentId!.Value).Distinct().ToList();
-        var parentPublic = await _db.CatalogNodes.AsNoTracking().Where(n => parentIds.Contains(n.Id))
-            .ToDictionaryAsync(n => n.Id, n => n.PublicId, ct);
+        var parents = await _db.CatalogNodes.AsNoTracking().Where(n => parentIds.Contains(n.Id))
+            .ToDictionaryAsync(n => n.Id, n => (n.PublicId, n.DisplayName), ct);
 
         var items = new List<MetadataReviewItemDto>();
         foreach (var id in nodeIds)
@@ -270,7 +412,7 @@ public sealed class MetadataReviewService
                 LibraryName = library.DisplayName ?? string.Empty,
                 Trail = trails.GetValueOrDefault(id) ?? [],
                 Missing = node.Availability == (int)CatalogNodeAvailability.Tombstoned,
-                ParentNodeId = node.ParentId is { } parent ? parentPublic.GetValueOrDefault(parent) : null,
+                ParentNodeId = node.ParentId is { } parent ? parents.GetValueOrDefault(parent).PublicId : null,
                 WorkClass = q?.WorkClass is { } wc ? (WorkClass)wc : null,
                 MatchLevel = q is null ? null : (MatchLevel)q.Level,
                 ItemCount = node.Kind == (int)CatalogNodeKind.Folder ? archiveCounts.GetValueOrDefault(id) : 1 + members.Count,
@@ -284,6 +426,14 @@ public sealed class MetadataReviewService
                 DuplicateChapters = duplicates.GetValueOrDefault(id).Chapters,
                 DuplicateVolumes = duplicates.GetValueOrDefault(id).Volumes,
                 CheckingAgain = q is { Reason: QueueReason.Recheck, State: QueueState.Pending or QueueState.Leased },
+                LaterAt = link is { State: (int)SeriesLinkState.NeedsReview } ? link.LaterAt : null,
+                SameAuthor = groups?.AuthorOf(id) is { NodeIds.Count: > 1 } author
+                    ? new MetadataReviewGroupHintDto { Key = author.Key, Label = author.Label, Others = author.NodeIds.Count - 1 }
+                    : null,
+                SameFolder = groups is not null && node.ParentId is { } folderId && groups.InFolder(folderId) > 1
+                        && parents.TryGetValue(folderId, out var folder)
+                    ? new MetadataReviewGroupHintDto { Key = folder.PublicId, Label = folder.DisplayName, Others = groups.InFolder(folderId) - 1 }
+                    : null,
                 OpenFlagCount = flagCounts.GetValueOrDefault(id),
                 Flags = flags.TryGetValue(node.PublicId, out var nodeFlags) ? nodeFlags : [],
             });
@@ -464,6 +614,30 @@ public sealed class MetadataReviewService
             await _links.LinkAsync(memberId, new LinkSeriesRequest { Provider = provider, ExternalId = externalId, MatchMethod = MetadataMatchMethod.Auto }, actor, ct);
     }
 
+    // --- Later (1.33.0) ---
+
+    /// <summary>
+    /// Sets a Needs review row aside ("Later": it sorts to the end of Needs review for every admin) or brings it back. Only a row
+    /// waiting in Needs review can be set aside; deciding the work or checking it again clears it (see <see cref="NodeSeriesLinkEntity.LaterAt"/>).
+    /// Returns <c>ok</c>, <c>not_found</c> or <c>not_in_review</c>. Setting a row that is already set aside keeps its first time.
+    /// </summary>
+    public async Task<string> SetLaterAsync(string nodePublicId, bool later, string? actor, CancellationToken ct = default)
+    {
+        var node = await _db.CatalogNodes.AsNoTracking().FirstOrDefaultAsync(n => n.PublicId == nodePublicId, ct);
+        if (node is null || node.Availability == (int)CatalogNodeAvailability.Tombstoned)
+            return "not_found";
+        var link = await _db.NodeSeriesLinks.FirstOrDefaultAsync(l => l.NodeId == node.Id, ct);
+        if (link is null || link.State != (int)SeriesLinkState.NeedsReview)
+            return "not_in_review";
+        if (later == (link.LaterAt is not null))
+            return "ok"; // Nothing changes (idempotent, not audited again).
+        link.LaterAt = later ? _time.GetUtcNow() : null;
+        await _db.SaveChangesAsync(ct);
+        await _audit.RecordAsync(AuditActions.MetadataReviewLater, later ? "set" : "clear", actor, ct: ct,
+            targetLibraryId: node.LibraryId, targetItemId: node.Id);
+        return "ok";
+    }
+
     // --- Bulk ---
 
     public async Task<(string? Error, MetadataReviewBulkResultDto? Result)> BulkAsync(MetadataReviewBulkRequest request, string? actor, CancellationToken ct = default)
@@ -520,6 +694,10 @@ public sealed class MetadataReviewService
                 return Code((await _links.RemoveAsync(nodePublicId, onlyDontMatch: false, actor, ct)).Code);
             case MetadataReviewBulkAction.Confirm:
                 return await ConfirmAsync(nodePublicId, actor, ct);
+            case MetadataReviewBulkAction.Later:
+                return await SetLaterAsync(nodePublicId, later: true, actor, ct);
+            case MetadataReviewBulkAction.ClearLater:
+                return await SetLaterAsync(nodePublicId, later: false, actor, ct);
             default:
                 return "invalid_action";
         }
@@ -535,7 +713,7 @@ public sealed class MetadataReviewService
         var ids = (json is null ? [] : JsonSerializer.Deserialize<List<long>>(json) ?? []).Prepend(node.Id).ToList();
         var updated = await _db.NodeSeriesLinks
             .Where(l => ids.Contains(l.NodeId) && l.State == (int)SeriesLinkState.Auto)
-            .ExecuteUpdateAsync(s => s.SetProperty(l => l.State, (int)SeriesLinkState.Confirmed), ct);
+            .ExecuteUpdateAsync(s => s.SetProperty(l => l.State, (int)SeriesLinkState.Confirmed).SetProperty(l => l.LaterAt, (DateTimeOffset?)null), ct);
         if (updated == 0)
             return "not_auto";
         await _audit.RecordAsync(AuditActions.MetadataReviewConfirm, AuditResults.Success, actor, ct: ct, targetLibraryId: node.LibraryId, targetItemId: node.Id);
@@ -549,4 +727,30 @@ public sealed class MetadataReviewService
         MetadataLinkResultCode.RecordNotFound => "record_not_found",
         _ => "invalid_request",
     };
+}
+
+/// <summary>
+/// The Needs review cursor (1.33.0): the last row shown and its bucket. A plain row id is a row that is not set aside (also the
+/// cursor of earlier releases); <c>L&lt;ticks&gt;_&lt;id&gt;</c> is a row set aside at that time (UTC ticks as stored).
+/// </summary>
+internal sealed record ReviewCursor(DateTimeOffset? LaterAt, long Id)
+{
+    public static ReviewCursor? Parse(string? cursor)
+    {
+        if (string.IsNullOrEmpty(cursor))
+            return null;
+        if (long.TryParse(cursor, NumberStyles.None, CultureInfo.InvariantCulture, out var id))
+            return new ReviewCursor(null, id);
+        var sep = cursor.IndexOf('_', StringComparison.Ordinal);
+        if (cursor[0] == 'L' && sep > 1
+            && long.TryParse(cursor.AsSpan(1, sep - 1), NumberStyles.None, CultureInfo.InvariantCulture, out var ticks)
+            && ticks <= DateTimeOffset.MaxValue.UtcTicks
+            && long.TryParse(cursor.AsSpan(sep + 1), NumberStyles.None, CultureInfo.InvariantCulture, out var laterId))
+            return new ReviewCursor(new DateTimeOffset(ticks, TimeSpan.Zero), laterId);
+        return null; // Unknown: the first page, as before.
+    }
+
+    public override string ToString() => LaterAt is { } at
+        ? string.Create(CultureInfo.InvariantCulture, $"L{at.UtcTicks}_{Id}")
+        : Id.ToString(CultureInfo.InvariantCulture);
 }

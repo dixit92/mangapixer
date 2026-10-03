@@ -62,7 +62,7 @@ describe('LayoutComponent sidebar visibility', () => {
     const metadataReview = {
       summary,
       attention: computed(() => (summary() ? summary()!.needsReview + summary()!.openFlags : 0)),
-      refresh: vi.fn(() => summary.set({ needsReview, openFlags, autoLinked: 0, unmatched: 0, dontMatch: 0, confirmed: 0,
+      refresh: vi.fn(() => summary.set({ needsReview, later: 0, openFlags, autoLinked: 0, unmatched: 0, dontMatch: 0, confirmed: 0,
         missingFolders: 0, pending: 0, recheckPending: 0 })),
       clear: vi.fn(() => summary.set(null)),
     };

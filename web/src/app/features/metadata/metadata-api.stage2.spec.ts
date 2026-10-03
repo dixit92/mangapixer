@@ -34,7 +34,33 @@ describe('MetadataApiService stage 2', () => {
     expect(r.request.params.has('library')).toBe(false);
     expect(r.request.params.get('cursor')).toBe('c2');
     expect(r.request.params.get('limit')).toBe('25');
+    expect(r.request.params.has('later')).toBe(false);
     r.flush({ tab: 'AutoLinked', items: [], total: 0 });
+    api.getReview('NeedsReview', null, null, 50, { later: true }).subscribe();
+    const later = http.expectOne((req) => req.url === `${A}/review`);
+    expect(later.request.params.get('later')).toBe('true');
+    later.flush({ tab: 'NeedsReview', items: [], total: 0 });
+    api.getReview('NeedsReview', null, null, 50, { later: false, author: 'circlea' }).subscribe();
+    const byAuthor = http.expectOne((req) => req.url === `${A}/review`);
+    expect([byAuthor.request.params.get('later'), byAuthor.request.params.get('author'), byAuthor.request.params.has('folder')])
+      .toEqual(['false', 'circlea', false]);
+    byAuthor.flush({ tab: 'NeedsReview', items: [], total: 0 });
+    api.getReview('NeedsReview', null, null, 50, { folder: 'f1' }).subscribe();
+    const byFolder = http.expectOne((req) => req.url === `${A}/review`);
+    expect([byFolder.request.params.get('folder'), byFolder.request.params.has('later')]).toEqual(['f1', false]);
+    byFolder.flush({ tab: 'NeedsReview', items: [], total: 0 });
+  });
+
+  it('reads the Authors list (1.33.0)', () => {
+    api.getReviewAuthors('lib1').subscribe();
+    http.expectOne(`${A}/review/authors?library=lib1`).flush({ items: [] });
+  });
+
+  it('sets a review row aside for later and brings it back (1.33.0)', () => {
+    api.setReviewLater('n1', true).subscribe();
+    http.expectOne({ method: 'POST', url: `${A}/review/n1/later` }).flush(null);
+    api.setReviewLater('n1', false).subscribe();
+    http.expectOne({ method: 'DELETE', url: `${A}/review/n1/later` }).flush(null);
   });
 
   it('accepts a candidate by rank and sends bulk actions', () => {

@@ -3,11 +3,13 @@ import {
   ChangeDetectionStrategy, Component, DestroyRef, ElementRef, OnDestroy, OnInit, computed, inject, input, output, signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MatBottomSheet } from '@angular/material/bottom-sheet';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -16,6 +18,7 @@ import { Observable, map } from 'rxjs';
 
 import {
   ApiError,
+  MetadataReviewAuthorDto,
   MetadataReviewBulkAction,
   MetadataReviewBulkResultDto,
   MetadataReviewItemDto,
@@ -24,13 +27,16 @@ import {
 } from '../../../core/api/api-types';
 import { REVIEW_TABS, plural, reviewTabDef } from '../admin-metadata/metadata-admin-labels';
 import { IdentifyDialogService } from '../identify-dialog/identify-dialog.service';
-import { MetadataApiService } from '../metadata-api.service';
+import { MetadataApiService, ReviewListFilter } from '../metadata-api.service';
 import { MetadataReviewStateService } from '../metadata-review-state.service';
 import { MetadataStateService } from '../metadata-state.service';
 import { PHONE_QUERY } from '../series-info-overlay.service';
 import { DeferredCommitQueue } from './deferred-commit';
 import { ReattachDialogData, ReattachDialogResult } from './reattach-dialog.component';
-import { ReviewActionDef, ReviewRowAction, ReviewRowActionEvent, ReviewRowComponent, rowActions } from './review-row.component';
+import { ReviewAuthorsSheetComponent } from './review-authors-sheet.component';
+import {
+  ReviewActionDef, ReviewGroup, ReviewRowAction, ReviewRowActionEvent, ReviewRowComponent, rowActions,
+} from './review-row.component';
 
 export interface ReviewLibraryOption {
   id: string;
@@ -51,6 +57,7 @@ export function bulkActions(tab: MetadataReviewTab): BulkDef[] {
         { action: 'AcceptTop', label: 'Accept top candidates', icon: 'done_all' },
         { action: 'DontMatch', label: 'Don\'t match', icon: 'block' },
         { action: 'RerunMatching', label: 'Re-run matching', icon: 'refresh' },
+        { action: 'Later', label: 'Later', icon: 'schedule' },
       ];
     case 'AutoLinked':
       return [
@@ -76,6 +83,8 @@ const BULK_DONE: Record<MetadataReviewBulkAction, string> = {
   RerunMatching: 'Queued again:',
   Confirm: 'Confirmed',
   Unlink: 'Unlinked',
+  Later: 'Set aside for later:',
+  ClearLater: 'Back in the list:',
 };
 
 /** The review action a single-row action sends through `review/bulk`. */
@@ -86,15 +95,15 @@ const ROW_BULK: Partial<Record<ReviewRowAction, MetadataReviewBulkAction>> = {
   rerun: 'RerunMatching',
 };
 
-/** Keys -> row actions (the key must be offered by the row's tab). */
-const KEY_ACTIONS: Record<string, ReviewRowAction> = {
-  a: 'accept', d: 'dontMatch', i: 'identify', c: 'confirm', u: 'unlink',
-};
-
 /**
  * The review dashboard (metadata stage 2, design section 5): tabs with counts, a
  * library filter, the rows, bulk actions, Undo and keyboard triage (j/k move, a accept,
- * d Don't match, i identify, c confirm, u unlink, x select, e expand).
+ * d Don't match, i identify, l later / not later, c confirm, u unlink, x select, e expand;
+ * a key works when the row offers its action, see `rowActions`).
+ *
+ * "Later" (1.33.0) is remembered on the server for every admin: a row set aside is listed
+ * after the others (oldest set aside first) until the work is decided or checked again;
+ * Needs review can show all rows, only those set aside, or only the others.
  * Reading a tab never contacts a provider. Every change goes through a deferred commit
  * (see `DeferredCommitQueue`), so Undo is exact.
  *
@@ -106,7 +115,7 @@ const KEY_ACTIONS: Record<string, ReviewRowAction> = {
   selector: 'app-metadata-review',
   standalone: true,
   imports: [
-    MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatProgressSpinnerModule, MatSelectModule,
+    MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatMenuModule, MatProgressSpinnerModule, MatSelectModule,
     MatTooltipModule, ReviewRowComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -132,6 +141,45 @@ const KEY_ACTIONS: Record<string, ReviewRowAction> = {
         </mat-form-field>
       </div>
       <p class="hint">{{ hint() }}</p>
+      @if (tab() === 'NeedsReview') {
+        <div class="filters">
+      @if (count('later') > 0 || laterFilter() !== null) {
+        <div class="later-filter" role="group" aria-label="Show items set aside for later" data-testid="review-later-filter">
+          <button type="button" class="tab" [class.active]="laterFilter() === null" [attr.aria-pressed]="laterFilter() === null"
+                  (click)="setLaterFilter(null)" data-testid="review-later-all">All</button>
+          <button type="button" class="tab" [class.active]="laterFilter() === false" [attr.aria-pressed]="laterFilter() === false"
+                  (click)="setLaterFilter(false)" data-testid="review-later-now">To review</button>
+          <button type="button" class="tab" [class.active]="laterFilter() === true" [attr.aria-pressed]="laterFilter() === true"
+                  (click)="setLaterFilter(true)" data-testid="review-later-only">
+            <mat-icon inline>schedule</mat-icon> Later <span class="badge">{{ count('later') }}</span></button>
+        </div>
+      }
+          <!-- 1.33.0: works by one circle / artist, or from one folder, listed together (from local names only). -->
+          @if (group(); as g) {
+            <span class="group-chip" data-testid="review-group-chip">
+              <mat-icon inline>{{ g.kind === 'author' ? 'groups' : 'folder' }}</mat-icon>
+              <span class="glabel">{{ g.kind === 'author' ? 'By' : 'In' }} {{ g.label }}</span> ({{ total() }})
+              <button type="button" class="gclear" (click)="setGroup(null)" aria-label="Show every item again" data-testid="review-group-clear">
+                <mat-icon inline>close</mat-icon></button>
+            </span>
+          }
+          @if (phone()) {
+            <button type="button" class="tab authors" (click)="openAuthorsSheet()" data-testid="review-authors">
+              <mat-icon inline>groups</mat-icon> Authors</button>
+          } @else {
+            <button type="button" class="tab authors" [matMenuTriggerFor]="authorsMenu" (menuOpened)="loadAuthors()" data-testid="review-authors">
+              <mat-icon inline>groups</mat-icon> Authors <mat-icon inline>arrow_drop_down</mat-icon></button>
+            <mat-menu #authorsMenu="matMenu" class="review-authors-menu">
+              @for (a of authors() ?? []; track a.key) {
+                <button mat-menu-item type="button" (click)="setGroup({ kind: 'author', key: a.key, label: a.label })" data-testid="review-author">
+                  <span>{{ a.label }}</span> <span class="menu-count">{{ a.count }}</span></button>
+              } @empty {
+                <p class="menu-empty">{{ authors() === null ? 'Loading…' : 'No author has two or more works waiting.' }}</p>
+              }
+            </mat-menu>
+          }
+        </div>
+      }
       @if (tab() === 'NeedsReview' && recheckPending() > 0) {
         <!-- 1.31.0: after an update changed how matches are scored, the items waiting here are scored once more (in the background). -->
         <p class="recheck" role="status" data-testid="review-rechecking">
@@ -147,7 +195,7 @@ const KEY_ACTIONS: Record<string, ReviewRowAction> = {
             Select all {{ visible().length }} shown
           </mat-checkbox>
           @if (!phone()) {
-            <span class="keys">j/k move · a accept · d don't match · i identify · x select · e covers</span>
+            <span class="keys">j/k move · a accept · d don't match · i identify · l later · g same author · x select · e covers</span>
           }
         </div>
       }
@@ -165,7 +213,7 @@ const KEY_ACTIONS: Record<string, ReviewRowAction> = {
                               [expanded]="expanded().has(it.nodeId)" [compact]="phone()"
                               [rank]="rankOf(it)"
                               (action)="onRowAction($event)" (toggleSelect)="toggle(it.nodeId)" (toggleExpand)="toggleExpanded(it.nodeId)"
-                              (choose)="choose(it.nodeId, $event)" (focusRow)="onRowTap(i, it)" />
+                              (choose)="choose(it.nodeId, $event)" (focusRow)="onRowTap(i, it)" (group)="setGroup($event)" />
             </div>
           } @empty {
             <div class="empty" data-testid="review-empty">
@@ -232,6 +280,16 @@ const KEY_ACTIONS: Record<string, ReviewRowAction> = {
     .badge.hot { background: #7c4dff; color: #fff; }
     .lib-filter { width: 220px; }
     .hint { font-size: 13px; color: #9a9aa8; margin: 10px 0; }
+    .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 10px; }
+    .later-filter { display: flex; flex-wrap: wrap; gap: 6px; }
+    .later-filter .tab, .filters .authors { padding: 3px 10px; font-size: 12px; }
+    .group-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0; font-size: 12px; padding: 2px 4px 2px 10px;
+      border-radius: 16px; background: rgba(255, 183, 77, 0.16); border: 1px solid rgba(255, 204, 128, 0.45); color: #ffe0b2; }
+    .group-chip .glabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    .gclear { border: 0; background: transparent; color: inherit; cursor: pointer; padding: 2px; border-radius: 50%; display: inline-flex; }
+    .gclear:hover, .gclear:focus-visible { background: rgba(255, 255, 255, 0.12); }
+    .menu-count { margin-left: 8px; font-size: 12px; font-weight: 600; color: #ffcc80; }
+    .menu-empty { margin: 8px 16px; color: #9a9aa8; font-size: 13px; }
     .recheck { font-size: 13px; color: #90caf9; margin: 0 0 10px; display: flex; align-items: center; gap: 6px; }
     .select-line { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
     .keys { font-size: 12px; color: #8a8a99; }
@@ -267,6 +325,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
   private readonly metadataState = inject(MetadataStateService);
   private readonly identifyDialog = inject(IdentifyDialogService);
   private readonly dialog = inject(MatDialog);
+  private readonly bottomSheet = inject(MatBottomSheet);
   private readonly snackBar = inject(MatSnackBar);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly destroyRef = inject(DestroyRef);
@@ -291,6 +350,12 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
   readonly loading = signal(true);
   readonly loadingMore = signal(false);
   readonly error = signal<string | null>(null);
+  /** Needs review: null all rows (Later last), true only the rows set aside, false only the others. */
+  readonly laterFilter = signal<boolean | null>(null);
+  /** Needs review (1.33.0): only the works of one author group or one folder; null all. */
+  readonly group = signal<ReviewGroup | null>(null);
+  /** The Authors list (loaded when opened); null until then. */
+  readonly authors = signal<MetadataReviewAuthorDto[] | null>(null);
 
   readonly selected = signal<ReadonlySet<string>>(new Set());
   readonly selectMode = signal(false);
@@ -353,12 +418,60 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
     }
     if (tab === this.tab()) return;
     this.tab.set(tab);
+    this.laterFilter.set(null);
+    this.group.set(null);
     this.stateChange.emit({ tab, library: this.library() });
     this.reloadAfterFlush();
   }
 
+  setLaterFilter(later: boolean | null): void {
+    if (later === this.laterFilter()) return;
+    this.laterFilter.set(later);
+    this.reloadAfterFlush();
+  }
+
+  /** Lists only one author's or one folder's waiting works (a second pick of the same group shows every item again). */
+  setGroup(group: ReviewGroup | null): void {
+    const current = this.group();
+    const same = !!group && !!current && current.kind === group.kind && current.key === group.key;
+    if (!group && !current) return;
+    this.group.set(same ? null : group);
+    this.reloadAfterFlush();
+  }
+
+  loadAuthors(): void {
+    this.authors.set(null);
+    this.api.getReviewAuthors(this.library()).subscribe({
+      next: (list) => this.authors.set(list.items),
+      error: () => this.authors.set([]),
+    });
+  }
+
+  /** Phone: the Authors list as a bottom sheet. */
+  openAuthorsSheet(): void {
+    this.api.getReviewAuthors(this.library()).subscribe({
+      next: (list) => this.bottomSheet.open<ReviewAuthorsSheetComponent, MetadataReviewAuthorDto[], MetadataReviewAuthorDto>(
+        ReviewAuthorsSheetComponent, { data: list.items }).afterDismissed().subscribe((a) => {
+        if (a) this.setGroup({ kind: 'author', key: a.key, label: a.label });
+      }),
+      error: (err: ApiError) => this.snackBar.open(err?.message || 'The authors could not be loaded', 'Close', { duration: 4000 }),
+    });
+  }
+
+  /** The filters of the current request (Needs review only). */
+  private listFilter(): ReviewListFilter {
+    if (this.tab() !== 'NeedsReview') return {};
+    const filter: ReviewListFilter = {};
+    const later = this.laterFilter();
+    if (later !== null) filter.later = later;
+    const group = this.group();
+    if (group) filter[group.kind] = group.key;
+    return filter;
+  }
+
   setLibrary(library: string | null): void {
     this.library.set(library);
+    this.group.set(null);
     this.stateChange.emit({ tab: this.tab(), library });
     this.reloadAfterFlush();
   }
@@ -383,7 +496,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
     this.error.set(null);
     this.resetView();
     this.loadSummary();
-    this.api.getReview(this.tab(), this.library()).subscribe({
+    this.api.getReview(this.tab(), this.library(), null, 50, this.listFilter()).subscribe({
       next: (page) => {
         this.items.set(page.items);
         this.total.set(page.total);
@@ -405,7 +518,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
     const cursor = this.cursor();
     if (!cursor) return;
     this.loadingMore.set(true);
-    this.api.getReview(this.tab(), this.library(), cursor).subscribe({
+    this.api.getReview(this.tab(), this.library(), cursor, 50, this.listFilter()).subscribe({
       next: (page) => {
         const known = new Set(this.items().map((i) => i.nodeId));
         this.items.update((prev) => [...prev, ...page.items.filter((i) => !known.has(i.nodeId))]);
@@ -520,10 +633,15 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
       event.preventDefault();
       return;
     }
-    const action = KEY_ACTIONS[key];
-    if (!action) return;
-    const offered = rowActions(this.tab(), item).some((a) => a.action === action);
-    if (!offered || (action === 'accept' && !(item.candidates ?? []).length)) return;
+    if (key === 'g' && this.tab() === 'NeedsReview') {
+      const g = this.group();
+      if (g?.kind === 'author') this.setGroup(null);
+      else if (item.sameAuthor) this.setGroup({ kind: 'author', key: item.sameAuthor.key, label: item.sameAuthor.label });
+      event.preventDefault();
+      return;
+    }
+    const action = rowActions(this.tab(), item).find((a) => a.key === key)?.action;
+    if (!action || (action === 'accept' && !(item.candidates ?? []).length)) return;
     event.preventDefault();
     this.onRowAction({ action, item, rank: action === 'accept' ? this.rankOf(item) : undefined });
   }
@@ -541,6 +659,10 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
       }
       case 'identify':
         this.identify(item);
+        return;
+      case 'later':
+      case 'notLater':
+        this.setLater([item], e.action === 'later');
         return;
       case 'clearDontMatch':
         this.defer([item], `Don't match cleared on ${item.displayName}`, () => none(this.api.clearDontMatch(item.nodeId)));
@@ -563,6 +685,10 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
     const chosen = this.visible().filter((i) => this.selected().has(i.nodeId)).slice(0, 200);
     if (chosen.length === 0) return;
     this.clearSelection();
+    if (action === 'Later' || action === 'ClearLater') {
+      this.setLater(chosen, action === 'Later');
+      return;
+    }
     this.defer(chosen, `${BULK_DONE[action]} ${plural(chosen.length, 'item')}`, () => this.bulkCall(action, chosen));
   }
 
@@ -601,6 +727,48 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
         this.snackBar.open(`Failed: ${(err as ApiError)?.message ?? 'error'}`, 'Close', { duration: 5000 });
       },
     });
+  }
+
+  /**
+   * "Later" / "Not later" (1.33.0): sent at once (it decides nothing; Undo sends the opposite). A row set aside moves to the
+   * end of the list, as the server lists it: appended when the whole list is loaded, else dropped until paging reaches it.
+   */
+  private setLater(rows: MetadataReviewItemDto[], on: boolean): void {
+    const call: Observable<string[]> = rows.length === 1
+      ? none(this.api.setReviewLater(rows[0].nodeId, on))
+      : this.bulkCall(on ? 'Later' : 'ClearLater', rows);
+    call.subscribe({
+      next: (failedIds) => {
+        const failed = new Set(failedIds);
+        const done = rows.filter((r) => !failed.has(r.nodeId));
+        if (done.length === 0) return;
+        const moved = this.applyLater(done, on);
+        this.loadSummary();
+        const what = done.length === 1 ? done[0].displayName : plural(done.length, 'item');
+        this.snackBar.open(`${on ? BULK_DONE.Later : BULK_DONE.ClearLater} ${what}`, 'Undo', { duration: 5000 })
+          .onAction().subscribe(() => this.setLater(moved, !on));
+      },
+      error: (err: ApiError) => this.snackBar.open(`Failed: ${err?.message ?? 'error'}`, 'Close', { duration: 5000 }),
+    });
+  }
+
+  /** Updates the loaded rows after a Later change; returns the rows as they are now. */
+  private applyLater(rows: MetadataReviewItemDto[], on: boolean): MetadataReviewItemDto[] {
+    const laterAt = on ? new Date().toISOString() : null;
+    const changed = rows.map((r) => ({ ...r, laterAt }));
+    const ids = new Set(rows.map((r) => r.nodeId));
+    const filter = this.laterFilter();
+    if (filter !== null && filter !== on) {
+      this.forget([...ids]); // no longer part of the filtered list
+    } else if (on) {
+      const rest = this.items().filter((i) => !ids.has(i.nodeId));
+      this.items.set(this.hasMore() ? rest : [...rest, ...changed]);
+    } else {
+      const byId = new Map(changed.map((r) => [r.nodeId, r]));
+      this.items.update((list) => list.map((i) => byId.get(i.nodeId) ?? i));
+    }
+    this.clampFocus();
+    return changed;
   }
 
   private identify(item: MetadataReviewItemDto): void {

@@ -13,6 +13,9 @@ import {
   TrashSettingsDto,
   UpdateTrashSettingsRequest,
   ScheduledJobsDto,
+  ApiTokenDto,
+  CreateApiTokenRequest,
+  CreateApiTokenResponse,
   SeriesRefreshCadenceDto,
   UpdateRefreshCadenceRequest,
   AddBookmarkRequest,
@@ -641,6 +644,23 @@ export class ApiService {
   /** "Clean bundles now": data-root files no row references. */
   cleanBundles(): Observable<TrashFilesDto> {
     return this.post<TrashFilesDto>('/admin/trash/clean-bundles', {});
+  }
+
+  // --- Personal access tokens (admin, 1.33.0) ---
+
+  /** Every token, newest first (never a secret). */
+  listApiTokens(): Observable<ApiTokenDto[]> {
+    return this.get<ApiTokenDto[]>('/admin/tokens');
+  }
+
+  /** Creates a token for the signed-in admin; the answer carries the secret this one time. */
+  createApiToken(request: CreateApiTokenRequest): Observable<CreateApiTokenResponse> {
+    return this.post<CreateApiTokenResponse>('/admin/tokens', request);
+  }
+
+  /** Revokes a token: it stops working at once. */
+  revokeApiToken(id: string): Observable<void> {
+    return this.post<void>(`/admin/tokens/${encodeURIComponent(id)}/revoke`, {});
   }
 
   // --- Scheduled jobs (admin, 1.32.0) ---

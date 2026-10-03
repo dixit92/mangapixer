@@ -1,4 +1,4 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, Page, APIRequestContext } from '@playwright/test';
 import { expectFitsScreen } from './layout';
 
 /**
@@ -11,6 +11,9 @@ import { expectFitsScreen } from './layout';
 const ADMIN_USER = process.env['E2E_ADMIN_USER'] ?? 'admin';
 const ADMIN_PASSWORD = process.env['E2E_ADMIN_PASSWORD'] ?? 'AdminPass123!';
 const SHOTS = process.env['E2E_SCREENSHOT_DIR'];
+const FIXTURE_ROOT = process.env['E2E_SERIES_FIXTURE_ROOT'];
+const VOLUMES_ROOT = FIXTURE_ROOT ? `${FIXTURE_ROOT}-volumes` : undefined;
+const LIBRARY_NAME = 'Volume Stacks';
 
 async function login(page: Page): Promise<void> {
   await page.goto('/login');
@@ -24,6 +27,24 @@ async function login(page: Page): Promise<void> {
 async function columnEdges(page: Page): Promise<number[]> {
   return page.getByTestId('admin-grid').locator(':scope > .col').evaluateAll((cols) =>
     [...new Set(cols.map((c) => Math.round(c.getBoundingClientRect().left)))]);
+}
+
+async function csrf(request: APIRequestContext): Promise<Record<string, string>> {
+  const res = await request.get('/api/v1/auth/csrf');
+  const { token } = await res.json();
+  return { 'X-MangaPixer-Csrf': token };
+}
+
+/** The synthetic volume library (registered by whichever spec runs first); its id. */
+async function ensureLibrary(page: Page): Promise<string> {
+  const libs: { id: string; name: string }[] = await (await page.request.get('/api/v1/libraries')).json();
+  const found = libs.find((l) => l.name === LIBRARY_NAME);
+  if (found) return found.id;
+  const created = await page.request.post('/api/v1/admin/libraries', {
+    headers: await csrf(page.request), data: { displayName: LIBRARY_NAME, rootPath: VOLUMES_ROOT },
+  });
+  expect(created.ok(), await created.text()).toBeTruthy();
+  return (await created.json()).id;
 }
 
 async function openAdmin(page: Page, width: number, height: number): Promise<void> {
@@ -81,5 +102,21 @@ test.describe('Administration layout', () => {
     await row.getByTestId('job-trash-auto').locator('button').click();
     expect((await off).ok()).toBeTruthy();
     await expect(trash.getByTestId('trash-auto-status')).toContainText('Automatic cleaning: Off');
+  });
+
+  test('a library scan schedule is changed in Scheduled jobs; the Libraries card shows it with a link (1.33.0)', async ({ page }) => {
+    test.skip(!VOLUMES_ROOT, 'E2E_SERIES_FIXTURE_ROOT not set: no synthetic volume library available');
+    const libraryId = await ensureLibrary(page);
+    await openAdmin(page, 1280, 900);
+    const summary = page.getByTestId('scan-summary').first();
+    await expect(summary).toContainText('Auto-scan:');
+    // Every schedule control on the page is inside Scheduled jobs (one per library row), none on the Libraries card.
+    const controls = await page.getByLabel('Automatic scan schedule').count();
+    await expect(page.getByTestId('scheduled-jobs').getByLabel('Automatic scan schedule')).toHaveCount(controls);
+
+    const row = page.getByTestId('job-library-scan-' + libraryId);
+    await expect(row.getByLabel('Automatic scan schedule')).toBeVisible();
+    await page.getByTestId('scan-schedule-link').first().click();
+    await expect(page.locator('[data-testid^="job-library-scan-"] mat-select:focus')).toHaveCount(1);
   });
 });

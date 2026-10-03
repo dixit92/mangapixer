@@ -37,16 +37,24 @@ public sealed class MetadataReviewController : ControllerBase
     [ProducesResponseType<MetadataReviewPageDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> List([FromQuery] MetadataReviewTab tab = MetadataReviewTab.NeedsReview, [FromQuery] string? library = null,
-        [FromQuery] string? cursor = null, [FromQuery] int limit = 50, CancellationToken ct = default)
+        [FromQuery] string? cursor = null, [FromQuery] int limit = 50, [FromQuery] bool? later = null, [FromQuery] string? author = null,
+        [FromQuery] string? folder = null, CancellationToken ct = default)
     {
-        var (error, page) = await _review.ListAsync(tab, library, cursor, limit, ct);
+        var (error, page) = await _review.ListAsync(tab, library, cursor, limit, ct, later, author, folder);
         return error switch
         {
             null => Ok(page),
             "library_not_found" => NotFound(),
+            "invalid_filter" => BadRequest(new ApiError { Error = error, Message = "Filter by an author or by a folder, not both." }),
             _ => BadRequest(new ApiError { Error = error, Message = "Unknown review tab." }),
         };
     }
+
+    /// <summary>1.33.0: authors with at least two works waiting in Needs review, largest first (local names only).</summary>
+    [HttpGet("review/authors")]
+    [ProducesResponseType<MetadataReviewAuthorsDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> Authors([FromQuery] string? library = null, CancellationToken ct = default) =>
+        await _review.AuthorsAsync(library, ct) is { } dto ? Ok(dto) : NotFound();
 
     [HttpPost("review/{nodeId}/accept")]
     [ProducesResponseType<NodeSeriesLinkChangeDto>(StatusCodes.Status200OK)]
@@ -72,6 +80,27 @@ public sealed class MetadataReviewController : ControllerBase
             return MetadataIdentifyController.Error(this, ex);
         }
     }
+
+    /// <summary>Sets a Needs review row aside ("Later", 1.33.0): it is listed after the others until it is decided or checked again.</summary>
+    [HttpPost("review/{nodeId}/later")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> SetLater(string nodeId, CancellationToken ct) =>
+        LaterResult(await _review.SetLaterAsync(nodeId, later: true, Actor, ct));
+
+    /// <summary>Brings a row set aside back into the normal order.</summary>
+    [HttpDelete("review/{nodeId}/later")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ClearLater(string nodeId, CancellationToken ct) =>
+        LaterResult(await _review.SetLaterAsync(nodeId, later: false, Actor, ct));
+
+    private IActionResult LaterResult(string code) => code switch
+    {
+        "ok" => NoContent(),
+        "not_found" => NotFound(),
+        _ => Conflict(new ApiError { Error = code, Message = "Only a work waiting in Needs review can be set aside for later." }),
+    };
 
     [HttpPost("review/bulk")]
     [ProducesResponseType<MetadataReviewBulkResultDto>(StatusCodes.Status200OK)]

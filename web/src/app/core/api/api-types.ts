@@ -1435,7 +1435,7 @@ export type MetadataReviewTab =
 export type MetadataFolderContent = 'Auto' | 'DoujinshiAndAdultOneShots' | 'NotDoujinshi';
 export type MetadataMatchRunTrigger = 'Scan' | 'Bulk' | 'Retry' | 'Rerun' | 'Recheck';
 export type MetadataMatchRunStatus = 'Running' | 'Completed' | 'Cancelled';
-export type MetadataReviewBulkAction = 'AcceptTop' | 'DontMatch' | 'RerunMatching' | 'Confirm' | 'Unlink';
+export type MetadataReviewBulkAction = 'AcceptTop' | 'DontMatch' | 'RerunMatching' | 'Confirm' | 'Unlink' | 'Later' | 'ClearLater';
 export type MetadataFlagReason = 'WrongSeries' | 'WrongDetails' | 'NotOneSeries' | 'Other';
 export type MetadataFlagState = 'Open' | 'Relinked' | 'Unlinked' | 'DontMatch' | 'Dismissed';
 
@@ -1458,8 +1458,29 @@ export interface MetadataMatchThresholdBoundsDto {
 }
 
 /** GET /admin/metadata/review/summary?library= */
+/** 1.33.0: a group of waiting works a review row belongs to; `key` is the list's `author` / `folder` filter value. */
+export interface MetadataReviewGroupHintDto {
+  key: string;
+  label: string;
+  others: number;
+}
+
+/** 1.33.0: an author with at least two works waiting in Needs review (largest first). */
+export interface MetadataReviewAuthorDto {
+  key: string;
+  label: string;
+  count: number;
+  later?: number;
+}
+
+export interface MetadataReviewAuthorsDto {
+  items: MetadataReviewAuthorDto[];
+}
+
 export interface MetadataReviewSummaryDto {
   needsReview: number;
+  /** 1.33.0: Needs review rows set aside ("Later"); part of `needsReview`. */
+  later: number;
   autoLinked: number;
   unmatched: number;
   openFlags: number;
@@ -1541,6 +1562,12 @@ export interface MetadataReviewItemDto {
   runId?: string | null;
   /** 1.31.0: queued to be scored again under the matcher's current rules; the reasons and candidates are the earlier result until then. */
   checkingAgain?: boolean;
+  /** 1.33.0 (Needs review): when an admin set the row aside ("Later"); listed after the others until decided or checked again. */
+  laterAt?: string | null;
+  /** 1.33.0 (Needs review): other waiting works by the same circle / artist (from the works' own names). */
+  sameAuthor?: MetadataReviewGroupHintDto | null;
+  /** 1.33.0 (Needs review): other waiting works in the same folder (`key` = the folder's node id). */
+  sameFolder?: MetadataReviewGroupHintDto | null;
   /** 1.31.0 (folder works): chapter numbers that more than one file of the same folder states. */
   duplicateChapters?: number;
   /** 1.31.0 (folder works): the same for volume numbers. */
@@ -2525,4 +2552,186 @@ export interface SeriesRefreshCadenceDto {
   volumeIntervalDays?: number | null;
   fetchedAt: string;
   nextCheckAt: string;
+}
+
+// --- Metadata export (1.33.0, for MangaList): GET /api/v1/export/*. Not used by the web client; mirrored for the contract check. ---
+
+export interface ExportErrorDto {
+  error: string;
+}
+
+export interface ExportLibrariesDto {
+  schemaVersion: number;
+  serverTime: string;
+  libraries: ExportLibraryDto[];
+}
+
+export interface ExportLibraryDto {
+  id: string;
+  displayName: string;
+  kind?: string | null;
+  folderCount?: number | null;
+  itemCount?: number | null;
+  lastScanAt?: string | null;
+}
+
+export interface ExportLibraryRefDto {
+  id: string;
+  displayName: string;
+  kind?: string | null;
+}
+
+export interface ExportMetadataPageDto {
+  schemaVersion: number;
+  serverTime: string;
+  library: ExportLibraryRefDto;
+  items: ExportItemDto[];
+  removed: ExportRemovalDto[];
+  nextCursor?: string | null;
+}
+
+export interface ExportRemovalDto {
+  nodeId: string;
+  reason: 'nodeGone' | 'linkCleared' | 'movedToOtherLibrary';
+  at: string;
+}
+
+export interface ExportItemDto {
+  nodeId: string;
+  nodeKind: 'folder' | 'archive';
+  carriedFrom?: string | null;
+  trail: string[];
+  updatedAt: string;
+  link: ExportLinkDto;
+  record?: ExportRecordDto | null;
+  companions: ExportCompanionsDto;
+  officialLinks: ExportOfficialLinkDto[];
+  volumes?: ExportVolumesDto | null;
+  completion?: ExportCompletionDto | null;
+  refresh?: ExportRefreshDto | null;
+}
+
+export interface ExportLinkDto {
+  state: 'Confirmed' | 'Auto' | 'NeedsReview' | 'DontMatch';
+  method?: string | null;
+  score?: number | null;
+  updatedAt: string;
+}
+
+export interface ExportRecordDto {
+  provider: string;
+  externalId: string;
+  siteUrl?: string | null;
+  title: string;
+  altTitles: string[];
+  type?: string | null;
+  originStatus?: string | null;
+  originVolumes?: number | null;
+  latestChapter?: string | null;
+  totalChapters?: number | null;
+  statusText?: string | null;
+  licensedEn?: boolean | null;
+  translationComplete?: boolean | null;
+  completedInOrigin?: boolean | null;
+  englishPublishers: ExportPublisherDto[];
+  fetchedAt: string;
+}
+
+export interface ExportPublisherDto {
+  name: string;
+  volumes?: number | null;
+  chapters?: number | null;
+  status?: string | null;
+  omnibus: boolean;
+}
+
+export interface ExportCompanionsDto {
+  mangadex?: string | null;
+  anilist?: ExportAniListDto | null;
+}
+
+export interface ExportAniListDto {
+  id: number;
+  chapters?: number | null;
+  volumes?: number | null;
+}
+
+export interface ExportOfficialLinkDto {
+  kind: 'publisher' | 'store';
+  label: string;
+  url: string;
+  source: 'mangadex';
+}
+
+export interface ExportVolumesDto {
+  source: 'mangadex' | 'wikipedia' | 'merged';
+  fetchedAt?: string | null;
+  items: ExportVolumeDto[];
+}
+
+export interface ExportVolumeDto {
+  volume: string;
+  title?: string | null;
+  chapters?: ExportChapterRangeDto | null;
+  englishDate?: string | null;
+  englishDateKind?: 'released' | 'announced' | null;
+  isbn?: string | null;
+  sources: string[];
+}
+
+export interface ExportChapterRangeDto {
+  from: string;
+  to: string;
+}
+
+export interface ExportCompletionDto {
+  answer: 'CantTell' | 'HaveItAll' | 'FinishedMissing' | 'UpToDate' | 'MissingSome';
+  reason: string;
+  upgradeAvailable: boolean;
+  upgradeVolumes: number[];
+  computedAt: string;
+  basedOnScanAt?: string | null;
+}
+
+export interface ExportRefreshDto {
+  lastFetchedAt: string;
+  nextDueAt: string;
+  intervalDays: number;
+}
+
+// --- Personal access tokens + export ping (1.33.0) ---
+
+/** GET /admin/tokens: one personal access token. Never carries the secret. */
+export interface ApiTokenDto {
+  id: string;
+  name: string;
+  /** The first characters of the token (e.g. "mpx_Ab3x"), to tell tokens apart. */
+  prefix: string;
+  scopes: string[];
+  ownerUserName: string;
+  createdAt: string;
+  /** Null = never expires. */
+  expiresAt?: string | null;
+  lastUsedAt?: string | null;
+  revokedAt?: string | null;
+  status: 'active' | 'expired' | 'revoked' | 'ownerInactive';
+}
+
+/** POST /admin/tokens. expiresInDays: 30, 90 or 365, or null for never (always sent). */
+export interface CreateApiTokenRequest {
+  name: string;
+  expiresInDays: number | null;
+}
+
+/** The answer to POST /admin/tokens: the secret is shown this one time only. */
+export interface CreateApiTokenResponse {
+  token: ApiTokenDto;
+  secret: string;
+}
+
+/** GET /export/ping: which credential was accepted, and the server's clock. */
+export interface ExportPingDto {
+  ok: boolean;
+  serverTime: string;
+  auth: 'token' | 'cookie';
 }

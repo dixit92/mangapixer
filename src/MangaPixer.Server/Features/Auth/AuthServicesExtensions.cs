@@ -1,5 +1,6 @@
 namespace com.lifepixer.mangapixer.Server.Features.Auth;
 
+using com.lifepixer.mangapixer.Server.Features.Tokens;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -114,6 +115,14 @@ public static class AuthServicesExtensions
         {
             options.AddPolicy("Admin", policy => policy.RequireRole("admin"));
             options.AddPolicy("Reader", policy => policy.RequireRole("admin", "reader"));
+            // The export's policy (1.33.0): an admin's cookie login OR a personal access token with the export scope. This is
+            // the ONLY place the token scheme is named, so a token authenticates on export endpoints and nowhere else (the
+            // default scheme of every other endpoint stays the cookie). The token principal has no role claim.
+            options.AddPolicy(Export.ExportApi.Policy, policy => policy
+                .AddAuthenticationSchemes(CookieAuthenticationDefaults.AuthenticationScheme, Export.ExportApi.TokenScheme)
+                .RequireAssertion(context =>
+                    context.User.IsInRole("admin")
+                    || context.User.HasClaim(ApiTokenClaims.Scope, Export.ExportApi.Scope)));
         });
 
         // Register auth services
@@ -139,6 +148,10 @@ public static class AuthServicesExtensions
         // (audit finding F2); the first admin is created only via
         // POST /api/v1/auth/setup while no user exists.
         services.AddScoped<FirstRunSetupService>();
+
+        // Personal access tokens for the export (1.33.0): the bearer scheme (never the default), the token service, the
+        // failed-attempt limiter and the per-token request ceiling.
+        services.AddMangaPixerApiTokens(rateLimitDisabledOverride);
 
         // Register authorization handlers
         services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, MangaPixerAuthorizationHandler>();

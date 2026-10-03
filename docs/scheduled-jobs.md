@@ -16,7 +16,7 @@ When the clocks change, a job set to an hour that is skipped that night runs an 
 
 | Job | Default | What you can choose |
 |---|---|---|
-| **Library scan** (one row per library) | Daily, any time | The preset (Off, Hourly, Every 6 hours, Daily, Weekly) and, for Daily and Weekly, **At** (an hour) and for Weekly **On** (a weekday). The same control is under each library on the **Libraries** card. |
+| **Library scan** (one row per library) | Daily, any time | The preset (Off, Hourly, Every 6 hours, Daily, Weekly) and, for Daily and Weekly, **At** (an hour) and for Weekly **On** (a weekday). The **Libraries** card shows the schedule under each library, with a link to this row. |
 | **Series information refresh** | 03:00 | **Run at**, and how often series are checked (see below). |
 | **Database backup** | Every 24 hours, any time | **At** an hour, when the backups run every day or every few days. The interval itself is on the **Database backup** card. |
 | **Empty trash and clean bundles** | 04:00, only while automatic cleaning is on | **Turn automatic cleaning on** (off by default; it asks first and shows what the first run removes) and **Run automatic cleaning at**. This is the only place to switch it: the [Trash](trash.md#automatic-cleaning) card shows the status and links here. |

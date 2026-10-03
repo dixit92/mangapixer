@@ -93,6 +93,12 @@ public enum MetadataReviewBulkAction
 
     /// <summary>Removes each row's own link (inheritance resumes).</summary>
     Unlink = 4,
+
+    /// <summary>1.33.0: sets each Needs review row aside ("Later": listed after the others until it is decided or checked again).</summary>
+    Later = 5,
+
+    /// <summary>1.33.0: brings each row set aside back into the normal order.</summary>
+    ClearLater = 6,
 }
 
 /// <summary>Why a user flagged a series.</summary>
@@ -146,6 +152,9 @@ public sealed record MetadataMatchThresholdBoundsDto
 public sealed record MetadataReviewSummaryDto
 {
     public required int NeedsReview { get; init; }
+
+    /// <summary>1.33.0: the Needs review rows set aside ("Later"); included in <see cref="NeedsReview"/>.</summary>
+    public int Later { get; init; }
     public required int AutoLinked { get; init; }
     public required int Unmatched { get; init; }
     public required int OpenFlags { get; init; }
@@ -293,6 +302,21 @@ public sealed record MetadataReviewItemDto
     public bool CheckingAgain { get; init; }
 
     /// <summary>
+    /// 1.33.0 (Needs review): when an admin set the row aside ("Later"); such rows are listed after the others, the same for every
+    /// admin, until the work is decided or checked again. Null when it is not set aside.
+    /// </summary>
+    public DateTimeOffset? LaterAt { get; init; }
+
+    /// <summary>
+    /// 1.33.0 (Needs review): other waiting works by the same circle or artist, read from the works' own names (the leading
+    /// <c>[Circle (Artist)]</c> tag, balanced or not), else an artist folder or ComicInfo writer / penciller. Null when none.
+    /// </summary>
+    public MetadataReviewGroupHintDto? SameAuthor { get; init; }
+
+    /// <summary>1.33.0 (Needs review): other waiting works in the same folder (<c>Key</c> = the folder's node id). Null when none.</summary>
+    public MetadataReviewGroupHintDto? SameFolder { get; init; }
+
+    /// <summary>
     /// 1.31.0 (folder works): how many chapter numbers more than one file of the same folder below it states ("2 duplicate chapters").
     /// Split chapters and ranges are not duplicates.
     /// </summary>
@@ -305,6 +329,36 @@ public sealed record MetadataReviewItemDto
 
     /// <summary>Flags tab only: the open flags on this anchor.</summary>
     public IReadOnlyList<MetadataFlagDto> Flags { get; init; } = [];
+}
+
+/// <summary>
+/// 1.33.0: a group of works waiting in Needs review that a row belongs to - by author or by folder. <c>Key</c> is the value of the
+/// list's <c>author</c> / <c>folder</c> filter; <c>Label</c> is the author's or the folder's name (display data, never a path).
+/// </summary>
+public sealed record MetadataReviewGroupHintDto
+{
+    public required string Key { get; init; }
+    public required string Label { get; init; }
+
+    /// <summary>The other waiting works of the group (at least 1).</summary>
+    public required int Others { get; init; }
+}
+
+/// <summary>1.33.0: an author with at least two works waiting in Needs review (the Authors list, largest first).</summary>
+public sealed record MetadataReviewAuthorDto
+{
+    /// <summary>The list's <c>author</c> filter value.</summary>
+    public required string Key { get; init; }
+    public required string Label { get; init; }
+    public required int Count { get; init; }
+
+    /// <summary>Of <see cref="Count"/>, the works set aside ("Later").</summary>
+    public int Later { get; init; }
+}
+
+public sealed record MetadataReviewAuthorsDto
+{
+    public required IReadOnlyList<MetadataReviewAuthorDto> Items { get; init; }
 }
 
 public sealed record MetadataReviewPageDto

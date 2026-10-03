@@ -207,6 +207,9 @@ public static class AuditActions
     public const string MetadataRunCancel = "metadata.run.cancel";
     public const string MetadataReviewAccept = "metadata.review.accept";
     public const string MetadataReviewConfirm = "metadata.review.confirm";
+
+    /// <summary>1.33.0: a Needs review row set aside ("Later") or brought back; the result is <c>set</c> or <c>clear</c>.</summary>
+    public const string MetadataReviewLater = "metadata.review.later";
     public const string MetadataFlagResolve = "metadata.flag.resolve";
     public const string MetadataLinkCarried = "metadata.link.carried";
     public const string MetadataReattach = "metadata.reattach";
@@ -250,6 +253,10 @@ public static class AuditActions
     public const string JobScheduleChange = "job.schedule.change";
     public const string LibraryScanScheduleChange = "library.scan_schedule.change";
     public const string MetadataRefreshCadenceChange = "metadata.refresh.cadence";
+
+    // Personal access tokens (1.33.0). CorrelationId = the token's public id; TargetUserId = its owner. Never the secret.
+    public const string ApiTokenCreate = "api_token.create";
+    public const string ApiTokenRevoke = "api_token.revoke";
 }
 
 /// <summary>Canonical audit result verbs (kept short — the column is 32 chars).</summary>

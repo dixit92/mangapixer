@@ -583,6 +583,7 @@ public sealed class AdminController : ControllerBase
         await _db.ReaderPreferences.Where(r => r.UserId == user.Id).ExecuteDeleteAsync(ct);
         await _db.ItemReaderOverrides.Where(r => r.UserId == user.Id).ExecuteDeleteAsync(ct);
         await _db.Bookmarks.Where(b => b.UserId == user.Id).ExecuteDeleteAsync(ct);
+        await _db.ApiTokens.Where(t => t.UserId == user.Id).ExecuteDeleteAsync(ct);
 
         _db.Users.Remove(user);
         await _db.SaveChangesAsync(ct);

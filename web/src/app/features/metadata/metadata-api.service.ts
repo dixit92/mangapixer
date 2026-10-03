@@ -31,6 +31,7 @@ import {
   MetadataPurgeResultDto,
   MetadataReattachResultDto,
   MetadataRefreshResultDto,
+  MetadataReviewAuthorsDto,
   MetadataReviewBulkAction,
   MetadataReviewBulkResultDto,
   MetadataReviewPageDto,
@@ -54,6 +55,13 @@ import {
  * the browser only ever talks to MangaPixer, and candidate images come back through
  * MangaPixer by short-lived token.
  */
+/** The Needs review filters of `getReview` (absent / null = not filtered). */
+export interface ReviewListFilter {
+  later?: boolean | null;
+  author?: string | null;
+  folder?: string | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class MetadataApiService {
   private readonly http = inject(HttpClient);
@@ -184,8 +192,27 @@ export class MetadataApiService {
     return this.get<MetadataReviewSummaryDto>('/admin/metadata/review/summary', params({ library: libraryId }));
   }
 
-  getReview(tab: MetadataReviewTab, libraryId: string | null = null, cursor: string | null = null, limit = 50): Observable<MetadataReviewPageDto> {
-    return this.get<MetadataReviewPageDto>('/admin/metadata/review', params({ tab, library: libraryId, cursor, limit }));
+  /**
+   * `filter` (Needs review only): `later` true lists only the rows set aside, false only the others (absent: both, Later last);
+   * `author` / `folder` (1.33.0, one at a time) only the works of that author group / directly in that folder.
+   */
+  getReview(tab: MetadataReviewTab, libraryId: string | null = null, cursor: string | null = null, limit = 50,
+    filter: ReviewListFilter = {}): Observable<MetadataReviewPageDto> {
+    const { later, author, folder } = filter;
+    return this.get<MetadataReviewPageDto>('/admin/metadata/review', params({
+      tab, library: libraryId, cursor, limit, later: later === undefined || later === null ? null : String(later), author, folder,
+    }));
+  }
+
+  /** 1.33.0: authors with at least two works waiting in Needs review, largest first (local names only). */
+  getReviewAuthors(libraryId: string | null = null): Observable<MetadataReviewAuthorsDto> {
+    return this.get<MetadataReviewAuthorsDto>('/admin/metadata/review/authors', params({ library: libraryId }));
+  }
+
+  /** 1.33.0: sets a Needs review row aside ("Later") for every admin, or brings it back (`on` false). */
+  setReviewLater(nodeId: string, on: boolean): Observable<void> {
+    const path = `/admin/metadata/review/${encodeURIComponent(nodeId)}/later`;
+    return on ? this.post<void>(path, {}) : this.delete<void>(path);
   }
 
   /** Links the stored candidate `rank` (1-based); one gated GET when its record is not stored yet. */

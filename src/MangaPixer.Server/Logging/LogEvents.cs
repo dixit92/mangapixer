@@ -102,6 +102,13 @@ public static class LogEvents
 
         public const int RateLimitedByIp = 2020;
         public const int RateLimitedByUsername = 2021;
+
+        // Personal access tokens (1.33.0). Messages carry the token's public id only - never the secret or the header.
+        public const int ApiTokenRefused = 2030;
+        public const int ApiTokenFailuresLimited = 2031;
+        public const int ApiTokenRequestsLimited = 2032;
+        public const int ApiTokenCreated = 2033;
+        public const int ApiTokenRevoked = 2034;
     }
 
     /// <summary>Scan phases, reconciliation, tombstoning, and admin-triggered scans.</summary>
@@ -444,5 +451,8 @@ public static class LogEvents
         public const int CoverCropFailed = 9383;
         public const int CoverSweep = 9384;
         public const int CoverChoiceChanged = 9385;
+
+        // Metadata export (1.33.0, 9390-9399). Library ids, counts and timings only - never names, titles or tokens.
+        public const int ExportRebuilt = 9390;
     }
 }

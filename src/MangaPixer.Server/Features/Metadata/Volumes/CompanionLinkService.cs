@@ -212,16 +212,25 @@ public sealed class CompanionLinkService
         record.OriginVolumes = int.TryParse(manga.LastVolume, NumberStyles.None, CultureInfo.InvariantCulture, out var last) && last is > 0 and < 10_000 ? last : null;
         record.CrossIdsJson = JsonSerializer.Serialize(cross);
         record.SiteUrl = MangaDexProvider.SiteUrl(manga.Id);
-        record.ExtraJson = JsonSerializer.Serialize(new MangaDexExtra(manga.OriginalLanguage, manga.MainCoverId, manga.MainCoverFile));
+        record.ExtraJson = JsonSerializer.Serialize(new MangaDexExtra(manga.OriginalLanguage, manga.MainCoverId, manga.MainCoverFile)
+        {
+            Links = manga.OfficialLinks.Select(l => new MangaDexExtraLink(l.Key, l.Url)).ToList(),
+        });
         record.FetchedAt = _time.GetUtcNow();
         record.FetchState = 0;
         await _db.SaveChangesAsync(ct);
         return record;
     }
 
-    /// <summary>What a MangaDex record row keeps in <c>ExtraJson</c>: the original language and the main cover.</summary>
+    /// <summary>
+    /// What a MangaDex record row keeps in <c>ExtraJson</c>: the original language and the main cover; 1.33.0 also the official sources
+    /// from the record's <c>links</c> (<see cref="Links"/>, null in a row written before), refreshed whenever the record is read again.
+    /// </summary>
     public sealed record MangaDexExtra(string? OriginalLanguage, string? MainCoverId, string? MainCoverFile)
     {
+        /// <summary>The official sources (<c>links</c> key and URL), or null when the row predates 1.33.0.</summary>
+        public IReadOnlyList<MangaDexExtraLink>? Links { get; init; }
+
         public static MangaDexExtra Read(string? json)
         {
             if (string.IsNullOrWhiteSpace(json))
@@ -236,6 +245,9 @@ public sealed class CompanionLinkService
             }
         }
     }
+
+    /// <summary>One stored official source of a MangaDex record (<see cref="MangaDexExtra.Links"/>).</summary>
+    public sealed record MangaDexExtraLink(string Key, string Url);
 
     private static MetadataOrigin? OriginOf(string? language) => language switch
     {

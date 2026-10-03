@@ -64,6 +64,8 @@ describe('ReviewDashboardComponent', () => {
       })),
       clearDontMatch: vi.fn((nodeId: string) => of({ nodeId })),
       deleteMissing: vi.fn(() => of(undefined)),
+      setReviewLater: vi.fn((_nodeId: string, _on: boolean) => of(undefined)),
+      getReviewAuthors: vi.fn(() => of({ items: [{ key: 'circlea', label: 'Circle A', count: 4, later: 1 }, { key: 'artistb', label: 'Artist B', count: 2 }] })),
       reattachMissing: vi.fn((nodeId: string, targetNodeId: string) => of({ nodeId, targetNodeId, link: true,
         precedence: false, readerDefault: false, content: false })),
       ...opts.apiOverrides,
@@ -106,7 +108,7 @@ describe('ReviewDashboardComponent', () => {
 
   it('loads the Needs review tab with the counts on the tabs', () => {
     const { el, api, names } = create();
-    expect(api.getReview).toHaveBeenCalledWith('NeedsReview', null);
+    expect(api.getReview).toHaveBeenCalledWith('NeedsReview', null, null, 50, {});
     expect(names()).toEqual(['Alpha Saga', 'Beta Saga', 'Gamma Saga']);
     const tab = el.querySelector('[data-testid="review-tab-AutoLinked"]')!;
     expect(tab.textContent).toContain('Auto-linked');
@@ -188,7 +190,7 @@ describe('ReviewDashboardComponent', () => {
     (el.querySelector('[data-testid="review-tab-AutoLinked"]') as HTMLButtonElement).click();
     fixture.detectChanges();
     expect(api.acceptCandidate).toHaveBeenCalledTimes(1);
-    expect(api.getReview).toHaveBeenLastCalledWith('AutoLinked', null);
+    expect(api.getReview).toHaveBeenLastCalledWith('AutoLinked', null, null, 50, {});
     expect(states).toEqual([{ tab: 'AutoLinked', library: null }]);
     (el.querySelector('[data-testid="review-tab-Flags"]') as HTMLButtonElement).click();
     expect(flags).toBe(1);
@@ -198,7 +200,7 @@ describe('ReviewDashboardComponent', () => {
   it('filters by library', () => {
     const { c, api } = create();
     c.setLibrary('lib1');
-    expect(api.getReview).toHaveBeenLastCalledWith('NeedsReview', 'lib1');
+    expect(api.getReview).toHaveBeenLastCalledWith('NeedsReview', 'lib1', null, 50, {});
     expect(api.getReviewSummary).toHaveBeenLastCalledWith('lib1');
   });
 
@@ -273,12 +275,131 @@ describe('ReviewDashboardComponent', () => {
     // The Undo window already closed (a row action moved focus to a new tab), so the
     // commit was sent, but its response has not arrived yet: the new tab must not have
     // loaded from the server yet.
-    expect(api.getReview).not.toHaveBeenCalledWith('Confirmed', null);
+    expect(api.getReview).not.toHaveBeenCalledWith('Confirmed', null, null, 50, {});
     bulk$.next({ action: 'Confirm', succeeded: 1, failed: 0, results: [{ nodeId: 'n1', code: 'ok' }] });
     bulk$.complete();
     fixture.detectChanges();
-    expect(api.getReview).toHaveBeenCalledWith('Confirmed', null);
+    expect(api.getReview).toHaveBeenCalledWith('Confirmed', null, null, 50, {});
     expect(el.querySelectorAll('[data-testid="review-name"]')[0].textContent).toContain('Confirmed Saga');
+  });
+
+  // --- 1.33.0: Later, remembered on the server ---
+
+  it('Later is sent at once and moves the row to the end of a fully loaded list; Undo brings it back', () => {
+    const { c, api, el, snack, names } = create();
+    c.onRowAction({ action: 'later', item: rows[0] });
+    expect(api.setReviewLater).toHaveBeenCalledWith('n1', true);
+    expect(names()).toEqual(['Beta Saga', 'Gamma Saga', 'Alpha Saga']);
+    expect(el.querySelectorAll('[data-testid="review-later-tag"]')).toHaveLength(1);
+    expect(snack.last().label).toBe('Set aside for later: Alpha Saga');
+    expect(api.getReviewSummary).toHaveBeenCalledTimes(2); // the Later count is read again
+    expect(api.reviewBulk).not.toHaveBeenCalled();
+
+    snack.undo();
+    expect(api.setReviewLater).toHaveBeenLastCalledWith('n1', false);
+    expect(names()).toEqual(['Beta Saga', 'Gamma Saga', 'Alpha Saga']); // the server puts it back in order on the next load
+    expect(el.querySelector('[data-testid="review-later-tag"]')).toBeNull();
+  });
+
+  it('Later with more pages to load: the row leaves the loaded list (paging reaches it at the end)', () => {
+    const { c, names } = create({ apiOverrides: {
+      getReview: vi.fn(() => of({ tab: 'NeedsReview', items: rows, total: 10, hasMore: true, nextCursor: '7' })) } });
+    c.onRowAction({ action: 'later', item: rows[1] });
+    expect(names()).toEqual(['Alpha Saga', 'Gamma Saga']);
+    expect(c.total()).toBe(10); // still in Needs review
+  });
+
+  it('the l key sets the focused row aside, and brings a row set aside back', () => {
+    const later = reviewItem({ nodeId: 'n9', displayName: 'Later Saga', laterAt: '2026-10-03T12:00:00Z' });
+    const { api, key, names } = create({ pages: { NeedsReview: [...rows, later] } });
+    key('l');
+    expect(api.setReviewLater).toHaveBeenCalledWith('n1', true);
+    expect(names()).toEqual(['Beta Saga', 'Gamma Saga', 'Later Saga', 'Alpha Saga']);
+    key('j');
+    key('j');
+    key('l');
+    expect(api.setReviewLater).toHaveBeenLastCalledWith('n9', false);
+  });
+
+  it('bulk Later sets the selected rows aside in one call', () => {
+    const { c, api, names } = create();
+    c.toggle('n1');
+    c.toggle('n3');
+    c.runBulk('Later');
+    expect(api.reviewBulk).toHaveBeenCalledWith('Later', ['n1', 'n3']);
+    expect(api.setReviewLater).not.toHaveBeenCalled();
+    expect(names()).toEqual(['Beta Saga', 'Alpha Saga', 'Gamma Saga']);
+  });
+
+  it('the Later filter shows with a count, reloads the list, and drops a row brought back from it', () => {
+    const later = reviewItem({ nodeId: 'n9', displayName: 'Later Saga', laterAt: '2026-10-03T12:00:00Z' });
+    const { c, api, el, fixture, names } = create({ pages: { NeedsReview: [later] }, apiOverrides: {
+      getReviewSummary: vi.fn(() => of(summary({ needsReview: 4, later: 1 }))) } });
+    const filter = () => el.querySelector('[data-testid="review-later-filter"]');
+    expect(filter()!.textContent).toContain('Later');
+    expect(el.querySelector('[data-testid="review-later-only"]')!.textContent).toContain('1');
+    (el.querySelector('[data-testid="review-later-only"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(api.getReview).toHaveBeenLastCalledWith('NeedsReview', null, null, 50, { later: true });
+    expect(c.laterFilter()).toBe(true);
+    c.onRowAction({ action: 'notLater', item: later });
+    expect(api.setReviewLater).toHaveBeenCalledWith('n9', false);
+    expect(names()).toEqual([]);
+    (el.querySelector('[data-testid="review-later-now"]') as HTMLButtonElement).click();
+    expect(api.getReview).toHaveBeenLastCalledWith('NeedsReview', null, null, 50, { later: false });
+    c.setTab('AutoLinked');
+    expect(c.laterFilter()).toBeNull(); // each visit to Needs review starts with every row
+    TestBed.resetTestingModule();
+    expect(create().el.querySelector('[data-testid="review-later-filter"]')).toBeNull(); // nothing set aside: no filter
+  });
+
+  // --- 1.33.0: Same author / Same folder ---
+
+  const doujins = [
+    reviewItem({ nodeId: 'd1', displayName: '[Circle A] First', sameAuthor: { key: 'circlea', label: 'Circle A', others: 1 },
+      sameFolder: { key: 'f1', label: 'Doujins', others: 1 } }),
+    reviewItem({ nodeId: 'd2', displayName: 'Circle A] Second', sameAuthor: { key: 'circlea', label: 'Circle A', others: 1 },
+      sameFolder: { key: 'f1', label: 'Doujins', others: 1 } }),
+  ];
+
+  it('a row\'s "more by" chip lists that author\'s works; the chip above the list says so and clears it', () => {
+    const { api, el, fixture } = create({ pages: { NeedsReview: doujins } });
+    (el.querySelector('[data-testid="review-same-author"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(api.getReview).toHaveBeenLastCalledWith('NeedsReview', null, null, 50, { author: 'circlea' });
+    const chip = el.querySelector('[data-testid="review-group-chip"]')!;
+    expect(chip.textContent!.replace(/\s+/g, ' ')).toContain('By Circle A (2)');
+    (el.querySelector('[data-testid="review-group-clear"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(api.getReview).toHaveBeenLastCalledWith('NeedsReview', null, null, 50, {});
+    expect(el.querySelector('[data-testid="review-group-chip"]')).toBeNull();
+  });
+
+  it('the "more in" chip lists the folder\'s works, with the Later filter', () => {
+    const { c, api, el, fixture } = create({ pages: { NeedsReview: doujins } });
+    c.setLaterFilter(false);
+    fixture.detectChanges();
+    (el.querySelector('[data-testid="review-same-folder"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(api.getReview).toHaveBeenLastCalledWith('NeedsReview', null, null, 50, { later: false, folder: 'f1' });
+    expect(el.querySelector('[data-testid="review-group-chip"]')!.textContent).toContain('In Doujins');
+    c.setTab('AutoLinked');
+    expect(c.group()).toBeNull(); // each visit starts with every item
+  });
+
+  it('g filters by the focused row\'s author and back; the Authors menu starts from the largest group', () => {
+    const { c, api, el, fixture, key } = create({ pages: { NeedsReview: doujins } });
+    key('g');
+    expect(c.group()).toEqual({ kind: 'author', key: 'circlea', label: 'Circle A' });
+    key('g');
+    expect(c.group()).toBeNull();
+    c.loadAuthors();
+    expect(api.getReviewAuthors).toHaveBeenCalledWith(null);
+    expect(c.authors()!.map((a) => a.label)).toEqual(['Circle A', 'Artist B']);
+    expect(el.querySelector('[data-testid="review-authors"]')).not.toBeNull();
+    c.setGroup({ kind: 'author', key: 'artistb', label: 'Artist B' });
+    fixture.detectChanges();
+    expect(api.getReview).toHaveBeenLastCalledWith('NeedsReview', null, null, 50, { author: 'artistb' });
   });
 
   it('1.31.0: says how many items are being checked again under the current rules, on Needs review only', () => {
