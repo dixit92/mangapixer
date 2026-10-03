@@ -96,9 +96,9 @@ public sealed class MissingReportHttpTests : IClassFixture<MangaPixerWebApplicat
         return await _factory.LoginAsAdminWithChangedPasswordAsync();
     }
 
-    private static async Task<T> OkAsync<T>(HttpResponseMessage response)
+    private async Task<T> OkAsync<T>(HttpResponseMessage response)
     {
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        await _factory.UnhandledErrors.ExpectAsync(response, HttpStatusCode.OK);
         return (await response.Content.ReadFromJsonAsync<T>(TestJson.Web))!;
     }
 
@@ -317,10 +317,11 @@ public sealed class MissingReportHttpTests : IClassFixture<MangaPixerWebApplicat
         var admin = await AdminAsync();
 
         // Fetch from the web is off on a fresh instance: refused before any request.
+        // (1.33.0) Status checks name the server's exception if this ever answers 500 again (seen once under parallel load).
         var one = await admin.PostAsync("/api/v1/admin/metadata/missing/mrBehind/conversion", null);
-        Assert.Equal(HttpStatusCode.Conflict, one.StatusCode);
+        await _factory.UnhandledErrors.ExpectAsync(one, HttpStatusCode.Conflict);
         Assert.Equal("metadata_disabled", (await one.Content.ReadFromJsonAsync<ApiError>(TestJson.Web))!.Error);
-        Assert.Equal(HttpStatusCode.NotFound, (await admin.PostAsync("/api/v1/admin/metadata/missing/no-such-node/conversion", null)).StatusCode);
+        await _factory.UnhandledErrors.ExpectAsync(await admin.PostAsync("/api/v1/admin/metadata/missing/no-such-node/conversion", null), HttpStatusCode.NotFound);
 
         var batch = await OkAsync<MissingConversionBatchResultDto>(
             await admin.PostAsJsonAsync("/api/v1/admin/metadata/missing/conversions", new MissingConversionBatchRequest { Library = LibPubId }, TestJson.Web));
