@@ -27,6 +27,7 @@ Everything MangaPixer does today, by area. The [README](../README.md) has the sh
 - A card with series information shows an **(i)**: it opens a side panel with the summary, and a full series page lists the items.
 - Admins can link a folder or archive to a [MangaUpdates](https://www.mangaupdates.com) series with **Identify** (search, or paste a MangaUpdates address). Optional and off by default; see [What leaves your server](privacy-and-security.md#what-leaves-your-server).
 - **Automatic matching** (a separate switch with its own consent, also off by default) matches new folders in the background. It tells series, one-shots, artist folders and collections apart by their names and contents, so category folders are never linked themselves. Confident matches go live at once; close calls wait for an admin on the **Metadata Manager** page (account menu), where each can be accepted, identified by hand or marked **Don't match**. Linked series are refreshed in the background.
+- In **Needs review**, **Later** sets a hard case aside (kept on the server, for every admin) so the easy matches can be accepted first. A row also says when other waiting works are by the same circle or artist (read from names like `[Circle (Artist)] Title`, also without the opening bracket) or sit in the same folder; one tap lists them together for a bulk action, and **Authors** lists the largest groups first.
 - Readers can report a wrong series with **Wrong series?**; admins see the reports on the same page.
 - Per folder, admins choose whether web data or `ComicInfo.xml` wins, whether it holds doujinshi (**Content**), and can mark a folder **Don't match** when it is not one series. Renamed or moved folders keep these settings. **Show series information** hides it all for everyone.
 
@@ -56,11 +57,12 @@ Everything MangaPixer does today, by area. The [README](../README.md) has the sh
 ## Administration and operations
 
 - Add, rename and remove libraries from the web UI, using a folder picker confined to the media root. Removing a library deletes only MangaPixer's own metadata and thumbnails; your files are untouched.
-- Scans run per library or across all libraries, and can be canceled. Each library is also rescanned automatically on its own schedule (daily by default; hourly, every 6 hours, weekly or off). There is no filesystem watching yet.
+- Scans run per library or across all libraries, and can be canceled. Each library is also rescanned automatically on its own schedule (daily by default; hourly, every 6 hours, weekly or off), set in **Scheduled jobs**. There is no filesystem watching yet.
 - Persistent thumbnails that survive restarts and cache clears. A background backfill fills them in and yields to active readers. Thumbnails can be regenerated per library.
 - Automatic rotating database backups (daily, 7 kept by default) and on-demand backups. A validated backup can be uploaded for restore; it is applied atomically on the next restart, with rollback if that fails (see [Backup and restore](backup-and-restore.md)).
 - Runtime log-level control (global and per subsystem) and a diagnostics export.
 - YACReader progress import: if a library folder contains a YACReader library database, an admin can preview its read progress and import it into their own account. The YACReader data is only read.
+- **API tokens and a metadata export for other apps:** an admin creates a read-only token for a tool such as MangaList, which can then read each linked series' information (links, volume lists, completion) from `/api/v1/export/` - names only, never a path. A token works nowhere else and is stored only as a fingerprint (see [API tokens](api-tokens.md) and [Metadata export API](metadata-export.md)).
 - Health endpoints (`/health`, `/health/ready`) and an OpenAPI document at `/openapi/v1.json` (the checked-in contract is `contracts/openapi.json` in the repository).
 - Web app manifest and icons, so MangaPixer can be added to a phone or tablet home screen.
 
