@@ -128,8 +128,23 @@ describe('ReviewRowComponent', () => {
     const { el, events } = create(reviewItem(), 'NeedsReview', { rank: 2 });
     (el.querySelector('[data-testid="review-accept"]') as HTMLButtonElement).click();
     (el.querySelector('[data-testid="review-dontMatch"]') as HTMLButtonElement).click();
-    expect(events.map((e) => [e.action, e.rank])).toEqual([['accept', 2], ['dontMatch', undefined]]);
-    expect(el.querySelector('[data-testid="review-later"]')).toBeNull(); // removed (owner, 2026-09-26)
+    (el.querySelector('[data-testid="review-later"]') as HTMLButtonElement).click();
+    expect(events.map((e) => [e.action, e.rank])).toEqual([['accept', 2], ['dontMatch', undefined], ['later', undefined]]);
+    expect(el.querySelector('[data-testid="review-later-tag"]')).toBeNull();
+  });
+
+  it('1.33.0: a row set aside shows the Later tag and offers "Not later" on the same key', () => {
+    const item = reviewItem({ laterAt: '2026-10-03T12:00:00Z' });
+    const { el, events } = create(item, 'NeedsReview');
+    expect(el.querySelector('[data-testid="review-later-tag"]')!.textContent).toContain('Later');
+    expect(el.querySelector('[data-testid="review-later"]')).toBeNull();
+    (el.querySelector('[data-testid="review-notLater"]') as HTMLButtonElement).click();
+    expect(events.map((e) => e.action)).toEqual(['notLater']);
+    expect(rowActions('NeedsReview', item).map((a) => [a.action, a.key])).toEqual([
+      ['accept', 'a'], ['identify', 'i'], ['dontMatch', 'd'], ['notLater', 'l']]);
+    expect(rowActions('NeedsReview', reviewItem()).at(-1)!.action).toBe('later');
+    // Only Needs review offers it.
+    expect(rowActions('Unmatched', reviewItem()).some((a) => a.action === 'later')).toBe(false);
   });
 
   it('shows the current link on the Auto-linked tab and hides inline actions on phone', () => {

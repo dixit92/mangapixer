@@ -51,6 +51,7 @@ export function bulkActions(tab: MetadataReviewTab): BulkDef[] {
         { action: 'AcceptTop', label: 'Accept top candidates', icon: 'done_all' },
         { action: 'DontMatch', label: 'Don\'t match', icon: 'block' },
         { action: 'RerunMatching', label: 'Re-run matching', icon: 'refresh' },
+        { action: 'Later', label: 'Later', icon: 'schedule' },
       ];
     case 'AutoLinked':
       return [
@@ -76,6 +77,8 @@ const BULK_DONE: Record<MetadataReviewBulkAction, string> = {
   RerunMatching: 'Queued again:',
   Confirm: 'Confirmed',
   Unlink: 'Unlinked',
+  Later: 'Set aside for later:',
+  ClearLater: 'Back in the list:',
 };
 
 /** The review action a single-row action sends through `review/bulk`. */
@@ -86,15 +89,15 @@ const ROW_BULK: Partial<Record<ReviewRowAction, MetadataReviewBulkAction>> = {
   rerun: 'RerunMatching',
 };
 
-/** Keys -> row actions (the key must be offered by the row's tab). */
-const KEY_ACTIONS: Record<string, ReviewRowAction> = {
-  a: 'accept', d: 'dontMatch', i: 'identify', c: 'confirm', u: 'unlink',
-};
-
 /**
  * The review dashboard (metadata stage 2, design section 5): tabs with counts, a
  * library filter, the rows, bulk actions, Undo and keyboard triage (j/k move, a accept,
- * d Don't match, i identify, c confirm, u unlink, x select, e expand).
+ * d Don't match, i identify, l later / not later, c confirm, u unlink, x select, e expand;
+ * a key works when the row offers its action, see `rowActions`).
+ *
+ * "Later" (1.33.0) is remembered on the server for every admin: a row set aside is listed
+ * after the others (oldest set aside first) until the work is decided or checked again;
+ * Needs review can show all rows, only those set aside, or only the others.
  * Reading a tab never contacts a provider. Every change goes through a deferred commit
  * (see `DeferredCommitQueue`), so Undo is exact.
  *
@@ -132,6 +135,17 @@ const KEY_ACTIONS: Record<string, ReviewRowAction> = {
         </mat-form-field>
       </div>
       <p class="hint">{{ hint() }}</p>
+      @if (tab() === 'NeedsReview' && (count('later') > 0 || laterFilter() !== null)) {
+        <div class="later-filter" role="group" aria-label="Show items set aside for later" data-testid="review-later-filter">
+          <button type="button" class="tab" [class.active]="laterFilter() === null" [attr.aria-pressed]="laterFilter() === null"
+                  (click)="setLaterFilter(null)" data-testid="review-later-all">All</button>
+          <button type="button" class="tab" [class.active]="laterFilter() === false" [attr.aria-pressed]="laterFilter() === false"
+                  (click)="setLaterFilter(false)" data-testid="review-later-now">To review</button>
+          <button type="button" class="tab" [class.active]="laterFilter() === true" [attr.aria-pressed]="laterFilter() === true"
+                  (click)="setLaterFilter(true)" data-testid="review-later-only">
+            <mat-icon inline>schedule</mat-icon> Later <span class="badge">{{ count('later') }}</span></button>
+        </div>
+      }
       @if (tab() === 'NeedsReview' && recheckPending() > 0) {
         <!-- 1.31.0: after an update changed how matches are scored, the items waiting here are scored once more (in the background). -->
         <p class="recheck" role="status" data-testid="review-rechecking">
@@ -147,7 +161,7 @@ const KEY_ACTIONS: Record<string, ReviewRowAction> = {
             Select all {{ visible().length }} shown
           </mat-checkbox>
           @if (!phone()) {
-            <span class="keys">j/k move · a accept · d don't match · i identify · x select · e covers</span>
+            <span class="keys">j/k move · a accept · d don't match · i identify · l later · x select · e covers</span>
           }
         </div>
       }
@@ -232,6 +246,8 @@ const KEY_ACTIONS: Record<string, ReviewRowAction> = {
     .badge.hot { background: #7c4dff; color: #fff; }
     .lib-filter { width: 220px; }
     .hint { font-size: 13px; color: #9a9aa8; margin: 10px 0; }
+    .later-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+    .later-filter .tab { padding: 3px 10px; font-size: 12px; }
     .recheck { font-size: 13px; color: #90caf9; margin: 0 0 10px; display: flex; align-items: center; gap: 6px; }
     .select-line { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
     .keys { font-size: 12px; color: #8a8a99; }
@@ -291,6 +307,8 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
   readonly loading = signal(true);
   readonly loadingMore = signal(false);
   readonly error = signal<string | null>(null);
+  /** Needs review: null all rows (Later last), true only the rows set aside, false only the others. */
+  readonly laterFilter = signal<boolean | null>(null);
 
   readonly selected = signal<ReadonlySet<string>>(new Set());
   readonly selectMode = signal(false);
@@ -353,8 +371,20 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
     }
     if (tab === this.tab()) return;
     this.tab.set(tab);
+    this.laterFilter.set(null);
     this.stateChange.emit({ tab, library: this.library() });
     this.reloadAfterFlush();
+  }
+
+  setLaterFilter(later: boolean | null): void {
+    if (later === this.laterFilter()) return;
+    this.laterFilter.set(later);
+    this.reloadAfterFlush();
+  }
+
+  /** The Later filter of the current request (Needs review only). */
+  private laterParam(): boolean | null {
+    return this.tab() === 'NeedsReview' ? this.laterFilter() : null;
   }
 
   setLibrary(library: string | null): void {
@@ -383,7 +413,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
     this.error.set(null);
     this.resetView();
     this.loadSummary();
-    this.api.getReview(this.tab(), this.library()).subscribe({
+    this.api.getReview(this.tab(), this.library(), null, 50, this.laterParam()).subscribe({
       next: (page) => {
         this.items.set(page.items);
         this.total.set(page.total);
@@ -405,7 +435,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
     const cursor = this.cursor();
     if (!cursor) return;
     this.loadingMore.set(true);
-    this.api.getReview(this.tab(), this.library(), cursor).subscribe({
+    this.api.getReview(this.tab(), this.library(), cursor, 50, this.laterParam()).subscribe({
       next: (page) => {
         const known = new Set(this.items().map((i) => i.nodeId));
         this.items.update((prev) => [...prev, ...page.items.filter((i) => !known.has(i.nodeId))]);
@@ -520,10 +550,8 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
       event.preventDefault();
       return;
     }
-    const action = KEY_ACTIONS[key];
-    if (!action) return;
-    const offered = rowActions(this.tab(), item).some((a) => a.action === action);
-    if (!offered || (action === 'accept' && !(item.candidates ?? []).length)) return;
+    const action = rowActions(this.tab(), item).find((a) => a.key === key)?.action;
+    if (!action || (action === 'accept' && !(item.candidates ?? []).length)) return;
     event.preventDefault();
     this.onRowAction({ action, item, rank: action === 'accept' ? this.rankOf(item) : undefined });
   }
@@ -541,6 +569,10 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
       }
       case 'identify':
         this.identify(item);
+        return;
+      case 'later':
+      case 'notLater':
+        this.setLater([item], e.action === 'later');
         return;
       case 'clearDontMatch':
         this.defer([item], `Don't match cleared on ${item.displayName}`, () => none(this.api.clearDontMatch(item.nodeId)));
@@ -563,6 +595,10 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
     const chosen = this.visible().filter((i) => this.selected().has(i.nodeId)).slice(0, 200);
     if (chosen.length === 0) return;
     this.clearSelection();
+    if (action === 'Later' || action === 'ClearLater') {
+      this.setLater(chosen, action === 'Later');
+      return;
+    }
     this.defer(chosen, `${BULK_DONE[action]} ${plural(chosen.length, 'item')}`, () => this.bulkCall(action, chosen));
   }
 
@@ -601,6 +637,48 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
         this.snackBar.open(`Failed: ${(err as ApiError)?.message ?? 'error'}`, 'Close', { duration: 5000 });
       },
     });
+  }
+
+  /**
+   * "Later" / "Not later" (1.33.0): sent at once (it decides nothing; Undo sends the opposite). A row set aside moves to the
+   * end of the list, as the server lists it: appended when the whole list is loaded, else dropped until paging reaches it.
+   */
+  private setLater(rows: MetadataReviewItemDto[], on: boolean): void {
+    const call: Observable<string[]> = rows.length === 1
+      ? none(this.api.setReviewLater(rows[0].nodeId, on))
+      : this.bulkCall(on ? 'Later' : 'ClearLater', rows);
+    call.subscribe({
+      next: (failedIds) => {
+        const failed = new Set(failedIds);
+        const done = rows.filter((r) => !failed.has(r.nodeId));
+        if (done.length === 0) return;
+        const moved = this.applyLater(done, on);
+        this.loadSummary();
+        const what = done.length === 1 ? done[0].displayName : plural(done.length, 'item');
+        this.snackBar.open(`${on ? BULK_DONE.Later : BULK_DONE.ClearLater} ${what}`, 'Undo', { duration: 5000 })
+          .onAction().subscribe(() => this.setLater(moved, !on));
+      },
+      error: (err: ApiError) => this.snackBar.open(`Failed: ${err?.message ?? 'error'}`, 'Close', { duration: 5000 }),
+    });
+  }
+
+  /** Updates the loaded rows after a Later change; returns the rows as they are now. */
+  private applyLater(rows: MetadataReviewItemDto[], on: boolean): MetadataReviewItemDto[] {
+    const laterAt = on ? new Date().toISOString() : null;
+    const changed = rows.map((r) => ({ ...r, laterAt }));
+    const ids = new Set(rows.map((r) => r.nodeId));
+    const filter = this.laterFilter();
+    if (filter !== null && filter !== on) {
+      this.forget([...ids]); // no longer part of the filtered list
+    } else if (on) {
+      const rest = this.items().filter((i) => !ids.has(i.nodeId));
+      this.items.set(this.hasMore() ? rest : [...rest, ...changed]);
+    } else {
+      const byId = new Map(changed.map((r) => [r.nodeId, r]));
+      this.items.update((list) => list.map((i) => byId.get(i.nodeId) ?? i));
+    }
+    this.clampFocus();
+    return changed;
   }
 
   private identify(item: MetadataReviewItemDto): void {

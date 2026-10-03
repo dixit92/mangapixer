@@ -184,8 +184,16 @@ export class MetadataApiService {
     return this.get<MetadataReviewSummaryDto>('/admin/metadata/review/summary', params({ library: libraryId }));
   }
 
-  getReview(tab: MetadataReviewTab, libraryId: string | null = null, cursor: string | null = null, limit = 50): Observable<MetadataReviewPageDto> {
-    return this.get<MetadataReviewPageDto>('/admin/metadata/review', params({ tab, library: libraryId, cursor, limit }));
+  /** `later` (Needs review only): true lists only the rows set aside, false only the others, null both (Later last). */
+  getReview(tab: MetadataReviewTab, libraryId: string | null = null, cursor: string | null = null, limit = 50,
+    later: boolean | null = null): Observable<MetadataReviewPageDto> {
+    return this.get<MetadataReviewPageDto>('/admin/metadata/review', params({ tab, library: libraryId, cursor, limit, later: later === null ? null : String(later) }));
+  }
+
+  /** 1.33.0: sets a Needs review row aside ("Later") for every admin, or brings it back (`on` false). */
+  setReviewLater(nodeId: string, on: boolean): Observable<void> {
+    const path = `/admin/metadata/review/${encodeURIComponent(nodeId)}/later`;
+    return on ? this.post<void>(path, {}) : this.delete<void>(path);
   }
 
   /** Links the stored candidate `rank` (1-based); one gated GET when its record is not stored yet. */
