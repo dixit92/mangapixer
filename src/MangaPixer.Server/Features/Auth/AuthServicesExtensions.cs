@@ -114,6 +114,8 @@ public static class AuthServicesExtensions
         {
             options.AddPolicy("Admin", policy => policy.RequireRole("admin"));
             options.AddPolicy("Reader", policy => policy.RequireRole("admin", "reader"));
+            // The export's policy: an admin's cookie login for now; personal access tokens join it with their own scheme.
+            options.AddPolicy(Export.ExportApi.Policy, policy => policy.RequireRole("admin"));
         });
 
         // Register auth services
