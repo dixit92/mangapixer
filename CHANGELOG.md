@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.33.0] - 2026-10-03
+
 ### Added
 
 - **Later in Needs review.** **Later** sets a work aside so you can accept the easy matches first: it moves to the end of **Needs review** with a **Later** tag, for every admin and after a reload, until the work is decided (accepted, identified, marked **Don't match**) or checked again by the matcher. **Not later** brings it back. Works set aside are listed oldest first after all the others; while any are set aside, **All**, **To review** and **Later** above the list choose what to show, with a count. Also a bulk action and the `l` key. See [Review](docs/series-information.md#review).
@@ -17,6 +19,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - **A library's scan schedule is set in Scheduled jobs only.** The **Libraries** card shows it as one line ("Auto-scan: Daily at 03:00 (server time)") with a **Change in Scheduled jobs** link to the library's row, next to the last and next scan.
+
+- **Upgrade note:** this version adds three small database migrations (`AddReviewLater`, `AddExportState`, `AddApiTokens`: one new column and five new tables only; a snapshot is taken before they run). No new consent is needed and matching is unchanged: works waiting in **Needs review** are not checked again. MangaDex official links fill in as each series' MangaDex record is next read (no extra request). The metadata export builds its first snapshot of a library on the first export request; every client's first incremental call is answered with a full sync. The media worker protocol is unchanged (5).
 
 ### Security
 
