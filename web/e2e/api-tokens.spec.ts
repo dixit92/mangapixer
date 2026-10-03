@@ -36,7 +36,7 @@ test('an admin creates a token, sees it once, uses it for the export only, and r
   const secret = (await card.getByTestId('api-token-secret-value').textContent())!.trim();
   expect(secret).toMatch(/^mpx_[A-Za-z0-9_-]{43}$/);
   await expect(card.getByTestId('api-token-secret')).toContainText('You will not see it again');
-  await expect(card.getByText(name)).toBeVisible();
+  await expect(card.getByText(name, { exact: true })).toBeVisible();
   await expectFitsScreen(page, 'Administration with a new token at 1280 px');
 
   // The list answer never carries the secret.
@@ -57,7 +57,7 @@ test('an admin creates a token, sees it once, uses it for the export only, and r
     await card.getByTestId('api-token-done').click();
     await expect(card.getByTestId('api-token-secret')).toHaveCount(0);
     await page.reload();
-    await expect(page.getByTestId('api-tokens-card').getByText(name)).toBeVisible();
+    await expect(page.getByTestId('api-tokens-card').getByText(name, { exact: true })).toBeVisible();
     expect(await page.content()).not.toContain(secret.slice(4));
 
     // Revoke after the confirm.
