@@ -17,8 +17,6 @@ public sealed class ExportPingController(TimeProvider clock) : ControllerBase
     [HttpGet("ping")]
     [HttpHead("ping")]
     [ProducesResponseType<ExportPingDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType<ApiError>(StatusCodes.Status429TooManyRequests)]
     public IActionResult Ping() => Ok(new ExportPingDto
     {

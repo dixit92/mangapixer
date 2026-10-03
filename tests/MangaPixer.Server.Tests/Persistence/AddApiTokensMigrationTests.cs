@@ -72,15 +72,25 @@ public sealed class AddApiTokensMigrationTests : IDisposable
             await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = ON;");
             db.ApiTokens.Add(new ApiTokenEntity
             {
-                PublicId = "t1", UserId = user.Id, Name = "MangaList", Prefix = "mpx_abcd", SecretHash = new string('a', 64),
-                Scopes = "metadata:read", CreatedAt = DateTimeOffset.UnixEpoch,
+                PublicId = "t1",
+                UserId = user.Id,
+                Name = "MangaList",
+                Prefix = "mpx_abcd",
+                SecretHash = new string('a', 64),
+                Scopes = "metadata:read",
+                CreatedAt = DateTimeOffset.UnixEpoch,
             });
             await db.SaveChangesAsync();
 
             db.ApiTokens.Add(new ApiTokenEntity
             {
-                PublicId = "t2", UserId = user.Id, Name = "Copy", Prefix = "mpx_abcd", SecretHash = new string('a', 64),
-                Scopes = "metadata:read", CreatedAt = DateTimeOffset.UnixEpoch,
+                PublicId = "t2",
+                UserId = user.Id,
+                Name = "Copy",
+                Prefix = "mpx_abcd",
+                SecretHash = new string('a', 64),
+                Scopes = "metadata:read",
+                CreatedAt = DateTimeOffset.UnixEpoch,
             });
             await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
             db.ChangeTracker.Clear();
