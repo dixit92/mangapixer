@@ -133,6 +133,20 @@ describe('ReviewRowComponent', () => {
     expect(el.querySelector('[data-testid="review-later-tag"]')).toBeNull();
   });
 
+  it('1.33.0: the "more by" / "more in" chips emit the group (Needs review only)', () => {
+    const item = reviewItem({ sameAuthor: { key: 'circlea', label: 'Circle A', others: 3 }, sameFolder: { key: 'f1', label: 'Doujins', others: 5 } });
+    const { el, fixture } = create(item, 'NeedsReview');
+    const groups: unknown[] = [];
+    fixture.componentInstance.group.subscribe((g) => groups.push(g));
+    const author = el.querySelector('[data-testid="review-same-author"]') as HTMLButtonElement;
+    expect(author.textContent).toContain('3 more by Circle A');
+    author.click();
+    (el.querySelector('[data-testid="review-same-folder"]') as HTMLButtonElement).click();
+    expect(groups).toEqual([{ kind: 'author', key: 'circlea', label: 'Circle A' }, { kind: 'folder', key: 'f1', label: 'Doujins' }]);
+    TestBed.resetTestingModule();
+    expect(create(item, 'Confirmed').el.querySelector('[data-testid="review-same-author"]')).toBeNull();
+  });
+
   it('1.33.0: a row set aside shows the Later tag and offers "Not later" on the same key', () => {
     const item = reviewItem({ laterAt: '2026-10-03T12:00:00Z' });
     const { el, events } = create(item, 'NeedsReview');

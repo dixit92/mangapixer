@@ -34,6 +34,13 @@ export interface ReviewRowActionEvent {
   rank?: number;
 }
 
+/** 1.33.0: a group of waiting works to filter Needs review by - an author, or a folder. */
+export interface ReviewGroup {
+  kind: 'author' | 'folder';
+  key: string;
+  label: string;
+}
+
 export interface ReviewActionDef {
   action: ReviewRowAction;
   label: string;
@@ -173,6 +180,19 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
             @if (it.laterAt) {
               <span class="tag later" [matTooltip]="'Set aside for later on ' + (it.laterAt | date: 'medium') + '. Listed after the other items until it is decided.'"
                     data-testid="review-later-tag"><mat-icon inline>schedule</mat-icon> Later</span>
+            }
+            @if (tab() === 'NeedsReview') {
+              @if (it.sameAuthor; as a) {
+                <!-- 1.33.0: other waiting works by the same circle / artist - a tap lists them together. -->
+                <button type="button" class="chip group" (click)="$event.stopPropagation(); pickGroup('author')" data-testid="review-same-author"
+                        matTooltip="Other works waiting here whose names start with the same circle or artist. Show them together.">
+                  <mat-icon inline>groups</mat-icon><span class="glabel">{{ a.others }} more by {{ a.label }}</span></button>
+              }
+              @if (it.sameFolder; as f) {
+                <button type="button" class="chip group" (click)="$event.stopPropagation(); pickGroup('folder')" data-testid="review-same-folder"
+                        matTooltip="Other works waiting here from the same folder. Show them together.">
+                  <mat-icon inline>folder</mat-icon><span class="glabel">{{ f.others }} more in {{ f.label }}</span></button>
+              }
             }
             @if (it.openFlagCount > 0) {
               <span class="tag flag" matTooltip="A reader reported this series as wrong"><mat-icon inline>flag</mat-icon> {{ it.openFlagCount }}</span>
@@ -326,6 +346,11 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
     .family-note { margin: 2px 0 0 8px; font-size: 12px; color: #a7ffeb; }
     .chip { padding: 0 8px; border-radius: 10px; background: rgba(179, 157, 255, 0.16); color: #d8ccff; line-height: 20px; }
     .chip.small { font-size: 11px; line-height: 18px; }
+    .chip.group { border: 1px solid rgba(255, 204, 128, 0.35); background: rgba(255, 183, 77, 0.1); color: #ffe0b2; font: inherit;
+      font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 3px; max-width: 100%; min-width: 0; }
+    .chip.group:hover { background: rgba(255, 183, 77, 0.2); }
+    .chip.group:focus-visible { outline: 2px solid #ffcc80; }
+    .chip.group .glabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 26ch; }
     .expand, .open { flex: none; }
     .link { margin: 6px 0 0; font-size: 13px; }
     .note { margin: 6px 0 0; font-size: 12px; color: #9a9aa8; }
@@ -361,6 +386,8 @@ export class ReviewRowComponent {
   readonly toggleExpand = output<void>();
   readonly choose = output<number>();
   readonly focusRow = output<void>();
+  /** 1.33.0: filter Needs review by this row's author or folder group. */
+  readonly group = output<ReviewGroup>();
 
   /** A local image that failed to load (no cover yet): show the kind icon instead. */
   readonly localFailed = signal(false);
@@ -449,6 +476,11 @@ export class ReviewRowComponent {
 
   disabled(action: ReviewRowAction): boolean {
     return action === 'accept' && !this.hasCandidates();
+  }
+
+  pickGroup(kind: ReviewGroup['kind']): void {
+    const hint = kind === 'author' ? this.item().sameAuthor : this.item().sameFolder;
+    if (hint) this.group.emit({ kind, key: hint.key, label: hint.label });
   }
 
   emit(action: ReviewRowAction): void {

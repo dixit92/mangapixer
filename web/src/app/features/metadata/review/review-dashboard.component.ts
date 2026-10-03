@@ -3,11 +3,13 @@ import {
   ChangeDetectionStrategy, Component, DestroyRef, ElementRef, OnDestroy, OnInit, computed, inject, input, output, signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MatBottomSheet } from '@angular/material/bottom-sheet';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -16,6 +18,7 @@ import { Observable, map } from 'rxjs';
 
 import {
   ApiError,
+  MetadataReviewAuthorDto,
   MetadataReviewBulkAction,
   MetadataReviewBulkResultDto,
   MetadataReviewItemDto,
@@ -24,13 +27,16 @@ import {
 } from '../../../core/api/api-types';
 import { REVIEW_TABS, plural, reviewTabDef } from '../admin-metadata/metadata-admin-labels';
 import { IdentifyDialogService } from '../identify-dialog/identify-dialog.service';
-import { MetadataApiService } from '../metadata-api.service';
+import { MetadataApiService, ReviewListFilter } from '../metadata-api.service';
 import { MetadataReviewStateService } from '../metadata-review-state.service';
 import { MetadataStateService } from '../metadata-state.service';
 import { PHONE_QUERY } from '../series-info-overlay.service';
 import { DeferredCommitQueue } from './deferred-commit';
 import { ReattachDialogData, ReattachDialogResult } from './reattach-dialog.component';
-import { ReviewActionDef, ReviewRowAction, ReviewRowActionEvent, ReviewRowComponent, rowActions } from './review-row.component';
+import { ReviewAuthorsSheetComponent } from './review-authors-sheet.component';
+import {
+  ReviewActionDef, ReviewGroup, ReviewRowAction, ReviewRowActionEvent, ReviewRowComponent, rowActions,
+} from './review-row.component';
 
 export interface ReviewLibraryOption {
   id: string;
@@ -109,7 +115,7 @@ const ROW_BULK: Partial<Record<ReviewRowAction, MetadataReviewBulkAction>> = {
   selector: 'app-metadata-review',
   standalone: true,
   imports: [
-    MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatProgressSpinnerModule, MatSelectModule,
+    MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatIconModule, MatMenuModule, MatProgressSpinnerModule, MatSelectModule,
     MatTooltipModule, ReviewRowComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -135,7 +141,9 @@ const ROW_BULK: Partial<Record<ReviewRowAction, MetadataReviewBulkAction>> = {
         </mat-form-field>
       </div>
       <p class="hint">{{ hint() }}</p>
-      @if (tab() === 'NeedsReview' && (count('later') > 0 || laterFilter() !== null)) {
+      @if (tab() === 'NeedsReview') {
+        <div class="filters">
+      @if (count('later') > 0 || laterFilter() !== null) {
         <div class="later-filter" role="group" aria-label="Show items set aside for later" data-testid="review-later-filter">
           <button type="button" class="tab" [class.active]="laterFilter() === null" [attr.aria-pressed]="laterFilter() === null"
                   (click)="setLaterFilter(null)" data-testid="review-later-all">All</button>
@@ -144,6 +152,32 @@ const ROW_BULK: Partial<Record<ReviewRowAction, MetadataReviewBulkAction>> = {
           <button type="button" class="tab" [class.active]="laterFilter() === true" [attr.aria-pressed]="laterFilter() === true"
                   (click)="setLaterFilter(true)" data-testid="review-later-only">
             <mat-icon inline>schedule</mat-icon> Later <span class="badge">{{ count('later') }}</span></button>
+        </div>
+      }
+          <!-- 1.33.0: works by one circle / artist, or from one folder, listed together (from local names only). -->
+          @if (group(); as g) {
+            <span class="group-chip" data-testid="review-group-chip">
+              <mat-icon inline>{{ g.kind === 'author' ? 'groups' : 'folder' }}</mat-icon>
+              <span class="glabel">{{ g.kind === 'author' ? 'By' : 'In' }} {{ g.label }}</span> ({{ total() }})
+              <button type="button" class="gclear" (click)="setGroup(null)" aria-label="Show every item again" data-testid="review-group-clear">
+                <mat-icon inline>close</mat-icon></button>
+            </span>
+          }
+          @if (phone()) {
+            <button type="button" class="tab authors" (click)="openAuthorsSheet()" data-testid="review-authors">
+              <mat-icon inline>groups</mat-icon> Authors</button>
+          } @else {
+            <button type="button" class="tab authors" [matMenuTriggerFor]="authorsMenu" (menuOpened)="loadAuthors()" data-testid="review-authors">
+              <mat-icon inline>groups</mat-icon> Authors <mat-icon inline>arrow_drop_down</mat-icon></button>
+            <mat-menu #authorsMenu="matMenu" class="review-authors-menu">
+              @for (a of authors() ?? []; track a.key) {
+                <button mat-menu-item type="button" (click)="setGroup({ kind: 'author', key: a.key, label: a.label })" data-testid="review-author">
+                  <span>{{ a.label }}</span> <span class="menu-count">{{ a.count }}</span></button>
+              } @empty {
+                <p class="menu-empty">{{ authors() === null ? 'Loading…' : 'No author has two or more works waiting.' }}</p>
+              }
+            </mat-menu>
+          }
         </div>
       }
       @if (tab() === 'NeedsReview' && recheckPending() > 0) {
@@ -161,7 +195,7 @@ const ROW_BULK: Partial<Record<ReviewRowAction, MetadataReviewBulkAction>> = {
             Select all {{ visible().length }} shown
           </mat-checkbox>
           @if (!phone()) {
-            <span class="keys">j/k move · a accept · d don't match · i identify · l later · x select · e covers</span>
+            <span class="keys">j/k move · a accept · d don't match · i identify · l later · g same author · x select · e covers</span>
           }
         </div>
       }
@@ -179,7 +213,7 @@ const ROW_BULK: Partial<Record<ReviewRowAction, MetadataReviewBulkAction>> = {
                               [expanded]="expanded().has(it.nodeId)" [compact]="phone()"
                               [rank]="rankOf(it)"
                               (action)="onRowAction($event)" (toggleSelect)="toggle(it.nodeId)" (toggleExpand)="toggleExpanded(it.nodeId)"
-                              (choose)="choose(it.nodeId, $event)" (focusRow)="onRowTap(i, it)" />
+                              (choose)="choose(it.nodeId, $event)" (focusRow)="onRowTap(i, it)" (group)="setGroup($event)" />
             </div>
           } @empty {
             <div class="empty" data-testid="review-empty">
@@ -246,8 +280,16 @@ const ROW_BULK: Partial<Record<ReviewRowAction, MetadataReviewBulkAction>> = {
     .badge.hot { background: #7c4dff; color: #fff; }
     .lib-filter { width: 220px; }
     .hint { font-size: 13px; color: #9a9aa8; margin: 10px 0; }
-    .later-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
-    .later-filter .tab { padding: 3px 10px; font-size: 12px; }
+    .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 10px; }
+    .later-filter { display: flex; flex-wrap: wrap; gap: 6px; }
+    .later-filter .tab, .filters .authors { padding: 3px 10px; font-size: 12px; }
+    .group-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0; font-size: 12px; padding: 2px 4px 2px 10px;
+      border-radius: 16px; background: rgba(255, 183, 77, 0.16); border: 1px solid rgba(255, 204, 128, 0.45); color: #ffe0b2; }
+    .group-chip .glabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    .gclear { border: 0; background: transparent; color: inherit; cursor: pointer; padding: 2px; border-radius: 50%; display: inline-flex; }
+    .gclear:hover, .gclear:focus-visible { background: rgba(255, 255, 255, 0.12); }
+    .menu-count { margin-left: 8px; font-size: 12px; font-weight: 600; color: #ffcc80; }
+    .menu-empty { margin: 8px 16px; color: #9a9aa8; font-size: 13px; }
     .recheck { font-size: 13px; color: #90caf9; margin: 0 0 10px; display: flex; align-items: center; gap: 6px; }
     .select-line { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
     .keys { font-size: 12px; color: #8a8a99; }
@@ -283,6 +325,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
   private readonly metadataState = inject(MetadataStateService);
   private readonly identifyDialog = inject(IdentifyDialogService);
   private readonly dialog = inject(MatDialog);
+  private readonly bottomSheet = inject(MatBottomSheet);
   private readonly snackBar = inject(MatSnackBar);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly destroyRef = inject(DestroyRef);
@@ -309,6 +352,10 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
   readonly error = signal<string | null>(null);
   /** Needs review: null all rows (Later last), true only the rows set aside, false only the others. */
   readonly laterFilter = signal<boolean | null>(null);
+  /** Needs review (1.33.0): only the works of one author group or one folder; null all. */
+  readonly group = signal<ReviewGroup | null>(null);
+  /** The Authors list (loaded when opened); null until then. */
+  readonly authors = signal<MetadataReviewAuthorDto[] | null>(null);
 
   readonly selected = signal<ReadonlySet<string>>(new Set());
   readonly selectMode = signal(false);
@@ -372,6 +419,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
     if (tab === this.tab()) return;
     this.tab.set(tab);
     this.laterFilter.set(null);
+    this.group.set(null);
     this.stateChange.emit({ tab, library: this.library() });
     this.reloadAfterFlush();
   }
@@ -382,13 +430,48 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
     this.reloadAfterFlush();
   }
 
-  /** The Later filter of the current request (Needs review only). */
-  private laterParam(): boolean | null {
-    return this.tab() === 'NeedsReview' ? this.laterFilter() : null;
+  /** Lists only one author's or one folder's waiting works (a second pick of the same group shows every item again). */
+  setGroup(group: ReviewGroup | null): void {
+    const current = this.group();
+    const same = !!group && !!current && current.kind === group.kind && current.key === group.key;
+    if (!group && !current) return;
+    this.group.set(same ? null : group);
+    this.reloadAfterFlush();
+  }
+
+  loadAuthors(): void {
+    this.authors.set(null);
+    this.api.getReviewAuthors(this.library()).subscribe({
+      next: (list) => this.authors.set(list.items),
+      error: () => this.authors.set([]),
+    });
+  }
+
+  /** Phone: the Authors list as a bottom sheet. */
+  openAuthorsSheet(): void {
+    this.api.getReviewAuthors(this.library()).subscribe({
+      next: (list) => this.bottomSheet.open<ReviewAuthorsSheetComponent, MetadataReviewAuthorDto[], MetadataReviewAuthorDto>(
+        ReviewAuthorsSheetComponent, { data: list.items }).afterDismissed().subscribe((a) => {
+        if (a) this.setGroup({ kind: 'author', key: a.key, label: a.label });
+      }),
+      error: (err: ApiError) => this.snackBar.open(err?.message || 'The authors could not be loaded', 'Close', { duration: 4000 }),
+    });
+  }
+
+  /** The filters of the current request (Needs review only). */
+  private listFilter(): ReviewListFilter {
+    if (this.tab() !== 'NeedsReview') return {};
+    const filter: ReviewListFilter = {};
+    const later = this.laterFilter();
+    if (later !== null) filter.later = later;
+    const group = this.group();
+    if (group) filter[group.kind] = group.key;
+    return filter;
   }
 
   setLibrary(library: string | null): void {
     this.library.set(library);
+    this.group.set(null);
     this.stateChange.emit({ tab: this.tab(), library });
     this.reloadAfterFlush();
   }
@@ -413,7 +496,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
     this.error.set(null);
     this.resetView();
     this.loadSummary();
-    this.api.getReview(this.tab(), this.library(), null, 50, this.laterParam()).subscribe({
+    this.api.getReview(this.tab(), this.library(), null, 50, this.listFilter()).subscribe({
       next: (page) => {
         this.items.set(page.items);
         this.total.set(page.total);
@@ -435,7 +518,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
     const cursor = this.cursor();
     if (!cursor) return;
     this.loadingMore.set(true);
-    this.api.getReview(this.tab(), this.library(), cursor, 50, this.laterParam()).subscribe({
+    this.api.getReview(this.tab(), this.library(), cursor, 50, this.listFilter()).subscribe({
       next: (page) => {
         const known = new Set(this.items().map((i) => i.nodeId));
         this.items.update((prev) => [...prev, ...page.items.filter((i) => !known.has(i.nodeId))]);
@@ -547,6 +630,13 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
     }
     if (key === 'e') {
       if ((item.candidates ?? []).length) this.toggleExpanded(item.nodeId);
+      event.preventDefault();
+      return;
+    }
+    if (key === 'g' && this.tab() === 'NeedsReview') {
+      const g = this.group();
+      if (g?.kind === 'author') this.setGroup(null);
+      else if (item.sameAuthor) this.setGroup({ kind: 'author', key: item.sameAuthor.key, label: item.sameAuthor.label });
       event.preventDefault();
       return;
     }
