@@ -16,7 +16,7 @@ Every export endpoint needs one of:
   MangaPixer Administration; a token is shown once, and it works on the export endpoints only - nowhere else in MangaPixer.
 - an **admin's** browser login (useful to look at the answers by hand).
 
-Never put a token in a URL. A reader account gets `403`. Tokens are read-only: any request other than `GET` or `HEAD` with a token gets `401`. `GET /api/v1/export/ping` answers `{ "ok": true, "serverTime": "...", "auth": "token" }` - use it to test a token. See [API tokens](api-tokens.md).
+Never put a token in a URL. A reader account gets `403`. Tokens are read-only: the export answers only `GET` (other methods get `405`), and a token is refused on anything but `GET` / `HEAD`. `GET /api/v1/export/ping` answers `{ "ok": true, "serverTime": "...", "auth": "token" }` - use it to test a token. See [API tokens](api-tokens.md).
 
 ## Endpoints
 
@@ -147,7 +147,7 @@ Errors are `{ "error": "<code>" }`.
 | Status | `error` | |
 |---|---|---|
 | 400 | `libraryRequired`, `invalidUpdatedSince`, `invalidCursor`, `invalidInclude` | Fix the request. |
-| 401 | | No credentials; a token that is wrong, revoked or expired, or whose admin is no longer an active admin; or a token on a request other than `GET` / `HEAD`. The `WWW-Authenticate` header says `Bearer error="invalid_token"` when a token was refused. |
+| 401 | | No credentials; a token that is wrong, revoked or expired, or whose admin is no longer an active admin. The `WWW-Authenticate` header says `Bearer error="invalid_token"` when a token was refused. |
 | 403 | | Signed in with a browser login that is not an admin's (a reader account). |
 | 404 | `libraryNotFound` | The library id is unknown (it may have been removed: call `/libraries`). |
 | 409 | `fullSyncRequired` | See above. |

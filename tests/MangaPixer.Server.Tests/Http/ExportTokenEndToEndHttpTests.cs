@@ -95,8 +95,9 @@ public sealed class ExportTokenEndToEndHttpTests
         Assert.Equal(HttpStatusCode.Conflict, tooOld.StatusCode);
         Assert.Contains("fullSyncRequired", await tooOld.Content.ReadAsStringAsync());
 
-        // A token never writes: the same route with POST is refused at authentication, and the admin API is out of its reach.
-        Assert.Equal(HttpStatusCode.Unauthorized, (await mangaList.PostAsync($"/api/v1/export/metadata?library={LibPubId}", null)).StatusCode);
+        // A token never writes: the export has no other method (routing answers 405 before authentication; the token scheme
+        // also refuses any method but GET / HEAD), and the admin API is out of its reach.
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, (await mangaList.PostAsync($"/api/v1/export/metadata?library={LibPubId}", null)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await mangaList.GetAsync("/api/v1/admin/tokens")).StatusCode);
 
         var admin = await factory.AdminAsync();
