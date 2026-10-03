@@ -83,8 +83,10 @@ public sealed class WorkerPoolCancellationTests : IClassFixture<WorkerProcessFix
 
         // The abandoned start finishes in the background and the worker is handed back idle: the next request
         // finds it warm instead of paying the spawn again.
-        Assert.True(await WaitForAsync(() => pool.WorkerCount == 1, TimeSpan.FromSeconds(20)), "The abandoned start did not join the pool");
-        Assert.Equal(0, pool.BusyWorkerCount);
+        // Waited for together (1.33.0): the worker is counted in the pool a moment before its busy mark is cleared, so asserting
+        // the busy count right after the worker count failed about one run in five under load.
+        Assert.True(await WaitForAsync(() => pool.WorkerCount == 1 && pool.BusyWorkerCount == 0, TimeSpan.FromSeconds(20)),
+            $"The abandoned start did not join the pool idle (workers {pool.WorkerCount}, busy {pool.BusyWorkerCount})");
         Assert.Empty(logger.AtLeast(LogLevel.Warning));
 
         var next = await ExtractAsync(pool, zip, "page001.png", "cancel-cold-next.webp", CancellationToken.None);
