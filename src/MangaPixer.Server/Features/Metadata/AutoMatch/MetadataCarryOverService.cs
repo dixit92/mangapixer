@@ -219,6 +219,15 @@ public sealed class MetadataCarryOverService
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
         var (link, linkConflict, droppedRecord) = await ApplyLinkRulesAsync(fromNodeId, toNodeId, toLibrary, recordConflicts, now, ct);
+        if (link)
+        {
+            // 1.33.0: the metadata export shows the old node's id as the new item's carriedFrom (instead of a removal + an add).
+            var fromPublicId = await _db.CatalogNodes.Where(n => n.Id == fromNodeId).Select(n => n.PublicId).FirstAsync(ct);
+            _db.ExportCarries.Add(new Persistence.Entities.ExportCarryEntity
+            {
+                NewNodeId = toNodeId, OldNodeId = fromNodeId, OldNodePublicId = fromPublicId, At = now,
+            });
+        }
 
         var precedence = false;
         var fromPrecedence = await _db.FolderMetadataPrecedences.FirstOrDefaultAsync(p => p.NodeId == fromNodeId, ct);

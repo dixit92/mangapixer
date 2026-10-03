@@ -260,6 +260,7 @@ public sealed partial class Program
             builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.Declared.DeclaredFactsService>();
             builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.Declared.IDeclaredFactsReader, com.lifepixer.mangapixer.Server.Features.Metadata.Declared.DeclaredFactsReader>();
             AddMetadataNetwork(builder.Services, dataRoot);
+            AddMetadataExport(builder.Services);
 
             // Operations services
             builder.Services.AddScoped<BackupService>();
@@ -695,6 +696,19 @@ public sealed partial class Program
         // Wikipedia + Wikidata (1.32.0): ONLY the volume -> chapter list of an already-linked MangaUpdates record.
         AddMetadataClient(services, Features.Metadata.MetadataHttp.WikipediaClient, Features.Metadata.MetadataHttp.WikipediaHost, "application/json");
         AddMetadataClient(services, Features.Metadata.MetadataHttp.WikidataClient, Features.Metadata.MetadataHttp.WikidataHost, "application/json");
+    }
+
+    /// <summary>
+    /// The read-only metadata export for MangaList (1.33.0): its stored snapshot, the per-library rebuild gate and the minimum
+    /// rebuild interval (<c>Export:MinRebuildMinutes</c>). Reached only through <see cref="Features.Export.ExportController"/>.
+    /// </summary>
+    private static void AddMetadataExport(IServiceCollection services)
+    {
+        services.AddSingleton(sp => Features.Export.ExportOptions.FromConfiguration(sp.GetRequiredService<IConfiguration>()));
+        services.AddSingleton<Features.Export.ExportRebuildGate>();
+        services.AddScoped<Features.Export.ExportItemBuilder>();
+        services.AddScoped<Features.Export.ExportRebuildService>();
+        services.AddScoped<Features.Export.ExportService>();
     }
 
     internal static IHttpClientBuilder AddMetadataClient(IServiceCollection services, string name, string host, string accept)
