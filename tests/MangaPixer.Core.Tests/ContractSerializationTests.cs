@@ -313,6 +313,11 @@ public sealed class ContractSerializationTests
             typeof(ExportChapterRangeDto),
             typeof(ExportCompletionDto),
             typeof(ExportRefreshDto),
+            // Personal access tokens and the export ping (1.33.0).
+            typeof(ApiTokenDto),
+            typeof(CreateApiTokenRequest),
+            typeof(CreateApiTokenResponse),
+            typeof(ExportPingDto),
         };
 
         var forbiddenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)

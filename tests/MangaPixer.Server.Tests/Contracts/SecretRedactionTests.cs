@@ -40,6 +40,7 @@ public sealed class SecretRedactionTests
         Assert.Contains(typeof(ActivateAccountRequest), types);
         Assert.Contains(typeof(ReissueActivationResponse), types);
         Assert.Contains(typeof(UpdateBackupSettingsRequest), types);
+        Assert.Contains(typeof(CreateApiTokenResponse), types);
     }
 
     [Theory]

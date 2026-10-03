@@ -82,6 +82,8 @@ describe('AdminComponent directory browser row', () => {
       getTrash: vi.fn().mockReturnValue(NEVER),
       // The Scheduled jobs section (1.32.0) loads its own list; it stays loading here too.
       getScheduledJobs: vi.fn().mockReturnValue(NEVER),
+      // The API tokens card (1.33.0) loads its own list; it stays loading here too.
+      listApiTokens: vi.fn().mockReturnValue(NEVER),
       getAnalyticsOverview: vi.fn().mockReturnValue(of(analyticsOverview)),
       getAnalyticsUsers: vi.fn().mockReturnValue(of([])),
       getBackupSettings: vi.fn().mockReturnValue(of(backupSettings)),

@@ -253,6 +253,10 @@ public static class AuditActions
     public const string JobScheduleChange = "job.schedule.change";
     public const string LibraryScanScheduleChange = "library.scan_schedule.change";
     public const string MetadataRefreshCadenceChange = "metadata.refresh.cadence";
+
+    // Personal access tokens (1.33.0). CorrelationId = the token's public id; TargetUserId = its owner. Never the secret.
+    public const string ApiTokenCreate = "api_token.create";
+    public const string ApiTokenRevoke = "api_token.revoke";
 }
 
 /// <summary>Canonical audit result verbs (kept short — the column is 32 chars).</summary>

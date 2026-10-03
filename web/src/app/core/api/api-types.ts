@@ -2698,3 +2698,40 @@ export interface ExportRefreshDto {
   nextDueAt: string;
   intervalDays: number;
 }
+
+// --- Personal access tokens + export ping (1.33.0) ---
+
+/** GET /admin/tokens: one personal access token. Never carries the secret. */
+export interface ApiTokenDto {
+  id: string;
+  name: string;
+  /** The first characters of the token (e.g. "mpx_Ab3x"), to tell tokens apart. */
+  prefix: string;
+  scopes: string[];
+  ownerUserName: string;
+  createdAt: string;
+  /** Null = never expires. */
+  expiresAt?: string | null;
+  lastUsedAt?: string | null;
+  revokedAt?: string | null;
+  status: 'active' | 'expired' | 'revoked' | 'ownerInactive';
+}
+
+/** POST /admin/tokens. expiresInDays: 30, 90 or 365, or null for never (always sent). */
+export interface CreateApiTokenRequest {
+  name: string;
+  expiresInDays: number | null;
+}
+
+/** The answer to POST /admin/tokens: the secret is shown this one time only. */
+export interface CreateApiTokenResponse {
+  token: ApiTokenDto;
+  secret: string;
+}
+
+/** GET /export/ping: which credential was accepted, and the server's clock. */
+export interface ExportPingDto {
+  ok: boolean;
+  serverTime: string;
+  auth: 'token' | 'cookie';
+}

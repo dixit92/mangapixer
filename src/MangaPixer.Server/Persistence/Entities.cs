@@ -1963,3 +1963,44 @@ public sealed class ExportCarryEntity
 
     public DateTimeOffset At { get; set; }
 }
+
+/// <summary>
+/// A personal access token (1.33.0): an admin-created credential that reads the metadata export (<c>/api/v1/export/*</c>) and
+/// nothing else. Only the SHA-256 hash of the secret is stored; the secret is shown once at creation. The token works only while
+/// its owner exists and is an active admin, and it is deleted with its owner.
+/// </summary>
+public sealed class ApiTokenEntity
+{
+    public long Id { get; set; }
+
+    /// <summary>Opaque public id (max 32): shown in the list, used by the revoke route, logged and audited.</summary>
+    public string PublicId { get; set; } = string.Empty;
+
+    /// <summary>The admin who created the token.</summary>
+    public long UserId { get; set; }
+
+    /// <summary>The admin's label (max 64), e.g. <c>MangaList</c>.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>The first characters of the token (max 16), shown so an admin can tell tokens apart. Not enough to use it.</summary>
+    public string Prefix { get; set; } = string.Empty;
+
+    /// <summary>SHA-256 of the whole token, lowercase hex (64 chars, unique).</summary>
+    public string SecretHash { get; set; } = string.Empty;
+
+    /// <summary>Space-separated scopes (max 256); today only <c>metadata:read</c>.</summary>
+    public string Scopes { get; set; } = string.Empty;
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    /// <summary>When the token stops working; null = never.</summary>
+    public DateTimeOffset? ExpiresAt { get; set; }
+
+    /// <summary>The last accepted request, written at most about once a minute.</summary>
+    public DateTimeOffset? LastUsedAt { get; set; }
+
+    /// <summary>Set when an admin revokes the token; a revoked token never works again.</summary>
+    public DateTimeOffset? RevokedAt { get; set; }
+
+    public UserEntity? User { get; set; }
+}

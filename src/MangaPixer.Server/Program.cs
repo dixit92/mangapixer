@@ -498,6 +498,10 @@ public sealed partial class Program
             app.UseAuthentication();
             app.UseAuthorization();
 
+            // Per-token request ceiling of the export (1.33.0, ApiTokenServicesExtensions). After authorization on purpose: the
+            // token principal exists only once the export policy has run its scheme; every other request is not limited.
+            app.UseRateLimiter();
+
             // API controllers
             app.MapControllers();
 
