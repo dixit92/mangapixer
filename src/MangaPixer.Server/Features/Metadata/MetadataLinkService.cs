@@ -95,6 +95,7 @@ public sealed class MetadataLinkService
         existing.MatchMethod = (int)(request.MatchMethod ?? MetadataMatchMethod.Reference);
         existing.MatchScore = request.MatchScore is { } score ? Math.Clamp(score, 0, 1) : null;
         existing.UpdatedAt = now;
+        existing.LaterAt = null; // Decided: no longer set aside for later.
         await _db.SaveChangesAsync(ct);
         await AfterAdminChangeAsync(node.Id, before, SeriesLinkState.Confirmed, record.ExternalId, ct);
 
@@ -136,6 +137,7 @@ public sealed class MetadataLinkService
         existing.MatchMethod = null;
         existing.MatchScore = null;
         existing.UpdatedAt = now;
+        existing.LaterAt = null; // Decided: no longer set aside for later.
         await _db.SaveChangesAsync(ct);
         await AfterAdminChangeAsync(node.Id, before, SeriesLinkState.DontMatch, null, ct);
 

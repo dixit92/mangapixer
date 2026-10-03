@@ -227,16 +227,32 @@ const RUNS = {
   ],
 };
 
-interface Mocked { accepts: string[]; bulks: unknown[]; images: string[] }
+/** `later`: the rows set aside ("Later", 1.33.0) as the fake server remembers them - across reloads, like the real one. */
+interface Mocked { accepts: string[]; bulks: unknown[]; images: string[]; later: Map<string, string> }
 
 async function mockStage2(page: Page): Promise<Mocked> {
-  const seen: Mocked = { accepts: [], bulks: [], images: [] };
+  const seen: Mocked = { accepts: [], bulks: [], images: [], later: new Map() };
   const json = (route: Route, body: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
-  await page.route('**/api/v1/admin/metadata/review/summary**', (r) => json(r, SUMMARY));
+  await page.route('**/api/v1/admin/metadata/review/summary**', (r) => json(r, { ...SUMMARY, later: seen.later.size }));
   await page.route(/\/api\/v1\/admin\/metadata\/review\?/, (r) => {
-    const tab = new URL(r.request().url()).searchParams.get('tab') ?? 'NeedsReview';
-    const items = tab === 'NeedsReview' ? REVIEW_ITEMS : [];
+    const query = new URL(r.request().url()).searchParams;
+    const tab = query.get('tab') ?? 'NeedsReview';
+    // The server's order: rows not set aside first, then the rows set aside, oldest first; `later` filters.
+    const later = query.get('later');
+    const items = tab !== 'NeedsReview' ? [] : [
+      ...REVIEW_ITEMS.filter((i) => !seen.later.has(i.nodeId) && later !== 'true'),
+      ...[...seen.later].map(([id, at]) => ({ ...REVIEW_ITEMS.find((i) => i.nodeId === id)!, laterAt: at })).filter(() => later !== 'false'),
+    ];
     return json(r, { tab, items, total: items.length });
+  });
+  await page.route(/\/api\/v1\/admin\/metadata\/review\/[^/]+\/later$/, (r) => {
+    const id = new URL(r.request().url()).pathname.split('/').at(-2)!;
+    if (r.request().method() === 'POST') {
+      if (!seen.later.has(id)) seen.later.set(id, new Date().toISOString());
+    } else {
+      seen.later.delete(id);
+    }
+    return r.fulfill({ status: 204 });
   });
   await page.route(/\/api\/v1\/admin\/metadata\/review\/[^/]+\/accept$/, (r) => {
     seen.accepts.push(r.request().url());
@@ -301,6 +317,66 @@ test('review dashboard with synthetic contract-shaped data: keyboard, deferred U
   await pageTab(page, 'Runs').click();
   await expect(page.getByTestId('run-live')).toBeVisible();
   await shot(page, 'c-08-runs-desktop', true);
+  expect(foreign).toEqual([]);
+});
+
+test('review Later (1.33.0): the row moves to the end, stays there after a reload, and has its own filter', async ({ page, baseURL }) => {
+  const foreign = watchForeignRequests(page, baseURL!);
+  await login(page);
+  const seen = await mockStage2(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/admin/metadata?tab=review');
+  const names = page.getByTestId('review-name');
+  await expect(names).toHaveText(['Synthetic Saga', 'Example Chronicle', 'Placeholder One-Shot']);
+  await expect(page.getByTestId('review-later-filter')).toHaveCount(0); // nothing set aside yet
+
+  const sent = page.waitForResponse((r) => /\/review\/r1\/later$/.test(r.url()) && r.request().method() === 'POST');
+  await page.keyboard.press('l'); // the focused (first) row
+  await sent;
+  await expect(names).toHaveText(['Example Chronicle', 'Placeholder One-Shot', 'Synthetic Saga']);
+  await expect(page.getByTestId('review-row').last().getByTestId('review-later-tag')).toBeVisible();
+  expect([...seen.later.keys()]).toEqual(['r1']);
+
+  await page.reload(); // remembered on the server: still last after a reload
+  await expect(names).toHaveText(['Example Chronicle', 'Placeholder One-Shot', 'Synthetic Saga']);
+  await expect(page.getByTestId('review-later-tag')).toHaveCount(1);
+  await expect(page.getByTestId('review-later-only')).toContainText('1');
+  await expectFitsScreen(page, 'review tab with Later (desktop)');
+  await shot(page, 'r-01-review-later-desktop', true);
+
+  await page.getByTestId('review-later-only').click();
+  await expect(names).toHaveText(['Synthetic Saga']);
+  const back = page.waitForResponse((r) => /\/review\/r1\/later$/.test(r.url()) && r.request().method() === 'DELETE');
+  await page.getByTestId('review-notLater').click();
+  await back;
+  await expect(names).toHaveCount(0);
+  await page.getByTestId('review-later-all').click();
+  await expect(names).toHaveText(['Synthetic Saga', 'Example Chronicle', 'Placeholder One-Shot']);
+  expect(seen.later.size).toBe(0);
+  expect(foreign).toEqual([]);
+});
+
+test('phone: Later from the bottom bar, and the Later filter fits the screen', async ({ page, baseURL }) => {
+  const foreign = watchForeignRequests(page, baseURL!);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+  const seen = await mockStage2(page);
+  await page.goto('/admin/metadata?tab=review');
+  await expect(page.getByTestId('review-row')).toHaveCount(3);
+  await page.getByTestId('review-name').nth(1).click(); // focus Example Chronicle
+  const bar = page.getByTestId('review-bottombar');
+  await expect(bar.getByTestId('bar-name')).toHaveText('Example Chronicle');
+  const sent = page.waitForResponse((r) => /\/review\/r2\/later$/.test(r.url()));
+  await bar.getByTestId('bar-later').click();
+  await sent;
+  await expect(page.getByTestId('review-name')).toHaveText(['Synthetic Saga', 'Placeholder One-Shot', 'Example Chronicle']);
+  await expect(page.getByTestId('review-later-filter')).toBeVisible();
+  await expectFitsScreen(page, 'review tab with the Later filter (phone)');
+  await page.getByTestId('review-name').last().click();
+  await expect(bar.getByTestId('bar-notLater')).toBeVisible();
+  await expectFitsScreen(page, 'review tab, a row set aside (phone)');
+  await shot(page, 'r-02-review-later-phone');
+  expect([...seen.later.keys()]).toEqual(['r2']);
   expect(foreign).toEqual([]);
 });
 

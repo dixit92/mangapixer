@@ -185,6 +185,9 @@ public sealed class MetadataAutoMatchHttpTests
             () => reader.GetAsync("/api/v1/admin/metadata/review/summary"),
             () => reader.PostAsJsonAsync("/api/v1/admin/metadata/review/amReview/accept", new MetadataReviewAcceptRequest { Rank = 1 }),
             () => reader.PostAsJsonAsync("/api/v1/admin/metadata/review/bulk", new MetadataReviewBulkRequest { Action = MetadataReviewBulkAction.Confirm, NodeIds = ["amAuto"] }),
+            () => reader.PostAsync("/api/v1/admin/metadata/review/amReview/later", null),
+            () => reader.DeleteAsync("/api/v1/admin/metadata/review/amReview/later"),
+            () => reader.PostAsJsonAsync("/api/v1/admin/metadata/review/bulk", new MetadataReviewBulkRequest { Action = MetadataReviewBulkAction.Later, NodeIds = ["amReview"] }),
             () => reader.GetAsync("/api/v1/admin/metadata/runs"),
             () => reader.PostAsync("/api/v1/admin/metadata/runs/mmseed/cancel", null),
             () => reader.GetAsync($"/api/v1/admin/metadata/libraries/{LibPub}/match/estimate"),
@@ -364,6 +367,72 @@ public sealed class MetadataAutoMatchHttpTests
         var runs = await OkAsync<MetadataMatchRunsDto>(await admin.GetAsync("/api/v1/admin/metadata/runs"));
         Assert.Equal(1, runs.Items.Single(r => r.RunId == "mmseed").ReviewAcceptedTop); // local-only counter
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.GetAsync("/api/v1/admin/metadata/review?tab=99")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Review_Later_IsRememberedOnTheServer_Filtered_Counted_Audited_AndNeedsTheCsrfHeader()
+    {
+        using var factory = new MetadataNetworkWebApplicationFactory(failOnAnyRequest: true, configureServices: Fakes);
+        await SeedAsync(factory);
+        using (var scope = factory.Services.CreateScope())
+        {
+            // A second work waiting in review, newer than amReview (so it would be listed first).
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+            var lib = await db.Libraries.SingleAsync(l => l.PublicId == LibPub);
+            var second = Node("amReview2", lib.Id, null, CatalogNodeKind.Folder, "Second Saga");
+            db.CatalogNodes.Add(second);
+            await db.SaveChangesAsync();
+            db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity { NodeId = second.Id, LibraryId = lib.Id, State = (int)SeriesLinkState.NeedsReview, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow });
+            await db.SaveChangesAsync();
+        }
+        var admin = await factory.LoginAsAdminWithChangedPasswordAsync();
+        const string Review = "/api/v1/admin/metadata/review";
+        Assert.Equal(["amReview2", "amReview"], (await OkAsync<MetadataReviewPageDto>(await admin.GetAsync($"{Review}?tab=NeedsReview"))).Items.Select(i => i.NodeId));
+
+        // Without the CSRF header the change is refused.
+        var csrf = admin.DefaultRequestHeaders.GetValues("X-MangaPixer-Csrf").ToList();
+        admin.DefaultRequestHeaders.Remove("X-MangaPixer-Csrf");
+        try
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsync($"{Review}/amReview2/later", null)).StatusCode);
+        }
+        finally
+        {
+            admin.DefaultRequestHeaders.Add("X-MangaPixer-Csrf", csrf);
+        }
+
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.PostAsync($"{Review}/amReview2/later", null)).StatusCode);
+        var page = await OkAsync<MetadataReviewPageDto>(await admin.GetAsync($"{Review}?tab=NeedsReview"));
+        Assert.Equal(["amReview", "amReview2"], page.Items.Select(i => i.NodeId)); // set aside: listed last, on a fresh request too
+        Assert.NotNull(page.Items[1].LaterAt);
+        Assert.Null(page.Items[0].LaterAt);
+        var later = await OkAsync<MetadataReviewPageDto>(await admin.GetAsync($"{Review}?tab=NeedsReview&later=true"));
+        Assert.Equal((1, "amReview2"), (later.Total, later.Items.Single().NodeId));
+        var summary = await OkAsync<MetadataReviewSummaryDto>(await admin.GetAsync($"{Review}/summary?library={LibPub}"));
+        Assert.Equal((2, 1), (summary.NeedsReview, summary.Later));
+
+        // Paging across the two buckets with the compound cursor.
+        var first = await OkAsync<MetadataReviewPageDto>(await admin.GetAsync($"{Review}?tab=NeedsReview&limit=1"));
+        var next = await OkAsync<MetadataReviewPageDto>(await admin.GetAsync($"{Review}?tab=NeedsReview&limit=1&cursor={Uri.EscapeDataString(first.NextCursor!)}"));
+        Assert.Equal(("amReview", "amReview2", false), (first.Items.Single().NodeId, next.Items.Single().NodeId, next.HasMore));
+
+        Assert.Equal(HttpStatusCode.Conflict, (await admin.PostAsync($"{Review}/amAuto/later", null)).StatusCode); // not in review
+        Assert.Equal("not_in_review", (await ErrorAsync(await admin.PostAsync($"{Review}/amLinked/later", null))).Error);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.PostAsync($"{Review}/nope/later", null)).StatusCode);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync($"{Review}/amReview2/later")).StatusCode);
+        Assert.Equal(0, (await OkAsync<MetadataReviewSummaryDto>(await admin.GetAsync($"{Review}/summary"))).Later);
+        var bulk = await OkAsync<MetadataReviewBulkResultDto>(await admin.PostAsJsonAsync($"{Review}/bulk",
+            new MetadataReviewBulkRequest { Action = MetadataReviewBulkAction.Later, NodeIds = ["amReview", "amAuto"] }));
+        Assert.Equal((1, "not_in_review"), (bulk.Succeeded, bulk.Results.Single(r => r.NodeId == "amAuto").Code));
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+            Assert.Equal(["set", "clear", "set"], await db.AuditEvents.AsNoTracking()
+                .Where(a => a.Action == "metadata.review.later").OrderBy(a => a.Id).Select(a => a.Result).ToListAsync());
+        }
+        Assert.Equal(0, factory.Handler.CallCount);
     }
 
     [Fact]

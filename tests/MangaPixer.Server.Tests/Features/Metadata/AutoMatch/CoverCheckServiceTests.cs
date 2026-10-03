@@ -84,12 +84,15 @@ public sealed class CoverCheckServiceTests : IAsyncLifetime
         await _kit.AddStoredCoverAsync(md, 1, "en", W1);
         await _kit.AddStoredCoverAsync(md, 1, "ja", Near(W1, 3));
         await _kit.AddStoredCoverAsync(md, 2, "en", W2);
+        (await _kit.Db.Db.NodeSeriesLinks.SingleAsync(l => l.NodeId == folder.Id)).LaterAt = DateTimeOffset.UnixEpoch; // a stale "Later" (1.33.0)
+        await _kit.Db.Db.SaveChangesAsync();
 
         var result = await Service().SweepAsync();
 
         Assert.Equal(new CoverCheckSweepResult(1, 1), result);
         var link = await LinkOfAsync(folder.Id);
         Assert.Equal(((int)SeriesLinkState.NeedsReview, (long?)null), (link.State, link.RecordId));
+        Assert.Null(link.LaterAt); // back in review as a fresh result, not set aside
         var candidate = await _kit.Db.Db.MetadataMatchCandidates.SingleAsync(c => c.NodeId == folder.Id);
         Assert.Equal((record.ExternalId, 1, (int)MatchReason.CoverDiffers, 0.96), (candidate.ExternalId, candidate.Rank, candidate.Reasons, candidate.TitleScore));
         var queue = await _kit.Db.Db.MetadataMatchQueue.SingleAsync(q => q.NodeId == folder.Id);

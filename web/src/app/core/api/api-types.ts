@@ -1435,7 +1435,7 @@ export type MetadataReviewTab =
 export type MetadataFolderContent = 'Auto' | 'DoujinshiAndAdultOneShots' | 'NotDoujinshi';
 export type MetadataMatchRunTrigger = 'Scan' | 'Bulk' | 'Retry' | 'Rerun' | 'Recheck';
 export type MetadataMatchRunStatus = 'Running' | 'Completed' | 'Cancelled';
-export type MetadataReviewBulkAction = 'AcceptTop' | 'DontMatch' | 'RerunMatching' | 'Confirm' | 'Unlink';
+export type MetadataReviewBulkAction = 'AcceptTop' | 'DontMatch' | 'RerunMatching' | 'Confirm' | 'Unlink' | 'Later' | 'ClearLater';
 export type MetadataFlagReason = 'WrongSeries' | 'WrongDetails' | 'NotOneSeries' | 'Other';
 export type MetadataFlagState = 'Open' | 'Relinked' | 'Unlinked' | 'DontMatch' | 'Dismissed';
 
@@ -1460,6 +1460,8 @@ export interface MetadataMatchThresholdBoundsDto {
 /** GET /admin/metadata/review/summary?library= */
 export interface MetadataReviewSummaryDto {
   needsReview: number;
+  /** 1.33.0: Needs review rows set aside ("Later"); part of `needsReview`. */
+  later: number;
   autoLinked: number;
   unmatched: number;
   openFlags: number;
@@ -1541,6 +1543,8 @@ export interface MetadataReviewItemDto {
   runId?: string | null;
   /** 1.31.0: queued to be scored again under the matcher's current rules; the reasons and candidates are the earlier result until then. */
   checkingAgain?: boolean;
+  /** 1.33.0 (Needs review): when an admin set the row aside ("Later"); listed after the others until decided or checked again. */
+  laterAt?: string | null;
   /** 1.31.0 (folder works): chapter numbers that more than one file of the same folder states. */
   duplicateChapters?: number;
   /** 1.31.0 (folder works): the same for volume numbers. */

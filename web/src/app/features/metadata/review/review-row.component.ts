@@ -25,7 +25,7 @@ import { candidateBlocks, FAMILY_REASONS, familyRoleLabel, SERIES_FAMILY_NOTE } 
 
 /** A row action; `rank` for Accept (the chosen stored candidate). */
 export type ReviewRowAction =
-  | 'accept' | 'identify' | 'dontMatch' | 'confirm' | 'unlink' | 'clearDontMatch'
+  | 'accept' | 'identify' | 'dontMatch' | 'later' | 'notLater' | 'confirm' | 'unlink' | 'clearDontMatch'
   | 'reattach' | 'deleteMissing' | 'rerun';
 
 export interface ReviewRowActionEvent {
@@ -51,6 +51,10 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
         { action: 'accept', label: 'Accept', icon: 'check', key: 'a', primary: true },
         { action: 'identify', label: 'Identify…', icon: 'travel_explore', key: 'i' },
         { action: 'dontMatch', label: 'Don\'t match', icon: 'block', key: 'd' },
+        // 1.33.0: remembered on the server - the row goes to the end of Needs review for every admin until it is decided.
+        item.laterAt
+          ? { action: 'notLater', label: 'Not later', icon: 'undo', key: 'l' }
+          : { action: 'later', label: 'Later', icon: 'schedule', key: 'l' },
       ];
     case 'AutoLinked':
       return [
@@ -165,6 +169,10 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
             @if (it.checkingAgain) {
               <span class="tag checking" matTooltip="The matcher's rules changed with an update; this item is being scored again. What is shown is the earlier result until then."
                     data-testid="review-checking-again"><mat-icon inline>autorenew</mat-icon> Checking again</span>
+            }
+            @if (it.laterAt) {
+              <span class="tag later" [matTooltip]="'Set aside for later on ' + (it.laterAt | date: 'medium') + '. Listed after the other items until it is decided.'"
+                    data-testid="review-later-tag"><mat-icon inline>schedule</mat-icon> Later</span>
             }
             @if (it.openFlagCount > 0) {
               <span class="tag flag" matTooltip="A reader reported this series as wrong"><mat-icon inline>flag</mat-icon> {{ it.openFlagCount }}</span>
@@ -311,6 +319,7 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
     .tag.flag { background: rgba(244, 67, 54, 0.18); color: #ff8a80; }
     .tag.dup { background: rgba(255, 183, 77, 0.16); color: #ffcc80; }
     .tag.checking { background: rgba(100, 181, 246, 0.18); color: #90caf9; }
+    .tag.later { background: rgba(179, 157, 255, 0.16); color: #d1c4ff; }
     .tag.role { background: rgba(128, 203, 196, 0.16); color: #a7ffeb; font-size: 11px; line-height: 18px; white-space: nowrap; }
     .family { margin: 4px 0 4px 8px; padding: 2px 8px 4px 0; border-left: 3px solid rgba(128, 203, 196, 0.55); border-radius: 0 8px 8px 0;
       background: rgba(128, 203, 196, 0.06); min-width: 0; }
