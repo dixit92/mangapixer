@@ -33,6 +33,7 @@ These guides are for people who run MangaPixer on their own hardware. They descr
 | [Declared facts](declared-hints.md) | For admins: state the type (manga, manhwa, webtoon, comic, ...) and the creators of a folder or a whole library, how declarations are inherited, and how a disagreement with the linked series is shown. |
 | [Missing volumes and chapters](missing-report.md) | How far behind each linked series is - volumes and chapters you have against the English and original totals, holes in your numbering, and the optional AniList conversion for chapter-only series. |
 | [Completion](official-releases.md) | Has each linked series ended, and do you have all of it - one answer per series (finished and held whole, finished but missing some, everything released so far, missing some, can't tell), with the edition and the upgrades; from stored data, nothing is fetched. |
+| [Metadata export API](metadata-export.md) | For other programs on your network (MangaList, scripts): a read-only API that returns each linked series' information - names only, never a path - with incremental sync, removals and paging. |
 | [Covers](covers.md) | How cards get their cover - the file's page 1, the front half of a jacket spread, or a saved cover from the web for linked series - and how admins choose a cover with **Choose cover...**. |
 | [Volumes view](volumes.md) | How a series' chapters group into volume stacks ordered by volume, what the "8/9" mark and the missing-chapter cards mean, and the Volumes / Folders switch. |
 

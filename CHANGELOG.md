@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Later in Needs review.** **Later** sets a work aside so you can accept the easy matches first: it moves to the end of **Needs review** with a **Later** tag, for every admin and after a reload, until the work is decided (accepted, identified, marked **Don't match**) or checked again by the matcher. **Not later** brings it back. Works set aside are listed oldest first after all the others; while any are set aside, **All**, **To review** and **Later** above the list choose what to show, with a count. Also a bulk action and the `l` key. See [Review](docs/series-information.md#review).
+- **Metadata export for MangaList and other tools.** A read-only API (`GET /api/v1/export/libraries`, `GET /api/v1/export/metadata`) hands another program on your network what MangaPixer knows about your series: every folder or archive with its own link, the linked record, its MangaDex and AniList companions, the volume list with English release dates and ISBNs, the Completion answer and when the information is looked at again. Clients sync incrementally (`updatedSince`, with removals and the old id of a renamed folder) and page through large libraries. Names only - never a path - and calling it never contacts a website. See [Metadata export API](docs/metadata-export.md).
+- **Official sources from MangaDex.** When MangaPixer reads a series' MangaDex record (as it already does for volume lists and covers), it now also keeps the official links that record lists - the publisher's pages and stores - and offers them in the export. No new request: they fill in as each series' MangaDex record is next read.
+
+### Changed
+
+- **A library's scan schedule is set in Scheduled jobs only.** The **Libraries** card shows it as one line ("Auto-scan: Daily at 03:00 (server time)") with a **Change in Scheduled jobs** link to the library's row, next to the last and next scan.
+
 ## [1.32.0] - 2026-10-02
 
 ### Added
