@@ -64,6 +64,7 @@ describe('ReviewDashboardComponent', () => {
       })),
       clearDontMatch: vi.fn((nodeId: string) => of({ nodeId })),
       deleteMissing: vi.fn(() => of(undefined)),
+      setReviewLater: vi.fn((_nodeId: string, _on: boolean) => of(undefined)),
       reattachMissing: vi.fn((nodeId: string, targetNodeId: string) => of({ nodeId, targetNodeId, link: true,
         precedence: false, readerDefault: false, content: false })),
       ...opts.apiOverrides,
@@ -283,10 +284,8 @@ describe('ReviewDashboardComponent', () => {
 
   // --- 1.33.0: Later, remembered on the server ---
 
-  const laterApi = () => ({ setReviewLater: vi.fn(() => of(undefined)) });
-
   it('Later is sent at once and moves the row to the end of a fully loaded list; Undo brings it back', () => {
-    const { c, api, el, snack, names } = create({ apiOverrides: laterApi() });
+    const { c, api, el, snack, names } = create();
     c.onRowAction({ action: 'later', item: rows[0] });
     expect(api.setReviewLater).toHaveBeenCalledWith('n1', true);
     expect(names()).toEqual(['Beta Saga', 'Gamma Saga', 'Alpha Saga']);
@@ -302,7 +301,7 @@ describe('ReviewDashboardComponent', () => {
   });
 
   it('Later with more pages to load: the row leaves the loaded list (paging reaches it at the end)', () => {
-    const { c, names } = create({ apiOverrides: { ...laterApi(),
+    const { c, names } = create({ apiOverrides: {
       getReview: vi.fn(() => of({ tab: 'NeedsReview', items: rows, total: 10, hasMore: true, nextCursor: '7' })) } });
     c.onRowAction({ action: 'later', item: rows[1] });
     expect(names()).toEqual(['Alpha Saga', 'Gamma Saga']);
@@ -311,7 +310,7 @@ describe('ReviewDashboardComponent', () => {
 
   it('the l key sets the focused row aside, and brings a row set aside back', () => {
     const later = reviewItem({ nodeId: 'n9', displayName: 'Later Saga', laterAt: '2026-10-03T12:00:00Z' });
-    const { api, key, names } = create({ pages: { NeedsReview: [...rows, later] }, apiOverrides: laterApi() });
+    const { api, key, names } = create({ pages: { NeedsReview: [...rows, later] } });
     key('l');
     expect(api.setReviewLater).toHaveBeenCalledWith('n1', true);
     expect(names()).toEqual(['Beta Saga', 'Gamma Saga', 'Later Saga', 'Alpha Saga']);
@@ -322,7 +321,7 @@ describe('ReviewDashboardComponent', () => {
   });
 
   it('bulk Later sets the selected rows aside in one call', () => {
-    const { c, api, names } = create({ apiOverrides: laterApi() });
+    const { c, api, names } = create();
     c.toggle('n1');
     c.toggle('n3');
     c.runBulk('Later');
@@ -333,7 +332,7 @@ describe('ReviewDashboardComponent', () => {
 
   it('the Later filter shows with a count, reloads the list, and drops a row brought back from it', () => {
     const later = reviewItem({ nodeId: 'n9', displayName: 'Later Saga', laterAt: '2026-10-03T12:00:00Z' });
-    const { c, api, el, fixture, names } = create({ pages: { NeedsReview: [later] }, apiOverrides: { ...laterApi(),
+    const { c, api, el, fixture, names } = create({ pages: { NeedsReview: [later] }, apiOverrides: {
       getReviewSummary: vi.fn(() => of(summary({ needsReview: 4, later: 1 }))) } });
     const filter = () => el.querySelector('[data-testid="review-later-filter"]');
     expect(filter()!.textContent).toContain('Later');
