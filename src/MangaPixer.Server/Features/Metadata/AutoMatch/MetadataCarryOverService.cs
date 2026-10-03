@@ -225,7 +225,10 @@ public sealed class MetadataCarryOverService
             var fromPublicId = await _db.CatalogNodes.Where(n => n.Id == fromNodeId).Select(n => n.PublicId).FirstAsync(ct);
             _db.ExportCarries.Add(new Persistence.Entities.ExportCarryEntity
             {
-                NewNodeId = toNodeId, OldNodeId = fromNodeId, OldNodePublicId = fromPublicId, At = now,
+                NewNodeId = toNodeId,
+                OldNodeId = fromNodeId,
+                OldNodePublicId = fromPublicId,
+                At = now,
             });
         }
 

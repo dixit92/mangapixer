@@ -123,7 +123,12 @@ public sealed class ExportRebuildService(
             {
                 db.ExportItems.Add(new ExportItemEntity
                 {
-                    LibraryId = libraryId, NodeId = b.NodeId, NodePublicId = b.NodePublicId, Json = json, Fingerprint = fingerprint, UpdatedAt = now,
+                    LibraryId = libraryId,
+                    NodeId = b.NodeId,
+                    NodePublicId = b.NodePublicId,
+                    Json = json,
+                    Fingerprint = fingerprint,
+                    UpdatedAt = now,
                 });
             }
             else
