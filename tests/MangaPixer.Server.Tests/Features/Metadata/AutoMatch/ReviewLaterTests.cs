@@ -5,6 +5,8 @@ using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Admin;
+using com.lifepixer.mangapixer.Server.Features.Metadata;
+using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Review;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
