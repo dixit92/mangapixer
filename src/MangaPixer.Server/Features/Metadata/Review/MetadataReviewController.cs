@@ -37,16 +37,24 @@ public sealed class MetadataReviewController : ControllerBase
     [ProducesResponseType<MetadataReviewPageDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> List([FromQuery] MetadataReviewTab tab = MetadataReviewTab.NeedsReview, [FromQuery] string? library = null,
-        [FromQuery] string? cursor = null, [FromQuery] int limit = 50, [FromQuery] bool? later = null, CancellationToken ct = default)
+        [FromQuery] string? cursor = null, [FromQuery] int limit = 50, [FromQuery] bool? later = null, [FromQuery] string? author = null,
+        [FromQuery] string? folder = null, CancellationToken ct = default)
     {
-        var (error, page) = await _review.ListAsync(tab, library, cursor, limit, ct, later);
+        var (error, page) = await _review.ListAsync(tab, library, cursor, limit, ct, later, author, folder);
         return error switch
         {
             null => Ok(page),
             "library_not_found" => NotFound(),
+            "invalid_filter" => BadRequest(new ApiError { Error = error, Message = "Filter by an author or by a folder, not both." }),
             _ => BadRequest(new ApiError { Error = error, Message = "Unknown review tab." }),
         };
     }
+
+    /// <summary>1.33.0: authors with at least two works waiting in Needs review, largest first (local names only).</summary>
+    [HttpGet("review/authors")]
+    [ProducesResponseType<MetadataReviewAuthorsDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> Authors([FromQuery] string? library = null, CancellationToken ct = default) =>
+        await _review.AuthorsAsync(library, ct) is { } dto ? Ok(dto) : NotFound();
 
     [HttpPost("review/{nodeId}/accept")]
     [ProducesResponseType<NodeSeriesLinkChangeDto>(StatusCodes.Status200OK)]

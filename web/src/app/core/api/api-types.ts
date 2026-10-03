@@ -1458,6 +1458,25 @@ export interface MetadataMatchThresholdBoundsDto {
 }
 
 /** GET /admin/metadata/review/summary?library= */
+/** 1.33.0: a group of waiting works a review row belongs to; `key` is the list's `author` / `folder` filter value. */
+export interface MetadataReviewGroupHintDto {
+  key: string;
+  label: string;
+  others: number;
+}
+
+/** 1.33.0: an author with at least two works waiting in Needs review (largest first). */
+export interface MetadataReviewAuthorDto {
+  key: string;
+  label: string;
+  count: number;
+  later?: number;
+}
+
+export interface MetadataReviewAuthorsDto {
+  items: MetadataReviewAuthorDto[];
+}
+
 export interface MetadataReviewSummaryDto {
   needsReview: number;
   /** 1.33.0: Needs review rows set aside ("Later"); part of `needsReview`. */
@@ -1545,6 +1564,10 @@ export interface MetadataReviewItemDto {
   checkingAgain?: boolean;
   /** 1.33.0 (Needs review): when an admin set the row aside ("Later"); listed after the others until decided or checked again. */
   laterAt?: string | null;
+  /** 1.33.0 (Needs review): other waiting works by the same circle / artist (from the works' own names). */
+  sameAuthor?: MetadataReviewGroupHintDto | null;
+  /** 1.33.0 (Needs review): other waiting works in the same folder (`key` = the folder's node id). */
+  sameFolder?: MetadataReviewGroupHintDto | null;
   /** 1.31.0 (folder works): chapter numbers that more than one file of the same folder states. */
   duplicateChapters?: number;
   /** 1.31.0 (folder works): the same for volume numbers. */

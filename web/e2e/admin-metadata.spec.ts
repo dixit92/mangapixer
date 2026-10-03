@@ -230,7 +230,26 @@ const RUNS = {
 /** `later`: the rows set aside ("Later", 1.33.0) as the fake server remembers them - across reloads, like the real one. */
 interface Mocked { accepts: string[]; bulks: unknown[]; images: string[]; later: Map<string, string> }
 
-async function mockStage2(page: Page): Promise<Mocked> {
+// 1.33.0 "Same author": synthetic doujin-shaped works in two folders - balanced and unbalanced leading tags; the server's
+// grouping (a circle and its artist are one author) is served as the hints it would compute.
+const doujin = (nodeId: string, displayName: string, folder: [string, string], author: boolean, inFolder: number) => ({
+  nodeId, nodeKind: 'Archive', displayName, libraryId: 'lib-x', libraryName: 'Sample Library', trail: ['Doujins', folder[1]],
+  parentNodeId: folder[0], workClass: 'CollectionLeaf', matchLevel: 'Archive', itemCount: 1, openFlagCount: 0, reasons: ['one_shot'],
+  candidates: [cand(1, displayName.replace(/^.*\]\s*/, ''), 0.7, ['one_shot'])],
+  sameAuthor: author ? { key: 'samplecircle', label: 'Sample Circle', others: 2 } : null,
+  sameFolder: { key: folder[0], label: folder[1], others: inFolder - 1 },
+});
+const FOLDER_ONE: [string, string] = ['fo1', 'Doujins One'];
+const FOLDER_TWO: [string, string] = ['fo2', 'Doujins Two'];
+const DOUJIN_ITEMS = [
+  doujin('dj1', '[Sample Circle (Sample Artist)] Morning Story', FOLDER_ONE, true, 2),
+  doujin('dj2', 'Sample Circle] Evening Story', FOLDER_ONE, true, 2),
+  doujin('dj3', '[Sample Artist] Night Story', FOLDER_TWO, true, 2),
+  doujin('dj4', 'Other Group] Lone Story', FOLDER_TWO, false, 2),
+];
+const AUTHORS = { items: [{ key: 'samplecircle', label: 'Sample Circle', count: 3, later: 0 }] };
+
+async function mockStage2(page: Page, reviewItems: { nodeId: string }[] = REVIEW_ITEMS): Promise<Mocked> {
   const seen: Mocked = { accepts: [], bulks: [], images: [], later: new Map() };
   const json = (route: Route, body: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
   await page.route('**/api/v1/admin/metadata/review/summary**', (r) => json(r, { ...SUMMARY, later: seen.later.size }));
@@ -239,12 +258,18 @@ async function mockStage2(page: Page): Promise<Mocked> {
     const tab = query.get('tab') ?? 'NeedsReview';
     // The server's order: rows not set aside first, then the rows set aside, oldest first; `later` filters.
     const later = query.get('later');
-    const items = tab !== 'NeedsReview' ? [] : [
-      ...REVIEW_ITEMS.filter((i) => !seen.later.has(i.nodeId) && later !== 'true'),
-      ...[...seen.later].map(([id, at]) => ({ ...REVIEW_ITEMS.find((i) => i.nodeId === id)!, laterAt: at })).filter(() => later !== 'false'),
-    ];
+    const author = query.get('author');
+    const folder = query.get('folder');
+    const items = (tab !== 'NeedsReview' ? [] : [
+      ...reviewItems.filter((i) => !seen.later.has(i.nodeId) && later !== 'true'),
+      ...[...seen.later].map(([id, at]) => ({ ...reviewItems.find((i) => i.nodeId === id)!, laterAt: at })).filter(() => later !== 'false'),
+    ]).filter((i) => {
+      const it = i as { sameAuthor?: { key: string } | null; sameFolder?: { key: string } | null };
+      return (!author || it.sameAuthor?.key === author) && (!folder || it.sameFolder?.key === folder);
+    });
     return json(r, { tab, items, total: items.length });
   });
+  await page.route('**/api/v1/admin/metadata/review/authors**', (r) => json(r, AUTHORS));
   await page.route(/\/api\/v1\/admin\/metadata\/review\/[^/]+\/later$/, (r) => {
     const id = new URL(r.request().url()).pathname.split('/').at(-2)!;
     if (r.request().method() === 'POST') {
@@ -377,6 +402,67 @@ test('phone: Later from the bottom bar, and the Later filter fits the screen', a
   await expectFitsScreen(page, 'review tab, a row set aside (phone)');
   await shot(page, 'r-02-review-later-phone');
   expect([...seen.later.keys()]).toEqual(['r2']);
+  expect(foreign).toEqual([]);
+});
+
+test('Same author (1.33.0): a row\'s chip lists the circle\'s works together, bulk Later on them, the Authors list', async ({ page, baseURL }) => {
+  const foreign = watchForeignRequests(page, baseURL!);
+  await login(page);
+  const seen = await mockStage2(page, DOUJIN_ITEMS);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/admin/metadata?tab=review');
+  const rows = page.getByTestId('review-row');
+  await expect(rows).toHaveCount(4);
+  await expect(rows.first().getByTestId('review-same-author')).toHaveText(/2 more by Sample Circle/);
+  await expect(rows.last().getByTestId('review-same-author')).toHaveCount(0); // a name nobody else has
+  await expectFitsScreen(page, 'review tab with Same author chips (desktop)');
+
+  await rows.first().getByTestId('review-same-author').click();
+  await expect(rows).toHaveCount(3);
+  await expect(page.getByTestId('review-group-chip')).toContainText('By Sample Circle (3)');
+  await shot(page, 'r-03-same-author-desktop', true);
+  await page.getByTestId('review-select-all').click();
+  await page.getByTestId('bulk-Later').click(); // the whole group set aside at once
+  await expect.poll(() => seen.bulks.at(-1)).toEqual({ action: 'Later', nodeIds: ['dj1', 'dj2', 'dj3'] });
+  await page.getByTestId('review-group-clear').click();
+  await expect(rows).toHaveCount(4);
+
+  await page.getByTestId('review-authors').click();
+  await page.getByTestId('review-author').filter({ hasText: 'Sample Circle' }).click();
+  await expect(rows).toHaveCount(3);
+  await page.getByTestId('review-group-clear').click();
+  await rows.last().getByTestId('review-same-folder').click();
+  await expect(page.getByTestId('review-name')).toHaveText(['[Sample Artist] Night Story', 'Other Group] Lone Story']);
+  await expect(page.getByTestId('review-group-chip')).toContainText('In Doujins Two (2)');
+  expect(foreign).toEqual([]);
+});
+
+test('phone: Same folder and the Authors bottom sheet fit the screen', async ({ page, baseURL }) => {
+  const foreign = watchForeignRequests(page, baseURL!);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+  await mockStage2(page, DOUJIN_ITEMS);
+  await page.goto('/admin/metadata?tab=review');
+  const rows = page.getByTestId('review-row');
+  await expect(rows).toHaveCount(4);
+  await expectFitsScreen(page, 'review tab with Same author chips (phone)');
+  await rows.first().getByTestId('review-same-folder').click();
+  await expect(rows).toHaveCount(2);
+  await expect(page.getByTestId('review-group-chip')).toContainText('In Doujins One (2)');
+  await expectFitsScreen(page, 'review tab filtered by folder (phone)');
+  await shot(page, 'r-04-same-folder-phone');
+  await page.getByTestId('review-group-clear').click();
+  await expect(rows).toHaveCount(4);
+
+  await page.getByTestId('review-authors').click();
+  const sheet = page.getByTestId('review-authors-sheet');
+  await expect(sheet).toBeVisible();
+  await expectFitsScreen(page, 'Authors bottom sheet (phone)');
+  await shot(page, 'r-05-authors-sheet-phone');
+  await sheet.getByTestId('review-author').first().click();
+  await expect(sheet).toHaveCount(0);
+  await expect(rows).toHaveCount(3);
+  await expect(page.getByTestId('review-group-chip')).toContainText('By Sample Circle (3)');
   expect(foreign).toEqual([]);
 });
 

@@ -125,8 +125,11 @@ public sealed class MetadataReviewService
     // --- List ---
 
     /// <param name="later">Needs review only: true lists only the rows set aside ("Later"), false only the others, null both.</param>
+    /// <param name="author">Needs review only (1.33.0): only the works of this author group (<see cref="MetadataReviewGroupHintDto.Key"/>).</param>
+    /// <param name="folder">Needs review only (1.33.0): only the works directly in this folder (its node id). Not with <paramref name="author"/>.</param>
     public async Task<(string? Error, MetadataReviewPageDto? Page)> ListAsync(
-        MetadataReviewTab tab, string? libraryPublicId, string? cursor, int limit, CancellationToken ct = default, bool? later = null)
+        MetadataReviewTab tab, string? libraryPublicId, string? cursor, int limit, CancellationToken ct = default, bool? later = null,
+        string? author = null, string? folder = null)
     {
         if (!Enum.IsDefined(tab))
             return ("invalid_tab", null);
@@ -138,13 +141,27 @@ public sealed class MetadataReviewService
 
         List<(string Key, long NodeId)> rows;
         int total;
+        ReviewGroupIndex? groups = null;
         switch (tab)
         {
             case MetadataReviewTab.NeedsReview:
                 {
+                    if (!string.IsNullOrEmpty(author) && !string.IsNullOrEmpty(folder))
+                        return ("invalid_filter", null);
+                    groups = await GroupIndexAsync(libraryId, ct);
                     var q = LinksOf(SeriesLinkState.NeedsReview, libraryId);
                     if (later is { } onlyLater)
                         q = q.Where(l => (l.LaterAt != null) == onlyLater);
+                    if (!string.IsNullOrEmpty(author))
+                    {
+                        var members = groups.Find(author)?.NodeIds.ToList() ?? [];
+                        q = q.Where(l => members.Contains(l.NodeId));
+                    }
+                    if (!string.IsNullOrEmpty(folder))
+                    {
+                        var folderId = await _db.CatalogNodes.Where(n => n.PublicId == folder).Select(n => (long?)n.Id).FirstOrDefaultAsync(ct) ?? -1;
+                        q = q.Where(l => _db.CatalogNodes.Any(n => n.Id == l.NodeId && n.ParentId == folderId));
+                    }
                     total = await q.CountAsync(ct);
                     rows = await NeedsReviewPageAsync(q, ReviewCursor.Parse(cursor), limit + 1, ct);
                     break;
@@ -199,7 +216,7 @@ public sealed class MetadataReviewService
 
         var hasMore = rows.Count > limit;
         rows = rows.Take(limit).ToList();
-        var items = await BuildItemsAsync(tab, rows.Select(r => r.NodeId).ToList(), ct);
+        var items = await BuildItemsAsync(tab, rows.Select(r => r.NodeId).ToList(), ct, groups);
         if (tab == MetadataReviewTab.Flags)
             items = items.OrderByDescending(i => i.Link?.State == SeriesLinkState.Auto).ToList();
         return (null, new MetadataReviewPageDto
@@ -250,10 +267,91 @@ public sealed class MetadataReviewService
         return (id is not null, id);
     }
 
+    // --- Same author / same folder (1.33.0) ---
+
+    /// <summary>The Authors list: author groups with at least two waiting works, largest first.</summary>
+    public async Task<MetadataReviewAuthorsDto?> AuthorsAsync(string? libraryPublicId, CancellationToken ct = default)
+    {
+        var (ok, libraryId) = await LibraryFilterAsync(libraryPublicId, ct);
+        if (!ok)
+            return null;
+        var index = await GroupIndexAsync(libraryId, ct);
+        return new MetadataReviewAuthorsDto
+        {
+            Items = index.Groups.Where(g => g.NodeIds.Count >= 2)
+                .OrderByDescending(g => g.NodeIds.Count).ThenBy(g => g.Label, StringComparer.OrdinalIgnoreCase).ThenBy(g => g.Key, StringComparer.Ordinal)
+                .Select(g => new MetadataReviewAuthorDto { Key = g.Key, Label = g.Label, Count = g.NodeIds.Count, Later = g.Later })
+                .ToList(),
+        };
+    }
+
+    /// <summary>
+    /// The author and folder groups of every work waiting in Needs review (with the library filter). Names only, read in a fixed
+    /// number of queries: each work's own name; for an artist-collection work without a tag, the artist folder's name; then, for a
+    /// work still without a name, the ComicInfo writers and pencillers of the archive (a folder: of its archives) - never a
+    /// translator. Nothing is stored or sent.
+    /// </summary>
+    private async Task<ReviewGroupIndex> GroupIndexAsync(long? libraryId, CancellationToken ct)
+    {
+        var rows = await (
+            from l in LinksOf(SeriesLinkState.NeedsReview, libraryId)
+            join n in _db.CatalogNodes on l.NodeId equals n.Id
+            join q in _db.MetadataMatchQueue on n.Id equals q.NodeId into qs
+            from q in qs.DefaultIfEmpty()
+            join p in _db.CatalogNodes on n.ParentId equals (long?)p.Id into ps
+            from p in ps.DefaultIfEmpty()
+            select new
+            {
+                n.Id,
+                n.DisplayName,
+                n.Kind,
+                n.ParentId,
+                ParentName = p == null ? null : p.DisplayName,
+                WorkClass = q == null ? null : q.WorkClass,
+                Later = l.LaterAt != null,
+            }).ToListAsync(ct);
+
+        var folderKind = (int)CatalogNodeKind.Folder;
+        var names = new Dictionary<long, IReadOnlyList<ReviewAuthorNames.Name>>();
+        foreach (var r in rows)
+        {
+            var own = ReviewAuthorNames.FromWorkName(r.DisplayName);
+            if (own.Count == 0 && r.WorkClass == (int)WorkClass.ArtistCollection)
+                own = ReviewAuthorNames.FromPlainName(r.Kind == folderKind ? r.DisplayName : r.ParentName);
+            names[r.Id] = own;
+        }
+
+        var bare = rows.Where(r => names[r.Id].Count == 0).ToList();
+        if (bare.Count > 0)
+        {
+            var archiveIds = bare.Where(r => r.Kind != folderKind).Select(r => r.Id).ToList();
+            var folderIds = bare.Where(r => r.Kind == folderKind).Select(r => r.Id).ToList();
+            var infos = await (
+                from e in _db.EmbeddedMetadata.AsNoTracking()
+                join c in _db.CatalogNodes on e.NodeId equals c.Id
+                where e.State == 1 && e.CreatorsJson != null
+                    && (archiveIds.Contains(e.NodeId) || (c.ParentId != null && folderIds.Contains(c.ParentId.Value)))
+                select new { e.NodeId, c.ParentId, e.CreatorsJson }).ToListAsync(ct);
+            foreach (var r in bare)
+            {
+                var creators = infos.Where(i => r.Kind == folderKind ? i.ParentId == r.Id : i.NodeId == r.Id)
+                    .SelectMany(i => MetadataJson.ReadList<MetadataJson.Creator>(i.CreatorsJson))
+                    .Where(c => c.Role is "writer" or "penciller")
+                    .SelectMany(c => ReviewAuthorNames.FromPlainName(c.Name))
+                    .DistinctBy(n => n.Key)
+                    .ToList();
+                names[r.Id] = creators;
+            }
+        }
+
+        return new ReviewGroupIndex(rows.Select(r => new ReviewGroupIndex.Work(r.Id, names[r.Id], r.ParentId, r.Later)).ToList());
+    }
+
     private sealed record NodeRow(long Id, string PublicId, long LibraryId, long? ParentId, int Kind, string DisplayName, int Availability);
 
     /// <summary>Builds the rows of a page with a fixed number of queries (no per-row query).</summary>
-    private async Task<List<MetadataReviewItemDto>> BuildItemsAsync(MetadataReviewTab tab, IReadOnlyList<long> nodeIds, CancellationToken ct)
+    private async Task<List<MetadataReviewItemDto>> BuildItemsAsync(MetadataReviewTab tab, IReadOnlyList<long> nodeIds, CancellationToken ct,
+        ReviewGroupIndex? groups = null)
     {
         if (nodeIds.Count == 0)
             return [];
@@ -291,8 +389,8 @@ public sealed class MetadataReviewService
         var memberPublic = await _db.CatalogNodes.AsNoTracking().Where(n => memberIds.Contains(n.Id))
             .ToDictionaryAsync(n => n.Id, n => n.PublicId, ct);
         var parentIds = nodes.Values.Where(n => n.ParentId != null).Select(n => n.ParentId!.Value).Distinct().ToList();
-        var parentPublic = await _db.CatalogNodes.AsNoTracking().Where(n => parentIds.Contains(n.Id))
-            .ToDictionaryAsync(n => n.Id, n => n.PublicId, ct);
+        var parents = await _db.CatalogNodes.AsNoTracking().Where(n => parentIds.Contains(n.Id))
+            .ToDictionaryAsync(n => n.Id, n => (n.PublicId, n.DisplayName), ct);
 
         var items = new List<MetadataReviewItemDto>();
         foreach (var id in nodeIds)
@@ -314,7 +412,7 @@ public sealed class MetadataReviewService
                 LibraryName = library.DisplayName ?? string.Empty,
                 Trail = trails.GetValueOrDefault(id) ?? [],
                 Missing = node.Availability == (int)CatalogNodeAvailability.Tombstoned,
-                ParentNodeId = node.ParentId is { } parent ? parentPublic.GetValueOrDefault(parent) : null,
+                ParentNodeId = node.ParentId is { } parent ? parents.GetValueOrDefault(parent).PublicId : null,
                 WorkClass = q?.WorkClass is { } wc ? (WorkClass)wc : null,
                 MatchLevel = q is null ? null : (MatchLevel)q.Level,
                 ItemCount = node.Kind == (int)CatalogNodeKind.Folder ? archiveCounts.GetValueOrDefault(id) : 1 + members.Count,
@@ -329,6 +427,13 @@ public sealed class MetadataReviewService
                 DuplicateVolumes = duplicates.GetValueOrDefault(id).Volumes,
                 CheckingAgain = q is { Reason: QueueReason.Recheck, State: QueueState.Pending or QueueState.Leased },
                 LaterAt = link is { State: (int)SeriesLinkState.NeedsReview } ? link.LaterAt : null,
+                SameAuthor = groups?.AuthorOf(id) is { NodeIds.Count: > 1 } author
+                    ? new MetadataReviewGroupHintDto { Key = author.Key, Label = author.Label, Others = author.NodeIds.Count - 1 }
+                    : null,
+                SameFolder = groups is not null && node.ParentId is { } folderId && groups.InFolder(folderId) > 1
+                        && parents.TryGetValue(folderId, out var folder)
+                    ? new MetadataReviewGroupHintDto { Key = folder.PublicId, Label = folder.DisplayName, Others = groups.InFolder(folderId) - 1 }
+                    : null,
                 OpenFlagCount = flagCounts.GetValueOrDefault(id),
                 Flags = flags.TryGetValue(node.PublicId, out var nodeFlags) ? nodeFlags : [],
             });
