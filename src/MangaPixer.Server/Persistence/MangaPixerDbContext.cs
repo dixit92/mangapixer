@@ -95,6 +95,10 @@ public sealed class MangaPixerDbContext : DbContext
     public DbSet<FolderCoverPreferenceEntity> FolderCoverPreferences => Set<FolderCoverPreferenceEntity>();
     public DbSet<JobRunEntity> JobRuns => Set<JobRunEntity>();
     public DbSet<MetadataRecordObservationEntity> MetadataRecordObservations => Set<MetadataRecordObservationEntity>();
+    public DbSet<ExportItemEntity> ExportItems => Set<ExportItemEntity>();
+    public DbSet<ExportRemovalEntity> ExportRemovals => Set<ExportRemovalEntity>();
+    public DbSet<ExportLibraryStateEntity> ExportLibraryStates => Set<ExportLibraryStateEntity>();
+    public DbSet<ExportCarryEntity> ExportCarries => Set<ExportCarryEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -127,6 +131,7 @@ public sealed class MangaPixerDbContext : DbContext
         ConfigureWikipediaLists(modelBuilder);
         ConfigureFolderCoverPreferences(modelBuilder);
         ConfigureJobSchedules(modelBuilder);
+        ConfigureExportState(modelBuilder);
     }
 
     private static void ConfigureAppSettings(ModelBuilder mb)
@@ -972,6 +977,62 @@ public sealed class MangaPixerDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.NodeId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    /// <summary>The metadata export's stored snapshot (1.33.0, migration AddExportState).</summary>
+    private static void ConfigureExportState(ModelBuilder mb)
+    {
+        mb.Entity<ExportItemEntity>(e =>
+        {
+            e.ToTable("export_items");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.NodePublicId).HasMaxLength(64);
+            e.Property(x => x.Fingerprint).HasMaxLength(64);
+            e.HasIndex(x => new { x.LibraryId, x.NodeId }).IsUnique();
+            e.HasIndex(x => new { x.LibraryId, x.UpdatedAt, x.Id });
+            e.HasOne(x => x.Library)
+                .WithMany()
+                .HasForeignKey(x => x.LibraryId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        mb.Entity<ExportRemovalEntity>(e =>
+        {
+            e.ToTable("export_removals");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.NodePublicId).HasMaxLength(64);
+            e.Property(x => x.Reason).HasMaxLength(32);
+            e.HasIndex(x => new { x.LibraryId, x.NodePublicId }).IsUnique();
+            e.HasIndex(x => new { x.LibraryId, x.At });
+            e.HasOne(x => x.Library)
+                .WithMany()
+                .HasForeignKey(x => x.LibraryId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        mb.Entity<ExportLibraryStateEntity>(e =>
+        {
+            e.ToTable("export_library_states");
+            e.HasKey(x => x.LibraryId);
+            e.Property(x => x.LibraryId).ValueGeneratedNever();
+            e.HasOne(x => x.Library)
+                .WithMany()
+                .HasForeignKey(x => x.LibraryId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        mb.Entity<ExportCarryEntity>(e =>
+        {
+            e.ToTable("export_carries");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.OldNodePublicId).HasMaxLength(64);
+            e.HasIndex(x => x.NewNodeId);
+            e.HasIndex(x => x.OldNodeId);
+            e.HasIndex(x => x.At);
         });
     }
 }

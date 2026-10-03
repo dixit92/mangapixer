@@ -294,6 +294,25 @@ public sealed class ContractSerializationTests
             typeof(ItemManifest),
             typeof(ManifestPageEntry),
             typeof(ItemReadiness),
+            // 1.33.0: the metadata export (names only, never a path).
+            typeof(ExportErrorDto),
+            typeof(ExportLibrariesDto),
+            typeof(ExportLibraryDto),
+            typeof(ExportLibraryRefDto),
+            typeof(ExportMetadataPageDto),
+            typeof(ExportRemovalDto),
+            typeof(ExportItemDto),
+            typeof(ExportLinkDto),
+            typeof(ExportRecordDto),
+            typeof(ExportPublisherDto),
+            typeof(ExportCompanionsDto),
+            typeof(ExportAniListDto),
+            typeof(ExportOfficialLinkDto),
+            typeof(ExportVolumesDto),
+            typeof(ExportVolumeDto),
+            typeof(ExportChapterRangeDto),
+            typeof(ExportCompletionDto),
+            typeof(ExportRefreshDto),
         };
 
         var forbiddenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)

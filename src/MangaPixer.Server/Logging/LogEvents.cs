@@ -444,5 +444,8 @@ public static class LogEvents
         public const int CoverCropFailed = 9383;
         public const int CoverSweep = 9384;
         public const int CoverChoiceChanged = 9385;
+
+        // Metadata export (1.33.0, 9390-9399). Library ids, counts and timings only - never names, titles or tokens.
+        public const int ExportRebuilt = 9390;
     }
 }

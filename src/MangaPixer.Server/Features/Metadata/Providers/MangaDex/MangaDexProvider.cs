@@ -62,7 +62,16 @@ public sealed record MangaDexManga
 
     /// <summary>The main cover's id, or null.</summary>
     public string? MainCoverId { get; init; }
+
+    /// <summary>
+    /// 1.33.0: the official sources among the record's <c>links</c> (<see cref="MangaDexProvider.OfficialLinkKeys"/>), as safe absolute
+    /// http(s) URLs, in that fixed key order. Read from the same answer as <see cref="MangaUpdatesLink"/> - no extra request.
+    /// </summary>
+    public IReadOnlyList<MangaDexOfficialLink> OfficialLinks { get; init; } = [];
 }
+
+/// <summary>One official source of a MangaDex record: its <c>links</c> key (<c>raw</c>, <c>engtl</c>, <c>bw</c>, ...) and the URL.</summary>
+public sealed record MangaDexOfficialLink(string Key, string Url);
 
 /// <summary>One volume of an <c>aggregate</c> answer: its key and its chapters with their upload counts.</summary>
 public sealed record MangaDexAggregateVolume(string Volume, int Count, IReadOnlyList<MangaDexAggregateChapter> Chapters);
@@ -97,6 +106,15 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
     private const string ApiBase = "https://" + MetadataHttp.MangaDexApiHost;
     private const string ImageBase = "https://" + MetadataHttp.MangaDexImageHost + "/covers/";
     private const int MaxTitleLength = 512;
+    private const int MaxLinkLength = 512;
+
+    /// <summary>
+    /// The <c>links</c> keys read as official sources (1.33.0, owner decision 4), in output order: <c>raw</c> (the official original-language
+    /// release) and <c>engtl</c> (the official English one) are full URLs, as are the stores <c>amz</c>, <c>ebj</c> and <c>cdj</c>;
+    /// <c>bw</c> is a path on <c>bookwalker.jp</c> (<c>series/123/list</c>). Fan sites and databases (<c>al</c>, <c>ap</c>, <c>kt</c>,
+    /// <c>mal</c>, <c>mu</c>, <c>nu</c>) are not official sources.
+    /// </summary>
+    public static readonly IReadOnlyList<string> OfficialLinkKeys = ["raw", "engtl", "bw", "amz", "ebj", "cdj"];
 
     private readonly IHttpClientFactory _httpFactory;
 
@@ -113,6 +131,33 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
 
     [GeneratedRegex("^[a-z]{2,3}(-[a-z]{2,4})?$", RegexOptions.CultureInvariant)]
     private static partial Regex LocalePattern();
+
+    [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9/_.-]{0,200}$", RegexOptions.CultureInvariant)]
+    private static partial Regex BookWalkerPathPattern();
+
+    /// <summary>
+    /// The URL of one <c>links</c> value of an official key, or null when it is not safe to hand on: a full URL must be an absolute
+    /// http(s) URL with a host and no user info (normalised by <see cref="Uri"/>); <c>bw</c> must be a plain relative path, which is
+    /// put on <c>https://bookwalker.jp/</c>. Never fetched by MangaPixer.
+    /// </summary>
+    public static string? OfficialLinkUrl(string key, string? value)
+    {
+        var text = value?.Trim();
+        if (string.IsNullOrEmpty(text) || text.Length > MaxLinkLength || !OfficialLinkKeys.Contains(key))
+            return null;
+        if (key == "bw")
+        {
+            return BookWalkerPathPattern().IsMatch(text) && !text.Contains("..", StringComparison.Ordinal) && !text.Contains("//", StringComparison.Ordinal)
+                ? "https://bookwalker.jp/" + text
+                : null;
+        }
+        if (!Uri.TryCreate(text, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp)
+            || uri.UserInfo.Length > 0 || uri.HostNameType != UriHostNameType.Dns || !uri.Host.Contains('.', StringComparison.Ordinal))
+            return null;
+        var url = uri.AbsoluteUri;
+        return url.Length <= MaxLinkLength ? url : null;
+    }
 
     /// <summary>A MangaDex record or cover id (a lowercase UUID).</summary>
     public static bool IsValidId(string? id) => id is not null && UuidPattern().IsMatch(id);
@@ -249,12 +294,18 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
             return null;
 
         string? mu = null, al = null;
+        var official = new List<MangaDexOfficialLink>();
         if (attributes.TryGetProperty("links", out var links) && links.ValueKind == JsonValueKind.Object)
         {
             mu = Str(links, "mu") is { Length: > 0 and <= 32 } m ? m.Trim() : null;
             al = Str(links, "al") is { } a && int.TryParse(a.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var alId) && alId > 0
                 ? alId.ToString(CultureInfo.InvariantCulture)
                 : null;
+            foreach (var key in OfficialLinkKeys)
+            {
+                if (OfficialLinkUrl(key, Str(links, key)) is { } url)
+                    official.Add(new MangaDexOfficialLink(key, url));
+            }
         }
 
         var fanColored = false;
@@ -303,6 +354,7 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
                 ? created : null,
             MainCoverFile = coverId is null ? null : coverFile,
             MainCoverId = coverFile is null ? null : coverId,
+            OfficialLinks = official,
         };
     }
 

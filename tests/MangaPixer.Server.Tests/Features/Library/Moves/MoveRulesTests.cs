@@ -151,6 +151,9 @@ public sealed class MoveRulesTests
             ["audit_events"] = "history",
             ["metadata_flags"] = "history",
             ["node_moves"] = "move bookkeeping",
+            // 1.33.0 metadata export: rebuilt from the links; a vanished node's row stays until the rebuild pools its removal.
+            ["export_items"] = "export snapshot",
+            ["export_carries"] = "export bookkeeping",
         };
         using var db = new MangaPixerDbContext(new DbContextOptionsBuilder<MangaPixerDbContext>().UseSqlite("Data Source=:memory:").Options);
         var nodeKeyed = db.Model.GetEntityTypes()

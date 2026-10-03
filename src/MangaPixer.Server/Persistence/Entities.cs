@@ -1885,3 +1885,81 @@ public sealed class MetadataRecordObservationEntity
 
     public MetadataRecordEntity? Record { get; set; }
 }
+
+/// <summary>
+/// One exported item of the metadata export (1.33.0, for MangaList): the canonical JSON of a node with its own series link, as the
+/// last export rebuild of its library computed it, served as is when paging. <see cref="Fingerprint"/> (SHA-256 hex of the JSON
+/// without its volatile times) decides whether a rebuild changed the item; <see cref="UpdatedAt"/> is the time of that rebuild.
+/// <see cref="NodeId"/> deliberately has no foreign key: a purged node keeps its row until the next rebuild pools its removal.
+/// Cascades with the library. Holds names, never a path.
+/// </summary>
+public sealed class ExportItemEntity
+{
+    public long Id { get; set; }
+    public long LibraryId { get; set; }
+    public long NodeId { get; set; }
+
+    /// <summary>The node's public id (max 64).</summary>
+    public string NodePublicId { get; set; } = string.Empty;
+
+    public string Json { get; set; } = string.Empty;
+
+    /// <summary>SHA-256 (64 hex) of the canonical JSON without <c>updatedAt</c> and the completion times.</summary>
+    public string Fingerprint { get; set; } = string.Empty;
+
+    public DateTimeOffset UpdatedAt { get; set; }
+
+    public LibraryEntity? Library { get; set; }
+}
+
+/// <summary>
+/// A node that left a library's export (1.33.0), kept for the removal window so an incremental export call reports it. At most one
+/// row per (library, node); a node that comes back as an item loses its row. Cascades with the library.
+/// </summary>
+public sealed class ExportRemovalEntity
+{
+    public long Id { get; set; }
+    public long LibraryId { get; set; }
+
+    /// <summary>The removed node's public id (max 64).</summary>
+    public string NodePublicId { get; set; } = string.Empty;
+
+    /// <summary><c>nodeGone</c>, <c>linkCleared</c> or <c>movedToOtherLibrary</c> (max 32).</summary>
+    public string Reason { get; set; } = string.Empty;
+
+    public DateTimeOffset At { get; set; }
+
+    public LibraryEntity? Library { get; set; }
+}
+
+/// <summary>
+/// The export state of one library (1.33.0): the last rebuild and the start of its removal pool (<see cref="WatermarkAt"/>; an
+/// incremental call from before it needs a full sync). Cascades with the library.
+/// </summary>
+public sealed class ExportLibraryStateEntity
+{
+    public long LibraryId { get; set; }
+    public DateTimeOffset WatermarkAt { get; set; }
+    public DateTimeOffset LastRebuildAt { get; set; }
+    public long LastRebuildMs { get; set; }
+    public int ItemCount { get; set; }
+
+    public LibraryEntity? Library { get; set; }
+}
+
+/// <summary>
+/// A series link that folder carry-over (or a manual re-attach) moved from a removed node to a new one (1.33.0): the export shows the
+/// old node's public id as the new item's <c>carriedFrom</c> instead of a removal. Written by <c>MetadataCarryOverService</c>, kept for
+/// the removal window; no foreign keys (the old node is a tombstone the trash may purge).
+/// </summary>
+public sealed class ExportCarryEntity
+{
+    public long Id { get; set; }
+    public long NewNodeId { get; set; }
+    public long OldNodeId { get; set; }
+
+    /// <summary>The old node's public id (max 64).</summary>
+    public string OldNodePublicId { get; set; } = string.Empty;
+
+    public DateTimeOffset At { get; set; }
+}
