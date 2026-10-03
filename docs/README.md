@@ -21,6 +21,7 @@ These guides are for people who run MangaPixer on their own hardware. They descr
 | [Backup and restore](backup-and-restore.md) | Automatic database backups, backup settings and a custom backup folder, restoring a backup, what a backup contains, importing YACReader progress. |
 | [Scheduled jobs](scheduled-jobs.md) | What MangaPixer does on its own and when - scans, the series information refresh and its cadence, backups, cleaning - with the times you can choose (server time). |
 | [Trash](trash.md) | What happens to removed files: the trash, how long it keeps reading state (Daily to Yearly - also the window in which a moved series is recognized), emptying it now or automatically, and Clean bundles. |
+| [API tokens](api-tokens.md) | Tokens that let another app (MangaList) read the metadata export: what a token can do, creating one (shown once), expiry, revoking, the limits, HTTPS. |
 | [Reverse proxy and HTTPS](reverse-proxy-and-https.md) | Putting MangaPixer behind Caddy or nginx for TLS, the forwarded headers it trusts, and exposing it to the internet. |
 
 ## Use

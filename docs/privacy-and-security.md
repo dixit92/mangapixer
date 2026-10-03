@@ -7,6 +7,7 @@ What MangaPixer keeps to itself, what it can send when an admin allows it, and h
 - **Logs never contain paths or titles**, only IDs, counts, timings and sanitized error codes. Reader-facing API responses never contain filesystem paths.
 - **Source media is read-only**, enforced by the code and by the `:ro` mounts.
 - **No default credentials.** The first admin is created by you on the setup screen, and that endpoint refuses once any user exists.
+- **API tokens** (1.33.0) are created only by an admin, read only the metadata export and nothing else, and are stored as a SHA-256 fingerprint - the token itself is shown once and never written to the database or the logs (see [API tokens](api-tokens.md)).
 - Session cookies use ASP.NET Core Data Protection; the keys live in `<DataRoot>/keys`, so treat the data volume as sensitive.
 
 ## What leaves your server
@@ -32,6 +33,10 @@ With **Automatic matching** on and **Volume covers from the web** on (Metadata M
 ### Wikipedia: volume lists
 
 *New in 1.32.0.* [Wikipedia](https://en.wikipedia.org) is used only as a companion of a series already linked to a MangaUpdates record, to read which chapters make up each volume - with each volume's English release date and ISBN - from its English "List of ... chapters" page, where MangaDex's list has gaps; it is never used to identify or match a folder. MangaPixer sends only the linked MangaUpdates record number (to [Wikidata](https://www.wikidata.org), to find the English article linked to it), the page titles found that way or the linked series' MangaUpdates title (never a folder or file name), fixed query parameters and the fixed `User-Agent`, only to `en.wikipedia.org` and `www.wikidata.org`, one request at a time. Only volume and chapter numbers, dates, ISBNs, the page title and its revision are kept, credited to Wikipedia with a link. Without Automatic matching it is contacted only when an admin asks; in the background it runs only while **Volume covers from the web** is on.
+
+### API tokens
+
+*New in 1.33.0.* An admin can create **API tokens** in Administration so another program - MangaList - can read the metadata export (`/api/v1/export/`). A token can only read that export: it is refused for anything but reading requests, and sent to any other page it is ignored as if it were absent. It works only while the admin who created it is an active admin, and until it is revoked or expires. MangaPixer stores only a SHA-256 fingerprint of each token; the token is shown once, never logged (log lines name a token by its public id), and never sent anywhere. Use HTTPS when the program reaches MangaPixer from outside your home network. Details: [API tokens](api-tokens.md).
 
 ### User-Agent
 
