@@ -55,16 +55,18 @@ export interface ReviewActionDef {
   short?: string;
 }
 
+/** 1.34.0: the first action of a waiting folder that looks like a collection about a series. */
+const ACCEPT_COLLECTION: ReviewActionDef = {
+  action: 'acceptCollection', label: 'Accept as collection', short: 'Collection', icon: 'collections_bookmark', key: 'f', primary: true,
+};
+
 /** The row actions each tab offers, in button order (the phone bottom bar uses the same list). */
 export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto): ReviewActionDef[] {
   switch (tab) {
     case 'NeedsReview':
       return [
         // 1.34.0: a folder that looks like a collection about a series offers that first.
-        ...(item.collection
-          ? [{ action: 'acceptCollection', label: 'Accept as collection', short: 'Collection', icon: 'collections_bookmark', key: 'f', primary: true }
-            satisfies ReviewActionDef]
-          : []),
+        ...(item.collection ? [ACCEPT_COLLECTION] : []),
         { action: 'accept', label: 'Accept', icon: 'check', key: 'a', primary: !item.collection },
         { action: 'identify', label: 'Identify…', icon: 'travel_explore', key: 'i' },
         { action: 'dontMatch', label: 'Don\'t match', icon: 'block', key: 'd' },
