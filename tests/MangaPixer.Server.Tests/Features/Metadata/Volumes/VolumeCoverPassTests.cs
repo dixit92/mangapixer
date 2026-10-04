@@ -480,6 +480,44 @@ public sealed class VolumeCoverPassTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ANearEmptyMangaDexList_IsNoVolumeList_SoAniListIsAsked()
+    {
+        // 1.34.0 (owner): a webtoon's MangaDex list - volumes "0" and "1" with one chapter each, the rest unassigned - is "no volume
+        // list": the approved AniList fallback runs (stored rows; the MangaDex list is not due, so MangaDex is not asked again).
+        await _h.Auto.EnableAutomaticAsync();
+        _h.AniListById[85143] = """{"data":{"Media":{"id":85143,"title":{"romaji":"Kami no Tou","english":"Tower of God"},"synonyms":[],"format":"MANHWA","status":"FINISHED","volumes":20,"chapters":400,"startDate":{"year":2010},"siteUrl":"https://anilist.co/manga/85143"}}}""";
+        var (_, record) = await SeriesAsync("nearempty1", "Synthetic Near Empty", null, "0003 [0001 - Some Title].cbz");
+        var later = _h.Time.GetUtcNow().AddDays(30);
+        var md = new MetadataRecordEntity
+        {
+            PublicId = "mdnear1", Provider = "mangadex", ExternalId = "00000000-0000-0000-0000-00000000ea01", Title = "Synthetic Near Empty",
+            CrossIdsJson = """{"anilist":"85143"}""", FetchedAt = _h.Time.GetUtcNow(),
+        };
+        _t.Db.MetadataRecords.Add(md);
+        await _t.Db.SaveChangesAsync();
+        _t.Db.MetadataCompanions.Add(new MetadataCompanionEntity
+        {
+            RecordId = record.Id, Provider = "mangadex", CompanionRecordId = md.Id, State = (int)CompanionState.Auto, CheckedAt = _h.Time.GetUtcNow(), NextCheckAt = later,
+        });
+        var unassigned = "[" + string.Join(",", Enumerable.Range(2, 40).Select(c => $"\"{c}\"")) + "]";
+        _t.Db.SeriesVolumeMaps.Add(new SeriesVolumeMapEntity
+        {
+            RecordId = record.Id, Source = (int)VolumeMapSource.MangaDexAggregate, State = (int)VolumeMapState.Ok,
+            VolumesJson = """[{"v":"0","c":["0"]},{"v":"1","c":["1"]}]""", UnassignedJson = unassigned, ChaptersPerVolume = 1, KnownVolumeCount = 0,
+            ContentHash = "n", Version = 1, FetchedAt = _h.Time.GetUtcNow(), NextCheckAt = later,
+        });
+        await _t.Db.SaveChangesAsync();
+        Assert.False(VolumeMapService.HasVolumeList(await _t.Db.SeriesVolumeMaps.SingleAsync(m => m.RecordId == record.Id)));
+
+        await _h.TickAsync();
+
+        Assert.Single(_h.Handler.Seen, s => s.Uri.Host == MetadataHttp.AniListHost);
+        Assert.Empty(_h.Handler.Seen.Where(s => s.Uri.AbsolutePath.EndsWith("/aggregate", StringComparison.Ordinal)));
+        var ratio = await _t.Db.SeriesVolumeMaps.SingleAsync(m => m.RecordId == record.Id && m.Source == (int)VolumeMapSource.AniListRatio);
+        Assert.Equal((int)VolumeMapState.Ok, ratio.State);
+    }
+
+    [Fact]
     public async Task NoVolume1Cover_DownloadsTheMainCover_Once()
     {
         await _h.Auto.EnableAutomaticAsync();
