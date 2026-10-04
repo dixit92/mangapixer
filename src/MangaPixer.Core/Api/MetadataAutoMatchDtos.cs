@@ -320,12 +320,12 @@ public sealed record MetadataReviewItemDto
     public DateTimeOffset? LaterAt { get; init; }
 
     /// <summary>
-    /// 1.33.0 (Needs review): other waiting works by the same circle or artist, read from the works' own names (the leading
+    /// 1.33.0 (Needs review; 1.34.0 also Unmatched): other waiting works by the same circle or artist, read from the works' own names (the leading
     /// <c>[Circle (Artist)]</c> tag, balanced or not), else an artist folder or ComicInfo writer / penciller. Null when none.
     /// </summary>
     public MetadataReviewGroupHintDto? SameAuthor { get; init; }
 
-    /// <summary>1.33.0 (Needs review): other waiting works in the same folder (<c>Key</c> = the folder's node id). Null when none.</summary>
+    /// <summary>1.33.0 (Needs review; 1.34.0 also Unmatched): other waiting works in the same folder (<c>Key</c> = the folder's node id). Null when none.</summary>
     public MetadataReviewGroupHintDto? SameFolder { get; init; }
 
     /// <summary>
@@ -361,7 +361,7 @@ public sealed record MetadataReviewCollectionHintDto
 }
 
 /// <summary>
-/// 1.33.0: a group of works waiting in Needs review that a row belongs to - by author or by folder. <c>Key</c> is the value of the
+/// 1.33.0: a group of works waiting in Needs review (1.34.0: or listed in Unmatched) that a row belongs to - by author or by folder. <c>Key</c> is the value of the
 /// list's <c>author</c> / <c>folder</c> filter; <c>Label</c> is the author's or the folder's name (display data, never a path).
 /// </summary>
 public sealed record MetadataReviewGroupHintDto

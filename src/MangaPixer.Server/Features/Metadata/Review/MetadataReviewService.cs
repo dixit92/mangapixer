@@ -152,7 +152,7 @@ public sealed class MetadataReviewService
                 {
                     if (!string.IsNullOrEmpty(author) && !string.IsNullOrEmpty(folder))
                         return ("invalid_filter", null);
-                    groups = await GroupIndexAsync(libraryId, ct);
+                    groups = await GroupIndexAsync(MetadataReviewTab.NeedsReview, libraryId, ct);
                     var q = LinksOf(SeriesLinkState.NeedsReview, libraryId);
                     if (later is { } onlyLater)
                         q = q.Where(l => (l.LaterAt != null) == onlyLater);
@@ -191,7 +191,21 @@ public sealed class MetadataReviewService
                 }
             case MetadataReviewTab.Unmatched:
                 {
+                    if (!string.IsNullOrEmpty(author) && !string.IsNullOrEmpty(folder))
+                        return ("invalid_filter", null);
+                    // 1.34.0: the same author / folder groups as Needs review, built from the Unmatched rows.
+                    groups = await GroupIndexAsync(MetadataReviewTab.Unmatched, libraryId, ct);
                     var q = UnmatchedRows(libraryId);
+                    if (!string.IsNullOrEmpty(author))
+                    {
+                        var members = groups.Find(author)?.NodeIds.ToList() ?? [];
+                        q = q.Where(r => members.Contains(r.NodeId));
+                    }
+                    if (!string.IsNullOrEmpty(folder))
+                    {
+                        var folderId = await _db.CatalogNodes.Where(n => n.PublicId == folder).Select(n => (long?)n.Id).FirstOrDefaultAsync(ct) ?? -1;
+                        q = q.Where(r => _db.CatalogNodes.Any(n => n.Id == r.NodeId && n.ParentId == folderId));
+                    }
                     total = await q.CountAsync(ct);
                     if (after is { } a)
                         q = q.Where(r => r.Id < a);
@@ -276,12 +290,13 @@ public sealed class MetadataReviewService
     // --- Same author / same folder (1.33.0) ---
 
     /// <summary>The Authors list: author groups with at least two waiting works, largest first.</summary>
-    public async Task<MetadataReviewAuthorsDto?> AuthorsAsync(string? libraryPublicId, CancellationToken ct = default)
+    public async Task<MetadataReviewAuthorsDto?> AuthorsAsync(string? libraryPublicId, CancellationToken ct = default,
+        MetadataReviewTab tab = MetadataReviewTab.NeedsReview)
     {
         var (ok, libraryId) = await LibraryFilterAsync(libraryPublicId, ct);
         if (!ok)
             return null;
-        var index = await GroupIndexAsync(libraryId, ct);
+        var index = await GroupIndexAsync(tab, libraryId, ct);
         return new MetadataReviewAuthorsDto
         {
             Items = index.Groups.Where(g => g.NodeIds.Count >= 2)
@@ -297,10 +312,14 @@ public sealed class MetadataReviewService
     /// work still without a name, the ComicInfo writers and pencillers of the archive (a folder: of its archives) - never a
     /// translator. Nothing is stored or sent.
     /// </summary>
-    private async Task<ReviewGroupIndex> GroupIndexAsync(long? libraryId, CancellationToken ct)
+    private async Task<ReviewGroupIndex> GroupIndexAsync(MetadataReviewTab tab, long? libraryId, CancellationToken ct)
     {
+        // The works the tab lists: Needs review's link rows, or (1.34.0) the Unmatched queue rows (never "set aside").
+        var waiting = tab == MetadataReviewTab.Unmatched
+            ? UnmatchedRows(libraryId).Select(q => new WaitingRef { NodeId = q.NodeId, Later = false })
+            : LinksOf(SeriesLinkState.NeedsReview, libraryId).Select(l => new WaitingRef { NodeId = l.NodeId, Later = l.LaterAt != null });
         var rows = await (
-            from l in LinksOf(SeriesLinkState.NeedsReview, libraryId)
+            from l in waiting
             join n in _db.CatalogNodes on l.NodeId equals n.Id
             join q in _db.MetadataMatchQueue on n.Id equals q.NodeId into qs
             from q in qs.DefaultIfEmpty()
@@ -314,7 +333,7 @@ public sealed class MetadataReviewService
                 n.ParentId,
                 ParentName = p == null ? null : p.DisplayName,
                 WorkClass = q == null ? null : q.WorkClass,
-                Later = l.LaterAt != null,
+                l.Later,
             }).ToListAsync(ct);
 
         var folderKind = (int)CatalogNodeKind.Folder;
@@ -351,6 +370,13 @@ public sealed class MetadataReviewService
         }
 
         return new ReviewGroupIndex(rows.Select(r => new ReviewGroupIndex.Work(r.Id, names[r.Id], r.ParentId, r.Later)).ToList());
+    }
+
+    /// <summary>A work a group index is built from (its node, and whether an admin set it aside).</summary>
+    private sealed class WaitingRef
+    {
+        public long NodeId { get; init; }
+        public bool Later { get; init; }
     }
 
     private sealed record NodeRow(long Id, string PublicId, long LibraryId, long? ParentId, int Kind, string DisplayName, int Availability);

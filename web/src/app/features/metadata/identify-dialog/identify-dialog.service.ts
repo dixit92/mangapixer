@@ -8,6 +8,11 @@ import { isPhone } from '../series-info-overlay.service';
 export interface IdentifyDialogData {
   nodeId: string;
   /**
+   * 1.34.0: several nodes identified one at a time ("1 of N" with Link / Skip / Stop; `nodeId` is the first). Fewer than two
+   * ids = the normal single-node dialog.
+   */
+  nodeIds?: string[];
+  /**
    * `collection` (1.34.0): pick the series a folder of works is ABOUT (fan works) - the action marks the folder "Collection about"
    * that series instead of linking it. Default `link`.
    */
@@ -29,8 +34,18 @@ export class IdentifyDialogService {
   private readonly dialog = inject(MatDialog);
 
   async open(nodeId: string, mode: IdentifyMode = 'link'): Promise<boolean> {
+    return this.show({ nodeId, mode });
+  }
+
+  /** 1.34.0: identifies several nodes one at a time; resolves true when at least one was linked. */
+  async openMany(nodeIds: readonly string[]): Promise<boolean> {
+    if (nodeIds.length === 0) return false;
+    return this.show({ nodeId: nodeIds[0], nodeIds: [...nodeIds], mode: 'link' });
+  }
+
+  private async show(data: IdentifyDialogData): Promise<boolean> {
+    const mode = data.mode ?? 'link';
     const { IdentifyDialogComponent } = await import('./identify-dialog.component');
-    const data: IdentifyDialogData = { nodeId, mode };
     const phone = isPhone();
     const ref = this.dialog.open<unknown, IdentifyDialogData, IdentifyDialogResult>(IdentifyDialogComponent, {
       data,

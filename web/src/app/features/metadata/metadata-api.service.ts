@@ -219,9 +219,12 @@ export class MetadataApiService {
     }));
   }
 
-  /** 1.33.0: authors with at least two works waiting in Needs review, largest first (local names only). */
-  getReviewAuthors(libraryId: string | null = null): Observable<MetadataReviewAuthorsDto> {
-    return this.get<MetadataReviewAuthorsDto>('/admin/metadata/review/authors', params({ library: libraryId }));
+  /**
+   * 1.33.0: authors with at least two works waiting in Needs review, largest first (local names only). 1.34.0: `tab` 'Unmatched'
+   * lists the authors of the Unmatched works instead.
+   */
+  getReviewAuthors(libraryId: string | null = null, tab: 'NeedsReview' | 'Unmatched' = 'NeedsReview'): Observable<MetadataReviewAuthorsDto> {
+    return this.get<MetadataReviewAuthorsDto>('/admin/metadata/review/authors', params({ library: libraryId, tab: tab === 'NeedsReview' ? null : tab }));
   }
 
   /** 1.33.0: sets a Needs review row aside ("Later") for every admin, or brings it back (`on` false). */
