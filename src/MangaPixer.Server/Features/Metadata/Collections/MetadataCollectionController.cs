@@ -49,7 +49,6 @@ public sealed class MetadataCollectionController : ControllerBase
     /// <summary>Clears only a "Collection about" row (another link is left alone); the folder's Content stays.</summary>
     [HttpDelete("nodes/{nodeId}/collection")]
     [ProducesResponseType<NodeSeriesLinkChangeDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Clear(string nodeId, CancellationToken ct)
     {
         var (code, change) = await _collections.ClearAsync(nodeId, Actor, ct);
