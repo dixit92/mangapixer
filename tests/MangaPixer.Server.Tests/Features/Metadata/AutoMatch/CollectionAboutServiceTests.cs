@@ -252,7 +252,8 @@ public sealed class CollectionAboutServiceTests : IAsyncLifetime
         var waiting = await DoujinFolderAsync(category, "Moonlight Academy");
         await _db.AddLinkAsync(waiting, null, SeriesLinkState.NeedsReview); // still one folder-level work waiting in review
         Assert.Equal(Doujins.Length, (await SetAsync(marked))!.Queued);
-        await _db.Db.MetadataMatchQueue.ExecuteDeleteAsync(); // the first matching pass is done
+        // The first matching pass is done: its rows stay, finished (here: waiting for review).
+        await _db.Db.MetadataMatchQueue.ExecuteUpdateAsync(q => q.SetProperty(r => r.State, QueueState.Done).SetProperty(r => r.Outcome, (int)MatchBand.NeedsReview));
 
         var since = DateTimeOffset.UtcNow.AddSeconds(1);
         await Task.Delay(1100);
