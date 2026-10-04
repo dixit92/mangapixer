@@ -177,6 +177,9 @@ public enum AutoCoverReason
 
     /// <summary>A linked series folder shows the cover of its own volume 1 archive, as that archive decided it (1.30.0).</summary>
     SeriesLocalVolume1 = 13,
+
+    /// <summary>1.34.0: a "Collection about" folder shows the poster of the series it is about (its items are other works).</summary>
+    CollectionPoster = 14,
 }
 
 /// <summary>Which half of a spread page.</summary>

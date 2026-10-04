@@ -26,6 +26,12 @@ public enum SeriesInfoState
 
     /// <summary>The nearest link is "Don't match" and no ComicInfo exists.</summary>
     DontMatch = 5,
+
+    /// <summary>
+    /// 1.34.0: the node's OWN link is "Collection about" a series - a folder of works about it (fan works). The record is shown as
+    /// context (no numbers); nodes below never get this state (the collection stops inheritance).
+    /// </summary>
+    CollectionAbout = 6,
 }
 
 /// <summary>Which source wins for series-level fields.</summary>
@@ -57,6 +63,13 @@ public enum SeriesLinkState
 
     /// <summary>"This node is not one series": stops inheritance, never auto-matched.</summary>
     DontMatch = 3,
+
+    /// <summary>
+    /// 1.34.0: "Collection about" the linked record - a folder of works about that series (fan works), not the series itself. Stops
+    /// inheritance like Don't match, but automatic matching continues below it (its items are works of their own). Folders only.
+    /// What every reader does with it: <see cref="SeriesLinkStates"/>.
+    /// </summary>
+    CollectionAbout = 4,
 }
 
 /// <summary>How a link was made (<c>node_series_links.MatchMethod</c>).</summary>

@@ -13,7 +13,8 @@ using Microsoft.EntityFrameworkCore;
 /// is where web data and ComicInfo.xml meet, per field, every time:
 /// 1. <b>Web link</b>: walk the node ITSELF, then its parent, grandparent...
 ///    (bounded 64, nearest first). The first link row wins; "Don't match" means no
-///    web series and stops inheritance.
+///    web series and stops inheritance; "Collection about" (1.34.0) shows its record on its
+///    own folder only (state <see cref="SeriesInfoState.CollectionAbout"/>) and stops inheritance.
 /// 2. <b>ComicInfo</b>: an archive uses its own row; a folder aggregates its direct
 ///    child archives (or, when none of those carry ComicInfo, the archives one
 ///    level deeper), max 500 rows. The folder's series is the most common Series
@@ -68,9 +69,13 @@ public sealed class SeriesInfoResolver
             if (nearestLink is not null) { linkHolder = entry; break; }
         }
 
+        // 1.34.0: a "Collection about" row shows its record on its OWN folder only (as context, without numbers); below it the walk
+        // stops with no series, like Don't match.
+        var ownCollection = nearestLink is { State: (int)SeriesLinkState.CollectionAbout } && linkHolder?.Id == node.Id;
         MetadataRecordEntity? record = null;
-        if (nearestLink is { RecordId: { } recordId } && nearestLink.State != (int)SeriesLinkState.DontMatch)
+        if (nearestLink is { RecordId: { } recordId } && (SeriesLinkStates.IsSeries((SeriesLinkState)nearestLink.State) || ownCollection))
             record = await _db.MetadataRecords.AsNoTracking().FirstOrDefaultAsync(r => r.Id == recordId, ct);
+        ownCollection &= record is not null;
 
         // 3. Precedence.
         var (precedence, precedenceSource) = await ResolvePrecedenceAsync(node.LibraryId, chainIds, chain, ct);
@@ -106,7 +111,7 @@ public sealed class SeriesInfoResolver
 
         var hasCi = ci is not null;
         var mixed = ci?.IsMixed == true;
-        var state = (record, hasCi, mixed) switch
+        var state = ownCollection ? SeriesInfoState.CollectionAbout : (record, hasCi, mixed) switch
         {
             (not null, true, false) => SeriesInfoState.WebAndComicInfo,
             (not null, _, _) => SeriesInfoState.Web,
@@ -115,7 +120,8 @@ public sealed class SeriesInfoResolver
             _ => nearestLink?.State == (int)SeriesLinkState.DontMatch ? SeriesInfoState.DontMatch : SeriesInfoState.None,
         };
 
-        var dto = Merge(record, mixed ? null : ci, precedence);
+        // A collection's items are other works: their ComicInfo never fills the series' fields.
+        var dto = Merge(record, mixed || ownCollection ? null : ci, ownCollection ? MetadataPrecedence.WebFirst : precedence);
         var title = dto.Title;
         var sources = new Dictionary<string, MetadataFieldSource>(dto.Sources);
         if (title is null && state is not SeriesInfoState.None and not SeriesInfoState.DontMatch)
@@ -139,13 +145,14 @@ public sealed class SeriesInfoResolver
             Format = (MetadataFormat?)record?.Format,
             Webtoon = record?.Webtoon,
             StartYear = dto.StartYear,
-            OriginStatus = (MetadataOriginStatus?)record?.OriginStatus,
-            OriginVolumes = record?.OriginVolumes,
-            LatestChapter = record?.LatestChapter,
-            StatusText = record?.StatusText,
-            LicensedEn = record?.LicensedEn,
-            TranslationComplete = record?.TranslationComplete,
-            Publishers = dto.Publishers,
+            // A collection is not the series: none of its numbers (status, volumes, chapters, licensing, publishers) apply.
+            OriginStatus = ownCollection ? null : (MetadataOriginStatus?)record?.OriginStatus,
+            OriginVolumes = ownCollection ? null : record?.OriginVolumes,
+            LatestChapter = ownCollection ? null : record?.LatestChapter,
+            StatusText = ownCollection ? null : record?.StatusText,
+            LicensedEn = ownCollection ? null : record?.LicensedEn,
+            TranslationComplete = ownCollection ? null : record?.TranslationComplete,
+            Publishers = ownCollection ? [] : dto.Publishers,
             FieldSources = sources,
             Item = ownRow is null ? null : new SeriesInfoItemDto
             {
@@ -192,7 +199,7 @@ public sealed class SeriesInfoResolver
     /// <summary>
     /// The web record that applies to <paramref name="node"/> (lane B2: poster
     /// endpoint, Refresh): the nearest confirmed/auto link walking self -> ancestors,
-    /// or null at a Don't match or when there is none. Same walk as <see cref="ResolveAsync"/>.
+    /// or null at a Don't match, a "Collection about" row (1.34.0) or when there is none. Same walk as <see cref="ResolveAsync"/>.
     /// </summary>
     public async Task<MetadataRecordEntity?> ResolveWebRecordAsync(CatalogNodeEntity node, CancellationToken ct = default)
     {
@@ -206,11 +213,24 @@ public sealed class SeriesInfoResolver
             var link = links.FirstOrDefault(l => l.NodeId == entry.Id);
             if (link is null)
                 continue;
-            if (link.State == (int)SeriesLinkState.DontMatch || link.RecordId is not { } recordId)
-                return null;
+            if (!SeriesLinkStates.IsSeries((SeriesLinkState)link.State) || link.RecordId is not { } recordId)
+                return null; // Don't match, or (1.34.0) a collection - not this node's series.
             return await _db.MetadataRecords.AsNoTracking().FirstOrDefaultAsync(r => r.Id == recordId, ct);
         }
         return null;
+    }
+
+    /// <summary>
+    /// 1.34.0: the record the node's OWN series information shows - <see cref="ResolveWebRecordAsync"/>, or the record of the node's own
+    /// "Collection about" row (a label: the poster and a manual Refresh; never volume covers, lists or numbers). Null otherwise.
+    /// </summary>
+    public async Task<MetadataRecordEntity?> ResolveShownRecordAsync(CatalogNodeEntity node, CancellationToken ct = default)
+    {
+        var own = await _db.NodeSeriesLinks.AsNoTracking().Where(l => l.NodeId == node.Id)
+            .Select(l => new { l.State, l.RecordId }).FirstOrDefaultAsync(ct);
+        if (own is { State: (int)SeriesLinkState.CollectionAbout, RecordId: { } recordId })
+            return await _db.MetadataRecords.AsNoTracking().FirstOrDefaultAsync(r => r.Id == recordId, ct);
+        return await ResolveWebRecordAsync(node, ct);
     }
 
     /// <summary>The node-scoped, versioned poster URL (lane B2).</summary>

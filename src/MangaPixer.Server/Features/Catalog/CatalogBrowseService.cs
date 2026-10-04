@@ -1218,7 +1218,7 @@ public sealed partial class CatalogBrowseService
 
     /// <summary>
     /// Nodes linked (Confirmed or Auto; never NeedsReview or DontMatch) to a metadata
-    /// record with a title matching the query. Same visibility as catalog search
+    /// record with a title matching the query, and (1.34.0) folders that are a "Collection about" such a record. Same visibility as catalog search
     /// (<paramref name="libIds"/> is the viewer's visible set, narrowed to the requested
     /// library); libraries and instances with "Show series information" off are excluded.
     /// Distinct anchors, first 20 by SortKey, each with its shortest matching title.
@@ -1237,7 +1237,7 @@ public sealed partial class CatalogBrowseService
                    lib.PublicId AS LibraryPublicId,
                    h.title AS MatchedTitle
             FROM (SELECT record_id, title FROM series_search WHERE series_search MATCH @query) h
-            JOIN node_series_links l ON l.RecordId = h.record_id AND l.State IN ({(int)SeriesLinkState.Confirmed}, {(int)SeriesLinkState.Auto})
+            JOIN node_series_links l ON l.RecordId = h.record_id AND l.State IN ({(int)SeriesLinkState.Confirmed}, {(int)SeriesLinkState.Auto}, {(int)SeriesLinkState.CollectionAbout})
             JOIN catalog_nodes cn ON cn.Id = l.NodeId
             LEFT JOIN catalog_nodes parent ON cn.ParentId = parent.Id
             JOIN libraries lib ON cn.LibraryId = lib.Id

@@ -22,7 +22,8 @@ import { FOLDER_CONTENT_OPTIONS, contentCaption, contentSuggestion, rematchMessa
  * or for this library (it carries the (i) icon, so it reads as series information);
  * the admin settings page is where it is turned back on. Stage 2 adds the folder
  * Content setting for the selected FOLDERS (with the one folder's current value and
- * the detector's suggestion when exactly one is selected). Link changes are announced
+ * the detector's suggestion when exactly one is selected). 1.34.0: "Collection about..." (exactly one FOLDER: the identify dialog's
+ * "pick the series" mode) and "Clear collection" (only clears Collection about rows). Link changes are announced
  * through `MetadataStateService` so the cards' (i) update in place.
  */
 @Component({
@@ -41,12 +42,20 @@ import { FOLDER_CONTENT_OPTIONS, contentCaption, contentSuggestion, rematchMessa
       <button mat-menu-item [disabled]="selectedNodes().length !== 1" (click)="identify()" data-testid="bulk-identify">
         <mat-icon>travel_explore</mat-icon> Identify…
       </button>
+      <button mat-menu-item [disabled]="selectedNodes().length !== 1 || selectedFolders().length !== 1" (click)="collection()"
+              matTooltip="A folder of works about a series (fan works): the folder shows the series, its items are matched on their own"
+              matTooltipPosition="left" data-testid="bulk-collection">
+        <mat-icon>collections_bookmark</mat-icon> Collection about…
+      </button>
       <mat-divider />
       <button mat-menu-item (click)="dontMatch(true)" data-testid="bulk-dont-match">
         <mat-icon>block</mat-icon> Don't match
       </button>
       <button mat-menu-item (click)="dontMatch(false)" data-testid="bulk-clear-dont-match">
         <mat-icon>undo</mat-icon> Clear "Don't match"
+      </button>
+      <button mat-menu-item [disabled]="selectedFolders().length === 0" (click)="clearCollection()" data-testid="bulk-clear-collection">
+        <mat-icon>undo</mat-icon> Clear collection
       </button>
       <mat-divider />
       <span class="caption">Source precedence (folders)</span>
@@ -190,6 +199,19 @@ export class SeriesSelectionActionsComponent implements OnInit {
   identify(): void {
     const nodes = this.selectedNodes();
     if (nodes.length === 1) void this.identifyDialog.open(nodes[0].id);
+  }
+
+  /** 1.34.0: the identify dialog's "pick the series these works are about" mode for the one selected folder. */
+  collection(): void {
+    const folders = this.selectedFolders();
+    if (folders.length === 1 && this.selectedNodes().length === 1) void this.identifyDialog.open(folders[0].id, 'collection');
+  }
+
+  /** 1.34.0: clears "Collection about" on the selected folders (any other link stays). */
+  clearCollection(): void {
+    const folders = this.selectedFolders();
+    this.runAll(folders.map((f) => this.api.clearCollection(f.id)), `Collection cleared on ${plural(folders.length, 'folder')}`,
+      () => folders.forEach((f) => this.metadataState.refresh(f.id)));
   }
 
   dontMatch(on: boolean): void {

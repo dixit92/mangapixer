@@ -86,7 +86,8 @@ public sealed class SeriesInfoFlagService
         var pageIds = nodes.Select(r => r.InternalId).ToList();
         var has = (await _db.NodeSeriesLinks
             .Where(l => pageIds.Contains(l.NodeId) && l.RecordId != null
-                && (l.State == (int)SeriesLinkState.Confirmed || l.State == (int)SeriesLinkState.Auto))
+                && (l.State == (int)SeriesLinkState.Confirmed || l.State == (int)SeriesLinkState.Auto
+                    || l.State == (int)SeriesLinkState.CollectionAbout)) // 1.34.0: a collection shows its series on itself
             .Select(l => l.NodeId)
             .ToListAsync(ct)).ToHashSet();
 
@@ -173,7 +174,8 @@ public sealed class SeriesInfoFlagService
         try
         {
             using var command = connection.CreateCommand();
-            // State: 0 Confirmed, 1 Auto, 2 NeedsReview (skipped), 3 DontMatch.
+            // State: 0 Confirmed, 1 Auto, 2 NeedsReview (skipped), 3 DontMatch, 4 CollectionAbout (1.34.0: its own folder only - it
+            // stops inheritance like Don't match).
             command.CommandText = $"""
                 WITH RECURSIVE up(StartId, NodeId, ParentId, Depth) AS (
                     SELECT Id, Id, ParentId, 0 FROM catalog_nodes WHERE Id IN ({ids})
@@ -184,13 +186,13 @@ public sealed class SeriesInfoFlagService
                     WHERE u.Depth < {SeriesInfoResolver.MaxWalkDepth}
                 ),
                 ranked AS (
-                    SELECT u.StartId, l.State, l.RecordId,
+                    SELECT u.StartId, u.Depth, l.State, l.RecordId,
                            ROW_NUMBER() OVER (PARTITION BY u.StartId ORDER BY u.Depth) AS rn
                     FROM up u
                     JOIN node_series_links l ON l.NodeId = u.NodeId AND l.State != 2
                 )
                 SELECT StartId FROM ranked
-                WHERE rn = 1 AND State IN (0, 1) AND RecordId IS NOT NULL;
+                WHERE rn = 1 AND RecordId IS NOT NULL AND (State IN (0, 1) OR (State = 4 AND Depth = 0));
                 """;
 
             using var reader = await command.ExecuteReaderAsync(ct);

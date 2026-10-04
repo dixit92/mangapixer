@@ -10,7 +10,9 @@ namespace com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 /// trailing <c>[English Title]</c>, subtitle split, sequel-number split, archive-derived title,
 /// and for doujin-shaped archives the MangaUpdates <c>&lt;parody&gt; dj - &lt;title&gt;</c> form. One exception
 /// (1.27.0): an archive-derived title that extends the folder name word for word (the folder is the leading
-/// part of a long title) is the second search, right after the folder's own names. Variants are
+/// part of a long title) is the second search, right after the folder's own names. Another (1.34.0): below a "Collection about"
+/// folder (<see cref="FolderShape.CollectionSeries"/>), the parody form built from that series' title is the second search too, when
+/// the name carries no <c>(parody)</c> of its own. Variants are
 /// de-duplicated by their scoring form (a variant that differs only in case or punctuation is one
 /// query).
 /// </summary>
@@ -43,6 +45,10 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
         }
         else if (archives.Count == 1 && TitleNormalizer.Normalize(archives[0]).Primary is { Length: > 0 } single)
             variants.Add(single, QueryVariantKind.ArchiveDerivedTitle);
+
+        // 1.34.0: a work inside a "Collection about" folder is a fan work of that series.
+        if (CollectionParody(folder) is { } folderParody && name.Primary.Length > 0)
+            variants.Add($"{folderParody} dj - {name.Primary}", QueryVariantKind.DoujinParodyForm, SecondSearch);
 
         var anatomies = archives.Select(ArchiveNameAnatomy.Parse).ToList();
         var authorTags = DominantCreatorTags(anatomies);
@@ -120,14 +126,23 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
         if (TitleNormalizer.ArchiveTitle(names) is { } archiveTitle)
             variants.Add(archiveTitle, QueryVariantKind.ArchiveDerivedTitle);
 
+        var ownParody = false;
         foreach (var a in anatomies)
         {
             if (a.IsDoujinShaped && a.Parody is { } parody && a.Title.Length > 0)
             {
                 var title = names.Count > 1 && groupTitle.Primary.Length > 0 ? groupTitle.Primary : a.Title;
                 variants.Add($"{parody} dj - {title}", QueryVariantKind.DoujinParodyForm);
+                ownParody = true;
                 break;
             }
+        }
+        // 1.34.0: in a "Collection about" folder the series is the parody (unless the name states its own, e.g. a crossover).
+        if (!ownParody && CollectionParody(folder) is { } collectionParody)
+        {
+            var title = groupTitle.Primary.Length > 0 ? groupTitle.Primary : anatomies.Select(a => a.Title).FirstOrDefault(t => t.Length > 0);
+            if (!string.IsNullOrEmpty(title))
+                variants.Add($"{collectionParody} dj - {title}", QueryVariantKind.DoujinParodyForm, SecondSearch);
         }
 
         var authorTags = new List<string>();
@@ -160,6 +175,10 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
             Units: CountEvidence.LocalOf(names, null));
         return new MatchQuery(variants.ToList(), context);
     }
+
+    /// <summary>The series title of the nearest "Collection about" folder, trimmed, or null.</summary>
+    private static string? CollectionParody(FolderShape folder) =>
+        string.IsNullOrWhiteSpace(folder.CollectionSeries) ? null : folder.CollectionSeries.Trim();
 
     private static void AddNameVariants(VariantList variants, NormalizedTitle name)
     {

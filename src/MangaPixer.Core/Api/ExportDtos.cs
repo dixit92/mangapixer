@@ -109,7 +109,10 @@ public sealed record ExportItemDto
 /// <summary>The node's own link row.</summary>
 public sealed record ExportLinkDto
 {
-    /// <summary><c>Confirmed</c>, <c>Auto</c>, <c>NeedsReview</c> or <c>DontMatch</c>.</summary>
+    /// <summary>
+    /// <c>Confirmed</c>, <c>Auto</c>, <c>NeedsReview</c>, <c>DontMatch</c> or (1.34.0) <c>CollectionAbout</c> - a folder of works about the
+    /// <c>record</c> (a label: never matched as the series, no numbers). Treat an unknown state as "not a series".
+    /// </summary>
     public required string State { get; init; }
 
     /// <summary><c>search</c>, <c>reference</c>, <c>comicInfo</c> or <c>auto</c>, or null.</summary>

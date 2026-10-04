@@ -91,8 +91,8 @@ import { SeriesInfoSummaryComponent } from './series-info-summary.component';
             }
             @if (auth.isAdmin()) {
               <app-series-admin-actions [info]="i" (changed)="reload()" />
-            } @else if (i.web) {
-              <!-- Readers: "Wrong series?" (stage 2) when web data is shown. -->
+            } @else if (i.web && i.state !== 'CollectionAbout') {
+              <!-- Readers: "Wrong series?" (stage 2) when web data is shown (1.34.0: not on a collection's label). -->
               <app-wrong-series-flag [nodeId]="i.anchorNodeId" [title]="i.title || i.anchorDisplayName" />
             }
           </div>

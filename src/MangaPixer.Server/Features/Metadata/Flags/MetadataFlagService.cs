@@ -66,7 +66,8 @@ public sealed class MetadataFlagService
             return (null, null);
 
         var info = await _resolver.ResolveAsync(node, includeItems: false, ct);
-        if (info.Web is null || info.Link is null)
+        // 1.34.0: a "Collection about" label is not a series link - readers cannot flag it.
+        if (info.Web is null || info.Link is null || info.State == SeriesInfoState.CollectionAbout)
             return (node, null);
         var anchorId = await _db.CatalogNodes.AsNoTracking().Where(n => n.PublicId == info.Link.NodeId).Select(n => n.Id).FirstOrDefaultAsync(ct);
         var record = await _resolver.ResolveWebRecordAsync(node, ct);

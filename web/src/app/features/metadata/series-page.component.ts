@@ -142,11 +142,11 @@ import { SeriesRefreshCadenceComponent } from './series-refresh-cadence/series-r
 
         @if (auth.isAdmin()) {
           <section class="section admin" aria-label="Series administration">
-            <app-series-refresh-cadence [linkNodeId]="i.link?.nodeId" />
+            <app-series-refresh-cadence [linkNodeId]="i.state === 'CollectionAbout' ? null : i.link?.nodeId" />
             <app-series-admin-actions [info]="i" (changed)="load(i.anchorNodeId)" />
           </section>
-        } @else if (i.web) {
-          <!-- Readers: "Wrong series?" (stage 2) when web data is shown. -->
+        } @else if (i.web && i.state !== 'CollectionAbout') {
+          <!-- Readers: "Wrong series?" (stage 2) when web data is shown (1.34.0: not on a collection's label). -->
           <section class="section flag" aria-label="Report a wrong series">
             <app-wrong-series-flag [nodeId]="i.anchorNodeId" [title]="i.title || i.anchorDisplayName" />
           </section>

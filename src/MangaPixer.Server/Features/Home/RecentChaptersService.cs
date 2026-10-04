@@ -342,7 +342,8 @@ public sealed class RecentChaptersService
         try
         {
             using var command = connection.CreateCommand();
-            // State: 0 Confirmed, 1 Auto (a series link with a record); Kind 0 is a folder.
+            // State: 0 Confirmed, 1 Auto (a series link with a record), 4 CollectionAbout (1.34.0: new works inside a collection
+            // stack on it); Kind 0 is a folder.
             command.CommandText = $"""
                 WITH RECURSIVE up(ArchiveId, NodeId, ParentId, Depth) AS (
                     SELECT Id, Id, ParentId, 0 FROM catalog_nodes WHERE Id IN ({ids})
@@ -354,7 +355,7 @@ public sealed class RecentChaptersService
                 )
                 SELECT u.ArchiveId, u.Depth, u.NodeId, n.DisplayName,
                        EXISTS (SELECT 1 FROM node_series_links l
-                               WHERE l.NodeId = u.NodeId AND l.RecordId IS NOT NULL AND l.State IN (0, 1)) AS Linked
+                               WHERE l.NodeId = u.NodeId AND l.RecordId IS NOT NULL AND l.State IN (0, 1, 4)) AS Linked
                 FROM up u
                 JOIN catalog_nodes n ON n.Id = u.NodeId
                 WHERE u.Depth > 0 AND n.Kind = {(int)CatalogNodeKind.Folder}

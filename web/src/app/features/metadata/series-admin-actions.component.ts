@@ -28,6 +28,8 @@ import { CoverPickerDialogService } from '../../shared/cover-picker/cover-picker
  * - Change MangaDex match... (1.29.0, a node with a web link): the MangaDex record that gives the linked series its
  *   volume covers and volume list - choose another, "Not on MangaDex", or check again.
  * - Choose cover... (1.29.0) - the cover picker for this node (folders and archives).
+ * - Collection about... / Clear collection (1.34.0, folders): this folder holds works ABOUT a series (fan works) - pick the
+ *   series in the identify dialog's collection mode; the folder shows it as context, its items are matched on their own.
  * - Content (folders, stage 2): Auto / Doujinshi & adult one-shots / Not doujinshi, with
  *   where the current value comes from and the detector's suggestion (loaded when the
  *   menu opens; hidden when the server has no Content setting).
@@ -58,7 +60,7 @@ import { CoverPickerDialogService } from '../../shared/cover-picker/cover-picker
         <button mat-menu-item [disabled]="!identifyAvailable()" (click)="refresh()" data-testid="refresh">
           <mat-icon>refresh</mat-icon> Refresh from {{ info().web!.providerName }}
         </button>
-        @if (info().web!.provider === 'mangaupdates') {
+        @if (info().web!.provider === 'mangaupdates' && !ownCollection()) {
           <button mat-menu-item (click)="changeMangaDex()" data-testid="mangadex-match">
             <mat-icon>photo_library</mat-icon> Change MangaDex match…
           </button>
@@ -79,6 +81,18 @@ import { CoverPickerDialogService } from '../../shared/cover-picker/cover-picker
         <button mat-menu-item (click)="unlink()" data-testid="unlink">
           <mat-icon>link_off</mat-icon> Unlink
         </button>
+      }
+      @if (isFolder()) {
+        <!-- 1.34.0: a folder of works about a series (fan works). -->
+        <button mat-menu-item [disabled]="!identifyAvailable() && !ownCollection()" (click)="collection()" data-testid="collection-about"
+                matTooltip="A folder of works about a series (fan works): the folder shows the series, its items are matched on their own">
+          <mat-icon>collections_bookmark</mat-icon> {{ ownCollection() ? 'Change series…' : 'Collection about…' }}
+        </button>
+        @if (ownCollection()) {
+          <button mat-menu-item (click)="clearCollection()" data-testid="clear-collection">
+            <mat-icon>undo</mat-icon> Clear collection
+          </button>
+        }
       }
       <!-- 1.29.0 cover layer: the admin's cover choice for this node. -->
       <mat-divider />
@@ -245,11 +259,28 @@ export class SeriesAdminActionsComponent {
     return !!link && !link.inherited && link.state === 'DontMatch';
   });
 
-  /** The node's OWN row is a web link. */
+  /** The node's OWN row is a web link (a series, not a collection). */
   readonly ownLink = computed(() => {
     const link = this.info().link;
-    return !!link && !link.inherited && link.state !== 'DontMatch';
+    return !!link && !link.inherited && link.state !== 'DontMatch' && link.state !== 'CollectionAbout';
   });
+
+  /** 1.34.0: the node's OWN row is "Collection about" a series. */
+  readonly ownCollection = computed(() => {
+    const link = this.info().link;
+    return !!link && !link.inherited && link.state === 'CollectionAbout';
+  });
+
+  /** Opens the identify dialog in its "pick the series these works are about" mode. */
+  collection(): void {
+    void this.identifyDialog.open(this.info().nodeId, 'collection').then((changed) => {
+      if (changed) this.changed.emit();
+    });
+  }
+
+  clearCollection(): void {
+    this.run(this.api.clearCollection(this.info().nodeId), 'Collection cleared', true);
+  }
 
   readonly isFolder = computed(() => this.info().nodeKind === 'Folder');
 

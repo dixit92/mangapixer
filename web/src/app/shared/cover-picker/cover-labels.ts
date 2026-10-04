@@ -15,6 +15,7 @@ const REASONS: Record<string, string> = {
   WebtoonDefault: 'the series cover from the web (a webtoon)',
   OneShotDefault: 'the cover from the web (a one-shot)',
   SubfolderFirstVolume: 'the web cover of the volume this part starts in',
+  CollectionPoster: 'the poster of the series this collection is about',
 };
 
 const SOURCES: Record<CardCoverSource, string> = {

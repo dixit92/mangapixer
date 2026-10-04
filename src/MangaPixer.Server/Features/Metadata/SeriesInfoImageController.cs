@@ -60,7 +60,8 @@ public sealed class SeriesInfoImageController : ControllerBase
         if (await _settings.IsSeriesInfoHiddenAsync(node.LibraryId, ct))
             return NotFound();
 
-        var record = await _resolver.ResolveWebRecordAsync(node, ct);
+        // 1.34.0: a "Collection about" folder shows its series' poster too.
+        var record = await _resolver.ResolveShownRecordAsync(node, ct);
         if (record is not { ImageState: 1 } || _images.Open(record.Id, record.ImageVersion) is not { } image)
             return NotFound();
 

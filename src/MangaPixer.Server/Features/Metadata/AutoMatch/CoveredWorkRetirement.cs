@@ -12,18 +12,25 @@ using Microsoft.EntityFrameworkCore;
 /// their stored candidates, and finished queue rows (Unmatched, failed, skipped) - are removed and
 /// drop out of the review lists. Admin decisions below (Confirmed, Auto, Don't match links) stay.
 /// Pending or leased rows stay too: the worker skips them once an ancestor is linked or in review.
+/// 1.34.0: a linked series (Confirmed / Auto) does not speak for a "Collection about" folder inside it - the nearest decision wins, so the
+/// collection's subtree keeps its works. A Don't match or a waiting folder speaks for everything below, collections included.
 /// </summary>
 public static class CoveredWorkRetirement
 {
     /// <summary>Returns the number of rows removed (review links plus queue rows).</summary>
     public static async Task<int> RetireBelowAsync(MangaPixerDbContext db, LibraryTreeSnapshot tree, long folderId, CancellationToken ct)
     {
+        var own = await db.NodeSeriesLinks.AsNoTracking().Where(l => l.NodeId == folderId).Select(l => (int?)l.State).FirstOrDefaultAsync(ct);
+        var stopAtCollections = own is { } state && SeriesLinkStates.CoverBelow((SeriesLinkState)state) == MatchingCoverKind.Covers;
+
         var below = new List<long>();
         var stack = new Stack<long>([folderId]);
         while (stack.Count > 0)
         {
             foreach (var child in tree.ChildrenOf(stack.Pop()))
             {
+                if (stopAtCollections && child.IsFolder && tree.Collections.ContainsKey(child.Id))
+                    continue; // The collection and its works answer for themselves.
                 below.Add(child.Id);
                 if (child.IsFolder)
                     stack.Push(child.Id);

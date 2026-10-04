@@ -63,6 +63,8 @@ describe('ReviewDashboardComponent', () => {
         results: nodeIds.map((nodeId) => ({ nodeId, code: opts.failIds?.includes(nodeId) ? 'not_found' : 'ok' })),
       })),
       clearDontMatch: vi.fn((nodeId: string) => of({ nodeId })),
+      acceptCollection: vi.fn((nodeId: string) => of({ change: { nodeId } })),
+      clearCollection: vi.fn((nodeId: string) => of({ nodeId })),
       deleteMissing: vi.fn(() => of(undefined)),
       setReviewLater: vi.fn((_nodeId: string, _on: boolean) => of(undefined)),
       getReviewAuthors: vi.fn(() => of({ items: [{ key: 'circlea', label: 'Circle A', count: 4, later: 1 }, { key: 'artistb', label: 'Artist B', count: 2 }] })),
@@ -224,7 +226,7 @@ describe('ReviewDashboardComponent', () => {
   it('Identify removes the row after a link', async () => {
     const { c, identify, names } = create();
     c.onRowAction({ action: 'identify', item: rows[2] });
-    expect(identify.open).toHaveBeenCalledWith('n3');
+    expect(identify.open).toHaveBeenCalledWith('n3', 'link');
     await vi.waitFor(() => expect(names()).toEqual(['Alpha Saga', 'Beta Saga']));
   });
 
@@ -419,5 +421,65 @@ describe('ReviewDashboardComponent', () => {
     // Another tab does not show it.
     const other = create({ tab: 'Unmatched', apiOverrides: { getReviewSummary: vi.fn(() => of(summary({ recheckPending: 2 }))) } });
     expect(other.el.querySelector('[data-testid="review-rechecking"]')).toBeNull();
+  });
+
+  describe('1.34.0: Collection about', () => {
+    const doujins = reviewItem({
+      nodeId: 'n9', displayName: 'Starlight Academy', workClass: 'Ambiguous', matchLevel: 'ReviewOnly',
+      collection: { rank: 2, provider: 'mangaupdates', externalId: '200', title: 'Synthetic Saga Returns' },
+    });
+
+    it('a waiting folder that looks like a collection offers "Accept as collection" first, with the suggested series preselected', () => {
+      const { c, el, api, snack } = create({ pages: { NeedsReview: [doujins, rows[1]] } });
+      expect(el.querySelector('[data-testid="review-collection-hint"]')!.textContent).toContain('Looks like a collection about Synthetic Saga Returns');
+      const buttons = Array.from(el.querySelectorAll('[data-node="n9"] .actions button')).map((b) => b.getAttribute('data-testid'));
+      expect(buttons[0]).toBe('review-acceptCollection');
+      expect(c.rankOf(doujins)).toBe(2);
+      // A row without the hint keeps Accept as its first action.
+      expect(el.querySelector('[data-node="n2"] .actions button')!.getAttribute('data-testid')).toBe('review-accept');
+
+      (el.querySelector('[data-node="n9"] [data-testid="review-acceptCollection"]') as HTMLButtonElement).click();
+      expect(snack.last().label).toBe('Collection about Synthetic Saga Returns: Starlight Academy');
+      expect(api.acceptCollection).not.toHaveBeenCalled();
+      snack.close();
+      expect(api.acceptCollection).toHaveBeenCalledWith('n9', 2);
+    });
+
+    it('"f" accepts the focused row as a collection; the bulk bar offers it for the selection', () => {
+      const { api, snack, key } = create({ pages: { NeedsReview: [doujins] } });
+      key('f');
+      snack.close();
+      expect(api.acceptCollection).toHaveBeenCalledWith('n9', 2);
+      TestBed.resetTestingModule();
+
+      const bulk = create({ pages: { NeedsReview: [doujins, rows[1]] } });
+      bulk.c.toggle('n9');
+      bulk.fixture.detectChanges();
+      (bulk.el.querySelector('[data-testid="bulk-AcceptCollection"]') as HTMLButtonElement).click();
+      bulk.snack.close();
+      expect(bulk.api.reviewBulk).toHaveBeenCalledWith('AcceptCollection', ['n9']);
+    });
+
+    it('the Collections tab clears a collection or changes its series in the identify dialog', async () => {
+      const marked = reviewItem({
+        nodeId: 'n7', displayName: 'Starlight Fan Works', candidates: [], reasons: [],
+        link: { state: 'CollectionAbout', title: 'Starlight Academy', updatedAt: '2026-10-04T10:00:00Z' },
+      });
+      const { c, el, api, snack, identify } = create({ tab: 'Collections', pages: { Collections: [marked] } });
+      expect(el.querySelector('[data-testid="review-link"]')!.textContent).toContain('Collection about Starlight Academy');
+      c.onRowAction({ action: 'clearCollection', item: marked });
+      snack.close();
+      expect(api.clearCollection).toHaveBeenCalledWith('n7');
+      c.onRowAction({ action: 'changeCollection', item: marked });
+      await Promise.resolve();
+      expect(identify.open).toHaveBeenCalledWith('n7', 'collection');
+    });
+
+    it('the phone bar uses the short label', () => {
+      const { el, c, fixture } = create({ phone: true, pages: { NeedsReview: [doujins] } });
+      c.focusIndex.set(0);
+      fixture.detectChanges();
+      expect(el.querySelector('[data-testid="bar-acceptCollection"]')!.textContent).toContain('Collection');
+    });
   });
 });
