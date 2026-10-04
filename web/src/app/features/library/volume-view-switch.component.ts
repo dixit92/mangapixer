@@ -5,6 +5,8 @@ import { MatIconModule } from '@angular/material/icon';
  * The Volumes | Folders switch of a series header (1.29.0): two segments, the active one highlighted. Shown by the browse
  * view only where a Volumes view exists for the folder. Presentational: the host persists the choice (the per-user
  * `seriesViewMode` preference) and reloads the list. On the phone breakpoint the labels drop and the icons remain.
+ * 1.34.0: for a webtoon / manhwa without a volume list (`chapters`) the first segment reads Chapters - the same view, which lists
+ * the chapters in order with the series status.
  */
 @Component({
   selector: 'app-volume-view-switch',
@@ -14,8 +16,12 @@ import { MatIconModule } from '@angular/material/icon';
   template: `
     <div class="switch" role="group" aria-label="Series view" data-testid="volume-view-switch">
       <button type="button" [class.on]="active()" [attr.aria-pressed]="active()" (click)="pick(true)" data-testid="view-volumes"
-              [disabled]="disabled()" [title]="disabled() ? disabledHint() : 'Group chapters into volumes'">
-        <mat-icon>collections_bookmark</mat-icon><span class="lbl">Volumes</span>
+              [disabled]="disabled()" [title]="disabled() ? disabledHint() : chapters() ? 'Show the chapters in order' : 'Group chapters into volumes'">
+        @if (chapters()) {
+          <mat-icon>format_list_numbered</mat-icon><span class="lbl">Chapters</span>
+        } @else {
+          <mat-icon>collections_bookmark</mat-icon><span class="lbl">Volumes</span>
+        }
       </button>
       <button type="button" [class.on]="!active()" [attr.aria-pressed]="!active()" (click)="pick(false)" data-testid="view-folders"
               [disabled]="disabled()" [title]="disabled() ? disabledHint() : 'Show the real folders'">
@@ -41,6 +47,9 @@ import { MatIconModule } from '@angular/material/icon';
 export class VolumeViewSwitchComponent {
   /** True while the Volumes view is shown. */
   readonly active = input.required<boolean>();
+
+  /** 1.34.0: the series' view is its chapter list (a webtoon / manhwa without a volume list): the first segment reads Chapters. */
+  readonly chapters = input(false);
 
   /** An inert switch (optional). Browse no longer uses it (1.31.0): under another sort, picking Volumes switches to Name. */
   readonly disabled = input(false);

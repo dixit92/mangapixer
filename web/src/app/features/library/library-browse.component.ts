@@ -178,7 +178,7 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
              series view preference. 1.31.0: never inert - under another sort the list is flat (Folders shows as on) and
              picking Volumes switches to the Name sort with a snackbar + Undo; the filters work inside the Volumes view. -->
         @if (volumeView()?.available) {
-          <app-volume-view-switch [active]="volumesActive() && !volumesSuspended()"
+          <app-volume-view-switch [active]="volumesActive() && !volumesSuspended()" [chapters]="!!volumeView()?.chaptersOnly"
                                   (changed)="pickSeriesView($event)" />
         }
         <button mat-stroked-button class="view-toggle" [matMenuTriggerFor]="viewMenu"
