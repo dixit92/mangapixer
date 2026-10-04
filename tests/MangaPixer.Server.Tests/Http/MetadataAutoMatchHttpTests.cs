@@ -503,8 +503,12 @@ public sealed class MetadataAutoMatchHttpTests
             foreach (var n in new[] { one, two })
                 db.MetadataMatchQueue.Add(new MetadataMatchQueueEntity
                 {
-                    NodeId = n.Id, LibraryId = lib.Id, State = QueueState.Done, Outcome = (int)MatchBand.Unmatched,
-                    WorkClass = (int)WorkClass.CollectionLeaf, EnqueuedAt = DateTimeOffset.UtcNow,
+                    NodeId = n.Id,
+                    LibraryId = lib.Id,
+                    State = QueueState.Done,
+                    Outcome = (int)MatchBand.Unmatched,
+                    WorkClass = (int)WorkClass.CollectionLeaf,
+                    EnqueuedAt = DateTimeOffset.UtcNow,
                 });
             await db.SaveChangesAsync();
         }
