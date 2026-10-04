@@ -2036,6 +2036,11 @@ export interface VolumeViewDto {
   defaultActive?: boolean;
   consolidated: boolean;
   stackCount: number;
+  /**
+   * 1.34.0: a webtoon / manhwa / manhua without a real volume list - the view lists its chapters in chapter order (the switch says
+   * Chapters), never volumes from a list or missing-volume placeholders.
+   */
+  chaptersOnly?: boolean;
   /** 1.29.0 RC: the folder has its own series link - the status line below is shown. */
   hasSeriesStatus?: boolean;
   seriesStatus?: MetadataOriginStatus | null;

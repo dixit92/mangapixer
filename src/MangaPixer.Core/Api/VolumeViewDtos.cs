@@ -30,6 +30,12 @@ public sealed record VolumeViewDto
     public required int StackCount { get; init; }
 
     /// <summary>
+    /// 1.34.0: the linked series is a webtoon / manhwa / manhua without a real volume list (two or more MangaDex volumes, or a Wikipedia
+    /// list) - the view lists its chapters in chapter order, never volumes from a list or missing-volume placeholders.
+    /// </summary>
+    public bool ChaptersOnly { get; init; }
+
+    /// <summary>
     /// 1.29.0 RC: the series status line is shown - the folder has its own link to a series record. The fields below are set only
     /// then.
     /// </summary>

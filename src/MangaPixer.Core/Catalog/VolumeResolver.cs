@@ -29,6 +29,9 @@ internal sealed class VolumeResolver
     public VolumeResolver(VolumeMapInput map)
     {
         ArgumentNullException.ThrowIfNull(map);
+        // Chapter mode (1.34.0): the list places nothing - every chapter stays loose.
+        if (map.ChaptersOnly)
+            map = map with { Volumes = [], ChaptersPerVolume = null, KnownVolumeCount = null };
         HasData = map.HasData;
         _exact = map.Volumes
             .Where(v => v.Chapters.Count > 0)

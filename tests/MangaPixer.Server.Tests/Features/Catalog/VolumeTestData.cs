@@ -147,6 +147,45 @@ internal static class VolumeTestData
         return map;
     }
 
+    /// <summary>
+    /// 1.34.0: a webtoon folder named the owner's way - <c>0001 [0000]</c>, <c>0002 [0000.5]</c>, then <c>0003 [0001 - Some Title]</c> ...
+    /// (a running index, the chapter in the first bracket) - for chapters 1..<paramref name="last"/> except <paramref name="without"/>.
+    /// </summary>
+    public static async Task AddIndexedChaptersAsync(MangaPixerDbContext db, long libraryId, long parentId, int last, params int[] without)
+    {
+        await AddArchiveAsync(db, libraryId, parentId, "0001 [0000].cbz");
+        await AddArchiveAsync(db, libraryId, parentId, "0002 [0000.5].cbz");
+        for (var c = 1; c <= last; c++)
+        {
+            if (!without.Contains(c))
+                await AddArchiveAsync(db, libraryId, parentId, $"{c + 2:0000} [{c:0000} - Some Title].cbz");
+        }
+    }
+
+    /// <summary>
+    /// 1.34.0: the near-empty MangaDex map of the owner's report - volumes "0" and "1" with one chapter each, chapters 2..<paramref name="last"/>
+    /// unassigned, ratio 1.0, known volume count 0.
+    /// </summary>
+    public static async Task<SeriesVolumeMapEntity> AddNearEmptyMapAsync(MangaPixerDbContext db, long recordId, int last)
+    {
+        var map = new SeriesVolumeMapEntity
+        {
+            RecordId = recordId,
+            Source = (int)VolumeMapSource.MangaDexAggregate,
+            State = (int)VolumeMapState.Ok,
+            VolumesJson = """[{"v":"0","c":["0"]},{"v":"1","c":["1"]}]""",
+            UnassignedJson = "[" + string.Join(",", Enumerable.Range(2, last - 1).Select(c => $"\"{c}\"")) + "]",
+            ChaptersPerVolume = 1,
+            KnownVolumeCount = 0,
+            ContentHash = "near-empty",
+            Version = 1,
+            FetchedAt = DateTimeOffset.UtcNow,
+        };
+        db.SeriesVolumeMaps.Add(map);
+        await db.SaveChangesAsync();
+        return map;
+    }
+
     public static async Task AddComicInfoAsync(MangaPixerDbContext db, long nodeId, int? volume, string? number)
     {
         db.EmbeddedMetadata.Add(new EmbeddedMetadataEntity { NodeId = nodeId, Schema = 0, ContentVersion = 1, State = 1, Volume = volume, Number = number });

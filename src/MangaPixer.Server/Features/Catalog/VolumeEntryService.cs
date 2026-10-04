@@ -36,10 +36,18 @@ public sealed record FolderVolumeEntries(
     public IReadOnlyDictionary<string, string> AlsoInVolume { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
 
     /// <summary>
-    /// The Volumes view differs from the folder list: a stack, merged unit subfolders, a missing-volume placeholder, or (1.29.0 RC)
-    /// a folder with its own link that holds volumes - its header shows the series status.
+    /// 1.34.0 (owner): the linked series is a webtoon / manhwa / manhua without a real volume list - the view lists its chapters in chapter
+    /// order, with no volume placeholders (<see cref="VolumeMapInput.ChaptersOnly"/>).
     /// </summary>
-    public bool Available => StackCount > 0 || Consolidated || Status is { MissingVolumes: > 0 } || (Status is not null && HasVolumes);
+    public bool ChaptersOnly { get; init; }
+
+    /// <summary>
+    /// The Volumes view differs from the folder list: a stack, merged unit subfolders, a missing-volume placeholder, or (1.29.0 RC)
+    /// a folder with its own link that holds volumes - its header shows the series status - or (1.34.0) a linked folder in chapter mode
+    /// that holds archives (its chapter list, with the series status).
+    /// </summary>
+    public bool Available => StackCount > 0 || Consolidated || Status is { MissingVolumes: > 0 } || (Status is not null && HasVolumes)
+        || (Status is not null && ChaptersOnly && Entries.Any(e => e.Kind == VolumeEntryKind.Archive));
 
     /// <summary>At least one volume entry (a volume file, a stack or a placeholder).</summary>
     public bool HasVolumes => Entries.Any(e => e.Rank == 0);
@@ -254,7 +262,7 @@ public sealed class VolumeEntryService
         var maps = await _db.SeriesVolumeMaps.AsNoTracking().Where(m => m.RecordId == id).ToListAsync(ct);
         var record = await _db.MetadataRecords.AsNoTracking().Where(r => r.Id == id)
             .Select(r => new SeriesProgressLoader.RecordRow(r.Id, r.Origin, r.OriginStatus, r.OriginVolumes, r.StatusText, r.LatestChapter,
-                r.PublishersJson, r.LicensedEn, r.TranslationComplete))
+                r.PublishersJson, r.LicensedEn, r.TranslationComplete, r.Webtoon))
             .FirstOrDefaultAsync(ct);
         var (map, facts) = SeriesProgressLoader.MapAndFacts(maps, record, language);
         var releasedMap = maps.FirstOrDefault(m => m.Source == (int)VolumeMapSource.MangaDexAggregate && m.ReleasedLanguage is not null);
@@ -331,6 +339,7 @@ public sealed class VolumeEntryService
             statusInfo)
         {
             AlsoInVolume = progress?.Result.Reach.AlsoInVolume ?? new Dictionary<string, string>(StringComparer.Ordinal),
+            ChaptersOnly = map?.ChaptersOnly == true,
         };
     }
 

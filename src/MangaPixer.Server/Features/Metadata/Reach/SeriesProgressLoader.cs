@@ -95,7 +95,7 @@ public sealed class SeriesProgressLoader(MangaPixerDbContext db)
             .ToDictionary(l => l.RecordId, l => l.PagesJson);
         var records = await db.MetadataRecords.AsNoTracking().Where(r => recordIds.Contains(r.Id))
             .Select(r => new RecordRow(r.Id, r.Origin, r.OriginStatus, r.OriginVolumes, r.StatusText, r.LatestChapter, r.PublishersJson,
-                r.LicensedEn, r.TranslationComplete))
+                r.LicensedEn, r.TranslationComplete, r.Webtoon))
             .ToDictionaryAsync(r => r.Id, ct);
 
         var bySeries = folders.Values.ToLookup(f => f.Series);
@@ -136,27 +136,34 @@ public sealed class SeriesProgressLoader(MangaPixerDbContext db)
         return new ListCreditDto { Name = "Wikipedia", Url = Volumes.Wikipedia.WikipediaApi.PageUrl(first.Title), Title = first.Title };
     }
 
-    /// <summary>The stored record fields the progress reads.</summary>
+    /// <summary>The stored record fields the progress reads (1.34.0: the MangaUpdates webtoon flag).</summary>
     public sealed record RecordRow(
         long Id, int? Origin, int? OriginStatus, int? OriginVolumes, string? StatusText, double? LatestChapter, string? PublishersJson,
-        bool? LicensedEn, bool? TranslationComplete);
+        bool? LicensedEn, bool? TranslationComplete, bool? Webtoon = null);
 
     /// <summary>
     /// The volume map and the progress facts of one linked record (stored rows only): MangaDex's exact list when its map is Ok,
     /// the chapters-per-volume ratio (its average, else the AniList row's), the highest volume known, whether it still runs, and
     /// what is released in the preferred language. <paramref name="ratio"/> (an admin's AniList lookup) is preferred for totals.
+    /// 1.34.0: a near-empty MangaDex map is no list (<see cref="Volumes.VolumeMapService.IsUsable"/>), and a webtoon / manhwa / manhua
+    /// without a real list is in chapter mode (<see cref="VolumeListRules.ChaptersOnly"/>: the map's <c>ChaptersOnly</c>, no ratio).
     /// </summary>
     public static (VolumeMapInput Map, ProgressFacts Facts) MapAndFacts(
         IReadOnlyList<SeriesVolumeMapEntity> maps, RecordRow? record, string language, double? ratio = null)
     {
         ArgumentNullException.ThrowIfNull(maps);
-        var mangadex = maps.FirstOrDefault(m => m.Source == (int)VolumeMapSource.MangaDexAggregate && m.State == (int)VolumeMapState.Ok);
+        var mangadex = Volumes.VolumeMapService.UsableMangaDexMap(maps);
         var aniList = maps.FirstOrDefault(m => m.Source == (int)VolumeMapSource.AniListRatio && m.State == (int)VolumeMapState.Ok);
         var wikipedia = maps.FirstOrDefault(m => m.Source == (int)VolumeMapSource.WikipediaList && m.State == (int)VolumeMapState.Ok);
+        // 1.34.0: a real list = at least two real MangaDex volumes, or a Wikipedia list; without one a webtoon / manhwa / manhua lists chapters.
+        var hasRealList = wikipedia is not null
+            || (mangadex is not null && VolumeListRules.RealVolumeCount(VolumeMapJson.Read(mangadex.VolumesJson)) >= VolumeListRules.MinRealVolumes);
+        var chaptersOnly = VolumeListRules.ChaptersOnly(record?.Webtoon, (MetadataOrigin?)record?.Origin, hasRealList);
         // 1.32.0: MangaDex's exact list, completed by the Wikipedia list where MangaDex lacks volumes / chapters (VolumeListMerge).
         var exact = ExactList(maps);
         var volumes = ToVolumes(exact.Volumes);
-        var mapRatio = mangadex?.ChaptersPerVolume ?? wikipedia?.ChaptersPerVolume ?? aniList?.ChaptersPerVolume;
+        // Chapter mode: no chapters-per-volume ratio (a print edition's ratio says nothing about a webtoon's episodes).
+        var mapRatio = chaptersOnly ? null : mangadex?.ChaptersPerVolume ?? wikipedia?.ChaptersPerVolume ?? aniList?.ChaptersPerVolume;
         var known = mangadex?.KnownVolumeCount ?? aniList?.KnownVolumeCount ?? record?.OriginVolumes;
         if (exact.WikipediaFilled && volumes.Count > 0)
             known = Math.Max(known ?? 0, (int)decimal.Truncate(volumes.Max(v => v.Volume)));
@@ -166,7 +173,8 @@ public sealed class SeriesProgressLoader(MangaPixerDbContext db)
             : mapRatio is not null ? VolumeListSource.AniList : VolumeListSource.FileNames;
         var releasedMap = maps.FirstOrDefault(m => m.Source == (int)VolumeMapSource.MangaDexAggregate && m.ReleasedLanguage is not null);
         var release = ReleasedInLanguage.For(language, record?.PublishersJson, releasedMap?.ReleasedLanguage, releasedMap?.ReleasedChaptersJson);
-        var map = new VolumeMapInput(volumes, mapRatio, known, ongoing, source, release.Chapters, release.Volumes, release.Language);
+        var map = new VolumeMapInput(volumes, mapRatio, known, ongoing, chaptersOnly ? VolumeListSource.FileNames : source, release.Chapters,
+            release.Volumes, release.Language, chaptersOnly);
 
         var english = ReleasedInLanguage.IsEnglish(release.Language);
         var official = ReleasedInLanguage.OfficialOf(release.Language, record?.PublishersJson);
@@ -194,13 +202,14 @@ public sealed class SeriesProgressLoader(MangaPixerDbContext db)
     /// <summary>
     /// The series' exact volume list from its stored maps (1.32.0, design 6.5): MangaDex's list when its map is Ok, completed by the Wikipedia
     /// list (<see cref="VolumeListMerge"/>: MangaDex wins where it places a chapter; Wikipedia fills the volumes and chapters it lacks); the
-    /// Wikipedia list alone when MangaDex has none. Stored rows only.
+    /// Wikipedia list alone when MangaDex has none (or only a near-empty one, 1.34.0). Stored rows only.
     /// </summary>
     public static ExactVolumeList ExactList(IEnumerable<SeriesVolumeMapEntity> maps)
     {
         ArgumentNullException.ThrowIfNull(maps);
         var all = maps as IReadOnlyCollection<SeriesVolumeMapEntity> ?? maps.ToList();
-        var mangadex = all.FirstOrDefault(m => m.Source == (int)VolumeMapSource.MangaDexAggregate && m.State == (int)VolumeMapState.Ok);
+        // 1.34.0: a near-empty MangaDex map (at most one real volume, mostly unassigned) is no list.
+        var mangadex = Volumes.VolumeMapService.UsableMangaDexMap(all);
         var wikipedia = all.FirstOrDefault(m => m.Source == (int)VolumeMapSource.WikipediaList && m.State == (int)VolumeMapState.Ok);
         var fromMangaDex = VolumeMapJson.Read(mangadex?.VolumesJson);
         var unassigned = VolumeMapJson.ReadChapters(mangadex?.UnassignedJson);

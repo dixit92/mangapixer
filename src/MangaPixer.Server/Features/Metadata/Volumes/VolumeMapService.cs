@@ -125,7 +125,20 @@ public sealed class VolumeMapService
 
     /// <summary>True when a stored MangaDex map gives a usable volume list (at least <see cref="MinExactVolumes"/> volumes).</summary>
     public static bool HasVolumeList(SeriesVolumeMapEntity? map) =>
-        map is { State: (int)VolumeMapState.Ok } && VolumeMapJson.Read(map.VolumesJson).Count >= MinExactVolumes;
+        IsUsable(map) && VolumeMapJson.Read(map!.VolumesJson).Count >= MinExactVolumes;
+
+    /// <summary>
+    /// 1.34.0 (owner): a stored map is read at all only when it is Ok and not near-empty (<see cref="VolumeListRules.IsNearEmpty"/>: at most
+    /// one real volume and more chapters unassigned than placed) - the ONE place the rule is applied to stored maps. Read-time, so a stored
+    /// near-empty map stops counting at once, without a new request.
+    /// </summary>
+    public static bool IsUsable(SeriesVolumeMapEntity? map) =>
+        map is { State: (int)VolumeMapState.Ok }
+        && !VolumeListRules.IsNearEmpty(VolumeMapJson.Read(map.VolumesJson), VolumeMapJson.ReadChapters(map.UnassignedJson));
+
+    /// <summary>The series' usable MangaDex volume list (<see cref="IsUsable"/>) among its stored maps, or null.</summary>
+    public static SeriesVolumeMapEntity? UsableMangaDexMap(IEnumerable<SeriesVolumeMapEntity> maps) =>
+        maps.FirstOrDefault(m => m.Source == (int)VolumeMapSource.MangaDexAggregate && IsUsable(m));
 
     /// <summary>
     /// The AniList totals of a series without a MangaDex volume list: by the AniList id MangaDex links (when known),
