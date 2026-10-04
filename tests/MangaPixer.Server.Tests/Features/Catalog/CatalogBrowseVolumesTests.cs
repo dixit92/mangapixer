@@ -113,7 +113,7 @@ public sealed class CatalogBrowseVolumesTests : IDisposable
 
         Assert.Equal(15, labels.Count);
         Assert.Equal(15, labels.Distinct().Count());
-        Assert.Equal(["Big v13", "Side Story", "Big - Chapter 999"], labels.TakeLast(3));
+        Assert.Equal(["Volume 13", "Side Story", "Big - Chapter 999"], labels.TakeLast(3)); // 1.34.1: a volume archive card reads "Volume N"
         Assert.Equal(Enumerable.Range(1, Volumes).Select(v => $"Volume {v}"), labels.Take(Volumes));
     }
 
@@ -158,7 +158,7 @@ public sealed class CatalogBrowseVolumesTests : IDisposable
 
         var page = await service.BrowseAsync(user.Id, lib.Id, series.Id, null, pageSize: 4, direction: SortDirection.Descending);
 
-        Assert.Equal(["Big - Chapter 999", "Side Story", "Big v13", "Volume 12"], Labels(page));
+        Assert.Equal(["Big - Chapter 999", "Side Story", "Volume 13", "Volume 12"], Labels(page));
         Assert.Equal(CatalogNodeKind.Archive, page.Items[0].Kind);
         Assert.Equal(CatalogNodeKind.Folder, page.Items[1].Kind);
         var next = await service.BrowseAsync(user.Id, lib.Id, series.Id, page.NextCursor, pageSize: 4, direction: SortDirection.Descending);
@@ -177,7 +177,8 @@ public sealed class CatalogBrowseVolumesTests : IDisposable
 
         var page = await service.BrowseAsync(user.Id, lib.Id, series.Id, null, pageSize: 50);
 
-        var card = page.Items.Single(n => n.DisplayName == "Big v13");
+        var card = page.Items.Single(n => n.Id == volume13.PublicId);
+        Assert.Equal("Volume 13", card.DisplayName); // 1.34.1: titled like the stacks, not "Big v13"
         Assert.True(card.IsRead);
         Assert.True(card.IsFavorite);
         Assert.Equal(12, card.PageCount);
@@ -265,7 +266,7 @@ public sealed class CatalogBrowseVolumesTests : IDisposable
 
         // Favourites only: a stack with ANY starred member (its card's star), and a starred plain entry.
         var starred = await Browse(BrowseReadStateFilter.All, favourites: true);
-        Assert.Equal(["Volume 3", "Big v13"], Labels(starred));
+        Assert.Equal(["Volume 3", "Volume 13"], Labels(starred));
         Assert.Equal(0, (await Browse(BrowseReadStateFilter.Read, favourites: true)).TotalCount);
     }
 

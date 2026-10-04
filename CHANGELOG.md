@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Collection about… on any waiting folder.** In **Needs review** and **Unmatched**, every folder row now offers **Collection about…** (key `f`) - not only the folders the review suggests as a collection - and opens Identify in its "pick the series" mode. In a folder's normal **Identify**, **Set as collection instead** / **Link instead** switches between linking the folder and marking it a collection about the series you found.
 
+### Changed
+
+- **Volume titles in the Volumes view.** A volume file shown on its own is titled like the stacks around it - **Volume 3** (**Volume 3.5** for a fractional one) - instead of its file name with the extension. The **Folders** view still shows file names.
+
 ## [1.34.0] - 2026-10-04
 
 ### Added

@@ -30,6 +30,20 @@ public sealed class VolumeGroupingTests
     private static IReadOnlyList<VolumeEntry> Stacks(VolumeGroupingResult r) => r.Entries.Where(e => e.Kind == VolumeEntryKind.Stack).ToList();
 
     [Fact]
+    public void ALoneVolumeArchive_CarriesItsVolume_AFractionalOneKeepsItsFraction()
+    {
+        // 1.34.1: the Volumes view titles these cards "Volume N" from VolumeEntry.Volume.
+        var rows = new List<GroupingRow> { Archive("Series v01"), Archive("Series v02"), Archive("Series v03.5") };
+        var r = VolumeGrouping.Group(rows, null);
+
+        var cards = r.Entries.Where(e => e.Kind == VolumeEntryKind.Archive && e.Rank == 0).ToDictionary(e => e.Row!.Id, e => e.Volume);
+        Assert.Equal(1m, cards["id:Series v01"]);
+        Assert.Equal(2m, cards["id:Series v02"]);
+        Assert.Equal(3.5m, cards["id:Series v03.5"]);
+        Assert.Equal("Volume 3.5", VolumeGrouping.LabelOf(cards["id:Series v03.5"]!.Value, VolumeStackConfidence.Exact));
+    }
+
+    [Fact]
     public void LocalNames_GroupChaptersByTheirStatedVolume_WithoutAnyMap()
     {
         var rows = new List<GroupingRow>

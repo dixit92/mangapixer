@@ -35,7 +35,7 @@ A folder that has no list and no linked series groups by names alone, and only w
 
 Entries are ordered **by volume**, not by file name: a chapter named `Series c019` no longer sorts before `Series v01`. The order is:
 
-1. volume entries by volume number: a real volume file, a volume file with its chapters (one stack), or a stack of chapters;
+1. volume entries by volume number: a real volume file, a volume file with its chapters (one stack), or a stack of chapters; *from 1.34.1* a volume file on its own is titled like the stacks - **Volume 3**, not `Series v03.cbz` (the **Folders** view keeps the file names);
 2. subfolders that are not merged (see below);
 3. loose chapters and other archives.
 

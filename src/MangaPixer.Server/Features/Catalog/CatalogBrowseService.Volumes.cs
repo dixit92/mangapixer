@@ -44,7 +44,7 @@ public sealed partial class CatalogBrowseService
             {
                 VolumeEntryKind.Stack => stacks[e.Stack!.Key],
                 VolumeEntryKind.MissingVolume => MissingVolumeCard(view, e.Volume!.Value),
-                _ => VolumeStackService.WithAlsoInVolume(plainNodes[e.Row!.Id], view),
+                _ => VolumeStackService.WithAlsoInVolume(VolumeTitled(plainNodes[e.Row!.Id], e), view),
             })
             .ToList();
         return new PageResponse<CatalogNodeDto>
@@ -227,6 +227,15 @@ public sealed partial class CatalogBrowseService
     /// The folder list of a linked series folder or one of its unit subfolders (1.30.0, reach): a chapter card whose chapters a
     /// volume FILE of the same series already holds says so ("Also in Volume 10"). Reads the memoised series entries; stored data only.
     /// </summary>
+    /// <summary>
+    /// 1.34.1 (owner): a volume archive shown as its own card in the Volumes view is titled like the stacks around it - "Volume 3" - not
+    /// by its file name (the folder view keeps the file name; opening it reads the archive as before).
+    /// </summary>
+    private static CatalogNodeDto VolumeTitled(CatalogNodeDto card, VolumeEntry entry) =>
+        entry is { Kind: VolumeEntryKind.Archive, Rank: 0, Volume: { } volume }
+            ? card with { DisplayName = VolumeGrouping.LabelOf(volume, VolumeStackConfidence.Exact) }
+            : card;
+
     private async Task<List<CatalogNodeDto>> WithAlsoInVolumeAsync(List<CatalogNodeDto> nodes, long folderId, CancellationToken ct)
     {
         var view = await _volumes.GetEntriesAsync(folderId, ct);

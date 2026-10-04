@@ -159,7 +159,10 @@ public sealed record VolumeEntry
     /// <summary>Kind Stack.</summary>
     public VolumeStack? Stack { get; init; }
 
-    /// <summary>Kind MissingVolume: the missing volume's number.</summary>
+    /// <summary>
+    /// Kind MissingVolume: the missing volume's number. 1.34.1: also kind Archive at rank 0 - a volume archive shown as its own card
+    /// (its card is titled "Volume N" in the Volumes view; the folder view keeps the file name).
+    /// </summary>
     public decimal? Volume { get; init; }
 }
 
@@ -350,7 +353,7 @@ public static class VolumeGrouping
             }
             else
             {
-                entries.Add(new VolumeEntry { Kind = VolumeEntryKind.Archive, Rank = 0, VolumeKey = SortableKey(v), SortKey = row.SortKey, Id = row.Id, Row = row });
+                entries.Add(new VolumeEntry { Kind = VolumeEntryKind.Archive, Rank = 0, VolumeKey = SortableKey(v), SortKey = row.SortKey, Id = row.Id, Row = row, Volume = v }); // a lone fractional volume keeps its number ("Volume 1.5")
             }
         }
 
@@ -402,6 +405,7 @@ public static class VolumeGrouping
                         SortKey = m.Row.SortKey,
                         Id = m.Row.Id,
                         Row = m.Row,
+                        Volume = volume,
                     });
                 }
                 continue;
