@@ -158,3 +158,5 @@ Errors are `{ "error": "<code>" }`.
 `schemaVersion` is `1`. New fields may appear in any MangaPixer release without changing it - ignore fields you do not know. A field
 is never removed or renamed, and a value never changes meaning, without raising `schemaVersion`; a client should refuse a higher version
 than it knows.
+
+New `link.state` values may also appear without a new `schemaVersion`. **Treat a state you do not know as "not a series"**: the folder or archive is not matched by your own matcher, no numbers (behind, missing, complete) are computed from its `record`, and it stops inheritance like `DontMatch` - items below it without their own link are not part of a series either. Never fail a sync on an unknown state; store the item and show the state as it is.
