@@ -262,7 +262,8 @@ public sealed class CollectionAboutServiceTests : IAsyncLifetime
 
         // After the scan: the new doujin in the collection is a work of its own; the one in the undecided folder waits for that folder.
         Assert.Equal(1, await Matcher().EnqueueNewFoldersAsync(_db.LibraryId, since));
-        Assert.Equal([inMarked.Id], await QueuedAsync());
+        Assert.Equal([inMarked.Id], await _db.Db.MetadataMatchQueue.AsNoTracking()
+            .Where(q => q.State == QueueState.Pending).Select(q => q.NodeId).ToListAsync());
 
         // Deciding the waiting folder as a collection queues everything inside it, the new doujin included.
         await _db.Db.MetadataMatchQueue.ExecuteDeleteAsync();
