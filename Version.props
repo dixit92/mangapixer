@@ -415,7 +415,12 @@
          (/api/v1/export/*: stored per-item snapshot, removals pool, carriedFrom, volume lists with dates / ISBNs, completion,
          refresh, MangaDex official links); review "Later" remembered on the server; Same author / Same folder groups + Authors
          list in Needs review; scan schedule set in Scheduled jobs only. Migrations: AddReviewLater, AddExportState, AddApiTokens. -->
-    <MangaPixerVersionMinor>33</MangaPixerVersionMinor>
+    <!-- 1.34.0 - MINOR (2026-10-04, cycle "Fan Works"): "Collection about" link state (CollectionAbout = 4: a folder about a series -
+         stops inheritance, re-opens matching below it, works inside searched as "<series> dj - <title>", review suggestion, Collections
+         tab, export state); webtoon / manhwa volumes (index-prefixed chapter names, near-empty MangaDex lists = no list, chapter-list view);
+         Identify one by one + Re-run from browse; Same author / Same folder on Unmatched; Re-run refused below a covering folder. No
+         migration. -->
+    <MangaPixerVersionMinor>34</MangaPixerVersionMinor>
     <!-- 1.31.1 - PATCH (2026-10-01, integrator-direct, owner live check of 1.31.0): content signatures backfilled for archives
          analysed before 1.5.0 (their moves were never recognised); Re-attach to a folder in another library; "Episode N" next
          to a volume is a part label, not a chapter; the review list shows the file's own page 1, never the cover layer's;
