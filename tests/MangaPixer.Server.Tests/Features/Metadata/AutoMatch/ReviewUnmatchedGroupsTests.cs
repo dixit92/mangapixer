@@ -4,6 +4,7 @@ using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Admin;
+using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Review;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -48,7 +49,7 @@ public sealed class ReviewUnmatchedGroupsTests : IAsyncLifetime
         await _db.DisposeAsync();
     }
 
-    private async Task UnmatchedArchiveAsync(string tag, CatalogNodeEntity folder, string name, QueueState state = QueueState.Done)
+    private async Task UnmatchedArchiveAsync(string tag, CatalogNodeEntity folder, string name, int state = QueueState.Done)
     {
         var archive = await _db.AddArchiveAsync(folder, name);
         _n[tag] = archive;
