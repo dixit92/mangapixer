@@ -50,11 +50,20 @@ public sealed class MetadataReviewController : ControllerBase
         };
     }
 
-    /// <summary>1.33.0: authors with at least two works waiting in Needs review, largest first (local names only).</summary>
+    /// <summary>
+    /// 1.33.0: authors with at least two works waiting in Needs review, largest first (local names only). 1.34.0: <c>tab=Unmatched</c>
+    /// lists the authors of the Unmatched works instead; no other tab has groups.
+    /// </summary>
     [HttpGet("review/authors")]
     [ProducesResponseType<MetadataReviewAuthorsDto>(StatusCodes.Status200OK)]
-    public async Task<IActionResult> Authors([FromQuery] string? library = null, CancellationToken ct = default) =>
-        await _review.AuthorsAsync(library, ct) is { } dto ? Ok(dto) : NotFound();
+    [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Authors([FromQuery] string? library = null, [FromQuery] MetadataReviewTab tab = MetadataReviewTab.NeedsReview,
+        CancellationToken ct = default)
+    {
+        if (tab is not (MetadataReviewTab.NeedsReview or MetadataReviewTab.Unmatched))
+            return BadRequest(new ApiError { Error = "invalid_tab", Message = "Only Needs review and Unmatched have author groups." });
+        return await _review.AuthorsAsync(library, ct, tab) is { } dto ? Ok(dto) : NotFound();
+    }
 
     [HttpPost("review/{nodeId}/accept")]
     [ProducesResponseType<NodeSeriesLinkChangeDto>(StatusCodes.Status200OK)]
