@@ -309,6 +309,7 @@ public sealed class MoveConflictService
         from.UpdatedAt = now;
         await _db.SaveChangesAsync(ct);
         // As after an admin link: a folder linked or marked Don't match speaks for its subtree.
+        // (A "Collection about" row retires nothing: its items are works of their own, 1.34.0.)
         if (target.Kind == (int)CatalogNodeKind.Folder && from.State is (int)SeriesLinkState.Confirmed or (int)SeriesLinkState.DontMatch)
         {
             var tree = await LibraryTreeSnapshot.LoadAsync(_db, target.LibraryId, ct);

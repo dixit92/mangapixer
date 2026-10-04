@@ -79,13 +79,16 @@ public sealed class ExportItemBuilder(MangaPixerDbContext db)
         foreach (var link in links.OrderBy(l => l.NodeId))
         {
             var record = link.RecordId is { } recordId ? records.GetValueOrDefault(recordId) : null;
-            var seriesCompanions = record is null ? [] : companionsOf[record.Id].ToList();
+            // 1.34.0: a "Collection about" folder carries its series' record as a label only - no companions, links, volumes, completion
+            // or refresh, even when the same record is linked to a series folder elsewhere.
+            var isSeries = SeriesLinkStates.IsSeries((SeriesLinkState)link.State);
+            var seriesCompanions = record is null || !isSeries ? [] : companionsOf[record.Id].ToList();
             var mangadex = seriesCompanions.Where(c => c.Provider == MetadataProviderAllowlist.MangaDex)
                 .Select(c => companionRecords.GetValueOrDefault(c.CompanionRecordId)).FirstOrDefault(r => r is not null);
             var aniList = seriesCompanions.Where(c => c.Provider == MetadataProviderAllowlist.AniList)
                 .Select(c => companionRecords.GetValueOrDefault(c.CompanionRecordId)).FirstOrDefault(r => r is not null)
-                ?? (record is { Provider: MetadataProviderAllowlist.MangaUpdates } ? aniListByMu.GetValueOrDefault(record.ExternalId) : null);
-            var details = record is not null && wikipedia.TryGetValue(record.Id, out var w) ? w : null;
+                ?? (isSeries && record is { Provider: MetadataProviderAllowlist.MangaUpdates } ? aniListByMu.GetValueOrDefault(record.ExternalId) : null);
+            var details = isSeries && record is not null && wikipedia.TryGetValue(record.Id, out var w) ? w : null;
 
             var item = new ExportItemDto
             {
@@ -110,11 +113,11 @@ public sealed class ExportItemBuilder(MangaPixerDbContext db)
                         : null,
                 },
                 OfficialLinks = OfficialLinks(mangadex?.ExtraJson),
-                Volumes = record is null
+                Volumes = record is null || !isSeries
                     ? null
                     : ExportVolumes.Project(maps[record.Id].ToList(), WikipediaVolumeService.ReadDetails(details?.DetailsJson), details?.CheckedAt, today),
                 Completion = progress.TryGetValue(link.NodeId, out var entry) ? Completion(entry) : null,
-                Refresh = record is null ? null : Refresh(record),
+                Refresh = record is null || !isSeries ? null : Refresh(record),
             };
             result.Add(new ExportBuiltItem(link.NodeId, link.PublicId, item));
         }

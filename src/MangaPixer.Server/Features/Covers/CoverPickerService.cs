@@ -309,6 +309,8 @@ public sealed class CoverPickerService
         var links = await CoverLinks.NearestAsync(_db, [node.Id], ct);
         if (!links.TryGetValue(node.Id, out var link) || link.IsDontMatch)
             return ([], false, link.IsDontMatch ? "dont_match" : "not_linked");
+        if (link.IsOwnCollection)
+            return ([], false, "collection"); // 1.34.0: its series' poster is automatic; there are no volume covers to choose from.
         if (!link.IsLinked)
             return ([], false, "not_linked");
 

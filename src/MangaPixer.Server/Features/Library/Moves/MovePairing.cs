@@ -161,7 +161,7 @@ public static class MoveLinkRules
             return MoveLinkOutcome.MoveOld;
         if (o.State == n.State && o.RecordId == n.RecordId)
             return MoveLinkOutcome.DropOld;
-        var oldIsAdmin = o.State is SeriesLinkState.Confirmed or SeriesLinkState.DontMatch;
+        var oldIsAdmin = SeriesLinkStates.IsAdminDecision(o.State); // Confirmed, Don't match, (1.34.0) Collection about
         if (!oldIsAdmin)
             return MoveLinkOutcome.DropOld;
         if (n.State == SeriesLinkState.NeedsReview)

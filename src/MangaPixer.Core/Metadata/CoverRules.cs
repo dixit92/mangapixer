@@ -161,6 +161,10 @@ public static class CoverRules
         return CoverDecision.File(AutoCoverReason.NoWebCover);
     }
 
+    /// <summary>1.34.0: a "Collection about" folder: the stored poster of the series it is about, else the file default. No cover matching.</summary>
+    public static CoverDecision DecideCollection(WebCoverCandidate? poster) =>
+        poster is null ? CoverDecision.File(AutoCoverReason.NoWebCover) : CoverDecision.FromWeb(poster, AutoCoverReason.CollectionPoster);
+
     /// <summary>
     /// A Season / Part subfolder of a linked series: the web cover of the volume its first chapter belongs to (from the
     /// file name / ComicInfo or the exact volume list), else its first archive's resolved cover (the file default).

@@ -268,10 +268,12 @@ public sealed class CoverResolutionService
         if (posterNodes.Count > 0)
         {
             var links = await CoverLinks.NearestAsync(_db, posterNodes, ct);
-            var recordIds = links.Values.Where(l => l.IsLinked).Select(l => l.RecordId!.Value).Distinct().ToList();
+            // 1.34.0: a "Collection about" folder's own poster layer shows the record of its row too.
+            static bool ShowsPoster(NearestLink l) => l.IsLinked || l.IsOwnCollection;
+            var recordIds = links.Values.Where(ShowsPoster).Select(l => l.RecordId!.Value).Distinct().ToList();
             var records = await _db.MetadataRecords.AsNoTracking().Where(r => recordIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, ct);
             foreach (var nodeId in posterNodes)
-                batch.PosterRecords[nodeId] = links.TryGetValue(nodeId, out var l) && l.IsLinked && records.TryGetValue(l.RecordId!.Value, out var r)
+                batch.PosterRecords[nodeId] = links.TryGetValue(nodeId, out var l) && ShowsPoster(l) && records.TryGetValue(l.RecordId!.Value, out var r)
                     ? r : null;
         }
     }
