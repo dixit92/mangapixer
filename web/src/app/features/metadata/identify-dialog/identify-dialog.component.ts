@@ -65,10 +65,17 @@ type Step = 'search' | 'preview';
       @if (collectionMode) {
         <h2 mat-dialog-title class="title" [title]="context()?.displayName ?? ''" data-testid="identify-collection-title">
           Collection about…: “{{ context()?.displayName ?? '…' }}” - pick the series</h2>
+      } @else if (stepping) {
+        <h2 mat-dialog-title class="title" [title]="context()?.displayName ?? ''" data-testid="identify-step">
+          {{ position() }} of {{ total }}: “{{ context()?.displayName ?? '…' }}”</h2>
       } @else {
         <h2 mat-dialog-title class="title" [title]="context()?.displayName ?? ''">Identify “{{ context()?.displayName ?? '…' }}”</h2>
       }
-      <button mat-icon-button mat-dialog-close aria-label="Close" data-testid="identify-close"><mat-icon>close</mat-icon></button>
+      @if (stepping) {
+        <button mat-icon-button type="button" aria-label="Stop" (click)="stop()" data-testid="identify-close"><mat-icon>close</mat-icon></button>
+      } @else {
+        <button mat-icon-button mat-dialog-close aria-label="Close" data-testid="identify-close"><mat-icon>close</mat-icon></button>
+      }
     </div>
     <mat-dialog-content class="body">
       @if (loading()) {
@@ -247,11 +254,18 @@ type Step = 'search' | 'preview';
           </mat-checkbox>
         }
         <button mat-button type="button" [disabled]="busy()" (click)="back()">Back</button>
+        @if (stepping) {
+          <button mat-button type="button" [disabled]="busy()" (click)="skip()" data-testid="identify-skip">{{ isLast() ? 'Skip and finish' : 'Skip' }}</button>
+          <button mat-button type="button" [disabled]="busy()" (click)="stop()" data-testid="identify-stop">Stop</button>
+        }
         @if (collectionMode) {
           <button mat-flat-button type="button" [disabled]="busy()" (click)="setCollection()" data-testid="identify-set-collection">Set as collection</button>
         } @else {
           <button mat-flat-button type="button" [disabled]="busy()" (click)="link()" data-testid="identify-link">Link</button>
         }
+      } @else if (stepping) {
+        <button mat-button type="button" [disabled]="busy()" (click)="skip()" data-testid="identify-skip">{{ isLast() ? 'Skip and finish' : 'Skip' }}</button>
+        <button mat-button type="button" (click)="stop()" data-testid="identify-stop">Stop</button>
       } @else {
         <button mat-button mat-dialog-close type="button">Cancel</button>
       }
@@ -315,6 +329,22 @@ export class IdentifyDialogComponent implements OnInit {
   readonly collectionMode = this.data.mode === 'collection';
   /** Collection mode: also set the folder's Content to "Doujinshi & adult one-shots" (on by default). */
   readonly setDoujinContent = signal(true);
+
+  /**
+   * 1.34.0: several nodes, one at a time - "1 of N: name" with Link / Skip / Stop; every step is the normal single-node Identify
+   * (search, candidates, preview, link) for that node, and the end says "Linked a · skipped b".
+   */
+  private readonly steps: readonly string[] = this.data.nodeIds && this.data.nodeIds.length > 1 ? this.data.nodeIds : [this.data.nodeId];
+  readonly stepping = this.steps.length > 1;
+  readonly total = this.steps.length;
+  private readonly index = signal(0);
+  readonly position = computed(() => this.index() + 1);
+  readonly isLast = computed(() => this.index() >= this.steps.length - 1);
+  readonly linkedCount = signal(0);
+  readonly skippedCount = signal(0);
+  private summarised = false;
+  /** The node being identified (the first of the steps unless stepping has moved on). */
+  private readonly nodeId = computed(() => this.steps[this.index()]);
 
   readonly loading = signal(true);
   readonly busy = signal(false);
@@ -380,7 +410,13 @@ export class IdentifyDialogComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    this.api.getIdentifyContext(this.data.nodeId).subscribe({
+    // Escape / a click outside also ends a stepping run: the summary is still said once.
+    if (this.stepping) this.dialogRef.beforeClosed().subscribe(() => this.summarise());
+    this.load();
+  }
+
+  private load(): void {
+    this.api.getIdentifyContext(this.nodeId()).subscribe({
       next: (ctx) => {
         this.context.set(ctx);
         const first = ctx.fetchAvailable ? ctx.provider : (ctx.sites ?? []).find((x) => x.available)?.id ?? ctx.provider;
@@ -445,11 +481,11 @@ export class IdentifyDialogComponent implements OnInit {
   runLookup(): void {
     const ref = this.reference().trim();
     if (!ref || this.busy()) return;
-    this.showPreview(this.api.lookup(this.data.nodeId, ref), 'Reference', null);
+    this.showPreview(this.api.lookup(this.nodeId(), ref), 'Reference', null);
   }
 
   usePreview(provider: string, externalId: string, method: MetadataMatchMethod, candidate?: IdentifyCandidateDto): void {
-    this.showPreview(this.api.preview(this.data.nodeId, { provider, externalId }), method, candidate ?? null);
+    this.showPreview(this.api.preview(this.nodeId(), { provider, externalId }), method, candidate ?? null);
   }
 
   imageFailed(token: string): void {
@@ -469,11 +505,17 @@ export class IdentifyDialogComponent implements OnInit {
     this.busy.set(true);
     this.error.set(null);
     this.api
-      .link(this.data.nodeId, { provider: p.provider, externalId: p.externalId, matchMethod: this.previewMethod(), matchScore: this.match().score })
+      .link(this.nodeId(), { provider: p.provider, externalId: p.externalId, matchMethod: this.previewMethod(), matchScore: this.match().score })
       .subscribe({
         next: (change) => {
           this.busy.set(false);
           this.metadataState.announce(change.nodeId, true);
+          if (this.stepping) {
+            // The summary at the end replaces the per-link Undo toast; Unlink is on the series' own page.
+            this.linkedCount.update((n) => n + 1);
+            this.advance();
+            return;
+          }
           this.dialogRef.close(true);
           this.offerUndo(change, `Linked to ${p.title}`, 'Link undone');
         },
@@ -488,7 +530,7 @@ export class IdentifyDialogComponent implements OnInit {
     this.busy.set(true);
     this.error.set(null);
     this.api
-      .setCollection(this.data.nodeId, {
+      .setCollection(this.nodeId(), {
         provider: p.provider,
         externalId: p.externalId,
         matchMethod: this.previewMethod(),
@@ -503,6 +545,62 @@ export class IdentifyDialogComponent implements OnInit {
         },
         error: (err: ApiError) => this.fail(err),
       });
+  }
+
+  /** Stepping: leaves this node unlinked and moves to the next (the last one ends the run). */
+  skip(): void {
+    if (this.busy()) return;
+    this.skippedCount.update((n) => n + 1);
+    this.advance();
+  }
+
+  /** Stepping: ends the run now; the nodes not reached are neither linked nor skipped. */
+  stop(): void {
+    this.finish();
+  }
+
+  private advance(): void {
+    if (this.isLast()) {
+      this.finish();
+      return;
+    }
+    this.index.update((i) => i + 1);
+    this.resetStep();
+    this.load();
+  }
+
+  private finish(): void {
+    this.summarise();
+    this.dialogRef.close(this.linkedCount() > 0);
+  }
+
+  private summarise(): void {
+    if (this.summarised) return;
+    this.summarised = true;
+    const notReached = Math.max(0, this.total - this.linkedCount() - this.skippedCount());
+    const text = `Linked ${this.linkedCount()} · skipped ${this.skippedCount()}${notReached > 0 ? ` · ${notReached} not reached` : ''}`;
+    this.snackBar.open(text, 'Close', { duration: 6000 });
+  }
+
+  /** A new node starts clean: nothing of the previous search, preview or error is shown. */
+  private resetStep(): void {
+    this.loading.set(true);
+    this.busy.set(false);
+    this.error.set(null);
+    this.context.set(null);
+    this.step.set('search');
+    this.query.set('');
+    this.reference.set('');
+    this.searched.set(false);
+    this.candidates.set([]);
+    this.totalHits.set(0);
+    this.page.set(1);
+    this.preview.set(null);
+    this.altTitlesExpanded.set(false);
+    this.localCoverFailed.set(false);
+    this.previewCandidate.set(null);
+    this.lastSubmittedQuery.set('');
+    this.useStartYear.set(true);
   }
 
   imageUrl(token: string): string {
@@ -539,8 +637,8 @@ export class IdentifyDialogComponent implements OnInit {
     const site = append ? this.resultsSite() : this.site();
     const year = site === 'gcd' && this.useStartYear() ? this.context()?.local.yearHint ?? null : null;
     const call = site === 'mangaupdates'
-      ? this.api.search(this.data.nodeId, query, page, this.lastSubmittedHide())
-      : this.api.search(this.data.nodeId, query, page, false, site, year);
+      ? this.api.search(this.nodeId(), query, page, this.lastSubmittedHide())
+      : this.api.search(this.nodeId(), query, page, false, site, year);
     call.subscribe({
       next: (result) => {
         this.resultsSite.set(result.provider || site);

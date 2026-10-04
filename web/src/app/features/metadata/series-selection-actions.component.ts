@@ -12,6 +12,7 @@ import { MetadataApiService } from './metadata-api.service';
 import { MetadataStateService } from './metadata-state.service';
 import { IdentifyDialogService } from './identify-dialog/identify-dialog.service';
 import { PRECEDENCE_LABELS } from './series-info-labels';
+import { rerunMessage } from './rerun-labels';
 import { FOLDER_CONTENT_OPTIONS, contentCaption, contentSuggestion, rematchMessage, sumRematch } from './folder-content';
 
 /**
@@ -22,7 +23,8 @@ import { FOLDER_CONTENT_OPTIONS, contentCaption, contentSuggestion, rematchMessa
  * or for this library (it carries the (i) icon, so it reads as series information);
  * the admin settings page is where it is turned back on. Stage 2 adds the folder
  * Content setting for the selected FOLDERS (with the one folder's current value and
- * the detector's suggestion when exactly one is selected). 1.34.0: "Collection about..." (exactly one FOLDER: the identify dialog's
+ * the detector's suggestion when exactly one is selected). 1.34.0: "Identify one by one" for several selected nodes (the identify dialog's
+ * stepping mode), "Re-run matching" for one or several (per-item reasons), and "Collection about..." (exactly one FOLDER: the identify dialog's
  * "pick the series" mode) and "Clear collection" (only clears Collection about rows). Link changes are announced
  * through `MetadataStateService` so the cards' (i) update in place.
  */
@@ -39,8 +41,13 @@ import { FOLDER_CONTENT_OPTIONS, contentCaption, contentSuggestion, rematchMessa
       <mat-icon>info_outline</mat-icon><span class="lbl">Series</span>
     </button>
     <mat-menu #seriesMenu="matMenu">
-      <button mat-menu-item [disabled]="selectedNodes().length !== 1" (click)="identify()" data-testid="bulk-identify">
-        <mat-icon>travel_explore</mat-icon> Identify…
+      <button mat-menu-item [disabled]="selectedNodes().length === 0" (click)="identify()" data-testid="bulk-identify"
+              [matTooltip]="selectedNodes().length > 1 ? 'One at a time: search, preview and link each, or skip it' : ''" matTooltipPosition="left">
+        <mat-icon>travel_explore</mat-icon> Identify{{ selectedNodes().length > 1 ? ' one by one' : '' }}…
+      </button>
+      <button mat-menu-item [disabled]="selectedNodes().length === 0" (click)="rerun()" data-testid="bulk-rerun"
+              matTooltip="Match the selected items again in the background (unlinked items only)" matTooltipPosition="left">
+        <mat-icon>refresh</mat-icon> Re-run matching
       </button>
       <button mat-menu-item [disabled]="selectedNodes().length !== 1 || selectedFolders().length !== 1" (click)="collection()"
               matTooltip="A folder of works about a series (fan works): the folder shows the series, its items are matched on their own"
@@ -195,10 +202,36 @@ export class SeriesSelectionActionsComponent implements OnInit {
     });
   }
 
-  /** Opens the identify dialog for the single selected node (the dialog explains a disabled state). */
+  /**
+   * Opens the identify dialog for the selected node (the dialog explains a disabled state); with several selected (1.34.0) it
+   * steps through them one at a time - link or skip each, no "same record for all".
+   */
   identify(): void {
     const nodes = this.selectedNodes();
     if (nodes.length === 1) void this.identifyDialog.open(nodes[0].id);
+    else if (nodes.length > 1) void this.identifyDialog.openMany(nodes.map((n) => n.id));
+  }
+
+  /** 1.34.0: queues the selected items for automatic matching again and says, per refusal reason, what was not queued. */
+  rerun(): void {
+    const ids = this.selectedNodes().map((n) => n.id);
+    if (ids.length === 0) return;
+    // The review bulk call takes at most 200 anchors.
+    const chunks: string[][] = [];
+    for (let i = 0; i < ids.length; i += 200) chunks.push(ids.slice(i, i + 200));
+    this.busy.set(true);
+    forkJoin(chunks.map((c) => this.api.reviewBulk('RerunMatching', c))).subscribe({
+      next: (results) => {
+        this.busy.set(false);
+        const all = results.flatMap((r) => r.results);
+        const refused = all.some((r) => r.code !== 'ok');
+        this.snackBar.open(rerunMessage(all), 'Close', { duration: refused ? 10000 : 3500 });
+      },
+      error: (err: { message?: string }) => {
+        this.busy.set(false);
+        this.snackBar.open(`Failed: ${err?.message ?? 'error'}`, 'Close', { duration: 4000 });
+      },
+    });
   }
 
   /** 1.34.0: the identify dialog's "pick the series these works are about" mode for the one selected folder. */
