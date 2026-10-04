@@ -188,6 +188,8 @@ public sealed class MetadataAutoMatchHttpTests
             () => reader.PostAsync("/api/v1/admin/metadata/review/amReview/later", null),
             () => reader.DeleteAsync("/api/v1/admin/metadata/review/amReview/later"),
             () => reader.GetAsync("/api/v1/admin/metadata/review/authors"),
+            () => reader.GetAsync("/api/v1/admin/metadata/review/authors?tab=Unmatched"),
+            () => reader.GetAsync("/api/v1/admin/metadata/review?tab=Unmatched&author=syntheticcircle"),
             () => reader.GetAsync("/api/v1/admin/metadata/review?tab=NeedsReview&author=syntheticcircle"),
             () => reader.PostAsJsonAsync("/api/v1/admin/metadata/review/bulk", new MetadataReviewBulkRequest { Action = MetadataReviewBulkAction.Later, NodeIds = ["amReview"] }),
             () => reader.GetAsync("/api/v1/admin/metadata/runs"),
@@ -478,6 +480,59 @@ public sealed class MetadataAutoMatchHttpTests
         var both = await admin.GetAsync($"{Review}?tab=NeedsReview&author=syntheticcircle&folder=amDoujins");
         Assert.Equal(HttpStatusCode.BadRequest, both.StatusCode);
         Assert.Equal("invalid_filter", (await ErrorAsync(both)).Error);
+        Assert.Equal(0, factory.Handler.CallCount);
+    }
+
+    [Fact]
+    public async Task Review_Unmatched_HasTheSameGroups_Filters_AndTheAuthorsList_OtherTabsRefuseThem()
+    {
+        using var factory = new MetadataNetworkWebApplicationFactory(failOnAnyRequest: true, configureServices: Fakes);
+        await SeedAsync(factory);
+        using (var scope = factory.Services.CreateScope())
+        {
+            // Two Unmatched works by one circle in a folder (decided, no confident match, no link row).
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+            var lib = await db.Libraries.SingleAsync(l => l.PublicId == LibPub);
+            var folder = Node("amUnm", lib.Id, null, CatalogNodeKind.Folder, "Unmatched Doujins");
+            db.CatalogNodes.Add(folder);
+            await db.SaveChangesAsync();
+            var one = Node("amU1", lib.Id, folder.Id, CatalogNodeKind.Archive, "[Synthetic Circle] First Story.cbz");
+            var two = Node("amU2", lib.Id, folder.Id, CatalogNodeKind.Archive, "Synthetic Circle] Second Story.cbz");
+            db.CatalogNodes.AddRange(one, two);
+            await db.SaveChangesAsync();
+            foreach (var n in new[] { one, two })
+                db.MetadataMatchQueue.Add(new MetadataMatchQueueEntity
+                {
+                    NodeId = n.Id, LibraryId = lib.Id, State = QueueState.Done, Outcome = (int)MatchBand.Unmatched,
+                    WorkClass = (int)WorkClass.CollectionLeaf, EnqueuedAt = DateTimeOffset.UtcNow,
+                });
+            await db.SaveChangesAsync();
+        }
+        var admin = await factory.LoginAsAdminWithChangedPasswordAsync();
+        const string Review = "/api/v1/admin/metadata/review";
+
+        var page = await OkAsync<MetadataReviewPageDto>(await admin.GetAsync($"{Review}?tab=Unmatched"));
+        var u1 = page.Items.Single(i => i.NodeId == "amU1");
+        Assert.Equal(("syntheticcircle", "Synthetic Circle", 1), (u1.SameAuthor!.Key, u1.SameAuthor.Label, u1.SameAuthor.Others));
+        Assert.Equal(("amUnm", "Unmatched Doujins", 1), (u1.SameFolder!.Key, u1.SameFolder.Label, u1.SameFolder.Others));
+
+        var authors = await OkAsync<MetadataReviewAuthorsDto>(await admin.GetAsync($"{Review}/authors?tab=Unmatched"));
+        Assert.Equal(("syntheticcircle", 2), (authors.Items.Single().Key, authors.Items.Single().Count));
+        // Needs review has no work of that circle: its list stays empty.
+        Assert.Empty((await OkAsync<MetadataReviewAuthorsDto>(await admin.GetAsync($"{Review}/authors"))).Items);
+        var refused = await admin.GetAsync($"{Review}/authors?tab=Confirmed");
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Equal("invalid_tab", (await ErrorAsync(refused)).Error);
+
+        var byAuthor = await OkAsync<MetadataReviewPageDto>(await admin.GetAsync($"{Review}?tab=Unmatched&author=syntheticcircle&limit=1"));
+        Assert.Equal((2, true, 1), (byAuthor.Total, byAuthor.HasMore, byAuthor.Items.Count));
+        var next = await OkAsync<MetadataReviewPageDto>(await admin.GetAsync($"{Review}?tab=Unmatched&author=syntheticcircle&limit=1&cursor={byAuthor.NextCursor}"));
+        Assert.False(next.HasMore);
+        Assert.NotEqual(byAuthor.Items.Single().NodeId, next.Items.Single().NodeId);
+        var byFolder = await OkAsync<MetadataReviewPageDto>(await admin.GetAsync($"{Review}?tab=Unmatched&folder=amUnm"));
+        Assert.Equal(["amU2", "amU1"], byFolder.Items.Select(i => i.NodeId));
+        var both = await admin.GetAsync($"{Review}?tab=Unmatched&author=syntheticcircle&folder=amUnm");
+        Assert.Equal(HttpStatusCode.BadRequest, both.StatusCode);
         Assert.Equal(0, factory.Handler.CallCount);
     }
 
