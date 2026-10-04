@@ -5,6 +5,7 @@ import { catchError } from 'rxjs/operators';
 
 import {
   ApiError,
+  CollectionAboutResultDto,
   CompanionDto,
   CoverPassStatusDto,
   CreateMetadataFlagRequest,
@@ -40,6 +41,7 @@ import {
   MetadataSettingsDto,
   NodeSeriesLinkChangeDto,
   SeriesInfoDto,
+  SetCollectionAboutRequest,
   UpdateMetadataLibraryRequest,
   UpdateMetadataSettingsRequest,
 } from '../../core/api/api-types';
@@ -114,6 +116,19 @@ export class MetadataApiService {
 
   clearDontMatch(nodeId: string): Observable<NodeSeriesLinkChangeDto> {
     return this.delete<NodeSeriesLinkChangeDto>(`/admin/metadata/nodes/${encodeURIComponent(nodeId)}/dont-match`);
+  }
+
+  /**
+   * 1.34.0: marks a FOLDER "Collection about" a series record (fetched first when not stored - gated). By default also sets the
+   * folder's Content to "Doujinshi & adult one-shots" and queues the works inside (while automatic matching is on).
+   */
+  setCollection(nodeId: string, request: SetCollectionAboutRequest): Observable<CollectionAboutResultDto> {
+    return this.put<CollectionAboutResultDto>(`/admin/metadata/nodes/${encodeURIComponent(nodeId)}/collection`, request);
+  }
+
+  /** 1.34.0: clears only a "Collection about" row (another link is left alone). */
+  clearCollection(nodeId: string): Observable<NodeSeriesLinkChangeDto> {
+    return this.delete<NodeSeriesLinkChangeDto>(`/admin/metadata/nodes/${encodeURIComponent(nodeId)}/collection`);
   }
 
   // --- Admin: identify (lane B2) ---
@@ -218,6 +233,11 @@ export class MetadataApiService {
   /** Links the stored candidate `rank` (1-based); one gated GET when its record is not stored yet. */
   acceptCandidate(nodeId: string, rank: number): Observable<NodeSeriesLinkChangeDto> {
     return this.post<NodeSeriesLinkChangeDto>(`/admin/metadata/review/${encodeURIComponent(nodeId)}/accept`, { rank });
+  }
+
+  /** 1.34.0: accepts a waiting folder as a collection about its stored candidate `rank`. */
+  acceptCollection(nodeId: string, rank: number): Observable<CollectionAboutResultDto> {
+    return this.post<CollectionAboutResultDto>(`/admin/metadata/review/${encodeURIComponent(nodeId)}/accept-collection`, { rank });
   }
 
   /** At most 200 nodes per call. */

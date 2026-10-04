@@ -25,6 +25,7 @@ const LINK_STATE_LABELS: Record<SeriesLinkState, string> = {
   Auto: 'automatic',
   NeedsReview: 'in review',
   DontMatch: "Don't match",
+  CollectionAbout: 'collection',
 };
 
 /** One side of a conflict in words, e.g. "Page 12 of 40", "Finished", "Right to left", "Some Title (confirmed)". */
@@ -44,6 +45,7 @@ export function sideText(kind: MoveConflictKind, side: MoveConflictSideDto): str
     case 'SeriesLink': {
       if (!side.present || !side.linkState) return 'Not linked';
       if (side.linkState === 'DontMatch') return "Don't match";
+      if (side.linkState === 'CollectionAbout') return `Collection about ${side.recordTitle ?? 'an unknown record'}`;
       return `${side.recordTitle ?? 'Unknown record'} (${LINK_STATE_LABELS[side.linkState]})`;
     }
   }

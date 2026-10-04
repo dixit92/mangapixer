@@ -7,7 +7,14 @@ import { isPhone } from '../series-info-overlay.service';
 /** Data handed to the identify dialog. */
 export interface IdentifyDialogData {
   nodeId: string;
+  /**
+   * `collection` (1.34.0): pick the series a folder of works is ABOUT (fan works) - the action marks the folder "Collection about"
+   * that series instead of linking it. Default `link`.
+   */
+  mode?: IdentifyMode;
 }
+
+export type IdentifyMode = 'link' | 'collection';
 
 /** What the dialog reports when it closes: true when a link was made. */
 export type IdentifyDialogResult = boolean | undefined;
@@ -21,9 +28,9 @@ export type IdentifyDialogResult = boolean | undefined;
 export class IdentifyDialogService {
   private readonly dialog = inject(MatDialog);
 
-  async open(nodeId: string): Promise<boolean> {
+  async open(nodeId: string, mode: IdentifyMode = 'link'): Promise<boolean> {
     const { IdentifyDialogComponent } = await import('./identify-dialog.component');
-    const data: IdentifyDialogData = { nodeId };
+    const data: IdentifyDialogData = { nodeId, mode };
     const phone = isPhone();
     const ref = this.dialog.open<unknown, IdentifyDialogData, IdentifyDialogResult>(IdentifyDialogComponent, {
       data,
@@ -32,7 +39,7 @@ export class IdentifyDialogService {
       height: phone ? '100vh' : undefined,
       maxHeight: phone ? '100vh' : '90vh',
       panelClass: phone ? 'identify-dialog-fullscreen' : 'identify-dialog-panel',
-      ariaLabel: 'Identify series',
+      ariaLabel: mode === 'collection' ? 'Collection about a series' : 'Identify series',
       autoFocus: 'first-tabbable',
       restoreFocus: true,
     });

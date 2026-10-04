@@ -69,7 +69,7 @@ describe('IdentifyDialogComponent', () => {
     warnings: [{ code: 'count_mismatch', message: 'The record lists 43 volumes/chapters; this folder has 120 items.' }],
   };
 
-  function create(context: IdentifyContextDto = ctx()) {
+  function create(context: IdentifyContextDto = ctx(), mode: 'link' | 'collection' = 'link') {
     const dialogRef = { close: vi.fn() };
     const undo = new Subject<void>();
     const snackBar = { open: vi.fn(() => ({ onAction: () => undo })) };
@@ -81,6 +81,9 @@ describe('IdentifyDialogComponent', () => {
       link: vi.fn(() => of({ nodeId: 'n1', link: { nodeId: 'n1', state: 'Confirmed', updatedAt: 'x' }, previous: null })),
       unlink: vi.fn(() => of({ nodeId: 'n1' })),
       setDontMatch: vi.fn(() => of({ nodeId: 'n1' })),
+      setCollection: vi.fn(() => of({
+        change: { nodeId: 'n1', link: { nodeId: 'n1', state: 'CollectionAbout', updatedAt: 'x' }, previous: null }, contentSet: true, queued: 34,
+      })),
       candidateImageUrl: (t: string) => `/api/v1/admin/metadata/candidates/${t}/image`,
     };
     const state = { announce: vi.fn(), refresh: vi.fn() };
@@ -90,7 +93,7 @@ describe('IdentifyDialogComponent', () => {
         provideNoopAnimations(),
         provideRouter([]),
         { provide: MetadataApiService, useValue: api },
-        { provide: MAT_DIALOG_DATA, useValue: { nodeId: 'n1' } },
+        { provide: MAT_DIALOG_DATA, useValue: { nodeId: 'n1', mode } },
         { provide: MatDialogRef, useValue: dialogRef },
         { provide: MatSnackBar, useValue: snackBar },
         { provide: MetadataStateService, useValue: state },
@@ -357,6 +360,43 @@ describe('IdentifyDialogComponent', () => {
     c.runSearch();
     render();
     expect(q('[role="alert"]')!.textContent).toMatch(/25 requests an hour\. Try again after /);
+  });
+
+  it('1.34.0: the collection mode marks the folder "Collection about" the previewed series, with the Content box and Undo', () => {
+    const { c, api, state, dialogRef, snackBar, undo, q, render } = create(ctx(), 'collection');
+    expect(q('[data-testid="identify-collection-title"]')!.textContent).toContain('pick the series');
+    expect(c.hideDoujinshi()).toBe(true);
+    c.usePreview('mangaupdates', '51239621230', 'Search');
+    render();
+    expect(q('[data-testid="identify-link"]')).toBeNull();
+    expect(q('[data-testid="identify-collection-content"]')).not.toBeNull();
+    (q('[data-testid="identify-set-collection"]') as HTMLButtonElement).click();
+    expect(api.setCollection).toHaveBeenCalledWith('n1',
+      { provider: 'mangaupdates', externalId: '51239621230', matchMethod: 'Search', setDoujinContent: true });
+    expect(api.link).not.toHaveBeenCalled();
+    expect(state.announce).toHaveBeenCalledWith('n1', true);
+    expect(dialogRef.close).toHaveBeenCalledWith(true);
+    expect(snackBar.open).toHaveBeenCalledWith(
+      'Collection about Berserk - 34 works inside will be matched - Content set to Doujinshi & adult one-shots', 'Undo', expect.anything());
+    undo.next();
+    expect(api.unlink).toHaveBeenCalledWith('n1');
+  });
+
+  it('1.34.0: in a doujinshi folder the collection mode keeps doujinshi hidden and asks nothing about the Content', () => {
+    const { c, api, q, render } = create(ctx({ doujinshiContent: true }), 'collection');
+    expect(c.hideDoujinshi()).toBe(true);
+    c.usePreview('mangaupdates', '51239621230', 'Search');
+    render();
+    expect(q('[data-testid="identify-collection-content"]')).toBeNull();
+    (q('[data-testid="identify-set-collection"]') as HTMLButtonElement).click();
+    expect(api.setCollection).toHaveBeenCalledWith('n1', expect.objectContaining({ setDoujinContent: false }));
+  });
+
+  it('restorePrevious puts back a collection (1.34.0) without touching the Content', () => {
+    const { api } = create();
+    restorePrevious(api as unknown as MetadataApiService, 'n1',
+      { nodeId: 'n1', state: 'CollectionAbout', provider: 'mangaupdates', externalId: '7', matchMethod: 'Search', updatedAt: 'x' });
+    expect(api.setCollection).toHaveBeenCalledWith('n1', { provider: 'mangaupdates', externalId: '7', matchMethod: 'Search', setDoujinContent: false });
   });
 
   it('restorePrevious puts back a Don\'t match or an earlier record', () => {

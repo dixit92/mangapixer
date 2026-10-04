@@ -53,6 +53,8 @@ export class MetadataStateService {
 export function ownSeriesInfo(info: SeriesInfoDto | null | undefined): boolean {
   if (!info || info.state === 'None' || info.state === 'DontMatch') return false;
   const link = info.link;
-  const ownWeb = !!info.web && !!link && !link.inherited && (link.state === 'Confirmed' || link.state === 'Auto');
+  // 1.34.0: a folder's own "Collection about" row shows its series too (never inherited).
+  const ownWeb = !!info.web && !!link && !link.inherited
+    && (link.state === 'Confirmed' || link.state === 'Auto' || link.state === 'CollectionAbout');
   return ownWeb || (info.comicInfo?.itemsWithComicInfo ?? 0) > 0;
 }

@@ -55,6 +55,8 @@ export const REVIEW_TABS: readonly ReviewTabDef[] = [
     hint: 'Folders and archives marked "not one series". Nothing inside them is matched automatically.' },
   { tab: 'Confirmed', label: 'Confirmed', count: 'confirmed',
     hint: 'Links an admin made or confirmed. Automatic matching never changes these.' },
+  { tab: 'Collections', label: 'Collections', count: 'collections',
+    hint: 'Folders of works about a series (fan works). Each shows its series; the works inside are matched on their own.' },
   { tab: 'MissingFolders', label: 'Missing folders', count: 'missingFolders',
     hint: 'Links and declared facts left on folders that were renamed or moved where MangaPixer could not follow them. Re-attach or delete.' },
 ];
