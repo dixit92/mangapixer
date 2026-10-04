@@ -250,7 +250,9 @@ public sealed class MetadataAutoMatchService
             return 0;
         var tree = await SnapshotAsync(libraryId, ct);
         var links = await OwnLinksAsync(libraryId, ct);
-        if (CoveredByAncestors(tree, folderId, links))
+        // The items below see the folder's own row first (a collection re-opens), then its ancestors (a Don't match still blocks).
+        var chain = tree.Ancestors(folderId).Select(a => a.Id).Prepend(folderId);
+        if (MatchingCover.IsCovered(chain.Where(links.ContainsKey).Select(id => links[id])))
             return 0;
         var works = AutoMatchWorkSelector.SelectBelow(tree, _detector, links, folderId);
         return await EnqueueAsync(libraryId, works, QueueReason.Rerun, MetadataMatchRunTrigger.Rerun, reviewFirst: false, requeueUnmatched: false, ct);
