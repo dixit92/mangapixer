@@ -29,7 +29,9 @@ export type ReviewRowAction =
   | 'accept' | 'identify' | 'dontMatch' | 'later' | 'notLater' | 'confirm' | 'unlink' | 'clearDontMatch'
   | 'reattach' | 'deleteMissing' | 'rerun'
   // 1.34.0: "Collection about" a series.
-  | 'acceptCollection' | 'changeCollection' | 'clearCollection';
+  | 'acceptCollection' | 'changeCollection' | 'clearCollection'
+  // 1.34.1: mark a waiting folder "Collection about" a series you pick (Identify in collection mode).
+  | 'collectionAbout';
 
 export interface ReviewRowActionEvent {
   action: ReviewRowAction;
@@ -60,6 +62,11 @@ const ACCEPT_COLLECTION: ReviewActionDef = {
   action: 'acceptCollection', label: 'Accept as collection', short: 'Collection', icon: 'collections_bookmark', key: 'f', primary: true,
 };
 
+/** 1.34.1: any waiting folder can be marked a collection about a series picked in Identify (not only a suggested one). */
+const COLLECTION_ABOUT: ReviewActionDef = {
+  action: 'collectionAbout', label: 'Collection about…', short: 'Collection', icon: 'collections_bookmark', key: 'f',
+};
+
 /** The row actions each tab offers, in button order (the phone bottom bar uses the same list). */
 export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto): ReviewActionDef[] {
   switch (tab) {
@@ -69,6 +76,7 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
         ...(item.collection ? [ACCEPT_COLLECTION] : []),
         { action: 'accept', label: 'Accept', icon: 'check', key: 'a', primary: !item.collection },
         { action: 'identify', label: 'Identify…', icon: 'travel_explore', key: 'i' },
+        ...(item.nodeKind === 'Folder' && !item.collection ? [COLLECTION_ABOUT] : []),
         { action: 'dontMatch', label: 'Don\'t match', icon: 'block', key: 'd' },
         // 1.33.0: remembered on the server - the row goes to the end of Needs review for every admin until it is decided.
         item.laterAt
@@ -85,6 +93,7 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
     case 'Unmatched':
       return [
         { action: 'identify', label: 'Identify…', icon: 'travel_explore', key: 'i', primary: true },
+        ...(item.nodeKind === 'Folder' ? [COLLECTION_ABOUT] : []),
         { action: 'dontMatch', label: 'Don\'t match', icon: 'block', key: 'd' },
       ];
     case 'DontMatch':

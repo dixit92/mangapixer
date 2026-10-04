@@ -682,6 +682,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
         this.defer([item], `Collection cleared on ${item.displayName}`, () => none(this.api.clearCollection(item.nodeId)));
         return;
       case 'changeCollection':
+      case 'collectionAbout':
         this.identify(item, 'collection');
         return;
       case 'identify':

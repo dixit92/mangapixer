@@ -393,6 +393,29 @@ describe('IdentifyDialogComponent', () => {
     expect(api.setCollection).toHaveBeenCalledWith('n1', expect.objectContaining({ setDoujinContent: false }));
   });
 
+  it('1.34.1: a folder can switch between Link and "Set as collection" after previewing; an archive cannot', () => {
+    const { c, api, q, render } = create(ctx({ nodeKind: 'Folder' }));
+    c.usePreview('mangaupdates', '51239621230', 'Search');
+    render();
+    expect(q('[data-testid="identify-link"]')).not.toBeNull();
+    (q('[data-testid="identify-mode-switch"]') as HTMLButtonElement).click();
+    render();
+    expect(c.collectionMode()).toBe(true);
+    expect(q('[data-testid="identify-link"]')).toBeNull();
+    expect(q('[data-testid="identify-mode-switch"]')!.textContent).toContain('Link instead');
+    (q('[data-testid="identify-set-collection"]') as HTMLButtonElement).click();
+    expect(api.setCollection).toHaveBeenCalledWith('n1', expect.objectContaining({ provider: 'mangaupdates', externalId: '51239621230' }));
+    expect(api.link).not.toHaveBeenCalled();
+  });
+
+  it('1.34.1: an archive offers no collection switch (only folders can be collections)', () => {
+    const { c, q, render } = create(ctx({ nodeKind: 'Archive' }));
+    c.usePreview('mangaupdates', '51239621230', 'Search');
+    render();
+    expect(q('[data-testid="identify-mode-switch"]')).toBeNull();
+    expect(q('[data-testid="identify-link"]')).not.toBeNull();
+  });
+
   describe('stepping through several nodes (1.34.0)', () => {
     const stepCtx = (id: string) => ctx({ nodeId: id, displayName: `Work ${id}`, suggestions: [`Series ${id}`] });
     const steppingDialog = (ids: string[]) => {
