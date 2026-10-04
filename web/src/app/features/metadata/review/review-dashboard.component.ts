@@ -180,7 +180,7 @@ const ROW_BULK: Partial<Record<ReviewRowAction, MetadataReviewBulkAction>> = {
                 <button mat-menu-item type="button" (click)="setGroup({ kind: 'author', key: a.key, label: a.label })" data-testid="review-author">
                   <span>{{ a.label }}</span> <span class="menu-count">{{ a.count }}</span></button>
               } @empty {
-                <p class="menu-empty">{{ authors() === null ? 'Loading…' : 'No author has two or more works {{ tab() === 'Unmatched' ? 'here' : 'waiting' }}.' }}</p>
+                <p class="menu-empty">{{ authors() === null ? 'Loading…' : (tab() === 'Unmatched' ? 'No author has two or more works here.' : 'No author has two or more works waiting.') }}</p>
               }
             </mat-menu>
           }
