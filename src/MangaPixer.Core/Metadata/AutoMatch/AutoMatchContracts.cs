@@ -96,6 +96,9 @@ public sealed record ChildFolderShape(string DisplayName, int DescendantArchiveC
 /// server passes the creators of records linked in the library, 1.28.0); a leaf of two or more archives
 /// named like one of them, whose shape is not one series, is an artist collection.
 /// <c>Depth</c>: 0 = the library root, its direct children 1.
+/// <c>IsCollection</c> (1.34.0): an admin marked the folder "Collection about" a series - its archives are works of their own.
+/// <c>CollectionSeries</c> (1.34.0): the title of the series the nearest "Collection about" folder (this one or an ancestor) is about -
+/// the parody of the works below it (a record title the caller holds locally, never a folder or file name).
 /// </summary>
 public sealed record FolderShape(
     string DisplayName,
@@ -104,7 +107,9 @@ public sealed record FolderShape(
     IReadOnlyList<ChildFolderShape> Subfolders,
     string? ParentDisplayName = null,
     string? CategoryHint = null,
-    IReadOnlyList<string>? KnownAuthorNames = null);
+    IReadOnlyList<string>? KnownAuthorNames = null,
+    bool IsCollection = false,
+    string? CollectionSeries = null);
 
 /// <summary>Archives of a collection folder that form one work (a numbered mini-series, or one archive).</summary>
 public sealed record ArchiveGroup(string QueryTitle, IReadOnlyList<int> ArchiveIndexes);

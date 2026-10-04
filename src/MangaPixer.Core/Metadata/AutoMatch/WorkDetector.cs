@@ -10,6 +10,9 @@ using System.Globalization;
 ///
 /// Order of the rules:
 /// <list type="number">
+/// <item>1.34.0: a folder an admin marked "Collection about" a series (<see cref="FolderShape.IsCollection"/>) is a
+/// <see cref="WorkClass.CollectionLeaf"/> at archive level whatever its shape: its loose archives are works of their own (a numbered
+/// mini-series grouped), its subfolders are classified on their own.</item>
 /// <item>Depth 0 (the library root) is <see cref="WorkClass.Excluded"/>; a unit-named folder below
 /// a non-root parent (<c>Volumes</c>, <c>Season 2</c>, <c>Part 3</c>) is <see cref="WorkClass.UnitSub"/>.</item>
 /// <item>Subfolders (empty ones ignored): two or more non-unit subfolders make a franchise container
@@ -67,6 +70,16 @@ public sealed class WorkDetector : IWorkDetector
 
         if (folder.Depth <= 0)
             return Result(WorkClass.Excluded, MatchLevel.None, ["library root"]);
+
+        if (folder.IsCollection)
+        {
+            var collectionContent = SuggestContent(archives.Select(ArchiveNameAnatomy.Parse).ToList());
+            var groups = GroupArchives(archives);
+            return groups.Count > 0
+                ? Result(WorkClass.CollectionLeaf, MatchLevel.Archive,
+                    [Invariant($"collection about a series: {archives.Count} archives are works of their own")], groups, collectionContent)
+                : Result(WorkClass.CollectionContainer, MatchLevel.None, ["collection about a series: no loose archives"], content: collectionContent);
+        }
 
         if (folder.Depth >= 2 && AutoMatchText.IsUnitFolderName(folder.DisplayName))
             return Result(WorkClass.UnitSub, MatchLevel.None, ["unit subfolder name below a non-root parent"]);

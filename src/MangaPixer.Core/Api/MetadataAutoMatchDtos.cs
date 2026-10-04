@@ -35,6 +35,9 @@ public enum MetadataReviewTab
 
     /// <summary>Links / Don't match rows on removed folders that carry-over could not place.</summary>
     MissingFolders = 6,
+
+    /// <summary>1.34.0: folders an admin marked "Collection about" a series ("Collections").</summary>
+    Collections = 7,
 }
 
 /// <summary>
@@ -99,6 +102,12 @@ public enum MetadataReviewBulkAction
 
     /// <summary>1.33.0: brings each row set aside back into the normal order.</summary>
     ClearLater = 6,
+
+    /// <summary>
+    /// 1.34.0: marks each Needs-review folder "Collection about" its suggested series (<see cref="MetadataReviewItemDto.Collection"/>),
+    /// sets its Content to "Doujinshi &amp; adult one-shots" and queues its works; a row without a suggestion answers <c>no_suggestion</c>.
+    /// </summary>
+    AcceptCollection = 7,
 }
 
 /// <summary>Why a user flagged a series.</summary>
@@ -161,6 +170,9 @@ public sealed record MetadataReviewSummaryDto
     public required int DontMatch { get; init; }
     public required int Confirmed { get; init; }
     public required int MissingFolders { get; init; }
+
+    /// <summary>1.34.0: folders marked "Collection about" a series.</summary>
+    public int Collections { get; init; }
 
     /// <summary>Queue rows still waiting to be matched.</summary>
     public required int Pending { get; init; }
@@ -317,6 +329,13 @@ public sealed record MetadataReviewItemDto
     public MetadataReviewGroupHintDto? SameFolder { get; init; }
 
     /// <summary>
+    /// 1.34.0 (Needs review, folders): "Looks like a collection about &lt;Series&gt;" - the folder's archives are doujin-shaped works
+    /// by several circles and one stored candidate (not a doujinshi record) matches its name closely. Read when the list is built;
+    /// nothing is stored. Null when the signal is not there.
+    /// </summary>
+    public MetadataReviewCollectionHintDto? Collection { get; init; }
+
+    /// <summary>
     /// 1.31.0 (folder works): how many chapter numbers more than one file of the same folder below it states ("2 duplicate chapters").
     /// Split chapters and ranges are not duplicates.
     /// </summary>
@@ -329,6 +348,16 @@ public sealed record MetadataReviewItemDto
 
     /// <summary>Flags tab only: the open flags on this anchor.</summary>
     public IReadOnlyList<MetadataFlagDto> Flags { get; init; } = [];
+}
+
+/// <summary>1.34.0: the series a Needs-review folder looks like a collection about (one of its stored candidates).</summary>
+public sealed record MetadataReviewCollectionHintDto
+{
+    /// <summary>The candidate's rank (the value <c>accept-collection</c> takes).</summary>
+    public required int Rank { get; init; }
+    public required string Provider { get; init; }
+    public required string ExternalId { get; init; }
+    public required string Title { get; init; }
 }
 
 /// <summary>
