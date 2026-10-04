@@ -529,7 +529,7 @@ public sealed class VolumeCoverPassTests : IAsyncLifetime
         await _h.TickAsync();
 
         Assert.Single(_h.Handler.Seen, s => s.Uri.Host == MetadataHttp.AniListHost);
-        Assert.Empty(_h.Handler.Seen.Where(s => s.Uri.AbsolutePath.EndsWith("/aggregate", StringComparison.Ordinal)));
+        Assert.DoesNotContain(_h.Handler.Seen, s => s.Uri.AbsolutePath.EndsWith("/aggregate", StringComparison.Ordinal));
         var ratio = await _t.Db.SeriesVolumeMaps.SingleAsync(m => m.RecordId == record.Id && m.Source == (int)VolumeMapSource.AniListRatio);
         Assert.Equal((int)VolumeMapState.Ok, ratio.State);
     }
