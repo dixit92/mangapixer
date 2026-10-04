@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Collection about… on any waiting folder.** In **Needs review** and **Unmatched**, every folder row now offers **Collection about…** (key `f`) - not only the folders the review suggests as a collection - and opens Identify in its "pick the series" mode. In a folder's normal **Identify**, **Set as collection instead** / **Link instead** switches between linking the folder and marking it a collection about the series you found.
+
 ## [1.34.0] - 2026-10-04
 
 ### Added
