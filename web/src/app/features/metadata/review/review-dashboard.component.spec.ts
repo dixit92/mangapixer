@@ -396,12 +396,70 @@ describe('ReviewDashboardComponent', () => {
     key('g');
     expect(c.group()).toBeNull();
     c.loadAuthors();
-    expect(api.getReviewAuthors).toHaveBeenCalledWith(null);
+    expect(api.getReviewAuthors).toHaveBeenCalledWith(null, 'NeedsReview');
     expect(c.authors()!.map((a) => a.label)).toEqual(['Circle A', 'Artist B']);
     expect(el.querySelector('[data-testid="review-authors"]')).not.toBeNull();
     c.setGroup({ kind: 'author', key: 'artistb', label: 'Artist B' });
     fixture.detectChanges();
     expect(api.getReview).toHaveBeenLastCalledWith('NeedsReview', null, null, 50, { author: 'artistb' });
+  });
+
+  describe('1.34.0: Same author / Same folder on Unmatched', () => {
+    const unmatched = [
+      reviewItem({ nodeId: 'u1', displayName: '[Circle A] First', candidates: [], reasons: [], sameAuthor: { key: 'circlea', label: 'Circle A', others: 1 },
+        sameFolder: { key: 'f1', label: 'Doujins', others: 1 } }),
+      reviewItem({ nodeId: 'u2', displayName: 'Circle A] Second', candidates: [], reasons: [], sameAuthor: { key: 'circlea', label: 'Circle A', others: 1 },
+        sameFolder: { key: 'f1', label: 'Doujins', others: 1 } }),
+    ];
+    const open = () => create({ tab: 'Unmatched', pages: { Unmatched: unmatched } });
+
+    it('shows the chips and the Authors list, but not the Later filter, and loads the tab without a group', () => {
+      const { el, api } = open();
+      expect(api.getReview).toHaveBeenCalledWith('Unmatched', null, null, 50, {});
+      expect(el.querySelector('[data-testid="review-same-author"]')!.textContent).toContain('1 more by Circle A');
+      expect(el.querySelector('[data-testid="review-same-folder"]')!.textContent).toContain('1 more in Doujins');
+      expect(el.querySelector('[data-testid="review-authors"]')).not.toBeNull();
+      expect(el.querySelector('[data-testid="review-later-filter"]')).toBeNull();
+    });
+
+    it('a chip filters the Unmatched list (group only, never Later) and the group chip clears it', () => {
+      const { c, api, el, fixture } = open();
+      (el.querySelector('[data-testid="review-same-author"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(api.getReview).toHaveBeenLastCalledWith('Unmatched', null, null, 50, { author: 'circlea' });
+      expect(el.querySelector('[data-testid="review-group-chip"]')!.textContent!.replace(/\s+/g, ' ')).toContain('By Circle A');
+      (el.querySelector('[data-testid="review-group-clear"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(api.getReview).toHaveBeenLastCalledWith('Unmatched', null, null, 50, {});
+      c.setGroup({ kind: 'folder', key: 'f1', label: 'Doujins' });
+      expect(api.getReview).toHaveBeenLastCalledWith('Unmatched', null, null, 50, { folder: 'f1' });
+    });
+
+    it('the Authors list is the Unmatched one; g filters by the focused row\'s author', () => {
+      const { c, api, key } = open();
+      c.loadAuthors();
+      expect(api.getReviewAuthors).toHaveBeenCalledWith(null, 'Unmatched');
+      key('g');
+      expect(c.group()).toEqual({ kind: 'author', key: 'circlea', label: 'Circle A' });
+    });
+
+    it('bulk Re-run and Don\'t match act on the filtered group (the selection of its rows)', () => {
+      const { c, api, fixture, el, snack } = open();
+      c.setGroup({ kind: 'author', key: 'circlea', label: 'Circle A' });
+      c.toggle('u1');
+      c.toggle('u2');
+      fixture.detectChanges();
+      (el.querySelector('[data-testid="bulk-RerunMatching"]') as HTMLButtonElement).click();
+      snack.close();
+      expect(api.reviewBulk).toHaveBeenCalledWith('RerunMatching', ['u1', 'u2']);
+    });
+
+    it('a group set on one tab is gone on the next, and Needs review keeps its own Later filter', () => {
+      const { c } = open();
+      c.setGroup({ kind: 'author', key: 'circlea', label: 'Circle A' });
+      c.setTab('NeedsReview');
+      expect(c.group()).toBeNull();
+    });
   });
 
   it('1.31.0: says how many items are being checked again under the current rules, on Needs review only', () => {

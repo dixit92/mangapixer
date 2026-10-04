@@ -69,8 +69,9 @@ describe('IdentifyDialogComponent', () => {
     warnings: [{ code: 'count_mismatch', message: 'The record lists 43 volumes/chapters; this folder has 120 items.' }],
   };
 
-  function create(context: IdentifyContextDto = ctx(), mode: 'link' | 'collection' = 'link') {
-    const dialogRef = { close: vi.fn() };
+  function create(context: IdentifyContextDto = ctx(), mode: 'link' | 'collection' = 'link', nodeIds?: string[]) {
+    const closing = new Subject<void>();
+    const dialogRef = { close: vi.fn(), beforeClosed: () => closing };
     const undo = new Subject<void>();
     const snackBar = { open: vi.fn(() => ({ onAction: () => undo })) };
     const api = {
@@ -93,7 +94,7 @@ describe('IdentifyDialogComponent', () => {
         provideNoopAnimations(),
         provideRouter([]),
         { provide: MetadataApiService, useValue: api },
-        { provide: MAT_DIALOG_DATA, useValue: { nodeId: 'n1', mode } },
+        { provide: MAT_DIALOG_DATA, useValue: { nodeId: nodeIds?.[0] ?? 'n1', nodeIds, mode } },
         { provide: MatDialogRef, useValue: dialogRef },
         { provide: MatSnackBar, useValue: snackBar },
         { provide: MetadataStateService, useValue: state },
@@ -104,7 +105,7 @@ describe('IdentifyDialogComponent', () => {
     const el = fixture.nativeElement as HTMLElement;
     const q = (sel: string) => el.querySelector(sel) as HTMLElement | null;
     const render = () => fixture.detectChanges();
-    return { fixture, c: fixture.componentInstance, api, state, dialogRef, snackBar, undo, el, q, render };
+    return { fixture, c: fixture.componentInstance, api, state, dialogRef, snackBar, undo, closing, el, q, render };
   }
 
   it('shows why it is unavailable and makes no call beyond the context', () => {
@@ -390,6 +391,108 @@ describe('IdentifyDialogComponent', () => {
     expect(q('[data-testid="identify-collection-content"]')).toBeNull();
     (q('[data-testid="identify-set-collection"]') as HTMLButtonElement).click();
     expect(api.setCollection).toHaveBeenCalledWith('n1', expect.objectContaining({ setDoujinContent: false }));
+  });
+
+  describe('stepping through several nodes (1.34.0)', () => {
+    const stepCtx = (id: string) => ctx({ nodeId: id, displayName: `Work ${id}`, suggestions: [`Series ${id}`] });
+    const steppingDialog = (ids: string[]) => {
+      const t = create(ctx(), 'link', ids);
+      return t;
+    };
+
+    function withContexts(ids: string[]) {
+      const t = create(stepCtx(ids[0]), 'link', ids);
+      t.api.getIdentifyContext.mockImplementation(((id: string) => of(stepCtx(id))) as never);
+      return t;
+    }
+
+    it('shows "1 of N" with the node name and offers Skip and Stop beside the search', () => {
+      const { q, c } = steppingDialog(['n1', 'n2', 'n3']);
+      expect(c.stepping).toBe(true);
+      expect(q('[data-testid="identify-step"]')!.textContent).toContain('1 of 3');
+      expect(q('[data-testid="identify-skip"]')).not.toBeNull();
+      expect(q('[data-testid="identify-stop"]')).not.toBeNull();
+    });
+
+    it('a single node (or one id) is the normal dialog: no stepping, no Skip / Stop', () => {
+      const one = create(ctx(), 'link', ['n1']);
+      expect(one.c.stepping).toBe(false);
+      expect(one.q('[data-testid="identify-step"]')).toBeNull();
+      expect(one.q('[data-testid="identify-skip"]')).toBeNull();
+    });
+
+    it('Link keeps the dialog open and moves to the next node with a clean search; the last step closes with the summary', () => {
+      const { c, api, state, dialogRef, snackBar, q, render } = withContexts(['n1', 'n2']);
+      c.runSearch();
+      c.usePreview('mangaupdates', '51239621230', 'Search');
+      render();
+      expect(c.step()).toBe('preview');
+      c.link();
+      expect(api.link).toHaveBeenCalledWith('n1', expect.objectContaining({ provider: 'mangaupdates', externalId: '51239621230' }));
+      expect(state.announce).toHaveBeenCalledWith('n1', true);
+      expect(dialogRef.close).not.toHaveBeenCalled();
+      render();
+      // Step 2: its own context, its own suggestion, nothing of the first search or preview.
+      expect(api.getIdentifyContext).toHaveBeenLastCalledWith('n2');
+      expect(q('[data-testid="identify-step"]')!.textContent).toContain('2 of 2');
+      expect(c.step()).toBe('search');
+      expect(c.preview()).toBeNull();
+      expect(c.candidates()).toEqual([]);
+      expect(c.query()).toBe('Series n2');
+      expect(snackBar.open).not.toHaveBeenCalled();
+
+      c.skip();
+      expect(dialogRef.close).toHaveBeenCalledWith(true);
+      expect(snackBar.open).toHaveBeenCalledWith('Linked 1 · skipped 1', 'Close', { duration: 6000 });
+    });
+
+    it('Skip leaves the node unlinked and moves on; a run with no link closes with false', () => {
+      const { c, api, dialogRef, snackBar } = withContexts(['n1', 'n2', 'n3']);
+      c.skip();
+      c.skip();
+      expect(api.link).not.toHaveBeenCalled();
+      expect(api.getIdentifyContext).toHaveBeenLastCalledWith('n3');
+      c.skip();
+      expect(dialogRef.close).toHaveBeenCalledWith(false);
+      expect(snackBar.open).toHaveBeenCalledWith('Linked 0 · skipped 3', 'Close', { duration: 6000 });
+    });
+
+    it('Stop ends the run at once and says how many were not reached', () => {
+      const { c, dialogRef, snackBar } = withContexts(['n1', 'n2', 'n3', 'n4']);
+      c.skip();
+      c.stop();
+      expect(dialogRef.close).toHaveBeenCalledWith(false);
+      expect(snackBar.open).toHaveBeenCalledWith('Linked 0 · skipped 1 · 3 not reached', 'Close', { duration: 6000 });
+    });
+
+    it('Escape or a click outside still says the summary once', () => {
+      const { c, closing, snackBar } = withContexts(['n1', 'n2']);
+      c.skip();
+      closing.next();
+      closing.next();
+      expect(snackBar.open).toHaveBeenCalledTimes(1);
+      expect(snackBar.open).toHaveBeenCalledWith('Linked 0 · skipped 1 · 1 not reached', 'Close', { duration: 6000 });
+    });
+
+    it('a node whose context fails can be skipped', () => {
+      const { c, api, q, render } = withContexts(['n1', 'n2']);
+      api.getIdentifyContext.mockImplementationOnce((() => throwError(() => ({ message: 'gone' }))) as never);
+      c.skip();
+      render();
+      expect(q('[role="alert"]')!.textContent).toContain('gone');
+      expect(q('[data-testid="identify-skip"]')).not.toBeNull();
+    });
+
+    it('a failing link keeps the step and shows the error', () => {
+      const { c, api, dialogRef, render, q } = withContexts(['n1', 'n2']);
+      api.link.mockReturnValueOnce(throwError(() => ({ message: 'nope' })) as never);
+      c.usePreview('mangaupdates', '51239621230', 'Search');
+      c.link();
+      render();
+      expect(dialogRef.close).not.toHaveBeenCalled();
+      expect(q('[role="alert"]')!.textContent).toContain('nope');
+      expect(c.position()).toBe(1);
+    });
   });
 
   it('restorePrevious puts back a collection (1.34.0) without touching the Content', () => {
