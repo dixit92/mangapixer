@@ -242,6 +242,9 @@ type Step = 'search' | 'preview';
           }
         }
         @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+      } @else if (error()) {
+        <!-- The node could not be loaded (gone, no access): said, and a stepping run can still Skip it. -->
+        <p class="error" role="alert" data-testid="identify-load-error">{{ error() }}</p>
       }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
