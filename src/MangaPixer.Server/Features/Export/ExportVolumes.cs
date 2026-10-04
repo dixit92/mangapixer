@@ -28,7 +28,8 @@ public static partial class ExportVolumes
     {
         ArgumentNullException.ThrowIfNull(maps);
         ArgumentNullException.ThrowIfNull(details);
-        var mangadexMap = maps.FirstOrDefault(m => m.Source == (int)VolumeMapSource.MangaDexAggregate && m.State == (int)VolumeMapState.Ok);
+        // 1.34.0: a near-empty MangaDex map is no list (as in ExactList), so it never credits a volume either.
+        var mangadexMap = Metadata.Volumes.VolumeMapService.UsableMangaDexMap(maps);
         var wikipediaMap = maps.FirstOrDefault(m => m.Source == (int)VolumeMapSource.WikipediaList && m.State == (int)VolumeMapState.Ok);
         var fromMangaDex = new Dictionary<decimal, HashSet<string>>();
         foreach (var entry in VolumeMapJson.Read(mangadexMap?.VolumesJson))

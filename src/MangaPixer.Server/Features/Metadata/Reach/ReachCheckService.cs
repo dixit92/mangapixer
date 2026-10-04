@@ -41,8 +41,10 @@ public sealed class ReachCheckService(MangaPixerDbContext db, TimeProvider time,
 
         var maps = await db.SeriesVolumeMaps.AsNoTracking().Where(m => m.RecordId == recordId).ToListAsync(ct);
         var row = new SeriesProgressLoader.RecordRow(record.Id, record.Origin, record.OriginStatus, record.OriginVolumes, record.StatusText,
-            record.LatestChapter, record.PublishersJson, record.LicensedEn, record.TranslationComplete);
-        var (map, facts) = SeriesProgressLoader.MapAndFacts(maps, row, ReleasedInLanguage.DefaultLanguage);
+            record.LatestChapter, record.PublishersJson, record.LicensedEn, record.TranslationComplete, record.Webtoon);
+        var (viewMap, facts) = SeriesProgressLoader.MapAndFacts(maps, row, ReleasedInLanguage.DefaultLanguage);
+        // The check compares the folder with the record's whole list, whatever the Volumes view shows (1.34.0: a webtoon's chapter mode).
+        var map = viewMap with { ChaptersOnly = false };
         var official = ReleasedInLanguage.OfficialOf(ReleasedInLanguage.DefaultLanguage, record.PublishersJson);
         var listed = map.Volumes.SelectMany(v => v.Chapters).Where(c => decimal.Truncate(c) == c && c > 0).Select(c => (int)c).DefaultIfEmpty().Max();
         var evidence = new ReachEvidence(

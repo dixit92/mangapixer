@@ -451,9 +451,10 @@ public sealed class VolumeCoverPass
     private async Task<List<int>> PlanHeldVolumesAsync(MangaDexRef md, long recordId, IReadOnlyList<long> nodeIds, string preferred, CancellationToken ct)
     {
         var archives = await ArchivesBelowAsync(_db, nodeIds, ct);
-        // 1.32.0: the exact list the Volumes view uses - MangaDex's, completed by Wikipedia's.
-        var exact = SeriesProgressLoader.ToVolumes(SeriesProgressLoader.ExactList(
-            await _db.SeriesVolumeMaps.AsNoTracking().Where(m => m.RecordId == recordId).ToListAsync(ct)).Volumes);
+        // 1.32.0: the exact list the Volumes view uses - MangaDex's, completed by Wikipedia's (SeriesProgressLoader.ExactList). 1.34.0: none
+        // in chapter mode (a webtoon / manhwa without a real list shows no volumes, so it needs no volume covers besides volume 1).
+        var viewMap = await ViewMapAsync(recordId, ct);
+        IReadOnlyList<VolumeMapVolume> exact = viewMap.ChaptersOnly ? [] : viewMap.Volumes;
 
         // volume -> the archives that ARE that volume (an empty list = held as all of its chapters, or an estimated stack)
         var held = new SortedDictionary<int, List<HeldArchive>>();
@@ -465,7 +466,7 @@ public sealed class VolumeCoverPass
         }
         foreach (var volume in VolumesHeldAsChapters(archives.Select(a => a.Row).ToList(), exact))
             Add(held, volume);
-        foreach (var volume in await EstimatedStacksAsync(recordId, archives, ct))
+        foreach (var volume in EstimatedStacks(archives, viewMap))
             Add(held, volume);
 
         var planned = new List<int>();
@@ -511,17 +512,19 @@ public sealed class VolumeCoverPass
     /// covers). The same grouping and map as the Volumes view (<see cref="SeriesProgressLoader.MapAndFacts"/> with the official
     /// chapters); stored rows only.
     /// </summary>
-    private async Task<IReadOnlySet<int>> EstimatedStacksAsync(long recordId, List<HeldArchive> archives, CancellationToken ct)
+    private static IReadOnlySet<int> EstimatedStacks(List<HeldArchive> archives, VolumeMapInput map) =>
+        archives.Count == 0 ? new HashSet<int>() : EstimatedStackVolumes(archives.Select(a => a.Row).ToList(), SeriesProgress.WithOfficialChapters(map));
+
+    /// <summary>The map the Volumes view groups a series with (<see cref="SeriesProgressLoader.MapAndFacts"/>); stored rows only.</summary>
+    private async Task<VolumeMapInput> ViewMapAsync(long recordId, CancellationToken ct)
     {
-        if (archives.Count == 0)
-            return new HashSet<int>();
         var maps = await _db.SeriesVolumeMaps.AsNoTracking().Where(m => m.RecordId == recordId).ToListAsync(ct);
         var record = await _db.MetadataRecords.AsNoTracking().Where(r => r.Id == recordId)
             .Select(r => new SeriesProgressLoader.RecordRow(r.Id, r.Origin, r.OriginStatus, r.OriginVolumes, r.StatusText, r.LatestChapter,
-                r.PublishersJson, r.LicensedEn, r.TranslationComplete))
+                r.PublishersJson, r.LicensedEn, r.TranslationComplete, r.Webtoon))
             .FirstOrDefaultAsync(ct);
         var (map, _) = SeriesProgressLoader.MapAndFacts(maps, record, await ReleasedInLanguage.PreferredAsync(_db, ct));
-        return EstimatedStackVolumes(archives.Select(a => a.Row).ToList(), SeriesProgress.WithOfficialChapters(map));
+        return map;
     }
 
     /// <summary>
