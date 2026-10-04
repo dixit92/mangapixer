@@ -62,7 +62,7 @@ type Step = 'search' | 'preview';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="head">
-      @if (collectionMode) {
+      @if (collectionMode()) {
         <h2 mat-dialog-title class="title" [title]="context()?.displayName ?? ''" data-testid="identify-collection-title">
           Collection about…: “{{ context()?.displayName ?? '…' }}” - pick the series</h2>
       } @else if (stepping) {
@@ -250,7 +250,7 @@ type Step = 'search' | 'preview';
     <mat-dialog-actions align="end">
       @if (busy()) { <mat-spinner diameter="20" /> }
       @if (step() === 'preview' && preview()) {
-        @if (collectionMode && !context()?.doujinshiContent) {
+        @if (collectionMode() && !context()?.doujinshiContent) {
           <mat-checkbox class="content-box" [checked]="setDoujinContent()" (change)="setDoujinContent.set($event.checked)"
                         data-testid="identify-collection-content">
             Also set Content: Doujinshi &amp; adult one-shots (so the works inside are searched as doujinshi)
@@ -261,7 +261,12 @@ type Step = 'search' | 'preview';
           <button mat-button type="button" [disabled]="busy()" (click)="skip()" data-testid="identify-skip">{{ isLast() ? 'Skip and finish' : 'Skip' }}</button>
           <button mat-button type="button" [disabled]="busy()" (click)="stop()" data-testid="identify-stop">Stop</button>
         }
-        @if (collectionMode) {
+        @if (!stepping && context()?.nodeKind === 'Folder') {
+          <!-- 1.34.1: change your mind after searching - link the folder, or mark it a collection about the previewed series. -->
+          <button mat-button type="button" [disabled]="busy()" (click)="toggleCollection()" data-testid="identify-mode-switch">
+            {{ collectionMode() ? 'Link instead' : 'Set as collection instead' }}</button>
+        }
+        @if (collectionMode()) {
           <button mat-flat-button type="button" [disabled]="busy()" (click)="setCollection()" data-testid="identify-set-collection">Set as collection</button>
         } @else {
           <button mat-flat-button type="button" [disabled]="busy()" (click)="link()" data-testid="identify-link">Link</button>
@@ -329,7 +334,12 @@ export class IdentifyDialogComponent implements OnInit {
   readonly STRENGTH = STRENGTH_LABELS;
 
   /** 1.34.0: "pick the series these works are about" - the action marks the folder "Collection about" it. */
-  readonly collectionMode = this.data.mode === 'collection';
+  readonly collectionMode = signal(this.data.mode === 'collection');
+
+  /** 1.34.1: switches a folder's dialog between Link and "Set as collection" (the search and preview stay). */
+  toggleCollection(): void {
+    this.collectionMode.update((on) => !on);
+  }
   /** Collection mode: also set the folder's Content to "Doujinshi & adult one-shots" (on by default). */
   readonly setDoujinContent = signal(true);
 
@@ -427,7 +437,7 @@ export class IdentifyDialogComponent implements OnInit {
         this.resultsSite.set(first);
         this.query.set(ctx.suggestions?.[0] ?? '');
         // The series a collection is about is no doujinshi: hidden by default there whatever the folder's Content.
-        this.hideDoujinshi.set(this.collectionMode || !ctx.doujinshiContent);
+        this.hideDoujinshi.set(this.collectionMode() || !ctx.doujinshiContent);
         this.budgetUsed.set(ctx.budgetUsedToday);
         this.budgetLimit.set(ctx.dailyBudget);
         this.loading.set(false);
