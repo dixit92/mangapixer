@@ -32,6 +32,23 @@ describe('VolumeViewSwitchComponent (1.29.0)', () => {
     expect(picks).toEqual([true]);
   });
 
+  it('reads Chapters for a webtoon without a volume list (1.34.0)', () => {
+    const fixture = TestBed.createComponent(VolumeViewSwitchComponent);
+    fixture.componentRef.setInput('active', true);
+    fixture.componentRef.setInput('chapters', true);
+    fixture.detectChanges();
+    const first = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="view-volumes"]') as HTMLButtonElement;
+    expect(first.textContent).toContain('Chapters');
+    expect(first.textContent).not.toContain('Volumes');
+    expect(first.title).toBe('Show the chapters in order');
+  });
+
+  it('reads Volumes by default', () => {
+    const { volumes } = setup(true);
+    expect(volumes.textContent).toContain('Volumes');
+    expect(volumes.title).toBe('Group chapters into volumes');
+  });
+
   it('is inert with a hint while a sort or filter makes the list flat', () => {
     const { volumes, folders, picks } = setup(true, true);
     expect(volumes.disabled).toBe(true);

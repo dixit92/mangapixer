@@ -8,7 +8,7 @@ It works without any network access. Names like `Series v03 c012` group on their
 
 Open a series folder that has something to group. In the top bar a **Volumes | Folders** switch appears next to the series information button. **Volumes** is the grouped view; **Folders** is the real folder list with every file and subfolder as it is on disk. Your choice is remembered for you.
 
-The switch is only shown where a Volumes view exists: a folder whose files group into volumes, or a folder linked to a series that holds volumes (its Volumes view shows the series status, see [Missing volumes and chapters](#missing-volumes-and-chapters)). Under another sort (Recently added, Recently read, Recently updated) the list is flat and the switch shows **Folders**; *new in 1.31.0:* picking **Volumes** then switches the sort back to **Name** and says so ("Sorted by name for the Volumes view", with **Undo**). The read-state filters, **Favorites only** and **Hide empty folders** work in both views: in the Volumes view a volume follows the same read badge its card shows (**Read** = every chapter read, **Reading** = some read or in progress, **Unread** = none read) and counts as a favorite when any of its chapters is starred; missing-volume cards are hidden while a filter is on.
+The switch is only shown where a Volumes view exists: a folder whose files group into volumes, or a folder linked to a series that holds volumes (its Volumes view shows the series status, see [Missing volumes and chapters](#missing-volumes-and-chapters)). *New in 1.34.0:* for a webtoon, manhwa or manhua without a volume list the switch reads **Chapters | Folders** (see [Webtoons, manhwa and manhua](#webtoons-manhwa-and-manhua)). Under another sort (Recently added, Recently read, Recently updated) the list is flat and the switch shows **Folders**; *new in 1.31.0:* picking **Volumes** then switches the sort back to **Name** and says so ("Sorted by name for the Volumes view", with **Undo**). The read-state filters, **Favorites only** and **Hide empty folders** work in both views: in the Volumes view a volume follows the same read badge its card shows (**Read** = every chapter read, **Reading** = some read or in progress, **Unread** = none read) and counts as a favorite when any of its chapters is starred; missing-volume cards are hidden while a filter is on.
 
 *New in 1.31.0:* tapping a series on the home page's **New chapters** row opens a linked series in its Volumes view (sorted by name, with the **Continue** row on top showing the chapter to read next), unless you chose **Folders** for it. A series without a link, or without a Volumes view, opens as before, sorted by **Recently updated**.
 
@@ -28,6 +28,8 @@ Extras (a fractional chapter such as `c045.5`) follow their whole chapter into i
 A fractional **volume** (`Series v02.5`, a bonus book) goes at the end of volume 2's stack; if volume 2 has nothing here, it keeps its own card in its place.
 
 A folder that has no list and no linked series groups by names alone, and only when at least half of its chapters state their volume: one `v01` among two hundred bare chapters is not a grouped folder.
+
+*New in 1.34.0:* files numbered with a running index in front of the chapter - `0003 [0001 - Chapter Title].cbz`, `0002 [0000.5].cbz` - are read by the number **in the brackets**: chapter 1, and chapter 0.5 (an extra). The title inside the brackets is just a title: `0168 [0166 - Chapter Title (Part 2)]` is chapter 166. A name whose brackets hold only a title (`001 [Chapter Title]`) is still chapter 1, and a year in the brackets (`001 [2019]`) is not a chapter.
 
 ## What the list shows
 
@@ -50,7 +52,18 @@ When a folder is linked to a series, its generic unit subfolders are merged into
 - `Season 2`, `Part 3` and other named parts are **not** merged: they stay folders, and each groups inside itself using the series' volume list.
 - A subfolder linked to a series of its own, side material (`Extras`, `Specials`, `Colored`...) and a subfolder that holds another folder stay folders.
 - If the numbering restarts, for example two folders that both start at chapter 1, nothing is merged, and a `Season` folder whose numbering restarts is never grouped. *1.31.1:* `Episode 3` (or `Ep 3`) in a file name that also states a volume - `Title - Episode 3 - Arc Title v01` - names a part of the series like `Part 3`, not a chapter, so arc folders whose volumes start again at 1 count as a restart too.
-- A folder that is not linked (or is marked **Don't match**) never merges its subfolders; it only groups its own files by their names.
+- A folder that is not linked (or is marked **Don't match**, or is a [collection about a series](series-information.md#collections-about-a-series)) never merges its subfolders; it only groups its own files by their names.
+
+## Webtoons, manhwa and manhua
+
+*New in 1.34.0.* Webtoons rarely come in volumes, and the sites MangaPixer reads seldom say which chapters a webtoon volume holds. So for a folder linked to a series that MangaUpdates marks as a **webtoon**, or to a **manhwa** or **manhua**, the view lists the **chapters** instead of guessing volumes - unless a real volume list exists (two or more volumes on MangaDex, or a Wikipedia chapter list):
+
+- The switch reads **Chapters | Folders**. **Chapters** lists the series' chapter files in chapter order (files without a chapter number at the end), merged `Chapters` subfolders included.
+- No **Volume N - Missing** cards, no estimated `~ Volume N` stacks, and the series status never says "volumes missing": it says which chapters you have and which are missing ("You have chapters 1-311 · 2 chapters missing"), where MangaPixer knows what is released.
+- Files whose names state their volume (`Title v02 c015`) still group into volumes, as above.
+- The completion mark works as before, by chapters.
+
+A series with a real volume list (a manhwa that MangaDex lists in volumes, for example) keeps its volume stacks.
 
 ## Missing volumes and chapters
 
@@ -126,6 +139,8 @@ The Volumes view only reads what is already stored, so it keeps working when fet
 ## Where the volume list comes from
 
 For a series linked to a record, MangaPixer can fetch the volume list, and the covers of each volume, from [MangaDex](https://mangadex.org) when **Fetch from the web** and **Automatic matching** are on. That is described under [Series information](series-information.md); the credit for those covers and lists is in **Metadata Manager** > **Settings**. Nothing in this page needs it: file names and ComicInfo group on their own. While some of a series' covers are still being downloaded in the background, opening its Volumes view says so in a short message; the covers appear as they arrive. *New in 1.31.0:* an estimated `~ Volume N` stack shows the web cover of volume N as well - the cover follows the label, so an estimate that is off by one shows the neighbouring volume's cover until MangaDex's volume list places those chapters (see [Covers](covers.md)).
+
+*New in 1.34.0:* a MangaDex list that is nearly empty - at most one real volume (a volume "0" does not count) while more chapters are "not in a volume yet" than placed - is treated as **no volume list**: nothing groups from it, and the other sources apply as when MangaDex has no list (Wikipedia, or with **Automatic matching** the AniList totals). This is decided when the stored list is read, so it applies at once to lists already stored.
 
 ### Completed from Wikipedia
 

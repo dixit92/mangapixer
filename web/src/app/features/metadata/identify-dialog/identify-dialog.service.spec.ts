@@ -20,7 +20,7 @@ describe('IdentifyDialogService', () => {
     const { service, dialog } = create(false, true);
     expect(await service.open('n1')).toBe(true);
     const config = (dialog.open.mock.calls[0] as unknown[])[1] as { data: unknown; width: string; panelClass: string };
-    expect(config.data).toEqual({ nodeId: 'n1' });
+    expect(config.data).toEqual({ nodeId: 'n1', mode: 'link' });
     expect(config.width).toBe('760px');
     expect(config.panelClass).toBe('identify-dialog-panel');
   });
@@ -31,5 +31,13 @@ describe('IdentifyDialogService', () => {
     const config = (dialog.open.mock.calls[0] as unknown[])[1] as { width: string; height: string };
     expect(config.width).toBe('100vw');
     expect(config.height).toBe('100vh');
+  });
+
+  it('opens in the collection mode (1.34.0) with its own label', async () => {
+    const { service, dialog } = create(false, true);
+    expect(await service.open('n1', 'collection')).toBe(true);
+    const config = (dialog.open.mock.calls[0] as unknown[])[1] as { data: unknown; ariaLabel: string };
+    expect(config.data).toEqual({ nodeId: 'n1', mode: 'collection' });
+    expect(config.ariaLabel).toBe('Collection about a series');
   });
 });

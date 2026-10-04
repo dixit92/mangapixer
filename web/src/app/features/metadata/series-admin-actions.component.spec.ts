@@ -43,6 +43,7 @@ describe('SeriesAdminActionsComponent', () => {
       setDontMatch: vi.fn(() => of({ nodeId: info.nodeId })),
       clearDontMatch: vi.fn(() => of({ nodeId: info.nodeId })),
       unlink: vi.fn(() => of({ nodeId: info.nodeId })),
+      clearCollection: vi.fn(() => of({ nodeId: info.nodeId })),
       setFolderPrecedence: vi.fn(() => of({ nodeId: info.nodeId, precedence: 'WebFirst' })),
       clearFolderPrecedence: vi.fn(() => of(undefined)),
       // Stage 2 Content setting; null = a server without it (501).
@@ -219,5 +220,41 @@ describe('SeriesAdminActionsComponent', () => {
     document.querySelectorAll('.cdk-overlay-container').forEach((c) => (c.innerHTML = ''));
     const archive = create(seriesInfo({ nodeId: 'a1', nodeKind: 'Archive' }), false, { nodeId: 'a1', effective: 'Auto' });
     expect(archive.api.getFolderContent).not.toHaveBeenCalled();
+  });
+
+  describe('1.34.0: Collection about', () => {
+    const web = { provider: 'mangaupdates', providerName: 'MangaUpdates', fetchedAt: '2026-10-04T00:00:00Z', hasImage: false };
+
+    it('a folder offers "Collection about..." which opens the identify dialog in its collection mode', async () => {
+      const { fixture, dialog } = create(seriesInfo({ nodeId: 'f1' }), true);
+      fixture.detectChanges();
+      const action = item('[data-testid="collection-about"]')!;
+      expect(action.textContent).toContain('Collection about');
+      action.click();
+      expect(dialog.open).toHaveBeenCalledWith('f1', 'collection');
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(fixture.componentInstance.changes).toBe(1);
+    });
+
+    it('an archive does not offer it', () => {
+      create(seriesInfo({ nodeId: 'a1', nodeKind: 'Archive' }), true);
+      expect(item('[data-testid="collection-about"]')).toBeNull();
+    });
+
+    it('an own collection offers Change series / Clear collection, not Unlink or the MangaDex match', () => {
+      const info = seriesInfo({
+        nodeId: 'f1', state: 'CollectionAbout', web,
+        link: { state: 'CollectionAbout', nodeId: 'f1', inherited: false, linkedAt: '2026-10-04T00:00:00Z' },
+      });
+      const { fixture, api, state } = create(info, true);
+      fixture.detectChanges();
+      expect(item('[data-testid="collection-about"]')!.textContent).toContain('Change series');
+      expect(item('[data-testid="unlink"]')).toBeNull();
+      expect(item('[data-testid="mangadex-match"]')).toBeNull();
+      item('[data-testid="clear-collection"]')!.click();
+      expect(api.clearCollection).toHaveBeenCalledWith('f1');
+      expect(state.refresh).toHaveBeenCalledWith('f1');
+    });
   });
 });

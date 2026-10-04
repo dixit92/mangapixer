@@ -651,6 +651,8 @@ public sealed partial class Program
         services.AddScoped<Features.Metadata.AutoMatch.MetadataPostScanHook>();
         services.AddScoped<Features.Metadata.AutoMatch.MetadataRefreshService>();
         services.AddScoped<Features.Metadata.Review.MetadataReviewService>();
+        // "Collection about" (1.34.0): a folder of works about a series - set / clear / accept from review; queues the works inside.
+        services.AddScoped<Features.Metadata.Collections.CollectionAboutService>();
         // Missing volumes / chapters report (1.28.0): stored data only, no request.
         services.AddScoped<Features.Metadata.Missing.MissingReportService>();
         // Official releases tab (1.30.0, reach): stored data only, no request.

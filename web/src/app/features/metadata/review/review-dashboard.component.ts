@@ -26,7 +26,8 @@ import {
   MetadataReviewTab,
 } from '../../../core/api/api-types';
 import { REVIEW_TABS, plural, reviewTabDef } from '../admin-metadata/metadata-admin-labels';
-import { IdentifyDialogService } from '../identify-dialog/identify-dialog.service';
+import { IdentifyDialogService, IdentifyMode } from '../identify-dialog/identify-dialog.service';
+import { collectionLabel } from '../collection-labels';
 import { MetadataApiService, ReviewListFilter } from '../metadata-api.service';
 import { MetadataReviewStateService } from '../metadata-review-state.service';
 import { MetadataStateService } from '../metadata-state.service';
@@ -47,6 +48,8 @@ interface BulkDef {
   action: MetadataReviewBulkAction;
   label: string;
   icon: string;
+  /** A shorter label for the phone bottom bar. */
+  short?: string;
 }
 
 /** Bulk actions per tab (the contract's `review/bulk`, max 200 nodes). */
@@ -54,9 +57,11 @@ export function bulkActions(tab: MetadataReviewTab): BulkDef[] {
   switch (tab) {
     case 'NeedsReview':
       return [
-        { action: 'AcceptTop', label: 'Accept top candidates', icon: 'done_all' },
+        { action: 'AcceptTop', label: 'Accept top candidates', short: 'Accept', icon: 'done_all' },
+        // 1.34.0: the rows that look like a collection about a series (the others answer "no suggestion").
+        { action: 'AcceptCollection', label: 'Accept as collections', short: 'Collections', icon: 'collections_bookmark' },
         { action: 'DontMatch', label: 'Don\'t match', icon: 'block' },
-        { action: 'RerunMatching', label: 'Re-run matching', icon: 'refresh' },
+        { action: 'RerunMatching', label: 'Re-run matching', short: 'Re-run', icon: 'refresh' },
         { action: 'Later', label: 'Later', icon: 'schedule' },
       ];
     case 'AutoLinked':
@@ -85,6 +90,7 @@ const BULK_DONE: Record<MetadataReviewBulkAction, string> = {
   Unlink: 'Unlinked',
   Later: 'Set aside for later:',
   ClearLater: 'Back in the list:',
+  AcceptCollection: 'Accepted as collections:',
 };
 
 /** The review action a single-row action sends through `review/bulk`. */
@@ -141,9 +147,9 @@ const ROW_BULK: Partial<Record<ReviewRowAction, MetadataReviewBulkAction>> = {
         </mat-form-field>
       </div>
       <p class="hint">{{ hint() }}</p>
-      @if (tab() === 'NeedsReview') {
+      @if (tab() === 'NeedsReview' || tab() === 'Unmatched') {
         <div class="filters">
-      @if (count('later') > 0 || laterFilter() !== null) {
+      @if (tab() === 'NeedsReview' && (count('later') > 0 || laterFilter() !== null)) {
         <div class="later-filter" role="group" aria-label="Show items set aside for later" data-testid="review-later-filter">
           <button type="button" class="tab" [class.active]="laterFilter() === null" [attr.aria-pressed]="laterFilter() === null"
                   (click)="setLaterFilter(null)" data-testid="review-later-all">All</button>
@@ -174,7 +180,7 @@ const ROW_BULK: Partial<Record<ReviewRowAction, MetadataReviewBulkAction>> = {
                 <button mat-menu-item type="button" (click)="setGroup({ kind: 'author', key: a.key, label: a.label })" data-testid="review-author">
                   <span>{{ a.label }}</span> <span class="menu-count">{{ a.count }}</span></button>
               } @empty {
-                <p class="menu-empty">{{ authors() === null ? 'Loading…' : 'No author has two or more works waiting.' }}</p>
+                <p class="menu-empty">{{ authors() === null ? 'Loading…' : (tab() === 'Unmatched' ? 'No author has two or more works here.' : 'No author has two or more works waiting.') }}</p>
               }
             </mat-menu>
           }
@@ -195,7 +201,7 @@ const ROW_BULK: Partial<Record<ReviewRowAction, MetadataReviewBulkAction>> = {
             Select all {{ visible().length }} shown
           </mat-checkbox>
           @if (!phone()) {
-            <span class="keys">j/k move · a accept · d don't match · i identify · l later · g same author · x select · e covers</span>
+            <span class="keys">j/k move · a accept · f collection · d don't match · i identify · l later · g same author · x select · e covers</span>
           }
         </div>
       }
@@ -251,7 +257,7 @@ const ROW_BULK: Partial<Record<ReviewRowAction, MetadataReviewBulkAction>> = {
             @for (b of bulk(); track b.action) {
               <button mat-button type="button" [disabled]="selected().size === 0" (click)="runBulk(b.action)"
                       [attr.data-testid]="'bulk-' + b.action">
-                <mat-icon>{{ b.icon }}</mat-icon><span class="lbl">{{ b.label }}</span></button>
+                <mat-icon>{{ b.icon }}</mat-icon><span class="lbl">{{ b.short ?? b.label }}</span></button>
             }
           </div>
         } @else if (focusedItem(); as f) {
@@ -259,8 +265,9 @@ const ROW_BULK: Partial<Record<ReviewRowAction, MetadataReviewBulkAction>> = {
             <span class="bar-name" data-testid="bar-name">{{ f.displayName }}</span>
             @for (a of focusedActions(); track a.action) {
               <button mat-button type="button" (click)="onRowAction({ action: a.action, item: f, rank: rankOf(f) })"
-                      [disabled]="a.action === 'accept' && !(f.candidates ?? []).length" [attr.data-testid]="'bar-' + a.action">
-                <mat-icon>{{ a.icon }}</mat-icon><span class="lbl">{{ a.label }}</span></button>
+                      [disabled]="(a.action === 'accept' || a.action === 'acceptCollection') && !(f.candidates ?? []).length"
+                      [attr.data-testid]="'bar-' + a.action">
+                <mat-icon>{{ a.icon }}</mat-icon><span class="lbl">{{ a.short ?? a.label }}</span></button>
             }
           </div>
         }
@@ -390,6 +397,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
     switch (this.tab()) {
       case 'NeedsReview': return 'Nothing waits for review.';
       case 'MissingFolders': return 'No links are left on missing folders.';
+      case 'Collections': return 'No folder is marked as a collection about a series.';
       default: return `Nothing in ${reviewTabDef(this.tab()).label}.`;
     }
   });
@@ -441,7 +449,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
 
   loadAuthors(): void {
     this.authors.set(null);
-    this.api.getReviewAuthors(this.library()).subscribe({
+    this.api.getReviewAuthors(this.library(), this.groupTab()).subscribe({
       next: (list) => this.authors.set(list.items),
       error: () => this.authors.set([]),
     });
@@ -449,7 +457,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
 
   /** Phone: the Authors list as a bottom sheet. */
   openAuthorsSheet(): void {
-    this.api.getReviewAuthors(this.library()).subscribe({
+    this.api.getReviewAuthors(this.library(), this.groupTab()).subscribe({
       next: (list) => this.bottomSheet.open<ReviewAuthorsSheetComponent, MetadataReviewAuthorDto[], MetadataReviewAuthorDto>(
         ReviewAuthorsSheetComponent, { data: list.items }).afterDismissed().subscribe((a) => {
         if (a) this.setGroup({ kind: 'author', key: a.key, label: a.label });
@@ -458,11 +466,16 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** The filters of the current request (Needs review only). */
+  /** The tab the Authors list and the group filters belong to: Needs review, or (1.34.0) Unmatched. */
+  private groupTab(): 'NeedsReview' | 'Unmatched' {
+    return this.tab() === 'Unmatched' ? 'Unmatched' : 'NeedsReview';
+  }
+
+  /** The filters of the current request (Needs review: Later + group; Unmatched, 1.34.0: group). */
   private listFilter(): ReviewListFilter {
-    if (this.tab() !== 'NeedsReview') return {};
+    if (this.tab() !== 'NeedsReview' && this.tab() !== 'Unmatched') return {};
     const filter: ReviewListFilter = {};
-    const later = this.laterFilter();
+    const later = this.tab() === 'NeedsReview' ? this.laterFilter() : null;
     if (later !== null) filter.later = later;
     const group = this.group();
     if (group) filter[group.kind] = group.key;
@@ -534,7 +547,8 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
   }
 
   rankOf(item: MetadataReviewItemDto): number {
-    return this.ranks()[item.nodeId] ?? item.candidates?.[0]?.rank ?? 1;
+    // 1.34.0: a row that looks like a collection preselects the suggested series.
+    return this.ranks()[item.nodeId] ?? item.collection?.rank ?? item.candidates?.[0]?.rank ?? 1;
   }
 
   choose(nodeId: string, rank: number): void {
@@ -633,7 +647,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
       event.preventDefault();
       return;
     }
-    if (key === 'g' && this.tab() === 'NeedsReview') {
+    if (key === 'g' && (this.tab() === 'NeedsReview' || this.tab() === 'Unmatched')) {
       const g = this.group();
       if (g?.kind === 'author') this.setGroup(null);
       else if (item.sameAuthor) this.setGroup({ kind: 'author', key: item.sameAuthor.key, label: item.sameAuthor.label });
@@ -641,9 +655,10 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
       return;
     }
     const action = rowActions(this.tab(), item).find((a) => a.key === key)?.action;
-    if (!action || (action === 'accept' && !(item.candidates ?? []).length)) return;
+    const ranked = action === 'accept' || action === 'acceptCollection';
+    if (!action || (ranked && !(item.candidates ?? []).length)) return;
     event.preventDefault();
-    this.onRowAction({ action, item, rank: action === 'accept' ? this.rankOf(item) : undefined });
+    this.onRowAction({ action, item, rank: ranked ? this.rankOf(item) : undefined });
   }
 
   // --- Actions ---
@@ -657,6 +672,18 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
         this.defer([item], `Accepted "${title}" for ${item.displayName}`, () => none(this.api.acceptCandidate(item.nodeId, rank)));
         return;
       }
+      case 'acceptCollection': {
+        const rank = e.rank ?? this.rankOf(item);
+        const title = item.candidates?.find((c) => c.rank === rank)?.title ?? item.collection?.title;
+        this.defer([item], `${collectionLabel(title)}: ${item.displayName}`, () => none(this.api.acceptCollection(item.nodeId, rank)));
+        return;
+      }
+      case 'clearCollection':
+        this.defer([item], `Collection cleared on ${item.displayName}`, () => none(this.api.clearCollection(item.nodeId)));
+        return;
+      case 'changeCollection':
+        this.identify(item, 'collection');
+        return;
       case 'identify':
         this.identify(item);
         return;
@@ -771,9 +798,9 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
     return changed;
   }
 
-  private identify(item: MetadataReviewItemDto): void {
+  private identify(item: MetadataReviewItemDto, mode: IdentifyMode = 'link'): void {
     this.queue.flush();
-    void this.identifyDialog.open(item.nodeId).then((linked) => {
+    void this.identifyDialog.open(item.nodeId, mode).then((linked) => {
       if (!linked) return;
       this.hide([item.nodeId]);
       this.forget([item.nodeId]);

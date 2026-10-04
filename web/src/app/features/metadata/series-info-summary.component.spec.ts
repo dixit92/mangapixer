@@ -41,6 +41,19 @@ describe('SeriesInfoSummaryComponent', () => {
     expect(q(f, '[data-testid="series-dont-match"]')!.textContent).toContain("Don't match");
   });
 
+  it('1.34.0: shows a collection as "Collection about" its series, with the note and without numbers', () => {
+    const f = render(seriesInfo({ state: 'CollectionAbout', title: 'Starlight Academy', description: 'About the series.' }));
+    const el = f.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="series-collection"]')!.textContent).toContain('Collection about');
+    expect(el.querySelector('[data-testid="series-title"]')!.textContent).toContain('Starlight Academy');
+    expect(el.querySelector('[data-testid="series-collection-note"]')!.textContent).toContain('its items are matched on their own');
+  });
+
+  it('a series is not a collection', () => {
+    const f = render(seriesInfo({ state: 'Web' }));
+    expect((f.nativeElement as HTMLElement).querySelector('[data-testid="series-collection"]')).toBeNull();
+  });
+
   it('lists the series of a mixed folder with counts', () => {
     const f = render(seriesInfo({ state: 'Mixed', title: null, mixedSeries: [{ name: 'Alpha', count: 3 }, { name: 'Beta', count: 1 }] }));
     expect(q(f, '[data-testid="series-mixed"]')).not.toBeNull();

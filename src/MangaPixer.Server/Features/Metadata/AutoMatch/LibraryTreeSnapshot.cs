@@ -40,7 +40,7 @@ public sealed class LibraryTreeSnapshot
     private readonly Dictionary<long, List<Node>> _children;
     private readonly Dictionary<long, int> _descendantArchives;
 
-    private LibraryTreeSnapshot(LibraryTreeSnapshot tree, ProviderAuthorSet authors)
+    private LibraryTreeSnapshot(LibraryTreeSnapshot tree, ProviderAuthorSet authors, IReadOnlyDictionary<long, string> collections)
     {
         LibraryId = tree.LibraryId;
         CatalogRevision = tree.CatalogRevision;
@@ -49,13 +49,16 @@ public sealed class LibraryTreeSnapshot
         _descendantArchives = tree._descendantArchives;
         Roots = tree.Roots;
         Authors = authors;
+        Collections = collections;
     }
 
-    private LibraryTreeSnapshot(long libraryId, long catalogRevision, List<Node> nodes, ProviderAuthorSet? authors)
+    private LibraryTreeSnapshot(long libraryId, long catalogRevision, List<Node> nodes, ProviderAuthorSet? authors,
+        IReadOnlyDictionary<long, string>? collections = null)
     {
         LibraryId = libraryId;
         CatalogRevision = catalogRevision;
         Authors = authors ?? ProviderAuthorSet.None;
+        Collections = collections ?? NoCollections;
         _descendantArchives = [];
         _nodes = nodes.ToDictionary(n => n.Id);
         _children = [];
@@ -82,6 +85,14 @@ public sealed class LibraryTreeSnapshot
     /// <summary>The provider authors this snapshot hands to the detector (<see cref="ProviderAuthorSet.None"/> when not loaded).</summary>
     public ProviderAuthorSet Authors { get; }
 
+    private static readonly IReadOnlyDictionary<long, string> NoCollections = new Dictionary<long, string>();
+
+    /// <summary>
+    /// 1.34.0: the library's "Collection about" folders and the title of the series each is about (from the local record). Feeds
+    /// <see cref="FolderShape.IsCollection"/> and <see cref="FolderShape.CollectionSeries"/>.
+    /// </summary>
+    public IReadOnlyDictionary<long, string> Collections { get; }
+
     /// <summary>
     /// Loads the tree; with <paramref name="providerAuthors"/> also the library's <see cref="ProviderAuthorSet"/>
     /// (the automatic-matching paths that classify folders; other readers only need the tree).
@@ -96,11 +107,29 @@ public sealed class LibraryTreeSnapshot
             .Select(n => new Node(n.Id, n.ParentId, n.Kind == folder, n.DisplayName, n.SortKey))
             .ToListAsync(ct);
         var authors = providerAuthors ? await LoadProviderAuthorsAsync(db, libraryId, ct) : null;
-        return new LibraryTreeSnapshot(libraryId, revision, rows, authors);
+        return new LibraryTreeSnapshot(libraryId, revision, rows, authors, await LoadCollectionsAsync(db, libraryId, ct));
     }
 
     /// <summary>The same tree with another author set (a link changed, the catalog did not).</summary>
-    public LibraryTreeSnapshot WithAuthors(ProviderAuthorSet authors) => new(this, authors);
+    public LibraryTreeSnapshot WithAuthors(ProviderAuthorSet authors) => new(this, authors, Collections);
+
+    /// <summary>The same tree with another collection map (a "Collection about" row changed, the catalog did not).</summary>
+    public LibraryTreeSnapshot WithCollections(IReadOnlyDictionary<long, string> collections) => new(this, Authors, collections);
+
+    /// <summary>True when <paramref name="other"/> names the same collection folders with the same series titles.</summary>
+    public bool SameCollections(IReadOnlyDictionary<long, string> other) =>
+        other.Count == Collections.Count
+        && other.All(kv => Collections.TryGetValue(kv.Key, out var title) && string.Equals(title, kv.Value, StringComparison.Ordinal));
+
+    /// <summary>1.34.0: the library's "Collection about" folders with their series title (one indexed query on (LibraryId, State)).</summary>
+    public static async Task<IReadOnlyDictionary<long, string>> LoadCollectionsAsync(MangaPixerDbContext db, long libraryId, CancellationToken ct)
+    {
+        var collection = (int)SeriesLinkState.CollectionAbout;
+        return await db.NodeSeriesLinks.AsNoTracking()
+            .Where(l => l.LibraryId == libraryId && l.State == collection && l.RecordId != null)
+            .Select(l => new { l.NodeId, l.Record!.Title })
+            .ToDictionaryAsync(l => l.NodeId, l => l.Title, ct);
+    }
 
     private static IQueryable<NodeSeriesLinkEntity> AuthorLinks(MangaPixerDbContext db, long libraryId)
     {
@@ -150,8 +179,9 @@ public sealed class LibraryTreeSnapshot
     }
 
     /// <summary>For tests: a snapshot from in-memory rows.</summary>
-    public static LibraryTreeSnapshot FromNodes(long libraryId, IEnumerable<Node> nodes, ProviderAuthorSet? authors = null) =>
-        new(libraryId, 0, nodes.ToList(), authors);
+    public static LibraryTreeSnapshot FromNodes(long libraryId, IEnumerable<Node> nodes, ProviderAuthorSet? authors = null,
+        IReadOnlyDictionary<long, string>? collections = null) =>
+        new(libraryId, 0, nodes.ToList(), authors, collections);
 
     public Node? Find(long id) => _nodes.GetValueOrDefault(id);
 
@@ -237,7 +267,8 @@ public sealed class LibraryTreeSnapshot
     /// catalog order (<see cref="FolderShape.ArchiveNames"/> indexes map onto
     /// <see cref="ChildArchives"/>), direct subfolders with their archive counts (unit subfolders also with their
     /// archive names, for the count rule), and
-    /// the library's provider authors unless the folder carries a link itself.
+    /// the library's provider authors unless the folder carries a link itself, and (1.34.0) whether it is a "Collection about" folder and
+    /// the series title of the nearest one (itself or an ancestor).
     /// </summary>
     public FolderShape ShapeOf(long folderId)
     {
@@ -252,7 +283,22 @@ public sealed class LibraryTreeSnapshot
                 AutoMatchText.IsUnitFolderName(c.Name) ? DescendantArchiveNames(c.Id, MaxUnitArchiveNames) : null)).ToList(),
             parent?.Name,
             CategoryHint(folderId),
-            authors);
+            authors,
+            Collections.ContainsKey(folderId),
+            CollectionSeriesOf(folderId));
+    }
+
+    /// <summary>The series title of the nearest "Collection about" folder: the folder itself, else its nearest ancestor; null when none.</summary>
+    public string? CollectionSeriesOf(long folderId)
+    {
+        if (Collections.Count == 0)
+            return null;
+        if (Collections.TryGetValue(folderId, out var own))
+            return own;
+        foreach (var a in Ancestors(folderId))
+            if (Collections.TryGetValue(a.Id, out var title))
+                return title;
+        return null;
     }
 
     /// <summary>

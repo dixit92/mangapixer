@@ -49,12 +49,15 @@ public sealed record VolumeMapInput(
     // it (today only English has a source - MangaUpdates' English publisher totals; null = unknown: no missing-volume cards).
     IReadOnlySet<decimal>? ReleasedChapters = null,
     int? ReleasedVolumeCount = null,
-    string? ReleasedLanguage = null)
+    string? ReleasedLanguage = null,
+    // 1.34.0 (owner): a webtoon / manhwa / manhua without a real list (VolumeListRules.ChaptersOnly) - the Volumes view lists its chapters.
+    // The list stays on the input (the completion's last listed chapter reads it) but nothing groups or estimates from it.
+    bool ChaptersOnly = false)
 {
     public static VolumeMapInput Empty { get; } = new([], null, null, false, VolumeListSource.FileNames);
 
-    /// <summary>True when the map can place a chapter at all (an exact list, or a ratio with a volume total).</summary>
-    public bool HasData => Volumes.Count > 0 || (ChaptersPerVolume is >= 1 && KnownVolumeCount is > 0);
+    /// <summary>True when the map can place a chapter at all (an exact list, or a ratio with a volume total); never in chapter mode.</summary>
+    public bool HasData => !ChaptersOnly && (Volumes.Count > 0 || (ChaptersPerVolume is >= 1 && KnownVolumeCount is > 0));
 }
 
 /// <summary>How a chapter got its volume.</summary>
@@ -281,7 +284,7 @@ public static class VolumeGrouping
             else if (units.Volume is not null)
                 volumes.Add((row, units));
             else
-                entries.Add(LooseArchive(row));
+                entries.Add(LooseArchive(row, map));
         }
 
         // Local grouping (names / ComicInfo): with a map every stated volume counts; without one it needs at least half of
@@ -330,7 +333,7 @@ public static class VolumeGrouping
                 Bucket(placed.Volume).Chapters.Add(new StackMember(row, false, chapter, u.IsExtra, placed.Placement));
                 continue;
             }
-            entries.Add(LooseArchive(row));
+            entries.Add(LooseArchive(row, map, chapter));
         }
 
         // A fractional volume file joins the end of the previous volume's stack; alone (that volume has nothing here) it stays
@@ -444,7 +447,8 @@ public static class VolumeGrouping
 
         var missingVolumes = 0;
         var missingVolumeNumbers = new List<int>();
-        if (markMissingVolumes)
+        // A chapter-mode series (webtoon / manhwa without a real list) never shows missing-volume placeholders (1.34.0).
+        if (markMissingVolumes && !map.ChaptersOnly)
         {
             var present = byVolume.Keys.Where(v => v >= 1).ToHashSet();
             present.UnionWith(alias.Keys);
@@ -481,8 +485,23 @@ public static class VolumeGrouping
         };
     }
 
-    private static VolumeEntry LooseArchive(GroupingRow row) =>
-        new() { Kind = VolumeEntryKind.Archive, Rank = 2, VolumeKey = string.Empty, SortKey = row.SortKey, Id = row.Id, Row = row };
+    /// <summary>
+    /// A loose archive ("not in a volume yet"), by name. 1.34.0: in chapter mode (<see cref="VolumeMapInput.ChaptersOnly"/>) the chapters
+    /// are listed in CHAPTER order (keyed by their number), archives without a chapter number after them.
+    /// </summary>
+    private static VolumeEntry LooseArchive(GroupingRow row, VolumeMapInput map, decimal? chapter = null) =>
+        new()
+        {
+            Kind = VolumeEntryKind.Archive,
+            Rank = 2,
+            VolumeKey = !map.ChaptersOnly ? string.Empty : chapter is { } c && c >= 0 && c < 100_000 ? SortableKey(c) : ChapterModeUnnumbered,
+            SortKey = row.SortKey,
+            Id = row.Id,
+            Row = row,
+        };
+
+    /// <summary>The position key of an archive without a chapter number in chapter mode: after every chapter (ordinal "~" &gt; digits).</summary>
+    private const string ChapterModeUnnumbered = "~";
 
     /// <summary>The ascending position order of entries.</summary>
     public static int Compare(VolumeEntry a, VolumeEntry b)

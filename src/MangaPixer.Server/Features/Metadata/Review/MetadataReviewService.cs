@@ -44,6 +44,7 @@ public sealed class MetadataReviewService
     private readonly ILogger<MetadataReviewService> _logger;
     private readonly ICoverResolver _covers;
     private readonly TimeProvider _time;
+    private readonly Collections.CollectionAboutService? _collections;
 
     public MetadataReviewService(
         MangaPixerDbContext db,
@@ -53,9 +54,11 @@ public sealed class MetadataReviewService
         MetadataCarryOverService carryOver,
         AuditService audit,
         ILogger<MetadataReviewService> logger,
-        TimeProvider time)
+        TimeProvider time,
+        Collections.CollectionAboutService? collections = null)
     {
         _time = time;
+        _collections = collections;
         _db = db;
         _links = links;
         _identify = identify;
@@ -85,6 +88,7 @@ public sealed class MetadataReviewService
             OpenFlags = await OpenFlags(libraryId).CountAsync(ct),
             DontMatch = await LinksOf(SeriesLinkState.DontMatch, libraryId).CountAsync(ct),
             Confirmed = await LinksOf(SeriesLinkState.Confirmed, libraryId).CountAsync(ct),
+            Collections = await LinksOf(SeriesLinkState.CollectionAbout, libraryId).CountAsync(ct),
             MissingFolders = await _carryOver.StrandedFolderIds(libraryId).CountAsync(ct),
             Pending = await _db.MetadataMatchQueue
                 .Where(q => (q.State == QueueState.Pending || q.State == QueueState.Leased) && (libraryId == null || q.LibraryId == libraryId))
@@ -148,7 +152,7 @@ public sealed class MetadataReviewService
                 {
                     if (!string.IsNullOrEmpty(author) && !string.IsNullOrEmpty(folder))
                         return ("invalid_filter", null);
-                    groups = await GroupIndexAsync(libraryId, ct);
+                    groups = await GroupIndexAsync(MetadataReviewTab.NeedsReview, libraryId, ct);
                     var q = LinksOf(SeriesLinkState.NeedsReview, libraryId);
                     if (later is { } onlyLater)
                         q = q.Where(l => (l.LaterAt != null) == onlyLater);
@@ -169,11 +173,13 @@ public sealed class MetadataReviewService
             case MetadataReviewTab.AutoLinked:
             case MetadataReviewTab.Confirmed:
             case MetadataReviewTab.DontMatch:
+            case MetadataReviewTab.Collections:
                 {
                     var q = tab switch
                     {
                         MetadataReviewTab.AutoLinked => AutoAnchors(libraryId),
                         MetadataReviewTab.Confirmed => LinksOf(SeriesLinkState.Confirmed, libraryId),
+                        MetadataReviewTab.Collections => LinksOf(SeriesLinkState.CollectionAbout, libraryId),
                         _ => LinksOf(SeriesLinkState.DontMatch, libraryId),
                     };
                     total = await q.CountAsync(ct);
@@ -185,7 +191,21 @@ public sealed class MetadataReviewService
                 }
             case MetadataReviewTab.Unmatched:
                 {
+                    if (!string.IsNullOrEmpty(author) && !string.IsNullOrEmpty(folder))
+                        return ("invalid_filter", null);
+                    // 1.34.0: the same author / folder groups as Needs review, built from the Unmatched rows.
+                    groups = await GroupIndexAsync(MetadataReviewTab.Unmatched, libraryId, ct);
                     var q = UnmatchedRows(libraryId);
+                    if (!string.IsNullOrEmpty(author))
+                    {
+                        var members = groups.Find(author)?.NodeIds.ToList() ?? [];
+                        q = q.Where(r => members.Contains(r.NodeId));
+                    }
+                    if (!string.IsNullOrEmpty(folder))
+                    {
+                        var folderId = await _db.CatalogNodes.Where(n => n.PublicId == folder).Select(n => (long?)n.Id).FirstOrDefaultAsync(ct) ?? -1;
+                        q = q.Where(r => _db.CatalogNodes.Any(n => n.Id == r.NodeId && n.ParentId == folderId));
+                    }
                     total = await q.CountAsync(ct);
                     if (after is { } a)
                         q = q.Where(r => r.Id < a);
@@ -270,12 +290,13 @@ public sealed class MetadataReviewService
     // --- Same author / same folder (1.33.0) ---
 
     /// <summary>The Authors list: author groups with at least two waiting works, largest first.</summary>
-    public async Task<MetadataReviewAuthorsDto?> AuthorsAsync(string? libraryPublicId, CancellationToken ct = default)
+    public async Task<MetadataReviewAuthorsDto?> AuthorsAsync(string? libraryPublicId, CancellationToken ct = default,
+        MetadataReviewTab tab = MetadataReviewTab.NeedsReview)
     {
         var (ok, libraryId) = await LibraryFilterAsync(libraryPublicId, ct);
         if (!ok)
             return null;
-        var index = await GroupIndexAsync(libraryId, ct);
+        var index = await GroupIndexAsync(tab, libraryId, ct);
         return new MetadataReviewAuthorsDto
         {
             Items = index.Groups.Where(g => g.NodeIds.Count >= 2)
@@ -291,10 +312,14 @@ public sealed class MetadataReviewService
     /// work still without a name, the ComicInfo writers and pencillers of the archive (a folder: of its archives) - never a
     /// translator. Nothing is stored or sent.
     /// </summary>
-    private async Task<ReviewGroupIndex> GroupIndexAsync(long? libraryId, CancellationToken ct)
+    private async Task<ReviewGroupIndex> GroupIndexAsync(MetadataReviewTab tab, long? libraryId, CancellationToken ct)
     {
+        // The works the tab lists: Needs review's link rows, or (1.34.0) the Unmatched queue rows (never "set aside").
+        var waiting = tab == MetadataReviewTab.Unmatched
+            ? UnmatchedRows(libraryId).Select(q => new WaitingRef { NodeId = q.NodeId, Later = false })
+            : LinksOf(SeriesLinkState.NeedsReview, libraryId).Select(l => new WaitingRef { NodeId = l.NodeId, Later = l.LaterAt != null });
         var rows = await (
-            from l in LinksOf(SeriesLinkState.NeedsReview, libraryId)
+            from l in waiting
             join n in _db.CatalogNodes on l.NodeId equals n.Id
             join q in _db.MetadataMatchQueue on n.Id equals q.NodeId into qs
             from q in qs.DefaultIfEmpty()
@@ -308,7 +333,7 @@ public sealed class MetadataReviewService
                 n.ParentId,
                 ParentName = p == null ? null : p.DisplayName,
                 WorkClass = q == null ? null : q.WorkClass,
-                Later = l.LaterAt != null,
+                l.Later,
             }).ToListAsync(ct);
 
         var folderKind = (int)CatalogNodeKind.Folder;
@@ -345,6 +370,13 @@ public sealed class MetadataReviewService
         }
 
         return new ReviewGroupIndex(rows.Select(r => new ReviewGroupIndex.Work(r.Id, names[r.Id], r.ParentId, r.Later)).ToList());
+    }
+
+    /// <summary>A work a group index is built from (its node, and whether an admin set it aside).</summary>
+    private sealed class WaitingRef
+    {
+        public long NodeId { get; init; }
+        public bool Later { get; init; }
     }
 
     private sealed record NodeRow(long Id, string PublicId, long LibraryId, long? ParentId, int Kind, string DisplayName, int Availability);
@@ -391,6 +423,11 @@ public sealed class MetadataReviewService
         var parentIds = nodes.Values.Where(n => n.ParentId != null).Select(n => n.ParentId!.Value).Distinct().ToList();
         var parents = await _db.CatalogNodes.AsNoTracking().Where(n => parentIds.Contains(n.Id))
             .ToDictionaryAsync(n => n.Id, n => (n.PublicId, n.DisplayName), ct);
+        // 1.34.0: "Looks like a collection about <Series>" for waiting folders (their direct archive names + stored candidates).
+        var waitingFolders = tab == MetadataReviewTab.NeedsReview
+            ? folderIds.Where(id => links.TryGetValue(id, out var l) && l.State == (int)SeriesLinkState.NeedsReview).ToList()
+            : [];
+        var archiveNames = await DirectArchiveNamesAsync(waitingFolders, ct);
 
         var items = new List<MetadataReviewItemDto>();
         foreach (var id in nodeIds)
@@ -434,11 +471,43 @@ public sealed class MetadataReviewService
                         && parents.TryGetValue(folderId, out var folder)
                     ? new MetadataReviewGroupHintDto { Key = folder.PublicId, Label = folder.DisplayName, Others = groups.InFolder(folderId) - 1 }
                     : null,
+                Collection = archiveNames.TryGetValue(id, out var names) && candidates.TryGetValue(id, out var stored)
+                    ? CollectionHint(names, stored)
+                    : null,
                 OpenFlagCount = flagCounts.GetValueOrDefault(id),
                 Flags = flags.TryGetValue(node.PublicId, out var nodeFlags) ? nodeFlags : [],
             });
         }
         return items;
+    }
+
+    /// <summary>The direct live archive names of each folder (the collection signal's input), in catalog order.</summary>
+    private async Task<Dictionary<long, List<string>>> DirectArchiveNamesAsync(IReadOnlyCollection<long> folderIds, CancellationToken ct)
+    {
+        if (folderIds.Count == 0)
+            return [];
+        var rows = await _db.CatalogNodes.AsNoTracking()
+            .Where(n => n.ParentId != null && folderIds.Contains(n.ParentId.Value)
+                && n.Kind == (int)CatalogNodeKind.Archive && n.Availability != (int)CatalogNodeAvailability.Tombstoned)
+            .OrderBy(n => n.SortKey)
+            .Select(n => new { ParentId = n.ParentId!.Value, n.DisplayName })
+            .ToListAsync(ct);
+        return rows.GroupBy(r => r.ParentId).ToDictionary(g => g.Key, g => g.Select(r => r.DisplayName).ToList());
+    }
+
+    private static MetadataReviewCollectionHintDto? CollectionHint(IReadOnlyList<string> archiveNames, IReadOnlyList<MetadataMatchCandidateEntity> stored)
+    {
+        var pick = CollectionSignal.Suggest(archiveNames,
+            stored.Select(c => new CollectionCandidate(c.Rank, (MetadataFormat?)c.Format, c.TitleScore)).ToList());
+        if (pick is null || stored.FirstOrDefault(c => c.Rank == pick.Rank) is not { } candidate)
+            return null;
+        return new MetadataReviewCollectionHintDto
+        {
+            Rank = candidate.Rank,
+            Provider = candidate.Provider,
+            ExternalId = candidate.ExternalId,
+            Title = candidate.Title,
+        };
     }
 
     private static List<long> Members(MetadataMatchQueueEntity q) =>
@@ -597,6 +666,49 @@ public sealed class MetadataReviewService
         return (null, change);
     }
 
+    /// <summary>
+    /// 1.34.0: "Accept as a collection" - marks a Needs-review FOLDER "Collection about" one of its stored candidates (the record is
+    /// stored first when needed, one gated GET), sets its Content to "Doujinshi &amp; adult one-shots" and queues its works. Errors:
+    /// <c>not_found</c>, <c>not_a_folder</c>, <c>no_candidate</c>, <c>record_not_found</c>, <c>unavailable</c>.
+    /// </summary>
+    public async Task<(string? Error, CollectionAboutResultDto? Result)> AcceptCollectionAsync(string nodePublicId, int rank, string? actor,
+        CancellationToken ct = default)
+    {
+        if (_collections is null)
+            return ("unavailable", null);
+        var node = await _db.CatalogNodes.AsNoTracking().FirstOrDefaultAsync(n => n.PublicId == nodePublicId, ct);
+        if (node is null || node.Availability == (int)CatalogNodeAvailability.Tombstoned)
+            return ("not_found", null);
+        if (node.Kind != (int)CatalogNodeKind.Folder)
+            return ("not_a_folder", null);
+        var candidate = await _db.MetadataMatchCandidates.AsNoTracking().FirstOrDefaultAsync(c => c.NodeId == node.Id && c.Rank == rank, ct);
+        if (candidate is null)
+            return ("no_candidate", null);
+        var (code, result) = await _collections.SetAsync(nodePublicId, new SetCollectionAboutRequest
+        {
+            Provider = candidate.Provider,
+            ExternalId = candidate.ExternalId,
+            MatchMethod = MetadataMatchMethod.Auto,
+        }, actor, ct, auditResult: "review");
+        return code switch
+        {
+            MetadataLinkResultCode.Ok => (null, result),
+            MetadataLinkResultCode.NodeNotFound => ("not_found", null),
+            MetadataLinkResultCode.NotAFolder => ("not_a_folder", null),
+            _ => ("record_not_found", null),
+        };
+    }
+
+    /// <summary>The collection suggestion of one waiting folder now (the bulk action's input), or null.</summary>
+    private async Task<MetadataReviewCollectionHintDto?> CollectionHintOfAsync(long nodeId, CancellationToken ct)
+    {
+        var stored = await _db.MetadataMatchCandidates.AsNoTracking().Where(c => c.NodeId == nodeId).OrderBy(c => c.Rank).ToListAsync(ct);
+        if (stored.Count == 0)
+            return null;
+        var names = await DirectArchiveNamesAsync([nodeId], ct);
+        return names.TryGetValue(nodeId, out var list) ? CollectionHint(list, stored) : null;
+    }
+
     /// <summary>An archive group's other archives get the same confirmed link as the anchor (unless they have their own row).</summary>
     private async Task LinkMembersAsync(long anchorId, string provider, string externalId, string? actor, CancellationToken ct)
     {
@@ -698,6 +810,16 @@ public sealed class MetadataReviewService
                 return await SetLaterAsync(nodePublicId, later: true, actor, ct);
             case MetadataReviewBulkAction.ClearLater:
                 return await SetLaterAsync(nodePublicId, later: false, actor, ct);
+            case MetadataReviewBulkAction.AcceptCollection:
+                {
+                    var node = await _db.CatalogNodes.AsNoTracking().FirstOrDefaultAsync(n => n.PublicId == nodePublicId, ct);
+                    if (node is null)
+                        return "not_found";
+                    var inReview = await _db.NodeSeriesLinks.AnyAsync(l => l.NodeId == node.Id && l.State == (int)SeriesLinkState.NeedsReview, ct);
+                    if (!inReview || await CollectionHintOfAsync(node.Id, ct) is not { } hint)
+                        return "no_suggestion";
+                    return (await AcceptCollectionAsync(nodePublicId, hint.Rank, actor, ct)).Error ?? "ok";
+                }
             default:
                 return "invalid_action";
         }

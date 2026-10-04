@@ -156,19 +156,81 @@ public sealed class MetadataLinkService
     }
 
     /// <summary>
+    /// 1.34.0: marks a FOLDER "Collection about" an existing record - a folder of works about that series, not the series itself. Replaces
+    /// any row the folder had. Unlike Confirmed / Don't match it retires nothing below: the items inside are works of their own (the caller
+    /// queues them). Archives answer <see cref="MetadataLinkResultCode.NotAFolder"/>.
+    /// </summary>
+    public async Task<(MetadataLinkResultCode Code, NodeSeriesLinkChangeDto? Change)> SetCollectionAboutAsync(
+        string nodePublicId, LinkSeriesRequest request, string? actor, CancellationToken ct = default, string? auditResult = null)
+    {
+        if (!MetadataIdentifiers.IsValidProvider(request.Provider) || !MetadataIdentifiers.IsValidExternalId(request.ExternalId))
+            return (MetadataLinkResultCode.InvalidRequest, null);
+        var node = await _db.CatalogNodes.FirstOrDefaultAsync(n => n.PublicId == nodePublicId, ct);
+        if (node is null)
+            return (MetadataLinkResultCode.NodeNotFound, null);
+        if (node.Kind != (int)CatalogNodeKind.Folder)
+            return (MetadataLinkResultCode.NotAFolder, null);
+        var record = await _db.MetadataRecords
+            .FirstOrDefaultAsync(r => r.Provider == request.Provider && r.ExternalId == request.ExternalId, ct);
+        if (record is null)
+            return (MetadataLinkResultCode.RecordNotFound, null);
+
+        var existing = await _db.NodeSeriesLinks.FirstOrDefaultAsync(l => l.NodeId == node.Id, ct);
+        var previous = existing is null ? null : await ToDtoAsync(existing, node.PublicId, ct);
+        var before = Snapshot(existing);
+        var previousRecordId = existing?.RecordId;
+        var now = _time.GetUtcNow();
+        if (existing is null)
+        {
+            existing = new NodeSeriesLinkEntity { NodeId = node.Id, LibraryId = node.LibraryId, CreatedAt = now };
+            _db.NodeSeriesLinks.Add(existing);
+        }
+        existing.State = (int)SeriesLinkState.CollectionAbout;
+        existing.RecordId = record.Id;
+        existing.MatchMethod = (int)(request.MatchMethod ?? MetadataMatchMethod.Reference);
+        existing.MatchScore = null;
+        existing.UpdatedAt = now;
+        existing.LaterAt = null;
+        await _db.SaveChangesAsync(ct);
+        await AfterAdminChangeAsync(node.Id, before, SeriesLinkState.CollectionAbout, record.ExternalId, ct);
+
+        if (previousRecordId is { } oldRecord && oldRecord != record.Id)
+            await DeleteOrphanRecordsAsync([oldRecord], ct);
+
+        await _audit.RecordAsync(AuditActions.MetadataCollection, auditResult ?? AuditResults.Success, actor, ct: ct,
+            targetLibraryId: node.LibraryId, targetItemId: node.Id);
+        _logger.LogInformation(LogEvents.Metadata.SeriesLinkChanged, "Series link set to collection_about on node {NodeId} (record {RecordId})",
+            node.Id, record.Id);
+        return (MetadataLinkResultCode.Ok, new NodeSeriesLinkChangeDto
+        {
+            NodeId = node.PublicId,
+            Link = await ToDtoAsync(existing, node.PublicId, ct),
+            Previous = previous,
+        });
+    }
+
+    /// <summary>
     /// Removes the node's own link row. With <paramref name="onlyDontMatch"/> only a
     /// "Don't match" row is removed (a confirmed link is left alone). Inheritance
     /// from ancestors resumes. Idempotent.
     /// </summary>
+    public Task<(MetadataLinkResultCode Code, NodeSeriesLinkChangeDto? Change)> RemoveAsync(
+        string nodePublicId, bool onlyDontMatch, string? actor, CancellationToken ct = default) =>
+        RemoveAsync(nodePublicId, onlyDontMatch ? SeriesLinkState.DontMatch : null, actor, ct);
+
+    /// <summary>
+    /// Removes the node's own link row; with <paramref name="onlyState"/> only a row in that state (1.34.0: "Clear collection" removes
+    /// only a Collection about row). Idempotent.
+    /// </summary>
     public async Task<(MetadataLinkResultCode Code, NodeSeriesLinkChangeDto? Change)> RemoveAsync(
-        string nodePublicId, bool onlyDontMatch, string? actor, CancellationToken ct = default)
+        string nodePublicId, SeriesLinkState? onlyState, string? actor, CancellationToken ct = default)
     {
         var node = await _db.CatalogNodes.FirstOrDefaultAsync(n => n.PublicId == nodePublicId, ct);
         if (node is null)
             return (MetadataLinkResultCode.NodeNotFound, null);
 
         var existing = await _db.NodeSeriesLinks.FirstOrDefaultAsync(l => l.NodeId == node.Id, ct);
-        if (existing is null || (onlyDontMatch && existing.State != (int)SeriesLinkState.DontMatch))
+        if (existing is null || (onlyState is { } only && existing.State != (int)only))
             return (MetadataLinkResultCode.Ok, new NodeSeriesLinkChangeDto { NodeId = node.PublicId });
 
         var previous = await ToDtoAsync(existing, node.PublicId, ct);
@@ -181,7 +243,8 @@ public sealed class MetadataLinkService
             await DeleteOrphanRecordsAsync([id], ct);
         await ForgetFinishedMatchWorkAsync(_db.MetadataMatchQueue.Where(q => q.NodeId == node.Id), ct);
 
-        await _audit.RecordAsync(AuditActions.MetadataUnlink, AuditResults.Success, actor, ct: ct, targetLibraryId: node.LibraryId, targetItemId: node.Id);
+        var action = onlyState == SeriesLinkState.CollectionAbout ? AuditActions.MetadataCollectionClear : AuditActions.MetadataUnlink;
+        await _audit.RecordAsync(action, AuditResults.Success, actor, ct: ct, targetLibraryId: node.LibraryId, targetItemId: node.Id);
         _logger.LogInformation(LogEvents.Metadata.SeriesLinkChanged, "Series link removed from node {NodeId}", node.Id);
         return (MetadataLinkResultCode.Ok, new NodeSeriesLinkChangeDto { NodeId = node.PublicId, Previous = previous });
     }
@@ -262,8 +325,8 @@ public sealed class MetadataLinkService
 
     /// <summary>
     /// "Delete fetched web data": removes every web link (confirmed / auto /
-    /// needs_review; "Don't match" rows are kept - they are admin decisions, not
-    /// fetched data) globally or for one library, then every record no link
+    /// needs_review, and 1.34.0 "Collection about" - it names a fetched record; "Don't match" rows are kept - they are admin
+    /// decisions, not fetched data) globally or for one library, then every record no link
     /// references any more. ComicInfo data is local and untouched.
     /// </summary>
     public async Task<(MetadataLinkResultCode Code, MetadataPurgeResultDto? Result)> PurgeAsync(

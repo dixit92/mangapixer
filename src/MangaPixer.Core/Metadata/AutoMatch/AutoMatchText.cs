@@ -494,6 +494,11 @@ public static partial class AutoMatchText
     [GeneratedRegex(@"^\s*(?<n>\d{1,4}(?:\.\d{1,2})?)(?:\s*-\s*(?<m>\d{1,4}(?:\.\d{1,2})?))?(?![\p{N}])", RegexOptions.CultureInvariant)]
     private static partial Regex LeadingUnit();
 
+    // 1.34.0: "<running index> [<chapter>]" / "<running index> [<chapter> - <title>]" - a bare leading number, then a FIRST bracket group
+    // that is a number, alone or followed by " - " and a title.
+    [GeneratedRegex(@"^\s*\d{1,4}\s*\[\s*(?<n>\d{1,4}(?:\.\d{1,2})?)(?:\s+[-\u2013\u2014]\s+[^\]]*)?\s*\]", RegexOptions.CultureInvariant)]
+    private static partial Regex IndexedChapter();
+
     // Comics extras (1.32.0): Annual / FCBD (Free Comic Book Day) with or without a number, Special / One-Shot only with their
     // own number ("Special #1"; "Special Edition" is an edition, a bare "Special" a title word).
     [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:annual|fcbd|free\s+comic\s+book\s+day)(?:\s*#?\s*(?<n>\d{1,4}(?:\.\d{1,2})?))?|(?:specials?|one-?shots?)\s*#?\s*(?<n>\d{1,4}(?:\.\d{1,2})?))(?![\p{L}\p{N}])",
@@ -504,7 +509,8 @@ public static partial class AutoMatchText
     /// Every unit number an archive name states (1.29.0; <see cref="UnitNumbers"/>): <c>Title v03 c012</c> -> volume 3,
     /// chapter 12; <c>c045.5</c> -> chapter 45.5, an extra; <c>Vol. 01-05</c> -> volumes 1 to 5; <c>001 [Chapter Title]</c>
     /// -> chapter 1 (a bare leading number of a name without a title, as <see cref="ChapterNumberOf"/>; a leading 19xx /
-    /// 20xx is a year). Tokens inside brackets are read only when the rest of the name states none, and then never a
+    /// 20xx is a year); 1.34.0: <c>0003 [0001 - Chapter Title]</c> -> chapter 1 (a running index, then the chapter in the first
+    /// bracket - the matcher's <see cref="ChapterNumberOf"/> keeps the index). Tokens inside brackets are read only when the rest of the name states none, and then never a
     /// single-letter token (<c>[v2]</c> is a release revision). A range whose end is a year is one number. Unlike
     /// <see cref="VolumeNumberOf"/> / <see cref="ChapterNumberOf"/> (the matcher's integers, unchanged), nothing is
     /// truncated and a name states both kinds. 1.32.0 comics grammar: BD / European album tokens (<c>Tome 3</c>, <c>T03</c>,
@@ -516,6 +522,14 @@ public static partial class AutoMatchText
         if (string.IsNullOrWhiteSpace(archiveName))
             return default;
         var name = ArchiveExtension().Replace(archiveName.Normalize(NormalizationForm.FormKC).Trim(), string.Empty);
+        // 1.34.0 (owner): "0003 [0001 - Title]" numbers its files with a running index; the bracketed number is the chapter
+        // ("0002 [0000.5]" -> 0.5, an extra). The title in the bracket is free text: nothing is read from it ("(Part 2)" is an arc
+        // title - that file has its own chapter number). A bracketed year ("001 [2019]") is not a chapter.
+        if (IndexedChapter().Match(name) is { Success: true } indexed && !YearOnly().IsMatch(indexed.Groups["n"].Value))
+        {
+            var n = decimal.Parse(indexed.Groups["n"].Value, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture);
+            return new UnitNumbers(null, null, n, null, decimal.Truncate(n) != n);
+        }
         var outside = Bare(name);
 
         var volume = RangeOf(VolumeUnit().Matches(outside), allowShortToken: true);

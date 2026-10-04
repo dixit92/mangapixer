@@ -192,6 +192,10 @@ public static class AuditActions
     public const string MetadataRelink = "metadata.relink";
     public const string MetadataUnlink = "metadata.unlink";
     public const string MetadataDontMatch = "metadata.dont_match";
+
+    /// <summary>1.34.0: a folder marked "Collection about" a series (result <c>review</c> when accepted from Needs review).</summary>
+    public const string MetadataCollection = "metadata.collection";
+    public const string MetadataCollectionClear = "metadata.collection.clear";
     public const string MetadataRefresh = "metadata.refresh";
     public const string MetadataPrecedenceSet = "metadata.precedence.set";
     public const string MetadataPrecedenceClear = "metadata.precedence.clear";

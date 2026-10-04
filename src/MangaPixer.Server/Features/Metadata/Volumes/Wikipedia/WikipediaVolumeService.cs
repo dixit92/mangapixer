@@ -112,7 +112,8 @@ public sealed class WikipediaVolumeService
             return row;
 
         var mangaDex = await _maps.FindAsync(series.Id, VolumeMapSource.MangaDexAggregate, ct);
-        var mangaDexVolumes = mangaDex is { State: (int)VolumeMapState.Ok } ? VolumeMapJson.Read(mangaDex.VolumesJson) : [];
+        // 1.34.0: a near-empty MangaDex list is no list here either (VolumeMapService.IsUsable).
+        var mangaDexVolumes = VolumeMapService.IsUsable(mangaDex) ? VolumeMapJson.Read(mangaDex!.VolumesJson) : [];
         var unassigned = VolumeMapJson.ReadChapters(mangaDex?.UnassignedJson);
         var hasList = VolumeMapService.HasVolumeList(mangaDex);
         if (!adminAsked && row?.AdminTitle is null && !WikipediaDiscovery.CanAdd(hasList, mangaDexVolumes, unassigned, series.OriginVolumes))

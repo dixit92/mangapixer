@@ -163,11 +163,16 @@ public sealed class MetadataAutoMatchService
         var revision = await _db.Libraries.AsNoTracking().Where(l => l.Id == libraryId).Select(l => l.CatalogRevision).FirstOrDefaultAsync(ct);
         if (_state.CachedSnapshot(libraryId, revision) is { } cached)
         {
+            var current = await WithCurrentCollectionsAsync(cached, ct);
             if (!_providerAuthorFolders)
-                return cached.Authors.Names.Count == 0 ? cached : cached.WithAuthors(LibraryTreeSnapshot.ProviderAuthorSet.None);
-            if (cached.Authors.Stamp == await LibraryTreeSnapshot.LinkStampAsync(_db, libraryId, ct))
-                return cached;
-            var refreshed = cached.WithAuthors(await LibraryTreeSnapshot.LoadProviderAuthorsAsync(_db, libraryId, ct));
+                return current.Authors.Names.Count == 0 ? current : current.WithAuthors(LibraryTreeSnapshot.ProviderAuthorSet.None);
+            if (current.Authors.Stamp == await LibraryTreeSnapshot.LinkStampAsync(_db, libraryId, ct))
+            {
+                if (!ReferenceEquals(current, cached))
+                    _state.Cache(current);
+                return current;
+            }
+            var refreshed = current.WithAuthors(await LibraryTreeSnapshot.LoadProviderAuthorsAsync(_db, libraryId, ct));
             _state.Cache(refreshed);
             return refreshed;
         }
@@ -175,6 +180,20 @@ public sealed class MetadataAutoMatchService
         _state.Cache(snapshot);
         return snapshot;
     }
+
+    /// <summary>The snapshot with the library's current "Collection about" folders (re-read every time: one small indexed query).</summary>
+    private async Task<LibraryTreeSnapshot> WithCurrentCollectionsAsync(LibraryTreeSnapshot tree, CancellationToken ct)
+    {
+        var collections = await LibraryTreeSnapshot.LoadCollectionsAsync(_db, tree.LibraryId, ct);
+        return tree.SameCollections(collections) ? tree : tree.WithCollections(collections);
+    }
+
+    /// <summary>
+    /// Whether automatic matching may look up <paramref name="nodeId"/> given the link rows of its ancestors (1.34.0,
+    /// <see cref="MatchingCover"/>: a Don't match or Needs-review row anywhere above blocks; else the nearest row decides).
+    /// </summary>
+    private static bool CoveredByAncestors(LibraryTreeSnapshot tree, long nodeId, IReadOnlyDictionary<long, SeriesLinkState> rows) =>
+        MatchingCover.IsCovered(tree.Ancestors(nodeId).Where(a => rows.ContainsKey(a.Id)).Select(a => rows[a.Id]));
 
     private Task<LibraryTreeSnapshot> LoadTreeAsync(long libraryId, CancellationToken ct) =>
         LibraryTreeSnapshot.LoadAsync(_db, libraryId, ct, providerAuthors: _providerAuthorFolders);
@@ -214,6 +233,29 @@ public sealed class MetadataAutoMatchService
         _state.Cache(tree);
         var works = AutoMatchWorkSelector.Select(tree, _detector, await OwnLinksAsync(libraryId, ct), scope);
         return await EnqueueAsync(libraryId, works, QueueReason.NewFolder, MetadataMatchRunTrigger.Scan, reviewFirst: false, requeueUnmatched: false, ct);
+    }
+
+    /// <summary>
+    /// 1.34.0: after an admin marked a folder "Collection about" a series, queues the works at and below it (its archives are works of
+    /// their own; subfolders are classified as usual) in one admin run, picked first. Only while automatic matching is on and the
+    /// library's "Fetch from the web" is on (otherwise "Match this library now" finds them), and not when a Don't match, a waiting
+    /// folder or a nearer linked series above still covers the folder. Works that already have a queue row are left as they are.
+    /// Returns how many works were queued.
+    /// </summary>
+    public async Task<int> EnqueueBelowAsync(long libraryId, long folderId, CancellationToken ct = default)
+    {
+        if (_detector is null || !await IsAutomaticEnabledAsync(ct))
+            return 0;
+        if (!await _db.Libraries.AsNoTracking().AnyAsync(l => l.Id == libraryId && l.MetadataEnabled, ct))
+            return 0;
+        var tree = await SnapshotAsync(libraryId, ct);
+        var links = await OwnLinksAsync(libraryId, ct);
+        // The items below see the folder's own row first (a collection re-opens), then its ancestors (a Don't match still blocks).
+        var chain = tree.Ancestors(folderId).Select(a => a.Id).Prepend(folderId);
+        if (MatchingCover.IsCovered(chain.Where(links.ContainsKey).Select(id => links[id])))
+            return 0;
+        var works = AutoMatchWorkSelector.SelectBelow(tree, _detector, links, folderId);
+        return await EnqueueAsync(libraryId, works, QueueReason.Rerun, MetadataMatchRunTrigger.Rerun, reviewFirst: false, requeueUnmatched: false, ct);
     }
 
     /// <summary>Everything "Match this library now" would queue (no network).</summary>
@@ -394,6 +436,15 @@ public sealed class MetadataAutoMatchService
             var existing = await _db.MetadataMatchQueue.AsNoTracking()
                 .Where(q => ids.Contains(q.NodeId))
                 .ToDictionaryAsync(q => q.NodeId, ct);
+            // A work below a folder with its own link row (linked, Don't match, or waiting in review as one work) is skipped when
+            // the queue processes it, so it is refused here with a reason instead of answering "ok" and doing nothing (1.34.0).
+            var tree = await SnapshotAsync(group.Key, ct);
+            var ancestorIds = group.SelectMany(n => tree.Ancestors(n.Id).Select(a => a.Id)).Distinct().ToList();
+            // 1.34.0: the nearest decision wins - a "Collection about" folder re-opens matching below it (not below a Don't match or a
+            // waiting folder above it).
+            var ancestorRows = await _db.NodeSeriesLinks.AsNoTracking()
+                .Where(l => ancestorIds.Contains(l.NodeId))
+                .ToDictionaryAsync(l => l.NodeId, l => (SeriesLinkState)l.State, ct);
             var works = new List<DetectedWork>();
             foreach (var n in group)
             {
@@ -401,6 +452,11 @@ public sealed class MetadataAutoMatchService
                 {
                     // Confirmed / Auto / Don't match are admin decisions: unlink first.
                     codes[n.PublicId] = "linked";
+                    continue;
+                }
+                if (CoveredByAncestors(tree, n.Id, ancestorRows))
+                {
+                    codes[n.PublicId] = "covered_by_folder";
                     continue;
                 }
                 var level = existing.TryGetValue(n.Id, out var row) ? (MatchLevel)row.Level
@@ -745,8 +801,8 @@ public sealed class MetadataAutoMatchService
         if (classification.Level != MatchLevel.Archive)
             return 0;
         var links = await OwnLinksAsync(row.LibraryId, ct);
-        if (tree.Ancestors(node.Id).Prepend(node).Any(n => links.ContainsKey(n.Id)))
-            return 0; // The folder or an ancestor has a link row: it speaks for the archives.
+        if (links.ContainsKey(node.Id) || CoveredByAncestors(tree, node.Id, links))
+            return 0; // The folder or a covering ancestor has a link row: it speaks for the archives.
         var works = AutoMatchWorkSelector.ArchiveWorks(tree, node.Id, classification, links).ToList();
         var anchors = works.Select(w => w.AnchorNodeId).ToList();
         var known = (await _db.MetadataMatchQueue.AsNoTracking().Where(q => anchors.Contains(q.NodeId)).Select(q => q.NodeId).ToListAsync(ct)).ToHashSet();
@@ -787,8 +843,9 @@ public sealed class MetadataAutoMatchService
         if (links.FirstOrDefault(l => l.NodeId == row.NodeId) is { } own
             && !(rerun && own.State == (int)SeriesLinkState.NeedsReview))
             return null;
-        if (links.Any(l => l.NodeId != row.NodeId))
-            return null; // Inherits from a linked / Don't match / in-review ancestor.
+        var ancestorRows = links.Where(l => l.NodeId != row.NodeId).ToDictionary(l => l.NodeId, l => (SeriesLinkState)l.State);
+        if (CoveredByAncestors(tree, row.NodeId, ancestorRows))
+            return null; // Inherits from a linked / Don't match / in-review ancestor (a nearer collection re-opens, 1.34.0).
 
         if (node.IsFolder)
         {

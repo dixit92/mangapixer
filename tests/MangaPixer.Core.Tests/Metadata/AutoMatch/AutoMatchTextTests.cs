@@ -81,6 +81,17 @@ public sealed class AutoMatchTextTests
     [InlineData("[Group] Some Title [v2].cbz", "", "", "", "", false)]
     [InlineData("Some Title Extra.cbz", "", "", "", "", false)]
     [InlineData("", "", "", "", "", false)]
+    // 1.34.0: a running index, then the chapter in the first bracket.
+    [InlineData("0002 [0000.5].cbz", "", "", "0.5", "", true)]
+    [InlineData("0003 [0001 - Some Title].cbz", "", "", "1", "", false)]
+    [InlineData("0004 [0002 - Some Title].cbz", "", "", "2", "", false)]
+    [InlineData("0168 [0166 - Some Title (Part 2)].cbz", "", "", "166", "", false)] // an arc title: chapter 166 itself
+    [InlineData("0001 [0000].cbz", "", "", "0", "", false)]
+    [InlineData("12 [10 \u2013 Some Title] [Group].cbz", "", "", "10", "", false)]
+    [InlineData("0005 [0003 - Some Title Vol. 2].cbz", "", "", "3", "", false)] // nothing is read from the title
+    [InlineData("0150 [Chapter Title].cbz", "", "", "150", "", false)] // a title bracket: the leading number stays the chapter
+    [InlineData("001 [2019].cbz", "", "", "1", "", false)] // a bracketed year is not a chapter
+    [InlineData("001 [1 Punch].cbz", "", "", "1", "", false)] // a number + a word without " - " is a title
     public void UnitsOf_KeepsDecimalsBothNumbersAndRanges(string name, string volume, string volumeEnd, string chapter, string chapterEnd, bool extra)
     {
         static decimal? D(string s) => s.Length == 0 ? null : decimal.Parse(s, System.Globalization.CultureInfo.InvariantCulture);
@@ -92,6 +103,7 @@ public sealed class AutoMatchTextTests
     [InlineData("Some Title v03 c012.cbz")]
     [InlineData("Some Title Vol. 01-05.cbz")]
     [InlineData("001 [Chapter Title].cbz")]
+    [InlineData("0003 [0001 - Some Title].cbz")]
     public void UnitsOf_LeavesTheMatcherIntegersAlone(string name)
     {
         // The matcher's helpers keep their 1.27.0 answers (the golden set depends on them).
@@ -104,6 +116,8 @@ public sealed class AutoMatchTextTests
                 "Some Title c045.5.cbz" => ((int?)null, (int?)45),
                 "Some Title v03 c012.cbz" => (null, 12),
                 "Some Title Vol. 01-05.cbz" => (5, null),
+                // 1.34.0: the matcher keeps the running index (its count rule is unchanged: no revision bump).
+                "0003 [0001 - Some Title].cbz" => (null, 3),
                 _ => (null, 1),
             });
     }

@@ -29,6 +29,7 @@ public static class ExportVocabulary
         SeriesLinkState.Auto => "Auto",
         SeriesLinkState.NeedsReview => "NeedsReview",
         SeriesLinkState.DontMatch => "DontMatch",
+        SeriesLinkState.CollectionAbout => "CollectionAbout",
         _ => "Unknown",
     };
 

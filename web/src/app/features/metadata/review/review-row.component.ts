@@ -19,6 +19,7 @@ import {
   workClassLabel,
 } from '../admin-metadata/metadata-admin-labels';
 import { MetadataApiService } from '../metadata-api.service';
+import { collectionLabel } from '../collection-labels';
 import { CoverCompareDirective } from './cover-compare/cover-compare.directive';
 import { QueuedImageDirective, QueuedImageState } from './queued-image.directive';
 import { candidateBlocks, FAMILY_REASONS, familyRoleLabel, SERIES_FAMILY_NOTE } from './series-family';
@@ -26,7 +27,9 @@ import { candidateBlocks, FAMILY_REASONS, familyRoleLabel, SERIES_FAMILY_NOTE } 
 /** A row action; `rank` for Accept (the chosen stored candidate). */
 export type ReviewRowAction =
   | 'accept' | 'identify' | 'dontMatch' | 'later' | 'notLater' | 'confirm' | 'unlink' | 'clearDontMatch'
-  | 'reattach' | 'deleteMissing' | 'rerun';
+  | 'reattach' | 'deleteMissing' | 'rerun'
+  // 1.34.0: "Collection about" a series.
+  | 'acceptCollection' | 'changeCollection' | 'clearCollection';
 
 export interface ReviewRowActionEvent {
   action: ReviewRowAction;
@@ -34,7 +37,7 @@ export interface ReviewRowActionEvent {
   rank?: number;
 }
 
-/** 1.33.0: a group of waiting works to filter Needs review by - an author, or a folder. */
+/** 1.33.0: a group of waiting works to filter Needs review (1.34.0: or Unmatched) by - an author, or a folder. */
 export interface ReviewGroup {
   kind: 'author' | 'folder';
   key: string;
@@ -48,14 +51,23 @@ export interface ReviewActionDef {
   /** The keyboard key shown in the tooltip. */
   key?: string;
   primary?: boolean;
+  /** A shorter label for the phone bottom bar. */
+  short?: string;
 }
+
+/** 1.34.0: the first action of a waiting folder that looks like a collection about a series. */
+const ACCEPT_COLLECTION: ReviewActionDef = {
+  action: 'acceptCollection', label: 'Accept as collection', short: 'Collection', icon: 'collections_bookmark', key: 'f', primary: true,
+};
 
 /** The row actions each tab offers, in button order (the phone bottom bar uses the same list). */
 export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto): ReviewActionDef[] {
   switch (tab) {
     case 'NeedsReview':
       return [
-        { action: 'accept', label: 'Accept', icon: 'check', key: 'a', primary: true },
+        // 1.34.0: a folder that looks like a collection about a series offers that first.
+        ...(item.collection ? [ACCEPT_COLLECTION] : []),
+        { action: 'accept', label: 'Accept', icon: 'check', key: 'a', primary: !item.collection },
         { action: 'identify', label: 'Identify…', icon: 'travel_explore', key: 'i' },
         { action: 'dontMatch', label: 'Don\'t match', icon: 'block', key: 'd' },
         // 1.33.0: remembered on the server - the row goes to the end of Needs review for every admin until it is decided.
@@ -77,6 +89,11 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
       ];
     case 'DontMatch':
       return [{ action: 'clearDontMatch', label: 'Clear Don\'t match', icon: 'undo', primary: true }];
+    case 'Collections':
+      return [
+        { action: 'changeCollection', label: 'Change series…', short: 'Change', icon: 'travel_explore', key: 'i' },
+        { action: 'clearCollection', label: 'Clear collection', short: 'Clear', icon: 'undo', primary: true },
+      ];
     case 'Confirmed':
       return [
         { action: 'identify', label: 'Change…', icon: 'travel_explore', key: 'i' },
@@ -182,15 +199,23 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
                     data-testid="review-later-tag"><mat-icon inline>schedule</mat-icon> Later</span>
             }
             @if (tab() === 'NeedsReview') {
+              @if (it.collection; as c) {
+                <!-- 1.34.0: doujin-shaped works by several circles in a folder named like a series - a collection about it. -->
+                <span class="chip collection" data-testid="review-collection-hint"
+                      matTooltip="Works by several circles in a folder named after this series: most likely works about it (fan works). Accept as collection to keep the series as context and match each work on its own.">
+                  <mat-icon inline>collections_bookmark</mat-icon><span class="glabel">Looks like a collection about {{ c.title }}</span></span>
+              }
+            }
+            @if (tab() === 'NeedsReview' || tab() === 'Unmatched') {
               @if (it.sameAuthor; as a) {
-                <!-- 1.33.0: other waiting works by the same circle / artist - a tap lists them together. -->
+                <!-- 1.33.0: other waiting works by the same circle / artist - a tap lists them together (1.34.0: Unmatched too). -->
                 <button type="button" class="chip group" (click)="$event.stopPropagation(); pickGroup('author')" data-testid="review-same-author"
-                        matTooltip="Other works waiting here whose names start with the same circle or artist. Show them together.">
+                        matTooltip="Other works {{ here() }} whose names start with the same circle or artist. Show them together.">
                   <mat-icon inline>groups</mat-icon><span class="glabel">{{ a.others }} more by {{ a.label }}</span></button>
               }
               @if (it.sameFolder; as f) {
                 <button type="button" class="chip group" (click)="$event.stopPropagation(); pickGroup('folder')" data-testid="review-same-folder"
-                        matTooltip="Other works waiting here from the same folder. Show them together.">
+                        matTooltip="Other works {{ here() }} from the same folder. Show them together.">
                   <mat-icon inline>folder</mat-icon><span class="glabel">{{ f.others }} more in {{ f.label }}</span></button>
               }
             }
@@ -221,7 +246,13 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
       </div>
 
       @if (it.link; as link) {
-        @if (link.state !== 'NeedsReview' && link.state !== 'DontMatch') {
+        @if (link.state === 'CollectionAbout') {
+          <p class="link" data-testid="review-link">
+            <mat-icon inline>collections_bookmark</mat-icon>
+            {{ collectionText(link.title || link.externalId) }}
+            <span class="muted">· {{ link.updatedAt | date: 'mediumDate' }}</span>
+          </p>
+        } @else if (link.state !== 'NeedsReview' && link.state !== 'DontMatch') {
           <p class="link" data-testid="review-link">
             <mat-icon inline>link</mat-icon>
             {{ link.title || link.externalId }}
@@ -302,6 +333,9 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
     </div>
   `,
   styles: [`
+    .chip.collection { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0;
+      background: rgba(255, 183, 77, 0.16); border-color: rgba(255, 204, 128, 0.45); color: #ffe0b2; }
+    .chip.collection .glabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     :host { display: block; }
     .row { padding: 10px 12px; border-radius: 10px; background: #1c1c26; border: 1px solid rgba(255, 255, 255, 0.06);
       outline: none; transition: border-color 120ms; }
@@ -373,6 +407,8 @@ export class ReviewRowComponent {
 
   readonly item = input.required<MetadataReviewItemDto>();
   readonly tab = input.required<MetadataReviewTab>();
+  /** 1.34.0: where the other works of a group are - Needs review waits, Unmatched lists. */
+  readonly here = computed(() => (this.tab() === 'Unmatched' ? 'listed here' : 'waiting here'));
   readonly focused = input(false);
   readonly selected = input(false);
   readonly expanded = input(false);
@@ -475,7 +511,7 @@ export class ReviewRowComponent {
   }
 
   disabled(action: ReviewRowAction): boolean {
-    return action === 'accept' && !this.hasCandidates();
+    return (action === 'accept' || action === 'acceptCollection') && !this.hasCandidates();
   }
 
   pickGroup(kind: ReviewGroup['kind']): void {
@@ -484,6 +520,10 @@ export class ReviewRowComponent {
   }
 
   emit(action: ReviewRowAction): void {
-    this.action.emit({ action, item: this.item(), rank: action === 'accept' ? this.rank() : undefined });
+    this.action.emit({ action, item: this.item(), rank: action === 'accept' || action === 'acceptCollection' ? this.rank() : undefined });
+  }
+
+  collectionText(title: string | null | undefined): string {
+    return collectionLabel(title);
   }
 }

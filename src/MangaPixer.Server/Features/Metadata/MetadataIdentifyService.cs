@@ -347,6 +347,39 @@ public sealed class MetadataIdentifyService
         return result;
     }
 
+    /// <summary>
+    /// 1.34.0: marks a folder "Collection about" a provider record - the record is fetched and stored first when it is not stored yet
+    /// (gated, as for <see cref="LinkAsync"/>), then its poster (a failed image never fails the change).
+    /// </summary>
+    public async Task<(MetadataLinkResultCode Code, NodeSeriesLinkChangeDto? Change)> SetCollectionAboutAsync(
+        string nodePublicId, LinkSeriesRequest request, string? actor, CancellationToken ct = default, string? auditResult = null)
+    {
+        if (!MetadataIdentifiers.IsValidProvider(request.Provider) || !MetadataIdentifiers.IsValidExternalId(request.ExternalId))
+            return (MetadataLinkResultCode.InvalidRequest, null);
+        var node = await FindNodeAsync(nodePublicId, ct);
+        if (node is null)
+            return (MetadataLinkResultCode.NodeNotFound, null);
+        if (node.Kind != (int)CatalogNodeKind.Folder)
+            return (MetadataLinkResultCode.NotAFolder, null);
+
+        var stored = await _db.MetadataRecords.AnyAsync(r => r.Provider == request.Provider && r.ExternalId == request.ExternalId, ct);
+        if (!stored)
+        {
+            if (_providers.Find(request.Provider) is null)
+                return (MetadataLinkResultCode.RecordNotFound, null);
+            await EnsureRecordAsync(request.Provider, request.ExternalId, node.LibraryId, requireFresh: false, ct);
+        }
+
+        var result = await _links.SetCollectionAboutAsync(nodePublicId, request, actor, ct, auditResult);
+        if (result.Code == MetadataLinkResultCode.Ok)
+        {
+            var record = await _db.MetadataRecords.FirstAsync(r => r.Provider == request.Provider && r.ExternalId == request.ExternalId, ct);
+            if (record.ImageState != 1)
+                await TryStoreImageAsync(record, node.LibraryId, ct);
+        }
+        return result;
+    }
+
     // --- Refresh ---
 
     /// <summary>
@@ -361,7 +394,8 @@ public sealed class MetadataIdentifyService
         if (node is null)
             return null;
 
-        var applied = await _resolver.ResolveWebRecordAsync(node, ct)
+        // 1.34.0: a "Collection about" folder's own record (a label) may be refreshed by hand too.
+        var applied = await _resolver.ResolveShownRecordAsync(node, ct)
             ?? throw new MetadataGatewayException(StatusCodes.Status404NotFound, "no_web_link", "This item is not linked to a web series.");
         var record = await _db.MetadataRecords.FirstAsync(r => r.Id == applied.Id, ct);
 

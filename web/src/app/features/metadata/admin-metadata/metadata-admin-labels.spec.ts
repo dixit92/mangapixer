@@ -17,11 +17,12 @@ import { contentCaption, contentSuggestion } from '../folder-content';
 
 /** Display helpers of the admin metadata page (stage 2). Pure. */
 describe('metadata admin labels', () => {
-  it('lists the seven review tabs of design section 5 in order, each with a summary count', () => {
+  it('lists the review tabs of design section 5 in order (1.34.0: Collections), each with a summary count', () => {
     expect(REVIEW_TABS.map((t) => t.tab)).toEqual(
-      ['NeedsReview', 'AutoLinked', 'Unmatched', 'Flags', 'DontMatch', 'Confirmed', 'MissingFolders']);
+      ['NeedsReview', 'AutoLinked', 'Unmatched', 'Flags', 'DontMatch', 'Confirmed', 'Collections', 'MissingFolders']);
     expect(reviewTabDef('Flags').count).toBe('openFlags');
     expect(reviewTabDef('MissingFolders').label).toBe('Missing folders');
+    expect(reviewTabDef('Collections').count).toBe('collections');
   });
 
   it('names known reason codes and shows unknown ones readably', () => {

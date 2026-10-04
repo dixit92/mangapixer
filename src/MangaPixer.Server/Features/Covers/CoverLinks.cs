@@ -15,11 +15,14 @@ public readonly record struct NearestLink(long LinkNodeId, int Depth, SeriesLink
     public bool IsLinked => RecordId is not null && State is SeriesLinkState.Confirmed or SeriesLinkState.Auto;
 
     public bool IsDontMatch => State == SeriesLinkState.DontMatch;
+
+    /// <summary>1.34.0: the node's OWN row is "Collection about" a record (below a collection the nodes count as unlinked).</summary>
+    public bool IsOwnCollection => Depth == 0 && RecordId is not null && State == SeriesLinkState.CollectionAbout;
 }
 
 /// <summary>
 /// Batched "nearest series link" walk for the cover layer - the same self -> ancestors rule (bounded 64, needs-review rows
-/// skipped, the nearest row wins, Don't match stops) as <c>SeriesInfoResolver</c>, for many nodes in one recursive CTE.
+/// skipped, the nearest row wins, Don't match and "Collection about" stop) as <c>SeriesInfoResolver</c>, for many nodes in one recursive CTE.
 /// </summary>
 internal static class CoverLinks
 {

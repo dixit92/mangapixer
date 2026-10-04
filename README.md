@@ -59,7 +59,7 @@ services:
 then start it and open <http://127.0.0.1:8080> to create the first admin account:
 
 ```bash
-MANGAPIXER_VERSION=1.33.0 docker compose -f compose.yaml -f compose.override.yaml up -d
+MANGAPIXER_VERSION=1.34.0 docker compose -f compose.yaml -f compose.override.yaml up -d
 ```
 
 Details, upgrades and reaching it from other devices: [Install with Docker](docs/install-docker.md).
@@ -71,8 +71,8 @@ In every case, add your libraries under **Administration** after signing in. In 
 - **Folder-native library:** card and list views, sorting, read-state filters, an A-Z rail, bulk read marks and full-text search.
 - **A reader for every screen:** paged (left-to-right or manga), double-page spreads and vertical webtoon, with touch and keyboard controls and on-device upscaling (**Crisp** and **Enhance**).
 - **Per-user reading state:** progress, read marks, "Continue reading" and "New chapters" for every user.
-- **Series information:** read from `ComicInfo.xml`, and optionally from MangaUpdates, linked by hand or automatically, with volume covers and volume lists from MangaDex and chapters per volume from AniList (all off by default). A linked series shows what you have, what is missing in your language and when it is finished.
-- **Reviewing matches:** works the automatic matcher was unsure of wait in **Needs review**, where you can set hard ones aside for **Later** and see which waiting works share an author or a folder, so a whole circle's doujins can be handled together.
+- **Series information:** read from `ComicInfo.xml`, and optionally from MangaUpdates, linked by hand or automatically, with volume covers and volume lists from MangaDex and chapters per volume from AniList (all off by default). A linked series shows what you have, what is missing in your language and when it is finished; webtoons and manhwa are counted in chapters, not guessed volumes.
+- **Reviewing matches:** works the automatic matcher was unsure of wait in **Needs review**, where you can set hard ones aside for **Later** and see which waiting works share an author or a folder, so a whole circle's doujins can be handled together. A folder of doujins about one series can be marked **Collection about** that series: it shows the series, and each doujin inside is matched on its own.
 - **For other apps:** a read-only [metadata export](docs/metadata-export.md) with admin-created [API tokens](docs/api-tokens.md), so a tool such as MangaList can use what MangaPixer already knows instead of looking it up again.
 - **Multi-user:** admin and reader roles, per-library access, activation links, private libraries and Incognito.
 - **Low-maintenance:** scheduled scans, persistent thumbnails, automatic database backups, and YACReader progress import.

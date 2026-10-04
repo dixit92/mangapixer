@@ -1010,10 +1010,12 @@ export interface RotatingBackupStatusDto {
 // Mirrors MangaPixer.Core/Api/MetadataDtos.cs + Core/Metadata/MetadataVocabulary.cs.
 // Enums arrive as their C# names (JsonStringEnumConverter).
 
-export type SeriesInfoState = 'None' | 'ComicInfo' | 'Web' | 'WebAndComicInfo' | 'Mixed' | 'DontMatch';
+/** `CollectionAbout` (1.34.0): the folder's own link is "Collection about" a series - shown as context, without numbers. */
+export type SeriesInfoState = 'None' | 'ComicInfo' | 'Web' | 'WebAndComicInfo' | 'Mixed' | 'DontMatch' | 'CollectionAbout';
 export type MetadataPrecedence = 'WebFirst' | 'ComicInfoFirst';
 export type MetadataPrecedenceSource = 'Default' | 'Library' | 'Folder';
-export type SeriesLinkState = 'Confirmed' | 'Auto' | 'NeedsReview' | 'DontMatch';
+/** `CollectionAbout` (1.34.0): a folder of works about the linked series (fan works) - stops inheritance, matching continues below. */
+export type SeriesLinkState = 'Confirmed' | 'Auto' | 'NeedsReview' | 'DontMatch' | 'CollectionAbout';
 export type MetadataMatchMethod = 'Search' | 'Reference' | 'ComicInfoWebHint' | 'Auto';
 export type MetadataOrigin =
   | 'Japan' | 'Korea' | 'ChinaTaiwan' | 'EnglishOriginal' | 'Philippines' | 'Indonesia' | 'Thailand'
@@ -1431,11 +1433,12 @@ export type WorkClass =
   | 'FranchiseContainer' | 'CollectionContainer' | 'Wrapper' | 'Mixed' | 'UnitSub' | 'Ambiguous';
 export type MatchLevel = 'None' | 'Folder' | 'Archive' | 'ReviewOnly';
 export type MetadataReviewTab =
-  | 'NeedsReview' | 'AutoLinked' | 'Unmatched' | 'Flags' | 'DontMatch' | 'Confirmed' | 'MissingFolders';
+  | 'NeedsReview' | 'AutoLinked' | 'Unmatched' | 'Flags' | 'DontMatch' | 'Confirmed' | 'MissingFolders' | 'Collections';
 export type MetadataFolderContent = 'Auto' | 'DoujinshiAndAdultOneShots' | 'NotDoujinshi';
 export type MetadataMatchRunTrigger = 'Scan' | 'Bulk' | 'Retry' | 'Rerun' | 'Recheck';
 export type MetadataMatchRunStatus = 'Running' | 'Completed' | 'Cancelled';
-export type MetadataReviewBulkAction = 'AcceptTop' | 'DontMatch' | 'RerunMatching' | 'Confirm' | 'Unlink' | 'Later' | 'ClearLater';
+export type MetadataReviewBulkAction = 'AcceptTop' | 'DontMatch' | 'RerunMatching' | 'Confirm' | 'Unlink' | 'Later' | 'ClearLater'
+  | 'AcceptCollection';
 export type MetadataFlagReason = 'WrongSeries' | 'WrongDetails' | 'NotOneSeries' | 'Other';
 export type MetadataFlagState = 'Open' | 'Relinked' | 'Unlinked' | 'DontMatch' | 'Dismissed';
 
@@ -1459,6 +1462,35 @@ export interface MetadataMatchThresholdBoundsDto {
 
 /** GET /admin/metadata/review/summary?library= */
 /** 1.33.0: a group of waiting works a review row belongs to; `key` is the list's `author` / `folder` filter value. */
+/** 1.34.0: the series a waiting folder looks like a collection about (one of its stored candidates). */
+export interface MetadataReviewCollectionHintDto {
+  rank: number;
+  provider: string;
+  externalId: string;
+  title: string;
+}
+
+/** 1.34.0: marks a folder "Collection about" a series record (fetched first when not stored). */
+export interface SetCollectionAboutRequest {
+  provider: string;
+  externalId: string;
+  matchMethod?: MetadataMatchMethod | null;
+  /** Also set the folder's Content to "Doujinshi & adult one-shots" (default true on the server). */
+  setDoujinContent?: boolean;
+}
+
+export interface MetadataReviewAcceptCollectionRequest {
+  rank: number;
+}
+
+/** 1.34.0: what marking a folder "Collection about" did. */
+export interface CollectionAboutResultDto {
+  change: NodeSeriesLinkChangeDto;
+  contentSet?: boolean;
+  /** Works at and below the folder queued for automatic matching now (0 while automatic matching is off). */
+  queued?: number;
+}
+
 export interface MetadataReviewGroupHintDto {
   key: string;
   label: string;
@@ -1490,6 +1522,8 @@ export interface MetadataReviewSummaryDto {
   pending: number;
   /** 1.31.0: works in review being checked again under the matcher's current rules (part of `pending`). */
   recheckPending: number;
+  /** 1.34.0: folders marked "Collection about" a series. */
+  collections: number;
 }
 
 export interface MetadataReviewLinkDto {
@@ -1568,6 +1602,8 @@ export interface MetadataReviewItemDto {
   sameAuthor?: MetadataReviewGroupHintDto | null;
   /** 1.33.0 (Needs review): other waiting works in the same folder (`key` = the folder's node id). */
   sameFolder?: MetadataReviewGroupHintDto | null;
+  /** 1.34.0 (Needs review, folders): "Looks like a collection about <Series>" - one of the stored candidates. */
+  collection?: MetadataReviewCollectionHintDto | null;
   /** 1.31.0 (folder works): chapter numbers that more than one file of the same folder states. */
   duplicateChapters?: number;
   /** 1.31.0 (folder works): the same for volume numbers. */
@@ -2036,6 +2072,11 @@ export interface VolumeViewDto {
   defaultActive?: boolean;
   consolidated: boolean;
   stackCount: number;
+  /**
+   * 1.34.0: a webtoon / manhwa / manhua without a real volume list - the view lists its chapters in chapter order (the switch says
+   * Chapters), never volumes from a list or missing-volume placeholders.
+   */
+  chaptersOnly?: boolean;
   /** 1.29.0 RC: the folder has its own series link - the status line below is shown. */
   hasSeriesStatus?: boolean;
   seriesStatus?: MetadataOriginStatus | null;
@@ -2612,7 +2653,7 @@ export interface ExportItemDto {
 }
 
 export interface ExportLinkDto {
-  state: 'Confirmed' | 'Auto' | 'NeedsReview' | 'DontMatch';
+  state: 'Confirmed' | 'Auto' | 'NeedsReview' | 'DontMatch' | 'CollectionAbout';
   method?: string | null;
   score?: number | null;
   updatedAt: string;

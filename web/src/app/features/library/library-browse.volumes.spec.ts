@@ -458,6 +458,19 @@ describe('LibraryBrowseComponent Volumes view (1.29.0)', () => {
     expect(el.querySelector('[data-testid="series-status"]')).toBeNull();
   });
 
+  it('shows a webtoon\'s chapter list with a Chapters switch and a chapters-only status line (1.34.0)', () => {
+    const { el } = setup({
+      nodes: [archiveNode('c1'), archiveNode('c2'), archiveNode('c4')],
+      view: { stackCount: 0, chaptersOnly: true, hasSeriesStatus: true, seriesStatus: 'Ongoing', origin: 'Korea', missingVolumes: 0, missingChapters: 1,
+        releaseKnown: true, language: 'en' },
+    });
+    expect(el.querySelector('[data-testid="view-volumes"]')!.textContent).toContain('Chapters');
+    const status = el.querySelector('[data-testid="series-status"]')!.textContent!;
+    expect(status).toContain('1 chapter missing');
+    expect(status).not.toContain('volume');
+    expect(el.querySelector('[data-testid="missing-volume"]')).toBeNull();
+  });
+
   it('shows no status line for a folder without its own link', () => {
     expect(setup().el.querySelector('[data-testid="series-status"]')).toBeNull();
   });

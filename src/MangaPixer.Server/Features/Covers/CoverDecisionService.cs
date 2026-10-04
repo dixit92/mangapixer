@@ -305,6 +305,14 @@ public sealed class CoverDecisionService
     private async Task<CoverDecisionOutcome> DecideFolderAsync(CatalogNodeEntity folder, SeriesContext series, Settings settings, CancellationToken ct)
     {
         var link = series.Link;
+        if (link.IsOwnCollection)
+        {
+            // 1.34.0: a "Collection about" folder shows its series' poster (where web covers are allowed), never its first doujin.
+            var collectionPoster = Poster(series);
+            var collectionKey = Key("collection", Describe(series, collectionPoster));
+            return await ApplyAsync(folder.Id, collectionKey, ct,
+                () => Task.FromResult<(CoverDecision?, ulong?)>((CoverRules.DecideCollection(collectionPoster), null)), series);
+        }
         if (link.IsDontMatch || !link.IsLinked)
             return await ClearAsync(folder.Id, ct);
 
@@ -553,6 +561,11 @@ public sealed class CoverDecisionService
 
     private async Task<SeriesContext> SeriesAsync(NearestLink link, Settings settings, CancellationToken ct)
     {
+        if (link.IsOwnCollection)
+        {
+            // 1.34.0: a collection offers only its series' poster - never the companion's volume / main covers.
+            return new SeriesContext { Link = link, Record = await _db.MetadataRecords.AsNoTracking().FirstOrDefaultAsync(r => r.Id == link.RecordId, ct) };
+        }
         if (!link.IsLinked)
             return new SeriesContext { Link = link };
         var record = await _db.MetadataRecords.AsNoTracking().FirstOrDefaultAsync(r => r.Id == link.RecordId, ct);

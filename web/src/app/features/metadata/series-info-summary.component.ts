@@ -47,6 +47,10 @@ import { DeclaredFactsLineComponent } from './declared/declared-facts-line.compo
         @if (i.web && i.web.hasImage && i.web.imageUrl) {
           <img class="poster" [src]="i.web.imageUrl" alt="" loading="lazy">
         }
+        @if (i.state === 'CollectionAbout') {
+          <!-- 1.34.0: a folder of works about this series (fan works) - the series is context, not this folder. -->
+          <p class="collection-lead" data-testid="series-collection">Collection about</p>
+        }
         <h2 class="title" data-testid="series-title">{{ i.title }}</h2>
         @if (altTitles().length > 0) {
           <p class="alt">also: {{ altTitles().join(', ') }}@if (altOverflow() > 0) {, +{{ altOverflow() }}}</p>
@@ -75,6 +79,11 @@ import { DeclaredFactsLineComponent } from './declared/declared-facts-line.compo
             <button type="button" class="more" (click)="expanded.set(!expanded())">{{ expanded() ? 'Less' : 'More' }}</button>
           }
         }
+        @if (i.state === 'CollectionAbout') {
+          <p class="muted collection-note" data-testid="series-collection-note">
+            A folder of works about this series. Nothing in it is part of the series; its items are matched on their own.
+          </p>
+        }
         @if (i.statusText && !compact()) {
           <p class="muted status-note">{{ i.statusText }}</p>
         }
@@ -91,6 +100,8 @@ import { DeclaredFactsLineComponent } from './declared/declared-facts-line.compo
     }
   `,
   styles: [`
+    .collection-lead { margin: 0 0 2px; font-size: 11px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: #ffcc80; }
+    .collection-note { margin: 6px 0 0; font-size: 12px; }
     :host { display: block; }
     .title { margin: 0 0 4px; font-size: 20px; font-weight: 600; line-height: 1.25; color: #f0f0f6; }
     .poster { float: left; width: 96px; height: 136px; object-fit: cover; border-radius: 6px; margin: 0 12px 8px 0; }
