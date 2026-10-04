@@ -37,7 +37,7 @@ export interface ReviewRowActionEvent {
   rank?: number;
 }
 
-/** 1.33.0: a group of waiting works to filter Needs review by - an author, or a folder. */
+/** 1.33.0: a group of waiting works to filter Needs review (1.34.0: or Unmatched) by - an author, or a folder. */
 export interface ReviewGroup {
   kind: 'author' | 'folder';
   key: string;
@@ -205,15 +205,17 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
                       matTooltip="Works by several circles in a folder named after this series: most likely works about it (fan works). Accept as collection to keep the series as context and match each work on its own.">
                   <mat-icon inline>collections_bookmark</mat-icon><span class="glabel">Looks like a collection about {{ c.title }}</span></span>
               }
+            }
+            @if (tab() === 'NeedsReview' || tab() === 'Unmatched') {
               @if (it.sameAuthor; as a) {
-                <!-- 1.33.0: other waiting works by the same circle / artist - a tap lists them together. -->
+                <!-- 1.33.0: other waiting works by the same circle / artist - a tap lists them together (1.34.0: Unmatched too). -->
                 <button type="button" class="chip group" (click)="$event.stopPropagation(); pickGroup('author')" data-testid="review-same-author"
-                        matTooltip="Other works waiting here whose names start with the same circle or artist. Show them together.">
+                        matTooltip="Other works {{ here() }} whose names start with the same circle or artist. Show them together.">
                   <mat-icon inline>groups</mat-icon><span class="glabel">{{ a.others }} more by {{ a.label }}</span></button>
               }
               @if (it.sameFolder; as f) {
                 <button type="button" class="chip group" (click)="$event.stopPropagation(); pickGroup('folder')" data-testid="review-same-folder"
-                        matTooltip="Other works waiting here from the same folder. Show them together.">
+                        matTooltip="Other works {{ here() }} from the same folder. Show them together.">
                   <mat-icon inline>folder</mat-icon><span class="glabel">{{ f.others }} more in {{ f.label }}</span></button>
               }
             }
@@ -405,6 +407,8 @@ export class ReviewRowComponent {
 
   readonly item = input.required<MetadataReviewItemDto>();
   readonly tab = input.required<MetadataReviewTab>();
+  /** 1.34.0: where the other works of a group are - Needs review waits, Unmatched lists. */
+  readonly here = computed(() => (this.tab() === 'Unmatched' ? 'listed here' : 'waiting here'));
   readonly focused = input(false);
   readonly selected = input(false);
   readonly expanded = input(false);

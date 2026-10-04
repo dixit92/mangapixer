@@ -147,9 +147,9 @@ const ROW_BULK: Partial<Record<ReviewRowAction, MetadataReviewBulkAction>> = {
         </mat-form-field>
       </div>
       <p class="hint">{{ hint() }}</p>
-      @if (tab() === 'NeedsReview') {
+      @if (tab() === 'NeedsReview' || tab() === 'Unmatched') {
         <div class="filters">
-      @if (count('later') > 0 || laterFilter() !== null) {
+      @if (tab() === 'NeedsReview' && (count('later') > 0 || laterFilter() !== null)) {
         <div class="later-filter" role="group" aria-label="Show items set aside for later" data-testid="review-later-filter">
           <button type="button" class="tab" [class.active]="laterFilter() === null" [attr.aria-pressed]="laterFilter() === null"
                   (click)="setLaterFilter(null)" data-testid="review-later-all">All</button>
@@ -180,7 +180,7 @@ const ROW_BULK: Partial<Record<ReviewRowAction, MetadataReviewBulkAction>> = {
                 <button mat-menu-item type="button" (click)="setGroup({ kind: 'author', key: a.key, label: a.label })" data-testid="review-author">
                   <span>{{ a.label }}</span> <span class="menu-count">{{ a.count }}</span></button>
               } @empty {
-                <p class="menu-empty">{{ authors() === null ? 'Loading…' : 'No author has two or more works waiting.' }}</p>
+                <p class="menu-empty">{{ authors() === null ? 'Loading…' : 'No author has two or more works {{ tab() === 'Unmatched' ? 'here' : 'waiting' }}.' }}</p>
               }
             </mat-menu>
           }
@@ -449,7 +449,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
 
   loadAuthors(): void {
     this.authors.set(null);
-    this.api.getReviewAuthors(this.library()).subscribe({
+    this.api.getReviewAuthors(this.library(), this.groupTab()).subscribe({
       next: (list) => this.authors.set(list.items),
       error: () => this.authors.set([]),
     });
@@ -457,7 +457,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
 
   /** Phone: the Authors list as a bottom sheet. */
   openAuthorsSheet(): void {
-    this.api.getReviewAuthors(this.library()).subscribe({
+    this.api.getReviewAuthors(this.library(), this.groupTab()).subscribe({
       next: (list) => this.bottomSheet.open<ReviewAuthorsSheetComponent, MetadataReviewAuthorDto[], MetadataReviewAuthorDto>(
         ReviewAuthorsSheetComponent, { data: list.items }).afterDismissed().subscribe((a) => {
         if (a) this.setGroup({ kind: 'author', key: a.key, label: a.label });
@@ -466,11 +466,16 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** The filters of the current request (Needs review only). */
+  /** The tab the Authors list and the group filters belong to: Needs review, or (1.34.0) Unmatched. */
+  private groupTab(): 'NeedsReview' | 'Unmatched' {
+    return this.tab() === 'Unmatched' ? 'Unmatched' : 'NeedsReview';
+  }
+
+  /** The filters of the current request (Needs review: Later + group; Unmatched, 1.34.0: group). */
   private listFilter(): ReviewListFilter {
-    if (this.tab() !== 'NeedsReview') return {};
+    if (this.tab() !== 'NeedsReview' && this.tab() !== 'Unmatched') return {};
     const filter: ReviewListFilter = {};
-    const later = this.laterFilter();
+    const later = this.tab() === 'NeedsReview' ? this.laterFilter() : null;
     if (later !== null) filter.later = later;
     const group = this.group();
     if (group) filter[group.kind] = group.key;
@@ -642,7 +647,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
       event.preventDefault();
       return;
     }
-    if (key === 'g' && this.tab() === 'NeedsReview') {
+    if (key === 'g' && (this.tab() === 'NeedsReview' || this.tab() === 'Unmatched')) {
       const g = this.group();
       if (g?.kind === 'author') this.setGroup(null);
       else if (item.sameAuthor) this.setGroup({ kind: 'author', key: item.sameAuthor.key, label: item.sameAuthor.label });
