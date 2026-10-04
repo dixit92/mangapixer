@@ -60,6 +60,9 @@ public sealed class ExportSampleSnapshotTests
         await kit.Db.AddArchiveAsync(oldName, "Synthetic Saga v01.cbz");
         var doujin = await kit.Db.AddFolderAsync(null, "Doujin", lib.Id);
         var oneShot = await kit.Db.AddArchiveAsync(doujin, "Synthetic Circle - Short Story.zip");
+        // 1.34.0: a folder of works about Synthetic Quest (fan works) - its record is a label only.
+        var fanWorks = await kit.Db.AddFolderAsync(doujin, "Synthetic Quest Fan Works");
+        await kit.Db.AddArchiveAsync(fanWorks, "[Sample Circle] Side Story.cbz");
         var misc = await kit.Db.AddFolderAsync(null, "Misc", lib.Id);
         var gone = await kit.Db.AddFolderAsync(null, "Synthetic Gone", lib.Id);
 
@@ -125,6 +128,7 @@ public sealed class ExportSampleSnapshotTests
         Link(db, oldName, sagaRecord, SeriesLinkState.Auto, MetadataMatchMethod.Auto, 0.91);
         Link(db, oneShot, null, SeriesLinkState.NeedsReview, MetadataMatchMethod.Auto, null);
         Link(db, misc, null, SeriesLinkState.DontMatch, null, null);
+        Link(db, fanWorks, questRecord, SeriesLinkState.CollectionAbout, MetadataMatchMethod.Search, null);
         Link(db, gone, null, SeriesLinkState.DontMatch, null, null);
         await db.SaveChangesAsync();
 
