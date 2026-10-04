@@ -147,7 +147,13 @@ public sealed class CollectionAboutServiceTests : IAsyncLifetime
         await _db.AddLinkAsync(folder, null, SeriesLinkState.NeedsReview);
         _db.Db.MetadataMatchCandidates.Add(new MetadataMatchCandidateEntity
         {
-            NodeId = folder.Id, Rank = 1, Provider = "mangaupdates", ExternalId = SeriesId, Title = "Starlight Academy", TitleScore = 1, AdjustedScore = 1,
+            NodeId = folder.Id,
+            Rank = 1,
+            Provider = "mangaupdates",
+            ExternalId = SeriesId,
+            Title = "Starlight Academy",
+            TitleScore = 1,
+            AdjustedScore = 1,
         });
         var archives = await ArchivesOfAsync(folder);
         var other = await _db.AddRecordAsync("9002", "Summer Lesson");
@@ -330,13 +336,25 @@ public sealed class CollectionAboutServiceTests : IAsyncLifetime
         await _db.AddLinkAsync(folder, null, SeriesLinkState.NeedsReview);
         _db.Db.MetadataMatchCandidates.Add(new MetadataMatchCandidateEntity
         {
-            NodeId = folder.Id, Rank = 1, Provider = "mangaupdates", ExternalId = SeriesId, Title = "Starlight Academy",
-            Format = (int)Enum.Parse<MetadataFormat>(candidateFormat), TitleScore = score, AdjustedScore = score,
+            NodeId = folder.Id,
+            Rank = 1,
+            Provider = "mangaupdates",
+            ExternalId = SeriesId,
+            Title = "Starlight Academy",
+            Format = (int)Enum.Parse<MetadataFormat>(candidateFormat),
+            TitleScore = score,
+            AdjustedScore = score,
         });
         _db.Db.MetadataMatchQueue.Add(new MetadataMatchQueueEntity
         {
-            NodeId = folder.Id, LibraryId = folder.LibraryId, State = QueueState.Done, Reason = QueueReason.NewFolder,
-            Level = (int)MatchLevel.ReviewOnly, Outcome = (int)MatchBand.NeedsReview, WorkClass = (int)WorkClass.Ambiguous, EnqueuedAt = DateTimeOffset.UtcNow,
+            NodeId = folder.Id,
+            LibraryId = folder.LibraryId,
+            State = QueueState.Done,
+            Reason = QueueReason.NewFolder,
+            Level = (int)MatchLevel.ReviewOnly,
+            Outcome = (int)MatchBand.NeedsReview,
+            WorkClass = (int)WorkClass.Ambiguous,
+            EnqueuedAt = DateTimeOffset.UtcNow,
         });
         await _db.Db.SaveChangesAsync();
         return folder;
