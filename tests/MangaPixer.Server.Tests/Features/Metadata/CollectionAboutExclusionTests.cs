@@ -28,7 +28,10 @@ public sealed class CollectionAboutExclusionTests
         await kit.Db.AddLinkAsync(collection, record, SeriesLinkState.CollectionAbout);
         var mangadex = new MetadataRecordEntity
         {
-            PublicId = "mdx", Provider = "mangadex", ExternalId = "0f0f0f0f-0000-4000-8000-000000000001", Title = "Starlight Academy",
+            PublicId = "mdx",
+            Provider = "mangadex",
+            ExternalId = "0f0f0f0f-0000-4000-8000-000000000001",
+            Title = "Starlight Academy",
             FetchedAt = ExportTestKit.Start,
         };
         db.MetadataRecords.Add(mangadex);

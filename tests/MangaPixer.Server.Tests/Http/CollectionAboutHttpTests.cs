@@ -50,22 +50,41 @@ public sealed class CollectionAboutHttpTests : IClassFixture<MangaPixerWebApplic
         db.MetadataRecords.AddRange(
             new MetadataRecordEntity
             {
-                PublicId = "corec1", Provider = "mangaupdates", ExternalId = "717171", Title = "Starlight Academy",
-                Description = "Series description.", OriginVolumes = 9, FetchedAt = DateTimeOffset.UtcNow,
+                PublicId = "corec1",
+                Provider = "mangaupdates",
+                ExternalId = "717171",
+                Title = "Starlight Academy",
+                Description = "Series description.",
+                OriginVolumes = 9,
+                FetchedAt = DateTimeOffset.UtcNow,
             },
             new MetadataRecordEntity
             {
-                PublicId = "corec2", Provider = "mangaupdates", ExternalId = "727272", Title = "Moonlit Academy", FetchedAt = DateTimeOffset.UtcNow,
+                PublicId = "corec2",
+                Provider = "mangaupdates",
+                ExternalId = "727272",
+                Title = "Moonlit Academy",
+                FetchedAt = DateTimeOffset.UtcNow,
             });
         await db.SaveChangesAsync();
         db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
         {
-            NodeId = waiting.Id, LibraryId = lib.Id, State = (int)SeriesLinkState.NeedsReview, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
+            NodeId = waiting.Id,
+            LibraryId = lib.Id,
+            State = (int)SeriesLinkState.NeedsReview,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
         });
         db.MetadataMatchCandidates.Add(new MetadataMatchCandidateEntity
         {
-            NodeId = waiting.Id, Rank = 1, Provider = "mangaupdates", ExternalId = "727272", Title = "Moonlit Academy",
-            Format = (int)MetadataFormat.Comic, TitleScore = 1, AdjustedScore = 1,
+            NodeId = waiting.Id,
+            Rank = 1,
+            Provider = "mangaupdates",
+            ExternalId = "727272",
+            Title = "Moonlit Academy",
+            Format = (int)MetadataFormat.Comic,
+            TitleScore = 1,
+            AdjustedScore = 1,
         });
         await db.SaveChangesAsync();
     }
