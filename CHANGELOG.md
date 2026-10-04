@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Webtoons, manhwa and manhua list their chapters.** A folder linked to a series that MangaUpdates marks as a webtoon, or to a manhwa or manhua, now shows its chapter files in chapter order in the series view instead of guessing volumes - unless a real volume list exists (two or more volumes on MangaDex, or a Wikipedia chapter list). The switch reads **Chapters | Folders**, no **Volume N - Missing** cards or estimated `~ Volume N` stacks are drawn, and the status line counts chapters ("You have chapters 1-120 · 2 chapters missing"), never volumes. File names that state their volume still group. The Missing report counts these series in chapters too.
+
+### Fixed
+
+- **Running-index file names.** Archives named with a running index in front of the chapter - `0003 [0001 - Chapter Title].cbz`, `0002 [0000.5].cbz` - are read by the number in the brackets (chapter 1; chapter 0.5, an extra). Before, the index was taken as the chapter, so every chapter was off and `.5` extras were lost. `001 [Chapter Title]` is still chapter 1.
+- **Nearly empty MangaDex volume lists.** A MangaDex list with at most one real volume while most chapters are in no volume is now treated as no volume list: it no longer puts one chapter in "Volume 1" and shows the other volumes as missing. Wikipedia and (with Automatic matching) the AniList totals apply as for a series without a list. Lists already stored are read this way at once; nothing is fetched again.
+- **Re-run matching** on a work inside a folder that is linked, marked **Don't match** or waiting in review as one work now says so ("covered_by_folder") instead of reporting success and doing nothing.
+
 ## [1.33.0] - 2026-10-03
 
 ### Added
