@@ -1523,7 +1523,7 @@ export interface MetadataReviewSummaryDto {
   /** 1.31.0: works in review being checked again under the matcher's current rules (part of `pending`). */
   recheckPending: number;
   /** 1.34.0: folders marked "Collection about" a series. */
-  collections?: number;
+  collections: number;
 }
 
 export interface MetadataReviewLinkDto {
