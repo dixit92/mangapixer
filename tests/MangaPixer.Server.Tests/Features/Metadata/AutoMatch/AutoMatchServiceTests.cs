@@ -545,6 +545,29 @@ public sealed class AutoMatchServiceTests : IAsyncLifetime
         Assert.False(await _db.Db.MetadataMatchCandidates.AnyAsync(c => c.NodeId == beta.Id));
     }
 
+    [Fact]
+    public async Task Rerun_BelowAFolderWithItsOwnLinkRow_IsRefusedWithAReason_NotQueued()
+    {
+        var collection = await _db.AddFolderAsync(null, "Mixed Collection");
+        var inside = await _db.AddArchiveAsync(collection, "Some Work v01");
+        var outside = await SeriesAsync("Alpha Saga");
+        _db.Db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
+        {
+            NodeId = collection.Id,
+            LibraryId = _db.LibraryId,
+            State = (int)SeriesLinkState.DontMatch,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        });
+        await _db.Db.SaveChangesAsync();
+
+        var codes = await _h.Service().RerunAsync([inside.PublicId, outside.PublicId], "admin");
+
+        Assert.Equal("covered_by_folder", codes[inside.PublicId]); // was "ok" and then skipped by the queue (1.33.0)
+        Assert.Equal("ok", codes[outside.PublicId]);
+        Assert.False(await _db.Db.MetadataMatchQueue.AnyAsync(q => q.NodeId == inside.Id));
+    }
+
     // --- Refusals and pausing ---
 
     [Fact]

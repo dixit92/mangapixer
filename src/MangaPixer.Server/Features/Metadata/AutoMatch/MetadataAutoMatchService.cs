@@ -394,6 +394,14 @@ public sealed class MetadataAutoMatchService
             var existing = await _db.MetadataMatchQueue.AsNoTracking()
                 .Where(q => ids.Contains(q.NodeId))
                 .ToDictionaryAsync(q => q.NodeId, ct);
+            // A work below a folder with its own link row (linked, Don't match, or waiting in review as one work) is skipped when
+            // the queue processes it, so it is refused here with a reason instead of answering "ok" and doing nothing (1.34.0).
+            var tree = await SnapshotAsync(group.Key, ct);
+            var ancestorIds = group.SelectMany(n => tree.Ancestors(n.Id).Select(a => a.Id)).Distinct().ToList();
+            var coveringFolders = (await _db.NodeSeriesLinks.AsNoTracking()
+                .Where(l => ancestorIds.Contains(l.NodeId))
+                .Select(l => l.NodeId)
+                .ToListAsync(ct)).ToHashSet();
             var works = new List<DetectedWork>();
             foreach (var n in group)
             {
@@ -401,6 +409,11 @@ public sealed class MetadataAutoMatchService
                 {
                     // Confirmed / Auto / Don't match are admin decisions: unlink first.
                     codes[n.PublicId] = "linked";
+                    continue;
+                }
+                if (tree.Ancestors(n.Id).Any(a => coveringFolders.Contains(a.Id)))
+                {
+                    codes[n.PublicId] = "covered_by_folder";
                     continue;
                 }
                 var level = existing.TryGetValue(n.Id, out var row) ? (MatchLevel)row.Level
