@@ -182,10 +182,11 @@ public sealed class CollectionAboutHttpTests : IClassFixture<MangaPixerWebApplic
         var below = (await (await admin.GetAsync("/api/v1/nodes/coArc1/series-info")).Content.ReadFromJsonAsync<SeriesInfoDto>(TestJson.Web))!;
         Assert.Equal(SeriesInfoState.None, below.State);
 
+        // (The review test of this class may have added its own collection: count the folder, not the total.)
         var summary = (await admin.GetFromJsonAsync<MetadataReviewSummaryDto>($"/api/v1/admin/metadata/review/summary?library={LibPubId}", TestJson.Web))!;
-        Assert.Equal(1, summary.Collections);
+        Assert.True(summary.Collections >= 1);
         var tab = (await admin.GetFromJsonAsync<MetadataReviewPageDto>($"/api/v1/admin/metadata/review?tab=Collections&library={LibPubId}", TestJson.Web))!;
-        Assert.Equal("coFolder", tab.Items.Single().NodeId);
+        Assert.Contains(tab.Items, i => i.NodeId == "coFolder" && i.Link!.State == SeriesLinkState.CollectionAbout);
 
         var clear = await admin.DeleteAsync("/api/v1/admin/metadata/nodes/coFolder/collection");
         Assert.Equal(HttpStatusCode.OK, clear.StatusCode);
