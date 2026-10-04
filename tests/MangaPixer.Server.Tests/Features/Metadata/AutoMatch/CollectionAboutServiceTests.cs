@@ -242,6 +242,33 @@ public sealed class CollectionAboutServiceTests : IAsyncLifetime
         Assert.Equal("ok", codes[archive.PublicId]);
     }
 
+    [Fact]
+    public async Task NewDoujinAfterAScan_InACollection_UnderACategory_IsQueuedOnItsOwn_ButWaitsWhileTheFolderIsUndecided()
+    {
+        // The owner's layout (1.34.0): <library>/Series/<Series Title>/<new doujin>; "Series" is a category folder without a link.
+        await _h.EnableAutomaticAsync();
+        var category = await _db.AddFolderAsync(null, "Series");
+        var marked = await DoujinFolderAsync(category, "Starlight Academy");
+        var waiting = await DoujinFolderAsync(category, "Moonlight Academy");
+        await _db.AddLinkAsync(waiting, null, SeriesLinkState.NeedsReview); // still one folder-level work waiting in review
+        Assert.Equal(Doujins.Length, (await SetAsync(marked))!.Queued);
+        await _db.Db.MetadataMatchQueue.ExecuteDeleteAsync(); // the first matching pass is done
+
+        var since = DateTimeOffset.UtcNow.AddSeconds(1);
+        await Task.Delay(1100);
+        var inMarked = await _db.AddArchiveAsync(marked, "[Circle Five (Artist E)] New Story [English].cbz");
+        var inWaiting = await _db.AddArchiveAsync(waiting, "[Circle Six] Another New Story.cbz");
+
+        // After the scan: the new doujin in the collection is a work of its own; the one in the undecided folder waits for that folder.
+        Assert.Equal(1, await Matcher().EnqueueNewFoldersAsync(_db.LibraryId, since));
+        Assert.Equal([inMarked.Id], await QueuedAsync());
+
+        // Deciding the waiting folder as a collection queues everything inside it, the new doujin included.
+        await _db.Db.MetadataMatchQueue.ExecuteDeleteAsync();
+        Assert.Equal(Doujins.Length + 1, (await SetAsync(waiting))!.Queued);
+        Assert.Contains(inWaiting.Id, await QueuedAsync());
+    }
+
     [Theory]
     [InlineData(SeriesLinkState.DontMatch)]
     [InlineData(SeriesLinkState.NeedsReview)]
