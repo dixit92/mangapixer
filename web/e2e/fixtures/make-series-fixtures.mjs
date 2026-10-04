@@ -13,6 +13,7 @@
 //   Stacked Saga/Stacked Saga v02 c004..c005.cbz   chapters that state volume 2
 //   Stacked Saga/Stacked Saga v02.5.cbz            a fractional (bonus) volume: the end of volume 2's stack (1.29.0 RC)
 //   Stacked Saga/Stacked Saga v03.cbz              a real volume file (no chapters of its own volume)
+//   Indexed Webtoon/0001 [0000].cbz .. 0010 [0008 - Some Title].cbz   a running index, the chapter in brackets (1.34.0)
 //   Doubled Saga/Doubled Saga v01 c001..c003.cbz   chapters that state volume 1, with chapters 1 and 2 each in a second file
 //                                                  (`... c001 [part 2].cbz`): duplicate numbers (1.31.0)
 // Register <outDir> as a library, scan, and let analysis run; the spec does that itself
@@ -139,5 +140,11 @@ archive('Stacked Saga', 'Stacked Saga v02.5.cbz', [120, 200, 90], null, volumesD
 archive('Stacked Saga', 'Stacked Saga v03.cbz', [200, 80, 80], null, volumesDir);
 for (const name of ['c001', 'c001 [part 2]', 'c002', 'c002 [part 2]', 'c003']) {
   archive('Doubled Saga', `Doubled Saga v01 ${name}.cbz`, [90 + name.length * 5, 120, 60], null, volumesDir);
+}
+// 1.34.0: a webtoon named with a running index in front of the chapter ("0003 [0001 - Some Title]"; index = chapter + 2).
+archive('Indexed Webtoon', '0001 [0000].cbz', [70, 70, 150], null, volumesDir);
+archive('Indexed Webtoon', '0002 [0000.5].cbz', [80, 80, 160], null, volumesDir);
+for (let c = 1; c <= 8; c++) {
+  archive('Indexed Webtoon', `${String(c + 2).padStart(4, '0')} [${String(c).padStart(4, '0')} - Some Title].cbz`, [60 + c * 15, 140, 200 - c * 10], null, volumesDir);
 }
 console.log(`Series fixtures written to ${outDir} (and ${volumesDir})`);
