@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Dated doujin names.** Archives named `[Artist] [2023-05] Character (Tag) (Title)` - also without the opening bracket, `Artist] [2023-05] ...`, and with a `[2023]` or `[2023-05-17]` date - were searched by the character's name, and doujins about the same character were grouped as one work. When a bracketed date follows the artist tag directly, the last group in parentheses is now the title: it is what automatic matching searches (also as `<series> dj - <title>` inside a **Collection about** folder), what groups the works of a folder, and what review shows. The other groups are tags, never the parody; size and release tags such as `(x1600)` are never the title. The character is searched last, only when nothing confident was found, and a record found that way only goes to **Needs review**. These names now also count as doujin-shaped without the opening bracket, so a folder of them is suggested as **Doujinshi & adult one-shots** content. Names without the date, such as `[Artist] Title (Parody)`, are read as before.
+
+### Changed
+
+- **Upgrade note:** no database migration and no new consent. The matcher's rules change, so with **Automatic matching** on every work still waiting in **Needs review** is checked once more in the background (about two or three MangaUpdates requests each, inside the daily budget, at most one per second). Works already linked automatically are not re-checked: look at **Auto-linked** for doujins with dated names linked to a character's record. The media worker protocol is unchanged (5).
+
 ## [1.34.1] - 2026-10-04
 
 ### Added
