@@ -357,6 +357,44 @@ public sealed class CollectionAboutServiceTests : IAsyncLifetime
         Assert.Equal("9101", top);
     }
 
+    [Fact]
+    public async Task DatedWorksInside_AreSearchedByTitle_ThenAsDoujinshi_AndTheCharacterLast_OnlyForReview()
+    {
+        // 1.34.2: "Creator] [yyyy-mm] Character (Tag) (Title)" - the title is the work, the character only a last, review-only search.
+        await _h.EnableAutomaticAsync();
+        var folder = await _db.AddFolderAsync(null, "Starlight Academy");
+        foreach (var n in new[]
+        {
+            "Artist One] [2023-05] Hero Name (Some Tag) (Summer Lesson).cbz",
+            "Artist Two] [2023-06] Hero Name (Some Tag) (Rainy Day Story).cbz",
+            "Artist Three] [2023-07] Other Hero (After School) (x1600).cbz",
+        })
+        {
+            await _db.AddArchiveAsync(folder, n);
+        }
+        _h.Search["Hero Name"] = [new MuJson.Hit(9201, "Hero Name")];
+        _h.Records[9201] = MuJson.Get(9201, "Hero Name");
+        await SetAsync(folder);
+        var summer = (await ArchivesOfAsync(folder)).Single(a => a.DisplayName.Contains("Summer", StringComparison.Ordinal));
+        await _db.Db.MetadataMatchQueue.Where(q => q.NodeId != summer.Id).ExecuteDeleteAsync();
+
+        _db.Db.ChangeTracker.Clear();
+        var service = Matcher();
+        var row = await service.LeaseNextAsync("test");
+        Assert.NotNull(row);
+        await service.ProcessAsync(row!);
+
+        var searches = _h.Handler.Seen.Where(r => r.Uri.AbsolutePath == "/v1/series/search")
+            .Select(r => JsonDocument.Parse(r.Body!).RootElement.GetProperty("search").GetString())
+            .ToList();
+        Assert.Equal(["Summer Lesson", "Starlight Academy dj - Summer Lesson", "Hero Name"], searches);
+        var link = await LinkOfAsync(summer);
+        Assert.Equal((int)SeriesLinkState.NeedsReview, link?.State);
+        var top = await _db.Db.MetadataMatchCandidates.AsNoTracking().SingleAsync(c => c.NodeId == summer.Id && c.Rank == 1);
+        Assert.Equal("9201", top.ExternalId);
+        Assert.Equal(MatchScorer.SubtitleHeadCap, top.TitleScore, 3);
+    }
+
     // --- The review suggestion and "Accept as a collection" ---
 
     private async Task<CatalogNodeEntity> WaitingFolderAsync(string candidateFormat = "Comic", double score = 1.0)

@@ -363,6 +363,7 @@ public sealed class MatchScorer : IMatchScorer
         foreach (var v in variants)
         {
             var reviewOnly = (v.Kind == QueryVariantKind.CreatorSplit && !hintNamesRecord)
+                || v.Kind == QueryVariantKind.CharacterName
                 || (v.Kind == QueryVariantKind.EnglishTitle && hints.Any(h => AutoMatchText.NamesEqual(h, v.Text)) && !ownNameResembles.Value);
             for (var i = 0; i < titles.Count; i++)
             {

@@ -15,6 +15,11 @@ using System.Text.RegularExpressions;
 /// <param name="Title">The clean title (<see cref="TitleNormalizer.Normalize"/> primary).</param>
 /// <param name="Parody">The first trailing <c>(...)</c> group that is not a year or a release tag, or null.</param>
 /// <param name="HasUnitToken">The name carries a volume / chapter token (a series unit, not a one-shot).</param>
+/// <remarks>
+/// 1.34.2: a dated doujin name (<see cref="DatedDoujinName"/>, <c>Creator] [yyyy-mm] Character (Tag) (Title)</c>) is
+/// <see cref="IsDated"/>: its creator tag counts also without the opening bracket, its title is the last group, and it has no
+/// parody - its groups are tags and the title, never the series it is about.
+/// </remarks>
 public sealed partial record ArchiveNameAnatomy(
     string? Event,
     string? LeadingTag,
@@ -40,6 +45,9 @@ public sealed partial record ArchiveNameAnatomy(
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ReleaseTag();
 
+    /// <summary>The name has the dated doujin shape (<see cref="DatedDoujinName"/>, 1.34.2).</summary>
+    public bool IsDated { get; init; }
+
     /// <summary>A parenthesized release tag (year, language, quality, edition or unit marker, scan note).</summary>
     public static bool IsReleaseTag(string? text) => !string.IsNullOrWhiteSpace(text) && ReleaseTag().IsMatch(text.Trim());
 
@@ -51,12 +59,14 @@ public sealed partial record ArchiveNameAnatomy(
 
     /// <summary>
     /// Looks like a doujin: an <c>(event)</c> prefix, a <c>[circle (artist)]</c> tag, or a leading
-    /// tag plus a parody group on a name without volume / chapter tokens.
+    /// tag plus a parody group on a name without volume / chapter tokens, or (1.34.2) a dated doujin name
+    /// without volume / chapter tokens.
     /// </summary>
     public bool IsDoujinShaped =>
         Event is not null
         || (Circle is not null && Artist is not null)
-        || (LeadingTag is not null && Parody is not null && !HasUnitToken);
+        || (LeadingTag is not null && Parody is not null && !HasUnitToken)
+        || (IsDated && !HasUnitToken);
 
     /// <summary>
     /// Creator names the leading tag carries: circle and artist of <c>[circle (artist)]</c>, or the
@@ -110,8 +120,21 @@ public sealed partial record ArchiveNameAnatomy(
             if (tag.Length == 0) tag = null;
         }
 
-        // The parody is the first non-tag paren group AFTER some title text.
-        foreach (Match m in ParenGroup().Matches(rest))
+        var dated = DatedDoujinName.TryParse(name);
+        if (dated is not null && tag is null)
+        {
+            // "Creator] [yyyy-mm] ...": the tag lost its opening bracket.
+            tag = dated.Creator;
+            var ca = CircleArtist().Match(tag);
+            if (ca.Success)
+            {
+                circle = ca.Groups["circle"].Value.Trim();
+                artist = ca.Groups["artist"].Value.Trim();
+            }
+        }
+
+        // The parody is the first non-tag paren group AFTER some title text (a dated name has none).
+        foreach (Match m in dated is null ? ParenGroup().Matches(rest) : Enumerable.Empty<Match>())
         {
             if (m.Index == 0 || string.IsNullOrWhiteSpace(rest[..m.Index].Replace("[", " ", StringComparison.Ordinal).Replace("]", " ", StringComparison.Ordinal)))
                 continue;
@@ -122,6 +145,6 @@ public sealed partial record ArchiveNameAnatomy(
             break;
         }
 
-        return new ArchiveNameAnatomy(evt, tag, circle, artist, title, parody, hasUnit);
+        return new ArchiveNameAnatomy(evt, tag, circle, artist, title, parody, hasUnit) { IsDated = dated is not null };
     }
 }

@@ -12,7 +12,9 @@ namespace com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 /// (1.27.0): an archive-derived title that extends the folder name word for word (the folder is the leading
 /// part of a long title) is the second search, right after the folder's own names. Another (1.34.0): below a "Collection about"
 /// folder (<see cref="FolderShape.CollectionSeries"/>), the parody form built from that series' title is the second search too, when
-/// the name carries no <c>(parody)</c> of its own. Variants are
+/// the name carries no <c>(parody)</c> of its own. A dated doujin name (<see cref="DatedDoujinName"/>, 1.34.2) is searched by its title
+/// (the cleaned name already is), and the character it is about is the last, review-only search (<see cref="QueryVariantKind.CharacterName"/>).
+/// Variants are
 /// de-duplicated by their scoring form (a variant that differs only in case or punctuation is one
 /// query).
 /// </summary>
@@ -49,6 +51,7 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
         // 1.34.0: a work inside a "Collection about" folder is a fan work of that series.
         if (CollectionParody(folder) is { } folderParody && name.Primary.Length > 0)
             variants.Add($"{folderParody} dj - {name.Primary}", QueryVariantKind.DoujinParodyForm, SecondSearch);
+        AddCharacterFallback(variants, archives.Count == 1 ? [folder.DisplayName, archives[0]] : [folder.DisplayName]);
 
         var anatomies = archives.Select(ArchiveNameAnatomy.Parse).ToList();
         var authorTags = DominantCreatorTags(anatomies);
@@ -145,6 +148,8 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
                 variants.Add($"{collectionParody} dj - {title}", QueryVariantKind.DoujinParodyForm, SecondSearch);
         }
 
+        AddCharacterFallback(variants, names);
+
         var authorTags = new List<string>();
         foreach (var tag in anatomies.SelectMany(a => a.CreatorTags))
         {
@@ -192,6 +197,18 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
             variants.Add(d.Text, QueryVariantKind.SubtitleSplit);
         foreach (var d in name.Derived.Where(d => d.Kind == DerivedTitleKind.SequelNumberSplit))
             variants.Add(d.Text, QueryVariantKind.SequelNumberSplit);
+    }
+
+    /// <summary>
+    /// The character the first dated doujin name with a title is about (1.34.2), as the last search: the name's own title is searched
+    /// first, the character only when nothing confident was found - and it can never link on its own (the scorer caps it).
+    /// </summary>
+    private static void AddCharacterFallback(VariantList variants, IEnumerable<string> displayNames)
+    {
+        var character = displayNames.Select(DatedDoujinName.TryParse)
+            .FirstOrDefault(d => d is { Title: not null, Character: not null })?.Character;
+        if (TitleNormalizer.Normalize(character).Primary is { Length: > 0 } clean)
+            variants.Add(clean, QueryVariantKind.CharacterName);
     }
 
     private static void AddCreatorSplits(VariantList variants, string? displayName)
