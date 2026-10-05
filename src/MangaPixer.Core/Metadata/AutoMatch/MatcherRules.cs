@@ -20,6 +20,9 @@ public static class MatcherRules
     /// 2 (1.32.0): comics - album / issue / extra unit tokens and comics format words in names (lane A), Grand Comics Database
     /// candidates with their own evidence (lane B, bits 19-22), a Webtoon(s) category folder giving its origin again (it never
     /// did since 1.27.0: compared in the wrong form), plus 1.31.1's "Episode N next to a volume is a part" (shipped unbumped).
+    /// 3 (1.34.2): dated doujin names (<c>Creator] [yyyy-mm] Character (Tag) (Title)</c>, <see cref="DatedDoujinName"/>) are searched,
+    /// grouped and scored by their title instead of the character, with the character as a last, review-only search
+    /// (<see cref="QueryVariantKind.CharacterName"/>), and count as doujin-shaped also without the tag's opening bracket.
     /// </summary>
-    public const int Revision = 2;
+    public const int Revision = 3;
 }

@@ -145,6 +145,13 @@ public enum QueryVariantKind
     /// creator hint names one of the record's authors.
     /// </summary>
     CreatorSplit = 7,
+
+    /// <summary>
+    /// The character a dated doujin name is about (<c>Creator] [yyyy-mm] Character (Title)</c>, <see cref="DatedDoujinName"/>;
+    /// 1.34.2), searched last, after the title. Retrieval only: it scores at most the review-only cap, so a record named after the
+    /// character never links on its own.
+    /// </summary>
+    CharacterName = 8,
 }
 
 public sealed record QueryVariant(string Text, QueryVariantKind Kind);

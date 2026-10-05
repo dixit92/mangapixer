@@ -12,7 +12,8 @@ using System.Text.RegularExpressions;
 /// sees a display name.
 ///
 /// Pipeline for <see cref="Normalize"/>:
-/// NFKC (full-width to ASCII) -> strip a known archive extension -> <c>_</c> and
+/// NFKC (full-width to ASCII) -> strip a known archive extension -> a dated doujin name
+/// (<c>Creator] [yyyy-mm] Character (Tag) (Title)</c>, 1.34.2) becomes its title -> <c>_</c> and
 /// <c>.</c> become spaces when the name has no spaces -> bracketed tags
 /// <c>[...]</c>, <c>(...)</c>, <c>{...}</c> are removed, EXCEPT a non-leading,
 /// trailing <c>[English Title]</c> of at least two words (no further tag after it) (a second query variant, the
@@ -128,7 +129,7 @@ public static partial class TitleNormalizer
             return new NormalizedTitle(string.Empty, [], null, []);
 
         var s = displayName.Normalize(NormalizationForm.FormKC).Trim();
-        s = StripArchiveExtension(s);
+        s = DatedTitleOr(StripArchiveExtension(s));
 
         if (!s.Contains(' ', StringComparison.Ordinal))
             s = s.Replace('_', ' ').Replace('.', ' ');
@@ -338,7 +339,7 @@ public static partial class TitleNormalizer
             return string.Empty;
 
         var s = archiveName.Normalize(NormalizationForm.FormKC).Trim();
-        s = StripArchiveExtension(s);
+        s = DatedTitleOr(StripArchiveExtension(s));
         if (!s.Contains(' ', StringComparison.Ordinal))
             s = s.Replace('_', ' ').Replace('.', ' ');
         s = Whitespace().Replace(RemoveBracketGroups(s), " ").Trim();
@@ -375,7 +376,7 @@ public static partial class TitleNormalizer
         foreach (var name in archiveNames)
         {
             var s = (name ?? string.Empty).Normalize(NormalizationForm.FormKC).Trim();
-            s = StripArchiveExtension(s);
+            s = DatedTitleOr(StripArchiveExtension(s));
             if (!s.Contains(' ', StringComparison.Ordinal))
                 s = s.Replace('_', ' ').Replace('.', ' ');
             s = Whitespace().Replace(RemoveBracketGroups(s), " ").Trim();
@@ -571,7 +572,8 @@ public static partial class TitleNormalizer
             : null;
     }
 
-    private static string StripArchiveExtension(string s)
+    /// <summary>The name without a known archive extension (<c>.cbz</c>, <c>.zip</c>, ...).</summary>
+    internal static string StripArchiveExtension(string s)
     {
         foreach (var ext in s_archiveExtensions)
         {
@@ -580,6 +582,13 @@ public static partial class TitleNormalizer
         }
         return s;
     }
+
+    /// <summary>
+    /// The title of a dated doujin name (1.34.2, <see cref="AutoMatch.DatedDoujinName"/>:
+    /// <c>Creator] [yyyy-mm] Character (Tag) (Title)</c> -> <c>Title</c>), else the name unchanged. Its creator, character and tags
+    /// are not title text: left in, the cleanup below removed the title with the other groups and kept the character.
+    /// </summary>
+    private static string DatedTitleOr(string s) => AutoMatch.DatedDoujinName.TryParse(s)?.Title ?? s;
 
     private static int CountWords(string s) =>
         s.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Length;
