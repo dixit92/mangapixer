@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Chapter pace right after the upgrade.** "Pace from: new chapters" waited for two observed rises of the latest chapter at least four weeks apart, and MangaPixer only started recording them in 1.32.0 - so no series had a chapter pace yet and most ongoing series fell back to their (slower) volume pace. Until two rises are seen, the chapter pace is now the average since the series began: the latest chapter MangaUpdates lists (which follows scanlation releases) over the time since its start year. It can only make a series look slower than it is. The series page names the pace that set the schedule ("a new chapter about every 4 weeks on average", or "a new volume about every 7 months").
+
 ## [1.35.0] - 2026-10-07
 
 ### Added

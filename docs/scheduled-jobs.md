@@ -52,13 +52,13 @@ With [Automatic matching](series-information.md#background-refresh) on, MangaPix
 
 **Following the pace**, each ongoing series is checked every week, every 2 weeks or every month, by how often something new appears:
 
-- **New chapters**: the latest chapter MangaUpdates lists, which follows scanlation releases, as MangaPixer saw it rise at earlier refreshes. A new chapter every two weeks or less is checked every week, every two to four weeks every 2 weeks, less often every month. It needs two rises at least four weeks apart, so a newly linked series has no chapter pace yet.
+- **New chapters**: the latest chapter MangaUpdates lists, which follows scanlation releases, as MangaPixer saw it rise at earlier refreshes. A new chapter every two weeks or less is checked every week, every two to four weeks every 2 weeks, less often every month. Until MangaPixer has seen two rises at least four weeks apart (*1.35.1*), it uses the average since the series began - the latest chapter over the time since its start year - which can only make a series look slower than it is, never faster; the series page then says "on average".
 - **New volumes**: the original release's volumes, as they rose at earlier refreshes, else the average since the start year (or, without volumes, its chapters). A new volume every two months or less is checked every week, every two to four months every 2 weeks, less often every month.
 - **Whichever is faster** takes the more frequent of the two. A series whose pace is not known yet is checked every month.
 
 Before 1.35.0 the choice for ongoing series was also a limit on the pace (with **Every week** chosen, every ongoing series was checked weekly whatever its pace) and only volumes counted. **Upgrading:** if the pace was on, it stays on, and the choice for ongoing series is no longer read - choose **Every week** under **Check ongoing series** if you want every ongoing series checked weekly.
 
-The pace comes only from what MangaPixer already knows; nothing extra is sent to find it. An admin sees each series' schedule and the reason on its series page, for example *Checked every week (a new chapter about every week); next check in 4 days.*
+The pace comes only from what MangaPixer already knows; nothing extra is sent to find it. An admin sees each series' schedule and the pace that set it on its series page, for example *Checked every 2 weeks (a new chapter about every 4 weeks on average); next check in 9 days.*
 
 There is no separate limit on refreshes: everything that is due is refreshed, the series checked longest ago first, until the [daily request budget](series-information.md#admin-settings) is spent - the one limit for every request; what is left follows the next day, and the card says how many series are due now, how many were checked today and how many series follow each schedule.
 
