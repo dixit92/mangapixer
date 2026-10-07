@@ -8,6 +8,8 @@ import { test, expect, Page } from '@playwright/test';
  */
 const ADMIN_USER = process.env['E2E_ADMIN_USER'] ?? 'admin';
 const ADMIN_PASSWORD = process.env['E2E_ADMIN_PASSWORD'] ?? 'AdminPass123!';
+/** `LibrarySidebarComponent.CollapsedKey`: '1' collapsed (also the default when unset), '0' expanded. */
+const COLLAPSED_KEY = 'mangapixer-nav-collapsed';
 
 async function login(page: Page): Promise<void> {
   await page.goto('/login');
@@ -31,7 +33,9 @@ test.describe('Library sidebar height', () => {
   for (const [width, height] of [[1280, 900], [820, 1180]] as const) {
     test(`${width} px: the sidebar reaches the bottom of the window on a long, scrolled page`, async ({ page }) => {
       await page.setViewportSize({ width, height });
+      await page.addInitScript((key) => { try { localStorage.setItem(key, '0'); } catch { /* ignore */ } }, COLLAPSED_KEY);
       await page.goto('/');
+      await expect(page.locator('app-library-sidebar nav.sidebar:not(.collapsed)')).toBeVisible();
       const sidebar = page.locator('app-library-sidebar');
       await expect(sidebar).toBeVisible();
       await page.evaluate(() => {
@@ -59,7 +63,7 @@ test.describe('Library sidebar height', () => {
 
   test('a collapsed sidebar also reaches the bottom', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.addInitScript(() => { try { localStorage.setItem('mangapixer-nav-collapsed', 'true'); } catch { /* ignore */ } });
+    await page.addInitScript((key) => { try { localStorage.setItem(key, '1'); } catch { /* ignore */ } }, COLLAPSED_KEY);
     await page.goto('/');
     await expect(page.locator('app-library-sidebar nav.sidebar.collapsed')).toBeVisible();
     await page.evaluate(() => {
