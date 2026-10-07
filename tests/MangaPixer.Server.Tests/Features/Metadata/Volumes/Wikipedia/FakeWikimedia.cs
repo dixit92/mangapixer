@@ -31,6 +31,12 @@ public sealed class FakeWikimedia
     /// <summary>When set, every Wikipedia / Wikidata request is answered with a <c>maxlag</c> error and this <c>Retry-After</c>.</summary>
     public int? MaxLagSeconds { get; set; }
 
+    /// <summary>
+    /// When set, Wikidata's lag in seconds (it includes its query-service lag): a Wikidata request whose <c>maxlag</c> is below it is
+    /// answered like the live API does - HTTP 200 with a <c>maxlag</c> error and <c>Retry-After: 5</c>; en.wikipedia.org is not lagged.
+    /// </summary>
+    public int? WikidataLagSeconds { get; set; }
+
     /// <summary>When set, every request is answered with this HTTP status (a 429, a 503 ...).</summary>
     public HttpStatusCode? Status { get; set; }
 
@@ -45,20 +51,27 @@ public sealed class FakeWikimedia
         if (Status is { } status)
             return new HttpResponseMessage(status) { Content = new StringContent("{}", Encoding.UTF8, "application/json") };
         if (MaxLagSeconds is { } lag)
-        {
-            var response = new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent("{\"error\":{\"code\":\"maxlag\",\"info\":\"Waiting for a database server\",\"lag\":9}}", Encoding.UTF8, "application/json"),
-            };
-            response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromSeconds(lag));
-            return response;
-        }
+            return MaxLagAnswer(lag);
 
         var query = HttpUtility.ParseQueryString(uri.Query);
+        if (uri.Host == MetadataHttp.WikidataHost && WikidataLagSeconds is { } wikidataLag
+            && int.TryParse(query["maxlag"], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var asked)
+            && wikidataLag > asked)
+            return MaxLagAnswer(5);
         var action = query["action"];
         if (uri.Host == MetadataHttp.WikidataHost)
             return action == "wbgetentities" ? Entities(query) : Search(query);
         return PagesAnswer(query);
+    }
+
+    private static HttpResponseMessage MaxLagAnswer(int retryAfterSeconds)
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"error\":{\"code\":\"maxlag\",\"info\":\"Waiting for a database server\",\"lag\":9}}", Encoding.UTF8, "application/json"),
+        };
+        response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromSeconds(retryAfterSeconds));
+        return response;
     }
 
     private static HttpResponseMessage Json(object value) =>
