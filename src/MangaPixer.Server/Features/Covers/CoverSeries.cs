@@ -17,4 +17,21 @@ internal static class CoverSeries
                 && (c.State == (int)CompanionState.Auto || c.State == (int)CompanionState.Confirmed))
             .Select(c => c.CompanionRecordId)
             .FirstOrDefaultAsync(ct);
+
+    /// <summary>1.36.0: the MangaDex record of each given linked series record that has one (the batched <see cref="CompanionRecordIdAsync"/>).</summary>
+    public static async Task<Dictionary<long, long>> CompanionRecordIdsAsync(MangaPixerDbContext db, IReadOnlyCollection<long> seriesRecordIds,
+        CancellationToken ct)
+    {
+        if (seriesRecordIds.Count == 0)
+            return [];
+        var rows = await db.MetadataCompanions.AsNoTracking()
+            .Where(c => seriesRecordIds.Contains(c.RecordId) && c.Provider == CompanionProvider && c.CompanionRecordId != null
+                && (c.State == (int)CompanionState.Auto || c.State == (int)CompanionState.Confirmed))
+            .Select(c => new { c.RecordId, CompanionRecordId = c.CompanionRecordId!.Value })
+            .ToListAsync(ct);
+        var result = new Dictionary<long, long>();
+        foreach (var r in rows)
+            result.TryAdd(r.RecordId, r.CompanionRecordId);
+        return result;
+    }
 }

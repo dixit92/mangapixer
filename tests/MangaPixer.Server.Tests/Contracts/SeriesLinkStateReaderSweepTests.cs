@@ -31,7 +31,7 @@ public sealed class SeriesLinkStateReaderSweepTests
         ["src/MangaPixer.Server/Features/Covers/CoverDecisionHostedService.cs"] = "any non-review row re-decides its subtree's covers",
         ["src/MangaPixer.Server/Features/Covers/CoverDecisionService.cs"] = "own collection row: the series poster; below it: unlinked rules",
         ["src/MangaPixer.Server/Features/Covers/CoverLinks.cs"] = "nearest-row walk stops at a collection (IsOwnCollection)",
-        ["src/MangaPixer.Server/Features/Covers/CoverPickerService.cs"] = "no web covers to choose for a collection",
+        ["src/MangaPixer.Server/Features/Covers/CoverPickerService.cs"] = "a collection: no web covers of its own; the covers of the series linked below it (1.36.0, IsSeries)",
         ["src/MangaPixer.Server/Features/Covers/CoverResolutionService.cs"] = "poster layer of an own collection row; series covers Confirmed / Auto only",
         ["src/MangaPixer.Server/Features/Covers/StackCoverService.cs"] = "volume stack covers: Confirmed / Auto only",
         ["src/MangaPixer.Server/Features/Export/ExportItemBuilder.cs"] = "record kept; no companions, links, volumes, completion or refresh",
