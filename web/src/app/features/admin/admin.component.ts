@@ -24,13 +24,13 @@ import {
   CreateUserRequest,
   RotatingBackupStatusDto,
   RotatingBackupFileDto,
-  AuditEventDto,
   SystemPlatform,
   YacReaderDetectDto,
   YacReaderImportPreviewDto,
 } from '../../core/api/api-types';
 import { libraryPathCopy } from './library-path-copy';
 import { DebugLogCardComponent } from './debug-log-card.component';
+import { AuditTrailCardComponent } from './audit-trail-card.component';
 import { UpdateCheckCardComponent } from './update-check-card.component';
 import { BackupSettingsCardComponent } from './backup-settings-card.component';
 import { LibraryIconComponent } from '../../shared/library-icon/library-icon.component';
@@ -58,6 +58,7 @@ import { ApiTokensCardComponent } from './api-tokens/api-tokens-card.component';
   imports: [
     CommonModule,
     DebugLogCardComponent,
+    AuditTrailCardComponent,
     UpdateCheckCardComponent,
     MoveConflictsLinkComponent,
     TrashCardComponent, ScheduledJobsComponent,
@@ -451,43 +452,6 @@ import { ApiTokensCardComponent } from './api-tokens/api-tokens-card.component';
     </mat-card>
     <app-api-tokens-card />
 
-    <!-- Audit trail (1.18.0): read side of the previously write-only audit store. -->
-    <mat-card>
-      <mat-card-header>
-        <mat-card-title>Audit trail</mat-card-title>
-      </mat-card-header>
-      <mat-card-content>
-        @if (auditLoading()) {
-          <p>Loading…</p>
-        } @else if (auditEvents().length === 0) {
-          <p class="backup-info">No audit events recorded yet.</p>
-        } @else {
-          <mat-list class="audit-list">
-            @for (e of auditEvents(); track e.id) {
-              <mat-list-item>
-                <span matListItemTitle>{{ e.action }} · {{ e.result }}</span>
-                <span matListItemLine>
-                  {{ e.timestamp | date:'short' }}
-                  @if (e.actorUserName) { · by {{ e.actorUserName }} }
-                  @if (e.targetUserId !== null) { · target #{{ e.targetUserId }} }
-                </span>
-              </mat-list-item>
-            }
-          </mat-list>
-          <div class="audit-pager">
-            <button mat-stroked-button type="button"
-                    (click)="auditPrevPage()" [disabled]="auditPage() <= 1 || auditLoading()">
-              Previous
-            </button>
-            <span>Page {{ auditPage() }} of {{ auditTotalPages() }}</span>
-            <button mat-stroked-button type="button"
-                    (click)="auditNextPage()" [disabled]="auditPage() >= auditTotalPages() || auditLoading()">
-              Next
-            </button>
-          </div>
-        }
-      </mat-card-content>
-    </mat-card>
 
     </div>
 
@@ -579,10 +543,12 @@ import { ApiTokensCardComponent } from './api-tokens/api-tokens-card.component';
       <app-trash-card #trash />
       <!-- Admin Analytics dashboard v1 (1.22.0 lane E) -->
       <app-analytics-card />
+      <app-update-check-card />
     </div>
 
     <div class="col">
-      <app-update-check-card />
+      <!-- Audit trail (1.18.0) next to Debug logging at the end of the page (owner, 2026-10-07): both are looked at when something went wrong -->
+      <app-audit-trail-card />
       <!-- Logging (1.17.0 DEBUGUI lane): a debugging tool, so it stays the last card (owner, 2026-09-26) -->
       <app-debug-log-card />
     </div>
@@ -688,9 +654,8 @@ import { ApiTokensCardComponent } from './api-tokens/api-tokens-card.component';
       display: flex; align-items: center; gap: 6px;
     }
     .backup-info { margin: 0 0 12px; font-size: 13px; opacity: 0.9; }
-    .snapshot-list, .audit-list { max-height: 320px; overflow-y: auto; }
+    .snapshot-list { max-height: 320px; overflow-y: auto; }
     .restore-message { margin: 12px 0 0; font-size: 13px; }
-    .audit-pager { display: flex; align-items: center; gap: 12px; margin-top: 12px; font-size: 13px; }
     .browser {
       margin-top: 12px;
       border: 1px solid rgba(255, 255, 255, 0.12);
@@ -837,21 +802,11 @@ export class AdminComponent implements OnInit, OnDestroy {
   readonly restoreBusy = signal(false);
   readonly restoreMessage = signal<string | null>(null);
 
-  // Audit trail (1.18.0).
-  readonly auditEvents = signal<AuditEventDto[]>([]);
-  readonly auditLoading = signal(true);
-  readonly auditPage = signal(1);
-  readonly auditTotal = signal(0);
-  readonly auditPageSize = 50;
-  readonly auditTotalPages = computed(() =>
-    Math.max(1, Math.ceil(this.auditTotal() / this.auditPageSize)));
-
   ngOnInit(): void {
     this.loadLibraries();
     this.loadUsers();
     this.loadBackupStatus();
     this.loadBackupFiles();
-    this.loadAuditTrail();
     this.loadPlatform();
   }
 
@@ -1548,31 +1503,5 @@ export class AdminComponent implements OnInit, OnDestroy {
         this.snackBar.open(`Restore failed: ${err.message}`, 'Close', { duration: 5000 });
       },
     });
-  }
-
-  // --- Audit trail (1.18.0) ---
-
-  private loadAuditTrail(): void {
-    this.auditLoading.set(true);
-    this.api.getAuditTrail(this.auditPage(), this.auditPageSize).subscribe({
-      next: (result) => {
-        this.auditEvents.set(result.items);
-        this.auditTotal.set(result.totalCount);
-        this.auditLoading.set(false);
-      },
-      error: () => this.auditLoading.set(false),
-    });
-  }
-
-  auditNextPage(): void {
-    if (this.auditPage() >= this.auditTotalPages()) return;
-    this.auditPage.update((p) => p + 1);
-    this.loadAuditTrail();
-  }
-
-  auditPrevPage(): void {
-    if (this.auditPage() <= 1) return;
-    this.auditPage.update((p) => p - 1);
-    this.loadAuditTrail();
   }
 }
