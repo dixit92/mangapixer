@@ -2235,7 +2235,7 @@ export interface WebCoverDto {
   volume?: number | null;
   variant?: number;
   locale: string;
-  /** false = choosing it downloads it (one request). */
+  /** false = known but not downloaded yet: shown, cannot be chosen (choosing never downloads). */
   stored: boolean;
   imageUrl?: string | null;
 }
@@ -2243,6 +2243,16 @@ export interface WebCoverDto {
 export interface WebCoverGroupDto {
   volume?: number | null;
   covers: WebCoverDto[];
+}
+
+/** 1.36.0: the stored web covers of one series linked below a folder that is not a series itself. */
+export interface WebCoverSeriesDto {
+  /** The node that carries the series link. */
+  nodeId: string;
+  displayName: string;
+  /** The linked record's title. */
+  seriesTitle?: string | null;
+  groups: WebCoverGroupDto[];
 }
 
 /** GET /nodes/{nodeId}/cover-options (admin, lane C). */
@@ -2253,6 +2263,10 @@ export interface CoverOptionsDto {
   web: WebCoverGroupDto[];
   webAvailable: boolean;
   webUnavailableReason?: string | null;
+  /** 1.36.0: a folder that is not a series: the stored covers of the series linked below it (folder order, capped). */
+  webSeries?: WebCoverSeriesDto[];
+  /** How many more series below have stored covers than `webSeries` lists. */
+  webSeriesMore?: number;
 }
 
 /** PUT /nodes/{nodeId}/cover-choice (admin, lane C). */

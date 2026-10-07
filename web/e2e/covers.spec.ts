@@ -1,9 +1,12 @@
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
+import { expectFitsScreen } from './layout';
 
 /**
  * The cover layer (1.29.0) in a real browser against a real server: an admin opens "Choose cover..." from the browse
  * selection bar, picks another item's cover for a series folder, and the card changes to the new (versioned, layered)
  * cover; "This file's cover" pins it back to the file; Automatic removes the choice. Phone: the picker is full-screen.
+ * 1.36.0: a folder that is not a series lists the covers of the series inside it first, per series, and fits phone, tablet
+ * and desktop (the stored covers come from contract-shaped options: the fixture library is never linked - no provider request).
  *
  * Needs the synthetic fixture library from `e2e/fixtures/make-series-fixtures.mjs` visible to the SERVER at
  * E2E_SERIES_FIXTURE_ROOT (as `series-info.spec.ts`); without it the suite skips. Local data only: no provider request.
@@ -129,4 +132,61 @@ test('phone: the picker is full-screen with three covers per row', async ({ page
   await shot(page, 'covers-03-picker-phone');
   await page.getByTestId('cover-picker-cancel').click();
   await expect(page.getByTestId('cover-picker-current')).toHaveCount(0);
+});
+
+test('a folder with series inside: their web covers come first, per series, and fit every screen', async ({ page }) => {
+  await login(page);
+  const libraryId = await ensureLibrary(page);
+  const folder = (await children(page, libraryId)).find((n) => n.displayName === 'Synthetic Anthology')!;
+  const issues = await children(page, libraryId, folder.id);
+  const images = issues.map((n) => n.coverUrl!).filter(Boolean);
+  // Contract-shaped options (CoverOptionsDto.webSeries): three series below the folder, two more not listed. The real options
+  // come from the server (its local part, its current state); only the web part is replaced.
+  await page.route(`**/api/v1/nodes/${folder.id}/cover-options`, async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    const cover = (id: string, volume: number | null, locale: string, i: number) => ({
+      id, kind: volume === null ? 'Main' : 'Volume', volume, variant: 0, locale, stored: true, imageUrl: images[i % images.length],
+    });
+    body.web = [];
+    body.webAvailable = true;
+    body.webUnavailableReason = null;
+    body.webSeries = [
+      { nodeId: 'e2e-s1', displayName: 'Alpha Tale', seriesTitle: 'Alpha Tale', groups: [
+        { volume: 1, covers: [cover('e2e-vc1', 1, 'en', 0), cover('e2e-vc2', 1, 'ja', 1)] },
+        { volume: 2, covers: [cover('e2e-vc3', 2, 'en', 0)] },
+      ] },
+      { nodeId: 'e2e-s2', displayName: 'Beta Tale - a side story with a rather long folder name that must not widen the dialog',
+        seriesTitle: 'Beta Tale Gaiden: The Synthetic Record Title That Is Also Rather Long', groups: [
+          { volume: null, covers: [cover('e2e-vc4', null, 'ko', 1)] },
+        ] },
+      { nodeId: 'e2e-s3', displayName: 'Gamma Tale', seriesTitle: null, groups: [
+        { volume: 1, covers: [cover('e2e-vc5', 1, 'en', 0)] },
+      ] },
+    ];
+    body.webSeriesMore = 2;
+    await route.fulfill({ response, json: body });
+  });
+
+  for (const [width, height, name] of [[1280, 900, 'desktop'], [820, 1180, 'tablet'], [390, 844, 'phone']] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`/libraries/${libraryId}/browse`);
+    await openPickerFor(page, 'Synthetic Anthology');
+    await expect(page.getByTestId('cover-picker-series-e2e-s1')).toBeVisible();
+    // "Covers from the web" first, then "Another item's cover"; no "nothing to choose" line at the end.
+    await expect(page.locator('app-cover-picker-dialog h3.section')).toHaveText(['Covers from the web', "Another item's cover"]);
+    await expect(page.locator('app-cover-picker-dialog [data-testid^="cover-picker-series-"] .series-name'))
+      .toHaveText(['Alpha Tale', /^Beta Tale/, 'Gamma Tale']);
+    await expect(page.getByTestId('cover-picker-web-series-more')).toContainText('2 more series');
+    await expect(page.getByTestId('cover-picker-web-unavailable')).toHaveCount(0);
+    await expectFitsScreen(page, `the cover picker of a folder with series inside (${name})`);
+    await shot(page, `covers-04-series-inside-${name}`);
+
+    // A series' cover can be picked (not applied here: the ids are contract-shaped, not stored rows).
+    await page.getByTestId('cover-pick-web-e2e-vc4').click();
+    await expect(page.getByTestId('cover-pick-web-e2e-vc4')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('cover-picker-apply')).toBeEnabled();
+    await page.getByTestId('cover-picker-cancel').click();
+    await expect(page.getByTestId('cover-picker-current')).toHaveCount(0);
+  }
 });
