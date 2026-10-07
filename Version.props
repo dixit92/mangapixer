@@ -432,7 +432,9 @@
          Link / Set as collection switch. -->
     <!-- 1.34.2 - PATCH (2026-10-05): dated doujin names ("Creator] [yyyy-mm] Character (Tag) (Title)") are searched, grouped and
          scored by their title, the character a last review-only search; matcher rules revision 3. -->
-    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
+    <!-- 1.35.1 - PATCH (2026-10-07): the chapter pace is the average since the series began (latest chapter / days since the start
+         year) until two rises are observed; the series page names the pace that set the schedule. -->
+    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
