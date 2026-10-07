@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.35.0] - 2026-10-07
+
 ### Added
 
 - **Refresh pace from new chapters.** **Check ongoing series** in the **Series information refresh** job now offers **Follow their pace** as one of its choices, next to **Every week**, **Every 2 weeks** and **Every month**, and with it **Pace from**: **Whichever is faster** (the default), **New chapters (scanlations)** or **New volumes (original release)**. The chapter pace comes from how the latest chapter MangaUpdates lists (which follows scanlation releases) rose at earlier refreshes - nothing extra is sent. A series whose pace is not known yet is checked every month. The series page says which pace set a series' schedule ("a new chapter about every week").
