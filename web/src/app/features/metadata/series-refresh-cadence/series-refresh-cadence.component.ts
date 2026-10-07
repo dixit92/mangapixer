@@ -18,11 +18,12 @@ export function intervalLabel(days: number): string {
 /** The one line for a series' refresh cadence. */
 export function cadenceLine(c: SeriesRefreshCadenceDto, nowMs: number): string {
   const every = cadenceLabel(c.days).toLowerCase();
-  const pace = [
-    c.chapterIntervalDays != null ? `a new chapter about ${intervalLabel(c.chapterIntervalDays)}` : null,
-    c.volumeIntervalDays != null ? `a new volume about ${intervalLabel(c.volumeIntervalDays)}` : null,
-  ].filter(p => p !== null);
-  const why = c.reason === 'pace' && pace.length > 0 ? ` (${pace.join(', ')})`
+  // 1.35.1: the pace that set the days - new chapters (observed, or the average since the series began) or new volumes.
+  const fromChapters = c.paceFrom === 'chapters' || (c.paceFrom == null && c.volumeIntervalDays == null);
+  const pace = fromChapters && c.chapterIntervalDays != null
+    ? `a new chapter about ${intervalLabel(c.chapterIntervalDays)}${c.chapterIntervalEstimated ? ' on average' : ''}`
+    : c.volumeIntervalDays != null ? `a new volume about ${intervalLabel(c.volumeIntervalDays)}` : null;
+  const why = c.reason === 'pace' && pace ? ` (${pace})`
     : c.reason === 'finished' ? ' (finished)'
     : c.reason === 'paused' ? ' (on hiatus, or nothing new for six months)'
     : c.reason === 'pace_unknown' ? ' (following its pace, not known yet)'

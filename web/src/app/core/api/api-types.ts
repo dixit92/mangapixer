@@ -2597,8 +2597,12 @@ export interface SeriesRefreshCadenceDto {
   days: number;
   reason: 'finished' | 'choice' | 'pace' | 'paused' | 'pace_unknown';
   volumeIntervalDays?: number | null;
-  /** Observed days between two new chapters, when the chapter pace was read (1.35.0). */
+  /** Days between two new chapters, when the chapter pace was read (1.35.0). */
   chapterIntervalDays?: number | null;
+  /** The chapter interval is the average since the series began, not yet observed (1.35.1). */
+  chapterIntervalEstimated?: boolean;
+  /** Which pace set the cadence, for reason `pace` (1.35.1). */
+  paceFrom?: 'chapters' | 'volumes' | null;
   fetchedAt: string;
   nextCheckAt: string;
 }

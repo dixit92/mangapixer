@@ -95,14 +95,42 @@ public sealed class RefreshCadenceTests
             Evidence(startYear: 2000, volumes: 5, history: WeeklyChapters), Now).Days);
 
     [Fact]
-    public void ChapterPace_NeedsTwoIncreasesFourWeeksApart_AndIsNeverEstimated()
+    public void ChapterPace_ObservedNeedsTwoIncreasesFourWeeksApart_ElseTheAverageSinceTheStart()
     {
         Assert.Null(RefreshCadence.ObservedChapterInterval([Seen(30, 10, 1), Seen(20, 12, 1)]));                    // one increase
         Assert.Null(RefreshCadence.ObservedChapterInterval([Seen(30, 10, 1), Seen(20, 12, 1), Seen(10, 14, 1)])); // 10 days apart
-        // Chapters only, with a lifetime chapter rate but no observations: the pace is unknown, checked monthly.
+        // 1.35.1: no observed pace yet -> the latest chapter over the days since the start year (~1,005 days / 200 = ~5 days).
         var chapters = RefreshCadencePolicy.Default with { PaceSource = RefreshPaceSource.Chapters };
-        Assert.Equal(new RefreshCadenceResult(30, RefreshCadenceReason.PaceUnknown, null),
-            RefreshCadence.For(chapters, Evidence(startYear: 2024, chapter: 200), Now));
+        var result = RefreshCadence.For(chapters, Evidence(startYear: 2024, chapter: 200), Now);
+        Assert.Equal((7, RefreshCadenceReason.Pace, RefreshPaceSource.Chapters, true), (result.Days, result.Reason, result.PaceFrom, result.ChapterIntervalEstimated));
+        // Nothing to average: no start year, a start this year, or fewer than two chapters.
+        Assert.Equal(RefreshCadenceReason.PaceUnknown, RefreshCadence.For(chapters, Evidence(chapter: 200), Now).Reason);
+        Assert.Equal(RefreshCadenceReason.PaceUnknown, RefreshCadence.For(chapters, Evidence(startYear: 2026, chapter: 30), Now).Reason);
+        Assert.Equal(RefreshCadenceReason.PaceUnknown, RefreshCadence.For(chapters, Evidence(startYear: 2020, chapter: 1), Now).Reason);
+    }
+
+    [Fact]
+    public void OwnerExample_ChapterFiles_EightVolumesSince2022_IsEveryTwoWeeksFromTheChapters()
+    {
+        // 1.35.1 (owner: "checked every month (Volume) when it has chapters as files?"): 58 chapters and 8 volumes since 2022, one
+        // observed rise. Volumes: ~217 days each -> monthly; chapters: ~30 days each on average -> every 2 weeks; the faster wins.
+        var history = new[] { Seen(12, 57, 7), Seen(6, 58, 8) };
+        var result = RefreshCadence.For(RefreshCadencePolicy.Default, Evidence(startYear: 2022, volumes: 8, chapter: 58, history: history), Now);
+        Assert.Equal((14, RefreshPaceSource.Chapters, true), (result.Days, result.PaceFrom, result.ChapterIntervalEstimated));
+        Assert.NotNull(result.VolumeIntervalDays);
+    }
+
+    [Fact]
+    public void ObservedChapterRises_WinOverTheAverage()
+    {
+        // Since 2000, 52 chapters: ~180 days each on average (monthly); observed: a chapter about every week.
+        var chapters = RefreshCadencePolicy.Default with { PaceSource = RefreshPaceSource.Chapters };
+        var result = RefreshCadence.For(chapters, Evidence(startYear: 2000, chapter: 52, history: WeeklyChapters), Now);
+        Assert.Equal((7, false), (result.Days, result.ChapterIntervalEstimated));
+        Assert.Equal(58 / 8.0, result.ChapterIntervalDays!.Value, 3);
+        // The volumes alone never read the chapters.
+        var volumes = RefreshCadencePolicy.Default with { PaceSource = RefreshPaceSource.Volumes };
+        Assert.Null(RefreshCadence.For(volumes, Evidence(startYear: 2000, volumes: 5, chapter: 52, history: WeeklyChapters), Now).ChapterIntervalDays);
     }
 
     [Fact]
@@ -121,8 +149,9 @@ public sealed class RefreshCadenceTests
     {
         // Started 2024 (~1,005 days), 200 chapters: a chapter every ~5 days, 10 chapters a volume -> ~50 days -> weekly.
         Assert.Equal(7, RefreshCadence.For(RefreshCadencePolicy.Default, Evidence(startYear: 2024, chapter: 200), Now).Days);
-        // The volume map's average (25 chapters a volume) -> ~126 days -> monthly.
-        Assert.Equal(30, RefreshCadence.For(RefreshCadencePolicy.Default, Evidence(startYear: 2024, chapter: 200, perVolume: 25), Now).Days);
+        // The volume map's average (25 chapters a volume) -> ~126 days -> monthly (the volume pace alone: the chapter pace is weekly).
+        var volumes = RefreshCadencePolicy.Default with { PaceSource = RefreshPaceSource.Volumes };
+        Assert.Equal(30, RefreshCadence.For(volumes, Evidence(startYear: 2024, chapter: 200, perVolume: 25), Now).Days);
     }
 
     [Fact]

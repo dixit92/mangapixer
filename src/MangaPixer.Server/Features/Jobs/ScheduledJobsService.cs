@@ -385,6 +385,8 @@ public sealed class ScheduledJobsService
             },
             VolumeIntervalDays = result.VolumeIntervalDays is { } v ? Math.Round(v, 1) : null,
             ChapterIntervalDays = result.ChapterIntervalDays is { } c ? Math.Round(c, 1) : null,
+            ChapterIntervalEstimated = result.ChapterIntervalEstimated,
+            PaceFrom = result.PaceFrom is { } from ? PaceSourceKey(from) : null,
             FetchedAt = record.FetchedAt,
             NextCheckAt = record.FetchedAt + TimeSpan.FromDays(result.Days),
         };

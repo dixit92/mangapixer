@@ -15004,6 +15004,15 @@
             ],
             "format": "double"
           },
+          "chapterIntervalEstimated": {
+            "type": "boolean"
+          },
+          "paceFrom": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "fetchedAt": {
             "type": "string",
             "format": "date-time"

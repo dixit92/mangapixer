@@ -149,8 +149,14 @@ public sealed record SeriesRefreshCadenceDto
     /// <summary>The estimated days between two volumes when the volume pace was read, else null.</summary>
     public double? VolumeIntervalDays { get; init; }
 
-    /// <summary>The observed days between two new chapters when the chapter pace was read (1.35.0), else null.</summary>
+    /// <summary>The days between two new chapters when the chapter pace was read (1.35.0), else null.</summary>
     public double? ChapterIntervalDays { get; init; }
+
+    /// <summary>True when <see cref="ChapterIntervalDays"/> is the average since the series began, not yet observed (1.35.1).</summary>
+    public bool ChapterIntervalEstimated { get; init; }
+
+    /// <summary>Which pace set the cadence (1.35.1): <c>chapters</c> or <c>volumes</c> for reason <c>pace</c>, else null.</summary>
+    public string? PaceFrom { get; init; }
 
     public required DateTimeOffset FetchedAt { get; init; }
     public required DateTimeOffset NextCheckAt { get; init; }
