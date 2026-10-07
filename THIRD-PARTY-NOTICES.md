@@ -247,15 +247,15 @@ and Enhance where WebGPU is missing) is another such chunk; it carries shader co
 ported or copied from two upstream projects, attributed under "Ported shader code"
 below.
 
-- `@angular/animations` - 22.2.0 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/cdk` - 22.2.0 - MIT - https://github.com/angular/components *(bundled)*
-- `@angular/common` - 22.2.0 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/compiler` - 22.2.0 - MIT - https://github.com/angular/angular
-- `@angular/core` - 22.2.0 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/forms` - 22.2.0 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/material` - 22.2.0 - MIT - https://github.com/angular/components *(bundled)*
-- `@angular/platform-browser` - 22.2.0 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/router` - 22.2.0 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/animations` - 22.2.1 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/cdk` - 22.2.1 - MIT - https://github.com/angular/components *(bundled)*
+- `@angular/common` - 22.2.1 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/compiler` - 22.2.1 - MIT - https://github.com/angular/angular
+- `@angular/core` - 22.2.1 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/forms` - 22.2.1 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/material` - 22.2.1 - MIT - https://github.com/angular/components *(bundled)*
+- `@angular/platform-browser` - 22.2.1 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/router` - 22.2.1 - MIT - https://github.com/angular/angular *(bundled)*
 - `@fontsource/roboto` - 5.3.0 - OFL-1.1 - https://github.com/fontsource/font-files *(bundled)*
 - `@standard-schema/spec` - 1.1.0 - MIT - https://github.com/standard-schema/standard-schema
 - `@webgpu/types` - 0.1.72 - BSD-3-Clause - https://github.com/gpuweb/types
