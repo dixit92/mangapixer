@@ -310,6 +310,26 @@ public sealed class VolumeCoverPassTests : IAsyncLifetime
     }
 
     [Fact]
+    public void VolumesHeldAsChapters_AVolumeListedOnlyAsSplitParts_Counts()
+    {
+        // 1.35.0 (owner): "0070 [Ch. 0041.1].cbz" ... "0077 [Ch. 0044.2].cbz" with MangaDex listing volume 9 as 41.1 ... 44.2 - every
+        // chapter split, none naming the volume. Volume 9's cover was listed but never fetched; volumes stated in the names count too.
+        static List<GroupingRow> Rows(params string[] names) => names.Select((n, i) => new GroupingRow(
+            i.ToString(System.Globalization.CultureInfo.InvariantCulture), GroupingRowKind.Archive, n, n)).ToList();
+        static decimal[] Parts(int from, int to) => [.. Enumerable.Range(from, to - from + 1).SelectMany(c => new[] { c + 0.1m, c + 0.2m })];
+        var exact = new List<VolumeMapVolume> { new(8, Parts(36, 40)), new(9, Parts(41, 44)), new(10, Parts(45, 50)), new(11, [51m, 52.1m, 52.2m]) };
+        var names = new List<string>();
+        names.AddRange(Parts(36, 40).Select(c => $"[Vol. 0008 Ch. {c}].cbz"));
+        names.AddRange(Parts(41, 48).Select(c => $"[Ch. {c:0000.0}].cbz"));
+        names.AddRange(Parts(49, 50).Select(c => $"[Vol. 0010 Ch. {c} [Group]].cbz"));
+        names.AddRange(["[Ch. 0051 [Group]].cbz", "[Ch. 0052.1 [Group]].cbz", "[Ch. 0052.2 [Group]].cbz"]);
+
+        Assert.Equal([8, 9, 10, 11], VolumeCoverPass.VolumesHeldAsChapters(Rows([.. names]), exact).Order());
+        // One part missing: not held (the cover follows the presence rule).
+        Assert.Equal([8, 10, 11], VolumeCoverPass.VolumesHeldAsChapters(Rows([.. names.Where(n => !n.Contains("0043.2", StringComparison.Ordinal))]), exact).Order());
+    }
+
+    [Fact]
     public void VolumesHeldAsChapters_TheExactListOnly_EveryListedChapter_SplitPartsCount()
     {
         static List<GroupingRow> Rows(params string[] names) => names.Select((n, i) => new GroupingRow(

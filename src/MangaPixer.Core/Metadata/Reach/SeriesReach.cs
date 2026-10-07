@@ -100,8 +100,18 @@ public static class SeriesReach
 
         var chapterUnits = chapterRows.Select(c => c.Units).ToList();
         var chapterFiles = MissingUnits.NumbersOf(chapterUnits, MissingUnitKind.Chapter);
-        var parts = chapterUnits.Where(u => !u.IsExtra && u.Chapter is { } c && decimal.Truncate(c) != c && u.ChapterEnd is null)
+        // 1.35.0: a fractional chapter is a real chapter, not an extra, when it is a part of a split chapter on disk (41.1 + 41.2) or
+        // the exact list names it - the Volumes view's rule (VolumeGrouping.BuildStack). Before, a volume the list gives only as
+        // split parts (41.1 ... 44.2) was never touched, so it was never "held as chapters" and its web cover never fetched.
+        var splitParts = MissingUnits.SplitsOf(chapterUnits).Parts;
+        bool IsExtra(UnitNumbers u) => u.IsExtra
+            && !(u.Chapter is { } c && u.ChapterEnd is null && (splitParts.Contains(c) || ListedExactly(c)));
+        bool ListedExactly(decimal chapter) =>
+            resolver.HasData && resolver.Resolve(chapter) is { Placement: VolumePlacement.Exact } placed
+            && resolver.RequiredUnits(placed.Volume) is { } required && required.Contains(chapter);
+        var parts = chapterUnits.Where(u => !IsExtra(u) && u.Chapter is { } c && decimal.Truncate(c) != c && u.ChapterEnd is null)
             .Select(u => u.Chapter!.Value).ToHashSet();
+        var wholeFiles = MissingUnits.FileNumbersOf(chapterUnits, MissingUnitKind.Chapter);
 
         // The chapters of each volume file: from the list (claimable unless estimated), else from chapter names stating it.
         var covered = new HashSet<int>(chapterFiles.Where(n => n >= 0));
@@ -160,7 +170,7 @@ public static class SeriesReach
         var touched = new HashSet<int>();
         foreach (var (_, u) in chapterRows)
         {
-            if (u.IsExtra)
+            if (IsExtra(u))
                 continue;
             if (u.Volume is { } stated && decimal.Truncate(stated) == stated && stated >= 1)
                 touched.Add((int)stated);
@@ -170,7 +180,7 @@ public static class SeriesReach
         bool Present(decimal unit) =>
             decimal.Truncate(unit) == unit
                 ? unit <= MissingUnits.MaxNumber && chapterFiles.Contains((int)unit)
-                : parts.Contains(unit) || chapterFiles.Contains((int)decimal.Truncate(unit));
+                : parts.Contains(unit) || wholeFiles.Contains((int)decimal.Truncate(unit)); // a listed part: itself, or its whole chapter's file
         foreach (var v in touched.Where(v => !volumeFiles.Contains(v)))
         {
             if (resolver.RequiredUnits(v) is { Count: > 0 } required && required.All(Present))

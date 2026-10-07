@@ -103,6 +103,28 @@ public sealed class SeriesProgressTests
     }
 
     [Fact]
+    public void VolumeListedOnlyAsSplitParts_IsHeldAsChapters_WhenEveryPartIsHere()
+    {
+        // 1.35.0 (owner: a volume 9 cover never loaded): the list gives volume 2 only as split parts (3.1 ... 4.2) and no file names the
+        // volume. Its parts are chapters, not extras - the Volumes view's rule - so the volume is held, or partial with a part missing.
+        var map = new VolumeMapInput(
+            [new VolumeMapVolume(1, [1m, 2m]), new VolumeMapVolume(2, [3.1m, 3.2m, 4.1m, 4.2m])], null, 2, true, VolumeListSource.MangaDex);
+        var parts = new[] { "Series c001", "Series c002", "Series c003.1", "Series c003.2", "Series c004.1", "Series c004.2" };
+
+        var all = SeriesReach.Of(parts.Select(Archive).ToList(), map);
+        Assert.Equal([1, 2], all.HeldAsChapters.Order());
+
+        var oneMissing = SeriesReach.Of(parts.Take(5).Select(Archive).ToList(), map);
+        Assert.Equal([1], oneMissing.HeldAsChapters.Order());
+        Assert.Contains(2, oneMissing.PartialVolumes);
+
+        // A 10.5 extra next to its whole chapter stays an extra: it touches no volume by itself.
+        var extraOnly = SeriesReach.Of([Archive("Series c002.5")], map);
+        Assert.Empty(extraOnly.HeldAsChapters);
+        Assert.Empty(extraOnly.PartialVolumes);
+    }
+
+    [Fact]
     public void EstimatedVolumeChapters_CountInTheReach_ButNoOverlapIsClaimed()
     {
         var rows = VolumeFiles(1, 3).Concat(ChapterFiles(25, 40)).ToList();
