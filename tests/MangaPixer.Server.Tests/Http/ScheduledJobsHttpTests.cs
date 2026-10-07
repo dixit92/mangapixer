@@ -98,7 +98,7 @@ public sealed class ScheduledJobsHttpTests : IDisposable
         Assert.Equal((4, false), (byKey[ScheduledJobKeys.Trash].Hour, byKey[ScheduledJobKeys.Trash].Enabled));
         Assert.Equal(("continuous", false), (byKey[ScheduledJobKeys.AutoMatch].Kind, byKey[ScheduledJobKeys.AutoMatch].Configurable));
         Assert.Equal("onDemand", byKey[ScheduledJobKeys.UpdateCheck].Kind);
-        Assert.Equal((30, 90, true), (jobs.Refresh.OngoingDays, jobs.Refresh.FinishedDays, jobs.Refresh.FollowPace));
+        Assert.Equal((30, 90, true, "faster"), (jobs.Refresh.OngoingDays, jobs.Refresh.FinishedDays, jobs.Refresh.FollowPace, jobs.Refresh.PaceSource));
         Assert.Equal([7, 14, 30], jobs.Refresh.AllowedOngoingDays);
     }
 
@@ -147,6 +147,14 @@ public sealed class ScheduledJobsHttpTests : IDisposable
             new UpdateRefreshCadenceRequest { OngoingDays = 7, FollowPace = false }));
         Assert.Equal((7, 90, false), (jobs.Refresh.OngoingDays, jobs.Refresh.FinishedDays, jobs.Refresh.FollowPace));
         Assert.Contains(("metadata.refresh.cadence", "o7_f90_fixed"), await AuditAsync());
+
+        // 1.35.0: what the pace follows.
+        Assert.Equal("invalid_cadence", await ErrorAsync(
+            await admin.PutAsJsonAsync("/api/v1/admin/jobs/metadata-refresh/cadence", new UpdateRefreshCadenceRequest { PaceSource = "nope" }), HttpStatusCode.BadRequest));
+        jobs = await OkAsync<ScheduledJobsDto>(await admin.PutAsJsonAsync("/api/v1/admin/jobs/metadata-refresh/cadence",
+            new UpdateRefreshCadenceRequest { FollowPace = true, PaceSource = "chapters" }));
+        Assert.Equal((true, "chapters"), (jobs.Refresh.FollowPace, jobs.Refresh.PaceSource));
+        Assert.Contains(("metadata.refresh.cadence", "o7_f90_pace_chapters"), await AuditAsync());
 
         Assert.Equal(HttpStatusCode.NoContent, (await admin.GetAsync("/api/v1/admin/jobs/metadata-refresh/series/unknown")).StatusCode);
     }

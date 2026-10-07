@@ -61,10 +61,59 @@ public sealed class RefreshCadenceTests
     }
 
     [Fact]
-    public void ThePace_NeverGoesSlowerThanTheOngoingChoice()
+    public void FollowingThePace_TheOngoingChoiceIsNotRead()
     {
+        // 1.35.0 (owner: "confusing when you tick both"): the pace is its own choice. Before, a weekly ongoing choice capped every
+        // pace at a week, so following the pace changed nothing.
         var weekly = new RefreshCadencePolicy(7, 90, FollowPace: true);
-        Assert.Equal(7, RefreshCadence.For(weekly, Evidence(startYear: 2000, volumes: 5), Now).Days);
+        Assert.Equal(30, RefreshCadence.For(weekly, Evidence(startYear: 2000, volumes: 5), Now).Days);
+        Assert.Equal(7, RefreshCadence.For(weekly with { FollowPace = false }, Evidence(startYear: 2000, volumes: 5), Now).Days);
+    }
+
+    // 1.35.0: the chapter (scanlation) pace and what the pace follows.
+
+    private static readonly RefreshObservation[] WeeklyChapters =
+        [Seen(90, 40, 4), Seen(60, 44, 4), Seen(30, 48, 4), Seen(2, 52, 4)]; // 8 chapters in the 58 days after the first increase: ~7 days
+
+    [Fact]
+    public void ChapterPace_FromObservedLatestChapterIncreases()
+    {
+        Assert.Equal(58 / 8.0, RefreshCadence.ObservedChapterInterval(WeeklyChapters)!.Value, 3);
+        var chapters = RefreshCadencePolicy.Default with { PaceSource = RefreshPaceSource.Chapters };
+        var result = RefreshCadence.For(chapters, Evidence(startYear: 2000, volumes: 5, history: WeeklyChapters), Now);
+        Assert.Equal((7, RefreshCadenceReason.Pace), (result.Days, result.Reason));
+        Assert.Null(result.VolumeIntervalDays);
+        Assert.NotNull(result.ChapterIntervalDays);
+    }
+
+    [Theory]
+    [InlineData(RefreshPaceSource.Faster, 7)]   // chapters weekly, volumes slow: the faster wins
+    [InlineData(RefreshPaceSource.Chapters, 7)]
+    [InlineData(RefreshPaceSource.Volumes, 30)] // ~5,000 days a volume
+    public void PaceSource_ChoosesWhatThePaceFollows(RefreshPaceSource source, int days) =>
+        Assert.Equal(days, RefreshCadence.For(RefreshCadencePolicy.Default with { PaceSource = source },
+            Evidence(startYear: 2000, volumes: 5, history: WeeklyChapters), Now).Days);
+
+    [Fact]
+    public void ChapterPace_NeedsTwoIncreasesFourWeeksApart_AndIsNeverEstimated()
+    {
+        Assert.Null(RefreshCadence.ObservedChapterInterval([Seen(30, 10, 1), Seen(20, 12, 1)]));                    // one increase
+        Assert.Null(RefreshCadence.ObservedChapterInterval([Seen(30, 10, 1), Seen(20, 12, 1), Seen(10, 14, 1)])); // 10 days apart
+        // Chapters only, with a lifetime chapter rate but no observations: the pace is unknown, checked monthly.
+        var chapters = RefreshCadencePolicy.Default with { PaceSource = RefreshPaceSource.Chapters };
+        Assert.Equal(new RefreshCadenceResult(30, RefreshCadenceReason.PaceUnknown, null),
+            RefreshCadence.For(chapters, Evidence(startYear: 2024, chapter: 200), Now));
+    }
+
+    [Fact]
+    public void ChapterPace_Buckets()
+    {
+        RefreshObservation[] Every(int days) =>
+            [Seen(5 * days, 10, 1), Seen(4 * days, 11, 1), Seen(3 * days, 12, 1), Seen(2 * days, 13, 1), Seen(days, 14, 1)];
+        var chapters = RefreshCadencePolicy.Default with { PaceSource = RefreshPaceSource.Chapters };
+        Assert.Equal(7, RefreshCadence.For(chapters, Evidence(history: Every(10)), Now).Days);
+        Assert.Equal(14, RefreshCadence.For(chapters, Evidence(history: Every(20)), Now).Days);
+        Assert.Equal(30, RefreshCadence.For(chapters, Evidence(history: Every(40)), Now).Days);
     }
 
     [Fact]
@@ -77,11 +126,12 @@ public sealed class RefreshCadenceTests
     }
 
     [Fact]
-    public void NothingKnown_OrStartedThisYear_IsTheChoice()
+    public void NothingKnown_OrStartedThisYear_IsMonthly()
     {
-        Assert.Equal(RefreshCadenceReason.Choice, RefreshCadence.For(RefreshCadencePolicy.Default, Evidence(), Now).Reason);
-        Assert.Equal(RefreshCadenceReason.Choice, RefreshCadence.For(RefreshCadencePolicy.Default, Evidence(startYear: 2026, volumes: 3), Now).Reason);
-        Assert.Equal(RefreshCadenceReason.Choice, RefreshCadence.For(RefreshCadencePolicy.Default, Evidence(MetadataOriginStatus.Unknown), Now).Reason);
+        var weekly = new RefreshCadencePolicy(7, 90, FollowPace: true);
+        Assert.Equal(new RefreshCadenceResult(30, RefreshCadenceReason.PaceUnknown, null), RefreshCadence.For(weekly, Evidence(), Now));
+        Assert.Equal(RefreshCadenceReason.PaceUnknown, RefreshCadence.For(RefreshCadencePolicy.Default, Evidence(startYear: 2026, volumes: 3), Now).Reason);
+        Assert.Equal(RefreshCadenceReason.PaceUnknown, RefreshCadence.For(RefreshCadencePolicy.Default, Evidence(MetadataOriginStatus.Unknown), Now).Reason);
     }
 
     [Fact]
@@ -99,7 +149,8 @@ public sealed class RefreshCadenceTests
     {
         var close = new[] { Seen(300, 10, 1), Seen(100, 20, 2), Seen(30, 30, 3) }; // two increases only 70 days apart
         Assert.Null(RefreshCadence.VolumeIntervalDays(Evidence(history: close), Now));
-        Assert.Equal(30, RefreshCadence.For(RefreshCadencePolicy.Default, Evidence(startYear: 2016, volumes: 20, history: close), Now).Days);
+        var volumes = RefreshCadencePolicy.Default with { PaceSource = RefreshPaceSource.Volumes };
+        Assert.Equal(30, RefreshCadence.For(volumes, Evidence(startYear: 2016, volumes: 20, history: close), Now).Days);
     }
 
     [Fact]
@@ -124,6 +175,8 @@ public sealed class RefreshCadenceTests
         Assert.Equal(RefreshCadencePolicy.Default, RefreshCadencePolicy.FromStored(null, null, true));
         Assert.Equal(new RefreshCadencePolicy(30, 90, false), RefreshCadencePolicy.FromStored(9, 1000, false));
         Assert.Equal(new RefreshCadencePolicy(7, 180, true), RefreshCadencePolicy.FromStored(7, 180, true));
+        Assert.Equal(RefreshPaceSource.Chapters, RefreshCadencePolicy.FromStored(7, 180, true, 1).PaceSource);
+        Assert.Equal(RefreshPaceSource.Faster, RefreshCadencePolicy.FromStored(7, 180, true, 9).PaceSource);
         Assert.Equal(TimeSpan.FromDays(14), RefreshCadence.AgeFor(14, (int)MetadataOriginStatus.Complete));
         Assert.Equal(TimeSpan.FromDays(90), RefreshCadence.AgeFor(null, (int)MetadataOriginStatus.Complete));
     }

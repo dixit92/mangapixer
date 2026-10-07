@@ -3,8 +3,10 @@ namespace com.lifepixer.mangapixer.Core.Metadata;
 /// <summary>
 /// How often stored web information about a linked series is looked at again (1.32.0): ONE cadence for the id-only refresh,
 /// the companion schedule (MangaDex / AniList / Wikipedia data) and the cover decision re-check. The admin chooses it
-/// (<see cref="RefreshCadencePolicy"/>) and, with "Follow each series' publishing pace" on, <see cref="For"/> makes a series that
-/// publishes quickly come round more often - from what the stored record and its observations say, never from a new request.
+/// (<see cref="RefreshCadencePolicy"/>): a fixed rhythm for ongoing series, or (1.35.0) "Follow their pace", where <see cref="For"/>
+/// checks each ongoing series by how quickly it publishes - new chapters (the latest chapter MangaUpdates states, which follows
+/// scanlation releases), new volumes (the original edition), or whichever is faster (<see cref="RefreshPaceSource"/>) - from what the
+/// stored record and its observations say, never from a new request. Before 1.35.0 the ongoing rhythm also capped the pace.
 /// The result is stored per record (<c>metadata_records.RefreshCadenceDays</c>); <see cref="AgeFor(int?)"/> is the fallback for
 /// a record not computed yet: every 30 days while ongoing (or unknown / on hiatus), every 90 days once finished.
 /// </summary>
@@ -26,6 +28,13 @@ public static class RefreshCadence
 
     /// <summary>The observed interval needs at least two volume increases this far apart.</summary>
     public const double MinObservedSpanDays = 120;
+
+    /// <summary>A chapter interval below this is checked weekly; below <see cref="ChaptersEveryTwoWeeksBelowDays"/> every 2 weeks (1.35.0).</summary>
+    public const double ChaptersWeeklyBelowDays = 14;
+    public const double ChaptersEveryTwoWeeksBelowDays = 30;
+
+    /// <summary>The observed chapter interval needs at least two chapter increases this far apart (1.35.0).</summary>
+    public const double MinObservedChapterSpanDays = 28;
 
     /// <summary>Chapters taken as one volume for a series without volumes, when the volume map gives no average.</summary>
     public const double ChaptersPerVolumeFallback = 10;
@@ -53,10 +62,38 @@ public static class RefreshCadence
             return new(policy.OngoingDays, RefreshCadenceReason.Choice, null);
         if (evidence.OriginStatus == (int)MetadataOriginStatus.Hiatus || IsQuiet(evidence.History, now))
             return new(policy.FinishedDays, RefreshCadenceReason.Paused, null);
-        if (VolumeIntervalDays(evidence, now) is not { } interval)
-            return new(policy.OngoingDays, RefreshCadenceReason.Choice, null);
-        var days = interval < WeeklyBelowDays ? FastestDays : interval < EveryTwoWeeksBelowDays ? 14 : 30;
-        return new(Math.Min(days, policy.OngoingDays), RefreshCadenceReason.Pace, interval);
+
+        var volumes = policy.PaceSource == RefreshPaceSource.Chapters ? null : VolumeIntervalDays(evidence, now);
+        var chapters = policy.PaceSource == RefreshPaceSource.Volumes ? null : ObservedChapterInterval(evidence.History);
+        int? volumeDays = volumes is { } v ? (v < WeeklyBelowDays ? FastestDays : v < EveryTwoWeeksBelowDays ? 14 : 30) : null;
+        int? chapterDays = chapters is { } c ? (c < ChaptersWeeklyBelowDays ? FastestDays : c < ChaptersEveryTwoWeeksBelowDays ? 14 : 30) : null;
+        if (volumeDays is null && chapterDays is null)
+            return new(RefreshCadencePolicy.DefaultOngoingDays, RefreshCadenceReason.PaceUnknown, null);
+        var days = Math.Min(volumeDays ?? int.MaxValue, chapterDays ?? int.MaxValue);
+        return new(days, RefreshCadenceReason.Pace, volumes, chapters);
+    }
+
+    /// <summary>
+    /// The observed days between two new chapters (1.35.0): from two or more increases of the stored latest chapter at least
+    /// <see cref="MinObservedChapterSpanDays"/> apart - the chapters gained after the first increase over the time between the first
+    /// and the last. Null when the observations do not give it (no estimate: a lifetime rate would be the original edition's, not
+    /// the scanlation's).
+    /// </summary>
+    public static double? ObservedChapterInterval(IReadOnlyList<RefreshObservation> history)
+    {
+        var increases = new List<(DateTimeOffset At, double Gained)>();
+        for (var i = 1; i < history.Count; i++)
+        {
+            if (history[i].LatestChapter is { } now && history[i - 1].LatestChapter is { } before && now > before)
+                increases.Add((history[i].At, now - before));
+        }
+        if (increases.Count < 2)
+            return null;
+        var span = (increases[^1].At - increases[0].At).TotalDays;
+        if (span < MinObservedChapterSpanDays)
+            return null;
+        var gained = increases.Skip(1).Sum(x => x.Gained);
+        return gained > 0 ? span / gained : null;
     }
 
     /// <summary>
@@ -119,8 +156,12 @@ public static class RefreshCadence
     private static bool Greater(int? now, int? before) => now is { } a && (before is not { } b || a > b);
 }
 
-/// <summary>The admin's refresh cadence (1.32.0): days for ongoing and finished series, and whether to follow each series' pace.</summary>
-public sealed record RefreshCadencePolicy(int OngoingDays, int FinishedDays, bool FollowPace)
+/// <summary>
+/// The admin's refresh cadence (1.32.0): days for ongoing and finished (or paused) series, and whether to follow each series' pace
+/// instead of the ongoing days (1.35.0: "Follow their pace" is its own choice; <see cref="OngoingDays"/> is not read while it is on),
+/// and what the pace follows.
+/// </summary>
+public sealed record RefreshCadencePolicy(int OngoingDays, int FinishedDays, bool FollowPace, RefreshPaceSource PaceSource = RefreshPaceSource.Faster)
 {
     public const int DefaultOngoingDays = 30;
     public const int DefaultFinishedDays = 90;
@@ -134,10 +175,24 @@ public sealed record RefreshCadencePolicy(int OngoingDays, int FinishedDays, boo
     public static RefreshCadencePolicy Default { get; } = new(DefaultOngoingDays, DefaultFinishedDays, DefaultFollowPace);
 
     /// <summary>The policy from the stored columns (null or an unknown value = the default).</summary>
-    public static RefreshCadencePolicy FromStored(int? ongoingDays, int? finishedDays, bool followPace) => new(
+    public static RefreshCadencePolicy FromStored(int? ongoingDays, int? finishedDays, bool followPace, int? paceSource = null) => new(
         ongoingDays is { } o && AllowedOngoingDays.Contains(o) ? o : DefaultOngoingDays,
         finishedDays is { } f && AllowedFinishedDays.Contains(f) ? f : DefaultFinishedDays,
-        followPace);
+        followPace,
+        paceSource is { } p && Enum.IsDefined((RefreshPaceSource)p) ? (RefreshPaceSource)p : RefreshPaceSource.Faster);
+}
+
+/// <summary>What "Follow their pace" follows (1.35.0). Stored as its number; null = <see cref="Faster"/>.</summary>
+public enum RefreshPaceSource
+{
+    /// <summary>Whichever of the chapter and the volume pace checks more often (the default).</summary>
+    Faster = 0,
+
+    /// <summary>New chapters: the stored latest chapter, which follows scanlation releases.</summary>
+    Chapters = 1,
+
+    /// <summary>New volumes of the original edition.</summary>
+    Volumes = 2,
 }
 
 /// <summary>Why a series has its cadence.</summary>
@@ -154,9 +209,13 @@ public enum RefreshCadenceReason
 
     /// <summary>On hiatus, or nothing new for <see cref="RefreshCadence.QuietDays"/>: the finished choice.</summary>
     Paused = 3,
+
+    /// <summary>Following the pace, but none is known yet (1.35.0): every <see cref="RefreshCadencePolicy.DefaultOngoingDays"/> days.</summary>
+    PaceUnknown = 4,
 }
 
-public readonly record struct RefreshCadenceResult(int Days, RefreshCadenceReason Reason, double? VolumeIntervalDays);
+/// <summary>A series' cadence, why, and the pace it came from (days between volumes / chapters; null when not used or unknown).</summary>
+public readonly record struct RefreshCadenceResult(int Days, RefreshCadenceReason Reason, double? VolumeIntervalDays, double? ChapterIntervalDays = null);
 
 /// <summary>What the stored record says about a series' pace, plus its observations (oldest first).</summary>
 public sealed record RefreshEvidence(
