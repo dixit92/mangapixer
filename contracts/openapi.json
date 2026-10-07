@@ -14042,6 +14042,7 @@
           "ongoingDays",
           "finishedDays",
           "followPace",
+          "paceSource",
           "allowedOngoingDays",
           "allowedFinishedDays",
           "usedToday",
@@ -14068,6 +14069,9 @@
           },
           "followPace": {
             "type": "boolean"
+          },
+          "paceSource": {
+            "type": "string"
           },
           "allowedOngoingDays": {
             "type": "array",
@@ -14983,6 +14987,15 @@
             "type": "string"
           },
           "volumeIntervalDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?(?:[eE][\u002B-]?\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "chapterIntervalDays": {
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?(?:[eE][\u002B-]?\\d\u002B)?$",
             "type": [
               "null",
@@ -15956,6 +15969,12 @@
             "type": [
               "null",
               "boolean"
+            ]
+          },
+          "paceSource": {
+            "type": [
+              "null",
+              "string"
             ]
           }
         }

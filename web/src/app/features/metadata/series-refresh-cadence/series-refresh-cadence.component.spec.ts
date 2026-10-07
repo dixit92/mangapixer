@@ -27,6 +27,13 @@ describe('SeriesRefreshCadenceComponent', () => {
       .toBe('Checked every month (your choice for ongoing series); next check in 12 days.');
     expect(cadenceLine(cadence({ days: 90, reason: 'finished' }), now)).toContain('Checked every 3 months (finished)');
     expect(cadenceLine(cadence({ days: 90, reason: 'paused' }), now)).toContain('(on hiatus, or nothing new for six months)');
+    // 1.35.0: the chapter (scanlation) pace, and a pace not known yet.
+    expect(cadenceLine(cadence({ days: 7, volumeIntervalDays: null, chapterIntervalDays: 7.3 }), now))
+      .toContain('Checked every week (a new chapter about every week)');
+    expect(cadenceLine(cadence({ days: 7, volumeIntervalDays: 120, chapterIntervalDays: 6 }), now))
+      .toContain('(a new chapter about every week, a new volume about every 4 months)');
+    expect(cadenceLine(cadence({ days: 30, reason: 'pace_unknown', volumeIntervalDays: null }), now))
+      .toContain('Checked every month (following its pace, not known yet)');
     expect(cadenceLine(cadence({ nextCheckAt: '2026-10-01T12:00:00Z' }), now)).toContain('next check at the next refresh');
     expect([5, 21, 45, 100, 400].map(intervalLabel)).toEqual(['every week', 'every 3 weeks', 'every 6 weeks', 'every 3 months', 'every 13 months']);
   });

@@ -249,6 +249,7 @@ public sealed class ScheduledJobsService
             OngoingDays = policy.OngoingDays,
             FinishedDays = policy.FinishedDays,
             FollowPace = policy.FollowPace,
+            PaceSource = PaceSourceKey(policy.PaceSource),
             AllowedOngoingDays = RefreshCadencePolicy.AllowedOngoingDays,
             AllowedFinishedDays = RefreshCadencePolicy.AllowedFinishedDays,
             UsedToday = refresh is null ? 0 : await refresh.UsedTodayAsync(ct),
@@ -317,6 +318,13 @@ public sealed class ScheduledJobsService
             return "invalid_cadence";
         if (request.FinishedDays is { } f && !RefreshCadencePolicy.AllowedFinishedDays.Contains(f))
             return "invalid_cadence";
+        RefreshPaceSource? source = null;
+        if (request.PaceSource is { } key)
+        {
+            if (PaceSourceOf(key) is not { } parsed)
+                return "invalid_cadence";
+            source = parsed;
+        }
 
         var row = await _db.AppSettings.FirstOrDefaultAsync(s => s.Id == AppSettingsEntity.SingletonId, ct);
         if (row is null)
@@ -324,14 +332,18 @@ public sealed class ScheduledJobsService
             row = new AppSettingsEntity { Id = AppSettingsEntity.SingletonId };
             _db.AppSettings.Add(row);
         }
-        var before = RefreshCadencePolicy.FromStored(row.MetadataRefreshOngoingDays, row.MetadataRefreshFinishedDays, row.MetadataRefreshFollowPace);
+        var before = RefreshCadencePolicy.FromStored(row.MetadataRefreshOngoingDays, row.MetadataRefreshFinishedDays, row.MetadataRefreshFollowPace,
+            row.MetadataRefreshPaceSource);
         if (request.OngoingDays is { } ongoing)
             row.MetadataRefreshOngoingDays = ongoing;
         if (request.FinishedDays is { } finished)
             row.MetadataRefreshFinishedDays = finished;
         if (request.FollowPace is { } pace)
             row.MetadataRefreshFollowPace = pace;
-        var after = RefreshCadencePolicy.FromStored(row.MetadataRefreshOngoingDays, row.MetadataRefreshFinishedDays, row.MetadataRefreshFollowPace);
+        if (source is { } s)
+            row.MetadataRefreshPaceSource = (int)s;
+        var after = RefreshCadencePolicy.FromStored(row.MetadataRefreshOngoingDays, row.MetadataRefreshFinishedDays, row.MetadataRefreshFollowPace,
+            row.MetadataRefreshPaceSource);
         await _db.SaveChangesAsync(ct);
         if (before == after)
             return null;
@@ -339,9 +351,11 @@ public sealed class ScheduledJobsService
         if (_services.GetService<MetadataRefreshService>() is { } refresh)
             await refresh.RecomputeCadencesAsync(ct);
         await _audit.RecordAsync(AuditActions.MetadataRefreshCadenceChange,
-            string.Create(CultureInfo.InvariantCulture, $"o{after.OngoingDays}_f{after.FinishedDays}_{(after.FollowPace ? "pace" : "fixed")}"), actor, ct: ct);
-        _logger.LogInformation(LogEvents.Administration.JobScheduleChanged, "Refresh cadence set: ongoing {Ongoing} days, finished {Finished} days, pace {Pace}",
-            after.OngoingDays, after.FinishedDays, after.FollowPace);
+            string.Create(CultureInfo.InvariantCulture,
+                $"o{after.OngoingDays}_f{after.FinishedDays}_{(after.FollowPace ? "pace_" + PaceSourceKey(after.PaceSource) : "fixed")}"), actor, ct: ct);
+        _logger.LogInformation(LogEvents.Administration.JobScheduleChanged,
+            "Refresh cadence set: ongoing {Ongoing} days, finished {Finished} days, pace {Pace} ({PaceSource})",
+            after.OngoingDays, after.FinishedDays, after.FollowPace, PaceSourceKey(after.PaceSource));
         return null;
     }
 
@@ -366,13 +380,31 @@ public sealed class ScheduledJobsService
                 RefreshCadenceReason.Finished => "finished",
                 RefreshCadenceReason.Pace => "pace",
                 RefreshCadenceReason.Paused => "paused",
+                RefreshCadenceReason.PaceUnknown => "pace_unknown",
                 _ => "choice",
             },
             VolumeIntervalDays = result.VolumeIntervalDays is { } v ? Math.Round(v, 1) : null,
+            ChapterIntervalDays = result.ChapterIntervalDays is { } c ? Math.Round(c, 1) : null,
             FetchedAt = record.FetchedAt,
             NextCheckAt = record.FetchedAt + TimeSpan.FromDays(result.Days),
         };
     }
+
+    /// <summary>The API key of a pace source (1.35.0).</summary>
+    internal static string PaceSourceKey(RefreshPaceSource source) => source switch
+    {
+        RefreshPaceSource.Chapters => "chapters",
+        RefreshPaceSource.Volumes => "volumes",
+        _ => "faster",
+    };
+
+    private static RefreshPaceSource? PaceSourceOf(string key) => key switch
+    {
+        "faster" => RefreshPaceSource.Faster,
+        "chapters" => RefreshPaceSource.Chapters,
+        "volumes" => RefreshPaceSource.Volumes,
+        _ => null,
+    };
 
     private static DateTimeOffset? Max(DateTimeOffset? a, DateTimeOffset? b) => a is null ? b : b is null ? a : (a > b ? a : b);
 }

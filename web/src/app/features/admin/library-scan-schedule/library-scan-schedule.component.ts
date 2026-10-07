@@ -1,8 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
 
 import { ApiService } from '../../../core/api/api.service';
 import { LibraryDto, LibraryScanSchedule } from '../../../core/api/api-types';
@@ -39,7 +37,7 @@ export const SCAN_SCHEDULE_OPTIONS: readonly { value: LibraryScanSchedule; label
 @Component({
   selector: 'app-library-scan-schedule',
   standalone: true,
-  imports: [DatePipe, MatFormFieldModule, MatSelectModule],
+  imports: [DatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="scan-schedule">
@@ -49,44 +47,36 @@ export const SCAN_SCHEDULE_OPTIONS: readonly { value: LibraryScanSchedule; label
           <button type="button" class="link" data-testid="scan-schedule-link" (click)="showInJobs()">Change in Scheduled jobs</button>
         </span>
       } @else {
-      <mat-form-field appearance="fill" class="schedule-select" floatLabel="always" subscriptSizing="dynamic">
-        <mat-label>Auto-scan</mat-label>
-        <mat-select [value]="schedule()" [disabled]="schedule() === null || saving()"
-                    (selectionChange)="save($event.value)" aria-label="Automatic scan schedule">
-          @for (opt of options; track opt.value) {
-            <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
-          }
-        </mat-select>
-      </mat-form-field>
-      @if (takesHour()) {
-        <mat-form-field appearance="fill" class="time-select" floatLabel="always" subscriptSizing="dynamic">
-          <mat-label>At (server time)</mat-label>
-          <mat-select [value]="hour() ?? -1" [disabled]="saving()" (selectionChange)="saveHour($event.value)"
-                      aria-label="Scan time of day" data-testid="scan-hour">
-            <mat-option [value]="-1">Any time</mat-option>
-            @for (h of hours; track h) {
-              <mat-option [value]="h">{{ hourLabel(h) }}</mat-option>
-            }
-          </mat-select>
-        </mat-form-field>
-        @if (schedule() === '7d' && hour() !== null) {
-          <mat-form-field appearance="fill" class="time-select" floatLabel="always" subscriptSizing="dynamic">
-            <mat-label>On</mat-label>
-            <mat-select [value]="weekday() ?? 0" [disabled]="saving()" (selectionChange)="saveWeekday($event.value)"
-                        aria-label="Scan weekday" data-testid="scan-weekday">
-              @for (d of weekdays; track $index) {
-                <mat-option [value]="$index">{{ d }}</mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
+      <!-- 1.35.0: compact native selects, one cell each, so the Scheduled jobs table lines its rows up (owner: "not neat"). -->
+      <select class="cell schedule" [value]="schedule() ?? ''" [disabled]="schedule() === null || saving()"
+              (change)="save($any($event.target).value)" aria-label="Automatic scan schedule" data-testid="scan-schedule">
+        @for (opt of options; track opt.value) {
+          <option [value]="opt.value" [selected]="opt.value === schedule()">{{ opt.label }}</option>
         }
+      </select>
+      @if (takesHour()) {
+        <select class="cell" [disabled]="saving()" (change)="saveHour(+$any($event.target).value)"
+                aria-label="Scan time of day (server time)" data-testid="scan-hour">
+          <option [value]="-1" [selected]="hour() === null">Any time</option>
+          @for (h of hours; track h) { <option [value]="h" [selected]="h === hour()">{{ hourLabel(h) }}</option> }
+        </select>
+      } @else {
+        <span class="cell"></span>
+      }
+      @if (schedule() === '7d' && hour() !== null) {
+        <select class="cell" [disabled]="saving()" (change)="saveWeekday(+$any($event.target).value)"
+                aria-label="Scan weekday" data-testid="scan-weekday">
+          @for (d of weekdays; track $index) { <option [value]="$index" [selected]="$index === (weekday() ?? 0)">{{ d }}</option> }
+        </select>
+      } @else {
+        <span class="cell"></span>
       }
       }
       <span class="schedule-info">
-        <span class="last">Last scan:
+        <span class="last cell"><span class="lbl">Last scan: </span>
           @if (lastScan(); as last) { {{ serverZone() ? inZone(last) : (last | date:'short') }} } @else { never }
         </span>
-        <span class="next">Next scan (approx.):
+        <span class="next cell"><span class="lbl">Next scan (approx.): </span>
           @if (schedule() === 'off') { off }
           @else if (nextScan(); as next) {
             @if (isDue()) { shortly } @else { {{ serverZone() ? inZone(next) : (next | date:'short') }} }
@@ -104,13 +94,21 @@ export const SCAN_SCHEDULE_OPTIONS: readonly { value: LibraryScanSchedule; label
       padding: 0 16px 8px 72px;
       font-size: 13px;
     }
-    .schedule-select { width: 150px; }
-    .time-select { width: 140px; }
     .schedule-info { display: inline-flex; flex-wrap: wrap; gap: 4px 16px; opacity: 0.75; }
+    select { font: inherit; padding: 4px 6px; max-width: 100%; }
     .schedule-error { color: var(--mp-warn, #ff8a80); }
     .link { background: none; border: none; padding: 0; margin-left: 4px; font: inherit; color: #b39ddb; text-decoration: underline; cursor: pointer; }
     @media (max-width: 600px) {
       .scan-schedule { padding-left: 16px; }
+    }
+    /* In the Scheduled jobs table (1.35.0) every control and time is a cell of the host row's grid. */
+    :host(.cells), :host(.cells) .scan-schedule, :host(.cells) .schedule-info { display: contents; }
+    :host(.cells) .lbl { display: none; }
+    :host(.cells) .schedule-info .cell { opacity: 0.75; }
+    :host(.cells) .schedule-error { grid-column: 1 / -1; }
+    /* Same width as the Scheduled jobs table's own switch (its section is the container). */
+    @container (max-width: 860px) {
+      :host(.cells) .lbl { display: inline; }
     }
   `],
 })
@@ -173,7 +171,7 @@ export class LibraryScanScheduleComponent {
     const row = document.querySelector<HTMLElement>(`[data-testid="job-library-scan-${this.library().id}"]`);
     if (!row) return;
     row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    row.querySelector<HTMLElement>('mat-select')?.focus({ preventScroll: true });
+    row.querySelector<HTMLElement>('select')?.focus({ preventScroll: true });
   }
 
   /** A past (or present) next-scan time: the next scheduler pass picks it up. */

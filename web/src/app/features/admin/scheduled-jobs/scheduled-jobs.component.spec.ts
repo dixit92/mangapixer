@@ -35,7 +35,7 @@ describe('ScheduledJobsComponent', () => {
       job('update-check', { kind: 'onDemand', configurable: false, enabled: false }),
     ],
     refresh: {
-      ongoingDays: 30, finishedDays: 90, followPace: true, allowedOngoingDays: [7, 14, 30], allowedFinishedDays: [30, 90, 180],
+      ongoingDays: 30, finishedDays: 90, followPace: true, paceSource: 'faster', allowedOngoingDays: [7, 14, 30], allowedFinishedDays: [30, 90, 180],
       usedToday: 12, overdue: 3, byDays: [{ days: 14, count: 19 }, { days: 30, count: 216 }, { days: 90, count: 368 }],
     },
     ...overrides,
@@ -77,12 +77,12 @@ describe('ScheduledJobsComponent', () => {
     const f = createLoaded();
     const el = f.nativeElement as HTMLElement;
     expect(text(el, 'jobs-clock')).toContain('Times are server time: America/New_York (UTC-04:00), now 14:05.');
-    expect(text(el, 'job-library-scan-lib1')).toContain('Library scan: Manga');
+    expect(text(el, 'jobs-group-scans')).toContain('Library scans');
+    expect(text(el, 'job-library-scan-lib1')).toContain('Manga');
     const refresh = text(el, 'job-metadata-refresh');
     expect(refresh).toContain('Last run: Fri 2 Oct, 03:00 - 12 refreshed');
     expect(refresh).toContain('Next run: Sat 3 Oct, 03:00');
-    expect(text(el, 'job-refresh-counts')).toContain('Today: 12 checked.');
-    expect(text(el, 'job-refresh-counts')).toContain('3 series are past their check date.');
+    expect(text(el, 'job-refresh-counts')).toContain('Due now: 3 · checked today: 12');
     expect(refresh).toContain('Checked every 2 weeks: 19, every month: 216, every 3 months: 368.');
     expect(text(el, 'job-trash')).toContain('Off: nothing is removed unless you choose "Empty trash now"');
     expect(el.querySelector('#job-trash')).not.toBeNull();
@@ -116,21 +116,54 @@ describe('ScheduledJobsComponent', () => {
     clear.flush(dto());
   });
 
-  it('saves the cadence choices and the pace switch', () => {
+  it('"Check ongoing series" holds the pace as one of its choices, with "Pace from" under it (1.35.0)', () => {
     const f = createLoaded();
     const el = f.nativeElement as HTMLElement;
     const ongoing = el.querySelector('[data-testid="job-cadence-ongoing"]') as HTMLSelectElement;
+    expect(ongoing.value).toBe('pace');
+    expect([...ongoing.options].map(o => o.textContent?.trim())).toEqual(['Follow their pace', 'Every week', 'Every 2 weeks', 'Every month']);
+    expect((el.querySelector('[data-testid="job-cadence-pace-source"]') as HTMLSelectElement).value).toBe('faster');
+    expect(text(el, 'job-cadence-hint')).toContain('new chapters or new volumes, whichever comes more often');
+
+    const source = el.querySelector('[data-testid="job-cadence-pace-source"]') as HTMLSelectElement;
+    source.value = 'chapters';
+    source.dispatchEvent(new Event('change'));
+    const put = httpMock!.expectOne((r) => r.method === 'PUT' && r.url === `${URL}/metadata-refresh/cadence`);
+    expect(put.request.body).toEqual({ paceSource: 'chapters' });
+    put.flush(dto({ refresh: { ...dto().refresh, paceSource: 'chapters' } }));
+    f.detectChanges();
+    expect(text(el, 'job-cadence-hint')).toContain('which follows scanlation releases');
+
     ongoing.value = '7';
     ongoing.dispatchEvent(new Event('change'));
-    const put = httpMock!.expectOne((r) => r.method === 'PUT' && r.url === `${URL}/metadata-refresh/cadence`);
-    expect(put.request.body).toEqual({ ongoingDays: 7 });
-    put.flush(dto());
+    const fixed = httpMock!.expectOne((r) => r.method === 'PUT' && r.url === `${URL}/metadata-refresh/cadence`);
+    expect(fixed.request.body).toEqual({ followPace: false, ongoingDays: 7 });
+    fixed.flush(dto({ refresh: { ...dto().refresh, followPace: false, ongoingDays: 7 } }));
     f.detectChanges();
+    expect(el.querySelector('[data-testid="job-cadence-pace-source"]')).toBeNull();
+    expect((el.querySelector('[data-testid="job-cadence-ongoing"]') as HTMLSelectElement).value).toBe('7');
+    expect(text(el, 'job-cadence-hint')).toContain('Every ongoing series is checked every week.');
 
-    f.componentInstance.setCadence({ followPace: false });
+    const back = el.querySelector('[data-testid="job-cadence-ongoing"]') as HTMLSelectElement;
+    back.value = 'pace';
+    back.dispatchEvent(new Event('change'));
     const pace = httpMock!.expectOne((r) => r.method === 'PUT' && r.url === `${URL}/metadata-refresh/cadence`);
-    expect(pace.request.body).toEqual({ followPace: false });
+    expect(pace.request.body).toEqual({ followPace: true });
     pace.flush(dto());
+  });
+
+  it('groups the jobs: library scans as one table, then Web information, Library upkeep, Maintenance (1.35.0)', () => {
+    const f = createLoaded(dto({ jobs: [...dto().jobs, job('thumbnails', { kind: 'startup', configurable: false }), job('some-new-job', { configurable: false })] }));
+    const el = f.nativeElement as HTMLElement;
+    const sections = [...el.querySelectorAll('section.group')].map(s => s.getAttribute('data-testid'));
+    expect(sections).toEqual(['jobs-group-scans', 'jobs-group-web', 'jobs-group-upkeep', 'jobs-group-maintenance']);
+    const keys = (group: string) => [...el.querySelectorAll(`[data-testid="jobs-group-${group}"] li`)].map(li => li.getAttribute('data-testid'));
+    expect(keys('web')).toEqual(['job-metadata-refresh', 'job-auto-match', 'job-update-check']);
+    expect(keys('upkeep')).toEqual(['job-thumbnails']);
+    expect(keys('maintenance')).toEqual(['job-backup', 'job-trash', 'job-cache-eviction', 'job-session-cleanup', 'job-some-new-job']);
+    // One control style: the scan row's schedule is a native select like every other setting on the page.
+    expect(el.querySelector('[data-testid="job-library-scan-lib1"] select[aria-label="Automatic scan schedule"]')).not.toBeNull();
+    expect(el.querySelector('mat-select')).toBeNull();
   });
 
   it('reports a failed save and reloads', () => {

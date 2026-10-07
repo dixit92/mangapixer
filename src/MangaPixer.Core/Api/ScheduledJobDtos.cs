@@ -84,14 +84,17 @@ public sealed record ScheduledJobDto
 /// <summary>The refresh cadence (1.32.0): the admin's choice, today's refresh count and how many series follow each cadence.</summary>
 public sealed record RefreshCadenceDto
 {
-    /// <summary>"Check ongoing series": 7, 14 or 30 days.</summary>
+    /// <summary>"Check ongoing series": 7, 14 or 30 days (not read while <see cref="FollowPace"/> is on, 1.35.0).</summary>
     public required int OngoingDays { get; init; }
 
     /// <summary>"Check finished series": 30, 90 or 180 days.</summary>
     public required int FinishedDays { get; init; }
 
-    /// <summary>"Follow each series' publishing pace".</summary>
+    /// <summary>"Check ongoing series: Follow their pace" (1.35.0: its own choice instead of the ongoing days; before, the days capped it).</summary>
     public required bool FollowPace { get; init; }
+
+    /// <summary>What the pace follows (1.35.0): <c>faster</c> (default), <c>chapters</c> (new chapters, scanlation releases) or <c>volumes</c>.</summary>
+    public required string PaceSource { get; init; }
 
     public required IReadOnlyList<int> AllowedOngoingDays { get; init; }
     public required IReadOnlyList<int> AllowedFinishedDays { get; init; }
@@ -127,6 +130,9 @@ public sealed record UpdateRefreshCadenceRequest
     public int? OngoingDays { get; init; }
     public int? FinishedDays { get; init; }
     public bool? FollowPace { get; init; }
+
+    /// <summary><c>faster</c>, <c>chapters</c> or <c>volumes</c> (1.35.0); anything else is <c>invalid_cadence</c>.</summary>
+    public string? PaceSource { get; init; }
 }
 
 /// <summary>
@@ -137,11 +143,14 @@ public sealed record SeriesRefreshCadenceDto
 {
     public required int Days { get; init; }
 
-    /// <summary><c>finished</c>, <c>choice</c>, <c>pace</c> or <c>paused</c>.</summary>
+    /// <summary><c>finished</c>, <c>choice</c>, <c>pace</c>, <c>paused</c> or <c>pace_unknown</c> (1.35.0: following the pace, none known yet).</summary>
     public required string Reason { get; init; }
 
-    /// <summary>The estimated days between two volumes when the pace gave the cadence, else null.</summary>
+    /// <summary>The estimated days between two volumes when the volume pace was read, else null.</summary>
     public double? VolumeIntervalDays { get; init; }
+
+    /// <summary>The observed days between two new chapters when the chapter pace was read (1.35.0), else null.</summary>
+    public double? ChapterIntervalDays { get; init; }
 
     public required DateTimeOffset FetchedAt { get; init; }
     public required DateTimeOffset NextCheckAt { get; init; }

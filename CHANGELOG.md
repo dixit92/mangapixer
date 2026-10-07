@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.35.0] - 2026-10-07
+
+### Added
+
+- **Refresh pace from new chapters.** **Check ongoing series** in the **Series information refresh** job now offers **Follow their pace** as one of its choices, next to **Every week**, **Every 2 weeks** and **Every month**, and with it **Pace from**: **Whichever is faster** (the default), **New chapters (scanlations)** or **New volumes (original release)**. The chapter pace comes from how the latest chapter MangaUpdates lists (which follows scanlation releases) rose at earlier refreshes - nothing extra is sent. A series whose pace is not known yet is checked every month. The series page says which pace set a series' schedule ("a new chapter about every week").
+
+### Changed
+
+- **Scheduled jobs, regrouped.** The library scans are one table - a row per library with its schedule, time, last and next scan - and the other jobs come in three groups (**Web information**, **Library upkeep**, **Maintenance**) as cards of one shape: what the job does, its settings or when it runs, and its last and next run at the bottom. Every setting uses the same compact control.
+- **Following the pace is its own choice.** Before, the choice for ongoing series also limited the pace - with **Every week**, every ongoing series was checked weekly whatever its pace, so the pace switch changed almost nothing. **Upgrade note:** if the pace was on, it stays on and the choice for ongoing series is no longer read; pick **Every week** under **Check ongoing series** to check every ongoing series weekly. One database migration (`AddRefreshPaceSource`, one nullable column); no new consent; the media worker protocol is unchanged (5).
+
+### Fixed
+
+- **Volume covers of volumes listed as split chapters.** When MangaDex's volume list gives a volume only as split chapters (`41.1`, `41.2` ... `44.2`) and no file names the volume, its web cover was never downloaded - the parts counted as extras, so the volume did not count as held - and its stack showed the first page of its first chapter (often a scanlator's page). Such a volume now counts as held once all of its parts are here, and its cover follows; a part missing still keeps it partial. The series status line counts these volumes the same way.
+
 ## [1.34.2] - 2026-10-05
 
 ### Fixed

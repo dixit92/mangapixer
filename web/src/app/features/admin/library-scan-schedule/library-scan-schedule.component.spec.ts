@@ -177,7 +177,8 @@ describe('LibraryScanScheduleComponent', () => {
 
   it('labels hours as server time', () => {
     const f = create();
-    expect(f.nativeElement.textContent).toContain('At (server time)');
+    // 1.35.0: a compact select in the Scheduled jobs table (its column says "At"); the accessible name keeps the zone.
+    expect(f.nativeElement.querySelector('[data-testid="scan-hour"]').getAttribute('aria-label')).toBe('Scan time of day (server time)');
   });
 
   it('shows last and next scan in a given server zone (Scheduled jobs section)', () => {
@@ -206,7 +207,7 @@ describe('LibraryScanScheduleComponent', () => {
     it('shows the schedule as text with a link and no controls', () => {
       const f = createSummary({ scanSchedule: '1d', scanHour: 3 });
       expect(line(f)).toContain('Auto-scan: Daily at 03:00 (server time)');
-      expect(f.nativeElement.querySelector('mat-select')).toBeNull();
+      expect(f.nativeElement.querySelector('select')).toBeNull();
       expect(f.nativeElement.querySelector('[data-testid="scan-schedule-link"]')?.textContent).toContain('Change in Scheduled jobs');
       expect(f.nativeElement.textContent).toContain('Last scan:');
     });
@@ -225,8 +226,7 @@ describe('LibraryScanScheduleComponent', () => {
       const f = createSummary({ scanSchedule: '1d' });
       const row = document.createElement('li');
       row.setAttribute('data-testid', 'job-library-scan-lib1');
-      const select = document.createElement('mat-select');
-      select.tabIndex = 0;
+      const select = document.createElement('select');
       row.appendChild(select);
       document.body.appendChild(row);
       const scrolled = vi.fn();

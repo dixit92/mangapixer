@@ -1042,6 +1042,8 @@ public sealed class AppSettingsEntity
     public int? MetadataRefreshFinishedDays { get; set; }
     /// <summary>"Follow each series' publishing pace". ON by default; the migration gives the existing row true.</summary>
     public bool MetadataRefreshFollowPace { get; set; } = true;
+    /// <summary>What "Follow their pace" follows (1.35.0, <c>RefreshPaceSource</c>: 0 faster, 1 chapters, 2 volumes). Null = faster.</summary>
+    public int? MetadataRefreshPaceSource { get; set; }
     /// <summary>Server-local hour (0-23) of a backup whose interval is whole days, or null = any time (an interval after the last).</summary>
     public int? BackupHour { get; set; }
     /// <summary>Server-local hour (0-23) of the daily cache clean-up. Null = 05:00.</summary>

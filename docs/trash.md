@@ -24,7 +24,7 @@ Choose **Daily** (1 day), **Weekly** (7 days), **Monthly** (30 days, the default
 
 Automatic cleaning runs **Empty trash** and then **Clean bundles** once a day, at 04:00 (server time) unless you pick another hour. It is **off** by default, also after an upgrade: nothing is removed automatically until an admin turns it on.
 
-Since 1.32.0 the switch and the hour are on the **Scheduled jobs** card of Administration, in the **Empty trash and clean bundles** row (**Turn automatic cleaning on** and **Run automatic cleaning at**), next to the other jobs' times - see [Scheduled jobs](scheduled-jobs.md). When you turn it on, MangaPixer first shows what the first run will remove. The **Trash** card keeps what to remove and when to remove it by hand, and shows one status line, *Automatic cleaning: Off* or *Automatic cleaning: daily at 04:00 (server time)*, with a **Change in Scheduled jobs** link that takes you to that row.
+Since 1.32.0 the switch and the hour are on the **Scheduled jobs** card of Administration, in the **Empty trash and clean bundles** job (**Turn automatic cleaning on** and **Run at**), next to the other jobs' times - see [Scheduled jobs](scheduled-jobs.md). When you turn it on, MangaPixer first shows what the first run will remove. The **Trash** card keeps what to remove and when to remove it by hand, and shows one status line, *Automatic cleaning: Off* or *Automatic cleaning: daily at 04:00 (server time)*, with a **Change in Scheduled jobs** link that takes you to that row.
 
 If the server was off at that hour, the run is made up shortly after it starts again (but never for a day before the switch was turned on).
 

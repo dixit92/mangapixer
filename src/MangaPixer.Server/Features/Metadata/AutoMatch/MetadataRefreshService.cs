@@ -60,11 +60,12 @@ public sealed class MetadataRefreshService
     {
         var row = await _db.AppSettings.AsNoTracking()
             .Where(s => s.Id == AppSettingsEntity.SingletonId)
-            .Select(s => new { s.MetadataRefreshOngoingDays, s.MetadataRefreshFinishedDays, s.MetadataRefreshFollowPace })
+            .Select(s => new { s.MetadataRefreshOngoingDays, s.MetadataRefreshFinishedDays, s.MetadataRefreshFollowPace, s.MetadataRefreshPaceSource })
             .FirstOrDefaultAsync(ct);
         return row is null
             ? RefreshCadencePolicy.Default
-            : RefreshCadencePolicy.FromStored(row.MetadataRefreshOngoingDays, row.MetadataRefreshFinishedDays, row.MetadataRefreshFollowPace);
+            : RefreshCadencePolicy.FromStored(row.MetadataRefreshOngoingDays, row.MetadataRefreshFinishedDays, row.MetadataRefreshFollowPace,
+                row.MetadataRefreshPaceSource);
     }
 
     /// <summary>A linked record's cadence inputs.</summary>

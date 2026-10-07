@@ -117,6 +117,6 @@ test.describe('Administration layout', () => {
     const row = page.getByTestId('job-library-scan-' + libraryId);
     await expect(row.getByLabel('Automatic scan schedule')).toBeVisible();
     await page.getByTestId('scan-schedule-link').first().click();
-    await expect(page.locator('[data-testid^="job-library-scan-"] mat-select:focus')).toHaveCount(1);
+    await expect(page.locator('[data-testid^="job-library-scan-"] select:focus')).toHaveCount(1);
   });
 });
