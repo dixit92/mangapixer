@@ -2558,10 +2558,15 @@ export interface ScheduledJobDto {
   running?: boolean;
 }
 
+/** What "Follow their pace" follows (1.35.0). */
+export type RefreshPaceSource = 'faster' | 'chapters' | 'volumes';
+
 export interface RefreshCadenceDto {
+  /** Not read while `followPace` is on (1.35.0). */
   ongoingDays: number;
   finishedDays: number;
   followPace: boolean;
+  paceSource: RefreshPaceSource;
   allowedOngoingDays: number[];
   allowedFinishedDays: number[];
   usedToday: number;
@@ -2584,13 +2589,16 @@ export interface UpdateRefreshCadenceRequest {
   ongoingDays?: number | null;
   finishedDays?: number | null;
   followPace?: boolean | null;
+  paceSource?: RefreshPaceSource | null;
 }
 
 /** GET /admin/jobs/metadata-refresh/series/{nodeId}: one linked series' refresh cadence (admin only). */
 export interface SeriesRefreshCadenceDto {
   days: number;
-  reason: 'finished' | 'choice' | 'pace' | 'paused';
+  reason: 'finished' | 'choice' | 'pace' | 'paused' | 'pace_unknown';
   volumeIntervalDays?: number | null;
+  /** Observed days between two new chapters, when the chapter pace was read (1.35.0). */
+  chapterIntervalDays?: number | null;
   fetchedAt: string;
   nextCheckAt: string;
 }
