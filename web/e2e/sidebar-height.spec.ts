@@ -19,11 +19,21 @@ async function login(page: Page): Promise<void> {
   await expect(page).not.toHaveURL(/\/login$/);
 }
 
-/** Whether the point `fromBottom` px above the window's bottom edge, `x` px from its left edge, is inside the sidebar column. */
+/**
+ * Whether what is PAINTED at the point `fromBottom` px above the window's bottom edge, `x` px from its left edge, is the sidebar's
+ * surface: the nearest element at that point with a visible background must be (inside) the sidebar. A box that merely covers the
+ * point is not enough - before 1.36.0 the sidebar's host already stretched to the bottom, transparent, with the page showing through.
+ */
 async function sidebarAt(page: Page, x: number, fromBottom: number): Promise<boolean> {
   return page.evaluate(([px, dy]) => {
-    const hit = document.elementFromPoint(px, window.innerHeight - dy);
-    return !!hit?.closest('app-library-sidebar');
+    let el: Element | null = document.elementFromPoint(px, window.innerHeight - dy);
+    while (el) {
+      const bg = getComputedStyle(el).backgroundColor;
+      const transparent = bg === 'transparent' || /rgba\([^)]*,\s*0\)$/.test(bg);
+      if (!transparent) return !!el.closest('app-library-sidebar');
+      el = el.parentElement;
+    }
+    return false;
   }, [x, fromBottom] as const);
 }
 
