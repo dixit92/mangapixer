@@ -64,20 +64,39 @@ public static class RefreshCadence
             return new(policy.FinishedDays, RefreshCadenceReason.Paused, null);
 
         var volumes = policy.PaceSource == RefreshPaceSource.Chapters ? null : VolumeIntervalDays(evidence, now);
-        var chapters = policy.PaceSource == RefreshPaceSource.Volumes ? null : ObservedChapterInterval(evidence.History);
+        var observed = policy.PaceSource == RefreshPaceSource.Volumes ? null : ObservedChapterInterval(evidence.History);
+        var chapters = observed ?? (policy.PaceSource == RefreshPaceSource.Volumes ? null : LifetimeChapterInterval(evidence, now));
         int? volumeDays = volumes is { } v ? (v < WeeklyBelowDays ? FastestDays : v < EveryTwoWeeksBelowDays ? 14 : 30) : null;
         int? chapterDays = chapters is { } c ? (c < ChaptersWeeklyBelowDays ? FastestDays : c < ChaptersEveryTwoWeeksBelowDays ? 14 : 30) : null;
         if (volumeDays is null && chapterDays is null)
             return new(RefreshCadencePolicy.DefaultOngoingDays, RefreshCadenceReason.PaceUnknown, null);
         var days = Math.Min(volumeDays ?? int.MaxValue, chapterDays ?? int.MaxValue);
-        return new(days, RefreshCadenceReason.Pace, volumes, chapters);
+        // Which pace set the days: the chapters on a tie (they are what changes between two refreshes).
+        var from = chapterDays is { } cd && cd <= (volumeDays ?? int.MaxValue) ? RefreshPaceSource.Chapters : RefreshPaceSource.Volumes;
+        return new(days, RefreshCadenceReason.Pace, volumes, chapters)
+        {
+            PaceFrom = from,
+            ChapterIntervalEstimated = chapters is not null && observed is null,
+        };
+    }
+
+    /// <summary>
+    /// The average days between two new chapters since the series began (1.35.1): the stored latest chapter - which follows scanlation
+    /// releases - over the days since 1 January of the start year. The chapter pace until two rises are observed
+    /// (<see cref="ObservedChapterInterval"/>): it can only make a series look slower than it is (translations that started late, a
+    /// pause), never faster. Null without a start year before this one or at least two chapters.
+    /// </summary>
+    public static double? LifetimeChapterInterval(RefreshEvidence evidence, DateTimeOffset now)
+    {
+        if (evidence.StartYear is not { } year || year >= now.UtcDateTime.Year || year < 1900 || evidence.LatestChapter is not (>= 2 and var chapters))
+            return null;
+        return (now - new DateTimeOffset(year, 1, 1, 0, 0, 0, TimeSpan.Zero)).TotalDays / chapters;
     }
 
     /// <summary>
     /// The observed days between two new chapters (1.35.0): from two or more increases of the stored latest chapter at least
     /// <see cref="MinObservedChapterSpanDays"/> apart - the chapters gained after the first increase over the time between the first
-    /// and the last. Null when the observations do not give it (no estimate: a lifetime rate would be the original edition's, not
-    /// the scanlation's).
+    /// and the last. Null when the observations do not give it yet; then <see cref="LifetimeChapterInterval"/> stands in (1.35.1).
     /// </summary>
     public static double? ObservedChapterInterval(IReadOnlyList<RefreshObservation> history)
     {
@@ -214,8 +233,16 @@ public enum RefreshCadenceReason
     PaceUnknown = 4,
 }
 
-/// <summary>A series' cadence, why, and the pace it came from (days between volumes / chapters; null when not used or unknown).</summary>
-public readonly record struct RefreshCadenceResult(int Days, RefreshCadenceReason Reason, double? VolumeIntervalDays, double? ChapterIntervalDays = null);
+/// <summary>
+/// A series' cadence, why, and the pace it came from (days between volumes / chapters; null when not used or unknown). 1.35.1:
+/// <see cref="PaceFrom"/> - which pace set the days (null unless <see cref="RefreshCadenceReason.Pace"/>); <see cref="ChapterIntervalEstimated"/>
+/// - the chapter interval is the average since the series began, not yet observed.
+/// </summary>
+public readonly record struct RefreshCadenceResult(int Days, RefreshCadenceReason Reason, double? VolumeIntervalDays, double? ChapterIntervalDays = null)
+{
+    public RefreshPaceSource? PaceFrom { get; init; }
+    public bool ChapterIntervalEstimated { get; init; }
+}
 
 /// <summary>What the stored record says about a series' pace, plus its observations (oldest first).</summary>
 public sealed record RefreshEvidence(

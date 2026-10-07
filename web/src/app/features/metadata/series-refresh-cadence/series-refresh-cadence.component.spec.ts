@@ -30,8 +30,13 @@ describe('SeriesRefreshCadenceComponent', () => {
     // 1.35.0: the chapter (scanlation) pace, and a pace not known yet.
     expect(cadenceLine(cadence({ days: 7, volumeIntervalDays: null, chapterIntervalDays: 7.3 }), now))
       .toContain('Checked every week (a new chapter about every week)');
-    expect(cadenceLine(cadence({ days: 7, volumeIntervalDays: 120, chapterIntervalDays: 6 }), now))
-      .toContain('(a new chapter about every week, a new volume about every 4 months)');
+    // 1.35.1: only the pace that set the days; an average since the series began says so.
+    expect(cadenceLine(cadence({ days: 7, volumeIntervalDays: 120, chapterIntervalDays: 6, paceFrom: 'chapters' }), now))
+      .toContain('Checked every week (a new chapter about every week);');
+    expect(cadenceLine(cadence({ days: 14, volumeIntervalDays: 217, chapterIntervalDays: 29.9, chapterIntervalEstimated: true, paceFrom: 'chapters' }), now))
+      .toContain('Checked every 2 weeks (a new chapter about every 4 weeks on average);');
+    expect(cadenceLine(cadence({ days: 14, volumeIntervalDays: 70, chapterIntervalDays: 40, paceFrom: 'volumes' }), now))
+      .toContain('(a new volume about every 2 months)');
     expect(cadenceLine(cadence({ days: 30, reason: 'pace_unknown', volumeIntervalDays: null }), now))
       .toContain('Checked every month (following its pace, not known yet)');
     expect(cadenceLine(cadence({ nextCheckAt: '2026-10-01T12:00:00Z' }), now)).toContain('next check at the next refresh');
