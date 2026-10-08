@@ -52,6 +52,10 @@ The folder **Content** setting (**Doujinshi & adult one-shots**, see [Series inf
 
 Declared facts are stored in MangaPixer's own database. Reading or changing them makes no request to MangaUpdates or any other site, and no declared fact - type, creators, or the folders they are declared on - is ever sent anywhere; they are only compared, on your server, with what the sites return.
 
+## Artist folders
+
+*New in 1.37.0.* Marking a folder an [artist folder](series-information.md#artist-folders) declares the artist as the folder's creator in the same step - the folder's name by default, with the role **Story & art** - and keeps the folder's other declared facts. The artist then works like any declared creator: it flows down to the works inside, and their automatic matching prefers records by that artist. Removing the artist-folder mark leaves the declaration; change or remove it here.
+
 ## Good to know
 
 - When a folder is renamed or moved, its declared facts go with it to the new folder, like its link and settings (see [Renamed and moved folders](series-information.md#renamed-and-moved-folders)); a new folder that already has declared facts of its own keeps them, and the old ones wait under **Missing folders**.
