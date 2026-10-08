@@ -271,15 +271,23 @@ public sealed class VolumeEntryService
     /// </summary>
     private async Task<List<StoryLink>> StoryLinksAsync(long folderId, CancellationToken ct)
     {
-        var rows = await (
+        var rows = (await (
             from l in _db.NodeSeriesLinks.AsNoTracking()
             join n in _db.CatalogNodes.AsNoTracking() on l.NodeId equals n.Id
             where n.ParentId == folderId && n.Kind == (int)CatalogNodeKind.Archive && n.Availability != (int)CatalogNodeAvailability.Tombstoned
-                && l.RecordId != null && l.Record != null
-            select new { l.NodeId, n.PublicId, l.State, RecordId = l.RecordId!.Value, RecordPublicId = l.Record!.PublicId })
-            .ToListAsync(ct);
-        return rows.Where(r => SeriesLinkStates.IsSeries((SeriesLinkState)r.State))
-            .Select(r => new StoryLink(r.NodeId, r.PublicId, r.RecordId, r.RecordPublicId))
+                && l.RecordId != null
+            select new { l.NodeId, n.PublicId, l.State, RecordId = l.RecordId!.Value })
+            .ToListAsync(ct))
+            .Where(r => SeriesLinkStates.IsSeries((SeriesLinkState)r.State))
+            .ToList();
+        // Most folders have no linked archive: the records are read only when there is one (a second, small query).
+        if (rows.Count == 0)
+            return [];
+        var recordIds = rows.Select(r => r.RecordId).Distinct().ToList();
+        var records = await _db.MetadataRecords.AsNoTracking().Where(r => recordIds.Contains(r.Id))
+            .Select(r => new { r.Id, r.PublicId }).ToDictionaryAsync(r => r.Id, r => r.PublicId, ct);
+        return rows.Where(r => records.ContainsKey(r.RecordId))
+            .Select(r => new StoryLink(r.NodeId, r.PublicId, r.RecordId, records[r.RecordId]))
             .OrderBy(r => r.NodeId)
             .ToList();
     }
