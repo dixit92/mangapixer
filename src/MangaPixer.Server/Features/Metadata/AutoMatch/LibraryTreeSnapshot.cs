@@ -40,7 +40,8 @@ public sealed class LibraryTreeSnapshot
     private readonly Dictionary<long, List<Node>> _children;
     private readonly Dictionary<long, int> _descendantArchives;
 
-    private LibraryTreeSnapshot(LibraryTreeSnapshot tree, ProviderAuthorSet authors, IReadOnlyDictionary<long, string> collections)
+    private LibraryTreeSnapshot(LibraryTreeSnapshot tree, ProviderAuthorSet authors, IReadOnlyDictionary<long, string> collections,
+        IReadOnlyDictionary<long, IReadOnlyList<string>> artistFolders)
     {
         LibraryId = tree.LibraryId;
         CatalogRevision = tree.CatalogRevision;
@@ -50,15 +51,17 @@ public sealed class LibraryTreeSnapshot
         Roots = tree.Roots;
         Authors = authors;
         Collections = collections;
+        ArtistFolders = artistFolders;
     }
 
     private LibraryTreeSnapshot(long libraryId, long catalogRevision, List<Node> nodes, ProviderAuthorSet? authors,
-        IReadOnlyDictionary<long, string>? collections = null)
+        IReadOnlyDictionary<long, string>? collections = null, IReadOnlyDictionary<long, IReadOnlyList<string>>? artistFolders = null)
     {
         LibraryId = libraryId;
         CatalogRevision = catalogRevision;
         Authors = authors ?? ProviderAuthorSet.None;
         Collections = collections ?? NoCollections;
+        ArtistFolders = artistFolders ?? NoArtistFolders;
         _descendantArchives = [];
         _nodes = nodes.ToDictionary(n => n.Id);
         _children = [];
@@ -93,6 +96,17 @@ public sealed class LibraryTreeSnapshot
     /// </summary>
     public IReadOnlyDictionary<long, string> Collections { get; }
 
+    private static readonly IReadOnlyDictionary<long, IReadOnlyList<string>> NoArtistFolders = new Dictionary<long, IReadOnlyList<string>>();
+
+    /// <summary>
+    /// 1.37.0: the library's folders an admin marked an artist's folder, each with its OWN declared creator names (local data, in
+    /// their declared order; empty when the admin removed them). Feeds <see cref="FolderShape.ArtistNames"/>.
+    /// </summary>
+    public IReadOnlyDictionary<long, IReadOnlyList<string>> ArtistFolders { get; }
+
+    /// <summary>1.37.0: the folder's own row re-opens automatic matching below it (a collection or an artist folder).</summary>
+    public bool OpensMatching(long folderId) => Collections.ContainsKey(folderId) || ArtistFolders.ContainsKey(folderId);
+
     /// <summary>
     /// Loads the tree; with <paramref name="providerAuthors"/> also the library's <see cref="ProviderAuthorSet"/>
     /// (the automatic-matching paths that classify folders; other readers only need the tree).
@@ -107,14 +121,47 @@ public sealed class LibraryTreeSnapshot
             .Select(n => new Node(n.Id, n.ParentId, n.Kind == folder, n.DisplayName, n.SortKey))
             .ToListAsync(ct);
         var authors = providerAuthors ? await LoadProviderAuthorsAsync(db, libraryId, ct) : null;
-        return new LibraryTreeSnapshot(libraryId, revision, rows, authors, await LoadCollectionsAsync(db, libraryId, ct));
+        return new LibraryTreeSnapshot(libraryId, revision, rows, authors, await LoadCollectionsAsync(db, libraryId, ct),
+            await LoadArtistFoldersAsync(db, libraryId, ct));
     }
 
     /// <summary>The same tree with another author set (a link changed, the catalog did not).</summary>
-    public LibraryTreeSnapshot WithAuthors(ProviderAuthorSet authors) => new(this, authors, Collections);
+    public LibraryTreeSnapshot WithAuthors(ProviderAuthorSet authors) => new(this, authors, Collections, ArtistFolders);
 
     /// <summary>The same tree with another collection map (a "Collection about" row changed, the catalog did not).</summary>
-    public LibraryTreeSnapshot WithCollections(IReadOnlyDictionary<long, string> collections) => new(this, Authors, collections);
+    public LibraryTreeSnapshot WithCollections(IReadOnlyDictionary<long, string> collections) => new(this, Authors, collections, ArtistFolders);
+
+    /// <summary>1.37.0: the same tree with another artist-folder map (an "Artist folder" row or its declared creators changed).</summary>
+    public LibraryTreeSnapshot WithArtistFolders(IReadOnlyDictionary<long, IReadOnlyList<string>> artistFolders) =>
+        new(this, Authors, Collections, artistFolders);
+
+    /// <summary>1.37.0: true when <paramref name="other"/> names the same artist folders with the same artists in the same order.</summary>
+    public bool SameArtistFolders(IReadOnlyDictionary<long, IReadOnlyList<string>> other) =>
+        other.Count == ArtistFolders.Count
+        && other.All(kv => ArtistFolders.TryGetValue(kv.Key, out var names) && names.SequenceEqual(kv.Value, StringComparer.Ordinal));
+
+    /// <summary>
+    /// 1.37.0: the library's artist folders and each one's own declared creator names (two indexed queries: the rows on
+    /// (LibraryId, State), then those folders' creator facts).
+    /// </summary>
+    public static async Task<IReadOnlyDictionary<long, IReadOnlyList<string>>> LoadArtistFoldersAsync(MangaPixerDbContext db, long libraryId,
+        CancellationToken ct)
+    {
+        var artist = (int)SeriesLinkState.ArtistFolder;
+        var folders = await db.NodeSeriesLinks.AsNoTracking()
+            .Where(l => l.LibraryId == libraryId && l.State == artist)
+            .Select(l => l.NodeId)
+            .ToListAsync(ct);
+        if (folders.Count == 0)
+            return NoArtistFolders;
+        var facts = await db.DeclaredFacts.AsNoTracking()
+            .Where(f => f.LibraryId == libraryId && f.NodeId != null && folders.Contains(f.NodeId.Value) && f.Key == DeclaredFactKeys.Creator)
+            .Select(f => new { NodeId = f.NodeId!.Value, f.Value, f.Position, f.Id })
+            .ToListAsync(ct);
+        var byFolder = facts.GroupBy(f => f.NodeId)
+            .ToDictionary(g => g.Key, g => g.OrderBy(f => f.Position).ThenBy(f => f.Id).Select(f => f.Value).Distinct(StringComparer.Ordinal).ToList());
+        return folders.ToDictionary(id => id, id => (IReadOnlyList<string>)(byFolder.GetValueOrDefault(id) ?? []));
+    }
 
     /// <summary>True when <paramref name="other"/> names the same collection folders with the same series titles.</summary>
     public bool SameCollections(IReadOnlyDictionary<long, string> other) =>
@@ -180,8 +227,8 @@ public sealed class LibraryTreeSnapshot
 
     /// <summary>For tests: a snapshot from in-memory rows.</summary>
     public static LibraryTreeSnapshot FromNodes(long libraryId, IEnumerable<Node> nodes, ProviderAuthorSet? authors = null,
-        IReadOnlyDictionary<long, string>? collections = null) =>
-        new(libraryId, 0, nodes.ToList(), authors, collections);
+        IReadOnlyDictionary<long, string>? collections = null, IReadOnlyDictionary<long, IReadOnlyList<string>>? artistFolders = null) =>
+        new(libraryId, 0, nodes.ToList(), authors, collections, artistFolders);
 
     public Node? Find(long id) => _nodes.GetValueOrDefault(id);
 
@@ -268,7 +315,8 @@ public sealed class LibraryTreeSnapshot
     /// <see cref="ChildArchives"/>), direct subfolders with their archive counts (unit subfolders also with their
     /// archive names, for the count rule), and
     /// the library's provider authors unless the folder carries a link itself, and (1.34.0) whether it is a "Collection about" folder and
-    /// the series title of the nearest one (itself or an ancestor).
+    /// the series title of the nearest one (itself or an ancestor), and (1.37.0) for a folder an admin marked an artist's folder its
+    /// declared artist names.
     /// </summary>
     public FolderShape ShapeOf(long folderId)
     {
@@ -285,7 +333,8 @@ public sealed class LibraryTreeSnapshot
             CategoryHint(folderId),
             authors,
             Collections.ContainsKey(folderId),
-            CollectionSeriesOf(folderId));
+            CollectionSeriesOf(folderId),
+            ArtistFolders.GetValueOrDefault(folderId));
     }
 
     /// <summary>The series title of the nearest "Collection about" folder: the folder itself, else its nearest ancestor; null when none.</summary>

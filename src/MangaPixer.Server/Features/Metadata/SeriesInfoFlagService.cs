@@ -85,9 +85,11 @@ public sealed class SeriesInfoFlagService
     {
         var pageIds = nodes.Select(r => r.InternalId).ToList();
         var has = (await _db.NodeSeriesLinks
-            .Where(l => pageIds.Contains(l.NodeId) && l.RecordId != null
-                && (l.State == (int)SeriesLinkState.Confirmed || l.State == (int)SeriesLinkState.Auto
-                    || l.State == (int)SeriesLinkState.CollectionAbout)) // 1.34.0: a collection shows its series on itself
+            .Where(l => pageIds.Contains(l.NodeId)
+                && ((l.RecordId != null
+                        && (l.State == (int)SeriesLinkState.Confirmed || l.State == (int)SeriesLinkState.Auto
+                            || l.State == (int)SeriesLinkState.CollectionAbout)) // 1.34.0: a collection shows its series on itself
+                    || l.State == (int)SeriesLinkState.ArtistFolder)) // 1.37.0: an artist folder shows "Artist folder" on itself (no record)
             .Select(l => l.NodeId)
             .ToListAsync(ct)).ToHashSet();
 
@@ -175,7 +177,7 @@ public sealed class SeriesInfoFlagService
         {
             using var command = connection.CreateCommand();
             // State: 0 Confirmed, 1 Auto, 2 NeedsReview (skipped), 3 DontMatch, 4 CollectionAbout (1.34.0: its own folder only - it
-            // stops inheritance like Don't match).
+            // stops inheritance like Don't match), 5 ArtistFolder (1.37.0: no record - it stops inheritance, archives below show none).
             command.CommandText = $"""
                 WITH RECURSIVE up(StartId, NodeId, ParentId, Depth) AS (
                     SELECT Id, Id, ParentId, 0 FROM catalog_nodes WHERE Id IN ({ids})

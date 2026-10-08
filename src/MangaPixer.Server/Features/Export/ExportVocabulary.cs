@@ -30,6 +30,7 @@ public static class ExportVocabulary
         SeriesLinkState.NeedsReview => "NeedsReview",
         SeriesLinkState.DontMatch => "DontMatch",
         SeriesLinkState.CollectionAbout => "CollectionAbout",
+        SeriesLinkState.ArtistFolder => "ArtistFolder",
         _ => "Unknown",
     };
 

@@ -13,7 +13,8 @@ using Microsoft.EntityFrameworkCore;
 /// drop out of the review lists. Admin decisions below (Confirmed, Auto, Don't match links) stay.
 /// Pending or leased rows stay too: the worker skips them once an ancestor is linked or in review.
 /// 1.34.0: a linked series (Confirmed / Auto) does not speak for a "Collection about" folder inside it - the nearest decision wins, so the
-/// collection's subtree keeps its works. A Don't match or a waiting folder speaks for everything below, collections included.
+/// collection's subtree keeps its works (1.37.0: an artist folder's too). A Don't match or a waiting folder speaks for everything below,
+/// collections and artist folders included.
 /// </summary>
 public static class CoveredWorkRetirement
 {
@@ -29,8 +30,8 @@ public static class CoveredWorkRetirement
         {
             foreach (var child in tree.ChildrenOf(stack.Pop()))
             {
-                if (stopAtCollections && child.IsFolder && tree.Collections.ContainsKey(child.Id))
-                    continue; // The collection and its works answer for themselves.
+                if (stopAtCollections && child.IsFolder && tree.OpensMatching(child.Id))
+                    continue; // The collection (1.37.0: or artist folder) and its works answer for themselves.
                 below.Add(child.Id);
                 if (child.IsFolder)
                     stack.Push(child.Id);
