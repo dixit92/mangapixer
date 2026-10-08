@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, effect, untracked, OnInit, OnDestroy, HostListener, ElementRef, viewChild, afterNextRender, Injector } from '@angular/core';
+import { Component, inject, signal, computed, effect, untracked, OnInit, OnDestroy, HostListener, ElementRef, viewChild, afterNextRender, Injector, NgZone } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule, Location } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -36,6 +36,7 @@ import {
 } from './webtoon-nav.service';
 import { isApplePlatformTouch, isStandaloneDisplay } from './platform';
 import { EdgeAdvance, EdgeAdvanceWindowMs, EdgeDirection } from './edge-advance';
+import { WheelPager } from './wheel-paging';
 import { archiveTitle } from './archive-title';
 import { InstallHintService } from '../../shared/install-hint/install-hint.service';
 import {
@@ -528,7 +529,9 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                 <li><b>Tap</b> the sides to turn a page, the centre to show / hide the controls.</li>
                 <li><kbd>←</kbd> <kbd>→</kbd> previous / next page (follows reading direction) ·
                   <kbd>Home</kbd> <kbd>End</kbd> first / last</li>
-                <li>On the last (first) page, turn the page <b>twice</b> - tap, click, swipe or key - to
+                <li><b>Mouse wheel</b> down / up: next / previous page, one page per scroll, when the page
+                  fits the screen. A page taller than the screen scrolls instead.</li>
+                <li>On the last (first) page, turn the page <b>twice</b> - tap, click, swipe, key or wheel - to
                   open the next (previous) archive.</li>
                 @if (narrowPortrait() && view() === 'spread') {
                   <li>Double page shows in landscape or on a wider screen; this narrow portrait
@@ -1312,6 +1315,22 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   // (toolbar, slider) also end.
   private readonly activePointers = new Set<number>();
   private lastSwipeAt = 0;
+
+  // --- Mouse-wheel page turns (1.36.0, owner decisions 2026-10-07) ---
+  // Only in a FIXED paged / double-page view (touchAction() === 'pinch-zoom': the page fits the screen and nothing
+  // scrolls); fit-width with a tall page, any overflow, pinch-zoom and the vertical view keep native scrolling. The
+  // one-gesture-one-page debounce is the pure WheelPager (wheel-paging.ts). The listener is attached to #viewport by
+  // hand: non-passive, so a turn can preventDefault, and outside Angular, so a trackpad's inertial stream does not run
+  // change detection per event - only a turn re-enters the zone.
+  private readonly wheelPager = new WheelPager();
+  private readonly zone = inject(NgZone);
+  private readonly wheelListener = effect((onCleanup) => {
+    const el = this.viewport()?.nativeElement;
+    if (!el) return;
+    const listener = (e: WheelEvent): void => this.onReaderWheel(e);
+    this.zone.runOutsideAngular(() => el.addEventListener('wheel', listener, { passive: false }));
+    onCleanup(() => el.removeEventListener('wheel', listener));
+  });
   // Threshold for "the user has actually pinch-zoomed in", vs. visualViewport.scale
   // merely reporting device-pixel rounding noise. An installed Android PWA
   // (standalone WebView, no browser chrome to anchor the layout viewport against)
@@ -2601,6 +2620,33 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     this.swipeDx.set(0);
     this.swipeAxis = 'none';
     this.swipeDragged = false;
+  }
+
+  /**
+   * Mouse wheel / trackpad scroll on the paged viewport (1.36.0). In a fixed view (the page fits the screen, so a
+   * vertical scroll does nothing) a vertical wheel turns the page: down = {@link nextPage}, up = {@link prevPage},
+   * which follow the reading order and spreads (RTL included; not mirrored like the arrow keys). One gesture turns
+   * one page: {@link WheelPager} swallows the rest of the gesture, a trackpad's inertia included, until the wheel has
+   * been quiet - so at the end of the archive only a FRESH gesture is the second input that opens the neighbour
+   * (the edge rule), like a new arrow-key press. Everything else is left to the browser without preventDefault:
+   * Ctrl / Meta + wheel and a trackpad pinch (wheel + ctrlKey) zoom, a horizontal wheel or swipe, a page that
+   * scrolls (fit-width with a tall page, overflow, pinch-zoomed) and the vertical view.
+   */
+  onReaderWheel(e: WheelEvent): void {
+    if (e.ctrlKey || e.metaKey) return;
+    if (this.view() === 'webtoon') { this.wheelPager.reset(); return; }
+    // Not fixed (or not ready, or a menu / the help / the slider is in use): nothing starts; the tail of a gesture
+    // that already turned is still swallowed - also across opening the next archive, so its leftover inertia never
+    // turns a page there.
+    const fixed = this.phase() === 'ready' && this.touchAction() === 'pinch-zoom'
+      && !this.menuOpen() && !this.helpVisible() && !this.scrubbing();
+    const pagePx = this.viewport()?.nativeElement.clientHeight || window.innerHeight;
+    const step = this.wheelPager.input(
+      { deltaX: e.deltaX, deltaY: e.deltaY, deltaMode: e.deltaMode, at: e.timeStamp }, fixed, pagePx);
+    if (step === 'ignore') return;
+    e.preventDefault();
+    if (step === 'swallow') return;
+    this.zone.run(() => (step === 'next' ? this.nextPage() : this.prevPage()));
   }
 
   /**
