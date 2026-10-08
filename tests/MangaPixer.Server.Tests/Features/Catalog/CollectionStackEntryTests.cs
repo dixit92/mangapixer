@@ -3,6 +3,7 @@ namespace com.lifepixer.mangapixer.Tests.Server.Features.Catalog;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
+using com.lifepixer.mangapixer.Core.Reading;
 using com.lifepixer.mangapixer.Server.Features.Auth;
 using com.lifepixer.mangapixer.Server.Features.Catalog;
 using com.lifepixer.mangapixer.Server.Persistence;
