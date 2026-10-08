@@ -30,6 +30,12 @@ public sealed record VolumeViewDto
     public required int StackCount { get; init; }
 
     /// <summary>
+    /// 1.37.0: number of stacks of stories collected in one volume (a folder that is neither a series nor a collection, with two or more
+    /// archives linked to the same record). Not counted in <see cref="StackCount"/>.
+    /// </summary>
+    public int CollectionStackCount { get; init; }
+
+    /// <summary>
     /// 1.34.0: the linked series is a webtoon / manhwa / manhua without a real volume list (two or more MangaDex volumes, or a Wikipedia
     /// list) - the view lists its chapters in chapter order, never volumes from a list or missing-volume placeholders.
     /// </summary>

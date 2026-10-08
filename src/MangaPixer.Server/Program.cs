@@ -236,6 +236,8 @@ public sealed partial class Program
             // Volumes view (1.29.0): the memoised entry list of a folder, and the stack / view endpoints' service.
             builder.Services.AddScoped<VolumeEntryService>();
             builder.Services.AddScoped<VolumeStackService>();
+            // Stacks of stories collected in one volume (1.37.0): the stack view's service.
+            builder.Services.AddScoped<CollectionStackService>();
             builder.Services.AddScoped<ReadingStateService>();
             builder.Services.AddScoped<FavoritesService>();
             builder.Services.AddScoped<SpreadLayoutService>();

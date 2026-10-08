@@ -33,6 +33,7 @@ import {
   SetFolderCoverPreferenceRequest,
   UpdateFolderViewSettingsRequest,
   VolumeStackDto,
+  CollectionStackDto,
   VolumeViewDto,
   ChangePasswordRequest,
   ContinueReadingEntry,
@@ -392,6 +393,11 @@ export class ApiService {
   /** One virtual volume stack of a folder: its chapters in order with a placeholder per missing chapter (1.29.0). */
   getVolumeStack(nodeId: string, key: string): Observable<VolumeStackDto> {
     return this.get<VolumeStackDto>(`/nodes/${nodeId}/volumes/${encodeURIComponent(key)}`);
+  }
+
+  /** One stack of stories collected in one volume (1.37.0): its stories in folder order. */
+  getCollectionStack(nodeId: string, key: string): Observable<CollectionStackDto> {
+    return this.get<CollectionStackDto>(`/nodes/${nodeId}/collection-stacks/${encodeURIComponent(key)}`);
   }
 
   /** Admin: a folder's own Volumes view override (1.29.0; null = inherit the library). */

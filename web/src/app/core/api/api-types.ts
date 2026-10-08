@@ -100,6 +100,11 @@ export interface CatalogNodeDto {
   favoriteStackCount?: number | null;
   /** 1.29.0: set only on a browse entry of kind 'VolumeStack' (the Volumes view of a series). */
   volumeStack?: VolumeStackSummaryDto | null;
+  /**
+   * 1.37.0 (tankoubon stacks): set only on a browse entry of kind 'VolumeStack' that stands for stories collected in one volume (two or
+   * more archives of a folder that is neither a series nor a collection, linked to the same record); `volumeStack` is null on it.
+   */
+  collectionStack?: CollectionStackSummaryDto | null;
   /** 1.29.0: where coverUrl comes from (the cover layer); null/absent = the file cover. */
   coverSource?: CardCoverSource | null;
   /** 1.30.0 (reach): on a chapter archive, the volume key of a volume FILE of the same series that already holds it ("Also in Volume 10"). */
@@ -2074,6 +2079,26 @@ export interface VolumeStackDto {
   duplicates?: DuplicateUnitDto[];
 }
 
+/** A stack of stories collected in one volume as a browse entry (CatalogNodeDto.collectionStack, 1.37.0). No volume / missing counts. */
+export interface CollectionStackSummaryDto {
+  key: string;
+  /** The collected volume's title (the linked record's), else the first story's name. */
+  title: string;
+  storyCount: number;
+}
+
+/** GET /nodes/{folderId}/collection-stacks/{key} (1.37.0): the stories of one stack, in folder order. */
+export interface CollectionStackDto {
+  folderId: string;
+  key: string;
+  title: string;
+  coverUrl?: string | null;
+  storyCount: number;
+  items: CatalogNodeDto[];
+  previousKey?: string | null;
+  nextKey?: string | null;
+}
+
 /** GET /nodes/{nodeId}/volume-view (lane S): whether a folder has a Volumes view and whether it is on for the viewer. */
 export interface VolumeViewDto {
   nodeId: string;
@@ -2083,6 +2108,8 @@ export interface VolumeViewDto {
   defaultActive?: boolean;
   consolidated: boolean;
   stackCount: number;
+  /** 1.37.0: stacks of stories collected in one volume (not counted in `stackCount`). */
+  collectionStackCount?: number;
   /**
    * 1.34.0: a webtoon / manhwa / manhua without a real volume list - the view lists its chapters in chapter order (the switch says
    * Chapters), never volumes from a list or missing-volume placeholders.

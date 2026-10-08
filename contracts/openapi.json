@@ -7411,6 +7411,93 @@
         }
       }
     },
+    "/api/v1/nodes/{nodeId}/collection-stacks/{key}": {
+      "get": {
+        "tags": [
+          "CollectionStack"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionStackDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionStackDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionStackDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/nodes/{nodeId}/collection-stacks/{key}/cover": {
+      "get": {
+        "tags": [
+          "CollectionStack"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "v",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "302": {
+            "description": "Found"
+          }
+        }
+      }
+    },
     "/api/v1/admin/folders/{nodeId}/view-settings": {
       "get": {
         "tags": [
@@ -8911,6 +8998,16 @@
               }
             ]
           },
+          "collectionStack": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CollectionStackSummaryDto"
+              }
+            ]
+          },
           "coverSource": {
             "oneOf": [
               {
@@ -8976,6 +9073,83 @@
             "type": "boolean"
           },
           "queued": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "CollectionStackDto": {
+        "required": [
+          "folderId",
+          "key",
+          "title",
+          "storyCount",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "folderId": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "coverUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "storyCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogNodeDto"
+            }
+          },
+          "previousKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "nextKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CollectionStackSummaryDto": {
+        "required": [
+          "key",
+          "title",
+          "storyCount"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "storyCount": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "integer",
@@ -16536,6 +16710,14 @@
             ],
             "format": "int32"
           },
+          "collectionStackCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
           "chaptersOnly": {
             "type": "boolean"
           },
@@ -17004,6 +17186,9 @@
     },
     {
       "name": "Catalog"
+    },
+    {
+      "name": "CollectionStack"
     },
     {
       "name": "FolderViewSettings"

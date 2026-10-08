@@ -8,7 +8,10 @@ public enum CatalogNodeKind
     Folder = 0,
     Archive = 1,
 
-    /// <summary>A virtual volume stack of the Volumes view (1.29.0): a browse entry only, never a stored node.</summary>
+    /// <summary>
+    /// A virtual volume stack of the Volumes view (1.29.0): a browse entry only, never a stored node. 1.37.0: also a stack of stories
+    /// collected in one volume (<c>CatalogNodeDto.CollectionStack</c> set instead of <c>VolumeStack</c>).
+    /// </summary>
     VolumeStack = 2,
 }
 

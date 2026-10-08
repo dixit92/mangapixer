@@ -46,8 +46,17 @@ public sealed record FolderVolumeEntries(
     /// a folder with its own link that holds volumes - its header shows the series status - or (1.34.0) a linked folder in chapter mode
     /// that holds archives (its chapter list, with the series status).
     /// </summary>
-    public bool Available => StackCount > 0 || Consolidated || Status is { MissingVolumes: > 0 } || (Status is not null && HasVolumes)
-        || (Status is not null && ChaptersOnly && Entries.Any(e => e.Kind == VolumeEntryKind.Archive));
+    public bool Available => StackCount > 0 || CollectionStackCount > 0 || Consolidated || Status is { MissingVolumes: > 0 }
+        || (Status is not null && HasVolumes) || (Status is not null && ChaptersOnly && Entries.Any(e => e.Kind == VolumeEntryKind.Archive));
+
+    /// <summary>
+    /// 1.37.0 (tankoubon stacks): the stacks of stories collected in one volume - two or more archives here linked to the same record,
+    /// in a folder that is neither a series nor a collection (<see cref="StoryCollectionGrouping"/>).
+    /// </summary>
+    public int CollectionStackCount { get; init; }
+
+    /// <summary>1.37.0: the internal id of the record each story collection's key (the record's public id) names.</summary>
+    public IReadOnlyDictionary<string, long> CollectionRecords { get; init; } = new Dictionary<string, long>(StringComparer.Ordinal);
 
     /// <summary>At least one volume entry (a volume file, a stack or a placeholder).</summary>
     public bool HasVolumes => Entries.Any(e => e.Rank == 0);
@@ -111,11 +120,23 @@ public sealed class VolumeEntryService
 
     private sealed record NodeInfo(long Id, string PublicId, long LibraryId, string LibraryPublicId, string Name, long? ParentId);
 
-    /// <summary>The linked series a folder belongs to: <c>Own</c> = the folder itself carries the link.</summary>
-    private sealed record SeriesContext(long? RecordId, long? SeriesFolderId, bool Own)
+    /// <summary>
+    /// The linked series a folder belongs to: <c>Own</c> = the folder itself carries the link. <c>Collection</c> (1.37.0): the row that
+    /// decided is "Collection about" - not a series, but not a folder of stories either.
+    /// </summary>
+    private sealed record SeriesContext(long? RecordId, long? SeriesFolderId, bool Own, bool Collection = false)
     {
-        public string Key => $"{RecordId}:{SeriesFolderId}:{Own}";
+        public string Key => $"{RecordId}:{SeriesFolderId}:{Own}:{Collection}";
+
+        /// <summary>
+        /// 1.37.0 (owner): stories collected in one volume stack only in a folder that is neither a series (no own or unit-inherited
+        /// Confirmed / Auto link) nor a collection.
+        /// </summary>
+        public bool StoriesQualify => RecordId is null && !Collection;
     }
+
+    /// <summary>A direct archive child of a qualifying folder with its own Confirmed / Auto link (1.37.0).</summary>
+    private sealed record StoryLink(long NodeId, string NodePublicId, long RecordId, string RecordPublicId);
 
     private sealed record UnitFolder(long Id, string Name, long ParentId, bool Generic, List<CatalogBrowseService.BrowseRow> Archives, List<CatalogBrowseService.BrowseRow> SubFolders);
 
@@ -138,11 +159,14 @@ public sealed class VolumeEntryService
         // The preferred language matters only for a linked series (what is released in it); an unlinked folder never reads it.
         var language = context.RecordId is null ? ReleasedInLanguage.DefaultLanguage : await ReleasedInLanguage.PreferredAsync(_db, ct);
         var mapKey = await MapKeyAsync(context.RecordId, ct);
-        var key = $"volview:{info.Id}:{revision}:{context.Key}:{language}:{mapKey}";
+        // 1.37.0: the archive links of a folder of stories are part of the key - a story linked or unlinked regroups at once (a link
+        // change does not move the catalog revision).
+        var stories = context.StoriesQualify ? await StoryLinksAsync(info.Id, ct) : [];
+        var key = $"volview:{info.Id}:{revision}:{context.Key}:{language}:{mapKey}:{StoriesKey(stories)}";
         if (_cache is not null && _cache.TryGetValue(key, out FolderVolumeEntries? cached) && cached is not null)
             return cached;
 
-        var built = await BuildAsync(info, context, language, ct);
+        var built = await BuildAsync(info, context, language, stories, ct);
         _cache?.Set(key, built, s_ttl);
         return built;
     }
@@ -209,7 +233,7 @@ public sealed class VolumeEntryService
         {
             return IsLinked(own.State, own.RecordId)
                 ? new SeriesContext(own.RecordId, folder.Id, true)
-                : new SeriesContext(null, null, false);
+                : new SeriesContext(null, null, false, IsCollection(own.State));
         }
 
         var current = folder;
@@ -224,7 +248,11 @@ public sealed class VolumeEntryService
             var link = await _db.NodeSeriesLinks.AsNoTracking().Where(l => l.NodeId == parent.Id)
                 .Select(l => new { l.State, l.RecordId }).FirstOrDefaultAsync(ct);
             if (link is not null)
-                return IsLinked(link.State, link.RecordId) ? new SeriesContext(link.RecordId, parent.Id, false) : new SeriesContext(null, null, false);
+            {
+                return IsLinked(link.State, link.RecordId)
+                    ? new SeriesContext(link.RecordId, parent.Id, false)
+                    : new SeriesContext(null, null, false, IsCollection(link.State));
+            }
             current = new NodeInfo(parent.Id, parent.PublicId, parent.LibraryId, string.Empty, parent.DisplayName, parent.ParentId);
         }
         return new SeriesContext(null, null, false);
@@ -232,6 +260,46 @@ public sealed class VolumeEntryService
 
     private static bool IsLinked(int state, long? recordId) =>
         recordId is not null && state is (int)SeriesLinkState.Confirmed or (int)SeriesLinkState.Auto;
+
+    private static bool IsCollection(int state) => state == (int)SeriesLinkState.CollectionAbout;
+
+    // --- Stories collected in one volume (1.37.0) ---------------------------------------------------------------------
+
+    /// <summary>
+    /// The direct archive children of a folder whose OWN link is Confirmed / Auto (<see cref="SeriesLinkStates.IsSeries"/>), with their
+    /// record. Many archives may link one record (the unique index is on the node only). One query.
+    /// </summary>
+    private async Task<List<StoryLink>> StoryLinksAsync(long folderId, CancellationToken ct)
+    {
+        var rows = (await (
+            from l in _db.NodeSeriesLinks.AsNoTracking()
+            join n in _db.CatalogNodes.AsNoTracking() on l.NodeId equals n.Id
+            where n.ParentId == folderId && n.Kind == (int)CatalogNodeKind.Archive && n.Availability != (int)CatalogNodeAvailability.Tombstoned
+                && l.RecordId != null
+            select new { l.NodeId, n.PublicId, l.State, RecordId = l.RecordId!.Value })
+            .ToListAsync(ct))
+            .Where(r => SeriesLinkStates.IsSeries((SeriesLinkState)r.State))
+            .ToList();
+        // Most folders have no linked archive: the records are read only when there is one (a second, small query).
+        if (rows.Count == 0)
+            return [];
+        var recordIds = rows.Select(r => r.RecordId).Distinct().ToList();
+        var records = await _db.MetadataRecords.AsNoTracking().Where(r => recordIds.Contains(r.Id))
+            .Select(r => new { r.Id, r.PublicId }).ToDictionaryAsync(r => r.Id, r => r.PublicId, ct);
+        return rows.Where(r => records.ContainsKey(r.RecordId))
+            .Select(r => new StoryLink(r.NodeId, r.PublicId, r.RecordId, records[r.RecordId]))
+            .OrderBy(r => r.NodeId)
+            .ToList();
+    }
+
+    /// <summary>The cache-key term of a folder's story links: changes whenever a link that counts is added, removed or re-pointed.</summary>
+    private static string StoriesKey(List<StoryLink> stories)
+    {
+        if (stories.Count == 0)
+            return "-";
+        var text = string.Join(',', stories.Select(s => $"{s.NodeId}.{s.RecordId}"));
+        return $"{stories.Count}.{Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text)), 0, 8)}";
+    }
 
     private static bool IsUnitFolder(string? name) => AutoMatchText.IsUnitFolderName(name) && !CountEvidence.IsSideFolderName(name);
 
@@ -273,7 +341,8 @@ public sealed class VolumeEntryService
 
     // --- Building ------------------------------------------------------------------------------------------------------
 
-    private async Task<FolderVolumeEntries> BuildAsync(NodeInfo folder, SeriesContext context, string language, CancellationToken ct)
+    private async Task<FolderVolumeEntries> BuildAsync(NodeInfo folder, SeriesContext context, string language, List<StoryLink> stories,
+        CancellationToken ct)
     {
         // A unit subfolder of a linked series never groups when the series' numbering restarts across its folders.
         if (!context.Own && context.SeriesFolderId is { } seriesFolder && await SeriesRestartsAsync(seriesFolder, ct))
@@ -309,6 +378,23 @@ public sealed class VolumeEntryService
         {
             foreach (var archive in unit.Archives)
                 Add(archive, unit.Name);
+        }
+
+        // 1.37.0: a folder of stories (neither a series nor a collection) - the archives linked to the same record stack first, the rest
+        // groups as before, never with a map or missing-volume placeholders (a collected volume's record is not this folder's series).
+        if (context.StoriesQualify && stories.Count > 0)
+        {
+            var keyByRow = stories.ToDictionary(s => s.NodePublicId, s => s.RecordPublicId, StringComparer.Ordinal);
+            var storyGrouping = StoryCollectionGrouping.Group(rows, keyByRow);
+            var records = stories.GroupBy(s => s.RecordPublicId, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.First().RecordId, StringComparer.Ordinal);
+            return new FolderVolumeEntries(
+                folder.Id, folder.PublicId, folder.LibraryId, folder.LibraryPublicId,
+                storyGrouping.Entries, byId, storyGrouping.StackCount, Consolidated: false, SeriesFolderId: null)
+            {
+                CollectionStackCount = storyGrouping.CollectionCount,
+                CollectionRecords = records,
+            };
         }
 
         var (map, release, status, facts) = await LoadMapAsync(context.RecordId, language, ct);
