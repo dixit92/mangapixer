@@ -269,6 +269,17 @@ export interface LibraryDto {
   scanHour?: number | null;
   /** Weekday of a Weekly scan with an hour (0 = Sunday ... 6); null = Sunday. Admin responses only. */
   scanWeekday?: number | null;
+  /** Who started the last completed scan (1.37.0). Only in responses to an admin; null when unknown. */
+  lastScanStartedBy?: ScanStarterDto | null;
+}
+
+/**
+ * Who started a scan (1.37.0): the schedule, an admin (their user name) or an API token (its name). `name` is null for the schedule,
+ * or when that account or token has since been removed. Never a token value.
+ */
+export interface ScanStarterDto {
+  kind: 'schedule' | 'admin' | 'token';
+  name?: string | null;
 }
 
 /** Request to set a library's icon (1.22.0). Null clears back to the default. */

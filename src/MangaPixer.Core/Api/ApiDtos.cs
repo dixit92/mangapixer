@@ -562,6 +562,22 @@ public sealed record LibraryDto
 
     /// <summary>Weekday of a Weekly scan with an hour (0 = Sunday ... 6), or null (Sunday). Admin library responses only.</summary>
     public int? ScanWeekday { get; init; }
+
+    /// <summary>
+    /// Who started the last completed scan (1.37.0): the schedule, an admin, or an API token. Only in responses to an admin; null for
+    /// everyone else, for a library never scanned, and for a scan from before the starter was kept.
+    /// </summary>
+    public ScanStarterDto? LastScanStartedBy { get; init; }
+}
+
+/// <summary>
+/// Who started a scan (1.37.0). <see cref="Kind"/>: <c>schedule</c>, <c>admin</c> or <c>token</c>. <see cref="Name"/>: the admin's user
+/// name or the token's name; null for the schedule, or when that account or token has since been removed. Never a token value.
+/// </summary>
+public sealed record ScanStarterDto
+{
+    public required string Kind { get; init; }
+    public string? Name { get; init; }
 }
 
 /// <summary>

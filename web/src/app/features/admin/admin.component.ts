@@ -27,6 +27,7 @@ import {
   SystemPlatform,
   YacReaderDetectDto,
   YacReaderImportPreviewDto,
+  ScanStarterDto,
 } from '../../core/api/api-types';
 import { libraryPathCopy } from './library-path-copy';
 import { DebugLogCardComponent } from './debug-log-card.component';
@@ -123,6 +124,9 @@ import { ApiTokensCardComponent } from './api-tokens/api-tokens-card.component';
                   @if (lib.itemCount !== null) { {{ lib.itemCount }} items }
                   @if (lib.lastScanCompleted && !lib.isScanning) {
                     · last scan {{ lib.lastScanCompleted | date:'short' }}
+                    @if (lib.lastScanStartedBy; as by) {
+                      <span data-testid="last-scan-by">{{ scanStarterText(by) }}</span>
+                    }
                   }
                 </div>
                 <span matListItemMeta class="lib-meta">
@@ -820,6 +824,20 @@ export class AdminComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.stopPolling();
+  }
+
+  /** "by schedule", "by admin <name>", "by token <name>" (1.37.0); a removed account or token keeps its kind. */
+  scanStarterText(by: ScanStarterDto): string {
+    switch (by.kind) {
+      case 'schedule':
+        return 'by schedule';
+      case 'admin':
+        return by.name ? `by admin ${by.name}` : 'by a removed admin';
+      case 'token':
+        return by.name ? `by token ${by.name}` : 'by a removed token';
+      default:
+        return '';
+    }
   }
 
   scanRunId(libraryId: string): string | undefined {
