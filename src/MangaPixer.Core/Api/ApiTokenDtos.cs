@@ -14,7 +14,8 @@ public sealed record ApiTokenDto
     /// <summary>The first characters of the token, e.g. <c>mpx_Ab3x</c>, so an admin can tell tokens apart.</summary>
     public required string Prefix { get; init; }
 
-    /// <summary>The scopes, today only <c>metadata:read</c>.</summary>
+    /// <summary>The scopes chosen at creation: <c>metadata:read</c> (read the export) and / or <c>library:scan</c> (1.36.0, request
+    /// a full library scan).</summary>
     public required IReadOnlyList<string> Scopes { get; init; }
 
     /// <summary>The admin who created the token; the token works only while that account is an active admin.</summary>
@@ -45,6 +46,13 @@ public sealed record CreateApiTokenRequest
     /// "never" is always an explicit choice.
     /// </summary>
     public required int? ExpiresInDays { get; init; }
+
+    /// <summary>
+    /// The scopes to grant (1.36.0): <c>metadata:read</c> and / or <c>library:scan</c>, at least one. Left out (null) = only
+    /// <c>metadata:read</c>, as before 1.36.0. An unknown or empty list is refused with 400 <c>invalid_scope</c>. Scopes cannot be
+    /// changed after creation.
+    /// </summary>
+    public IReadOnlyList<string>? Scopes { get; init; }
 }
 
 /// <summary>

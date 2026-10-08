@@ -15,13 +15,15 @@ using Microsoft.Net.Http.Headers;
 /// The personal access token scheme (<see cref="ExportApi.TokenScheme"/>, 1.33.0): reads <c>Authorization: Bearer mpx_...</c>.
 /// </summary>
 /// <remarks>
-/// <para>This scheme is never the default. Only the export policy (<see cref="ExportApi.Policy"/>) names it, so the
-/// authorization middleware runs it for export endpoints only; every other endpoint authenticates with the cookie alone and a
-/// bearer header there is ignored exactly as if it were absent.</para>
+/// <para>This scheme is never the default. Only the two export policies (<see cref="ExportApi.Policy"/>, and
+/// <see cref="ExportApi.ScanPolicy"/> since 1.36.0) name it, so the authorization middleware runs it for export endpoints only;
+/// every other endpoint authenticates with the cookie alone and a bearer header there is ignored exactly as if it were absent.</para>
 /// <para>Order: no bearer header -> no result (the cookie may still succeed). A client address with too many failed attempts
-/// -> refused before any database lookup (the challenge answers 429). A method other than GET / HEAD -> refused (tokens are
-/// read-only). Otherwise the token is validated; a refusal counts one failed attempt for the address.</para>
-/// <para>The principal carries the token's public id and its scopes and NO role, so no role-based policy ever accepts it.</para>
+/// -> refused before any database lookup (the challenge answers 429). A method other than GET / HEAD -> refused (tokens read),
+/// with ONE exception (1.36.0): a POST to an endpoint marked <see cref="TokenWriteAllowedAttribute"/> - only the library scan
+/// request carries it. Otherwise the token is validated; a refusal counts one failed attempt for the address.</para>
+/// <para>The principal carries the token's public id, its scopes and its owner's user id (a custom claim, for the audit trail)
+/// and NO name and NO role, so no role-based policy ever accepts it and no code reading the name claim sees a user.</para>
 /// </remarks>
 public sealed class ApiTokenAuthenticationHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
@@ -63,7 +65,7 @@ public sealed class ApiTokenAuthenticationHandler : AuthenticationHandler<Authen
             return AuthenticateResult.Fail("too_many_failures");
         }
 
-        if (!HttpMethods.IsGet(Request.Method) && !HttpMethods.IsHead(Request.Method))
+        if (!HttpMethods.IsGet(Request.Method) && !HttpMethods.IsHead(Request.Method) && !IsMarkedTokenWrite())
         {
             Context.Items[RefusedItem] = true;
             Logger.LogInformation(LogEvents.Auth.ApiTokenRefused, "API token refused: {Reason}", "method_not_allowed");
@@ -88,12 +90,28 @@ public sealed class ApiTokenAuthenticationHandler : AuthenticationHandler<Authen
             return AuthenticateResult.Fail("invalid_token");
         }
 
-        var claims = new List<Claim> { new(ApiTokenClaims.TokenId, result.TokenId!) };
+        var claims = new List<Claim>
+        {
+            new(ApiTokenClaims.TokenId, result.TokenId!),
+            // 1.36.0: the owner's id for the audit row of a scan request. A custom claim type on purpose - NOT NameIdentifier,
+            // which the cookie-side code reads as "the signed-in user".
+            new(ApiTokenClaims.OwnerUserId, result.OwnerUserId!.Value.ToString(CultureInfo.InvariantCulture)),
+        };
         claims.AddRange(result.Scopes.Select(s => new Claim(ApiTokenClaims.Scope, s)));
         // No name and no role claim: the identity is the token, and no role-based policy may accept it.
         var identity = new ClaimsIdentity(claims, Scheme.Name, nameType: null, roleType: null);
         return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme.Name));
     }
+
+    /// <summary>
+    /// The single exception to "tokens only read" (1.36.0): a POST whose endpoint carries <see cref="TokenWriteAllowedAttribute"/>.
+    /// The scheme runs only from a policy's authentication step, i.e. after routing, so the endpoint is known here. POST only -
+    /// PUT / PATCH / DELETE stay refused even on a marked endpoint. Which scope the endpoint needs is its policy's business
+    /// (<see cref="ExportApi.ScanPolicy"/>); the marker only lets the token be checked at all.
+    /// </summary>
+    private bool IsMarkedTokenWrite() =>
+        HttpMethods.IsPost(Request.Method)
+        && Context.GetEndpoint()?.Metadata.GetMetadata<TokenWriteAllowedAttribute>() is not null;
 
     protected override async Task HandleChallengeAsync(AuthenticationProperties properties)
     {

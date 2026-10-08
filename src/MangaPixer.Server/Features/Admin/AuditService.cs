@@ -261,6 +261,10 @@ public static class AuditActions
     // Personal access tokens (1.33.0). CorrelationId = the token's public id; TargetUserId = its owner. Never the secret.
     public const string ApiTokenCreate = "api_token.create";
     public const string ApiTokenRevoke = "api_token.revoke";
+
+    // 1.36.0: a token with the library:scan scope started a full library scan. Actor = the token's owner, TargetLibraryId = the
+    // library, CorrelationId = the token's public id (never the secret). Only accepted requests are recorded (refusals are logged).
+    public const string LibraryScanRequest = "library.scan.request";
 }
 
 /// <summary>Canonical audit result verbs (kept short — the column is 32 chars).</summary>

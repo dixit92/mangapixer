@@ -32,12 +32,15 @@ public sealed class ApiTokensController(ApiTokenService tokens, AuditService aud
             return BadRequest(new ApiError { Error = "invalid_name", Message = "Give the token a name of 1 to 64 characters." });
         if (request.ExpiresInDays is { } days && !ApiTokenLimits.AllowedExpiryDays.Contains(days))
             return BadRequest(new ApiError { Error = "invalid_expiry", Message = "A token expires after 30, 90 or 365 days, or never." });
+        // 1.36.0: scopes are chosen here and never later; absent = the read scope only (1.33.0 behaviour).
+        if (!ApiTokenService.TryNormalizeScopes(request.Scopes, out var scopes))
+            return BadRequest(new ApiError { Error = "invalid_scope", Message = "Choose at least one of: read the metadata export, request library scans." });
         if (!long.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), NumberStyles.None, CultureInfo.InvariantCulture, out var userId))
             return Forbid();
 
-        var created = await tokens.CreateAsync(userId, name, request.ExpiresInDays, ct);
-        logger.LogInformation(LogEvents.Auth.ApiTokenCreated, "API token {TokenId} created (expires in {ExpiresInDays} days)",
-            created.Token.Id, request.ExpiresInDays?.ToString(CultureInfo.InvariantCulture) ?? "never");
+        var created = await tokens.CreateAsync(userId, name, request.ExpiresInDays, scopes, ct);
+        logger.LogInformation(LogEvents.Auth.ApiTokenCreated, "API token {TokenId} created (expires in {ExpiresInDays} days, scopes {Scopes})",
+            created.Token.Id, request.ExpiresInDays?.ToString(CultureInfo.InvariantCulture) ?? "never", string.Join(' ', scopes));
         await audit.RecordAsync(AuditActions.ApiTokenCreate, AuditResults.Success, User.Identity?.Name,
             targetUserId: userId, correlationId: created.Token.Id, ct);
         return Ok(created);

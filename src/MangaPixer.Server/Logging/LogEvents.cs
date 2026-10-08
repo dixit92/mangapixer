@@ -109,6 +109,10 @@ public static class LogEvents
         public const int ApiTokenRequestsLimited = 2032;
         public const int ApiTokenCreated = 2033;
         public const int ApiTokenRevoked = 2034;
+
+        // 1.36.0: a token's library scan request (ids, status codes and timings only).
+        public const int ApiTokenScanStarted = 2035;
+        public const int ApiTokenScanRefused = 2036;
     }
 
     /// <summary>Scan phases, reconciliation, tombstoning, and admin-triggered scans.</summary>
