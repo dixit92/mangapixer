@@ -55,10 +55,16 @@ async function ensureArtist(page: Page): Promise<[string, string, Node[]]> {
   }
   let folder = '';
   let stories: Node[] = [];
+  let rescanned = false;
   await expect.poll(async () => {
     const root = await (await page.request.get(`/api/v1/libraries/${lib!.id}/browse?pageSize=50`)).json();
     folder = ((root.items as Node[]).find((n) => n.displayName === 'Story Artist')?.id) ?? '';
-    if (!folder) return 0;
+    if (!folder) {
+      // Another spec may have registered the library without waiting for its scan: ask for one (refused while one runs).
+      if (!rescanned) await page.request.post(`/api/v1/admin/libraries/${lib!.id}/scan`, { headers });
+      rescanned = true;
+      return 0;
+    }
     const inside = await (await page.request.get(`/api/v1/libraries/${lib!.id}/browse?parentId=${folder}&pageSize=50&group=flat`)).json();
     stories = inside.items as Node[];
     return stories.length;
@@ -119,6 +125,7 @@ async function shot(page: Page, name: string): Promise<void> {
 
 for (const [label, width, height] of [['desktop', 1280, 900], ['tablet', 820, 1180], ['phone', 390, 844]] as const) {
   test(`the stories of one collected volume show as one stacked card that opens their list (${label})`, async ({ page, baseURL }) => {
+    test.setTimeout(180_000); // the first spec to use the volume library waits for its scan
     const foreign = watchForeignRequests(page, baseURL!);
     await page.setViewportSize({ width, height });
     await login(page);
