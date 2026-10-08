@@ -65,9 +65,6 @@ public sealed class ExportSampleSnapshotTests
         await kit.Db.AddArchiveAsync(fanWorks, "[Sample Circle] Side Story.cbz");
         var misc = await kit.Db.AddFolderAsync(null, "Misc", lib.Id);
         var gone = await kit.Db.AddFolderAsync(null, "Synthetic Gone", lib.Id);
-        // 1.37.0: a folder of one artist's works - no record; its works are items of their own.
-        var artistFolder = await kit.Db.AddFolderAsync(doujin, "Sample Artist");
-        await kit.Db.AddArchiveAsync(artistFolder, "Sample Artist - Night Story.cbz");
 
         var questRecord = Record("10000000001", "Synthetic Quest", MetadataOriginStatus.Ongoing, 5, 41,
             "[{\"name\":\"Synthetic Press\",\"kind\":\"english\",\"volumes\":3,\"status\":\"ongoing\"},{\"name\":\"Synthetic Original\",\"kind\":\"original\"}]",
@@ -133,7 +130,6 @@ public sealed class ExportSampleSnapshotTests
         Link(db, misc, null, SeriesLinkState.DontMatch, null, null);
         Link(db, fanWorks, questRecord, SeriesLinkState.CollectionAbout, MetadataMatchMethod.Search, null);
         Link(db, gone, null, SeriesLinkState.DontMatch, null, null);
-        Link(db, artistFolder, null, SeriesLinkState.ArtistFolder, null, null);
         await db.SaveChangesAsync();
 
         await kit.RebuildAsync(lib.Id);
@@ -145,6 +141,11 @@ public sealed class ExportSampleSnapshotTests
         await kit.TombstoneAsync(oldName);
         await kit.CarryOver().MoveRowsAsync(oldName.Id, newName.Id, default);
         await db.NodeSeriesLinks.Where(l => l.NodeId == gone.Id).ExecuteDeleteAsync();
+        // 1.37.0: a folder marked as one artist's works - no record; its works are items of their own (created last: earlier ids stay).
+        var artistFolder = await kit.Db.AddFolderAsync(doujin, "Sample Artist");
+        await kit.Db.AddArchiveAsync(artistFolder, "Sample Artist - Night Story.cbz");
+        Link(db, artistFolder, null, SeriesLinkState.ArtistFolder, null, null);
+        await db.SaveChangesAsync();
 
         var answer = await kit.Export().PageAsync(lib.PublicId, ExportJson.Format(T0), null, null, null);
         Assert.True(answer.Json is not null, answer.Error);
