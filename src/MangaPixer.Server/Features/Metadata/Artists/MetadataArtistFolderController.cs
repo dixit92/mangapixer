@@ -31,7 +31,7 @@ public sealed class MetadataArtistFolderController : ControllerBase
     [HttpPut("nodes/{nodeId}/artist-folder")]
     [ProducesResponseType<ArtistFolderResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Set(string nodeId, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] SetArtistFolderRequest? request,
         CancellationToken ct) =>
         ToResult(await _artists.SetAsync(nodeId, request, Actor, ct));
@@ -39,7 +39,6 @@ public sealed class MetadataArtistFolderController : ControllerBase
     /// <summary>Removes only an "Artist folder" row (another link is left alone); the declared creator stays.</summary>
     [HttpDelete("nodes/{nodeId}/artist-folder")]
     [ProducesResponseType<NodeSeriesLinkChangeDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Clear(string nodeId, CancellationToken ct)
     {
         var (code, change) = await _artists.ClearAsync(nodeId, Actor, ct);
@@ -50,7 +49,7 @@ public sealed class MetadataArtistFolderController : ControllerBase
     [HttpPost("review/{nodeId}/accept-artist")]
     [ProducesResponseType<ArtistFolderResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> AcceptArtist(string nodeId,
         [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] SetArtistFolderRequest? request, CancellationToken ct) =>
         ToResult(await _review.AcceptArtistAsync(nodeId, request, Actor, ct));
