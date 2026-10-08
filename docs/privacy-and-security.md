@@ -7,7 +7,7 @@ What MangaPixer keeps to itself, what it can send when an admin allows it, and h
 - **Logs never contain paths or titles**, only IDs, counts, timings and sanitized error codes. Reader-facing API responses never contain filesystem paths.
 - **Source media is read-only**, enforced by the code and by the `:ro` mounts.
 - **No default credentials.** The first admin is created by you on the setup screen, and that endpoint refuses once any user exists.
-- **API tokens** (1.33.0) are created only by an admin, read only the metadata export and nothing else, and are stored as a SHA-256 fingerprint - the token itself is shown once and never written to the database or the logs (see [API tokens](api-tokens.md)).
+- **API tokens** (1.33.0) are created only by an admin, read only the metadata export - and, only when the admin ticks it (1.36.0), may request a full library scan - and nothing else, and are stored as a SHA-256 fingerprint - the token itself is shown once and never written to the database or the logs (see [API tokens](api-tokens.md)).
 - Session cookies use ASP.NET Core Data Protection; the keys live in `<DataRoot>/keys`, so treat the data volume as sensitive.
 
 ## What leaves your server
@@ -36,7 +36,7 @@ With **Automatic matching** on and **Volume covers from the web** on (Metadata M
 
 ### API tokens
 
-*New in 1.33.0.* An admin can create **API tokens** in Administration so another program - MangaList - can read the metadata export (`/api/v1/export/`). A token can only read that export: it is refused for anything but reading requests, and sent to any other page it is ignored as if it were absent. It works only while the admin who created it is an active admin, and until it is revoked or expires. MangaPixer stores only a SHA-256 fingerprint of each token; the token is shown once, never logged (log lines name a token by its public id), and never sent anywhere. Use HTTPS when the program reaches MangaPixer from outside your home network. Details: [API tokens](api-tokens.md).
+*New in 1.33.0.* An admin can create **API tokens** in Administration so another program - MangaList - can read the metadata export (`/api/v1/export/`). A token can only read that export: it is refused for anything but reading requests, and sent to any other page it is ignored as if it were absent. *From 1.36.0* an admin can also tick **Request library scans** for a token: it may then ask for a full scan of a library (`POST /api/v1/export/libraries/{id}/scan`, at most once per library every 5 minutes) - the same local scan as **Scan now**, which changes no files, links or settings and sends nothing to the internet. That one address accepts only tokens, never a browser sign-in. Each started scan is recorded in the Audit trail. It works only while the admin who created it is an active admin, and until it is revoked or expires. MangaPixer stores only a SHA-256 fingerprint of each token; the token is shown once, never logged (log lines name a token by its public id), and never sent anywhere. Use HTTPS when the program reaches MangaPixer from outside your home network. Details: [API tokens](api-tokens.md).
 
 ### User-Agent
 

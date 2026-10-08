@@ -51,8 +51,8 @@ public sealed class ExportScanController(
     [TokenWriteAllowed]
     [IgnoreAntiforgeryToken] // Safe ONLY because ExportApi.ScanPolicy never accepts the cookie (see the class remarks).
     [ProducesResponseType<ScanTriggeredDto>(StatusCodes.Status202Accepted)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(void), StatusCodes.Status401Unauthorized)] // the token scheme's challenge, no body
+    [ProducesResponseType(typeof(void), StatusCodes.Status403Forbidden)]    // the scan scope is missing, no body
     [ProducesResponseType<ApiError>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ApiError>(StatusCodes.Status409Conflict)]
     [ProducesResponseType<ApiError>(StatusCodes.Status429TooManyRequests)]

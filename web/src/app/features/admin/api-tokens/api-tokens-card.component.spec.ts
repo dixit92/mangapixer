@@ -10,6 +10,8 @@ import { ApiTokenDto, CreateApiTokenResponse } from '../../../core/api/api-types
 /**
  * API tokens card (1.33.0). The API is mocked at the HTTP layer so the real ApiService request shapes are asserted: the list,
  * create (name + expiry, default 1 year, "Never" sends null) with the secret shown once and copied, and revoke after a confirm.
+ * 1.36.0: the scopes - "Read the metadata export" ticked and "Request library scans" not by default, at least one required,
+ * sent as `scopes` - and each listed token's scopes.
  */
 describe('ApiTokensCardComponent', () => {
   const URL = '/api/v1/admin/tokens';
@@ -80,7 +82,7 @@ describe('ApiTokensCardComponent', () => {
     create.click();
 
     const req = httpMock.expectOne((r) => r.method === 'POST' && r.url === URL);
-    expect(req.request.body).toEqual({ name: 'MangaList', expiresInDays: 365 });
+    expect(req.request.body).toEqual({ name: 'MangaList', expiresInDays: 365, scopes: ['metadata:read'] });
     const response: CreateApiTokenResponse = { token: token('c', { name: 'MangaList' }), secret: SECRET };
     req.flush(response);
     httpMock.expectOne((r) => r.method === 'GET' && r.url === URL).flush([response.token]);
@@ -109,8 +111,63 @@ describe('ApiTokensCardComponent', () => {
     q<HTMLButtonElement>(fixture, 'api-token-create')!.click();
 
     const req = httpMock.expectOne((r) => r.method === 'POST' && r.url === URL);
-    expect(req.request.body).toEqual({ name: 'Forever', expiresInDays: null });
+    expect(req.request.body).toEqual({ name: 'Forever', expiresInDays: null, scopes: ['metadata:read'] });
     req.flush({ token: token('d'), secret: SECRET } satisfies CreateApiTokenResponse);
+    httpMock.expectOne((r) => r.method === 'GET' && r.url === URL).flush([]);
+  });
+
+  it('shows what each listed token may do', () => {
+    const fixture = createLoaded([
+      token('r'),
+      token('s', { scopes: ['library:scan'] }),
+      token('b', { scopes: ['metadata:read', 'library:scan'] }),
+    ]);
+    expect(q(fixture, 'api-token-scopes-r')!.textContent).toContain('May: read the metadata export');
+    expect(q(fixture, 'api-token-scopes-r')!.textContent).not.toContain('scan');
+    expect(q(fixture, 'api-token-scopes-s')!.textContent).toContain('May: request library scans');
+    expect(q(fixture, 'api-token-scopes-b')!.textContent).toContain('May: read the metadata export, request library scans');
+  });
+
+  it('offers the two scopes - read ticked, scan not - requires at least one, and sends the ticked ones in order', () => {
+    const fixture = createLoaded([]);
+    const read = q<HTMLInputElement>(fixture, 'api-token-scope-read')!;
+    const scan = q<HTMLInputElement>(fixture, 'api-token-scope-scan')!;
+    const create = q<HTMLButtonElement>(fixture, 'api-token-create')!;
+    expect(read.checked).toBe(true);
+    expect(scan.checked).toBe(false);
+    expect(text(fixture)).toContain('Read the metadata export');
+    expect(text(fixture)).toContain('Request library scans');
+
+    fixture.componentInstance.name.set('MangaList');
+    read.click();
+    fixture.detectChanges();
+    expect(read.checked).toBe(false);
+    expect(create.disabled).toBe(true);
+    expect(q(fixture, 'api-token-scope-required')).not.toBeNull();
+    fixture.componentInstance.create(); // a forced submit sends nothing either
+    httpMock.expectNone((r) => r.method === 'POST');
+
+    scan.click();
+    fixture.detectChanges();
+    expect(create.disabled).toBe(false);
+    expect(q(fixture, 'api-token-scope-required')).toBeNull();
+    create.click();
+    let req = httpMock.expectOne((r) => r.method === 'POST' && r.url === URL);
+    expect(req.request.body).toEqual({ name: 'MangaList', expiresInDays: 365, scopes: ['library:scan'] });
+    req.flush({ token: token('s', { scopes: ['library:scan'] }), secret: SECRET } satisfies CreateApiTokenResponse);
+    httpMock.expectOne((r) => r.method === 'GET' && r.url === URL).flush([]);
+    fixture.detectChanges();
+
+    // After a create the form is back at the safe default; ticking both sends both, read first.
+    expect(q<HTMLInputElement>(fixture, 'api-token-scope-read')!.checked).toBe(true);
+    expect(q<HTMLInputElement>(fixture, 'api-token-scope-scan')!.checked).toBe(false);
+    q<HTMLInputElement>(fixture, 'api-token-scope-scan')!.click();
+    fixture.componentInstance.name.set('Both');
+    fixture.detectChanges();
+    q<HTMLButtonElement>(fixture, 'api-token-create')!.click();
+    req = httpMock.expectOne((r) => r.method === 'POST' && r.url === URL);
+    expect(req.request.body).toEqual({ name: 'Both', expiresInDays: 365, scopes: ['metadata:read', 'library:scan'] });
+    req.flush({ token: token('t'), secret: SECRET } satisfies CreateApiTokenResponse);
     httpMock.expectOne((r) => r.method === 'GET' && r.url === URL).flush([]);
   });
 

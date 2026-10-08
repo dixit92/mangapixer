@@ -2768,6 +2768,12 @@ export interface ExportRefreshDto {
 
 // --- Personal access tokens + export ping (1.33.0) ---
 
+/**
+ * A token scope: `metadata:read` reads the metadata export; `library:scan` (1.36.0) may request a full library scan through
+ * POST /export/libraries/{id}/scan. Chosen at creation, never changed later.
+ */
+export type ApiTokenScope = 'metadata:read' | 'library:scan';
+
 /** GET /admin/tokens: one personal access token. Never carries the secret. */
 export interface ApiTokenDto {
   id: string;
@@ -2784,10 +2790,14 @@ export interface ApiTokenDto {
   status: 'active' | 'expired' | 'revoked' | 'ownerInactive';
 }
 
-/** POST /admin/tokens. expiresInDays: 30, 90 or 365, or null for never (always sent). */
+/**
+ * POST /admin/tokens. expiresInDays: 30, 90 or 365, or null for never (always sent). scopes (1.36.0): at least one; left out =
+ * `metadata:read` only; an unknown or empty list is refused with 400 `invalid_scope`.
+ */
 export interface CreateApiTokenRequest {
   name: string;
   expiresInDays: number | null;
+  scopes?: ApiTokenScope[] | null;
 }
 
 /** The answer to POST /admin/tokens: the secret is shown this one time only. */

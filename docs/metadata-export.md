@@ -16,11 +16,11 @@ Every export endpoint needs one of:
   MangaPixer Administration; a token is shown once, and it works on the export endpoints only - nowhere else in MangaPixer.
 - an **admin's** browser login (useful to look at the answers by hand).
 
-Never put a token in a URL. A reader account gets `403`. Tokens are read-only: the export answers only `GET` (other methods get `405`), and a token is refused on anything but `GET` / `HEAD`. `GET /api/v1/export/ping` answers `{ "ok": true, "serverTime": "...", "auth": "token" }` - use it to test a token. See [API tokens](api-tokens.md).
+Never put a token in a URL. A reader account gets `403`. The export is read-only: its endpoints answer only `GET` (other methods get `405`), and a token is refused on anything but `GET` / `HEAD` - except the one scan request below the same prefix, `POST /api/v1/export/libraries/{id}/scan` (1.36.0), which needs a token with the separate `library:scan` scope (see [Request a library scan](api-tokens.md#request-a-library-scan)). `GET /api/v1/export/ping` answers `{ "ok": true, "serverTime": "...", "auth": "token" }` - use it to test a token. See [API tokens](api-tokens.md).
 
 ## Endpoints
 
-All endpoints are `GET`, under `/api/v1/export/`, and answer JSON. Times are UTC ISO 8601 with milliseconds: `2026-10-04T12:00:00.000Z`.
+All endpoints below are `GET`, under `/api/v1/export/`, and answer JSON. Times are UTC ISO 8601 with milliseconds: `2026-10-04T12:00:00.000Z`.
 
 ### `GET /api/v1/export/libraries`
 
