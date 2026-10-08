@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Clear revoked API tokens.** A revoked or expired token used to stay in the **API tokens** list forever. When the list holds any, **Clear revoked** below it removes all revoked and expired tokens after a confirm; they no longer work, so nothing changes for the apps you use. Active tokens stay, and so do tokens paused because their admin is no longer an active admin. The **Audit trail** keeps each removed token's history and records the removal. See [API tokens](docs/api-tokens.md#clear-revoked-tokens).
+- **Who started the last scan.** On the **Libraries** card each library's line now says who started its last scan: **by schedule**, **by admin** with the admin's name, or **by token** with the API token's name. Only admins see it. See [Library layout](docs/library-layout.md).
+
+### Fixed
+
+- **An artist's folder stuck in Needs review as one work.** A folder that waited in **Needs review** as a single work - queued before MangaPixer recognised it as an artist's folder, for example before a series by that artist was linked - stayed there when it was matched again, showing the **Artist folder** and **Review only** chips with one of its stories as the suggestion, and nothing inside it was ever looked up. Matching it again (by **Re-run matching**, or after an update) now matches its stories one by one, as for any artist's folder, and its folder-level review row goes away. **Upgrade note:** folders left in that state are checked once more after the update (a few searches, from the daily budget); other works waiting in Needs review are not checked again.
+- **Moves: "Use old" now shows in the metadata export as a carry.** Resolving a series-link move conflict with **Use old** showed in the export as a removal plus a new item; it now shows the old item's id as `carriedFrom`, as for a folder carried over after a rename or move. See [Metadata export](docs/metadata-export.md).
+
 ## [1.36.0] - 2026-10-07
 
 ### Added
