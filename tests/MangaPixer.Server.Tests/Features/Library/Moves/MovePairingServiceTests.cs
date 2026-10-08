@@ -187,6 +187,9 @@ public sealed class MovePairingServiceTests : IDisposable
             Assert.False(await db.MetadataRecords.AnyAsync(r => r.Id == wrong)); // orphaned record removed
             Assert.Empty(await new MoveTombstoneHolds(db).HeldNodeIds().ToListAsync());
             Assert.Equal((int)MoveConflictState.Overwritten, (await db.MoveConflicts.SingleAsync()).State);
+            // 1.37.0: the metadata export shows the moved link as carried from the old node, not as a removal + an addition.
+            var carry = await db.ExportCarries.AsNoTracking().SingleAsync();
+            Assert.Equal((nf.Id, folder.Id, folder.PublicId), (carry.NewNodeId, carry.OldNodeId, carry.OldNodePublicId));
         }
     }
 
