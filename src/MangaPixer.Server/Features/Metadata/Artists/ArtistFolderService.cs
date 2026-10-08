@@ -55,10 +55,12 @@ public sealed class ArtistFolderService
         if (node.Kind != (int)CatalogNodeKind.Folder)
             return new(MetadataLinkResultCode.NotAFolder, Error: "not_a_folder");
 
-        var name = DeclaredFactKeys.CleanName(string.IsNullOrWhiteSpace(request?.Name) ? node.DisplayName : request.Name);
+        var requestedName = request?.Name;
+        var name = DeclaredFactKeys.CleanName(string.IsNullOrWhiteSpace(requestedName) ? node.DisplayName : requestedName);
         if (name is null)
             return new(MetadataLinkResultCode.InvalidRequest, Error: "creator_name_invalid");
-        var role = string.IsNullOrWhiteSpace(request?.Role) ? DefaultRole : request.Role.Trim().ToLowerInvariant();
+        var requestedRole = request?.Role;
+        var role = string.IsNullOrWhiteSpace(requestedRole) ? DefaultRole : requestedRole.Trim().ToLowerInvariant();
         if (!DeclaredFactKeys.CreatorRoles.Contains(role))
             return new(MetadataLinkResultCode.InvalidRequest, Error: "creator_role_invalid");
 

@@ -5,6 +5,7 @@ import { catchError } from 'rxjs/operators';
 
 import {
   ApiError,
+  ArtistFolderResultDto,
   CollectionAboutResultDto,
   CompanionDto,
   CoverPassStatusDto,
@@ -41,6 +42,7 @@ import {
   MetadataSettingsDto,
   NodeSeriesLinkChangeDto,
   SeriesInfoDto,
+  SetArtistFolderRequest,
   SetCollectionAboutRequest,
   UpdateMetadataLibraryRequest,
   UpdateMetadataSettingsRequest,
@@ -129,6 +131,20 @@ export class MetadataApiService {
   /** 1.34.0: clears only a "Collection about" row (another link is left alone). */
   clearCollection(nodeId: string): Observable<NodeSeriesLinkChangeDto> {
     return this.delete<NodeSeriesLinkChangeDto>(`/admin/metadata/nodes/${encodeURIComponent(nodeId)}/collection`);
+  }
+
+  /**
+   * 1.37.0: marks a FOLDER an artist's folder - never linked to a work, nothing inside inherits from it, the works inside are matched
+   * one by one. The artist (default: the folder's name, role "Story & art") becomes the folder's declared creator; the works inside are
+   * queued (while automatic matching is on). No network.
+   */
+  setArtistFolder(nodeId: string, request: SetArtistFolderRequest = {}): Observable<ArtistFolderResultDto> {
+    return this.put<ArtistFolderResultDto>(`/admin/metadata/nodes/${encodeURIComponent(nodeId)}/artist-folder`, request);
+  }
+
+  /** 1.37.0: removes only an "Artist folder" row (another link is left alone); the declared artist stays. */
+  clearArtistFolder(nodeId: string): Observable<NodeSeriesLinkChangeDto> {
+    return this.delete<NodeSeriesLinkChangeDto>(`/admin/metadata/nodes/${encodeURIComponent(nodeId)}/artist-folder`);
   }
 
   // --- Admin: identify (lane B2) ---
@@ -241,6 +257,11 @@ export class MetadataApiService {
   /** 1.34.0: accepts a waiting folder as a collection about its stored candidate `rank`. */
   acceptCollection(nodeId: string, rank: number): Observable<CollectionAboutResultDto> {
     return this.post<CollectionAboutResultDto>(`/admin/metadata/review/${encodeURIComponent(nodeId)}/accept-collection`, { rank });
+  }
+
+  /** 1.37.0: marks a waiting (Needs review / Unmatched) FOLDER an artist's folder; its row goes, its works are queued. */
+  acceptArtist(nodeId: string, request: SetArtistFolderRequest = {}): Observable<ArtistFolderResultDto> {
+    return this.post<ArtistFolderResultDto>(`/admin/metadata/review/${encodeURIComponent(nodeId)}/accept-artist`, request);
   }
 
   /** At most 200 nodes per call. */

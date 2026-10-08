@@ -115,9 +115,7 @@ public sealed class SeriesInfoResolver
 
         var hasCi = ci is not null;
         var mixed = ci?.IsMixed == true;
-        var state = ownCollection ? SeriesInfoState.CollectionAbout
-            : ownArtistFolder ? SeriesInfoState.ArtistFolder
-            : (record, hasCi, mixed) switch
+        var state = ownCollection ? SeriesInfoState.CollectionAbout : (record, hasCi, mixed) switch
         {
             (not null, true, false) => SeriesInfoState.WebAndComicInfo,
             (not null, _, _) => SeriesInfoState.Web,
@@ -125,6 +123,8 @@ public sealed class SeriesInfoResolver
             (null, true, false) => SeriesInfoState.ComicInfo,
             _ => nearestLink?.State == (int)SeriesLinkState.DontMatch ? SeriesInfoState.DontMatch : SeriesInfoState.None,
         };
+        if (ownArtistFolder)
+            state = SeriesInfoState.ArtistFolder;
 
         // A collection's items are other works: their ComicInfo never fills the series' fields.
         var dto = Merge(record, mixed || ownCollection || ownArtistFolder ? null : ci, ownCollection ? MetadataPrecedence.WebFirst : precedence);

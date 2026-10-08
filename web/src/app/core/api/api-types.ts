@@ -1010,12 +1010,18 @@ export interface RotatingBackupStatusDto {
 // Mirrors MangaPixer.Core/Api/MetadataDtos.cs + Core/Metadata/MetadataVocabulary.cs.
 // Enums arrive as their C# names (JsonStringEnumConverter).
 
-/** `CollectionAbout` (1.34.0): the folder's own link is "Collection about" a series - shown as context, without numbers. */
-export type SeriesInfoState = 'None' | 'ComicInfo' | 'Web' | 'WebAndComicInfo' | 'Mixed' | 'DontMatch' | 'CollectionAbout';
+/**
+ * `CollectionAbout` (1.34.0): the folder's own link is "Collection about" a series - shown as context, without numbers.
+ * `ArtistFolder` (1.37.0): the folder's own link is "Artist folder" - the works of one artist (its declared creator); no record.
+ */
+export type SeriesInfoState = 'None' | 'ComicInfo' | 'Web' | 'WebAndComicInfo' | 'Mixed' | 'DontMatch' | 'CollectionAbout' | 'ArtistFolder';
 export type MetadataPrecedence = 'WebFirst' | 'ComicInfoFirst';
 export type MetadataPrecedenceSource = 'Default' | 'Library' | 'Folder';
-/** `CollectionAbout` (1.34.0): a folder of works about the linked series (fan works) - stops inheritance, matching continues below. */
-export type SeriesLinkState = 'Confirmed' | 'Auto' | 'NeedsReview' | 'DontMatch' | 'CollectionAbout';
+/**
+ * `CollectionAbout` (1.34.0): a folder of works about the linked series (fan works) - stops inheritance, matching continues below.
+ * `ArtistFolder` (1.37.0): a folder of one artist's works - no record, stops inheritance, matching continues below archive by archive.
+ */
+export type SeriesLinkState = 'Confirmed' | 'Auto' | 'NeedsReview' | 'DontMatch' | 'CollectionAbout' | 'ArtistFolder';
 export type MetadataMatchMethod = 'Search' | 'Reference' | 'ComicInfoWebHint' | 'Auto';
 export type MetadataOrigin =
   | 'Japan' | 'Korea' | 'ChinaTaiwan' | 'EnglishOriginal' | 'Philippines' | 'Indonesia' | 'Thailand'
@@ -1438,7 +1444,7 @@ export type MetadataFolderContent = 'Auto' | 'DoujinshiAndAdultOneShots' | 'NotD
 export type MetadataMatchRunTrigger = 'Scan' | 'Bulk' | 'Retry' | 'Rerun' | 'Recheck';
 export type MetadataMatchRunStatus = 'Running' | 'Completed' | 'Cancelled';
 export type MetadataReviewBulkAction = 'AcceptTop' | 'DontMatch' | 'RerunMatching' | 'Confirm' | 'Unlink' | 'Later' | 'ClearLater'
-  | 'AcceptCollection';
+  | 'AcceptCollection' | 'MarkArtistFolder';
 export type MetadataFlagReason = 'WrongSeries' | 'WrongDetails' | 'NotOneSeries' | 'Other';
 export type MetadataFlagState = 'Open' | 'Relinked' | 'Unlinked' | 'DontMatch' | 'Dismissed';
 
@@ -1483,6 +1489,23 @@ export interface MetadataReviewAcceptCollectionRequest {
   rank: number;
 }
 
+/** 1.37.0: marks a folder an artist's folder; both optional (default: the folder's name, role `author` = "Story & art"). */
+export interface SetArtistFolderRequest {
+  name?: string | null;
+  role?: string | null;
+}
+
+/** 1.37.0: what marking a folder an artist's folder did. */
+export interface ArtistFolderResultDto {
+  change: NodeSeriesLinkChangeDto;
+  /** The artist as declared on the folder. */
+  artist: DeclaredCreatorDto;
+  /** The artist was added to the folder's own declared creators (false: already declared there). */
+  creatorAdded?: boolean;
+  /** Works at and below the folder queued for automatic matching now (0 while automatic matching is off). */
+  queued?: number;
+}
+
 /** 1.34.0: what marking a folder "Collection about" did. */
 export interface CollectionAboutResultDto {
   change: NodeSeriesLinkChangeDto;
@@ -1524,6 +1547,8 @@ export interface MetadataReviewSummaryDto {
   recheckPending: number;
   /** 1.34.0: folders marked "Collection about" a series. */
   collections: number;
+  /** 1.37.0: folders marked an artist's folder (listed in the Collections tab too; not part of `collections`). */
+  artistFolders: number;
 }
 
 export interface MetadataReviewLinkDto {
@@ -1604,6 +1629,8 @@ export interface MetadataReviewItemDto {
   sameFolder?: MetadataReviewGroupHintDto | null;
   /** 1.34.0 (Needs review, folders): "Looks like a collection about <Series>" - one of the stored candidates. */
   collection?: MetadataReviewCollectionHintDto | null;
+  /** 1.37.0 (Collections tab, an artist folder): the artist it declares (its first own declared creator). */
+  artist?: DeclaredCreatorDto | null;
   /** 1.31.0 (folder works): chapter numbers that more than one file of the same folder states. */
   duplicateChapters?: number;
   /** 1.31.0 (folder works): the same for volume numbers. */
@@ -2679,7 +2706,7 @@ export interface ExportItemDto {
 }
 
 export interface ExportLinkDto {
-  state: 'Confirmed' | 'Auto' | 'NeedsReview' | 'DontMatch' | 'CollectionAbout';
+  state: 'Confirmed' | 'Auto' | 'NeedsReview' | 'DontMatch' | 'CollectionAbout' | 'ArtistFolder';
   method?: string | null;
   score?: number | null;
   updatedAt: string;
