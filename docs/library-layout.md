@@ -167,7 +167,7 @@ Favorites belong to your account and follow you to every device. They respect Pr
 
 ## Rescans, moves and deletions
 
-**Each library is rescanned automatically on a schedule, daily by default.** There is no file watcher. In **MangaPixer Administration** > **Libraries**:
+**Each library is rescanned automatically on a schedule, daily by default.** There is no file watcher. An app holding an [API token](api-tokens.md#request-a-library-scan) allowed to request library scans - for example MangaList after it files new downloads - can also start a scan of a whole library (*new in 1.36.0*). In **MangaPixer Administration** > **Libraries**:
 
 - **Auto-scan** sets how often a library is rescanned: **Off**, **Hourly**, **Every 6 hours**, **Daily** (the default) or **Weekly**. It is set in the library's row of **Scheduled jobs**; under each library's row on the **Libraries** card a line shows the schedule with a **Change in Scheduled jobs** link. Next to it, **Last scan** shows when the library was last scanned and **Next scan (approx.)** when the next automatic scan is expected. See [Automatic scans](#automatic-scans).
 - **Scan now** (the circular-arrow icon) on a library's row scans that library.
