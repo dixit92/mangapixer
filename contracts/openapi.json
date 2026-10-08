@@ -741,6 +741,35 @@
         }
       }
     },
+    "/api/v1/admin/tokens/clear-revoked": {
+      "post": {
+        "tags": [
+          "ApiTokens"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClearApiTokensResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClearApiTokensResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClearApiTokensResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/system/info": {
       "get": {
         "tags": [
@@ -8915,6 +8944,22 @@
           },
           "newPassword": {
             "type": "string"
+          }
+        }
+      },
+      "ClearApiTokensResponse": {
+        "required": [
+          "removed"
+        ],
+        "type": "object",
+        "properties": {
+          "removed": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
