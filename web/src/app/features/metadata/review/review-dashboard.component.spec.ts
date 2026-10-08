@@ -603,6 +603,8 @@ describe('ReviewDashboardComponent', () => {
       });
       expect(el.querySelector('[data-testid="review-tab-Collections"] .badge')!.textContent!.trim()).toBe('3');
       expect(el.querySelector('[data-testid="review-link"]')!.textContent).toContain('Artist folder: Beta Painter');
+      // No series to compare with: only the folder's own cover.
+      expect(el.querySelectorAll('[data-node="n8"] [data-testid="review-covers"] figure').length).toBe(1);
       const buttons = Array.from(el.querySelectorAll('[data-node="n8"] .actions button')).map((b) => b.getAttribute('data-testid'));
       expect(buttons).toEqual(['review-clearArtistFolder']);
       c.onRowAction({ action: 'clearArtistFolder', item: marked });

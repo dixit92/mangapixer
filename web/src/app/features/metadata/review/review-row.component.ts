@@ -168,6 +168,8 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
             }
             <figcaption>Yours</figcaption>
           </figure>
+          <!-- 1.37.0: an artist folder names no series - only its own cover. -->
+          @if (it.link?.state !== 'ArtistFolder') {
           <figure class="cover">
             @if (candidateCoverUrl(); as url) {
               <!-- A provider request: queued, retried, and "No cover" with a retry when it gives up (1.29.0). -->
@@ -187,6 +189,7 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
             }
             <figcaption>{{ it.link && !hasCandidates() ? 'Linked' : 'Selected' }}</figcaption>
           </figure>
+          }
         </div>
         <div class="main">
       <div class="head">
