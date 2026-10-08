@@ -120,7 +120,7 @@ import { ApiTokensCardComponent } from './api-tokens/api-tokens-card.component';
               <mat-list-item>
                 <span matListItemIcon><app-library-icon [name]="lib.name" [icon]="lib.icon" [size]="24" /></span>
                 <div matListItemTitle>{{ lib.name }}</div>
-                <div matListItemLine>
+                <div matListItemLine class="lib-line">
                   @if (lib.itemCount !== null) { {{ lib.itemCount }} items }
                   @if (lib.lastScanCompleted && !lib.isScanning) {
                     · last scan {{ lib.lastScanCompleted | date:'short' }}
@@ -602,6 +602,9 @@ import { ApiTokensCardComponent } from './api-tokens/api-tokens-card.component';
       min-height: 76px;
     }
     .lib-meta, .snapshot-actions { align-self: center; }
+    /* 1.37.0: the counts line also says who started the last scan ("by token <name>"); it wraps instead of running past a
+       phone's edge (the row grows, see above). */
+    .lib-line { white-space: normal !important; overflow-wrap: anywhere; }
     /* Restore buttons (Backups > "Restore from a snapshot"): a fixed trailing
        column, vertically centered against the two-line title/timestamp text,
        so the buttons line up regardless of file name or timestamp length
