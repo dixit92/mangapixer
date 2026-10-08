@@ -32,8 +32,8 @@ public sealed class LastScanStartedByHttpTests
         {
             var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
             var adminId = await db.Users.Where(u => u.NormalizedUserName == "ADMIN").Select(u => u.Id).SingleAsync();
-            var reader = await db.Users.SingleAsync(u => u.NormalizedUserName == "READER1");
-            reader.ForcePasswordChange = false;
+            var readerUser = await db.Users.SingleAsync(u => u.NormalizedUserName == "READER1");
+            readerUser.ForcePasswordChange = false;
             var now = DateTimeOffset.UtcNow;
             var libs = names.Select((n, i) => new LibraryEntity
             {
@@ -55,7 +55,7 @@ public sealed class LastScanStartedByHttpTests
                 CreatedAt = now,
             });
             await db.SaveChangesAsync();
-            db.LibraryGrants.AddRange(libs.Select(l => new LibraryGrantEntity { UserId = reader.Id, LibraryId = l.Id, GrantedAt = now }));
+            db.LibraryGrants.AddRange(libs.Select(l => new LibraryGrantEntity { UserId = readerUser.Id, LibraryId = l.Id, GrantedAt = now }));
 
             void Run(LibraryEntity lib, string owner, int status, int minutesAgo) => db.ScanRuns.Add(new ScanRunEntity
             {
