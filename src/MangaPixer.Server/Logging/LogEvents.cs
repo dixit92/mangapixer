@@ -113,6 +113,9 @@ public static class LogEvents
         // 1.36.0: a token's library scan request (ids, status codes and timings only).
         public const int ApiTokenScanStarted = 2035;
         public const int ApiTokenScanRefused = 2036;
+
+        // 1.37.0: "Clear revoked" removed revoked / expired tokens (a count only).
+        public const int ApiTokensCleared = 2037;
     }
 
     /// <summary>Scan phases, reconciliation, tombstoning, and admin-triggered scans.</summary>

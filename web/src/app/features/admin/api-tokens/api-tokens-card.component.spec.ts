@@ -11,7 +11,7 @@ import { ApiTokenDto, CreateApiTokenResponse } from '../../../core/api/api-types
  * API tokens card (1.33.0). The API is mocked at the HTTP layer so the real ApiService request shapes are asserted: the list,
  * create (name + expiry, default 1 year, "Never" sends null) with the secret shown once and copied, and revoke after a confirm.
  * 1.36.0: the scopes - "Read the metadata export" ticked and "Request library scans" not by default, at least one required,
- * sent as `scopes` - and each listed token's scopes.
+ * sent as `scopes` - and each listed token's scopes. 1.37.0: "Clear revoked" removes the revoked and expired tokens after a confirm.
  */
 describe('ApiTokensCardComponent', () => {
   const URL = '/api/v1/admin/tokens';
@@ -197,5 +197,29 @@ describe('ApiTokensCardComponent', () => {
     fixture.detectChanges();
     expect(q(fixture, 'api-token-confirm-a')).toBeNull();
     expect(q(fixture, 'api-token-revoke-a')).toBeNull();
+  });
+
+  it('offers "Clear revoked" only when a token is revoked or expired, and removes them after a confirm', () => {
+    const fixture = createLoaded([token('a'), token('p', { status: 'ownerInactive' })]);
+    expect(q(fixture, 'api-tokens-clear')).toBeNull(); // nothing to clear: active and paused tokens stay
+    fixture.componentInstance.tokens.set([
+      token('a'),
+      token('b', { status: 'revoked', revokedAt: '2026-10-02T10:00:00Z' }),
+      token('c', { status: 'expired', expiresAt: '2026-10-03T10:00:00Z' }),
+    ]);
+    fixture.detectChanges();
+
+    q<HTMLButtonElement>(fixture, 'api-tokens-clear')!.click();
+    fixture.detectChanges();
+    expect(q(fixture, 'api-tokens-clear-confirm')!.textContent).toContain('the 2 revoked or expired tokens');
+    httpMock.expectNone((r) => r.method === 'POST'); // nothing sent before the confirm
+
+    q<HTMLButtonElement>(fixture, 'api-tokens-clear-yes')!.click();
+    httpMock.expectOne((r) => r.method === 'POST' && r.url === `${URL}/clear-revoked`).flush({ removed: 2 });
+    httpMock.expectOne((r) => r.method === 'GET' && r.url === URL).flush([token('a')]);
+    fixture.detectChanges();
+    expect(q(fixture, 'api-tokens-clear')).toBeNull();
+    expect(q(fixture, 'api-tokens-clear-confirm')).toBeNull();
+    expect(q(fixture, 'api-token-a')).not.toBeNull();
   });
 });

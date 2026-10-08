@@ -16,6 +16,7 @@ import {
   ApiTokenDto,
   CreateApiTokenRequest,
   CreateApiTokenResponse,
+  ClearApiTokensResponse,
   SeriesRefreshCadenceDto,
   UpdateRefreshCadenceRequest,
   AddBookmarkRequest,
@@ -661,6 +662,11 @@ export class ApiService {
   /** Revokes a token: it stops working at once. */
   revokeApiToken(id: string): Observable<void> {
     return this.post<void>(`/admin/tokens/${encodeURIComponent(id)}/revoke`, {});
+  }
+
+  /** Removes every revoked or expired token from the list (1.37.0); active and paused tokens stay. */
+  clearRevokedApiTokens(): Observable<ClearApiTokensResponse> {
+    return this.post<ClearApiTokensResponse>('/admin/tokens/clear-revoked', {});
   }
 
   // --- Scheduled jobs (admin, 1.32.0) ---

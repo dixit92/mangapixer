@@ -2806,6 +2806,14 @@ export interface CreateApiTokenResponse {
   secret: string;
 }
 
+/**
+ * POST /admin/tokens/clear-revoked (1.37.0): how many revoked or expired tokens were removed from the list. Active tokens and
+ * tokens paused because their admin is no longer an active admin are kept.
+ */
+export interface ClearApiTokensResponse {
+  removed: number;
+}
+
 /** GET /export/ping: which credential was accepted, and the server's clock. */
 export interface ExportPingDto {
   ok: boolean;

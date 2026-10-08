@@ -261,6 +261,8 @@ public static class AuditActions
     // Personal access tokens (1.33.0). CorrelationId = the token's public id; TargetUserId = its owner. Never the secret.
     public const string ApiTokenCreate = "api_token.create";
     public const string ApiTokenRevoke = "api_token.revoke";
+    // 1.37.0: a revoked or expired token removed from the list by "Clear revoked" (one row per token).
+    public const string ApiTokenDelete = "api_token.delete";
 
     // 1.36.0: a token with the library:scan scope started a full library scan. Actor = the token's owner, TargetLibraryId = the
     // library, CorrelationId = the token's public id (never the secret). Only accepted requests are recorded (refusals are logged).
