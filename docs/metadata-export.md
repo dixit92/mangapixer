@@ -81,7 +81,7 @@ matched on their own in MangaPixer; an archive among them that has its own link 
 |---|---|
 | `nodeId` | The node's id. A renamed or moved **folder** becomes a new node with a new id; an archive keeps its id when it moves, also to another library. |
 | `nodeKind` | `folder` or `archive` (an archive that is its own work, such as a one-shot). |
-| `carriedFrom` | The old `nodeId` when MangaPixer's folder carry-over moved this link from a renamed or moved folder; re-key your row instead of removing and adding it. Shown for at least the removal window. Otherwise `null`. |
+| `carriedFrom` | The old `nodeId` when MangaPixer's folder carry-over moved this link from a renamed or moved folder, or (1.37.0) an admin chose **Use old** for a series-link move conflict; re-key your row instead of removing and adding it. Shown for at least the removal window. Otherwise `null`. |
 | `trail` | The on-disk names from below the library root down to the node itself (`["Shonen", "Series"]`; an archive's trail ends with its file name). Names only, never a path. |
 | `updatedAt` | When the export last saw this item change. |
 | `link` | `state` (`Confirmed`, `Auto`, `NeedsReview`, `DontMatch`, `CollectionAbout`), `method` (`search`, `reference`, `comicInfo`, `auto`, or `null`), `score` (0-1 or `null`), `updatedAt`. |
