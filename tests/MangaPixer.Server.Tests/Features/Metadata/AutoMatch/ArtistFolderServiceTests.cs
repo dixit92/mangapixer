@@ -362,7 +362,7 @@ public sealed class ArtistFolderServiceTests : IAsyncLifetime
         _h.Search["Qzv Harbor Tale"] = [new MuJson.Hit(801, "Qzv Harbor Tale (ALPHA Writer)"), new MuJson.Hit(802, "Qzv Harbor Tale (BETA Painter)")];
         _h.Records[801] = MuJson.Get(801, "Qzv Harbor Tale (ALPHA Writer)", authors: ["Alpha Writer"]);
         _h.Records[802] = MuJson.Get(802, "Qzv Harbor Tale (BETA Painter)", authors: [Artist]);
-        // The folder's name is not the artist's: the admin typed the name (it becomes the author tag; the folder name does not).
+        // The folder's name is not the artist's: the admin typed the name. It is a hint (the folder name is no author tag either).
         var folder = await ArtistFolderAsync(name: "Stuff from the con");
         var harbor = (await ArchivesOfAsync(folder)).Single(a => a.DisplayName.StartsWith("Qzv Harbor", StringComparison.Ordinal));
         await MarkAsync(folder, Artist);
@@ -384,7 +384,7 @@ public sealed class ArtistFolderServiceTests : IAsyncLifetime
         {
             var other = await _db.Db.MetadataMatchCandidates.AsNoTracking().FirstOrDefaultAsync(c => c.NodeId == harbor.Id && c.ExternalId == "801");
             if (other is not null)
-                Assert.NotEqual(0, other.Reasons & (int)MatchReason.AuthorConflict); // the other artist's record is vetoed
+                Assert.Equal(0, other.Reasons & (int)MatchReason.AuthorConflict); // a hint, never a veto: the other record is not ruled out
         }
         Assert.Equal((int)SeriesLinkState.ArtistFolder, (await LinkOfAsync(folder))!.State); // the folder never becomes a work
         Assert.DoesNotContain(_h.Handler.Seen, r => r.Body?.Contains("Painter", StringComparison.OrdinalIgnoreCase) == true); // never sent

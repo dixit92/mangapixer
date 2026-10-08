@@ -182,8 +182,8 @@ public sealed class MetadataAutoMatchService
     }
 
     /// <summary>
-    /// The snapshot with the library's current "Collection about" folders and (1.37.0) artist folders with their declared artists
-    /// (re-read every time: small indexed queries).
+    /// The snapshot with the library's current "Collection about" folders and (1.37.0) artist folders (re-read every time: small
+    /// indexed queries).
     /// </summary>
     private async Task<LibraryTreeSnapshot> WithCurrentCollectionsAsync(LibraryTreeSnapshot tree, CancellationToken ct)
     {

@@ -7,7 +7,8 @@ using Xunit;
 /// <summary>
 /// 1.37.0 "Artist folder" (a folder an admin marked as one artist's works): what the new link state means
 /// (<see cref="SeriesLinkStates"/>), the nearest-wins matching rule with it, the detector's marked-folder rule (whatever the folder's
-/// shape; every unmarked folder unchanged) and the planner's author tags (the declared artists, never the folder name). Synthetic names.
+/// shape; every unmarked folder unchanged) and the planner's author tags (none of the folder's own: the declared artist is a hint, never a
+/// veto). Synthetic names.
 /// </summary>
 public sealed class ArtistFolderCoreTests
 {
@@ -40,10 +41,10 @@ public sealed class ArtistFolderCoreTests
 
     // --- The detector ---
 
-    private static FolderShape Shape(string name, IReadOnlyList<string> archives, IReadOnlyList<string>? artists = null, int depth = 2,
+    private static FolderShape Shape(string name, IReadOnlyList<string> archives, bool marked = false, int depth = 2,
         (string Name, int Count)[]? subs = null) =>
         new(name, depth, archives, (subs ?? []).Select(s => new ChildFolderShape(s.Name, s.Count)).ToList(), "Shelf", null, null,
-            ArtistNames: artists);
+            IsMarkedArtistFolder: marked);
 
     private static readonly string[] OneSeriesShape = ["Qzv Harbor Tale v01.cbz", "Qzv Harbor Tale v02.cbz", "Qzv Harbor Tale v03.cbz"];
 
@@ -62,9 +63,9 @@ public sealed class ArtistFolderCoreTests
         Assert.Equal((WorkClass.Series, MatchLevel.Folder), Of(_detector.Classify(Shape("Beta Painter", OneSeriesShape))));
         Assert.Equal(MatchLevel.ReviewOnly, _detector.Classify(Shape("Beta Painter", ["Qzv Harbor Tale.cbz", "Qzv Quiet Orchard.cbz"])).Level);
 
-        var marked = _detector.Classify(Shape("Beta Painter", OneSeriesShape, artists: ["Beta Painter"]));
+        var marked = _detector.Classify(Shape("Beta Painter", OneSeriesShape, marked: true));
         Assert.Equal((WorkClass.ArtistCollection, MatchLevel.Archive), Of(marked));
-        var works = _detector.Classify(Shape("Beta Painter", Works, artists: ["Beta Painter"]));
+        var works = _detector.Classify(Shape("Beta Painter", Works, marked: true));
         Assert.Equal((WorkClass.ArtistCollection, MatchLevel.Archive), Of(works));
         // The numbered pair stays one work; every other archive is its own.
         Assert.Equal(3, works.ArchiveGroups.Count);
@@ -73,16 +74,9 @@ public sealed class ArtistFolderCoreTests
     }
 
     [Fact]
-    public void MarkedFolder_WithoutDeclaredArtists_IsStillMarked()
-    {
-        var c = _detector.Classify(Shape("Beta Painter", Works, artists: []));
-        Assert.Equal((WorkClass.ArtistCollection, MatchLevel.Archive), Of(c));
-    }
-
-    [Fact]
     public void MarkedFolder_WithOnlySubfolders_QueuesNothingItself_TheSubfoldersAreClassifiedOnTheirOwn()
     {
-        var c = _detector.Classify(Shape("Beta Painter", [], artists: ["Beta Painter"], subs: [("Qzv Harbor Tale", 3), ("Qzv Quiet Orchard", 2)]));
+        var c = _detector.Classify(Shape("Beta Painter", [], marked: true, subs: [("Qzv Harbor Tale", 3), ("Qzv Quiet Orchard", 2)]));
         Assert.Equal((WorkClass.ArtistCollection, MatchLevel.None), Of(c));
         Assert.Empty(c.ArchiveGroups);
     }
@@ -92,25 +86,69 @@ public sealed class ArtistFolderCoreTests
     {
         // An admin decision wins over the name rules: a folder named like a unit subfolder is matched archive by archive when marked.
         Assert.Equal(WorkClass.UnitSub, _detector.Classify(Shape("Volume 2", Works)).Class);
-        Assert.Equal((WorkClass.ArtistCollection, MatchLevel.Archive), Of(_detector.Classify(Shape("Volume 2", Works, artists: ["Beta Painter"]))));
+        Assert.Equal((WorkClass.ArtistCollection, MatchLevel.Archive), Of(_detector.Classify(Shape("Volume 2", Works, marked: true))));
     }
 
     private static (WorkClass, MatchLevel) Of(WorkClassification c) => (c.Class, c.Level);
 
-    // --- The planner: the declared artists are the author tags of a marked folder ---
+    // --- The planner and scorer: the declared artist is a hint in a marked folder, never a veto ---
 
     [Fact]
-    public void ArchiveInAMarkedFolder_UsesTheDeclaredArtistsAsAuthorTags_NotTheFolderName()
+    public void ArchiveInAMarkedFolder_GetsNoAuthorTagFromTheFolder_NeitherItsNameNorTheDeclaredArtist()
     {
-        var folder = Shape("Downloads from the con", Works, artists: ["Beta Painter", "Gamma Inker"]);
+        var folder = Shape("Beta Painter", Works, marked: true);
         var c = _detector.Classify(folder);
         var plan = _planner.PlanArchiveGroup(folder, c, c.ArchiveGroups[0]);
 
-        var tags = plan.Context.AuthorTags;
-        Assert.Contains("Beta Painter", tags);
-        Assert.Contains("Gamma Inker", tags);
-        Assert.DoesNotContain(tags, t => t.Contains("Downloads", StringComparison.OrdinalIgnoreCase));
+        Assert.Empty(plan.Context.AuthorTags);
         Assert.Equal(WorkClass.ArtistCollection, plan.Context.Class);
+    }
+
+    [Fact]
+    public void ArchiveInAMarkedFolder_KeepsTheCreatorTagsOfItsOwnName()
+    {
+        // The archive's own "[Artist] Title" tag applies as in any collection (unchanged rule); only the folder adds nothing.
+        var folder = Shape("Downloads from the con", ["[Gamma Inker] Qzv Harbor Tale.cbz", "Qzv Quiet Orchard.cbz"], marked: true);
+        var c = _detector.Classify(folder);
+        var harbor = c.ArchiveGroups.Single(g => g.ArchiveIndexes.SequenceEqual([0]));
+        var plan = _planner.PlanArchiveGroup(folder, c, harbor);
+
+        Assert.Equal(["Gamma Inker"], plan.Context.AuthorTags);
+    }
+
+    private static MatchCandidate Record(string id, string title, params string[] authors) =>
+        new("mangaupdates", id, title, [], MetadataFormat.Comic, "Manga", null, null, null, authors, []);
+
+    private MatchQuery MarkedPlan(string artist)
+    {
+        var folder = Shape("Downloads from the con", ["Qzv Harbor Tale.cbz", "Qzv Quiet Orchard.cbz"], marked: true);
+        var c = _detector.Classify(folder);
+        var harbor = c.ArchiveGroups.Single(g => g.ArchiveIndexes.SequenceEqual([0]));
+        return DeclaredHints.Apply(_planner.PlanArchiveGroup(folder, c, harbor), new DeclaredFacts(null, [new DeclaredCreator(artist, "author")]));
+    }
+
+    [Fact]
+    public void TheDeclaredArtist_CountsForTheirRecord_ByTheCreatorHint()
+    {
+        var query = MarkedPlan("Beta Painter");
+        Assert.Contains("Beta Painter", query.Context.CreatorHints ?? []);
+
+        var outcome = new MatchScorer().Score(query,
+            [Record("1", "Qzv Harbor Tale", "Alpha Writer"), Record("2", "Qzv Harbor Tale", "Beta Painter")], MatchThresholds.Default);
+
+        Assert.Equal("2", outcome.Ranked[0].Candidate.ExternalId);
+        Assert.Equal(MatchScorer.CreatorHintAgree, outcome.Ranked[0].AdjustedScore - outcome.Ranked[1].AdjustedScore, 6);
+        Assert.All(outcome.Ranked, r => Assert.Equal(MatchReason.None, r.Reasons & MatchReason.AuthorConflict));
+    }
+
+    [Fact]
+    public void TheDeclaredArtist_NeverVetoesARecordByAnotherArtist()
+    {
+        // The only record found is by someone else: the declaration rules nothing out (a hint, never a veto).
+        var outcome = new MatchScorer().Score(MarkedPlan("Beta Painter"), [Record("1", "Qzv Harbor Tale", "Alpha Writer")], MatchThresholds.Default);
+
+        Assert.Equal(0, (int)(outcome.Ranked[0].Reasons & MatchScorer.VetoReasons));
+        Assert.Equal(MatchBand.Auto, outcome.Band);
     }
 
     [Fact]
