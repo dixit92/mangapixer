@@ -181,6 +181,13 @@ public sealed record CatalogNodeDto
     /// </summary>
     public VolumeStackSummaryDto? VolumeStack { get; init; }
 
+    /// <summary>
+    /// 1.37.0 (tankoubon stacks): set only on a browse entry of kind <see cref="CatalogNodeKind.VolumeStack"/> that stands for stories
+    /// collected in one volume (two or more archives here linked to the same record); <see cref="VolumeStack"/> is null on it. Null
+    /// everywhere else.
+    /// </summary>
+    public CollectionStackSummaryDto? CollectionStack { get; init; }
+
     /// <summary>Where <see cref="CoverUrl"/> comes from (1.29.0 cover layer); null = the file cover (and older servers).</summary>
     public CardCoverSource? CoverSource { get; init; }
 

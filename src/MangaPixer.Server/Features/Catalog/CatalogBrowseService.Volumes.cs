@@ -38,11 +38,14 @@ public sealed partial class CatalogBrowseService
         var plainRows = page.Entries.Where(e => e.Kind is VolumeEntryKind.Archive or VolumeEntryKind.Folder).Select(e => view.Rows[e.Row!.Id]).ToList();
         var plainNodes = (await EnrichAsync(plainRows, userId, view.LibraryId, ct)).ToDictionary(n => n.Id, StringComparer.Ordinal);
         var stacks = await BuildStackCardsAsync(view, page.Entries.Where(e => e.Kind == VolumeEntryKind.Stack).Select(e => e.Stack!).ToList(), userId, ct);
+        var collections = await BuildCollectionCardsAsync(view,
+            page.Entries.Where(e => e.Kind == VolumeEntryKind.CollectionStack).Select(e => e.Collection!).ToList(), userId, ct);
 
         var items = page.Entries
             .Select(e => e.Kind switch
             {
                 VolumeEntryKind.Stack => stacks[e.Stack!.Key],
+                VolumeEntryKind.CollectionStack => collections[e.Collection!.Key],
                 VolumeEntryKind.MissingVolume => MissingVolumeCard(view, e.Volume!.Value),
                 _ => VolumeStackService.WithAlsoInVolume(VolumeTitled(plainNodes[e.Row!.Id], e), view),
             })
@@ -73,10 +76,13 @@ public sealed partial class CatalogBrowseService
         CancellationToken ct)
     {
         long IdOf(string publicId) => view.Rows[publicId].InternalId;
-        List<long> MemberIds(VolumeStack stack) => stack.Members.Select(m => IdOf(m.Row.Id)).ToList();
+        // A stack of either kind (a volume, or 1.37.0 stories collected in one volume) filters by its member archives.
+        List<long> MemberIds(VolumeEntry entry) => entry.Kind == VolumeEntryKind.CollectionStack
+            ? entry.Collection!.Members.Select(m => IdOf(m.Id)).ToList()
+            : entry.Stack!.Members.Select(m => IdOf(m.Row.Id)).ToList();
 
         var archiveIds = entries.Where(e => e.Kind == VolumeEntryKind.Archive).Select(e => IdOf(e.Row!.Id))
-            .Concat(entries.Where(e => e.Kind == VolumeEntryKind.Stack).SelectMany(e => MemberIds(e.Stack!)))
+            .Concat(entries.Where(e => e.Kind is VolumeEntryKind.Stack or VolumeEntryKind.CollectionStack).SelectMany(MemberIds))
             .Distinct().ToList();
         var folderIds = entries.Where(e => e.Kind == VolumeEntryKind.Folder).Select(e => IdOf(e.Row!.Id)).ToList();
 
@@ -110,9 +116,9 @@ public sealed partial class CatalogBrowseService
             _ => true,
         };
 
-        bool StackMatches(VolumeStack stack)
+        bool StackMatches(VolumeEntry entry)
         {
-            var ids = MemberIds(stack);
+            var ids = MemberIds(entry);
             if (favoritesOnly && !ids.Any(starred.Contains))
                 return false;
             if (readState == BrowseReadStateFilter.All)
@@ -128,7 +134,7 @@ public sealed partial class CatalogBrowseService
 
         return entries.Where(e => e.Kind switch
         {
-            VolumeEntryKind.Stack => StackMatches(e.Stack!),
+            VolumeEntryKind.Stack or VolumeEntryKind.CollectionStack => StackMatches(e),
             VolumeEntryKind.Archive => ArchiveMatches(IdOf(e.Row!.Id)) && (!favoritesOnly || starred.Contains(IdOf(e.Row!.Id))),
             VolumeEntryKind.Folder => MatchesFolderReadState(folderRollups, IdOf(e.Row!.Id), readState)
                 && (!favoritesOnly || starred.Contains(IdOf(e.Row!.Id))),
@@ -188,6 +194,61 @@ public sealed partial class CatalogBrowseService
                 ReadRollup = FolderReadRollupRules.Classify(ids.Count, readCount, progressCount),
                 IsFavorite = ids.Any(starred.Contains),
                 VolumeStack = SummaryOf(stack),
+            };
+        }
+        return cards;
+    }
+
+    /// <summary>
+    /// The browse cards of stacks of stories collected in one volume (1.37.0): <c>Kind = VolumeStack</c> with
+    /// <see cref="CatalogNodeDto.CollectionStack"/> (never <see cref="CatalogNodeDto.VolumeStack"/>), the opaque
+    /// <c>cs.&lt;folder&gt;.&lt;key&gt;</c> id, the record's title, the record's stored poster where web covers are shown (else the first
+    /// story's cover, through the cover resolver), a read rollup and the star over the stories. No completion, volume or missing count.
+    /// </summary>
+    internal async Task<Dictionary<string, CatalogNodeDto>> BuildCollectionCardsAsync(
+        FolderVolumeEntries view, IReadOnlyList<StoryCollection> collections, long userId, CancellationToken ct)
+    {
+        var cards = new Dictionary<string, CatalogNodeDto>(StringComparer.Ordinal);
+        if (collections.Count == 0)
+            return cards;
+
+        var heads = await _collectionCovers.ResolveAsync(view.FolderId, view.FolderPublicId, view.LibraryId,
+            collections.Where(c => view.CollectionRecords.ContainsKey(c.Key)).ToDictionary(c => c.Key, c => view.CollectionRecords[c.Key], StringComparer.Ordinal),
+            ct);
+        var fallbackTargets = collections.Where(c => heads.GetValueOrDefault(c.Key)?.Poster is null)
+            .Select(c => view.Rows[c.Members[0].Id]).DistinctBy(r => r.InternalId)
+            .Select(r => new CoverTarget(r.InternalId, r.Id, false)).ToList();
+        var covers = fallbackTargets.Count > 0 ? await _covers.ResolveAsync(fallbackTargets, ct) : new Dictionary<long, ResolvedCover>();
+
+        var memberIds = collections.SelectMany(c => c.Members).Select(m => view.Rows[m.Id].InternalId).Distinct().ToList();
+        var read = (await _db.ReadMarks.AsNoTracking().Where(m => m.UserId == userId && memberIds.Contains(m.ItemId)).Select(m => m.ItemId).ToListAsync(ct)).ToHashSet();
+        var inProgress = (await _db.ReadingProgress.AsNoTracking()
+            .Where(p => p.UserId == userId && memberIds.Contains(p.ItemId) && p.State == (int)ReadingState.InProgress)
+            .Select(p => p.ItemId).ToListAsync(ct)).ToHashSet();
+        var starred = (await _db.Favorites.AsNoTracking().Where(f => f.UserId == userId && memberIds.Contains(f.CatalogNodeId))
+            .Select(f => f.CatalogNodeId).ToListAsync(ct)).ToHashSet();
+
+        foreach (var collection in collections)
+        {
+            var ids = collection.Members.Select(m => view.Rows[m.Id].InternalId).ToList();
+            var first = view.Rows[collection.Members[0].Id];
+            var head = heads.GetValueOrDefault(collection.Key);
+            ResolvedCover? cover = head?.Poster is { } poster ? new ResolvedCover(poster.Url, CardCoverSource.Poster)
+                : covers.TryGetValue(first.InternalId, out var own) ? own : null;
+            var title = head?.Title ?? first.DisplayName;
+            cards[collection.Key] = new CatalogNodeDto
+            {
+                Id = CollectionStackId.Encode(view.FolderPublicId, collection.Key),
+                ParentId = view.FolderPublicId,
+                LibraryId = view.LibraryPublicId,
+                Kind = CatalogNodeKind.VolumeStack,
+                DisplayName = title,
+                Availability = CatalogNodeAvailability.Available,
+                CoverUrl = cover?.Url,
+                CoverSource = cover?.Source,
+                ReadRollup = FolderReadRollupRules.Classify(ids.Count, ids.Count(read.Contains), ids.Count(id => !read.Contains(id) && inProgress.Contains(id))),
+                IsFavorite = ids.Any(starred.Contains),
+                CollectionStack = new CollectionStackSummaryDto { Key = collection.Key, Title = title, StoryCount = collection.Members.Count },
             };
         }
         return cards;

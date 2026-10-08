@@ -32,9 +32,11 @@ public sealed partial class CatalogBrowseService
     private readonly ICoverResolver _covers;
     private readonly VolumeEntryService _volumes;
     private readonly StackCoverService _stackCovers;
+    private readonly CollectionStackCoverService _collectionCovers;
 
     public CatalogBrowseService(MangaPixerDbContext db, LibraryAuthorizationService auth, SeriesInfoFlagService? seriesInfoFlags = null,
-        ICoverResolver? covers = null, VolumeEntryService? volumes = null, StackCoverService? stackCovers = null)
+        ICoverResolver? covers = null, VolumeEntryService? volumes = null, StackCoverService? stackCovers = null,
+        CollectionStackCoverService? collectionCovers = null)
     {
         _db = db;
         _auth = auth;
@@ -42,6 +44,7 @@ public sealed partial class CatalogBrowseService
         _covers = covers ?? new FileCoverResolver(db);
         _volumes = volumes ?? new VolumeEntryService(db);
         _stackCovers = stackCovers ?? new StackCoverService(db);
+        _collectionCovers = collectionCovers ?? new CollectionStackCoverService(db);
     }
 
     /// <summary>
