@@ -234,6 +234,9 @@ export class WebtoonEnhanceCoordinator {
       return;
     }
     this.buildPage(page);
+    // 1.36.0: a near page with no reserved aspect ratio can grow on its first decode and push the near pages below it down
+    // without resizing them (no ResizeObserver fires): re-place their containers too.
+    this.scheduleLayout();
     this.schedulePump();
   }
 

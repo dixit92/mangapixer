@@ -444,6 +444,21 @@ describe('WebtoonEnhanceCoordinator', () => {
     expect(renderer.renderBand).toHaveBeenCalledTimes(1);
   });
 
+  it('a NEAR page growing on load re-places the near containers below it (1.36.0)', async () => {
+    c.setEnabled(true);
+    define(imgs[0], { complete: false, naturalWidth: 0, naturalHeight: 0 }); // page 0 near but not decoded (no reserved ratio)
+    pageIO().fire([imgs[0], imgs[1]], true);
+    await flush();
+    const container = scroller.querySelector('.mp-enhance-layer')!.children[0] as HTMLElement; // page 1's: page 0 has none yet
+    expect(container.style.top).toBe('1600px');
+    define(imgs[0], { complete: true, naturalWidth: 300, naturalHeight: 1275 });
+    define(imgs[1], { offsetTop: 1700 }); // page 0 decoded 100 px taller and pushed page 1 down
+    c.loaded(imgs[0]);
+    await flush(16);
+    expect(container.style.top).toBe('1700px');
+    expect(renderer.renderBand).not.toHaveBeenCalled(); // moving a container renders nothing
+  });
+
   it('a smaller pool bound (wider slider) trims surplus canvases on the next band', async () => {
     c.setEnabled(true);
     pageIO().fire([imgs[0]], true);

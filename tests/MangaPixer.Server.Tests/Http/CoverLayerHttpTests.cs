@@ -300,6 +300,99 @@ public sealed class CoverLayerHttpTests
         Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync($"/api/v1/volume-covers/{coverPublicId}/image?v=1")).StatusCode);
     }
 
+    /// <summary>A linked series folder (one ready volume) below <paramref name="parent"/>, with a MangaDex companion and one stored cover.</summary>
+    private static async Task<(CatalogNodeEntity Folder, VolumeCoverEntity Cover)> AddLinkedSeriesAsync(MetadataNetworkWebApplicationFactory factory,
+        long libraryId, CatalogNodeEntity parent, string key, string name)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+        var thumbnails = scope.ServiceProvider.GetRequiredService<ThumbnailStore>();
+        var files = scope.ServiceProvider.GetRequiredService<CoverFiles>();
+        var folder = Node("cv" + key, libraryId, parent.Id, 0, name);
+        db.CatalogNodes.Add(folder);
+        await db.SaveChangesAsync();
+        var volume = Node("cv" + key + "v1", libraryId, folder.Id, 1, name + " v01");
+        db.CatalogNodes.Add(volume);
+        await db.SaveChangesAsync();
+        db.ArchiveItems.Add(new ArchiveItemEntity { NodeId = volume.Id, ContentVersion = 1, AnalysisState = 0, PageCount = 1, ThumbnailState = 1, ThumbnailContentVersion = 1 });
+        db.PageEntries.Add(new PageEntryEntity { ItemId = volume.Id, ContentVersion = 1, Ordinal = 0, EntryKey = "p0", SourceEntryLocator = "p1.png", MediaType = "image/png", Width = 700, Height = 1000 });
+        var temp = Path.Combine(factory.DataRoot, Guid.NewGuid().ToString("N") + ".tmp");
+        await File.WriteAllTextAsync(temp, "file-" + volume.PublicId);
+        await thumbnails.PublishAsync(volume.Id, 1, temp);
+        File.Delete(temp);
+
+        var record = new MetadataRecordEntity { PublicId = "r" + key, Provider = "mangaupdates", ExternalId = "9" + key, Title = name + " (record)", FetchedAt = DateTimeOffset.UtcNow };
+        var companion = new MetadataRecordEntity { PublicId = "md" + key, Provider = "mangadex", ExternalId = "md-" + key, Title = name, FetchedAt = DateTimeOffset.UtcNow };
+        db.MetadataRecords.AddRange(record, companion);
+        await db.SaveChangesAsync();
+        db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity { NodeId = folder.Id, LibraryId = libraryId, State = (int)SeriesLinkState.Auto, RecordId = record.Id, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow });
+        db.MetadataCompanions.Add(new MetadataCompanionEntity { RecordId = record.Id, Provider = "mangadex", CompanionRecordId = companion.Id, State = (int)CompanionState.Auto });
+        var cover = new VolumeCoverEntity
+        {
+            PublicId = "vc" + key,
+            ProviderRecordId = companion.Id,
+            Kind = (int)VolumeCoverKind.Volume,
+            Volume = 1,
+            Locale = "en",
+            RemoteId = "r-" + key,
+            RemoteFile = key + ".jpg",
+            State = (int)VolumeCoverState.Stored,
+            StoredVersion = 1,
+            Hash = 5,
+            ListedAt = DateTimeOffset.UtcNow,
+        };
+        db.VolumeCovers.Add(cover);
+        await db.SaveChangesAsync();
+        await PublishAsync(files.VolumeCoverPath(cover.PublicId, 1), "web-" + key);
+        return (folder, cover);
+    }
+
+    [Fact]
+    public async Task AFolderWithSeriesInside_OffersTheirStoredCovers_AChoiceShowsOnItsCard_AndAnUnlinkFallsBackToAutomatic()
+    {
+        using var factory = new MetadataNetworkWebApplicationFactory(failOnAnyRequest: true);
+        var seed = await SeedAsync(factory);
+        var admin = await factory.LoginAsAdminWithChangedPasswordAsync();
+        // The seeded "Series" folder is not linked: it holds a main series and a spinoff (the owner's example), each linked.
+        var main = await AddLinkedSeriesAsync(factory, seed.LibraryId, seed.Folder, "main", "Main Story");
+        var spinoff = await AddLinkedSeriesAsync(factory, seed.LibraryId, seed.Folder, "spin", "Side Story");
+
+        var options = (await admin.GetFromJsonAsync<CoverOptionsDto>($"/api/v1/nodes/{seed.Folder.PublicId}/cover-options", JsonOptions))!;
+        Assert.True(options.WebAvailable);
+        Assert.Empty(options.Web);
+        Assert.Equal([main.Folder.PublicId, spinoff.Folder.PublicId], options.WebSeries.Select(s => s.NodeId));
+        Assert.Equal(["Main Story", "Side Story"], options.WebSeries.Select(s => s.DisplayName));
+        Assert.Equal("Side Story (record)", options.WebSeries[1].SeriesTitle);
+        var offered = options.WebSeries[1].Groups.Single().Covers.Single();
+        Assert.Equal((spinoff.Cover.PublicId, true), (offered.Id, offered.Stored));
+        Assert.Equal("web-spin", await admin.GetStringAsync(offered.ImageUrl));
+
+        // A series folder keeps its own covers; the server refuses another series' cover there.
+        var mainOptions = (await admin.GetFromJsonAsync<CoverOptionsDto>($"/api/v1/nodes/{main.Folder.PublicId}/cover-options", JsonOptions))!;
+        Assert.Empty(mainOptions.WebSeries);
+        Assert.Equal(main.Cover.PublicId, mainOptions.Web.Single().Covers.Single().Id);
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PutAsJsonAsync($"/api/v1/nodes/{main.Folder.PublicId}/cover-choice",
+            new CoverChoiceRequest { Mode = CoverMode.VolumeCover, VolumeCoverId = spinoff.Cover.PublicId }, JsonOptions)).StatusCode);
+
+        // The folder takes the spinoff's cover: its card shows it.
+        var automaticUrl = (await BrowseAsync(admin)).Items.Single(i => i.Id == seed.Folder.PublicId).CoverUrl;
+        var put = await admin.PutAsJsonAsync($"/api/v1/nodes/{seed.Folder.PublicId}/cover-choice",
+            new CoverChoiceRequest { Mode = CoverMode.VolumeCover, VolumeCoverId = spinoff.Cover.PublicId }, JsonOptions);
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+        Assert.Equal(CoverMode.VolumeCover, (await put.Content.ReadFromJsonAsync<CoverStateDto>(JsonOptions))!.Mode);
+        var card = (await BrowseAsync(admin)).Items.Single(i => i.Id == seed.Folder.PublicId);
+        Assert.Equal(CardCoverSource.Chosen, card.CoverSource);
+        Assert.Equal("web-spin", await admin.GetStringAsync(card.CoverUrl));
+
+        // The spinoff is unlinked (its record and stored covers go with it): the folder falls back to Automatic, silently.
+        Assert.Equal(HttpStatusCode.OK, (await admin.DeleteAsync($"/api/v1/admin/metadata/nodes/{spinoff.Folder.PublicId}/link")).StatusCode);
+        card = (await BrowseAsync(admin)).Items.Single(i => i.Id == seed.Folder.PublicId);
+        Assert.NotEqual(CardCoverSource.Chosen, card.CoverSource);
+        Assert.Equal(automaticUrl, card.CoverUrl);
+        options = (await admin.GetFromJsonAsync<CoverOptionsDto>($"/api/v1/nodes/{seed.Folder.PublicId}/cover-options", JsonOptions))!;
+        Assert.Equal([main.Folder.PublicId], options.WebSeries.Select(s => s.NodeId));
+    }
+
     [Fact]
     public async Task ContinueReading_CarriesTheServersCoverUrl()
     {

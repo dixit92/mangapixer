@@ -115,14 +115,22 @@ public static class AuthServicesExtensions
         {
             options.AddPolicy("Admin", policy => policy.RequireRole("admin"));
             options.AddPolicy("Reader", policy => policy.RequireRole("admin", "reader"));
-            // The export's policy (1.33.0): an admin's cookie login OR a personal access token with the export scope. This is
-            // the ONLY place the token scheme is named, so a token authenticates on export endpoints and nowhere else (the
-            // default scheme of every other endpoint stays the cookie). The token principal has no role claim.
+            // The export's policies are the ONLY place the token scheme is named, so a token authenticates on export endpoints
+            // and nowhere else (the default scheme of every other endpoint stays the cookie). The token principal has no role claim.
+            // 1) Read (1.33.0): an admin's cookie login OR a personal access token with the export scope.
             options.AddPolicy(Export.ExportApi.Policy, policy => policy
                 .AddAuthenticationSchemes(CookieAuthenticationDefaults.AuthenticationScheme, Export.ExportApi.TokenScheme)
                 .RequireAssertion(context =>
                     context.User.IsInRole("admin")
                     || context.User.HasClaim(ApiTokenClaims.Scope, Export.ExportApi.Scope)));
+            // 2) Scan request (1.36.0): the token scheme ONLY, with the scan scope. The cookie is deliberately not listed: the
+            //    policy evaluator then authenticates with the token scheme alone and replaces the cookie principal with an
+            //    anonymous one, so a browser POST is challenged (401) before MVC's antiforgery filter would run. That is what
+            //    makes [IgnoreAntiforgeryToken] on ExportScanController.Scan safe: no ambient credential can reach that action.
+            options.AddPolicy(Export.ExportApi.ScanPolicy, policy => policy
+                .AddAuthenticationSchemes(Export.ExportApi.TokenScheme)
+                .RequireAuthenticatedUser()
+                .RequireClaim(ApiTokenClaims.Scope, Export.ExportApi.ScanScope));
         });
 
         // Register auth services

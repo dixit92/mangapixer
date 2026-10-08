@@ -224,7 +224,10 @@ public sealed record WebCoverDto
     public int Variant { get; init; }
     public required string Locale { get; init; }
 
-    /// <summary>Downloaded; false = choosing it downloads it (one request).</summary>
+    /// <summary>
+    /// Downloaded. False = known from the provider's list but not downloaded yet: the picker shows it but cannot choose it
+    /// (choosing reads only the database - a not downloaded cover answers 409 <c>cover_not_stored</c>, nothing is requested).
+    /// </summary>
     public required bool Stored { get; init; }
 
     public string? ImageUrl { get; init; }
@@ -236,17 +239,49 @@ public sealed record WebCoverGroupDto
     public required IReadOnlyList<WebCoverDto> Covers { get; init; }
 }
 
+/// <summary>
+/// 1.36.0: the stored web covers of one series linked (Confirmed / Auto) somewhere below a folder that is not a series itself -
+/// for the picker of that folder (e.g. a main series and its spinoffs in one folder).
+/// </summary>
+public sealed record WebCoverSeriesDto
+{
+    /// <summary>The node that carries the series link (a folder, or an archive linked on its own).</summary>
+    public required string NodeId { get; init; }
+
+    /// <summary>That node's display name (the heading).</summary>
+    public required string DisplayName { get; init; }
+
+    /// <summary>The linked record's title (a secondary line), or null.</summary>
+    public string? SeriesTitle { get; init; }
+
+    /// <summary>Its stored covers, grouped by volume as <see cref="CoverOptionsDto.Web"/> (the main cover last).</summary>
+    public required IReadOnlyList<WebCoverGroupDto> Groups { get; init; }
+}
+
 /// <summary>The cover picker (<c>GET /nodes/{nodeId}/cover-options</c>, admin).</summary>
 public sealed record CoverOptionsDto
 {
     public required string NodeId { get; init; }
     public required CoverStateDto Current { get; init; }
     public required IReadOnlyList<CoverOptionDto> Local { get; init; }
+    /// <summary>The covers of the node's own (or inherited) linked series, grouped by volume; empty for a folder that is not a series.</summary>
     public required IReadOnlyList<WebCoverGroupDto> Web { get; init; }
     public required bool WebAvailable { get; init; }
 
-    /// <summary>A gateway refusal code (<c>metadata_disabled</c>, <c>provider_not_allowed</c>, ...) when web covers are unavailable.</summary>
+    /// <summary>
+    /// Why there is nothing to choose from the web (<c>not_linked</c>, <c>dont_match</c>, <c>collection</c>, <c>volume_covers_off</c>,
+    /// <c>web_covers_hidden</c>, <c>no_companion</c>, <c>no_series_covers</c>), or null.
+    /// </summary>
     public string? WebUnavailableReason { get; init; }
+
+    /// <summary>
+    /// 1.36.0: a folder that is not a series itself (no own / inherited Confirmed or Auto link): the stored web covers of the series
+    /// linked below it, in the folder's order, at most <c>CoverPickerService.MaxWebSeries</c>. Empty otherwise.
+    /// </summary>
+    public IReadOnlyList<WebCoverSeriesDto> WebSeries { get; init; } = [];
+
+    /// <summary>How many more series below have stored web covers than <see cref="WebSeries"/> lists.</summary>
+    public int WebSeriesMore { get; init; }
 }
 
 /// <summary>Sets a node's cover (<c>PUT /nodes/{nodeId}/cover-choice</c>, admin).</summary>

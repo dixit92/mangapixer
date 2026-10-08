@@ -62,6 +62,7 @@ export function webUnavailableLabel(code: string | null | undefined): string {
     case 'volume_covers_off': return '“Volume covers from the web” is off (Metadata Manager > Settings).';
     case 'web_covers_hidden': return 'This library does not show saved web covers (library settings).';
     case 'no_companion': return 'No covers from the web are stored for this series yet.';
+    case 'no_series_covers': return 'No covers from the web are stored yet for the series inside this folder.';
     default: return 'Covers from the web are not available here.';
   }
 }

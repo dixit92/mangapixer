@@ -115,6 +115,9 @@ public sealed class WikipediaVolumeServiceTests : IAsyncLifetime
         Assert.Equal(MetadataHttp.WikidataHost, sent[0].Host);
         Assert.Contains($"haswbstatement:P11149={MuBase36}", Uri.UnescapeDataString(sent[0].Query), StringComparison.Ordinal);
         Assert.Contains("ids=Q4242", sent[1].Query, StringComparison.Ordinal);
+        // Wikidata counts its query-service lag in maxlag, so its two reads tolerate more than the Wikipedia read (1.36.0).
+        Assert.Contains("maxlag=30", sent[0].Query, StringComparison.Ordinal);
+        Assert.Contains("maxlag=30", sent[1].Query, StringComparison.Ordinal);
         Assert.Equal(MetadataHttp.WikipediaHost, sent[2].Host);
         var asked = Uri.UnescapeDataString(sent[2].Query);
         Assert.Contains($"titles={Article}|{ListTitle}|Lists of Synthetic Saga chapters", asked, StringComparison.Ordinal);
@@ -408,6 +411,55 @@ public sealed class WikipediaVolumeServiceTests : IAsyncLifetime
         _h.ResetRequests(failOnAnyRequest: true);
         Assert.Equal("provider_backoff", (await Assert.ThrowsAsync<MetadataGatewayException>(() => StepAsync(series))).Code);
         Assert.Equal(0, _h.Handler.CallCount);
+    }
+
+    [Fact]
+    public async Task AMaxlagAnswer_ClimbsTheBackoffLadder_InsteadOfItsShortRetryAfter()
+    {
+        // 1.36.0: Wikidata's lag outlasts the ~5 s Retry-After by hours; honouring it re-asked (and spent budget) every pass tick.
+        var series = await SeriesAsync(totalVolumes: 6, mangaDexVolumes: 4, unassignedFrom: 17, unassignedTo: 24);
+        KnowTheSeries(100, FakeWikimedia.Run(6));
+        _wiki.MaxLagSeconds = 5;
+
+        var first = await Assert.ThrowsAsync<MetadataGatewayException>(() => StepAsync(series));
+        Assert.Equal("provider_backoff", first.Code);
+        Assert.Equal(_h.Time.Now + TimeSpan.FromSeconds(30), first.RetryAt);
+
+        _h.Time.Advance(TimeSpan.FromSeconds(31));
+        var second = await Assert.ThrowsAsync<MetadataGatewayException>(() => StepAsync(series));
+        Assert.Equal("provider_backoff", second.Code);
+        Assert.Equal(_h.Time.Now + TimeSpan.FromMinutes(2), second.RetryAt);
+        Assert.False(await _t.Db.WikipediaLists.AnyAsync()); // still nothing stored: a slow-down is not a failure
+    }
+
+    [Fact]
+    public async Task AWikidataLagOfTwelveSeconds_NoLongerStopsTheLookup()
+    {
+        // The live 1.35.1 case: Wikidata answered maxlag at lag 12.6 s to every find-item asked with maxlag=5.
+        var series = await SeriesAsync(totalVolumes: 6, mangaDexVolumes: 4, unassignedFrom: 17, unassignedTo: 24);
+        KnowTheSeries(100, FakeWikimedia.Run(6));
+        _wiki.WikidataLagSeconds = 12;
+
+        var row = await StepAsync(series);
+
+        Assert.NotNull(row);
+        Assert.Equal(WikipediaListState.Found, (WikipediaListState)row.State);
+        Assert.Equal(WikipediaListMethod.Wikidata, (WikipediaListMethod)row.Method);
+        Assert.Equal(3, WikimediaRequests().Count);
+    }
+
+    [Fact]
+    public async Task AWikidataLagAboveItsThreshold_IsStillASlowDown()
+    {
+        var series = await SeriesAsync(totalVolumes: 6, mangaDexVolumes: 4, unassignedFrom: 17, unassignedTo: 24);
+        KnowTheSeries(100, FakeWikimedia.Run(6));
+        _wiki.WikidataLagSeconds = WikipediaApi.WikidataMaxLagSeconds + 1;
+
+        var refusal = await Assert.ThrowsAsync<MetadataGatewayException>(() => StepAsync(series));
+
+        Assert.Equal("provider_backoff", refusal.Code);
+        Assert.Single(WikimediaRequests());
+        Assert.False(await _t.Db.WikipediaLists.AnyAsync());
     }
 
     [Fact]

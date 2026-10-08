@@ -108,6 +108,7 @@ The schedule, retention and location can also be changed in the **Backup setting
 | `MangaPixer:Security:RateLimit:Disabled` (`MangaPixer__Security__RateLimit__Disabled`) | `false` | Turns the limiter off. Only for testing. |
 | `MangaPixer:Security:ApiTokens:RequestsPerMinute` (`MangaPixer__Security__ApiTokens__RequestsPerMinute`) | `600` | Requests a minute one API token may make to the export; above it the answer is 429 with `Retry-After`. 0 = no ceiling. |
 | `MangaPixer:Security:ApiTokens:FailedAttemptsPerIp` (`MangaPixer__Security__ApiTokens__FailedAttemptsPerIp`) | `20` | Requests with a wrong token from one address within 5 minutes before that address's token requests are refused for the rest of the 5 minutes. |
+| `MangaPixer:Security:ApiTokens:ScanCooldownMinutes` (`MangaPixer__Security__ApiTokens__ScanCooldownMinutes`) | `5` | *1.36.0.* Minutes between two scans of the same library requested by API tokens; a request inside that time gets 429 with `Retry-After`. Scans started in Administration or by the schedule do not count. 0 = no wait. See [API tokens](api-tokens.md#request-a-library-scan). |
 
 The counters are held in memory and reset when the server restarts. Separately, an account locks for 15 minutes after 5 wrong passwords; that is not configurable. Behind a reverse proxy the limit counts each client's real address, as long as the proxy is trusted and sends `X-Forwarded-For` (see [Reverse proxy and HTTPS](reverse-proxy-and-https.md#what-the-server-sees-behind-a-proxy)).
 

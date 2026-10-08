@@ -41,6 +41,7 @@ import { LibraryIconComponent } from './library-icon/library-icon.component';
  */
 @Component({
   selector: 'app-library-sidebar',
+  host: { '[class.shell-column]': '!pageMode()' },
   standalone: true,
   imports: [CommonModule, RouterLink, MatIconModule, MatTooltipModule, LibraryIconComponent],
   template: `
@@ -102,6 +103,12 @@ import { LibraryIconComponent } from './library-icon/library-icon.component';
       transition: flex-basis .16s ease;
     }
     .sidebar.collapsed { flex-basis: var(--mp-nav-width-collapsed); }
+    /* 1.36.0: the nav surface reaches the bottom of the page. The panel above is sticky at top 0 but only
+       viewport-minus-toolbar tall, so once the (non-sticky) toolbar scrolls away it ended 64px above the window's
+       bottom edge and the page background showed below it. In the shell, this host element is a flex item that
+       stretches to the full height of the content column - it paints the surface and the border instead. */
+    :host(.shell-column) { display: block; background: var(--mp-nav-bg); border-right: 1px solid var(--mp-nav-border); }
+    :host(.shell-column) .sidebar { border-right: 0; }
     /* Page mode (1.10.0, F3): the dedicated phone nav page renders this same
        component full-width instead of as a narrow sticky shell column. No
        collapse affordance (the nav-head is omitted entirely - see template),
@@ -181,7 +188,8 @@ import { LibraryIconComponent } from './library-icon/library-icon.component';
        untouched by this query and keeps its normal full-width vertical list at
        every viewport width - that page IS the phone experience. */
     @media (max-width: 599.98px) {
-      .sidebar:not(.page-mode) {
+      .sidebar:not(.page-mode),
+      :host(.shell-column) {
         display: none;
       }
     }

@@ -21,6 +21,13 @@ public sealed class ApiTokenOptions
     /// the test host sets it); the per-token ceiling is configured on its own.
     /// </summary>
     public bool FailedAttemptsDisabled { get; set; }
+
+    /// <summary>
+    /// Minutes between two TOKEN-requested scans of the same library (1.36.0, owner: 1 per library per 5 minutes). A request inside
+    /// the window answers 429 with <c>Retry-After</c>; scans an admin or the schedule started do not count. 0 or less = no cooldown
+    /// (the 409 while a scan runs and the per-token request ceiling still apply).
+    /// </summary>
+    public int ScanCooldownMinutes { get; set; } = 5;
 }
 
 /// <summary>Claim types of a token principal.</summary>
@@ -31,4 +38,10 @@ public static class ApiTokenClaims
 
     /// <summary>One claim per scope.</summary>
     public const string Scope = "scope";
+
+    /// <summary>
+    /// The owner's numeric user id (1.36.0), for the audit row of a scan request. Deliberately not
+    /// <see cref="System.Security.Claims.ClaimTypes.NameIdentifier"/> (the cookie's "signed-in user") and not a role.
+    /// </summary>
+    public const string OwnerUserId = "mpx_token_owner";
 }

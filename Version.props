@@ -423,7 +423,11 @@
     <!-- 1.35.0 - MINOR (2026-10-07, cycle "Refresh Pace, Scheduled Jobs and Split-Chapter Covers"): a volume listed only as split
          chapters counts as held (its web cover is fetched); the refresh pace follows new chapters, new volumes or whichever is faster
          ("Pace from"), following the pace is its own choice; Scheduled jobs regrouped. Migration: AddRefreshPaceSource. -->
-    <MangaPixerVersionMinor>35</MangaPixerVersionMinor>
+    <!-- 1.36.0 - MINOR (2026-10-07, cycle "Reader Wheel Paging, Spread Fix and Wikidata Lag"): mouse-wheel page turns in fixed views;
+         the double-page Upscaling overlay follows its page; a non-series folder can take the web cover of a series inside it; API
+         tokens may request a full library scan (library:scan scope); Wikidata lag no longer stalls Wikipedia lists; sidebar height;
+         Audit trail moved. No migration. -->
+    <MangaPixerVersionMinor>36</MangaPixerVersionMinor>
     <!-- 1.31.1 - PATCH (2026-10-01, integrator-direct, owner live check of 1.31.0): content signatures backfilled for archives
          analysed before 1.5.0 (their moves were never recognised); Re-attach to a folder in another library; "Episode N" next
          to a volume is a part label, not a chapter; the review list shows the file's own page 1, never the cover layer's;
@@ -434,7 +438,7 @@
          scored by their title, the character a last review-only search; matcher rules revision 3. -->
     <!-- 1.35.1 - PATCH (2026-10-07): the chapter pace is the average since the series began (latest chapter / days since the start
          year) until two rises are observed; the series page names the pace that set the schedule. -->
-    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
+    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->

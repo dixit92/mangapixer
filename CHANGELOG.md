@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.36.0] - 2026-10-07
+
+### Added
+
+- **Mouse-wheel page turns.** In single and double page, scrolling the mouse wheel (or two fingers on a trackpad) down turns to the next page and up to the previous one, in reading order - also right-to-left, and a whole spread at a time in double page. One scroll turns one page: the rest of the same scroll, a trackpad's glide included, is ignored until the wheel stops for a moment, so a flick never skips pages and never opens the next archive by itself (at the end, a second, new scroll does, like a second key press). The wheel turns pages only while the page fits the screen: a page taller or wider than the screen (Fit width, Fit height, Original size, or zoomed) and the vertical view scroll as before. Sideways scrolling is ignored, and Ctrl (Cmd) + wheel and a trackpad pinch still zoom the browser. See [Reader](docs/reader.md).
+- **Covers of the series inside a folder.** A folder that is not a series itself - for example a main series and its spin-offs side by side, or a folder marked **Don't match** or **Collection about** a series - can now show the cover of a series inside it: in its **Choose cover** picker, **Covers from the web** lists the stored covers of every series linked below it, one heading per series in the folder's order (up to 20), above the covers of the other items. Only covers MangaPixer already stored are offered (volume covers, including those of virtual volumes, and a series' main cover); choosing one sends nothing anywhere. A folder that is a series itself keeps its own covers, as before. See [Covers](docs/covers.md).
+- **API tokens can ask for a library scan.** When you create an API token you now tick what it may do: **Read the metadata export** (as before, ticked by default) and the new **Request library scans**. A token with the scan permission can ask MangaPixer to scan a library (`POST /api/v1/export/libraries/{id}/scan`), so files that an app such as MangaList has just put into a library folder show up without waiting for the next automatic scan. It is always a full scan of the library, never of a single folder, and it changes nothing else; that address accepts only tokens, never a browser sign-in. A token may start one scan per library every 5 minutes (configurable with `MangaPixer__Security__ApiTokens__ScanCooldownMinutes`); while a scan of that library is running the answer is `409` with `Retry-After`. Each started scan is recorded in the **Audit trail**, and the API tokens list shows what each token may do. Existing tokens keep reading the export only. See [API tokens](docs/api-tokens.md#request-a-library-scan).
+
+### Changed
+
+- **Administration: the Audit trail is at the end of the page,** right before **Debug logging** - both are looked at when something went wrong, not on every visit. **Update check** moved up next to **Trash** and **Analytics**.
+
+### Fixed
+
+- **Double page opened with overlapping pages.** With **Upscaling** on **Crisp** (the default) or **Enhance**, a double-page spread could open as "three partial pages" until you paged away and back: when the second page arrived after the first, the first page moved aside but its upscaled copy stayed where the page had been. The upscaled copy now follows its page - also when the reader switches to double page after the first page is shown, or the window is resized - without re-rendering it.
+- **Wikipedia volume lists stalled while Wikidata was busy.** MangaPixer finds a series' English "List of ... chapters" page through Wikidata and asked it to refuse when its servers lag more than 5 seconds. Wikidata counts its search index's lag in that figure, which stayed above 5 seconds for hours, so every lookup was refused; and because MangaPixer asked again after the 5 seconds Wikidata suggested, the same series was retried every minute, using a request from the daily budget each time, while no other series was looked up. The two Wikidata lookups now accept a lag of up to 30 seconds (Wikipedia pages keep 5), and when Wikimedia does ask to slow down MangaPixer waits longer each time (30 seconds, 2 minutes, 10 minutes, then an hour) instead of every few seconds.
+- **The library sidebar reaches the bottom of the window.** On a long page (Home, a library), once the top bar scrolled out of view the sidebar ended a little above the bottom edge of the window and the page background showed below it.
+- **Webtoon Enhance on a page that grows as it loads.** In the vertical view with **Enhance** on, when a page whose size the archive does not record finished loading and pushed the pages below it down, their enhanced copies stayed where the pages had been until the next scroll. They now move with their pages.
+
 ## [1.35.1] - 2026-10-07
 
 ### Fixed

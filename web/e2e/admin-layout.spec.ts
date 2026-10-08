@@ -69,6 +69,26 @@ test.describe('Administration layout', () => {
     });
   }
 
+  for (const [width, height] of [[1280, 900], [390, 844]] as const) {
+    test(`${width} px: the Audit trail sits at the end, right before Debug logging (1.36.0)`, async ({ page }) => {
+      await openAdmin(page, width, height);
+      await expect(page.getByTestId('audit-trail-card')).toBeVisible();
+      // The last column holds exactly these two cards, in this order (owner, 2026-10-07; Debug logging stays last, 2026-09-26).
+      const lastColumn = await page.getByTestId('admin-grid').locator(':scope > .col').last()
+        .evaluate((col) => [...col.children].map((c) => c.tagName.toLowerCase()));
+      expect(lastColumn).toEqual(['app-audit-trail-card', 'app-debug-log-card']);
+      const audit = (await page.locator('app-audit-trail-card').boundingBox())!;
+      const debug = (await page.locator('app-debug-log-card').boundingBox())!;
+      expect(audit.y + audit.height).toBeLessThanOrEqual(debug.y + 1);
+      if (width < 900) {
+        // One column: nothing in the grid ends below Debug logging (with two columns the left one may be the taller).
+        const lowest = await page.getByTestId('admin-grid').locator(':scope > *').evaluateAll((cards) =>
+          Math.max(...cards.map((c) => c.getBoundingClientRect().bottom)));
+        expect(debug.y + debug.height).toBeGreaterThanOrEqual(lowest - 1);
+      }
+    });
+  }
+
   test('automatic trash cleaning is switched in Scheduled jobs; the Trash card only shows its status', async ({ page }) => {
     await openAdmin(page, 1280, 900);
     const trash = page.getByTestId('trash-card');

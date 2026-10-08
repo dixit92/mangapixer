@@ -32,6 +32,15 @@ import type { EnhanceChain } from './webtoon-band-plan';
  *    inside it, so using the element box would stretch the upscale).
  *  - if anything at all goes wrong the canvas is simply hidden and the `<img>`
  *    underneath is what the reader sees — i.e. exactly today's behaviour.
+ *  - the canvas must FOLLOW its page (1.36.0). In a double-page spread the row
+ *    centres its pages, so the page can move sideways without changing size: the
+ *    second page arriving late, a page added or removed beside it, the row
+ *    resizing (window width). The directive therefore watches its ROW, not only
+ *    its own `<img>` (a `load` / `error` from any page in the row, children added
+ *    or removed, the row's own size), and moves the canvas there with a cheap
+ *    reposition (a size change still re-renders). The rect is taken AFTER the
+ *    async render, so a page that moved during the render is not missed - the
+ *    1.35.1 "three partial pages on open" report.
  *
  * Scope: paged and double-spread pages. The webtoon (vertical scroll) view is
  * covered by `webtoon-upscale.directive.ts` instead (1.24.0): it keeps dozens of
@@ -316,6 +325,14 @@ export class UpscaleDirective implements OnDestroy {
   private canvasKind: 'webgpu' | '2d' | null = null;
   private observer: ResizeObserver | null = null;
   private frame: number | null = null;
+  /** The row (`.spread-row`) being watched for sibling changes, and its watchers. */
+  private row: HTMLElement | null = null;
+  private rowResize: ResizeObserver | null = null;
+  private rowChildren: MutationObserver | null = null;
+  private readonly onRowChange = (): void => this.scheduleReposition();
+  private repositionFrame: number | null = null;
+  /** The CSS size the shown canvas was rendered for (a reposition keeps it; a new size re-renders). */
+  private placedSize: { width: number; height: number } | null = null;
   /** Bumped on every (re)schedule so a slow async render can detect it is stale. */
   private token = 0;
   private destroyed = false;
@@ -350,6 +367,9 @@ export class UpscaleDirective implements OnDestroy {
     this.observer = null;
     if (this.frame !== null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(this.frame);
     this.frame = null;
+    if (this.repositionFrame !== null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(this.repositionFrame);
+    this.repositionFrame = null;
+    this.unwatchRow();
     this.dropCanvas();
     this.zone.runOutsideAngular(() => relinquishUpscaler(this));
   }
@@ -363,6 +383,72 @@ export class UpscaleDirective implements OnDestroy {
     }
     this.canvas = null;
     this.canvasKind = null;
+    this.placedSize = null;
+  }
+
+  /**
+   * Watch the row the `<img>` sits in: anything that can move this page without
+   * resizing it. Attached lazily (the `<img>` of a `@for` row is inserted after the
+   * directive is created) and re-attached if the `<img>` moved to another parent.
+   */
+  private watchRow(): void {
+    const parent = this.host.nativeElement.parentElement;
+    if (parent === this.row) return;
+    this.unwatchRow();
+    if (!parent) return;
+    this.row = parent;
+    this.zone.runOutsideAngular(() => {
+      // `load` / `error` do not bubble: listen in the capture phase for any page in the row.
+      parent.addEventListener('load', this.onRowChange, true);
+      parent.addEventListener('error', this.onRowChange, true);
+      if (typeof MutationObserver === 'function') {
+        this.rowChildren = new MutationObserver(this.onRowChange);
+        this.rowChildren.observe(parent, { childList: true });
+      }
+      if (typeof ResizeObserver === 'function') {
+        this.rowResize = new ResizeObserver(this.onRowChange);
+        this.rowResize.observe(parent);
+      }
+    });
+  }
+
+  private unwatchRow(): void {
+    this.row?.removeEventListener('load', this.onRowChange, true);
+    this.row?.removeEventListener('error', this.onRowChange, true);
+    this.rowChildren?.disconnect();
+    this.rowResize?.disconnect();
+    this.row = null;
+    this.rowChildren = null;
+    this.rowResize = null;
+  }
+
+  /** Coalesce row changes into one reposition a frame (after the layout settled). */
+  private scheduleReposition(): void {
+    if (this.destroyed || this.repositionFrame !== null) return;
+    if (typeof requestAnimationFrame !== 'function') { this.reposition(); return; }
+    this.repositionFrame = requestAnimationFrame(() => { this.repositionFrame = null; this.reposition(); });
+  }
+
+  /**
+   * Move a shown canvas onto its page's current painted rect. Cheap: no render,
+   * unless the painted SIZE changed too (then the page needs a new render; its
+   * own ResizeObserver usually asked already).
+   */
+  private reposition(): void {
+    const canvas = this.canvas;
+    const size = this.placedSize;
+    if (this.destroyed || !canvas || !size || canvas.style.display === 'none') return;
+    const rect = this.paintedRect();
+    if (!rect) return;
+    if (Math.abs(rect.width - size.width) > 0.5 || Math.abs(rect.height - size.height) > 0.5) { this.schedule(); return; }
+    this.place(canvas, rect);
+  }
+
+  private place(canvas: HTMLCanvasElement, rect: { left: number; top: number; width: number; height: number }): void {
+    canvas.style.left = `${rect.left}px`;
+    canvas.style.top = `${rect.top}px`;
+    canvas.style.width = `${rect.width}px`;
+    canvas.style.height = `${rect.height}px`;
   }
 
   /** Coalesce the (load / resize / preference) triggers into one render a frame. */
@@ -428,6 +514,7 @@ export class UpscaleDirective implements OnDestroy {
     const backend = this.support.backend();
     if (this.destroyed || !this.appUpscale() || !backend) { this.hide(); return; }
     const img = this.host.nativeElement;
+    this.watchRow();
     if (!img.complete) return; // a (load) event will bring us back
     const rect = this.paintedRect();
     if (!rect) { this.hide(); return; }
@@ -475,11 +562,14 @@ export class UpscaleDirective implements OnDestroy {
       if (this.destroyed || token !== this.token) return;
       if (!ok) { canvas.style.display = 'none'; return; }
       this.support.recordTiming('page', performance.now() - started);
-      canvas.style.left = `${rect.left}px`;
-      canvas.style.top = `${rect.top}px`;
-      canvas.style.width = `${rect.width}px`;
-      canvas.style.height = `${rect.height}px`;
+      // Measure AFTER the render: the page may have moved meanwhile (the other page
+      // of a spread arriving). A changed size means a new render is due as well.
+      const now = this.paintedRect();
+      if (!now) { canvas.style.display = 'none'; return; }
+      this.place(canvas, now);
+      this.placedSize = { width: rect.width, height: rect.height };
       canvas.style.display = 'block';
+      if (Math.abs(now.width - rect.width) > 0.5 || Math.abs(now.height - rect.height) > 0.5) this.schedule();
     } catch {
       // Chunk failed to load, the GPU threw, anything: stay on the <img>.
       if (this.canvas) this.canvas.style.display = 'none';

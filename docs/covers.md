@@ -83,7 +83,7 @@ What it does and does not touch:
 ### Nothing automatic
 
 - Under a folder marked **Don't match** nothing automatic happens, not even the jacket crop. Choosing a cover by hand still works.
-- A collection about a series (*new in 1.34.0*) has no volume covers to choose from: **Covers from the web** stays empty for it, and its series' poster is its automatic cover.
+- A collection about a series (*new in 1.34.0*) has no volume covers of its own: its series' poster is its automatic cover. *Changed in 1.36.0:* when series are linked inside it, **Choose cover** offers their covers (see [Covers of the series inside a folder](#covers-of-the-series-inside-a-folder)).
 - Folders that are not linked get the jacket crop only, for volume archives.
 - The reader is never affected: it always shows your pages as they are.
 
@@ -103,6 +103,14 @@ The picker shows what the card uses now and why, and lets you pick:
 - **Covers from the web** - the stored covers of the linked series, grouped by volume and language (including other editions of a volume). A cover that is not downloaded yet is shown but cannot be picked.
 
 **Use this cover** changes the card at once. A choice is the same for every user and stays until an admin changes it.
+
+### Covers of the series inside a folder
+
+*New in 1.36.0.* A folder that is **not a series itself** - it is not linked, its link waits in review, or it is marked **Don't match** or **Collection about** a series - but holds linked series somewhere below it, for example a main series and its spin-offs, can show the cover of one of them. In its picker, **Covers from the web** lists the stored covers of every series linked below it, under the name of each series' folder (and the series title when it differs), in the folder's order, and comes **first**, above **Another item's cover**. At most 20 series are listed; the picker says how many more there are.
+
+- Only covers that are already stored are offered: the volume covers MangaPixer downloaded for each series (volume 1, the volumes you have, complete or estimated volume stacks) and the series cover for a series without a volume 1 cover. Choosing one sends nothing anywhere, and nothing new is downloaded for the folder.
+- A folder that is a series itself (linked, or inside a linked folder) keeps its own series' covers only, listed after **Another item's cover** as before.
+- When the chosen cover is no longer stored - its series is unlinked and no other folder links it, or the stored volume covers are deleted - the folder goes back to its automatic cover by itself.
 
 ## Cover addresses and caching
 

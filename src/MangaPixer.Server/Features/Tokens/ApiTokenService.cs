@@ -28,9 +28,15 @@ public sealed class ApiTokenService
         _clock = clock;
     }
 
-    /// <summary>Creates a token for <paramref name="userId"/>; the returned secret is never available again.</summary>
-    public async Task<CreateApiTokenResponse> CreateAsync(long userId, string name, int? expiresInDays, CancellationToken ct = default)
+    /// <summary>
+    /// Creates a token for <paramref name="userId"/>; the returned secret is never available again. <paramref name="scopes"/> must
+    /// come from <see cref="TryNormalizeScopes"/> (null = the read scope only, as before 1.36.0).
+    /// </summary>
+    public async Task<CreateApiTokenResponse> CreateAsync(
+        long userId, string name, int? expiresInDays, IReadOnlyList<string>? scopes = null, CancellationToken ct = default)
     {
+        if (!TryNormalizeScopes(scopes, out var granted))
+            throw new ArgumentException("Unknown or empty token scopes.", nameof(scopes));
         var now = _clock.GetUtcNow();
         var (secret, prefix, hash) = ApiTokenSecret.Generate();
         var entity = new ApiTokenEntity
@@ -40,7 +46,7 @@ public sealed class ApiTokenService
             Name = name,
             Prefix = prefix,
             SecretHash = hash,
-            Scopes = ExportApi.Scope,
+            Scopes = string.Join(' ', granted),
             CreatedAt = now,
             ExpiresAt = expiresInDays is { } days ? now.AddDays(days) : null,
         };
@@ -98,6 +104,7 @@ public sealed class ApiTokenService
                 t.ExpiresAt,
                 t.RevokedAt,
                 t.LastUsedAt,
+                t.UserId,
                 t.User!.IsActive,
                 t.User.IsAdmin,
                 t.User.IsPendingActivation,
@@ -130,7 +137,7 @@ public sealed class ApiTokenService
                 .ExecuteUpdateAsync(s => s.SetProperty(t => t.LastUsedAt, now), ct);
         }
 
-        return ApiTokenValidation.Accepted(row.PublicId, scopes);
+        return ApiTokenValidation.Accepted(row.PublicId, scopes, row.UserId);
     }
 
     /// <summary>The list status of a token at <paramref name="now"/>.</summary>
@@ -140,6 +147,25 @@ public sealed class ApiTokenService
         if (token.ExpiresAt is { } expires && expires <= now) return "expired";
         if (!OwnerMayUseTokens(owner.IsActive, owner.IsAdmin, owner.IsPendingActivation, owner.ForcePasswordChange)) return "ownerInactive";
         return "active";
+    }
+
+    /// <summary>
+    /// The scopes a new token is granted (1.36.0). Null (the field left out) = <see cref="ExportApi.Scope"/> only, so a client of
+    /// 1.33.0 keeps today's behaviour. Otherwise every entry must be one of <see cref="ExportApi.KnownScopes"/> exactly (ordinal, no
+    /// trimming) and at least one is required; repeats collapse. The result is in the canonical order of the known set.
+    /// </summary>
+    public static bool TryNormalizeScopes(IReadOnlyList<string>? requested, out IReadOnlyList<string> scopes)
+    {
+        if (requested is null)
+        {
+            scopes = [ExportApi.Scope];
+            return true;
+        }
+        scopes = [];
+        if (requested.Count == 0 || requested.Any(r => r is null || !ExportApi.KnownScopes.Contains(r, StringComparer.Ordinal)))
+            return false;
+        scopes = ExportApi.KnownScopes.Where(k => requested.Contains(k, StringComparer.Ordinal)).ToList();
+        return true;
     }
 
     /// <summary>The account state a token needs from its owner (see the class remarks).</summary>
@@ -189,7 +215,11 @@ public sealed record ApiTokenValidation(ApiTokenRefusal Refusal, string? TokenId
 {
     public bool Succeeded => Refusal == ApiTokenRefusal.None;
 
-    public static ApiTokenValidation Accepted(string tokenId, IReadOnlyList<string> scopes) => new(ApiTokenRefusal.None, tokenId, scopes);
+    /// <summary>The owner's user id of an accepted token (1.36.0, for the scan request's audit row); null when refused.</summary>
+    public long? OwnerUserId { get; init; }
+
+    public static ApiTokenValidation Accepted(string tokenId, IReadOnlyList<string> scopes, long ownerUserId) =>
+        new(ApiTokenRefusal.None, tokenId, scopes) { OwnerUserId = ownerUserId };
 
     public static ApiTokenValidation Refused(ApiTokenRefusal refusal, string? tokenId = null) => new(refusal, tokenId, []);
 }

@@ -36,9 +36,12 @@ public interface IWikipediaApi
 /// The Wikimedia APIs (<c>https://en.wikipedia.org/w/api.php</c>, <c>https://www.wikidata.org/w/api.php</c>). Fixed requests, only these
 /// parameters: Wikidata <c>action=query&amp;list=search&amp;srsearch=haswbstatement:P11149=&lt;id&gt;</c> and <c>action=wbgetentities&amp;props=sitelinks&amp;sitefilter=enwiki</c>;
 /// Wikipedia <c>action=query&amp;prop=info</c> or <c>prop=revisions&amp;rvprop=content|ids&amp;rvslots=main</c> with <c>titles=A|B|...</c>,
-/// <c>redirects=1</c>. Every request carries <c>maxlag=5</c> and <c>format=json</c>; the headers come from the named clients (the fixed
+/// <c>redirects=1</c>. Every request carries <c>maxlag</c> and <c>format=json</c>; the headers come from the named clients (the fixed
 /// User-Agent, no cookies, no token, no <c>Via</c>). Requests are serial: one at a time, whatever the callers do (the Robot policy for
-/// unauthenticated clients). A <c>maxlag</c> answer is a "slow down" (503 with its <c>Retry-After</c>), like a 429.
+/// unauthenticated clients). Wikipedia reads ask <c>maxlag=5</c>; the two Wikidata reads ask <c>maxlag=30</c>, because Wikidata counts its
+/// query-service lag in <c>maxlag</c> and that lag stays above 5 s for hours (1.36.0: every lookup was refused at 12 s). A <c>maxlag</c>
+/// answer is a "slow down" (503) WITHOUT its <c>Retry-After</c>: the lag outlasts the 5 s it asks for, so the provider backoff climbs its
+/// ladder (30 s, 2 min, 10 min, 1 h) instead of asking again every few seconds.
 /// </summary>
 public sealed partial class WikipediaApi : IWikipediaApi
 {
@@ -46,7 +49,11 @@ public sealed partial class WikipediaApi : IWikipediaApi
     public const int MaxWikitextBytes = 4 * 1024 * 1024;
     private const string WikipediaBase = "https://" + MetadataHttp.WikipediaHost + "/w/api.php";
     private const string WikidataBase = "https://" + MetadataHttp.WikidataHost + "/w/api.php";
-    private const int DefaultMaxLagWaitSeconds = 5;
+    /// <summary>The <c>maxlag</c> of en.wikipedia.org reads (the usual value for an automated client).</summary>
+    public const int WikipediaMaxLagSeconds = 5;
+
+    /// <summary>The <c>maxlag</c> of the two Wikidata reads; Wikidata includes its query-service lag in it.</summary>
+    public const int WikidataMaxLagSeconds = 30;
 
     private readonly IHttpClientFactory _httpFactory;
     private readonly SemaphoreSlim _serial = new(1, 1);
@@ -101,7 +108,7 @@ public sealed partial class WikipediaApi : IWikipediaApi
     {
         if (!MangaUpdatesIdPattern().IsMatch(mangaUpdatesId))
             return [];
-        var url = $"{WikidataBase}?action=query&list=search&srsearch=haswbstatement%3AP11149%3D{mangaUpdatesId}&srnamespace=0&srlimit=3&maxlag=5&format=json&formatversion=2";
+        var url = $"{WikidataBase}?action=query&list=search&srsearch=haswbstatement%3AP11149%3D{mangaUpdatesId}&srnamespace=0&srlimit=3&maxlag={WikidataMaxLagSeconds}&format=json&formatversion=2";
         using var doc = await GetJsonAsync(MetadataHttp.WikidataClient, url, ct);
         var items = new List<string>();
         if (doc.RootElement.TryGetProperty("query", out var query) && query.TryGetProperty("search", out var hits) && hits.ValueKind == JsonValueKind.Array)
@@ -120,7 +127,7 @@ public sealed partial class WikipediaApi : IWikipediaApi
         var ids = items.Where(i => ItemPattern().IsMatch(i)).Take(3).ToList();
         if (ids.Count == 0)
             return null;
-        var url = $"{WikidataBase}?action=wbgetentities&ids={string.Join("%7C", ids)}&props=sitelinks&sitefilter=enwiki&maxlag=5&format=json";
+        var url = $"{WikidataBase}?action=wbgetentities&ids={string.Join("%7C", ids)}&props=sitelinks&sitefilter=enwiki&maxlag={WikidataMaxLagSeconds}&format=json";
         using var doc = await GetJsonAsync(MetadataHttp.WikidataClient, url, ct);
         if (!doc.RootElement.TryGetProperty("entities", out var entities) || entities.ValueKind != JsonValueKind.Object)
             return null;
@@ -157,7 +164,7 @@ public sealed partial class WikipediaApi : IWikipediaApi
         var valid = titles.Where(IsValidTitle).Distinct(StringComparer.Ordinal).Take(MaxTitles).ToList();
         if (valid.Count == 0)
             return null;
-        return $"{WikipediaBase}?action=query&{what}&titles={string.Join("%7C", valid.Select(Uri.EscapeDataString))}&redirects=1&maxlag=5&format=json&formatversion=2";
+        return $"{WikipediaBase}?action=query&{what}&titles={string.Join("%7C", valid.Select(Uri.EscapeDataString))}&redirects=1&maxlag={WikipediaMaxLagSeconds}&format=json&formatversion=2";
     }
 
     /// <summary>Maps every requested title to the page it ended up on (normalisation, then redirects) and reads that page.</summary>
@@ -210,7 +217,7 @@ public sealed partial class WikipediaApi : IWikipediaApi
         return results;
     }
 
-    /// <summary>One serial GET of a Wikimedia API; a <c>maxlag</c> answer becomes a 503 "slow down".</summary>
+    /// <summary>One serial GET of a Wikimedia API; a <c>maxlag</c> answer becomes a 503 "slow down" on the backoff ladder.</summary>
     private async Task<JsonDocument> GetJsonAsync(string client, string url, CancellationToken ct)
     {
         await _serial.WaitAsync(ct);
@@ -237,8 +244,8 @@ public sealed partial class WikipediaApi : IWikipediaApi
                 doc.Dispose();
                 if (string.Equals(code, "maxlag", StringComparison.Ordinal) || string.Equals(code, "readonly", StringComparison.Ordinal))
                 {
-                    var wait = response.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(DefaultMaxLagWaitSeconds);
-                    throw new MetadataHttpStatusException(HttpStatusCode.ServiceUnavailable, wait, response.Headers.RetryAfter?.Date);
+                    // Not its Retry-After (always ~5 s): replication / query-service lag lasts minutes to hours, so let the ladder escalate.
+                    throw new MetadataHttpStatusException(HttpStatusCode.ServiceUnavailable, retryAfterDelta: null, retryAfterDate: null);
                 }
                 throw new MetadataResponseInvalidException("api_error");
             }

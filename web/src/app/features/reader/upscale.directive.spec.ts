@@ -405,3 +405,146 @@ describe('UpscaleDirective on WebGL2 (1.25.0)', () => {
     expect(fakes.length).toBe(0);
   });
 });
+
+/**
+ * 1.36.0: the overlay follows its page. In a double-page spread the row centres its pages, so a page moves sideways
+ * WITHOUT changing size when the other page arrives late, when a page is added or removed beside it, or when the row
+ * resizes - its own ResizeObserver never fires. The directive watches the row and moves the canvas (no re-render),
+ * and measures the page AFTER the async render. jsdom computes no layout: the offsets are mutable fakes.
+ */
+@Component({
+  standalone: true,
+  imports: [UpscaleDirective],
+  template: `<div class="spread-row"><img [appUpscale]="true" src="/api/v1/items/i/pages/p0" alt="Page" /><img class="sibling" alt="" /></div>`,
+})
+class SpreadHostComponent {}
+
+/** A layout box whose offsets / size the test can move. */
+function movableLayout(img: HTMLImageElement, natural: number, box: number) {
+  const state = { left: 0, top: 0, width: box, height: box * 2 };
+  Object.defineProperty(img, 'naturalWidth', { value: natural, configurable: true });
+  Object.defineProperty(img, 'naturalHeight', { value: natural * 2, configurable: true });
+  Object.defineProperty(img, 'complete', { value: true, configurable: true });
+  Object.defineProperty(img, 'offsetWidth', { get: () => state.width, configurable: true });
+  Object.defineProperty(img, 'offsetHeight', { get: () => state.height, configurable: true });
+  Object.defineProperty(img, 'offsetLeft', { get: () => state.left, configurable: true });
+  Object.defineProperty(img, 'offsetTop', { get: () => state.top, configurable: true });
+  return state;
+}
+
+describe('UpscaleDirective overlay follows its page in a spread (1.36.0)', () => {
+  let fakes: FakeGl[];
+  let gl: typeof import('./webgl-upscaler');
+  /** Runs inside the render (the page moves while the GPU works); reset per test. */
+  let duringRender: () => void;
+
+  beforeEach(async () => {
+    fakes = [];
+    duringRender = () => undefined;
+    Object.defineProperty(window, 'devicePixelRatio', { value: 1, configurable: true });
+    vi.stubGlobal('createImageBitmap', () => { duringRender(); return Promise.resolve({ close: () => undefined }); });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (this: HTMLCanvasElement, type: string) {
+      if (type !== '2d') return null;
+      const self = this as HTMLCanvasElement & { __2d?: ReturnType<typeof createFake2d> };
+      self.__2d ??= createFake2d(this);
+      return self.__2d as unknown as CanvasRenderingContext2D;
+    } as typeof HTMLCanvasElement.prototype.getContext);
+    gl = await import('./webgl-upscaler');
+    gl.setGlCanvasFactoryForTests(() => {
+      const canvas = document.createElement('canvas');
+      const fake = createFakeGl(canvas);
+      fakes.push(fake);
+      canvas.getContext = ((type: string) => (type === 'webgl2' ? fake.gl : null)) as typeof canvas.getContext;
+      return canvas;
+    });
+  });
+
+  afterEach(() => {
+    for (const f of fakes) expect(f.violations).toEqual([]);
+    gl.setGlCanvasFactoryForTests(null);
+    localStorage.clear();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  async function rendered() {
+    TestBed.configureTestingModule({ imports: [SpreadHostComponent] });
+    TestBed.inject(UpscaleSupportService).webgl.set({ status: 'ready', floatTargets: true, maxTextureSize: 8192 });
+    TestBed.inject(ReaderPreferencesService).setUpscaler('sharp');
+    const fixture = TestBed.createComponent(SpreadHostComponent);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    const row = host.querySelector('.spread-row') as HTMLElement;
+    const img = host.querySelector('img[alt="Page"]') as HTMLImageElement;
+    const sibling = host.querySelector('img.sibling') as HTMLImageElement;
+    const box = movableLayout(img, 400, 1000); // 2.5x: Crisp renders
+    box.left = 300; // alone in the row: centred
+    img.dispatchEvent(new Event('load'));
+    await vi.waitFor(() => expect((host.querySelector('canvas') as HTMLCanvasElement | null)?.style.display).toBe('block'));
+    const canvas = host.querySelector('canvas') as HTMLCanvasElement;
+    return { fixture, host, row, img, sibling, box, canvas, draws: () => fakes.flatMap((f) => f.draws).length };
+  }
+
+  it('the other page loading late moves the overlay with its page, without a re-render', async () => {
+    const { canvas, sibling, box, draws } = await rendered();
+    expect(canvas.style.left).toBe('300px');
+    const before = draws();
+    box.left = 0; // the second page took its half of the row: this page moved left, same size
+    sibling.dispatchEvent(new Event('load')); // load does not bubble: the row listens in the capture phase
+    await vi.waitFor(() => expect(canvas.style.left).toBe('0px'));
+    expect(canvas.style.width).toBe('1000px');
+    expect(draws()).toBe(before);
+  });
+
+  it('a page that failed to load beside it (alt-text box) also moves the overlay', async () => {
+    const { canvas, sibling, box } = await rendered();
+    box.left = 120;
+    sibling.dispatchEvent(new Event('error'));
+    await vi.waitFor(() => expect(canvas.style.left).toBe('120px'));
+  });
+
+  it('a page added beside it (single -> double page) moves the overlay', async () => {
+    const { canvas, row, box } = await rendered();
+    box.left = 40;
+    const added = document.createElement('img');
+    row.appendChild(added);
+    await vi.waitFor(() => expect(canvas.style.left).toBe('40px'));
+  });
+
+  it('measures the page after the async render: a move during the render is not missed', async () => {
+    TestBed.configureTestingModule({ imports: [SpreadHostComponent] });
+    TestBed.inject(UpscaleSupportService).webgl.set({ status: 'ready', floatTargets: true, maxTextureSize: 8192 });
+    TestBed.inject(ReaderPreferencesService).setUpscaler('sharp');
+    const fixture = TestBed.createComponent(SpreadHostComponent);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    const img = host.querySelector('img[alt="Page"]') as HTMLImageElement;
+    const box = movableLayout(img, 400, 1000);
+    box.left = 300;
+    duringRender = () => { box.left = 10; }; // the other page arrives while the GPU works
+    img.dispatchEvent(new Event('load'));
+    await vi.waitFor(() => expect((host.querySelector('canvas') as HTMLCanvasElement | null)?.style.display).toBe('block'));
+    expect((host.querySelector('canvas') as HTMLCanvasElement).style.left).toBe('10px');
+  });
+
+  it('a size change seen by a row change re-renders at the new size instead of stretching', async () => {
+    const { canvas, sibling, box, draws } = await rendered();
+    const before = draws();
+    box.width = 800;
+    box.height = 1600;
+    box.left = 0;
+    sibling.dispatchEvent(new Event('load'));
+    await vi.waitFor(() => expect(canvas.width).toBe(800));
+    expect(draws()).toBeGreaterThan(before);
+    expect(canvas.style.width).toBe('800px');
+    expect(canvas.style.left).toBe('0px');
+  });
+
+  it('stops watching the row when destroyed (no reposition on a detached directive)', async () => {
+    const { fixture, row, sibling } = await rendered();
+    const remove = vi.spyOn(row, 'removeEventListener');
+    fixture.destroy();
+    expect(remove).toHaveBeenCalledWith('load', expect.any(Function), true);
+    expect(() => sibling.dispatchEvent(new Event('load'))).not.toThrow();
+  });
+});

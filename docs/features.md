@@ -59,7 +59,7 @@ Everything MangaPixer does today, by area. The [README](../README.md) has the sh
 ## Administration and operations
 
 - Add, rename and remove libraries from the web UI, using a folder picker confined to the media root. Removing a library deletes only MangaPixer's own metadata and thumbnails; your files are untouched.
-- Scans run per library or across all libraries, and can be canceled. Each library is also rescanned automatically on its own schedule (daily by default; hourly, every 6 hours, weekly or off), set in **Scheduled jobs**. There is no filesystem watching yet.
+- Scans run per library or across all libraries, and can be canceled. Each library is also rescanned automatically on its own schedule (daily by default; hourly, every 6 hours, weekly or off), set in **Scheduled jobs**. There is no filesystem watching yet; an app with an [API token](api-tokens.md#request-a-library-scan) allowed to request scans can start one after it adds files (*new in 1.36.0*).
 - Persistent thumbnails that survive restarts and cache clears. A background backfill fills them in and yields to active readers. Thumbnails can be regenerated per library.
 - Automatic rotating database backups (daily, 7 kept by default) and on-demand backups. A validated backup can be uploaded for restore; it is applied atomically on the next restart, with rollback if that fails (see [Backup and restore](backup-and-restore.md)).
 - Runtime log-level control (global and per subsystem) and a diagnostics export.

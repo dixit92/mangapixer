@@ -6489,6 +6489,111 @@
         }
       }
     },
+    "/api/v1/export/libraries/{id}/scan": {
+      "post": {
+        "tags": [
+          "ExportScan"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanTriggeredDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanTriggeredDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanTriggeredDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/folders/{nodeId}/cover-preference": {
       "get": {
         "tags": [
@@ -9045,6 +9150,20 @@
               "null",
               "string"
             ]
+          },
+          "webSeries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebCoverSeriesDto"
+            }
+          },
+          "webSeriesMore": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -9146,6 +9265,15 @@
               "string"
             ],
             "format": "int32"
+          },
+          "scopes": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -14156,6 +14284,17 @@
           }
         }
       },
+      "ScanTriggeredDto": {
+        "required": [
+          "scanRunId"
+        ],
+        "type": "object",
+        "properties": {
+          "scanRunId": {
+            "type": "string"
+          }
+        }
+      },
       "ScheduledJobDto": {
         "required": [
           "key",
@@ -16531,6 +16670,34 @@
           }
         }
       },
+      "WebCoverSeriesDto": {
+        "required": [
+          "nodeId",
+          "displayName",
+          "groups"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "seriesTitle": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebCoverGroupDto"
+            }
+          }
+        }
+      },
       "WikipediaListDto": {
         "required": [
           "state",
@@ -16774,6 +16941,9 @@
     },
     {
       "name": "ExportPing"
+    },
+    {
+      "name": "ExportScan"
     },
     {
       "name": "FolderCoverPreference"

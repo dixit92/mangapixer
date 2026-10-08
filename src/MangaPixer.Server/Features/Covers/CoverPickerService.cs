@@ -29,12 +29,17 @@ public enum CoverChoiceResult
 /// The admin "Choose cover..." picker (1.29.0, design 6.7): the options of one node - its file cover, the two halves of
 /// page 1, other archives' covers, the stored web covers of its linked series - and the choice itself (the TOP of the
 /// cover layer; no row = automatic). Works everywhere, also under Don't match, in unlinked libraries and with series
-/// information hidden (the web part is then empty with a reason). Local data only: nothing here sends a request.
+/// information hidden (the web part is then empty with a reason). 1.36.0: a FOLDER that is not a series itself (no own /
+/// inherited Confirmed or Auto link) offers the stored web covers of the series linked anywhere below it instead, per series
+/// (a main series and its spinoffs in one folder). Local data only: nothing here sends a request.
 /// </summary>
 public sealed class CoverPickerService
 {
     /// <summary>At most this many "another item's cover" options (the folder's archives by SortKey).</summary>
     public const int MaxArchiveOptions = 60;
+
+    /// <summary>1.36.0: at most this many series below a non-series folder offer their covers (the folder's order).</summary>
+    public const int MaxWebSeries = 20;
 
     private readonly MangaPixerDbContext _db;
     private readonly CoverResolutionService _resolutions;
@@ -73,15 +78,17 @@ public sealed class CoverPickerService
         foreach (var a in await OtherArchivesAsync(node, isFolder, own?.Id, ct))
             local.Add(new CoverOptionDto { Kind = CoverOptionKind.Archive, ArchiveId = a.PublicId, ImageUrl = ItemCoverUrl(a.PublicId, a.ContentVersion), Label = a.DisplayName });
 
-        var (web, available, reason) = await WebOptionsAsync(node, ct);
+        var web = await WebOptionsAsync(node, ct);
         return new CoverOptionsDto
         {
             NodeId = node.PublicId,
             Current = await StateAsync(node, ct),
             Local = local,
-            Web = web,
-            WebAvailable = available,
-            WebUnavailableReason = reason,
+            Web = web.Groups,
+            WebAvailable = web.Available,
+            WebUnavailableReason = web.Reason,
+            WebSeries = web.Series,
+            WebSeriesMore = web.SeriesMore,
         };
     }
 
@@ -114,10 +121,11 @@ public sealed class CoverPickerService
                 break;
             case CoverMode.VolumeCover:
                 mode = CoverChoiceMode.VolumeCover;
-                var companion = await CompanionRecordIdAsync(node, ct);
-                var cover = companion is null || string.IsNullOrEmpty(request.VolumeCoverId) ? null : await _db.VolumeCovers.AsNoTracking()
-                    .FirstOrDefaultAsync(v => v.PublicId == request.VolumeCoverId && v.ProviderRecordId == companion, ct);
-                if (cover is null)
+                var cover = string.IsNullOrEmpty(request.VolumeCoverId) ? null : await _db.VolumeCovers.AsNoTracking()
+                    .FirstOrDefaultAsync(v => v.PublicId == request.VolumeCoverId, ct);
+                // Re-checked here, never trusted from the client: the cover belongs to the node's own linked series, or (1.36.0) the
+                // node is a folder that is not a series and the cover belongs to a series linked below it.
+                if (cover is null || !await CoverBelongsAsync(node, cover.ProviderRecordId, ct))
                     return (CoverChoiceResult.Invalid, null);
                 if (cover.State != (int)VolumeCoverState.Stored || cover.StoredVersion <= 0)
                     return (CoverChoiceResult.NotStored, null);
@@ -295,62 +303,188 @@ public sealed class CoverPickerService
         return result;
     }
 
-    /// <summary>The MangaDex companion record of the node's linked series, or null (not linked, Don't match, none found).</summary>
-    private async Task<long?> CompanionRecordIdAsync(CatalogNodeEntity node, CancellationToken ct)
+    /// <summary>
+    /// Whether a web cover of <paramref name="companionRecordId"/> may be chosen for the node: the companion of its own (or inherited)
+    /// linked series; for a folder that is not a series itself (1.36.0), the companion of a series linked anywhere below it.
+    /// </summary>
+    private async Task<bool> CoverBelongsAsync(CatalogNodeEntity node, long companionRecordId, CancellationToken ct)
     {
         var links = await CoverLinks.NearestAsync(_db, [node.Id], ct);
-        if (!links.TryGetValue(node.Id, out var link) || !link.IsLinked)
-            return null;
-        return await CoverSeries.CompanionRecordIdAsync(_db, link.RecordId!.Value, ct);
+        if (links.TryGetValue(node.Id, out var link) && link.IsLinked)
+            return await CoverSeries.CompanionRecordIdAsync(_db, link.RecordId!.Value, ct) == companionRecordId;
+        if (node.Kind != (int)CatalogNodeKind.Folder)
+            return false;
+        var below = await LinkedSeriesBelowAsync(node.Id, ct);
+        var companions = await CoverSeries.CompanionRecordIdsAsync(_db, below.Select(b => b.RecordId).Distinct().ToList(), ct);
+        return companions.ContainsValue(companionRecordId);
     }
 
-    private async Task<(IReadOnlyList<WebCoverGroupDto> Groups, bool Available, string? Reason)> WebOptionsAsync(CatalogNodeEntity node, CancellationToken ct)
+    private sealed record WebOptions(IReadOnlyList<WebCoverGroupDto> Groups, bool Available, string? Reason,
+        IReadOnlyList<WebCoverSeriesDto> Series, int SeriesMore)
+    {
+        public static WebOptions Unavailable(string reason) => new([], false, reason, [], 0);
+    }
+
+    private async Task<WebOptions> WebOptionsAsync(CatalogNodeEntity node, CancellationToken ct)
     {
         var links = await CoverLinks.NearestAsync(_db, [node.Id], ct);
-        if (!links.TryGetValue(node.Id, out var link) || link.IsDontMatch)
-            return ([], false, link.IsDontMatch ? "dont_match" : "not_linked");
-        if (link.IsOwnCollection)
-            return ([], false, "collection"); // 1.34.0: its series' poster is automatic; there are no volume covers to choose from.
-        if (!link.IsLinked)
-            return ([], false, "not_linked");
+        var found = links.TryGetValue(node.Id, out var link);
+        // 1.36.0: a folder that is not a series itself offers the covers of the series linked below it (when there are any).
+        if ((!found || !link.IsLinked) && node.Kind == (int)CatalogNodeKind.Folder
+            && await SeriesInsideAsync(node, ct) is { } inside)
+            return inside;
 
-        var settings = await _db.AppSettings.AsNoTracking().Where(s => s.Id == AppSettingsEntity.SingletonId)
-            .Select(s => new { s.MetadataVolumeCoversEnabled }).FirstOrDefaultAsync(ct);
-        if (settings is { MetadataVolumeCoversEnabled: false })
-            return ([], false, "volume_covers_off");
-        // 1.32.0: an admin's explicit choice wins over an inherited folder "File covers"; only the library switch (unless the nearest
-        // folder says "Web covers when available") still hides the choice.
-        var libraryHidden = await _db.Libraries.AsNoTracking().Where(l => l.Id == node.LibraryId).Select(l => l.WebCoversHidden).FirstOrDefaultAsync(ct);
-        if (!FolderCoverRules.ChosenWebShown((await FolderCoverPreferences.OfAsync(_db, node.Id, ct))?.Preference, libraryHidden))
-            return ([], false, "web_covers_hidden");
+        if (!found || link.IsDontMatch)
+            return WebOptions.Unavailable(link.IsDontMatch ? "dont_match" : "not_linked");
+        if (link.IsOwnCollection)
+            return WebOptions.Unavailable("collection"); // 1.34.0: its series' poster is automatic; there are no volume covers to choose from.
+        if (!link.IsLinked)
+            return WebOptions.Unavailable("not_linked");
+        if (await WebClosedReasonAsync(node, ct) is { } closed)
+            return WebOptions.Unavailable(closed);
 
         var companion = await CoverSeries.CompanionRecordIdAsync(_db, link.RecordId!.Value, ct);
         if (companion is null)
-            return ([], false, "no_companion");
+            return WebOptions.Unavailable("no_companion");
 
         var covers = await _db.VolumeCovers.AsNoTracking()
             .Where(v => v.ProviderRecordId == companion && v.State != (int)VolumeCoverState.Failed)
             .ToListAsync(ct);
-        var groups = covers
-            .GroupBy(v => v.Kind == (int)VolumeCoverKind.Main ? null : v.Volume)
-            .OrderBy(g => g.Key is null ? int.MaxValue : g.Key.Value)
-            .Select(g => new WebCoverGroupDto
-            {
-                Volume = g.Key,
-                Covers = g.OrderBy(v => v.Kind).ThenBy(v => v.Variant).ThenBy(v => v.Locale, StringComparer.Ordinal)
-                    .Select(v => new WebCoverDto
-                    {
-                        Id = v.PublicId,
-                        Kind = (VolumeCoverKind)v.Kind,
-                        Volume = v.Volume,
-                        Variant = v.Variant,
-                        Locale = v.Locale,
-                        Stored = v.State == (int)VolumeCoverState.Stored && v.StoredVersion > 0,
-                        ImageUrl = v.State == (int)VolumeCoverState.Stored && v.StoredVersion > 0 ? VolumeCoverImageUrl(v.PublicId, v.StoredVersion) : null,
-                    }).ToList(),
-            }).ToList();
-        return (groups, true, null);
+        return new WebOptions(Groups(covers), true, null, [], 0);
     }
+
+    /// <summary>"Volume covers from the web" off, or the library / folder hiding a chosen web cover: the reason, else null.</summary>
+    private async Task<string?> WebClosedReasonAsync(CatalogNodeEntity node, CancellationToken ct)
+    {
+        var settings = await _db.AppSettings.AsNoTracking().Where(s => s.Id == AppSettingsEntity.SingletonId)
+            .Select(s => new { s.MetadataVolumeCoversEnabled }).FirstOrDefaultAsync(ct);
+        if (settings is { MetadataVolumeCoversEnabled: false })
+            return "volume_covers_off";
+        // 1.32.0: an admin's explicit choice wins over an inherited folder "File covers"; only the library switch (unless the nearest
+        // folder says "Web covers when available") still hides the choice.
+        var libraryHidden = await _db.Libraries.AsNoTracking().Where(l => l.Id == node.LibraryId).Select(l => l.WebCoversHidden).FirstOrDefaultAsync(ct);
+        if (!FolderCoverRules.ChosenWebShown((await FolderCoverPreferences.OfAsync(_db, node.Id, ct))?.Preference, libraryHidden))
+            return "web_covers_hidden";
+        return null;
+    }
+
+    /// <summary>
+    /// 1.36.0: the web part of a folder that is not a series itself - the STORED covers (volume and main covers; nothing not yet
+    /// downloaded, nothing requested) of every series linked Confirmed / Auto below it, one entry per series record in the
+    /// folder's order (pre-order by SortKey), at most <see cref="MaxWebSeries"/>. Null when no series is linked below (the
+    /// caller then answers with today's reason).
+    /// </summary>
+    private async Task<WebOptions?> SeriesInsideAsync(CatalogNodeEntity node, CancellationToken ct)
+    {
+        var below = await LinkedSeriesBelowAsync(node.Id, ct);
+        if (below.Count == 0)
+            return null;
+        if (await WebClosedReasonAsync(node, ct) is { } closed)
+            return WebOptions.Unavailable(closed);
+
+        var recordIds = below.Select(b => b.RecordId).Distinct().ToList();
+        var companions = await CoverSeries.CompanionRecordIdsAsync(_db, recordIds, ct);
+        var companionIds = companions.Values.Distinct().ToList();
+        var stored = (await _db.VolumeCovers.AsNoTracking()
+                .Where(v => companionIds.Contains(v.ProviderRecordId) && v.State == (int)VolumeCoverState.Stored && v.StoredVersion > 0)
+                .ToListAsync(ct))
+            .ToLookup(v => v.ProviderRecordId);
+        var titles = await _db.MetadataRecords.AsNoTracking().Where(r => recordIds.Contains(r.Id))
+            .ToDictionaryAsync(r => r.Id, r => r.Title, ct);
+
+        var series = new List<WebCoverSeriesDto>();
+        var seen = new HashSet<long>();
+        var more = 0;
+        foreach (var b in below)
+        {
+            // One entry per series: a record linked twice below (a series split over two folders) shows once, at its first place.
+            if (!companions.TryGetValue(b.RecordId, out var companion) || !seen.Add(companion) || !stored[companion].Any())
+                continue;
+            if (series.Count == MaxWebSeries)
+            {
+                more++;
+                continue;
+            }
+            series.Add(new WebCoverSeriesDto
+            {
+                NodeId = b.PublicId,
+                DisplayName = b.DisplayName,
+                SeriesTitle = titles.TryGetValue(b.RecordId, out var title) && !string.IsNullOrWhiteSpace(title) ? title : null,
+                Groups = Groups(stored[companion]),
+            });
+        }
+        return series.Count == 0
+            ? WebOptions.Unavailable("no_series_covers")
+            : new WebOptions([], true, null, series, more);
+    }
+
+    /// <summary>The link states whose node IS its series (Confirmed / Auto), as a SQL list.</summary>
+    private static readonly string SeriesStates = string.Join(",", Enum.GetValues<SeriesLinkState>().Where(SeriesLinkStates.IsSeries)
+        .Select(st => ((int)st).ToString(CultureInfo.InvariantCulture)));
+
+    private sealed record LinkedBelow(long NodeId, string PublicId, string DisplayName, long RecordId);
+
+    /// <summary>
+    /// 1.36.0: the live nodes below a folder (any depth, folders and archives) that carry their OWN Confirmed / Auto series link, in
+    /// the folder's order (pre-order: each level by SortKey, a folder's subtree before its next sibling).
+    /// </summary>
+    private async Task<List<LinkedBelow>> LinkedSeriesBelowAsync(long folderId, CancellationToken ct)
+    {
+        var result = new List<LinkedBelow>();
+        var connection = _db.Database.GetDbConnection();
+        var wasOpen = connection.State == System.Data.ConnectionState.Open;
+        if (!wasOpen) await connection.OpenAsync(ct);
+        try
+        {
+            using var command = connection.CreateCommand();
+            // The tree path joins the sort keys with U+0001: no key contains it before its own case tie-break, and sibling keys are
+            // never prefixes of each other, so ordering by path ordinal is the folder's pre-order.
+            command.CommandText = $"""
+                WITH RECURSIVE d(NodeId, Path, Depth) AS (
+                    SELECT cn.Id, cn.SortKey, 1 FROM catalog_nodes cn WHERE cn.ParentId = {folderId.ToString(CultureInfo.InvariantCulture)}
+                    UNION ALL
+                    SELECT cn.Id, d.Path || char(1) || cn.SortKey, d.Depth + 1 FROM d JOIN catalog_nodes cn ON cn.ParentId = d.NodeId
+                    WHERE d.Depth < 64
+                )
+                SELECT cn.Id, cn.PublicId, cn.DisplayName, l.RecordId, d.Path
+                FROM d
+                JOIN catalog_nodes cn ON cn.Id = d.NodeId
+                JOIN node_series_links l ON l.NodeId = d.NodeId
+                WHERE cn.Availability != {(int)CatalogNodeAvailability.Tombstoned} AND l.RecordId IS NOT NULL
+                  AND l.State IN ({SeriesStates});
+                """;
+            var rows = new List<(LinkedBelow Row, string Path)>();
+            using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                rows.Add((new LinkedBelow(reader.GetInt64(0), reader.GetString(1), reader.GetString(2), reader.GetInt64(3)), reader.GetString(4)));
+            result.AddRange(rows.OrderBy(r => r.Path, StringComparer.Ordinal).ThenBy(r => r.Row.NodeId).Select(r => r.Row));
+        }
+        finally
+        {
+            if (!wasOpen) await connection.CloseAsync();
+        }
+        return result;
+    }
+
+    /// <summary>Covers grouped by volume (the main cover last), each group by kind, edition, language.</summary>
+    private static List<WebCoverGroupDto> Groups(IEnumerable<VolumeCoverEntity> covers) => covers
+        .GroupBy(v => v.Kind == (int)VolumeCoverKind.Main ? null : v.Volume)
+        .OrderBy(g => g.Key is null ? int.MaxValue : g.Key.Value)
+        .Select(g => new WebCoverGroupDto
+        {
+            Volume = g.Key,
+            Covers = g.OrderBy(v => v.Kind).ThenBy(v => v.Variant).ThenBy(v => v.Locale, StringComparer.Ordinal)
+                .Select(v => new WebCoverDto
+                {
+                    Id = v.PublicId,
+                    Kind = (VolumeCoverKind)v.Kind,
+                    Volume = v.Volume,
+                    Variant = v.Variant,
+                    Locale = v.Locale,
+                    Stored = v.State == (int)VolumeCoverState.Stored && v.StoredVersion > 0,
+                    ImageUrl = v.State == (int)VolumeCoverState.Stored && v.StoredVersion > 0 ? VolumeCoverImageUrl(v.PublicId, v.StoredVersion) : null,
+                }).ToList(),
+        }).ToList();
 
     public static string ItemCoverUrl(string archivePublicId, long contentVersion) =>
         string.Create(CultureInfo.InvariantCulture, $"/api/v1/items/{Uri.EscapeDataString(archivePublicId)}/cover?v={contentVersion}");

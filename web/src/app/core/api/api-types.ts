@@ -2235,7 +2235,7 @@ export interface WebCoverDto {
   volume?: number | null;
   variant?: number;
   locale: string;
-  /** false = choosing it downloads it (one request). */
+  /** false = known but not downloaded yet: shown, cannot be chosen (choosing never downloads). */
   stored: boolean;
   imageUrl?: string | null;
 }
@@ -2243,6 +2243,16 @@ export interface WebCoverDto {
 export interface WebCoverGroupDto {
   volume?: number | null;
   covers: WebCoverDto[];
+}
+
+/** 1.36.0: the stored web covers of one series linked below a folder that is not a series itself. */
+export interface WebCoverSeriesDto {
+  /** The node that carries the series link. */
+  nodeId: string;
+  displayName: string;
+  /** The linked record's title. */
+  seriesTitle?: string | null;
+  groups: WebCoverGroupDto[];
 }
 
 /** GET /nodes/{nodeId}/cover-options (admin, lane C). */
@@ -2253,6 +2263,10 @@ export interface CoverOptionsDto {
   web: WebCoverGroupDto[];
   webAvailable: boolean;
   webUnavailableReason?: string | null;
+  /** 1.36.0: a folder that is not a series: the stored covers of the series linked below it (folder order, capped). */
+  webSeries?: WebCoverSeriesDto[];
+  /** How many more series below have stored covers than `webSeries` lists. */
+  webSeriesMore?: number;
 }
 
 /** PUT /nodes/{nodeId}/cover-choice (admin, lane C). */
@@ -2754,6 +2768,12 @@ export interface ExportRefreshDto {
 
 // --- Personal access tokens + export ping (1.33.0) ---
 
+/**
+ * A token scope: `metadata:read` reads the metadata export; `library:scan` (1.36.0) may request a full library scan through
+ * POST /export/libraries/{id}/scan. Chosen at creation, never changed later.
+ */
+export type ApiTokenScope = 'metadata:read' | 'library:scan';
+
 /** GET /admin/tokens: one personal access token. Never carries the secret. */
 export interface ApiTokenDto {
   id: string;
@@ -2770,10 +2790,14 @@ export interface ApiTokenDto {
   status: 'active' | 'expired' | 'revoked' | 'ownerInactive';
 }
 
-/** POST /admin/tokens. expiresInDays: 30, 90 or 365, or null for never (always sent). */
+/**
+ * POST /admin/tokens. expiresInDays: 30, 90 or 365, or null for never (always sent). scopes (1.36.0): at least one; left out =
+ * `metadata:read` only; an unknown or empty list is refused with 400 `invalid_scope`.
+ */
 export interface CreateApiTokenRequest {
   name: string;
   expiresInDays: number | null;
+  scopes?: ApiTokenScope[] | null;
 }
 
 /** The answer to POST /admin/tokens: the secret is shown this one time only. */
