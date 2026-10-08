@@ -3935,3 +3935,193 @@ describe('ReaderComponent archive name in the top chrome (1.32.0)', () => {
     expect(el.querySelector('.spacer')).not.toBeNull();
   });
 });
+
+/**
+ * Mouse-wheel page turns (1.36.0, owner decisions 2026-10-07): only in a fixed paged / double-page view, vertical wheel
+ * only, down = next / up = previous in reading order, one gesture = one page (inertia swallowed until the wheel is
+ * quiet), the archive edge needs a FRESH gesture, Ctrl / Meta + wheel stays browser zoom. The debounce itself is unit
+ * tested in wheel-paging.spec.ts; these drive the component's handler and its wiring on #viewport.
+ */
+describe('ReaderComponent mouse-wheel page turns (1.36.0)', () => {
+  function create(view: 'paged' | 'spread' | 'webtoon' = 'paged', pages = 5) {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    const c = TestBed.createComponent(ReaderComponent).componentInstance;
+    c.itemId.set('item-1');
+    c.pages.set(makePages(pages));
+    c.view.set(view);
+    c.direction.set('ltr');
+    c.phase.set('ready');
+    c.currentPage.set(1);
+    return c;
+  }
+  function wheel(timeStamp: number, deltaY = 100, extra: Partial<WheelEvent> = {}) {
+    const preventDefault = vi.fn();
+    const e = {
+      deltaX: 0, deltaY, deltaMode: 0, timeStamp, ctrlKey: false, metaKey: false, preventDefault, ...extra,
+    } as unknown as WheelEvent;
+    return { e, preventDefault };
+  }
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('fit screen: wheel down turns to the next page, wheel up back, and claims the event', () => {
+    const c = create();
+    const down = wheel(0, 100);
+    c.onReaderWheel(down.e);
+    expect(c.currentPage()).toBe(2);
+    expect(down.preventDefault).toHaveBeenCalled();
+    c.onReaderWheel(wheel(1000, -100).e);
+    expect(c.currentPage()).toBe(1);
+  });
+
+  it('a trackpad flick (a long inertial stream) turns ONE page', () => {
+    const c = create();
+    for (let i = 0; i < 80; i++) c.onReaderWheel(wheel(i * 16, Math.max(1, 70 - i)).e);
+    expect(c.currentPage()).toBe(2);
+  });
+
+  it('follows the reading order in right-to-left: wheel down is still the next page (not mirrored)', () => {
+    const c = create();
+    c.direction.set('rtl');
+    const next = vi.spyOn(c, 'nextPage');
+    c.onReaderWheel(wheel(0, 100).e);
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(c.currentPage()).toBe(2);
+  });
+
+  it('double page: one wheel step moves a whole spread', () => {
+    const c = create('spread', 6);
+    c.coverIsStandalone.set(false); // [0,1],[2,3],[4,5]
+    c.currentPage.set(0);
+    c.onReaderWheel(wheel(0, 100).e);
+    expect(c.currentPage()).toBe(2);
+  });
+
+  it('a page that scrolls (fit width, tall page) keeps native scrolling: no turn, no preventDefault', () => {
+    const c = create();
+    c.overflowsY.set(true);
+    const w = wheel(0, 100);
+    c.onReaderWheel(w.e);
+    expect(c.currentPage()).toBe(1);
+    expect(w.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it('a pinch-zoomed page or a sideways overflow keeps native scrolling', () => {
+    const c = create();
+    c.zoomed.set(true);
+    c.onReaderWheel(wheel(0, 100).e);
+    expect(c.currentPage()).toBe(1);
+    c.zoomed.set(false);
+    c.overflowsX.set(true);
+    c.onReaderWheel(wheel(1000, 100).e);
+    expect(c.currentPage()).toBe(1);
+  });
+
+  it('the vertical (webtoon) view never turns a page with the wheel', () => {
+    const c = create('webtoon');
+    const w = wheel(0, 100);
+    c.onReaderWheel(w.e);
+    expect(c.currentPage()).toBe(1);
+    expect(w.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it('Ctrl / Meta + wheel (and a trackpad pinch) stays browser zoom', () => {
+    const c = create();
+    const ctrl = wheel(0, 100, { ctrlKey: true });
+    c.onReaderWheel(ctrl.e);
+    const meta = wheel(1000, -100, { metaKey: true });
+    c.onReaderWheel(meta.e);
+    expect(c.currentPage()).toBe(1);
+    expect(ctrl.preventDefault).not.toHaveBeenCalled();
+    expect(meta.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it('a horizontal wheel or trackpad swipe is not a page turn', () => {
+    const c = create();
+    const side = wheel(0, 4, { deltaX: 120 });
+    c.onReaderWheel(side.e);
+    expect(c.currentPage()).toBe(1);
+    expect(side.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it('turns nothing while loading, with a menu or the help open, or while scrubbing', () => {
+    const c = create();
+    c.phase.set('preparing');
+    c.onReaderWheel(wheel(0).e);
+    c.phase.set('ready');
+    c.menuOpen.set(true);
+    c.onReaderWheel(wheel(1000).e);
+    c.menuOpen.set(false);
+    c.helpVisible.set(true);
+    c.onReaderWheel(wheel(2000).e);
+    c.helpVisible.set(false);
+    c.scrubbing.set(true);
+    c.onReaderWheel(wheel(3000).e);
+    expect(c.currentPage()).toBe(1);
+  });
+
+  describe('at the end of the archive (edge rule)', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); });
+
+    function atEnd() {
+      const c = create('paged', 3);
+      c.currentPage.set(2);
+      c.nextNeighbor.set({ id: 'next-item', displayName: 'Chapter 2' });
+      const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      const snack = vi.spyOn((c as unknown as { snackBar: MatSnackBar }).snackBar, 'open')
+        .mockImplementation(() => ({ dismiss: vi.fn() }) as never);
+      return { c, nav, snack };
+    }
+
+    it('the inertia of the gesture that armed it never opens the next archive; a fresh gesture does', () => {
+      const { c, nav, snack } = atEnd();
+      c.onReaderWheel(wheel(0, 60).e); // arms
+      expect(String(snack.mock.calls[0][0])).toBe('Again to open the next archive: Chapter 2');
+      for (let t = 16; t <= 1200; t += 16) {
+        vi.advanceTimersByTime(16);
+        c.onReaderWheel(wheel(t, 20).e); // the same flick's inertia
+      }
+      expect(nav).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(400); // the wheel goes quiet
+      c.onReaderWheel(wheel(1600, 60).e); // a new gesture: the second input
+      expect(nav).toHaveBeenCalledWith(['/reader', 'next-item'], { replaceUrl: true });
+    });
+
+    it('the tail of that gesture is still swallowed while the next archive loads', () => {
+      const { c, nav } = atEnd();
+      c.onReaderWheel(wheel(0, 60).e);
+      vi.advanceTimersByTime(500);
+      c.onReaderWheel(wheel(500, 60).e); // opens the next archive
+      expect(nav).toHaveBeenCalledTimes(1);
+      c.phase.set('preparing');
+      const tail = wheel(516, 30);
+      c.onReaderWheel(tail.e);
+      expect(tail.preventDefault).toHaveBeenCalled();
+      c.pages.set(makePages(3));
+      c.currentPage.set(0);
+      c.phase.set('ready');
+      c.onReaderWheel(wheel(532, 20).e); // still the same gesture: no page turn in the new archive
+      expect(c.currentPage()).toBe(0);
+    });
+  });
+
+  it('is wired to #viewport as a non-passive listener (a real WheelEvent turns the page and is cancelled)', () => {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    const fixture = TestBed.createComponent(ReaderComponent);
+    const c = fixture.componentInstance;
+    fixture.detectChanges();
+    c.pages.set(makePages(3));
+    c.view.set('paged');
+    c.phase.set('ready');
+    c.currentPage.set(0);
+    fixture.detectChanges();
+    fixture.detectChanges(); // the listener effect follows the viewport's creation
+    const viewport = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('.reader-viewport:not(.webtoon)')!;
+    expect(viewport).not.toBeNull();
+    const event = new WheelEvent('wheel', { deltaY: 100, cancelable: true, bubbles: true });
+    viewport.dispatchEvent(event);
+    expect(c.currentPage()).toBe(1);
+    expect(event.defaultPrevented).toBe(true);
+  });
+});

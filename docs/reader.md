@@ -215,6 +215,9 @@ The choice is remembered by this browser. Animations are skipped in vertical mod
 - **Tap the left or right 30% of the screen** to turn the page. In right-to-left mode the sides swap.
 - **Tap the center** to show or hide the controls.
 - **Swipe left or right anywhere on the page** to turn the page. Start the swipe inside the page: the very edge of the screen belongs to the browser's back/forward gesture. Swipes are ignored while the page is zoomed.
+- **Scroll the mouse wheel** (or two fingers on a trackpad) down for the next page and up for the previous one, in reading order (also in right-to-left mode, and a whole spread in double page). One scroll turns one page: the rest of the same scroll, including a trackpad's glide, is ignored until the wheel stops for a moment.
+  - This works only while the page fits the screen. When it does not (a tall page in **Fit width**, any page larger than the screen in **Fit height** or **Original size**, or a zoomed page), the wheel scrolls the page as usual and never turns it, also at the end of the page.
+  - Sideways scrolling never turns a page, and `Ctrl` (`Cmd` on a Mac) + wheel, or a trackpad pinch, still zooms the browser.
 
 **Vertical mode:**
 
@@ -237,8 +240,8 @@ Select **Reading help** (`?`) or press `?` to see the controls for the current m
 
 In single and double page mode:
 
-- Turning past the **last page** opens the next archive in the same folder.
-- Going back from the **first page** opens the previous archive, on its last page.
+- On the **last page**, turning the page once more names the next archive in the same folder; turning it **again** within 3 seconds opens it. A tap, click, swipe, arrow key or wheel scroll all count. Holding an arrow key down, or the glide of the same trackpad scroll, never counts as the second turn.
+- On the **first page**, going back twice the same way opens the previous archive, on its last page.
 - A short message names the archive you moved to. At either end of the folder you see "You’ve reached the end. No next archive in this folder." or "You’re at the start. No previous archive in this folder."
 
 "Next" follows the folder's Name order (see [Library layout](library-layout.md#folders-and-archives)). Moves between archives replace the browser history entry, so **Back** always returns to the folder.
