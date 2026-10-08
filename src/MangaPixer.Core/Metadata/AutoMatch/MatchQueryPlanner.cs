@@ -55,7 +55,9 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
 
         var anatomies = archives.Select(ArchiveNameAnatomy.Parse).ToList();
         var authorTags = DominantCreatorTags(anatomies);
-        if (classification.Class == WorkClass.ArtistCollection && name.Primary.Length > 0)
+        if (folder.IsMarkedArtistFolder)
+            AddMarkedArtists(authorTags, folder);
+        else if (classification.Class == WorkClass.ArtistCollection && name.Primary.Length > 0)
             AddDistinct(authorTags, name.Primary);
         if (folder.ParentDisplayName is { } parent && AutoMatchText.IsAuthorLike(parent, requireTwoTokens: true))
             AddDistinct(authorTags, TitleNormalizer.Normalize(parent).Primary);
@@ -156,7 +158,9 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
             if (AutoMatchText.IsAuthorLike(tag, requireTwoTokens: false))
                 AddDistinct(authorTags, tag);
         }
-        if (classification.Class == WorkClass.ArtistCollection
+        if (folder.IsMarkedArtistFolder)
+            AddMarkedArtists(authorTags, folder);
+        else if (classification.Class == WorkClass.ArtistCollection
             && TitleNormalizer.Normalize(folder.DisplayName).Primary is { Length: > 0 } artist)
             AddDistinct(authorTags, artist);
 
@@ -247,6 +251,19 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
     {
         if (value.Length > 0 && !list.Any(v => AutoMatchText.NamesEqual(v, value)))
             list.Add(value);
+    }
+
+    /// <summary>
+    /// 1.37.0: the author tags of a folder an admin marked an artist's folder are its declared artist names, never the folder name
+    /// (a marked folder's name need not be an author's: as a tag it would veto the right record at archive level). Local data only.
+    /// </summary>
+    private static void AddMarkedArtists(List<string> list, FolderShape folder)
+    {
+        foreach (var artist in folder.ArtistNames ?? [])
+        {
+            if (!string.IsNullOrWhiteSpace(artist))
+                AddDistinct(list, artist.Trim());
+        }
     }
 
     /// <summary>Order key between the folder's own names (<see cref="QueryVariantKind.Primary"/>) and the English title.</summary>

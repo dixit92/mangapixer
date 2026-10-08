@@ -32,6 +32,12 @@ public enum SeriesInfoState
     /// context (no numbers); nodes below never get this state (the collection stops inheritance).
     /// </summary>
     CollectionAbout = 6,
+
+    /// <summary>
+    /// 1.37.0: the node's OWN link is "Artist folder" - the works of one creator (the folder's declared creator). No record; nodes
+    /// below never get this state (the artist folder stops inheritance).
+    /// </summary>
+    ArtistFolder = 7,
 }
 
 /// <summary>Which source wins for series-level fields.</summary>
@@ -70,6 +76,14 @@ public enum SeriesLinkState
     /// What every reader does with it: <see cref="SeriesLinkStates"/>.
     /// </summary>
     CollectionAbout = 4,
+
+    /// <summary>
+    /// 1.37.0: an artist's folder - the works of one creator, each a work of its own. Never linked to a record (RecordId null), stops
+    /// inheritance (nothing inside inherits a link from it), and automatic matching continues inside it archive by archive, like
+    /// <see cref="CollectionAbout"/>. The artist is the folder's declared creator. Folders only. What every reader does with it:
+    /// <see cref="SeriesLinkStates"/>.
+    /// </summary>
+    ArtistFolder = 5,
 }
 
 /// <summary>How a link was made (<c>node_series_links.MatchMethod</c>).</summary>
