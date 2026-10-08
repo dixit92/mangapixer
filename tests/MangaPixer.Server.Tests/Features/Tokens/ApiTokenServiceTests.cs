@@ -45,6 +45,42 @@ public sealed class ApiTokenServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public void Scopes_LeftOutMeanRead_KnownOnesAreKeptInOrder_AndUnknownOrEmptyAreRefused()
+    {
+        Assert.True(ApiTokenService.TryNormalizeScopes(null, out var absent));
+        Assert.Equal(["metadata:read"], absent);
+        Assert.True(ApiTokenService.TryNormalizeScopes(["library:scan"], out var scan));
+        Assert.Equal(["library:scan"], scan);
+        Assert.True(ApiTokenService.TryNormalizeScopes(["library:scan", "metadata:read", "library:scan"], out var both));
+        Assert.Equal(["metadata:read", "library:scan"], both);
+
+        foreach (var bad in new IReadOnlyList<string>[] { [], ["admin"], ["metadata:read", "metadata:write"], ["Metadata:Read"], ["library:scan "], [""], [null!] })
+        {
+            Assert.False(ApiTokenService.TryNormalizeScopes(bad, out var none), string.Join(",", bad));
+            Assert.Empty(none);
+        }
+    }
+
+    [Fact]
+    public async Task Create_StoresTheChosenScopes_AndValidateReturnsThemWithTheOwner_AndRefusesBadScopes()
+    {
+        var admin = await _t.AddUserAsync("alice", isAdmin: true);
+        var created = await Service().CreateAsync(admin.Id, "MangaList", 365, ["library:scan", "metadata:read"]);
+        Assert.Equal(["metadata:read", "library:scan"], created.Token.Scopes);
+        Assert.Equal("metadata:read library:scan", (await _t.Db.ApiTokens.AsNoTracking().SingleAsync()).Scopes);
+
+        var ok = await Service().ValidateAsync(created.Secret);
+        Assert.True(ok.Succeeded);
+        Assert.Equal(["metadata:read", "library:scan"], ok.Scopes);
+        Assert.Equal(admin.Id, ok.OwnerUserId);
+        Assert.Null(ApiTokenValidation.Refused(ApiTokenRefusal.Unknown).OwnerUserId);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => Service().CreateAsync(admin.Id, "bad", 30, ["admin"]));
+        await Assert.ThrowsAsync<ArgumentException>(() => Service().CreateAsync(admin.Id, "empty", 30, []));
+        Assert.Single(await Service().ListAsync());
+    }
+
+    [Fact]
     public async Task Validate_AcceptsTheToken_AndRefusesUnknownAndMalformedValues()
     {
         var admin = await _t.AddUserAsync("alice", isAdmin: true);
