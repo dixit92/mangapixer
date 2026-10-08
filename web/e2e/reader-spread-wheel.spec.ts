@@ -18,7 +18,8 @@ import { login, readerPrefs, routeFakeItem, withoutWebGpu } from './reader-fixtu
 const PAGE_W = 300;
 const PAGE_H = 420;
 
-test.describe.configure({ mode: 'serial' });
+// Not serial: every test routes its own made-up item, so one failure must not hide the others' results (the suite
+// runs on one worker anyway).
 test.use({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
 
 interface Rect { x: number; y: number; width: number; height: number }
