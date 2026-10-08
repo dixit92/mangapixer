@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Injector, computed, inject, input, output, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatIconModule } from '@angular/material/icon';
@@ -170,7 +170,8 @@ export class SeriesAdminActionsComponent {
   private readonly mangaDexDialog = inject(MangaDexMatchDialogService);
   private readonly coverPicker = inject(CoverPickerDialogService);
   private readonly artistDialog = inject(ArtistFolderDialogService);
-  private readonly declaredApi = inject(DeclaredFactsApiService);
+  // Resolved on use only (after a save): hosts that never mark an artist folder do not need the declared-facts API.
+  private readonly injector = inject(Injector);
 
   readonly info = input.required<SeriesInfoDto>();
   readonly changed = output<void>();
@@ -296,8 +297,9 @@ export class SeriesAdminActionsComponent {
     // The folder's own name when the info is its own; otherwise the field starts empty (empty = the folder's name, on the server).
     const artist = await this.artistDialog.open(info.anchorNodeId === info.nodeId ? info.anchorDisplayName : '');
     if (!artist) return;
-    this.run(this.api.setArtistFolder(info.nodeId, artist).pipe(tap(() => this.declaredApi.version.update((v) => v + 1))),
-      artistFolderLabel(artist.name), true, artistFolderResultMessage);
+    const declaredChanged = () => this.injector.get(DeclaredFactsApiService).version.update((v) => v + 1);
+    this.run(this.api.setArtistFolder(info.nodeId, artist).pipe(tap(declaredChanged)), artistFolderLabel(artist.name), true,
+      artistFolderResultMessage);
   }
 
   clearArtistFolder(): void {
