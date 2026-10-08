@@ -175,4 +175,82 @@ public sealed class ProviderAuthorFolderTests : IAsyncLifetime
         var archiveIds = await _db.Db.CatalogNodes.AsNoTracking().Where(n => n.ParentId == authorFolder.Id).Select(n => n.Id).ToListAsync();
         Assert.Equal(archiveIds.Order(), rows.Where(r => r.NodeId != series.Id).Select(r => r.NodeId).Order());
     }
+
+    /// <summary>
+    /// The 1.36.0 live finding: "Given Family/" was queued as one review-only folder (its shape alone could not tell), waits in Needs
+    /// review with one candidate, and only THEN is a record by that author linked in the library - so today it is an artist folder.
+    /// </summary>
+    private async Task<(CatalogNodeEntity Folder, WorkDetector Detector)> ArtistFolderWaitingInReviewAsync()
+    {
+        await _h.EnableAutomaticAsync();
+        var authorFolder = await AuthorFolderAsync();
+        _h.Search["Given Family"] = [new MuJson.Hit(601, "Given Family")];
+        _h.Records[601] = MuJson.Get(601, "Given Family");
+        var detector = new WorkDetector();
+        var (error, _) = await _h.Service(detector).StartBulkAsync(_db.LibraryPublicId, new Core.Api.MetadataMatchLibraryRequest(), "admin");
+        Assert.Null(error);
+        Assert.Equal(1, await _h.DrainAsync(detector: detector));
+        var link = await _db.Db.NodeSeriesLinks.AsNoTracking().SingleAsync(l => l.NodeId == authorFolder.Id);
+        Assert.Equal(((int)SeriesLinkState.NeedsReview, (int?)MetadataMatchMethod.Auto), (link.State, link.MatchMethod));
+
+        var linked = await _db.AddFolderAsync(null, "Linked Saga");
+        await _db.AddLinkAsync(linked, await RecordAsync("602", """[{"name":"Given Family","role":"author"}]"""));
+        _db.Db.ChangeTracker.Clear();
+        return (authorFolder, detector);
+    }
+
+    /// <summary>The folder no longer waits as one work: its review row and candidates are gone, its archives were matched one by one.</summary>
+    private async Task AssertHandedOverAsync(CatalogNodeEntity folder)
+    {
+        Assert.False(await _db.Db.NodeSeriesLinks.AnyAsync(l => l.NodeId == folder.Id));
+        Assert.False(await _db.Db.MetadataMatchCandidates.AnyAsync(c => c.NodeId == folder.Id));
+        var rows = await _db.Db.MetadataMatchQueue.AsNoTracking().ToListAsync();
+        Assert.Equal(QueueState.Skipped, rows.Single(r => r.NodeId == folder.Id).State);
+        var archiveIds = await _db.Db.CatalogNodes.AsNoTracking().Where(n => n.ParentId == folder.Id).Select(n => n.Id).ToListAsync();
+        var archives = rows.Where(r => archiveIds.Contains(r.NodeId)).ToList();
+        Assert.Equal(3, archives.Count);
+        Assert.All(archives, r => Assert.Equal((QueueState.Done, (int)MatchLevel.Archive, (int)WorkClass.ArtistCollection), (r.State, r.Level, r.WorkClass)));
+    }
+
+    [Fact]
+    public async Task ARecheck_OfAFolderWaitingInReview_ThatIsAnArtistFolderNow_HandsOverToItsArchives_InsteadOfPinningItAtFolderLevel()
+    {
+        var (folder, detector) = await ArtistFolderWaitingInReviewAsync();
+        await _db.Db.MetadataMatchQueue.Where(q => q.NodeId == folder.Id).ExecuteUpdateAsync(s => s.SetProperty(q => q.RulesRevision, (int?)null));
+
+        Assert.Equal(1, await _h.Service(detector).QueueOutdatedReviewsAsync());
+        Assert.Equal(4, await _h.DrainAsync(detector: detector)); // the folder row, then its three archive works
+
+        await AssertHandedOverAsync(folder);
+    }
+
+    [Fact]
+    public async Task AnAdminRerun_OfAnArtistFolderWaitingInReview_HandsOverToItsArchives()
+    {
+        var (folder, detector) = await ArtistFolderWaitingInReviewAsync();
+
+        var codes = await _h.Service(detector).RerunAsync([folder.PublicId], "admin");
+        Assert.Equal("ok", codes[folder.PublicId]);
+        Assert.Equal(4, await _h.DrainAsync(detector: detector));
+
+        await AssertHandedOverAsync(folder);
+    }
+
+    [Fact]
+    public async Task AFolderLevelReviewRow_LeftByAnEarlierRelease_OnAnArtistFolder_IsQueuedOnce_EvenUnderTheCurrentRevision()
+    {
+        var (folder, detector) = await ArtistFolderWaitingInReviewAsync();
+        // What 1.34.2 - 1.36.0 left behind: a re-check pinned the folder at review level with the artist class, stamped with today's revision.
+        await _db.Db.MetadataMatchQueue.Where(q => q.NodeId == folder.Id).ExecuteUpdateAsync(s => s
+            .SetProperty(q => q.Level, (int)MatchLevel.ReviewOnly)
+            .SetProperty(q => q.WorkClass, (int)WorkClass.ArtistCollection)
+            .SetProperty(q => q.RulesRevision, (int?)MatcherRules.Revision));
+
+        Assert.Equal(1, await _h.Service(detector).QueueOutdatedReviewsAsync());
+        Assert.Equal(0, await _h.Service(detector).QueueOutdatedReviewsAsync());
+        Assert.Equal(4, await _h.DrainAsync(detector: detector));
+
+        await AssertHandedOverAsync(folder);
+        Assert.Equal(0, await _h.Service(detector).QueueOutdatedReviewsAsync()); // nothing left to repair
+    }
 }
