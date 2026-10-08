@@ -7,7 +7,9 @@ using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Server.Features.Export;
 using com.lifepixer.mangapixer.Server.Persistence;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.EntityFrameworkCore;
@@ -208,6 +210,111 @@ public sealed class ApiTokenHttpTests
         Assert.True(mismatches.Count == 0, string.Join("\n", mismatches));
         // The admin API in particular: a token never lists, creates or revokes tokens.
         Assert.Equal(HttpStatusCode.Unauthorized, (await bearer.GetAsync("/api/v1/admin/tokens")).StatusCode);
+    }
+
+    /// <summary>The ONE unsafe method a token may use (1.36.0, owner-approved): method + route template.</summary>
+    private static readonly string[] TokenWriteAllowlist = ["POST api/v1/export/libraries/{id}/scan"];
+
+    /// <summary>
+    /// The write sweep (1.36.0): (1) every unsafe method mapped under <c>/api/v1/export</c> is in <see cref="TokenWriteAllowlist"/>,
+    /// which holds exactly the scan request, and only that endpoint carries the token-write marker, the antiforgery opt-out of the
+    /// export and the scan policy; (2) the two export policies are named only under the export prefix; (3) over HTTP, a valid token
+    /// holding EVERY scope gets, for every other mapped (method, endpoint) - unsafe ones everywhere, and every method outside the
+    /// export - exactly the status the same request gets with no credentials.
+    /// </summary>
+    [Fact]
+    public async Task Sweep_OnlyTheScanRequest_AcceptsAnUnsafeMethodFromAToken()
+    {
+        await using var factory = new ApiTokenTestFactory();
+        var created = await factory.CreateTokenAsync(scopes: ExportApi.KnownScopes);
+        Assert.Equal(ExportApi.KnownScopes, created.Token.Scopes);
+        var anonymous = factory.CreateClient();
+        var bearer = factory.BearerClient(created.Secret);
+
+        var endpoints = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>().ToList();
+        static bool IsSafe(string method) => HttpMethods.IsGet(method) || HttpMethods.IsHead(method);
+        static string Key(string method, RouteEndpoint e) => method + " " + e.RoutePattern.RawText?.TrimStart('/');
+        static bool UnderExport(RouteEndpoint e) =>
+            (e.RoutePattern.RawText?.TrimStart('/') ?? string.Empty).StartsWith(ExportApi.RoutePrefix + "/", StringComparison.OrdinalIgnoreCase);
+        static IEnumerable<string> MethodsOf(RouteEndpoint e) => e.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods ?? ["GET"];
+        static IEnumerable<string?> PoliciesOf(RouteEndpoint e) => e.Metadata.GetOrderedMetadata<IAuthorizeData>().Select(a => a.Policy);
+
+        // (1) The export's unsafe methods, the marker, the antiforgery opt-out and the scan policy: the allowlisted route only.
+        var exportWrites = endpoints.Where(UnderExport).SelectMany(e => MethodsOf(e).Where(m => !IsSafe(m)).Select(m => Key(m, e))).Order().ToList();
+        Assert.Equal(TokenWriteAllowlist, exportWrites);
+        var marked = endpoints.Where(e => e.Metadata.GetMetadata<TokenWriteAllowedAttribute>() is not null)
+            .SelectMany(e => MethodsOf(e).Select(m => Key(m, e))).ToList();
+        Assert.Equal(TokenWriteAllowlist, marked);
+        var exportCsrfOptOuts = endpoints.Where(e => UnderExport(e) && e.Metadata.GetMetadata<IgnoreAntiforgeryTokenAttribute>() is not null)
+            .SelectMany(e => MethodsOf(e).Select(m => Key(m, e))).ToList();
+        Assert.Equal(TokenWriteAllowlist, exportCsrfOptOuts);
+        var scanPolicy = endpoints.Where(e => PoliciesOf(e).Contains(ExportApi.ScanPolicy)).SelectMany(e => MethodsOf(e).Select(m => Key(m, e))).ToList();
+        Assert.Equal(TokenWriteAllowlist, scanPolicy);
+        var scanEndpoint = endpoints.Single(e => e.Metadata.GetMetadata<TokenWriteAllowedAttribute>() is not null);
+        Assert.All(PoliciesOf(scanEndpoint), p => Assert.Equal(ExportApi.ScanPolicy, p));
+
+        // (2) The policies that name the token scheme guard export routes only.
+        var outside = endpoints.Where(e => !UnderExport(e) && PoliciesOf(e).Any(p => p is ExportApi.Policy or ExportApi.ScanPolicy))
+            .Select(e => e.RoutePattern.RawText).ToList();
+        Assert.True(outside.Count == 0, "export policy outside the export: " + string.Join(", ", outside));
+
+        // (3) Over HTTP: nothing else changes for a token holding every scope.
+        var checkedRequests = 0;
+        var mismatches = new List<string>();
+        foreach (var endpoint in endpoints)
+        {
+            var url = "/" + Concrete(endpoint.RoutePattern);
+            foreach (var method in MethodsOf(endpoint))
+            {
+                if (TokenWriteAllowlist.Contains(Key(method, endpoint)) || (UnderExport(endpoint) && IsSafe(method)))
+                    continue;
+                var expected = await anonymous.SendAsync(Request(method, url));
+                var actual = await bearer.SendAsync(Request(method, url));
+                checkedRequests++;
+                if (expected.StatusCode != actual.StatusCode)
+                    mismatches.Add($"{method} {url}: {(int)expected.StatusCode} without credentials, {(int)actual.StatusCode} with a token");
+            }
+        }
+
+        Assert.True(checkedRequests > 100, $"only {checkedRequests} requests were swept");
+        Assert.True(mismatches.Count == 0, string.Join("\n", mismatches));
+    }
+
+    [Fact]
+    public async Task AdminApi_GrantsOnlyTheScopesTickedAtCreation_AndRefusesUnknownOrEmptyScopes()
+    {
+        await using var factory = new ApiTokenTestFactory();
+        var admin = await factory.AdminAsync();
+
+        async Task<IReadOnlyList<string>> CreatedScopesAsync(object body)
+        {
+            var response = await admin.PostAsJsonAsync("/api/v1/admin/tokens", body);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            return (await response.Content.ReadFromJsonAsync<CreateApiTokenResponse>(TestJson.Web))!.Token.Scopes;
+        }
+
+        // Left out or null: the read scope only (a 1.33.0 client keeps its behaviour).
+        Assert.Equal(["metadata:read"], await CreatedScopesAsync(new { name = "absent", expiresInDays = 30 }));
+        Assert.Equal(["metadata:read"], await CreatedScopesAsync(new { name = "null", expiresInDays = 30, scopes = (string[]?)null }));
+        Assert.Equal(["library:scan"], await CreatedScopesAsync(new { name = "scan", expiresInDays = 30, scopes = new[] { "library:scan" } }));
+        Assert.Equal(["metadata:read", "library:scan"],
+            await CreatedScopesAsync(new { name = "both", expiresInDays = 30, scopes = new[] { "library:scan", "metadata:read", "library:scan" } }));
+
+        foreach (var bad in new object[]
+                 {
+                     new { name = "empty", expiresInDays = 30, scopes = Array.Empty<string>() },
+                     new { name = "unknown", expiresInDays = 30, scopes = new[] { "admin" } },
+                     new { name = "mixed", expiresInDays = 30, scopes = new[] { "metadata:read", "library:write" } },
+                     new { name = "case", expiresInDays = 30, scopes = new[] { "Library:Scan" } },
+                     new { name = "space", expiresInDays = 30, scopes = new[] { " library:scan" } },
+                     new { name = "nullentry", expiresInDays = 30, scopes = new string?[] { null } },
+                 })
+        {
+            var response = await admin.PostAsJsonAsync("/api/v1/admin/tokens", bad);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            Assert.Equal("invalid_scope", (await response.Content.ReadFromJsonAsync<ApiError>(TestJson.Web))!.Error);
+        }
+        Assert.Equal(4, (await admin.GetFromJsonAsync<List<ApiTokenDto>>("/api/v1/admin/tokens", TestJson.Web) ?? []).Count);
     }
 
     [Fact]

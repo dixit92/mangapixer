@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Serilog;
 using Xunit;
 
@@ -25,10 +26,15 @@ public sealed class ApiTokenTestFactory : WebApplicationFactory<Program>
     public const string AdminPassword = "TestPassword123!";
 
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), "mangapixer-tok-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly TimeProvider? _clock;
     private HttpClient? _admin;
 
-    public ApiTokenTestFactory(IReadOnlyDictionary<string, string?>? configuration = null, bool rateLimitDisabled = true)
+    /// <param name="configuration">Extra configuration keys.</param>
+    /// <param name="rateLimitDisabled">The login / failed-attempt limiter switch.</param>
+    /// <param name="clock">1.36.0: replaces the host's <see cref="TimeProvider"/> (e.g. a settable clock for the scan cooldown).</param>
+    public ApiTokenTestFactory(IReadOnlyDictionary<string, string?>? configuration = null, bool rateLimitDisabled = true, TimeProvider? clock = null)
     {
+        _clock = clock;
         var data = Path.Combine(_tempRoot, "data");
         var cache = Path.Combine(_tempRoot, "cache");
         var scratch = Path.Combine(_tempRoot, "scratch");
@@ -63,6 +69,12 @@ public sealed class ApiTokenTestFactory : WebApplicationFactory<Program>
                 var descriptor = services.FirstOrDefault(d => d.ImplementationType == type);
                 if (descriptor is not null)
                     services.Remove(descriptor);
+            }
+
+            if (_clock is not null)
+            {
+                services.RemoveAll<TimeProvider>();
+                services.AddSingleton(_clock);
             }
 
             services.AddSingleton<Microsoft.AspNetCore.Hosting.IStartupFilter, RemoteIpStartupFilter>();
@@ -112,11 +124,16 @@ public sealed class ApiTokenTestFactory : WebApplicationFactory<Program>
         await db.SaveChangesAsync();
     }
 
-    /// <summary>Creates a token through the admin API with <paramref name="client"/> (default: the first admin).</summary>
-    public async Task<CreateApiTokenResponse> CreateTokenAsync(string name = "MangaList", int? expiresInDays = 365, HttpClient? client = null)
+    /// <summary>
+    /// Creates a token through the admin API with <paramref name="client"/> (default: the first admin); <paramref name="scopes"/> null
+    /// = the field left out (the read scope only).
+    /// </summary>
+    public async Task<CreateApiTokenResponse> CreateTokenAsync(
+        string name = "MangaList", int? expiresInDays = 365, HttpClient? client = null, IReadOnlyList<string>? scopes = null)
     {
         client ??= await AdminAsync();
-        var response = await client.PostAsJsonAsync("/api/v1/admin/tokens", new CreateApiTokenRequest { Name = name, ExpiresInDays = expiresInDays });
+        var response = await client.PostAsJsonAsync("/api/v1/admin/tokens",
+            new CreateApiTokenRequest { Name = name, ExpiresInDays = expiresInDays, Scopes = scopes });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<CreateApiTokenResponse>(TestJson.Web))!;
     }

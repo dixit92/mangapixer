@@ -6,7 +6,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 
 import { ApiService } from '../../../core/api/api.service';
-import { ApiError, ApiTokenDto, CreateApiTokenResponse } from '../../../core/api/api-types';
+import { ApiError, ApiTokenDto, ApiTokenScope, CreateApiTokenResponse } from '../../../core/api/api-types';
 
 /** The expiry choices in days; null = never. 365 is the default. */
 export const EXPIRY_CHOICES: { days: number | null; label: string }[] = [
@@ -14,6 +14,27 @@ export const EXPIRY_CHOICES: { days: number | null; label: string }[] = [
   { days: 90, label: '90 days' },
   { days: 365, label: '1 year' },
   { days: null, label: 'Never' },
+];
+
+/**
+ * The scopes an admin may tick when creating a token (1.36.0), in the server's canonical order. "Read" is ticked by default,
+ * "scan" is not; at least one is required. `key` names the checkbox's test id.
+ */
+export const SCOPE_CHOICES: { scope: ApiTokenScope; key: string; label: string; hint: string; listText: string }[] = [
+  {
+    scope: 'metadata:read',
+    key: 'read',
+    label: 'Read the metadata export',
+    hint: 'Series information for another app such as MangaList.',
+    listText: 'read the metadata export',
+  },
+  {
+    scope: 'library:scan',
+    key: 'scan',
+    label: 'Request library scans',
+    hint: 'The app may ask for a full scan of a library, at most once every few minutes per library. It never changes your files.',
+    listText: 'request library scans',
+  },
 ];
 
 const STATUS_TEXT: Record<ApiTokenDto['status'], string> = {
@@ -25,10 +46,12 @@ const STATUS_TEXT: Record<ApiTokenDto['status'], string> = {
 
 /**
  * API tokens card (1.33.0, `<app-api-tokens-card />`): personal access tokens that let another app (MangaList) read the
- * metadata export and nothing else.
- * - The list: name, the token's first characters, owner, created / expires / last used, status; revoke after a confirm.
- * - Create: a name and an expiry (30 / 90 days, 1 year - the default - or never). The token is shown ONCE with a copy button;
- *   the server keeps only its hash.
+ * metadata export and - with the scan scope (1.36.0) - request a full library scan, and nothing else.
+ * - The list: name, the token's first characters, what it may do (its scopes), owner, created / expires / last used, status;
+ *   revoke after a confirm.
+ * - Create: a name, what it may do ("Read the metadata export" ticked by default, "Request library scans" not; at least one) and an
+ *   expiry (30 / 90 days, 1 year - the default - or never). The token is shown ONCE with a copy button; the server keeps only
+ *   its hash. Scopes cannot be changed later: create a new token instead.
  */
 @Component({
   selector: 'app-api-tokens-card',
@@ -43,9 +66,9 @@ const STATUS_TEXT: Record<ApiTokenDto['status'], string> = {
       </mat-card-header>
       <mat-card-content>
         <p class="hint">
-          A token lets an app such as MangaList read the metadata export. It cannot change anything and cannot open
-          any other page. It stops working when you revoke it, when it expires, or when the admin who created it is no
-          longer an admin.
+          A token lets an app such as MangaList read the metadata export and, if you allow it, ask for a library scan.
+          It cannot change anything else and cannot open any other page. It stops working when you revoke it, when it
+          expires, or when the admin who created it is no longer an admin.
         </p>
 
         @if (created(); as c) {
@@ -85,6 +108,7 @@ const STATUS_TEXT: Record<ApiTokenDto['status'], string> = {
                   </span>
                   <span>Last used: {{ t.lastUsedAt ? (t.lastUsedAt | date: 'medium') : 'never' }}</span>
                 </div>
+                <div class="can" [attr.data-testid]="'api-token-scopes-' + t.id">May: {{ scopesText(t) }}</div>
                 @if (t.status !== 'revoked') {
                   @if (revoking() === t.id) {
                     <div class="confirm" role="alertdialog" [attr.data-testid]="'api-token-confirm-' + t.id">
@@ -112,6 +136,22 @@ const STATUS_TEXT: Record<ApiTokenDto['status'], string> = {
             <input id="api-token-name" name="name" type="text" maxlength="64" placeholder="e.g. MangaList"
                    data-testid="api-token-name" [ngModel]="name()" (ngModelChange)="name.set($event)" [disabled]="busy()" />
           </div>
+          <fieldset class="scopes" data-testid="api-token-scopes">
+            <legend>The token may</legend>
+            @for (choice of scopeChoices; track choice.scope) {
+              <label class="check">
+                <input type="checkbox" [attr.data-testid]="'api-token-scope-' + choice.key" [checked]="hasScope(choice.scope)"
+                       [disabled]="busy()" (change)="toggleScope(choice.scope, $any($event.target).checked)" />
+                <span>
+                  <span class="label">{{ choice.label }}</span>
+                  <span class="sub">{{ choice.hint }}</span>
+                </span>
+              </label>
+            }
+            @if (scopes().length === 0) {
+              <p class="error" role="alert" data-testid="api-token-scope-required">Tick at least one.</p>
+            }
+          </fieldset>
           <div class="row">
             <label for="api-token-expiry">Expires after</label>
             <select id="api-token-expiry" name="expiry" data-testid="api-token-expiry" [disabled]="busy()"
@@ -122,7 +162,7 @@ const STATUS_TEXT: Record<ApiTokenDto['status'], string> = {
             </select>
           </div>
           <button mat-raised-button color="primary" type="submit" data-testid="api-token-create"
-                  [disabled]="busy() || name().trim().length === 0">Create token</button>
+                  [disabled]="busy() || name().trim().length === 0 || scopes().length === 0">Create token</button>
           <p class="hint">
             Send the token only over HTTPS when the app reaches MangaPixer from outside your home network.
           </p>
@@ -147,7 +187,14 @@ const STATUS_TEXT: Record<ApiTokenDto['status'], string> = {
     .status { font-size: 12px; border-radius: 10px; padding: 1px 8px; background: rgba(76, 175, 80, 0.15); color: #81c784; }
     .status:not([data-status="active"]) { background: rgba(255, 255, 255, 0.08); color: #bbb; }
     .meta { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 13px; color: #bbb; margin: 4px 0; }
+    .can { font-size: 13px; color: #bbb; margin: 2px 0 4px; overflow-wrap: anywhere; }
     .tokens button { margin-top: 4px; }
+    .scopes { border: 0; padding: 0; margin: 8px 0; min-width: 0; }
+    .scopes legend { font-size: 14px; padding: 0; margin: 0 0 4px; }
+    .check { display: flex; align-items: flex-start; gap: 8px; margin: 6px 0; font-size: 14px; cursor: pointer; }
+    .check input { margin: 3px 0 0; flex: 0 0 auto; }
+    .check .label { display: block; }
+    .check .sub { display: block; color: #999; font-size: 12px; overflow-wrap: anywhere; }
     .row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0; font-size: 14px; }
     .row label { min-width: 110px; }
     input, select { font: inherit; padding: 4px 6px; max-width: 100%; min-width: 0; box-sizing: border-box; }
@@ -168,12 +215,15 @@ export class ApiTokensCardComponent implements OnInit {
   private readonly api = inject(ApiService);
 
   readonly expiryChoices = EXPIRY_CHOICES;
+  readonly scopeChoices = SCOPE_CHOICES;
 
   readonly loading = signal(true);
   readonly busy = signal(false);
   readonly tokens = signal<ApiTokenDto[]>([]);
   readonly name = signal('');
   readonly expiresInDays = signal<number | null>(365);
+  /** The ticked scopes, in canonical order; "read" by default. */
+  readonly scopes = signal<ApiTokenScope[]>(['metadata:read']);
   readonly created = signal<CreateApiTokenResponse | null>(null);
   readonly copied = signal(false);
   readonly revoking = signal<string | null>(null);
@@ -200,21 +250,40 @@ export class ApiTokensCardComponent implements OnInit {
     return STATUS_TEXT[t.status] ?? t.status;
   }
 
+  /** What a listed token may do, e.g. "read the metadata export, request library scans" (unknown scopes as sent). */
+  scopesText(t: ApiTokenDto): string {
+    return t.scopes.map((s) => SCOPE_CHOICES.find((c) => c.scope === s)?.listText ?? s).join(', ') || 'nothing';
+  }
+
+  hasScope(scope: ApiTokenScope): boolean {
+    return this.scopes().includes(scope);
+  }
+
+  toggleScope(scope: ApiTokenScope, on: boolean): void {
+    const next = new Set(this.scopes());
+    if (on) next.add(scope);
+    else next.delete(scope);
+    this.scopes.set(SCOPE_CHOICES.map((c) => c.scope).filter((s) => next.has(s)));
+  }
+
   setExpiry(value: string): void {
     this.expiresInDays.set(value === 'never' ? null : Number(value));
   }
 
   create(): void {
     const name = this.name().trim();
-    if (!name || this.busy()) return;
+    const scopes = this.scopes();
+    if (!name || scopes.length === 0 || this.busy()) return;
     this.busy.set(true);
     this.error.set(null);
     this.copied.set(false);
-    this.api.createApiToken({ name, expiresInDays: this.expiresInDays() }).subscribe({
+    this.api.createApiToken({ name, expiresInDays: this.expiresInDays(), scopes }).subscribe({
       next: (created) => {
         this.busy.set(false);
         this.created.set(created);
         this.name.set('');
+        // The next token starts from the safe default again (read only).
+        this.scopes.set(['metadata:read']);
         this.load();
       },
       error: (e: ApiError) => {

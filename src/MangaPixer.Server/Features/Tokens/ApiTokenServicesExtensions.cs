@@ -9,7 +9,7 @@ using com.lifepixer.mangapixer.Server.Logging;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.RateLimiting;
 
-/// <summary>DI registration of personal access tokens (1.33.0).</summary>
+/// <summary>DI registration of personal access tokens (1.33.0; the scan request's cooldown 1.36.0).</summary>
 public static class ApiTokenServicesExtensions
 {
     /// <summary>
@@ -32,6 +32,8 @@ public static class ApiTokenServicesExtensions
         });
         services.AddSingleton<TokenFailureRateLimiter>();
         services.AddScoped<ApiTokenService>();
+        // 1.36.0: the per-library cooldown of token-requested scans (ExportScanController).
+        services.AddSingleton<TokenScanCooldown>();
 
         // AddAuthentication() without a scheme name leaves the default (the cookie) unchanged.
         services.AddAuthentication()
