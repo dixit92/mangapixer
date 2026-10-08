@@ -101,3 +101,67 @@ test('double page: the overlays follow a switch from single page after the first
   await page.goto('/reader/e2espreadswitch');
   await expectOverlaysOnTheirPages(page);
 });
+
+// --- Mouse-wheel page turns (1.36.0) -------------------------------------------------------------------------------
+// In a fixed view (the page fits the screen) the wheel turns the page, one page per gesture; a page taller than the
+// screen (fit width) scrolls natively and never turns. Smooth (no overlay) keeps these independent of WebGL.
+
+/** The toolbar's page counter, e.g. "2 / 4". */
+const pageInfo = (page: Page) => page.locator('.reader-toolbar .page-info');
+
+async function openFakeReader(page: Page, id: string): Promise<void> {
+  await readerPrefs(page, { upscaler: 'smooth', animation: 'none' });
+  await routeFakeItem(page, { id, pageCount: 4, pageWidth: PAGE_W, pageHeight: PAGE_H, readerMode: 'PagedLtr' });
+  await login(page);
+  await page.goto(`/reader/${id}`);
+  await expect(pageInfo(page)).toHaveText('1 / 4');
+  await expect(page.locator('.spread-row:not(.outgoing) img[alt="Page"]')).toHaveCount(1);
+  // The pointer rests over the page, as a reader's mouse would.
+  await page.mouse.move(640, 450);
+}
+
+test('wheel: in fit screen one wheel step turns one page, down = next and up = previous', async ({ page }) => {
+  await openFakeReader(page, 'e2ewheelfit');
+  await page.mouse.wheel(0, 120);
+  await expect(pageInfo(page)).toHaveText('2 / 4');
+  await page.waitForTimeout(400); // past the quiet gap: the next step is a new gesture
+  await page.mouse.wheel(0, 120);
+  await expect(pageInfo(page)).toHaveText('3 / 4');
+  await page.waitForTimeout(400);
+  await page.mouse.wheel(0, -120);
+  await expect(pageInfo(page)).toHaveText('2 / 4');
+  // Nothing scrolled: the page still fits the screen.
+  expect(await page.locator('.reader-viewport').evaluate((el) => el.scrollTop)).toBe(0);
+});
+
+test('wheel: a trackpad flick (a long inertial stream of wheel events) turns exactly one page', async ({ page }) => {
+  await openFakeReader(page, 'e2ewheelflick');
+  // 60 events a frame apart with decaying deltas, like a trackpad's momentum phase (synthetic: the browser's own input
+  // pipeline cannot replay momentum, but the reader sees the same event shape and timing).
+  await page.locator('.reader-viewport').evaluate(async (el) => {
+    for (let i = 0; i < 60; i++) {
+      el.dispatchEvent(new WheelEvent('wheel', { deltaY: Math.max(1, 80 - i), bubbles: true, cancelable: true }));
+      await new Promise((resolve) => setTimeout(resolve, 16));
+    }
+  });
+  await expect(pageInfo(page)).toHaveText('2 / 4');
+  await page.waitForTimeout(500);
+  await expect(pageInfo(page)).toHaveText('2 / 4');
+});
+
+test('wheel: in fit width a tall page scrolls natively and never turns', async ({ page }) => {
+  await openFakeReader(page, 'e2ewheelwidth');
+  await page.getByRole('button', { name: 'Image fit' }).click();
+  await page.getByRole('menuitemradio', { name: /Fit width/ }).click();
+  await expect(page.getByRole('menuitemradio', { name: /Fit width/ })).toHaveCount(0);
+  const viewport = page.locator('.reader-viewport');
+  // The page is now taller than the screen.
+  await expect.poll(() => viewport.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeGreaterThan(200);
+  await page.mouse.move(640, 450);
+  await page.mouse.wheel(0, 300);
+  await expect.poll(() => viewport.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  await page.waitForTimeout(400);
+  await page.mouse.wheel(0, 300);
+  await page.waitForTimeout(400);
+  await expect(pageInfo(page)).toHaveText('1 / 4');
+});
