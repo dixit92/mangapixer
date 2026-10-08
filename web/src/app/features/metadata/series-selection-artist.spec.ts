@@ -18,7 +18,8 @@ describe('SeriesSelectionActionsComponent - Artist folder', () => {
     ({ id, kind: 'Folder', parentId: '', libraryId: 'lib1', displayName: name, availability: 'Available' }) as CatalogNodeDto;
   const archive = (id: string) => ({ ...folder(id), kind: 'Archive' }) as CatalogNodeDto;
 
-  function create(selected: string[], answer: SetArtistFolderRequest | undefined = { name: 'Beta Painter', role: 'author' }) {
+  /** `answer`: what the dialog returns (null = cancelled). */
+  function create(selected: string[], answer: SetArtistFolderRequest | null = { name: 'Beta Painter', role: 'author' }) {
     @Component({
       standalone: true,
       imports: [SeriesSelectionActionsComponent],
@@ -33,7 +34,7 @@ describe('SeriesSelectionActionsComponent - Artist folder', () => {
       getFolderContent: (id: string) => of({ nodeId: id, effective: 'Auto' }),
       setArtistFolder: vi.fn((id: string) => of({ change: { nodeId: id }, artist: { name: 'Beta Painter', role: 'author' }, queued: 4 })),
     };
-    const artist = { open: vi.fn(() => Promise.resolve(answer)) };
+    const artist = { open: vi.fn(() => Promise.resolve(answer ?? undefined)) };
     const declaredApi = { version: signal(0) };
     const state = { refresh: vi.fn() };
     const snackBar = { open: vi.fn() };
@@ -75,7 +76,7 @@ describe('SeriesSelectionActionsComponent - Artist folder', () => {
   });
 
   it('a cancelled dialog sends nothing', async () => {
-    const { api, item } = create(['f1'], undefined);
+    const { api, item } = create(['f1'], null);
     item('bulk-artist-folder').click();
     await flush();
     expect(api.setArtistFolder).not.toHaveBeenCalled();
