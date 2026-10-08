@@ -30,7 +30,7 @@ public static class StoryCollectionGrouping
     /// folder order. <paramref name="recordKeyByRowId"/>: the record key of each archive that counts as linked (row id -> key); rows
     /// without an entry, and folders, are never collected.
     /// </summary>
-    public static (IReadOnlyList<StoryCollection> Collections, IReadOnlyList<GroupingRow> Rest) Split(
+    public static (IReadOnlyList<StoryCollection> Collections, IReadOnlyList<GroupingRow> Others) Split(
         IReadOnlyList<GroupingRow> rows, IReadOnlyDictionary<string, string> recordKeyByRowId)
     {
         ArgumentNullException.ThrowIfNull(rows);

@@ -16,6 +16,8 @@
 //   Indexed Webtoon/0001 [0000].cbz .. 0010 [0008 - Some Title].cbz   a running index, the chapter in brackets (1.34.0)
 //   Doubled Saga/Doubled Saga v01 c001..c003.cbz   chapters that state volume 1, with chapters 1 and 2 each in a second file
 //                                                  (`... c001 [part 2].cbz`): duplicate numbers (1.31.0)
+//   Story Artist/Story Artist - Alpha Tale.cbz, - Beta Tale.cbz, - Gamma Tale.cbz   an artist's folder of stories (1.37.0, tankoubon
+//                                                  stacks: the links to one collected volume are served in the browser by the spec)
 // Register <outDir> as a library, scan, and let analysis run; the spec does that itself
 // when E2E_SERIES_FIXTURE_ROOT names the path as the SERVER sees it.
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -146,5 +148,9 @@ archive('Indexed Webtoon', '0001 [0000].cbz', [70, 70, 150], null, volumesDir);
 archive('Indexed Webtoon', '0002 [0000.5].cbz', [80, 80, 160], null, volumesDir);
 for (let c = 1; c <= 8; c++) {
   archive('Indexed Webtoon', `${String(c + 2).padStart(4, '0')} [${String(c).padStart(4, '0')} - Some Title].cbz`, [60 + c * 15, 140, 200 - c * 10], null, volumesDir);
+}
+// 1.37.0: an artist's folder of individual stories (no numbers, no ComicInfo).
+for (const [i, story] of ['Alpha Tale', 'Beta Tale', 'Gamma Tale'].entries()) {
+  archive('Story Artist', `Story Artist - ${story}.cbz`, [180 - i * 50, 60 + i * 60, 120], null, volumesDir);
 }
 console.log(`Series fixtures written to ${outDir} (and ${volumesDir})`);

@@ -41,6 +41,12 @@ export const routes: Routes = [
           import('./features/library/volume-stack-view.component').then((m) => m.VolumeStackViewComponent),
       },
       {
+        // Tankoubon stacks (1.37.0): the stories of one collected volume in a folder that is neither a series nor a collection.
+        path: 'libraries/:libraryId/browse/:nodeId/collection/:key',
+        loadComponent: () =>
+          import('./features/library/collection-stack-view.component').then((m) => m.CollectionStackViewComponent),
+      },
+      {
         path: 'favorites',
         loadComponent: () =>
           import('./features/favorites/favorites.component').then((m) => m.FavoritesComponent),
