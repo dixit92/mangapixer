@@ -31,6 +31,8 @@ describe('cover labels', () => {
     expect(webUnavailableLabel('dont_match')).toContain("Don't match");
     expect(webUnavailableLabel('volume_covers_off')).toContain('Volume covers from the web');
     expect(webUnavailableLabel('web_covers_hidden')).toContain('saved web covers');
+    // 1.36.0: a folder with series inside, none of them with a stored cover yet.
+    expect(webUnavailableLabel('no_series_covers')).toContain('series inside this folder');
     expect(webUnavailableLabel('something_new')).toContain('not available');
   });
 

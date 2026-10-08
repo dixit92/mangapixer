@@ -12,7 +12,8 @@ import { CoverStateService } from './cover-state.service';
 /**
  * The admin cover picker (1.29.0) against a mocked API - never the network: the current state line, the local options
  * (file, both halves, other items), the stored web covers grouped by volume (a not downloaded one cannot be picked), the
- * web part's reason, and "Use this cover" -> the choice, the card patch announcement, the dialog result.
+ * web part's reason, and "Use this cover" -> the choice, the card patch announcement, the dialog result. 1.36.0: a folder
+ * that is not a series lists the covers of the series inside it, per series, above the other items.
  */
 describe('CoverPickerDialogComponent', () => {
   const options = (overrides: Partial<CoverOptionsDto> = {}): CoverOptionsDto => ({
@@ -97,6 +98,60 @@ describe('CoverPickerDialogComponent', () => {
   it('explains a missing web part', () => {
     const { q } = create(options({ web: [], webAvailable: false, webUnavailableReason: 'dont_match' }));
     expect(q('cover-picker-web-unavailable')!.textContent).toContain("Don't match");
+  });
+
+  // 1.36.0: a folder that is not a series - the covers of the series inside it, per series, ABOVE "Another item's cover".
+  const seriesInside = (): Partial<CoverOptionsDto> => ({
+    web: [],
+    webAvailable: true,
+    webSeries: [
+      { nodeId: 's1', displayName: 'Main Story', seriesTitle: 'Main Story', groups: [
+        { volume: 1, covers: [{ id: 'vm1', kind: 'Volume', volume: 1, variant: 0, locale: 'en', stored: true, imageUrl: '/api/v1/volume-covers/vm1/image?v=1' }] },
+      ] },
+      { nodeId: 's2', displayName: 'Side Story', seriesTitle: 'Side Story Gaiden (record)', groups: [
+        { volume: null, covers: [{ id: 'vs1', kind: 'Main', variant: 0, locale: 'ja', stored: true, imageUrl: '/api/v1/volume-covers/vs1/image?v=1' }] },
+      ] },
+    ],
+    webSeriesMore: 3,
+  });
+
+  it('a folder with series inside: their covers per series, first, above the other items', () => {
+    const { el, q } = create(options(seriesInside()));
+    const sections = Array.from(el.querySelectorAll('h3.section')).map((h) => h.textContent?.trim());
+    expect(sections).toEqual(['Covers from the web', "Another item's cover"]);
+    const series = Array.from(el.querySelectorAll('[data-testid^="cover-picker-series-"]'));
+    expect(series.map((s) => s.querySelector('.series-name')!.textContent!.trim())).toEqual(['Main Story', 'Side Story']);
+    // The record title shows only when it says more than the folder name.
+    expect(series[0].querySelector('.series-title')).toBeNull();
+    expect(series[1].querySelector('.series-title')!.textContent).toContain('Side Story Gaiden (record)');
+    expect(series[1].textContent).toContain('Series cover · JA');
+    expect(q('cover-picker-web-series-more')!.textContent).toContain('3 more series inside have');
+    expect(q('cover-picker-web-unavailable')).toBeNull();
+    // The series' covers come before the first archive tile in the document.
+    const web = q('cover-pick-web-vm1')!;
+    const archive = q('cover-pick-archive-a2')!;
+    expect(web.compareDocumentPosition(archive) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('a series cover from inside is chosen like any web cover', () => {
+    const { fixture, q, api } = create(options(seriesInside()));
+    q('cover-pick-web-vs1')!.click();
+    fixture.detectChanges();
+    expect(q('cover-pick-web-vs1')!.getAttribute('aria-pressed')).toBe('true');
+    q('cover-picker-apply')!.click();
+    expect(api.setChoice).toHaveBeenCalledWith('f1', { mode: 'VolumeCover', volumeCoverId: 'vs1' });
+  });
+
+  it('a series keeps its order: its own web covers after the other items', () => {
+    const { el, q } = create();
+    const sections = Array.from(el.querySelectorAll('h3.section')).map((h) => h.textContent?.trim());
+    expect(sections).toEqual(["Another item's cover", 'Covers from the web']);
+    expect(q('cover-picker-web-series-hint')).toBeNull();
+  });
+
+  it('explains a folder whose series inside have no stored covers yet', () => {
+    const { q } = create(options({ web: [], webAvailable: false, webUnavailableReason: 'no_series_covers', webSeries: [] }));
+    expect(q('cover-picker-web-unavailable')!.textContent).toContain('series inside this folder');
   });
 
   it('shows a load error and cannot apply', () => {

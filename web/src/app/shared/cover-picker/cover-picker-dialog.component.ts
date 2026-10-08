@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -6,7 +7,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Observable } from 'rxjs';
 
-import { ApiError, CoverChoiceRequest, CoverOptionDto, CoverOptionsDto, CoverStateDto, WebCoverDto } from '../../core/api/api-types';
+import { ApiError, CoverChoiceRequest, CoverOptionDto, CoverOptionsDto, CoverStateDto, WebCoverDto, WebCoverGroupDto } from '../../core/api/api-types';
 import { CoverImageDirective } from '../cover-image.directive';
 import { CoverApiService } from './cover-api.service';
 import { CoverStateService } from './cover-state.service';
@@ -47,13 +48,15 @@ function samePick(a: CoverPick | null, b: CoverPick): boolean {
  * ("use the file's cover" also stops every automatic cover), either half of page 1, another item's cover, and the stored
  * covers from the web of the linked series (grouped by volume; a not yet downloaded cover is shown but cannot be picked
  * here). Works under "Don't match", in unlinked libraries and with series information hidden - the web part then says why.
- * Every image comes from MangaPixer. On "Use this cover" the new versioned card URL is announced through
+ * 1.36.0: on a folder that is not a series itself, "Covers from the web" offers the stored covers of the series linked below it,
+ * one heading per series, and comes FIRST - above "Another item's cover" (owner: chapter covers are rarely real covers); a series
+ * folder keeps today's order. Every image comes from MangaPixer. On "Use this cover" the new versioned card URL is announced through
  * `CoverStateService`, so the card changes in place.
  */
 @Component({
   selector: 'app-cover-picker-dialog',
   standalone: true,
-  imports: [MatButtonModule, MatDialogModule, MatIconModule, MatProgressSpinnerModule, CoverImageDirective],
+  imports: [NgTemplateOutlet, MatButtonModule, MatDialogModule, MatIconModule, MatProgressSpinnerModule, CoverImageDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="head">
@@ -87,6 +90,25 @@ function samePick(a: CoverPick | null, b: CoverPick): boolean {
           }
         </div>
 
+        @if (seriesCovers().length > 0) {
+          <h3 class="section">Covers from the web</h3>
+          <p class="hint" data-testid="cover-picker-web-series-hint">From the series inside this folder.</p>
+          @for (s of seriesCovers(); track s.nodeId) {
+            <section class="series" [attr.aria-label]="s.displayName" [attr.data-testid]="'cover-picker-series-' + s.nodeId">
+              <h4 class="series-name" [title]="s.displayName">{{ s.displayName }}</h4>
+              @if (seriesSubtitle(s.displayName, s.seriesTitle); as subtitle) {
+                <p class="series-title" [title]="subtitle">{{ subtitle }}</p>
+              }
+              <ng-container *ngTemplateOutlet="webGroups; context: { $implicit: s.groups }" />
+            </section>
+          }
+          @if (o.webSeriesMore) {
+            <p class="hint" data-testid="cover-picker-web-series-more">
+              {{ o.webSeriesMore === 1 ? '1 more series inside has' : o.webSeriesMore + ' more series inside have' }} covers from the web (not shown).
+            </p>
+          }
+        }
+
         @if (archiveOptions().length > 0) {
           <h3 class="section">Another item's cover</h3>
           <div class="grid" role="group" aria-label="Another item's cover">
@@ -100,33 +122,38 @@ function samePick(a: CoverPick | null, b: CoverPick): boolean {
           </div>
         }
 
-        <h3 class="section">Covers from the web</h3>
-        @if (!o.webAvailable || o.web.length === 0) {
-          <p class="hint" data-testid="cover-picker-web-unavailable">{{ webUnavailable(o) }}</p>
-        } @else {
-          @for (group of o.web; track group.volume) {
-            <div class="volume">
-              <span class="vol-label">{{ group.volume === null || group.volume === undefined ? 'Series' : 'Volume ' + group.volume }}</span>
-              <div class="grid" role="group" [attr.aria-label]="group.volume === null || group.volume === undefined ? 'Series covers' : 'Volume ' + group.volume">
-                @for (c of group.covers; track c.id) {
-                  <button type="button" class="tile" [class.picked]="isPicked({ kind: 'web', coverId: c.id })"
-                          [attr.aria-pressed]="isPicked({ kind: 'web', coverId: c.id })" [disabled]="!c.stored"
-                          (click)="pick({ kind: 'web', coverId: c.id })" [attr.data-testid]="'cover-pick-web-' + c.id">
-                    <span class="img">
-                      @if (c.imageUrl) { <img appCover [src]="c.imageUrl" alt="" loading="lazy"> }
-                      <mat-icon class="fallback">cloud</mat-icon>
-                    </span>
-                    <span class="label">{{ webLabel(c) }}</span>
-                  </button>
-                }
-              </div>
-            </div>
+        @if (seriesCovers().length === 0) {
+          <h3 class="section">Covers from the web</h3>
+          @if (!o.webAvailable || o.web.length === 0) {
+            <p class="hint" data-testid="cover-picker-web-unavailable">{{ webUnavailable(o) }}</p>
+          } @else {
+            <ng-container *ngTemplateOutlet="webGroups; context: { $implicit: o.web }" />
           }
         }
       } @else {
         <p class="hint" role="alert">{{ error() }}</p>
       }
     </mat-dialog-content>
+    <ng-template #webGroups let-groups>
+      @for (group of asGroups(groups); track group.volume) {
+        <div class="volume">
+          <span class="vol-label">{{ group.volume === null || group.volume === undefined ? 'Series' : 'Volume ' + group.volume }}</span>
+          <div class="grid" role="group" [attr.aria-label]="group.volume === null || group.volume === undefined ? 'Series covers' : 'Volume ' + group.volume">
+            @for (c of group.covers; track c.id) {
+              <button type="button" class="tile" [class.picked]="isPicked({ kind: 'web', coverId: c.id })"
+                      [attr.aria-pressed]="isPicked({ kind: 'web', coverId: c.id })" [disabled]="!c.stored"
+                      (click)="pick({ kind: 'web', coverId: c.id })" [attr.data-testid]="'cover-pick-web-' + c.id">
+                <span class="img">
+                  @if (c.imageUrl) { <img appCover [src]="c.imageUrl" alt="" loading="lazy"> }
+                  <mat-icon class="fallback">cloud</mat-icon>
+                </span>
+                <span class="label">{{ webLabel(c) }}</span>
+              </button>
+            }
+          </div>
+        </div>
+      }
+    </ng-template>
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close data-testid="cover-picker-cancel">Cancel</button>
       <button mat-flat-button [disabled]="!canApply()" (click)="apply()" data-testid="cover-picker-apply">Use this cover</button>
@@ -160,6 +187,11 @@ function samePick(a: CoverPick | null, b: CoverPick): boolean {
     .label { font-size: 12px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .volume { margin-bottom: 10px; }
     .vol-label { display: block; margin-bottom: 4px; font-size: 12px; color: #c8c8d4; }
+    .series { margin: 12px 0 4px; min-width: 0; }
+    .series-name, .series-title { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .series-name { font-size: 14px; font-weight: 600; color: #fff; }
+    .series-title { margin-top: 2px; font-size: 12px; color: #9a9aa8; }
+    .series .volume:first-of-type { margin-top: 6px; }
     @media (max-width: 599.98px) {
       /* Full-screen on phone: the options fill the screen, the actions stay at the bottom. */
       .body { flex: 1 1 auto; max-height: none; }
@@ -182,6 +214,8 @@ export class CoverPickerDialogComponent implements OnInit {
 
   readonly ownOptions = computed(() => (this.options()?.local ?? []).filter((o) => o.kind !== 'Archive'));
   readonly archiveOptions = computed(() => (this.options()?.local ?? []).filter((o) => o.kind === 'Archive'));
+  /** 1.36.0: a folder that is not a series - the covers of the series inside it (then shown first). */
+  readonly seriesCovers = computed(() => this.options()?.webSeries ?? []);
   readonly canApply = computed(() => !this.busy() && !this.loading() && this.picked() !== null && this.options() !== null);
 
   readonly modeLabel = modeLabel;
@@ -220,6 +254,17 @@ export class CoverPickerDialogComponent implements OnInit {
 
   webLabel(c: WebCoverDto): string {
     return webCoverLabel(c);
+  }
+
+  /** The template context is untyped: the volume groups it carries. */
+  asGroups(groups: unknown): WebCoverGroupDto[] {
+    return groups as WebCoverGroupDto[];
+  }
+
+  /** The linked record's title under a series heading, unless it only repeats the folder name. */
+  seriesSubtitle(displayName: string, title: string | null | undefined): string | null {
+    if (!title) return null;
+    return title.trim().toLocaleLowerCase() === displayName.trim().toLocaleLowerCase() ? null : title;
   }
 
   webUnavailable(o: CoverOptionsDto): string {

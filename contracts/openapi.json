@@ -9045,6 +9045,20 @@
               "null",
               "string"
             ]
+          },
+          "webSeries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebCoverSeriesDto"
+            }
+          },
+          "webSeriesMore": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -16527,6 +16541,34 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/WebCoverDto"
+            }
+          }
+        }
+      },
+      "WebCoverSeriesDto": {
+        "required": [
+          "nodeId",
+          "displayName",
+          "groups"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "seriesTitle": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebCoverGroupDto"
             }
           }
         }
