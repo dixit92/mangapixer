@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.36.0] - 2026-10-07
+
 ### Added
 
 - **Mouse-wheel page turns.** In single and double page, scrolling the mouse wheel (or two fingers on a trackpad) down turns to the next page and up to the previous one, in reading order - also right-to-left, and a whole spread at a time in double page. One scroll turns one page: the rest of the same scroll, a trackpad's glide included, is ignored until the wheel stops for a moment, so a flick never skips pages and never opens the next archive by itself (at the end, a second, new scroll does, like a second key press). The wheel turns pages only while the page fits the screen: a page taller or wider than the screen (Fit width, Fit height, Original size, or zoomed) and the vertical view scroll as before. Sideways scrolling is ignored, and Ctrl (Cmd) + wheel and a trackpad pinch still zoom the browser. See [Reader](docs/reader.md).
@@ -21,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Double page opened with overlapping pages.** With **Upscaling** on **Crisp** (the default) or **Enhance**, a double-page spread could open as "three partial pages" until you paged away and back: when the second page arrived after the first, the first page moved aside but its upscaled copy stayed where the page had been. The upscaled copy now follows its page - also when the reader switches to double page after the first page is shown, or the window is resized - without re-rendering it.
 - **Wikipedia volume lists stalled while Wikidata was busy.** MangaPixer finds a series' English "List of ... chapters" page through Wikidata and asked it to refuse when its servers lag more than 5 seconds. Wikidata counts its search index's lag in that figure, which stayed above 5 seconds for hours, so every lookup was refused; and because MangaPixer asked again after the 5 seconds Wikidata suggested, the same series was retried every minute, using a request from the daily budget each time, while no other series was looked up. The two Wikidata lookups now accept a lag of up to 30 seconds (Wikipedia pages keep 5), and when Wikimedia does ask to slow down MangaPixer waits longer each time (30 seconds, 2 minutes, 10 minutes, then an hour) instead of every few seconds.
 - **The library sidebar reaches the bottom of the window.** On a long page (Home, a library), once the top bar scrolled out of view the sidebar ended a little above the bottom edge of the window and the page background showed below it.
+- **Webtoon Enhance on a page that grows as it loads.** In the vertical view with **Enhance** on, when a page whose size the archive does not record finished loading and pushed the pages below it down, their enhanced copies stayed where the pages had been until the next scroll. They now move with their pages.
 
 ## [1.35.1] - 2026-10-07
 
