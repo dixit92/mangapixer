@@ -77,6 +77,8 @@ public static class ExportVocabulary
         SeriesAnswerReason.NothingKnownReleased => "NothingKnownReleased",
         SeriesAnswerReason.NoVolumeTotal => "NoVolumeTotal",
         SeriesAnswerReason.OneShot => "OneShot",
+        // 1.39.0: never in an export item (tracking off leaves the Completion block out); named like every reason.
+        SeriesAnswerReason.NotTracked => "NotTracked",
         _ => "None",
     };
 
