@@ -46,6 +46,7 @@ public sealed class SeriesLinkStateReaderSweepTests
         ["src/MangaPixer.Server/Features/Library/Moves/MoveConflictService.cs"] = "moves like an admin decision; retires nothing below",
         ["src/MangaPixer.Server/Features/Library/Moves/MovePairing.cs"] = "IsAdminDecision: kept on a move; another admin row on the other side is a conflict",
         ["src/MangaPixer.Server/Features/Metadata/Artists/ArtistFolderService.cs"] = "set (declares the artist, queues the works) / clear only this state",
+        ["src/MangaPixer.Server/Features/Metadata/Authors/AuthorAliasLookupService.cs"] = "Confirmed / Auto / Collection about only (a record's creators): never an artist folder (no record)",
         ["src/MangaPixer.Server/Features/Metadata/AutoMatch/AutoMatchWorkSelector.cs"] = "CoverBelow Opens: classified (the detector makes it an artist collection) and walked",
         ["src/MangaPixer.Server/Features/Metadata/AutoMatch/CoveredWorkRetirement.cs"] = "a linked series' retirement stops at an artist folder (OpensMatching)",
         ["src/MangaPixer.Server/Features/Metadata/AutoMatch/LibraryTreeSnapshot.cs"] = "artist folders with their declared artists for the detector / planner",

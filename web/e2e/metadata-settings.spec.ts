@@ -1,5 +1,7 @@
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
 
+import { expectFitsScreen } from './layout';
+
 /**
  * Series metadata network controls (1.24.0, lane B2) - NEVER the real network:
  * - the Settings tab of /admin/metadata (the stage-1 "Series metadata" card moved there in
@@ -10,6 +12,8 @@ import { test, expect, Page, APIRequestContext } from '@playwright/test';
  *   dialog opened from the selection menu shows the unavailable state.
  * - the Volume covers card (1.29.0): MangaDex on the allowed sites, the switch, the preferred language, the
  *   progress and the MangaDex credit - saving makes no lookup and no foreign request.
+ * - the Artists' other names card (1.38.0): the counts and why a look-up cannot start; loading it and a refused start make no
+ *   lookup and no foreign request; it fits phone and desktop widths.
  * The Identify checks need a library with at least one folder (skipped otherwise).
  * Optional: E2E_SCREENSHOT_DIR saves the reviewed screenshots.
  */
@@ -185,5 +189,36 @@ test('volume covers card (1.29.0): MangaDex is an allowed site; the switch and t
   await expect.poll(async () => (await (await page.request.get('/api/v1/admin/metadata/settings')).json()).preferredCoverLanguage).toBe('en');
 
   expect((await settings(page)).budgetUsedToday).toBe(usedBefore); // nothing was looked up
+  expect(foreign).toEqual([]);
+});
+
+test("artists' other names card (1.38.0): counts and the reason it cannot start; nothing is sent", async ({ page, baseURL }) => {
+  const foreign = watchForeignRequests(page, baseURL!);
+  await login(page);
+  await setFetch(page, false);
+  const usedBefore = (await settings(page)).budgetUsedToday;
+  const status = (await (await page.request.get('/api/v1/admin/metadata/authors')).json()) as
+    { eligible: number; fetched: number; toFetch: number; blockedReason: string | null; running: unknown };
+  expect(status.blockedReason).toBe('metadata_disabled');
+
+  await page.goto('/admin/metadata?tab=settings');
+  const card = page.getByTestId('md-authors');
+  await card.scrollIntoViewIfNeeded();
+  await expect(card).toContainText("Artists' other names");
+  await expect(card.getByTestId('md-authors-status')).toContainText(`${status.fetched} of ${status.eligible} known author`);
+  await expect(card.getByTestId('md-authors-blocked')).toContainText('Fetch from the web');
+  await expect(card.getByTestId('md-authors-start')).toHaveCount(0);
+  await shot(page, 'u-01-author-aliases-blocked');
+  for (const size of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    await page.setViewportSize(size);
+    await card.scrollIntoViewIfNeeded();
+    await expectFitsScreen(page, "metadata settings with the artists' other names card");
+  }
+
+  // Asking anyway while web lookups are off starts nothing (refused, or nothing to look up) and sends nothing.
+  const start = await page.request.post('/api/v1/admin/metadata/authors/lookup', { headers: await csrf(page.request) });
+  expect(start.status()).toBe(status.toFetch > 0 ? 409 : 200);
+  expect(((await (await page.request.get('/api/v1/admin/metadata/authors')).json()) as { running: unknown }).running ?? null).toBeNull();
+  expect((await settings(page)).budgetUsedToday).toBe(usedBefore);
   expect(foreign).toEqual([]);
 });

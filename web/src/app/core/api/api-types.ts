@@ -2885,3 +2885,33 @@ export interface ExportPingDto {
   serverTime: string;
   auth: 'token' | 'cookie';
 }
+
+// --- Artists' other names (1.38.0, admin): the look-up of MangaUpdates author records, only when an admin asks ---
+
+/** One look-up run: counts only. `outcome`: running, completed, cancelled, budget_exhausted, provider_backoff, switched_off, failed. */
+export interface AuthorAliasRunDto {
+  startedAt: string;
+  finishedAt?: string | null;
+  total: number;
+  requests: number;
+  stored: number;
+  notFound: number;
+  failed: number;
+  outcome: string;
+  /** When MangaUpdates allows the next request after a backoff stop. */
+  retryAt?: string | null;
+}
+
+/** Known authors (ids on linked MangaUpdates records in libraries whose Fetch is on), fetched, left to look up. */
+export interface AuthorAliasStatusDto {
+  eligible: number;
+  fetched: number;
+  toFetch: number;
+  withOtherNames: number;
+  refreshAfterDays: number;
+  secondsPerRequest: number;
+  /** The gateway's code when a look-up cannot start now (a switch, the allowlist, the budget, a backoff). */
+  blockedReason?: string | null;
+  running?: AuthorAliasRunDto | null;
+  lastRun?: AuthorAliasRunDto | null;
+}

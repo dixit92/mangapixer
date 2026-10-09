@@ -188,56 +188,63 @@ public sealed class AuthorAliasLookupService
 
                     var call = new MetadataCallContext { Origin = MetadataCallOrigin.Interactive };
                     var startedAt = _time.GetUtcNow();
+                    ProviderAuthorRecord? author = null;
+                    MetadataGatewayException? refusal = null;
                     try
                     {
-                        var author = await _gateway.DetailCallAsync(MangaUpdatesProvider.ProviderId, "author", target.LibraryId,
+                        author = await _gateway.DetailCallAsync(MangaUpdatesProvider.ProviderId, "author", target.LibraryId,
                             c => provider.GetAuthorAsync(id, c), call, ct);
-                        lastRequest = startedAt;
-                        state.CountRequest();
-                        await MetadataAuthorStore.SaveAsync(_db, target.AuthorId,
-                            author is null ? MetadataAuthorStatus.NotFound : MetadataAuthorStatus.Ok, author, _time.GetUtcNow(), ct);
-                        state.Count(author is null ? MetadataAuthorStatus.NotFound : MetadataAuthorStatus.Ok);
-                        break;
                     }
                     catch (MetadataGatewayException ex)
                     {
+                        refusal = ex;
+                    }
+                    finally
+                    {
+                        // Counted and paced whenever a request went out - also when the answer was dropped or the run was cancelled.
                         if (call.RequestsSent > 0)
                         {
                             lastRequest = startedAt;
                             state.CountRequest();
                         }
-                        switch (ex.Code)
-                        {
-                            case "provider_backoff":
-                                outcome = AuthorAliasRunState.Backoff;
-                                retryAt = ex.RetryAt;
-                                return;
-                            case "budget_exhausted":
-                                outcome = AuthorAliasRunState.Budget;
-                                return;
-                            case "metadata_disabled" or "metadata_network_disabled" or "provider_not_allowed" or "automatic_off" or "unknown_provider":
-                                outcome = AuthorAliasRunState.SwitchedOff;
-                                return;
-                            case "library_metadata_disabled" when call.RequestsSent == 0:
-                                // This library was switched off meanwhile: its ids are not requested (nothing stored for them).
-                                break;
-                            case "library_metadata_disabled":
-                                outcome = AuthorAliasRunState.SwitchedOff;
-                                return;
-                            case "provider_busy" when ++busy <= MaxBusyRetries:
-                                await Task.Delay(Interval, _time, ct);
-                                continue;
-                            case "provider_busy":
-                                outcome = AuthorAliasRunState.FailedOutcome;
-                                return;
-                            default:
-                                // The provider answered with an error or something unreadable: asked again by the next look-up.
-                                await MetadataAuthorStore.SaveAsync(_db, target.AuthorId, MetadataAuthorStatus.Failed, null, _time.GetUtcNow(), ct);
-                                state.Count(MetadataAuthorStatus.Failed);
-                                break;
-                        }
+                    }
+
+                    if (refusal is null)
+                    {
+                        var status = author is null ? MetadataAuthorStatus.NotFound : MetadataAuthorStatus.Ok;
+                        await MetadataAuthorStore.SaveAsync(_db, target.AuthorId, status, author, _time.GetUtcNow(), ct);
+                        state.Count(status);
                         break;
                     }
+                    switch (refusal.Code)
+                    {
+                        case "provider_backoff":
+                            outcome = AuthorAliasRunState.Backoff;
+                            retryAt = refusal.RetryAt;
+                            return;
+                        case "budget_exhausted":
+                            outcome = AuthorAliasRunState.Budget;
+                            return;
+                        case "metadata_disabled" or "metadata_network_disabled" or "provider_not_allowed" or "automatic_off" or "unknown_provider":
+                            // Switched off (before the request, or while it was out: then its answer is dropped).
+                            outcome = AuthorAliasRunState.SwitchedOff;
+                            return;
+                        case "library_metadata_disabled":
+                            // That library was switched off meanwhile: this id is left as it was; ids of other libraries go on.
+                            break;
+                        case "provider_busy" when ++busy <= MaxBusyRetries:
+                            await Task.Delay(Interval, _time, ct);
+                            continue;
+                        case "provider_busy":
+                            outcome = AuthorAliasRunState.FailedOutcome;
+                            return;
+                        default:
+                            // The provider answered with an error or something unreadable: asked again by the next look-up.
+                            await MetadataAuthorStore.SaveAsync(_db, target.AuthorId, MetadataAuthorStatus.Failed, null, _time.GetUtcNow(), ct);
+                            state.Count(MetadataAuthorStatus.Failed);
+                            break;
+                    }
+                    break;
                 }
             }
         }

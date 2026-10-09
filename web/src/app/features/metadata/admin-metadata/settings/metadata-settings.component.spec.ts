@@ -6,6 +6,7 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { MetadataSettingsDto } from '../../../../core/api/api-types';
 import { estimate, settings } from '../metadata-admin.testing';
 import { AUTO_CONSENT_TEXT_VERSION, CONSENT_TEXT_VERSION, MetadataSettingsComponent, parseDailyBudget, validateThresholds } from './metadata-settings.component';
+import { authorAliasesApiStub } from '../../authors/author-aliases.testing';
 
 /**
  * Settings tab of /admin/metadata, mocked at the HTTP layer so the real
@@ -21,7 +22,7 @@ describe('MetadataSettingsComponent', () => {
   function create(initial: MetadataSettingsDto = settings()) {
     TestBed.configureTestingModule({
       imports: [MetadataSettingsComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations()],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations(), authorAliasesApiStub()],
     });
     const fixture = TestBed.createComponent(MetadataSettingsComponent);
     http = TestBed.inject(HttpTestingController);
@@ -44,6 +45,18 @@ describe('MetadataSettingsComponent', () => {
     expect(text).toContain('Nothing happens automatically unless you also turn on Automatic matching.');
     expect(q('[data-testid="md-status"]')!.textContent).toContain('Requests today: 12 / 5000');
     expect(q('[data-testid="md-comicinfo"]')!.textContent).toContain('90 of 100 archives read');
+  });
+
+  it('consent 5 (1.38.0): the MangaUpdates bullet names the approved author numbers; the automatic consent stays 4', () => {
+    expect(CONSENT_TEXT_VERSION).toBe(5);
+    expect(AUTO_CONSENT_TEXT_VERSION).toBe(4);
+    const { q } = create();
+    const text = (q('[data-testid="md-consent-text"]')!.textContent ?? '').replace(/\s+/g, ' ');
+    expect(text).toContain(
+      'the search text you confirm in the Identify dialog or in Match folders by name (usually a folder or file name), MangaUpdates '
+      + "record numbers, and, when you ask for artists' other names, the MangaUpdates author numbers of the creators of series you "
+      + 'have stored.',
+    );
   });
 
   it('keeps the Fetch switch disabled until consent is ticked', () => {

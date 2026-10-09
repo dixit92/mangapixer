@@ -6,6 +6,7 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { MetadataSettingsDto } from '../../../../core/api/api-types';
 import { settings } from '../metadata-admin.testing';
 import { MetadataSettingsComponent } from './metadata-settings.component';
+import { authorAliasesApiStub } from '../../authors/author-aliases.testing';
 
 /** The Volumes view controls of /admin/metadata (1.29.0): the global default and one library's override. */
 describe('MetadataSettingsComponent Volumes view (1.29.0)', () => {
@@ -16,7 +17,7 @@ describe('MetadataSettingsComponent Volumes view (1.29.0)', () => {
   function create(initial: MetadataSettingsDto = settings()) {
     TestBed.configureTestingModule({
       imports: [MetadataSettingsComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations()],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations(), authorAliasesApiStub()],
     });
     const fixture = TestBed.createComponent(MetadataSettingsComponent);
     http = TestBed.inject(HttpTestingController);
