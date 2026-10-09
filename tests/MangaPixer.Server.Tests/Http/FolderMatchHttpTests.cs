@@ -98,7 +98,7 @@ public sealed class FolderMatchHttpTests
         var r4 = Record("gcd", "2001", "Steel Hero", [], Creators(("Comic Writer", "author", null)), now);
         var r5 = Record("anilist", "3001", "Paper Moon", [], Creators(("Not An Artist Here", "author", null)), now);
         var r6 = Record("mangaupdates", "1006", "Paper Moon", [], Creators(("Shared Name", "author", "601")), now);
-        r6.ImageRemoteUrl = "https://cdn.mangaupdates.com/image/synthetic.jpg"; // poster not stored: the apply must not download it
+        r6.ImageRemoteUrl = "https://cdn.mangaupdates.com/image/synthetic.jpg"; // poster not stored: the apply downloads it (owner, 1.38.0)
         var r7 = Record("mangaupdates", "1007", "Other Work A", [], Creators(("Other Person", "artist", "602")), now);
         var r8 = Record("mangaupdates", "1008", "Other Work B", [], Creators(("Other Person", "artist", "602")), now);
         var r9 = Record("mangaupdates", "1009", "Other Work C", [], Creators(("Shared Name", "artist", "602")), now);
@@ -358,7 +358,7 @@ public sealed class FolderMatchHttpTests
     }
 
     [Fact]
-    public async Task ApplyCollections_StoredRecordsOnly_NeverFetches_AndQueuesTheWorksInside()
+    public async Task ApplyCollections_StoredRecordsOnly_NeverFetchesARecord_OnlyAMissingPoster_AndQueuesTheWorksInside()
     {
         using var factory = NewFactory();
         await SeedAsync(factory.Services, metadataEnabled: true);
@@ -371,6 +371,7 @@ public sealed class FolderMatchHttpTests
             AcceptedAutoConsentVersion = MetadataAutoConsent.CurrentVersion,
         })).EnsureSuccessStatusCode();
 
+        factory.Handler.FailOnAnyRequest = false; // owner (1.38.0): a stored record's missing poster may be downloaded - nothing else
         var result = await ApplyAsync(admin, new FolderMatchApplyRequest
         {
             Kind = FolderMatchKind.Collections,
@@ -399,10 +400,11 @@ public sealed class FolderMatchHttpTests
         {
             var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
             Assert.False(await db.MetadataRecords.AnyAsync(r => r.ExternalId == "999999"));
-            Assert.Equal(0, await db.MetadataRecords.Where(r => r.ExternalId == "1006").Select(r => r.ImageState).SingleAsync());
             Assert.Equal(2, await db.AuditEvents.CountAsync(a => a.Action == AuditActions.MetadataCollection && a.Result == FolderMatchService.AuditResult));
         }
-        Assert.Equal(0, factory.Handler.CallCount); // neither the record nor its poster was requested
+        // No record was requested; the one request is the stored record's poster, by the address MangaUpdates gave.
+        var only = Assert.Single(factory.Handler.Seen);
+        Assert.Equal((HttpMethod.Get, "cdn.mangaupdates.com", "/image/synthetic.jpg"), (only.Method, only.Uri.Host, only.Uri.AbsolutePath));
     }
 
     [Fact]

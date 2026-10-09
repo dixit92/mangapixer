@@ -15,7 +15,7 @@ using Microsoft.EntityFrameworkCore;
 
 /// <summary>
 /// "Match folders by name" (1.38.0, owner): several selected FOLDERS are marked at once as artist folders or as collections about a series
-/// when their name equals a name already stored on this server - stored data only, nothing is sent (the preview and the apply):
+/// when their name equals a name already stored on this server - stored data only, no record is fetched (the preview sends nothing; the apply may download a stored collection record's missing poster, owner 1.38.0):
 /// <list type="bullet">
 /// <item>Artists: every creator spelling (roles author / artist) on every stored MangaUpdates / GCD record, grouped into one artist by the
 /// MangaUpdates author id, plus the other names of a stored author record (<see cref="IAuthorAliasSource"/>; empty until author records are
@@ -292,7 +292,7 @@ public sealed class FolderMatchService
             ExternalId = externalId,
             MatchMethod = MetadataMatchMethod.Search,
             SetDoujinContent = setDoujinContent,
-        }, actor, ct, AuditResult, storeImage: false);
+        }, actor, ct, AuditResult); // the poster of a stored record is downloaded when not stored yet (owner, 2026-10-09)
         return code switch
         {
             MetadataLinkResultCode.Ok => ("ok", result?.Queued ?? 0),

@@ -183,7 +183,7 @@ export function validateThresholds(
               <p><strong>What is never sent:</strong> file paths, your file list, user accounts, reading progress, or
                 anything that identifies this server.</p>
               <p><strong>When:</strong> only when an admin runs Identify, Look up, Refresh, Choose cover or a Missing-report
-                lookup in an enabled library. Nothing happens automatically unless you also turn on Automatic matching.</p>
+                lookup in an enabled library, or asks for artists' other names. Nothing happens automatically unless you also turn on Automatic matching.</p>
               <p>Fetched information and covers are stored on this server as-is. You can switch this off at any time; stored
                 information stays until you delete it.</p>
             </div>

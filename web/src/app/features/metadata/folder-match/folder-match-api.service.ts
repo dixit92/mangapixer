@@ -12,7 +12,7 @@ import {
 } from '../../../core/api/api-types';
 
 /**
- * "Match folders by name" (1.38.0), admin only. Both calls use stored data only - nothing is sent to a provider. The opt-in web search
+ * "Match folders by name" (1.38.0), admin only. Both calls use stored data only - the preview sends nothing; apply may download a stored collection record's missing cover (owner, 1.38.0). The opt-in web search
  * for the rest is the Identify search (`MetadataApiService.search`), one request per ticked folder, driven by the dialog.
  */
 @Injectable({ providedIn: 'root' })
