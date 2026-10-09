@@ -24,6 +24,7 @@ The report shows **Behind or with gaps** by default. Switch to **All linked seri
 - **An official volume you hold as chapters is an upgrade, never missing.** When the English edition has volume 15 out and you have its chapters as chapter files, the series is not behind; the row says "Volume 15 available in English (an upgrade, not missing)".
 - **Chapters are compared only when you keep chapter files.** A folder of volume files is never "behind" a scanlation.
 - **Webtoons, manhwa and manhua are counted in chapters** (*new in 1.34.0*). For a series MangaUpdates marks as a webtoon, or a manhwa or manhua, without a real volume list (two or more volumes on MangaDex, or a Wikipedia list), no volume of an English print edition is ever missing or an upgrade: the row says which chapters you have and which are missing. See [Webtoons, manhwa and manhua](volumes.md#webtoons-manhwa-and-manhua).
+- **A folder can declare its own edition** (*new in 1.39.0*). With **Volumes in this edition** set in the folder's [declared facts](declared-hints.md#this-folders-edition) - an omnibus or master edition, say - the folder's volumes are counted against that number (volumes 1 to N, as volume files), not against the regular edition's list; the total is shown as "(your edition)". A folder whose **Track completion** is off is not listed at all; the line above the list counts it as "not tracked".
 - **A nearly empty MangaDex list is no list** (*new in 1.34.0*): at most one real volume while most chapters are in no volume. It no longer places chapters or makes volumes "missing"; the other sources apply as when MangaDex has no list.
 
 ## Duplicate numbers
@@ -37,6 +38,7 @@ The same line appears under the series on its page (everyone sees it, like the "
 - **It is a note, not a gap.** Nothing is missing or "behind" because of it, and the totals count each number once. Both files stay where they are and both are listed; MangaPixer never removes or merges anything.
 - **Per folder.** Only files in the same folder are compared, so `Season 1` and `Season 2` that both have a chapter 1 are not duplicates (that is a [restart](#what-counts)).
 - **Not duplicates:** the parts of a split chapter (`2.1` and `2.2`, or a file `2` next to its parts), a range (`Ch. 1-5`) next to a single chapter, and names that state no number.
+- **Only real copies** (*1.39.0*). Files count as copies only when their names differ by tags alone - a scanlation group, a year, `(Digital)`, a copy marker in brackets - or by words, never by another number. So `Title 009 Vol 01 Name` next to `Title 001 Vol 01 Name` (a chapter written before its volume) and `Title Season 1 v01` next to `Title Season 2 v01` in one folder are not copies of volume 1, while `Title v08 (GroupA)` and `Title v08 (GroupB)` are.
 - A volume number repeated in two volume files (two editions of volume 3) is listed here too; the [Volumes view](volumes.md) keeps showing them as two cards.
 
 ## Which total it compares with
@@ -47,6 +49,7 @@ MangaPixer uses the first of these totals that applies to your language:
 
 | Total | Language | Confidence | Shown as |
 |---|---|---|---|
+| *New in 1.39.0:* the folder's own **Volumes in this edition**, for volumes only (see [This folder's edition](declared-hints.md#this-folders-edition)) | any | high: an admin declared it | (your edition) |
 | The English publisher's count ("10 Volumes / 60 Chapters; Ongoing") | English | high | (English) |
 | The other unit's English total converted with AniList's chapters per volume (see below) | English | medium | ~ (estimate) |
 | The chapters the series' volume list names as released in your language, for chapters only | any | medium: includes fan translations | (released in your language) |

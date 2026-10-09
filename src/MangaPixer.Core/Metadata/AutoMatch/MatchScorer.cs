@@ -345,7 +345,8 @@ public sealed class MatchScorer : IMatchScorer
         titleNumbers.AddRange(heads.Select(TitleNormalizer.NumberTokens));
 
         // Creator hints that name this record (its authors, or its "(AUTHOR Name)" disambiguator).
-        var authors = (c.Authors ?? []).Where(a => !string.IsNullOrWhiteSpace(a)).ToList();
+        // 1.39.0 (rules 4): a record author written "Main (Alias)" is known by each of those names.
+        var authors = AutoMatchText.AuthorNames(c.Authors).ToList();
         var hints = (ctx.CreatorHints ?? []).Where(h => !string.IsNullOrWhiteSpace(h)).ToList();
         var hintNamesRecord = hints.Count > 0 && hints.Any(h => authors
             .Concat(new[] { c.Title }.Concat(c.AltTitles ?? []).Select(AutoMatchText.DisambiguatorTag).OfType<string>())

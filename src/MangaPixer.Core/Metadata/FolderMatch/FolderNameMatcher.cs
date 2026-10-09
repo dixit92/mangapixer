@@ -1,5 +1,6 @@
 namespace com.lifepixer.mangapixer.Core.Metadata.FolderMatch;
 
+using System.Text.RegularExpressions;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 
 /// <summary>One creator credit on a stored series record: the input of <see cref="FolderNameMatcher.GroupArtists"/>.</summary>
@@ -41,7 +42,7 @@ public sealed record TitleMatch(long RecordId, string MatchedTitle);
 /// <see cref="TitleNormalizer.Normalize"/> and compared in <see cref="TitleNormalizer.ScoringForm"/>; artists with
 /// <see cref="AutoMatchText.NamesEqual"/>'s three rules, titles by exact equality (never a substring).
 /// </summary>
-public static class FolderNameMatcher
+public static partial class FolderNameMatcher
 {
     /// <summary>The credit roles that make a creator an artist here (MangaUpdates / GCD store <c>author</c>, <c>artist</c>, <c>other</c>).</summary>
     public static readonly IReadOnlySet<string> ArtistRoles = new HashSet<string>(StringComparer.Ordinal) { "author", "artist" };
@@ -64,6 +65,40 @@ public static class FolderNameMatcher
             Add(variant);
         return forms;
     }
+
+    /// <summary>
+    /// The forms an ARTIST is looked up by (1.39.0): <see cref="FolderForms"/>, plus - for a folder named <c>Circle (Artist)</c> or
+    /// <c>[Circle (Artist)]</c>, the doujin convention - the circle and the artist on their own, so either name finds its artist (both
+    /// known = two matches, Ambiguous). A bracket part that is a year, a release tag or has no letters is not a name. Titles never use
+    /// these forms.
+    /// </summary>
+    public static IReadOnlyList<string> ArtistForms(string? folderName)
+    {
+        var forms = FolderForms(folderName).ToList();
+        if (string.IsNullOrWhiteSpace(folderName))
+            return forms;
+        var name = folderName.Trim();
+        if (WholeBracket().Match(name) is { Success: true } whole)
+            name = whole.Groups["inner"].Value.Trim();
+        if (CircleArtist().Match(name) is not { Success: true } ca)
+            return forms;
+        foreach (var part in new[] { ca.Groups["circle"].Value, ca.Groups["artist"].Value })
+        {
+            var text = part.Trim();
+            if (text.Length == 0 || !text.Any(char.IsLetter) || ArchiveNameAnatomy.IsReleaseTag(text))
+                continue;
+            var form = TitleNormalizer.ScoringForm(text);
+            if (form.Length > 0 && !forms.Contains(form, StringComparer.Ordinal))
+                forms.Add(form);
+        }
+        return forms;
+    }
+
+    [GeneratedRegex(@"^\[(?<inner>[^\[\]]+)\]$", RegexOptions.CultureInvariant)]
+    private static partial Regex WholeBracket();
+
+    [GeneratedRegex(@"^(?<circle>[^()\[\]]*?)\s*\((?<artist>[^()]+)\)$", RegexOptions.CultureInvariant)]
+    private static partial Regex CircleArtist();
 
     /// <summary>
     /// Groups creator credits into artists: one artist per provider person id; a credit without an id is its own artist per distinct name
@@ -122,6 +157,8 @@ public static class FolderNameMatcher
             }
             AddName(declared);
             spellings.ForEach(AddName);
+            foreach (var form in AutoMatchText.AuthorNames(spellings))
+                AddName(form); // 1.39.0: "Main (Alias)" on a record names both
             foreach (var other in stored?.OtherNames ?? [])
                 AddName(other);
 
@@ -140,7 +177,7 @@ public static class FolderNameMatcher
 
 /// <summary>
 /// The known artists by name: <see cref="Match"/> gives the artists with a name that <see cref="AutoMatchText.NamesEqual"/> one of the
-/// folder's forms (<see cref="FolderNameMatcher.FolderForms"/>). Built once per request; lookups are dictionary hits.
+/// folder's forms (<see cref="FolderNameMatcher.ArtistForms"/>). Built once per request; lookups are dictionary hits.
 /// </summary>
 public sealed class ArtistNameIndex
 {
@@ -174,7 +211,7 @@ public sealed class ArtistNameIndex
     public IReadOnlyList<KnownArtist> Match(string? folderName)
     {
         var hits = new SortedSet<int>();
-        foreach (var form in FolderNameMatcher.FolderForms(folderName))
+        foreach (var form in FolderNameMatcher.ArtistForms(folderName))
         {
             var (sorted, noSpace) = FolderNameMatcher.NameKeys(form);
             if (_bySorted.TryGetValue(sorted, out var a))

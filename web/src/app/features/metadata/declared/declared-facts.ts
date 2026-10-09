@@ -1,5 +1,7 @@
 import {
   DeclaredCreatorDto,
+  DeclaredEdition,
+  DeclaredEditionDto,
   DeclaredFactSource,
   DeclaredType,
   EffectiveDeclaredFactsDto,
@@ -35,6 +37,38 @@ export const DECLARED_ROLE_OPTIONS: readonly { value: string; label: string }[] 
 /** Same limits as the server (`DeclaredFactKeys`). */
 export const DECLARED_MAX_CREATORS = 20;
 export const DECLARED_MAX_NAME = 200;
+/** 1.39.0: the highest "Volumes in this edition" (`DeclaredFactKeys.MaxVolumeTotal`). */
+export const DECLARED_MAX_VOLUMES = 999;
+
+/** 1.39.0: the edition labels an admin can declare on a folder (its own scope only). */
+export const DECLARED_EDITION_OPTIONS: readonly { value: DeclaredEdition; label: string }[] = [
+  { value: 'Regular', label: 'Regular' },
+  { value: 'Omnibus', label: 'Omnibus' },
+  { value: 'Master', label: 'Master' },
+  { value: 'Deluxe', label: 'Deluxe' },
+];
+
+export function declaredEditionLabel(edition: DeclaredEdition | null | undefined): string {
+  if (!edition) return '';
+  return DECLARED_EDITION_OPTIONS.find((o) => o.value === edition)?.label ?? edition;
+}
+
+/** 1.39.0: true when the folder declares anything about its edition (volumes, label, or tracking off). */
+export function hasEdition(e: DeclaredEditionDto | null | undefined): boolean {
+  return !!e && (!!e.volumeTotal || !!e.edition || e.tracking === false);
+}
+
+/**
+ * 1.39.0: the edition facts in words: "Omnibus - 12 volumes", "12 volumes", "Master", each followed by "Completion not tracked" when
+ * tracking is off ('' when nothing is declared).
+ */
+export function editionText(e: DeclaredEditionDto | null | undefined): string {
+  if (!e) return '';
+  const label = declaredEditionLabel(e.edition);
+  const volumes = e.volumeTotal ? `${e.volumeTotal} volume${e.volumeTotal === 1 ? '' : 's'}` : '';
+  const head = label && volumes ? `${label} - ${volumes}` : label || volumes;
+  return [head, e.tracking === false ? 'Completion not tracked' : ''].filter((x) => !!x).join(' · ');
+}
 
 export function declaredTypeLabel(type: DeclaredType | null | undefined): string {
   if (!type) return '';
@@ -98,6 +132,8 @@ export function declaredErrorText(err: { error?: string; message?: string; statu
     case 'creators_too_many': return `At most ${DECLARED_MAX_CREATORS} creators.`;
     case 'creator_role_invalid': return 'Pick a role from the list.';
     case 'not_a_folder': return 'Declared facts can only be set on a folder or a library.';
+    case 'volumes_invalid': return `Volumes in this edition must be a whole number from 1 to ${DECLARED_MAX_VOLUMES}.`;
+    case 'edition_invalid': return 'Pick an edition from the list.';
     default: break;
   }
   if (err?.status === 404) return 'This folder or library no longer exists.';

@@ -92,6 +92,24 @@ public sealed class DeclaredFactsTests
         Assert.Equal(expected, DeclaredFactsComparer.TypeSignal(declared, origin, format, webtoon));
 
     [Fact]
+    public void CreatorsConflict_ReadsANameInBrackets_AsAnotherNameOfTheSamePerson()
+    {
+        // MangaUpdates writes an author's alias in brackets: "Pen Kaya (Pen Kana)" is both names.
+        Assert.False(DeclaredFactsComparer.CreatorsConflict(["Pen Kana"], ["Pen Kaya (Pen Kana)"]));
+        Assert.False(DeclaredFactsComparer.CreatorsConflict(["Kaya Pen"], ["Pen Kaya (Pen Kana)"]));
+        Assert.False(DeclaredFactsComparer.CreatorsConflict(["Pen Kaya [Pen Kana]"], ["Pen Kana"]));
+        Assert.True(DeclaredFactsComparer.CreatorsConflict(["Someone Else"], ["Pen Kaya (Pen Kana)"]));
+    }
+
+    [Fact]
+    public void CreatorsConflict_CountsTheRecordAuthorsOtherNames()
+    {
+        Assert.False(DeclaredFactsComparer.CreatorsConflict(["Second Pen"], ["Main Name"], ["Second Pen", "Third Pen"]));
+        Assert.True(DeclaredFactsComparer.CreatorsConflict(["Someone Else"], ["Main Name"], ["Second Pen"]));
+        Assert.False(DeclaredFactsComparer.CreatorsConflict(["Second Pen"], [], ["Second Pen"])); // the record names nobody: no conflict
+    }
+
+    [Fact]
     public void CreatorsConflict_OnlyWhenBothSidesNameCreators_AndNoneMatch()
     {
         Assert.False(DeclaredFactsComparer.CreatorsConflict(["ODA Eiichiro"], ["Eiichiro Oda"]));

@@ -101,8 +101,18 @@ The picker shows what the card uses now and why, and lets you pick:
 - **Left half of page 1** / **Right half of page 1** - for a jacket spread the automatic crop got wrong.
 - **Another item's cover** - for a folder: any of its archives, for example volume 4 when you like that cover best; for an archive: one of its neighbours.
 - **Covers from the web** - the stored covers of the linked series, grouped by volume and language (including other editions of a volume). A cover that is not downloaded yet is shown but cannot be picked.
+- **Series poster** - *new in 1.39.0.* The stored poster of the series the folder is linked to (see [The series poster](#the-series-poster)).
 
 **Use this cover** changes the card at once. A choice is the same for every user and stays until an admin changes it.
+
+### The series poster
+
+*New in 1.39.0.* A folder linked to a series (its own link, or the link of a folder above it - **Confirmed** or **Auto**) whose poster MangaPixer has already stored shows a **Series poster** tile under **Covers from the web**. It is the same poster that is the automatic cover of a webtoon folder or of a series without a volume cover, and it can be picked for any series folder, also one whose volume covers are not stored.
+
+- Only a poster that is already stored is offered. Choosing it sends nothing anywhere and nothing new is downloaded.
+- MangaPixer remembers *that* you chose the poster, not which poster: the folder always shows the poster of the series it is linked to **now**. If the series is re-linked to another record, or its poster is replaced, the card follows. If the link is removed (or marked **Don't match**), the poster is not stored any more, or the library or the folder stops showing web covers, the folder goes back to its automatic cover by itself, and shows the poster again when the link comes back.
+- The tile follows the same rules as the other covers from the web: it needs **Volume covers from the web** (Metadata Manager > Settings) and a library or folder that shows saved web covers (a folder set to **File covers** hides it, as it hides the other web covers).
+- Folders that are not a series themselves (see below), archives, collections and folders marked **Don't match** do not offer a poster.
 
 ### Covers of the series inside a folder
 

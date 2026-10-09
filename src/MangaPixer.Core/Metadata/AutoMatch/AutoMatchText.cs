@@ -132,6 +132,39 @@ public static partial class AutoMatchText
     }
 
     /// <summary>
+    /// The names a record's AUTHOR is known by (1.39.0, owner): MangaUpdates writes an author's other name in brackets after the main
+    /// name (<c>Main Name (Other Name)</c>), so the whole name, the name before the brackets and each bracketed part that is a name
+    /// (letters; not a year or a release tag) all count. A name without brackets is just itself. Used on the record side only.
+    /// </summary>
+    public static IReadOnlyList<string> AuthorNameForms(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return [];
+        var forms = new List<string> { name.Trim() };
+        var groups = AuthorBracket().Matches(name);
+        if (groups.Count == 0)
+            return forms;
+        void Add(string text)
+        {
+            text = text.Trim();
+            if (text.Length > 0 && text.Any(char.IsLetter) && !YearOnly().IsMatch(text) && !ArchiveNameAnatomy.IsReleaseTag(text)
+                && !forms.Contains(text, StringComparer.OrdinalIgnoreCase))
+                forms.Add(text);
+        }
+        Add(AuthorBracket().Replace(name, " "));
+        foreach (Match g in groups)
+            Add(g.Groups["inner"].Value);
+        return forms;
+    }
+
+    /// <summary>Every <see cref="AuthorNameForms"/> of a record's authors, in order, each once.</summary>
+    public static IReadOnlyList<string> AuthorNames(IEnumerable<string?>? authors) =>
+        (authors ?? []).SelectMany(AuthorNameForms).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+    [GeneratedRegex(@"[(\[](?<inner>[^()\[\]]+)[)\]]", RegexOptions.CultureInvariant)]
+    private static partial Regex AuthorBracket();
+
+    /// <summary>
     /// Two creator names are the same person or circle: equal scoring forms, the same tokens in a
     /// different order ("Family Given" vs "Given Family"), or equal once spaces are removed.
     /// </summary>
@@ -348,7 +381,7 @@ public static partial class AutoMatchText
     /// </summary>
     public static IReadOnlyList<(string Title, double Factor)> DisambiguatedAliases(IEnumerable<string?> otherTitles, IEnumerable<string>? authors)
     {
-        var known = (authors ?? []).Where(a => !string.IsNullOrWhiteSpace(a)).ToList();
+        var known = AuthorNames(authors); // 1.39.0: "Main (Alias)" names both
         var result = new List<(string Title, double Factor)>();
         foreach (var title in otherTitles)
         {

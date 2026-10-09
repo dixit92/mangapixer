@@ -104,6 +104,12 @@ public enum CoverChoiceMode
 
     /// <summary>A half of the node's own page 1 (a jacket spread).</summary>
     Crop = 4,
+
+    /// <summary>
+    /// 1.39.0: the stored poster of the folder's nearest linked series record. No record is kept on the choice: the record is always the
+    /// nearest Confirmed / Auto link's at resolve time (no link, no stored poster or a closed web layer -> automatic).
+    /// </summary>
+    Poster = 5,
 }
 
 /// <summary>The source the automatic cover layer decided for a node.</summary>

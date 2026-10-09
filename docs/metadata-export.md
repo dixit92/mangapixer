@@ -94,8 +94,9 @@ folder's declared creator in MangaPixer (not part of the export).
 | `companions` | `mangadex`: the MangaDex record id, or `null`; `anilist`: `{ id, chapters, volumes }`, or `null`. Both `null` for `CollectionAbout`. |
 | `officialLinks` | Official sources from the linked MangaDex record: `{ kind, label, url, source: "mangadex" }`, `kind` being `publisher` or `store`. `[]` until MangaPixer next reads that record (they fill in on each series' refresh schedule). |
 | `volumes` | The per-volume list (below), or `null` when none is stored. |
-| `completion` | The Completion answer (below), or `null` - only folders with a Confirmed or Auto link have one. |
+| `completion` | The Completion answer (below), or `null` - only folders with a Confirmed or Auto link have one, and (1.39.0) not a folder whose completion tracking is off. |
 | `refresh` | `lastFetchedAt`, `intervalDays`, `nextDueAt`: when MangaPixer read the record and looks at it again; `null` without a record and for `CollectionAbout` (its record is not refreshed automatically). `officialLinks` is `[]` and `volumes` / `completion` are `null` for `CollectionAbout` too. |
+| `tracking` | (1.39.0) `"off"` when an admin turned **Track completion** off for the folder (see [below](#completion-tracking-off)); the key is **left out** otherwise. |
 | `duplicates` | (1.38.0) Chapter or volume numbers that more than one file states - the same duplicates the Missing report lists - each with its files: `{ kind, number, files: [{ nodeId, name, folder }] }`. Open a file in the reader at `/reader/{nodeId}`. `kind` is `Volume` or `Chapter`; `number` is exact (`"12.5"`); `folder` is the unit subfolder (`Volumes`, `Season 2`) or `null` in the series folder itself (a number is a duplicate only within one folder). Only folders with a Confirmed or Auto link have it, and the key is **left out** when there are none. At most 50 numbers, 20 files each. |
 
 ### Volumes
@@ -129,6 +130,21 @@ chapters, with Wikipedia's English release dates and ISBNs. `source` is `mangade
 holds only as chapters (the first 50); `upgradeAvailable` is true when there is at least one. `computedAt` and `basedOnScanAt` are the
 time and the library scan of the export rebuild that last **changed** this item - a later rebuild that finds the same answer does not
 move them (the response's `serverTime` says when it was checked again).
+
+*New in 1.39.0:* two more keys, each **left out** unless an admin declared it on the folder itself ([This folder's
+edition](declared-hints.md#this-folders-edition)):
+
+- `volumeTotalOverride` (number): the folder holds another edition than the regular one (an omnibus or master edition) with this many
+  volumes. The answer counts that edition's volumes 1..N (as volume files), not the regular edition's volume list - so do not count the
+  folder's volumes as missing against `record.originVolumes`, `englishPublishers` or `volumes` (those stay the regular edition's).
+  Chapter numbers are unaffected.
+- `edition` (string): the edition label - `regular`, `omnibus`, `master` or `deluxe`. Ignore a value you do not know.
+
+#### Completion tracking off
+
+*New in 1.39.0.* An item with `"tracking": "off"` is a folder an admin keeps linked but does not want completion answers for (a sampler,
+a reading copy). Its link, record, companions, official links, volumes, refresh and duplicates stay as usual; `completion` is `null`.
+Compute no behind, missing, upgrade or complete answer for it yourself either. An item without the key is tracked.
 
 ## Keeping in sync
 

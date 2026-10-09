@@ -23,6 +23,10 @@ public static class MatcherRules
     /// 3 (1.34.2): dated doujin names (<c>Creator] [yyyy-mm] Character (Tag) (Title)</c>, <see cref="DatedDoujinName"/>) are searched,
     /// grouped and scored by their title instead of the character, with the character as a last, review-only search
     /// (<see cref="QueryVariantKind.CharacterName"/>), and count as doujin-shaped also without the tag's opening bracket.
+    /// 4 (1.39.0, owner): a record author written with another name in brackets (<c>Main Name (Other Name)</c>, MangaUpdates' form for an
+    /// author's alias) is known by each of those names (<see cref="AutoMatchText.AuthorNameForms"/>): archive creator tags and name hints
+    /// that give the alias now agree with the record (no <see cref="MatchReason.AuthorConflict"/>), a disambiguator naming the alias is
+    /// the record's own, and a folder named after the alias is a provider author's folder.
     /// </summary>
-    public const int Revision = 3;
+    public const int Revision = 4;
 }

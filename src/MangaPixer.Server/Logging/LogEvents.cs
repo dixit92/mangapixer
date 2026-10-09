@@ -473,5 +473,8 @@ public static class LogEvents
         // Match folders by name (1.38.0, 9410-9419). Counts, kinds and timings only - never folder names, artist names or titles.
         public const int FolderMatchPreviewed = 9410;
         public const int FolderMatchApplied = 9411;
+
+        // Edition override and stop tracking (1.39.0, 9420-9429). Ids and flags only - never folder names or titles.
+        public const int DeclaredEditionChanged = 9420;
     }
 }

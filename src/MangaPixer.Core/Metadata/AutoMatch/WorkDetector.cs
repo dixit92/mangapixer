@@ -291,7 +291,8 @@ public sealed class WorkDetector : IWorkDetector
         var folderName = TitleNormalizer.Normalize(folder.DisplayName).Primary;
         if (folderName.Length == 0 || AutoMatchText.IsCategoryWord(folderName) || !AutoMatchText.IsAuthorLike(folderName, requireTwoTokens: false))
             return false;
-        return known.Any(a => AutoMatchText.IsAuthorLike(a, requireTwoTokens: false) && AutoMatchText.NamesEqual(a, folderName));
+        // 1.39.0 (rules 4): "Main (Alias)" on a record names both.
+        return AutoMatchText.AuthorNames(known).Any(a => AutoMatchText.IsAuthorLike(a, requireTwoTokens: false) && AutoMatchText.NamesEqual(a, folderName));
     }
 
     /// <summary>

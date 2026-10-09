@@ -1,5 +1,5 @@
 import {
-  MetadataOrigin, MetadataOriginStatus, SeriesAnswer, SeriesProgressDto, SeriesReachDto, UnitSpanDto, CompletionBasis,
+  DeclaredEdition, MetadataOrigin, MetadataOriginStatus, SeriesAnswer, SeriesProgressDto, SeriesReachDto, UnitSpanDto, CompletionBasis,
 } from '../../../core/api/api-types';
 
 // Wording of a linked series' progress (1.30.0, reach): the per-kind trackers (origin, the official release and the released
@@ -52,6 +52,17 @@ export const ORIGIN_PLACES: Partial<Record<MetadataOrigin, string>> = {
   Dutch: 'Netherlands / Flanders',
 };
 
+/** 1.39.0: the edition label an admin declared on a folder, as a name: "Omnibus edition". */
+export const DECLARED_EDITION_NAMES: Record<DeclaredEdition, string> = {
+  Regular: 'Regular edition',
+  Omnibus: 'Omnibus edition',
+  Master: 'Master edition',
+  Deluxe: 'Deluxe edition',
+};
+
+/** 1.39.0: the words shown where a Completion answer would be when an admin turned "Track completion" off. */
+export const NOT_TRACKED_LABEL = 'Completion not tracked';
+
 function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? '' : 's'}`;
 }
@@ -90,6 +101,11 @@ export function trackersLine(progress: SeriesProgressDto | null | undefined): st
   const t = progress.trackers;
   const lang = languageName(t.language);
   const parts: string[] = [];
+  // 1.39.0: the edition an admin declared for the folder, first - it is what the volume answers count.
+  if (progress.volumeTotalOverride) {
+    const name = progress.edition ? DECLARED_EDITION_NAMES[progress.edition] : 'This edition';
+    parts.push(`${name}: ${plural(progress.volumeTotalOverride, 'volume')}`);
+  }
 
   const word = t.originStatus ? STATUS_WORDS[t.originStatus] ?? null : null;
   const place = t.origin ? ORIGIN_PLACES[t.origin] ?? null : null;
@@ -152,6 +168,8 @@ export function missingText(progress: SeriesProgressDto): string | null {
 export function folderLine(progress: SeriesProgressDto | null | undefined): string | null {
   if (!progress) return null;
   const reach = reachText(progress.reach);
+  // 1.39.0: tracking off - what the folder holds, and why no answer follows.
+  if (progress.trackingOff) return reach ? `You have ${reach} · ${NOT_TRACKED_LABEL.toLowerCase()}` : NOT_TRACKED_LABEL;
   if (!reach) return null;
   const parts = [`You have ${reach}`];
   const missing = missingText(progress);
@@ -176,6 +194,7 @@ export function reachSentence(progress: SeriesProgressDto | null | undefined): s
 
 /** The icon of the status line: the completion mark first, then missing, then an upgrade, then fine. */
 export function progressIcon(progress: SeriesProgressDto): string {
+  if (progress.trackingOff) return 'remove_circle_outline';
   if (answerOf(progress) === 'HaveItAll') return 'workspace_premium';
   if (progress.missingVolumes + progress.missingChapters > 0) return 'error_outline';
   if (progress.upgradeCount > 0) return 'new_releases';
@@ -192,6 +211,7 @@ export function completionBasisLabel(basis: CompletionBasis | null | undefined):
     case 'AllChapters': return 'Chapter-based';
     case 'OfficialChapters': return 'Official chapters';
     case 'OriginRun': return 'Original run';
+    case 'Edition': return 'Your edition';
     default: return 'Official';
   }
 }
@@ -240,6 +260,7 @@ export function editionLabel(progress: SeriesProgressDto): string | null {
   const answer = answerOf(progress);
   if (answer !== 'HaveItAll' && answer !== 'FinishedMissing') return null;
   if (isOneShot(progress)) return 'One-shot';
+  if (progress.completionBasis === 'Edition' && progress.edition) return DECLARED_EDITION_NAMES[progress.edition];
   return progress.completionBasis ? completionBasisLabel(progress.completionBasis) : null;
 }
 
@@ -291,6 +312,8 @@ export function answerSentence(progress: SeriesProgressDto): string | null {
   const held = progress.completionHeld ?? 0;
   const missing = missingCounts(progress);
   const notHere = missing ? `${missing.text} out in ${lang} ${missing.total === 1 ? 'is' : 'are'} not here.` : null;
+  // 1.39.0: "the omnibus edition" / "this edition" (volumes declared for the folder).
+  const declared = progress.edition ? `the ${DECLARED_EDITION_NAMES[progress.edition].toLowerCase()}` : 'this edition';
 
   switch (answer) {
     case 'HaveItAll':
@@ -299,6 +322,7 @@ export function answerSentence(progress: SeriesProgressDto): string | null {
         case 'OfficialVolumes': return `${ended}, and the ${lang} edition is complete: you have ${allOf(target, 'volume')}.`;
         case 'OfficialChapters': return `${ended}, and every chapter is out officially in ${lang}: you have ${allOf(target, 'chapter')}.`;
         case 'AllChapters': return `${ended}, and every chapter is out in ${lang}: you have ${allOf(target, 'chapter')}.`;
+        case 'Edition': return `${ended}: you have ${allOf(target, 'volume')} of ${declared}.`;
         default: return `${ended}: you have ${allOf(target, progress.completionInChapters ? 'chapter' : 'volume')} of the original run.`;
       }
     case 'FinishedMissing':
@@ -307,6 +331,7 @@ export function answerSentence(progress: SeriesProgressDto): string | null {
         case 'OfficialChapters': return `${ended}, and every chapter is out officially in ${lang}: you have ${held} of ${plural(target, 'chapter')}.`;
         case 'AllChapters': return `${ended}, and every chapter is out in ${lang}: you have ${held} of ${plural(target, 'chapter')}.`;
         case 'OriginRun': return `${ended}: you have ${held} of the ${unitsWord(progress, target)} of the original run.`;
+        case 'Edition': return `${ended}: you have ${held} of the ${plural(target, 'volume')} of ${declared}.`;
         default: return notHere ? `${ended}: ${notHere}` : `${ended}: some of it is not here.`;
       }
     case 'UpToDate':
@@ -329,6 +354,7 @@ export function answerSentence(progress: SeriesProgressDto): string | null {
     case 'CantTell':
       switch (progress.answerReason) {
         case 'NumberingRestarts': return 'Volume or chapter numbers start again in subfolders, so MangaPixer cannot compare them.';
+        case 'NotTracked': return `${NOT_TRACKED_LABEL}: an admin turned it off for this folder.`;
         case 'NothingKnownReleased': return `Nothing is known about what is out in ${lang}.`;
         case 'NoVolumeTotal':
           return `${running ? `${running}. ` : ''}MangaPixer does not know how many volumes are out in ${lang} yet, so it cannot say whether you have them all.`;

@@ -31,7 +31,9 @@ public enum CoverChoiceResult
 /// cover layer; no row = automatic). Works everywhere, also under Don't match, in unlinked libraries and with series
 /// information hidden (the web part is then empty with a reason). 1.36.0: a FOLDER that is not a series itself (no own /
 /// inherited Confirmed or Auto link) offers the stored web covers of the series linked anywhere below it instead, per series
-/// (a main series and its spinoffs in one folder). Local data only: nothing here sends a request.
+/// (a main series and its spinoffs in one folder). 1.39.0: a FOLDER whose nearest link is a Confirmed / Auto series record with a STORED
+/// poster also offers that poster (<see cref="CoverMode.Poster"/>; no record is kept on the choice - it is always the nearest link's at
+/// resolve time). Local data only: nothing here sends a request.
 /// </summary>
 public sealed class CoverPickerService
 {
@@ -79,6 +81,7 @@ public sealed class CoverPickerService
             local.Add(new CoverOptionDto { Kind = CoverOptionKind.Archive, ArchiveId = a.PublicId, ImageUrl = ItemCoverUrl(a.PublicId, a.ContentVersion), Label = a.DisplayName });
 
         var web = await WebOptionsAsync(node, ct);
+        var poster = await PosterOptionAsync(node, ct);
         return new CoverOptionsDto
         {
             NodeId = node.PublicId,
@@ -89,6 +92,7 @@ public sealed class CoverPickerService
             WebUnavailableReason = web.Reason,
             WebSeries = web.Series,
             WebSeriesMore = web.SeriesMore,
+            Poster = poster,
         };
     }
 
@@ -130,6 +134,15 @@ public sealed class CoverPickerService
                 if (cover.State != (int)VolumeCoverState.Stored || cover.StoredVersion <= 0)
                     return (CoverChoiceResult.NotStored, null);
                 volumeCoverId = cover.Id;
+                break;
+            case CoverMode.Poster:
+                mode = CoverChoiceMode.Poster;
+                // Re-checked here, never trusted from the client: a folder whose nearest link is a series record. Nothing is stored about the
+                // record (it is the nearest link's at resolve time); a record without a stored poster is refused like a not downloaded cover.
+                if (await LinkedSeriesRecordAsync(node, ct) is not { } posterRecord)
+                    return (CoverChoiceResult.Invalid, null);
+                if (posterRecord.ImageState != StoredImageState)
+                    return (CoverChoiceResult.NotStored, null);
                 break;
             case CoverMode.Crop:
                 mode = CoverChoiceMode.Crop;
@@ -196,6 +209,10 @@ public sealed class CoverPickerService
         if (auto is { Source: (int)AutoCoverSource.LocalVolume1, ArchiveNodeId: { } volume1Id })
             shown = await _db.NodeAutoCovers.AsNoTracking().FirstOrDefaultAsync(a => a.NodeId == volume1Id, ct);
         var resolved = await _resolutions.ResolveOneAsync(node, ct);
+        // A stale poster choice (the link is gone, the poster is not stored, the web layer is closed) shows the automatic cover: say so, the
+        // row stays and the poster comes back with the link.
+        if (choice is { Mode: (int)CoverChoiceMode.Poster } && resolved is not { Source: CardCoverSource.Chosen, Image: CoverImageKind.Poster })
+            choice = null;
         return new CoverStateDto
         {
             Mode = choice is null ? CoverMode.Automatic : (CoverChoiceMode)choice.Mode switch
@@ -204,6 +221,7 @@ public sealed class CoverPickerService
                 CoverChoiceMode.Archive => CoverMode.Archive,
                 CoverChoiceMode.VolumeCover => CoverMode.VolumeCover,
                 CoverChoiceMode.Crop => CoverMode.Crop,
+                CoverChoiceMode.Poster => CoverMode.Poster,
                 _ => CoverMode.Automatic,
             },
             AutoSource = auto is null ? null : (AutoCoverSource)(shown?.Source ?? (int)AutoCoverSource.File) switch
@@ -317,6 +335,44 @@ public sealed class CoverPickerService
         var below = await LinkedSeriesBelowAsync(node.Id, ct);
         var companions = await CoverSeries.CompanionRecordIdsAsync(_db, below.Select(b => b.RecordId).Distinct().ToList(), ct);
         return companions.ContainsValue(companionRecordId);
+    }
+
+    /// <summary><c>metadata_records.ImageState</c> of a downloaded poster.</summary>
+    private const int StoredImageState = 1;
+
+    /// <summary>
+    /// 1.39.0: the record of the series a FOLDER is linked to - its own or inherited Confirmed / Auto link, the same states that give a
+    /// series folder its automatic poster. Null for an archive, for Don't match, a "Collection about" row, an unlinked folder, and a
+    /// folder that is not a series itself (several series' posters below one folder would need a record on the choice).
+    /// </summary>
+    private async Task<MetadataRecordEntity?> LinkedSeriesRecordAsync(CatalogNodeEntity node, CancellationToken ct)
+    {
+        if (node.Kind != (int)CatalogNodeKind.Folder)
+            return null;
+        var links = await CoverLinks.NearestAsync(_db, [node.Id], ct);
+        if (!links.TryGetValue(node.Id, out var link) || !link.IsLinked)
+            return null;
+        return await _db.MetadataRecords.AsNoTracking().FirstOrDefaultAsync(r => r.Id == link.RecordId!.Value, ct);
+    }
+
+    /// <summary>
+    /// The record whose STORED poster the picker previews for a folder (<c>GET /nodes/{nodeId}/cover-poster</c>): the folder's linked
+    /// series record, null when the node is gone, is not a folder, is not linked to a series or has no stored poster.
+    /// </summary>
+    public async Task<MetadataRecordEntity?> PosterRecordOfAsync(string nodePublicId, CancellationToken ct)
+    {
+        var node = await LiveNodeAsync(nodePublicId, ct);
+        return node is null ? null : await LinkedSeriesRecordAsync(node, ct) is { ImageState: StoredImageState } record ? record : null;
+    }
+
+    /// <summary>The poster tile: only when the choice would show (a stored poster, the web layer open for this folder).</summary>
+    private async Task<CoverPosterOptionDto?> PosterOptionAsync(CatalogNodeEntity node, CancellationToken ct)
+    {
+        if (await LinkedSeriesRecordAsync(node, ct) is not { ImageState: StoredImageState } record)
+            return null;
+        if (await WebClosedReasonAsync(node, ct) is not null)
+            return null;
+        return new CoverPosterOptionDto { ImageUrl = PosterPreviewUrl(node.PublicId, record.PublicId, record.ImageVersion) };
     }
 
     private sealed record WebOptions(IReadOnlyList<WebCoverGroupDto> Groups, bool Available, string? Reason,
@@ -491,6 +547,10 @@ public sealed class CoverPickerService
 
     public static string CropPreviewUrl(string archivePublicId, string side, long contentVersion) =>
         string.Create(CultureInfo.InvariantCulture, $"/api/v1/nodes/{Uri.EscapeDataString(archivePublicId)}/cover-crops/{side}?v={contentVersion}");
+
+    /// <summary>The picker preview of a folder's linked series poster (admin); the version changes with the record and its image version.</summary>
+    public static string PosterPreviewUrl(string nodePublicId, string recordPublicId, int imageVersion) =>
+        string.Create(CultureInfo.InvariantCulture, $"/api/v1/nodes/{Uri.EscapeDataString(nodePublicId)}/cover-poster?v={Uri.EscapeDataString(recordPublicId)}-{imageVersion}");
 
     public static string VolumeCoverImageUrl(string publicId, int storedVersion) =>
         string.Create(CultureInfo.InvariantCulture, $"/api/v1/volume-covers/{Uri.EscapeDataString(publicId)}/image?v={storedVersion}");

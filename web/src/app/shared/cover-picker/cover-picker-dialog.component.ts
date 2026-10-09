@@ -20,7 +20,8 @@ export type CoverPick =
   | { kind: 'file' }
   | { kind: 'crop'; side: 'Left' | 'Right' }
   | { kind: 'archive'; archiveId: string }
-  | { kind: 'web'; coverId: string };
+  | { kind: 'web'; coverId: string }
+  | { kind: 'poster' };
 
 /** The request (or `null` = back to Automatic) for a pick. */
 export function choiceFor(pick: CoverPick): CoverChoiceRequest | null {
@@ -30,6 +31,7 @@ export function choiceFor(pick: CoverPick): CoverChoiceRequest | null {
     case 'crop': return { mode: 'Crop', cropSide: pick.side };
     case 'archive': return { mode: 'Archive', archiveId: pick.archiveId };
     case 'web': return { mode: 'VolumeCover', volumeCoverId: pick.coverId };
+    case 'poster': return { mode: 'Poster' };
   }
 }
 
@@ -47,7 +49,7 @@ function samePick(a: CoverPick | null, b: CoverPick): boolean {
  * The admin "Choose cover..." picker (1.29.0, design 6.7): Automatic (with what it uses now and why), this file's cover
  * ("use the file's cover" also stops every automatic cover), either half of page 1, another item's cover, and the stored
  * covers from the web of the linked series (grouped by volume; a not yet downloaded cover is shown but cannot be picked
- * here). Works under "Don't match", in unlinked libraries and with series information hidden - the web part then says why.
+ * here), and (1.39.0) the series' stored poster as one more tile ("Series poster") under "Covers from the web". Works under "Don't match", in unlinked libraries and with series information hidden - the web part then says why.
  * 1.36.0: on a folder that is not a series itself, "Covers from the web" offers the stored covers of the series linked below it,
  * one heading per series, and comes FIRST - above "Another item's cover" (owner: chapter covers are rarely real covers); a series
  * folder keeps today's order. Every image comes from MangaPixer. On "Use this cover" the new versioned card URL is announced through
@@ -124,8 +126,19 @@ function samePick(a: CoverPick | null, b: CoverPick): boolean {
 
         @if (seriesCovers().length === 0) {
           <h3 class="section">Covers from the web</h3>
+          @if (o.poster; as poster) {
+            <div class="grid" role="group" aria-label="Series poster">
+              <button type="button" class="tile" [class.picked]="isPicked({ kind: 'poster' })" [attr.aria-pressed]="isPicked({ kind: 'poster' })"
+                      (click)="pick({ kind: 'poster' })" data-testid="cover-pick-poster">
+                <span class="img"><img appCover [src]="poster.imageUrl" alt=""><mat-icon class="fallback">cloud</mat-icon></span>
+                <span class="label">Series poster</span>
+              </button>
+            </div>
+          }
           @if (!o.webAvailable || o.web.length === 0) {
-            <p class="hint" data-testid="cover-picker-web-unavailable">{{ webUnavailable(o) }}</p>
+            @if (!o.poster) {
+              <p class="hint" data-testid="cover-picker-web-unavailable">{{ webUnavailable(o) }}</p>
+            }
           } @else {
             <ng-container *ngTemplateOutlet="webGroups; context: { $implicit: o.web }" />
           }
@@ -299,6 +312,7 @@ function initialPick(mode: CoverStateDto['mode']): CoverPick | null {
   switch (mode) {
     case 'Automatic': return { kind: 'automatic' };
     case 'FilePinned': return { kind: 'file' };
+    case 'Poster': return { kind: 'poster' };
     default: return null;
   }
 }

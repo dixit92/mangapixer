@@ -12,6 +12,9 @@ using com.lifepixer.mangapixer.Core.Metadata.Missing;
 /// The stored facts of one linked record the comparison reads (any may be null). <see cref="Language"/> is the preferred
 /// language; the English-only facts (<see cref="LatestChapter"/>, <see cref="ScanlationComplete"/>, <see cref="Licensed"/> and the
 /// official publisher totals, which come from MangaUpdates' English publishers) are set by the caller only for English.
+/// 1.39.0: <see cref="VolumeOverride"/>, <see cref="Edition"/> and <see cref="TrackingOff"/> are what an admin declared on the series folder
+/// itself (<see cref="DeclaredEditionFacts"/>): the edition's volume count replaces the regular edition's volumes in every VOLUME answer
+/// (chapter answers are unchanged); tracking off gives no Completion / missing / upgrade answer at all.
 /// </summary>
 public sealed record ProgressFacts(
     string Language,
@@ -27,13 +30,17 @@ public sealed record ProgressFacts(
     int? LatestChapter = null,
     bool? ScanlationComplete = null,
     IReadOnlySet<decimal>? ReleasedChapters = null,
-    double? ChaptersPerVolume = null)
+    double? ChaptersPerVolume = null,
+    int? VolumeOverride = null,
+    DeclaredEdition? Edition = null,
+    bool TrackingOff = false)
 {
     /// <summary>The highest whole chapter the released list names, or null.</summary>
     public int? ReleasedChapter => ReleasedChapters is { Count: > 0 } r ? (int)decimal.Floor(r.Max()) : null;
 
     /// <summary>Something is known about what is released in the language ("up to date" can be said).</summary>
-    public bool ReleaseKnown => OfficialVolumes is not null || OfficialChapters is not null || ReleasedChapters is not null || LatestChapter is not null;
+    public bool ReleaseKnown => OfficialVolumes is not null || OfficialChapters is not null || ReleasedChapters is not null || LatestChapter is not null
+        || VolumeOverride is not null;
 
     /// <summary>The origin run has ended (complete, or cancelled there).</summary>
     public bool OriginEnded => OriginStatus is MetadataOriginStatus.Complete or MetadataOriginStatus.Cancelled;
@@ -129,7 +136,11 @@ public static class SeriesProgress
         ArgumentNullException.ThrowIfNull(rows);
         ArgumentNullException.ThrowIfNull(facts);
         if (restarts)
-            return SeriesAnswers.Apply(new ProgressResult { Facts = facts, Reach = ReachResult.Empty, Restarts = true }, 0);
+        {
+            return facts.TrackingOff
+                ? NotTracked(new ProgressResult { Facts = facts, Reach = ReachResult.Empty, Restarts = true })
+                : SeriesAnswers.Apply(new ProgressResult { Facts = facts, Reach = ReachResult.Empty, Restarts = true }, 0);
+        }
 
         map ??= VolumeMapInput.Empty;
         map = map with
@@ -141,14 +152,33 @@ public static class SeriesProgress
         map = WithOfficialChapters(map);
         var archives = rows.Where(r => r.Kind == GroupingRowKind.Archive).ToList();
         var reach = SeriesReach.Of(archives, map);
+        // 1.39.0: tracking off - what the folder holds still shows; nothing is compared.
+        if (facts.TrackingOff)
+            return NotTracked(new ProgressResult { Facts = facts, Reach = reach });
         if (!reach.HasNumbers)
             return SeriesAnswers.Apply(new ProgressResult { Facts = facts, Reach = reach }, archives.Count);
 
         var grouping = VolumeGrouping.Group(archives, map, markMissingVolumes: true);
-        var present = reach.TouchedVolumes.ToList();
-        var highestVolume = present.Count > 0 ? present.Max() : 0;
-        var missingVolumes = grouping.MissingVolumeNumbers;
-        var volumesBehind = missingVolumes.Count(v => v > highestVolume);
+        IReadOnlyList<int> missingVolumes;
+        int volumesBehind;
+        if (facts.VolumeOverride is { } edition)
+        {
+            // 1.39.0: the declared edition's volumes 1..N, by volume FILES only - a chapter cannot be placed in an edition volume without
+            // that edition's list, so a folder without volume files has no volume answer to give.
+            var files = reach.VolumeFiles.Where(v => v >= 1).ToList();
+            var highestFile = files.Count > 0 ? files.Max() : 0;
+            missingVolumes = files.Count == 0
+                ? []
+                : Enumerable.Range(1, Math.Min(edition, VolumeGrouping.MaxMissingVolumes)).Where(v => !reach.VolumeFiles.Contains(v)).ToList();
+            volumesBehind = missingVolumes.Count(v => v > highestFile);
+        }
+        else
+        {
+            var present = reach.TouchedVolumes.ToList();
+            var highestVolume = present.Count > 0 ? present.Max() : 0;
+            missingVolumes = grouping.MissingVolumeNumbers;
+            volumesBehind = missingVolumes.Count(v => v > highestVolume);
+        }
 
         // Chapters: only when chapter files are here.
         IReadOnlyList<decimal> holes = [];
@@ -167,7 +197,8 @@ public static class SeriesProgress
                 // Released after the highest chapter here: the ones the grouping did not already count (a stack's released placeholder),
                 // and not inside a volume that is missing whole (that volume is the missing unit).
                 var resolver = new VolumeResolver(map);
-                var missingWhole = missingVolumes.ToHashSet();
+                // The regular list's missing volumes (chapter answers never follow an edition override).
+                var missingWhole = grouping.MissingVolumeNumbers.ToHashSet();
                 for (var n = top + 1; n <= t && n <= MissingUnits.MaxNumber; n++)
                 {
                     if (alreadyMissing.Contains(n))
@@ -189,7 +220,8 @@ public static class SeriesProgress
         }
 
         // Upgrades: official volumes 1..N without a volume file that the folder holds as chapters (whole or in part).
-        var upgrades = facts.OfficialVolumes is { } n1 && n1 > 0
+        // 1.39.0: none with an edition override (the official volumes are the regular edition's).
+        var upgrades = facts.VolumeOverride is null && facts.OfficialVolumes is { } n1 && n1 > 0
             ? reach.HeldAsChapters.Concat(reach.PartialVolumes).Where(v => v >= 1 && v <= n1 && !reach.VolumeFiles.Contains(v)).Distinct().Order().ToList()
             : [];
 
@@ -212,9 +244,18 @@ public static class SeriesProgress
 
     private static double? Ratio(ProgressFacts facts) => facts.ChaptersPerVolume is { } r && r >= 1 ? r : null;
 
+    /// <summary>
+    /// 1.39.0, "Track completion: off": the reach and the trackers stay (what the folder holds, what is out), and no answer is given -
+    /// nothing missing, no upgrade, no completion; the answer is Can't tell with the reason <see cref="SeriesAnswerReason.NotTracked"/>.
+    /// </summary>
+    private static ProgressResult NotTracked(ProgressResult r) =>
+        r with { Answer = SeriesAnswer.CantTell, AnswerReason = SeriesAnswerReason.NotTracked };
+
     // The released volume total: the official volumes, else the official chapters converted by a chapters-per-volume ratio (an estimate).
     private static (int? Total, MissingTotalSource? Source) VolumeTotal(ProgressFacts facts)
     {
+        if (facts.VolumeOverride is { } declared)
+            return (declared, MissingTotalSource.Declared);
         if (facts.OfficialVolumes is { } n && n > 0)
             return (n, MissingTotalSource.English);
         if (Ratio(facts) is { } r && facts.OfficialChapters is { } oc && (int)Math.Floor(oc / r) is var cv && cv > 0)
@@ -272,7 +313,16 @@ public static class SeriesProgress
         bool WholeByVolumes(int n) => Enumerable.Range(1, Math.Min(n, MissingUnits.MaxNumber)).All(reach.VolumeFiles.Contains) || ReachesKnownLast();
 
         var candidates = new List<(CompletionBasis Basis, int Target, int Held, bool Chapters, bool InLanguage, bool Whole)>();
-        if (f.OriginEnded && f.OfficialVolumes is { } n && n > 0
+        // 1.39.0: an edition override replaces the regular edition's volume bases (official volumes, the origin run by volumes) with the
+        // declared edition's volumes 1..N held as volume FILES (a folder without volume files has no edition answer); like every basis it
+        // needs the origin run to have ended.
+        var edition = f.VolumeOverride;
+        if (f.OriginEnded && edition is { } declared && declared > 0 && reach.VolumeFiles.Count > 0)
+        {
+            var held = Enumerable.Range(1, Math.Min(declared, MissingUnits.MaxNumber)).Count(reach.VolumeFiles.Contains);
+            candidates.Add((CompletionBasis.Edition, declared, held, false, true, held >= declared));
+        }
+        if (edition is null && f.OriginEnded && f.OfficialVolumes is { } n && n > 0
             && (f.OfficialStatus == MetadataOriginStatus.Complete
                 || (f.OfficialStatus is null && f.OriginStatus == MetadataOriginStatus.Complete && f.OriginVolumes is { } originTotal && n >= originTotal)))
         {
@@ -285,7 +335,7 @@ public static class SeriesProgress
         {
             // A folder of volume files with a known volume edition in the language is judged by that edition, never prompted by the
             // chapter release (1.32.0 rule V: an English edition still coming is "everything released so far", not "missing some").
-            var inLanguage = !(SeriesAnswers.CollectsVolumes(reach) && f.OfficialVolumes is > 0);
+            var inLanguage = !(SeriesAnswers.CollectsVolumes(reach) && (f.OfficialVolumes is > 0 || edition is not null));
             var basis = f.OfficialChapters is { } oc && oc >= last
                 || (f.OfficialVolumes is null && f.OfficialChapters is not null && f.OfficialStatus == MetadataOriginStatus.Complete)
                 ? CompletionBasis.OfficialChapters
@@ -294,7 +344,7 @@ public static class SeriesProgress
         }
         if (f.OriginEnded)
         {
-            if (f.OriginVolumes is { } ov && ov > 0)
+            if (edition is null && f.OriginVolumes is { } ov && ov > 0)
                 candidates.Add((CompletionBasis.OriginRun, ov, HeldVolumes(ov), false, false, WholeByVolumes(ov)));
             else if (f.OriginChapters is { } oc && oc > 0 && Math.Max(oc, knownLast ?? 0) is var lastOrigin)
                 candidates.Add((CompletionBasis.OriginRun, lastOrigin, HeldChapters(lastOrigin), true, false, true));
@@ -354,6 +404,9 @@ public static class SeriesProgress
     public static MissingUnitsResult ToMissing(ProgressResult r, int volumeArchives, int chapterArchives)
     {
         ArgumentNullException.ThrowIfNull(r);
+        // 1.39.0: tracking off - no verdict (the report leaves such a series out; its own line says it is not tracked).
+        if (r.Facts.TrackingOff)
+            return new MissingUnitsResult(MissingVerdict.NoUnits, null, null, 0);
         if (r.Restarts)
             return new MissingUnitsResult(MissingVerdict.Restarts, null, null, 0);
         var reach = r.Reach;
@@ -362,9 +415,10 @@ public static class SeriesProgress
 
         var origin = r.Facts.OriginVolumes;
         MissingUnitGap? volumes = null;
-        if (reach.VolumeFiles.Count > 0)
+        // 1.39.0: with an edition override only volume files count (chapters say nothing about the edition's volumes).
+        var touched = (r.Facts.VolumeOverride is null ? reach.TouchedVolumes : reach.VolumeFiles.Where(v => v >= 1)).Order().ToList();
+        if (reach.VolumeFiles.Count > 0 && touched.Count > 0)
         {
-            var touched = reach.TouchedVolumes.Order().ToList();
             var have = touched[^1];
             var holes = r.MissingVolumes.Where(v => v < have).ToList();
             volumes = new MissingUnitGap(
@@ -403,7 +457,7 @@ public static class SeriesProgress
 
     private static MissingConfidence? ConfidenceOf(MissingTotalSource? source) => source switch
     {
-        MissingTotalSource.English => MissingConfidence.High,
+        MissingTotalSource.English or MissingTotalSource.Declared => MissingConfidence.High,
         MissingTotalSource.Converted or MissingTotalSource.Released or MissingTotalSource.Origin => MissingConfidence.Medium,
         MissingTotalSource.LatestChapter => MissingConfidence.Low,
         _ => null,
@@ -445,6 +499,9 @@ public static class SeriesProgress
             CompletionInChapters = r.CompletionInChapters,
             Answer = r.Answer,
             AnswerReason = r.AnswerReason,
+            VolumeTotalOverride = f.VolumeOverride,
+            Edition = f.Edition,
+            TrackingOff = f.TrackingOff,
         };
     }
 }

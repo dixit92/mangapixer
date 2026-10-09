@@ -31,6 +31,9 @@ The two **Finished** answers name the edition the series is finished in:
 - **Chapter-based**: every chapter is out in your language - MangaUpdates lists the series as completely released in English chapter by chapter. That can be a fan translation or an official chapter release, so MangaPixer does not say which unless the publisher is known.
 - **Original run**: you have every volume (or chapter) of the original run.
 - **One-shot**: see above.
+- **Your edition** (*new in 1.39.0*): every volume of the edition an admin declared for the folder - **Volumes in this edition** in its [declared facts](declared-hints.md#this-folders-edition), for an omnibus or master edition, say. The chip names the edition when one was picked (**Omnibus edition**), and the regular edition's volume count does not apply to that folder.
+
+A folder whose **Track completion** is off (same place) gets no answer and is not listed; the line above the list counts it as "not tracked".
 
 A folder of volume files is judged by the volume edition: while your language's volumes are still coming, a series whose chapters are all out reads **Everything released so far**, not "missing some". A folder of chapter files is judged by the chapter release.
 

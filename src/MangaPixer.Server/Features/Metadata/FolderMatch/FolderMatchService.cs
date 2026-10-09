@@ -154,7 +154,7 @@ public sealed class FolderMatchService
 
     private static IReadOnlyList<FolderMatchArtistDto> ArtistsFor(ArtistNameIndex index, string folderName)
     {
-        var forms = FolderNameMatcher.FolderForms(folderName);
+        var forms = FolderNameMatcher.ArtistForms(folderName);
         return index.Match(folderName).Select(a => new FolderMatchArtistDto
         {
             Name = a.DeclaredName,

@@ -579,7 +579,7 @@ public static class VolumeGrouping
             : hasVolumeArchive ? chapterCount : chaptersOf.Count(g => g.All(Present) && !incomplete.Contains(g.Key));
 
         // 1.31.0: the same chapter number in two files is one chapter present (not two), and a duplicated extra one extra.
-        var duplicates = DuplicateUnits.Find(units).Where(d => d.Kind == MissingUnitKind.Chapter).ToList();
+        var duplicates = DuplicateUnits.Find(chapterMembers.Select(m => m.Row)).Where(d => d.Kind == MissingUnitKind.Chapter).ToList();
         var surplus = duplicates.Sum(d => d.Files - 1);
         var extraSurplus = duplicates.Where(d => chapterMembers.Any(m => m.IsExtra && m.Chapter == d.Number)).Sum(d => d.Files - 1);
         var extras = chapterMembers.Count(m => m.IsExtra) + bonusMembers.Count - extraSurplus;

@@ -3,7 +3,9 @@ import { Injectable, inject, signal } from '@angular/core';
 import { Observable, tap, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
-import { ApiError, DeclaredFactsScopeDto, NodeDeclaredFactsDto, SetDeclaredFactsRequest } from '../../../core/api/api-types';
+import {
+  ApiError, DeclaredFactsScopeDto, NodeDeclaredFactsDto, SetDeclaredEditionRequest, SetDeclaredFactsRequest,
+} from '../../../core/api/api-types';
 
 /** A folder (by node id) or a whole library (by library id). */
 export interface DeclaredScope {
@@ -31,6 +33,16 @@ export class DeclaredFactsApiService {
 
   set(scope: DeclaredScope, request: SetDeclaredFactsRequest): Observable<DeclaredFactsScopeDto> {
     return this.http.put<DeclaredFactsScopeDto>(this.url(scope), request, { withCredentials: true })
+      .pipe(catchError(toApiError), tap(() => this.version.update((v) => v + 1)));
+  }
+
+  /**
+   * 1.39.0: replaces a folder's own edition facts (volumes in this edition, edition label, track completion) at
+   * `/admin/metadata/folders/{id}/declared/edition`; the folder's type and creators stay.
+   */
+  setEdition(nodeId: string, request: SetDeclaredEditionRequest): Observable<DeclaredFactsScopeDto> {
+    const url = `${this.url({ kind: 'folder', id: nodeId })}/edition`;
+    return this.http.put<DeclaredFactsScopeDto>(url, request, { withCredentials: true })
       .pipe(catchError(toApiError), tap(() => this.version.update((v) => v + 1)));
   }
 

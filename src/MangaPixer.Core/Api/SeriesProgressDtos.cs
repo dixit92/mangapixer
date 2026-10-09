@@ -121,6 +121,12 @@ public enum CompletionBasis
     /// Plus-style) - the same rule as <see cref="AllChapters"/>, named for its known source.
     /// </summary>
     OfficialChapters = 3,
+
+    /// <summary>
+    /// 1.39.0: every volume of the edition an admin declared for the folder ("Volumes in this edition: N", e.g. an omnibus edition),
+    /// held as volume files. Replaces the regular edition's volume bases for that folder.
+    /// </summary>
+    Edition = 4,
 }
 
 /// <summary>
@@ -179,6 +185,9 @@ public enum SeriesAnswerReason
 
     /// <summary>A one-shot (one volume, ended) whose file carries no number.</summary>
     OneShot = 10,
+
+    /// <summary>1.39.0: an admin turned "Track completion" off for this folder - no answer is given.</summary>
+    NotTracked = 11,
 }
 
 /// <summary>A linked series' progress: the trackers, the folder's reach, what is missing, the upgrades and the completion.</summary>
@@ -228,4 +237,19 @@ public sealed record SeriesProgressDto
 
     /// <summary>1.32.0: why <see cref="Answer"/> was given.</summary>
     public SeriesAnswerReason AnswerReason { get; init; }
+
+    /// <summary>
+    /// 1.39.0: the volumes an admin declared for the edition this folder holds ("Volumes in this edition"), or null. When set, the volume
+    /// answers count volumes 1..N of that edition instead of the regular edition's list.
+    /// </summary>
+    public int? VolumeTotalOverride { get; init; }
+
+    /// <summary>1.39.0: the edition label an admin declared for the folder, or null.</summary>
+    public DeclaredEdition? Edition { get; init; }
+
+    /// <summary>
+    /// 1.39.0: an admin turned "Track completion" off for the folder: nothing is missing, no upgrade, no completion
+    /// (<see cref="Answer"/> is CantTell with the reason NotTracked); the trackers and the reach still show.
+    /// </summary>
+    public bool TrackingOff { get; init; }
 }

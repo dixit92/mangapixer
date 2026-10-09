@@ -13,7 +13,8 @@ using Xunit;
 /// <summary>
 /// The synthetic sample export page for client authors (1.33.0, asked for by MangaList): one incremental page with every link state,
 /// a folder and an archive item, a removal, a <c>carriedFrom</c>, a volume list with dates and ISBNs, companions and official links -
-/// fixed clock, fixed public ids, synthetic names and example.com URLs. Compared with <c>contracts/samples/metadata-export-v1.json</c>
+/// fixed clock, fixed public ids, synthetic names and example.com URLs. 1.39.0: an omnibus folder with a declared edition and a folder with
+/// completion tracking off. Compared with <c>contracts/samples/metadata-export-v1.json</c>
 /// like the OpenAPI snapshot; <c>MANGAPIXER_UPDATE_SNAPSHOT=1</c> rewrites it.
 /// </summary>
 [Trait("Category", "ServiceDb")]
@@ -147,6 +148,22 @@ public sealed class ExportSampleSnapshotTests
         Link(db, artistFolder, null, SeriesLinkState.ArtistFolder, null, null);
         // 1.38.0: a second scan of volume 3 in the series folder - the item lists the duplicate with each file (created last as well).
         await kit.Db.AddArchiveAsync(quest, "Synthetic Quest v03 [alt scan].cbz");
+        // 1.39.0: an omnibus edition declared with its own volume count (Completion carries volumeTotalOverride + edition), and a reprint
+        // whose completion tracking is off (tracking "off", no Completion block) - both created last as well.
+        var omnibus = await kit.Db.AddFolderAsync(shonen, "Synthetic Quest Omnibus");
+        await kit.Db.AddArchiveAsync(omnibus, "Synthetic Quest Omnibus v01.cbz");
+        await kit.Db.AddArchiveAsync(omnibus, "Synthetic Quest Omnibus v02.cbz");
+        Link(db, omnibus, questRecord, SeriesLinkState.Confirmed, MetadataMatchMethod.Search, 0.95);
+        var reprint = await kit.Db.AddFolderAsync(shonen, "Synthetic Saga Reprint");
+        await kit.Db.AddArchiveAsync(reprint, "Synthetic Saga Reprint v01.cbz");
+        Link(db, reprint, sagaRecord, SeriesLinkState.Confirmed, MetadataMatchMethod.Search, 0.93);
+        foreach (var (node, key, value) in new[]
+        {
+            (omnibus, DeclaredFactKeys.Volumes, "2"), (omnibus, DeclaredFactKeys.Edition, "omnibus"), (reprint, DeclaredFactKeys.Tracking, "off"),
+        })
+        {
+            db.DeclaredFacts.Add(new DeclaredFactEntity { LibraryId = lib.Id, NodeId = node.Id, Key = key, Value = value, CreatedAt = T0, UpdatedAt = T0 });
+        }
         await db.SaveChangesAsync();
 
         var answer = await kit.Export().PageAsync(lib.PublicId, ExportJson.Format(T0), null, null, null);

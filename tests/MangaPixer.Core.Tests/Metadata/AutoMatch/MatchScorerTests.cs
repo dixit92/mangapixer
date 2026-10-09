@@ -746,4 +746,20 @@ public sealed class MatchScorerTests
         Assert.Equal("1", o.Ranked[0].Candidate.ExternalId);
         Assert.True(o.Ranked[0].TitleScore > 0.95);
     }
+
+    [Fact]
+    public void ArchiveLevel_ATagNamingTheAuthorsAliasInBrackets_Agrees()
+    {
+        // MangaUpdates writes an author's alias in brackets: "Main Pen (Second Pen)" is both names (1.39.0, rules 4).
+        var record = Rec("1", "Short Story", authors: ["Main Pen (Second Pen)"]);
+
+        foreach (var tag in new[] { "Second Pen", "PEN Main" })
+        {
+            var outcome = Score(Query(["Short Story"], cls: WorkClass.CollectionLeaf, archives: 1, authors: [tag]), record);
+            Assert.Equal(MatchBand.Auto, outcome.Band);
+            Assert.False(outcome.Ranked[0].Reasons.HasFlag(MatchReason.AuthorConflict));
+        }
+        var other = Score(Query(["Short Story"], cls: WorkClass.CollectionLeaf, archives: 1, authors: ["Someone Else"]), record);
+        Assert.True(other.Ranked[0].Reasons.HasFlag(MatchReason.AuthorConflict));
+    }
 }

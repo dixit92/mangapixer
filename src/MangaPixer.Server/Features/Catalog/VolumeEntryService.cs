@@ -405,8 +405,15 @@ public sealed class VolumeEntryService
         var progress = context.Own && context.RecordId is { } linkedRecord
             ? (await new SeriesProgressLoader(_db).LoadAsync([new SeriesProgressTarget(folder.Id, linkedRecord)], ct)).GetValueOrDefault(folder.Id)
             : null;
+        // 1.39.0: what an admin declared on the folder itself. Tracking off: no missing / released placeholders and no "available in"
+        // markers (no missing or upgrade answer anywhere); an edition override: no missing-volume cards from the regular list (its volumes
+        // are not the edition's). The stacks themselves are unchanged.
+        var declared = progress?.Result.Facts;
+        if (declared?.TrackingOff == true && map is not null)
+            map = map with { ReleasedChapters = null, ReleasedVolumeCount = null };
         // Missing-volume placeholders only at the folder with its own link: a Season / Part subfolder holds part of the run.
-        var grouping = VolumeGrouping.Group(rows, map, markMissingVolumes: context.Own);
+        var grouping = VolumeGrouping.Group(rows, map,
+            markMissingVolumes: context.Own && declared?.VolumeOverride is null && declared?.TrackingOff != true);
         var statusInfo = context.Own && release is not null
             ? new SeriesStatusInfo(status is MetadataOriginStatus.Unknown ? null : status, grouping.MissingVolumeCount, grouping.MissingChapterCount,
                 release.Known, release.Language)

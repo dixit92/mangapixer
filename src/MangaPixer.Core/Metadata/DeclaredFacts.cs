@@ -2,6 +2,7 @@ namespace com.lifepixer.mangapixer.Core.Metadata;
 
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 
 // Declared facts (1.28.0): facts an ADMIN states about a folder or a whole
 // library - the type / format of the works below it and their creators -
@@ -71,6 +72,31 @@ public sealed record DeclaredFacts(
     public bool IsEmpty => Type is null && Creators.Count == 0;
 }
 
+/// <summary>
+/// 1.39.0: the edition a folder holds (owner, 2026-10-09), an optional label next to "Volumes in this edition". Stored as a slug
+/// (<see cref="DeclaredFactKeys.EditionSlug"/>), never the enum's int.
+/// </summary>
+public enum DeclaredEdition
+{
+    Regular = 0,
+    Omnibus = 1,
+    Master = 2,
+    Deluxe = 3,
+}
+
+/// <summary>
+/// 1.39.0: the edition facts declared on ONE folder itself (owner, 2026-10-09) - never inherited by its subfolders, never set on a
+/// library, never matcher evidence. <paramref name="VolumeTotal"/> ("Volumes in this edition: N") makes the volume answers count
+/// volumes 1..N instead of the regular edition's volume list; <paramref name="Edition"/> is a label; <paramref name="TrackingOff"/>
+/// ("Track completion: off") keeps the link, metadata, covers and refresh but gives no Completion / missing / upgrade answer.
+/// </summary>
+public sealed record DeclaredEditionFacts(int? VolumeTotal = null, DeclaredEdition? Edition = null, bool TrackingOff = false)
+{
+    public static readonly DeclaredEditionFacts Empty = new();
+
+    public bool IsEmpty => VolumeTotal is null && Edition is null && !TrackingOff;
+}
+
 /// <summary>Keys, value vocabularies and limits of the <c>declared_facts</c> table.</summary>
 public static class DeclaredFactKeys
 {
@@ -79,6 +105,24 @@ public static class DeclaredFactKeys
 
     /// <summary>Multi-valued: one row per creator, value = the name, role optional.</summary>
     public const string Creator = "creator";
+
+    /// <summary>1.39.0, single-valued, folder scope only: "Volumes in this edition", value = a whole number (1..<see cref="MaxVolumeTotal"/>).</summary>
+    public const string Volumes = "volumes";
+
+    /// <summary>1.39.0, single-valued, folder scope only: the edition label, value = an edition slug (<see cref="EditionSlug"/>).</summary>
+    public const string Edition = "edition";
+
+    /// <summary>1.39.0, single-valued, folder scope only: value <see cref="TrackingOff"/>; no row = completion is tracked.</summary>
+    public const string Tracking = "tracking";
+
+    /// <summary>The stored value of <see cref="Tracking"/> when an admin turned "Track completion" off.</summary>
+    public const string TrackingOff = "off";
+
+    /// <summary>The own-scope edition keys (1.39.0): never inherited, never read by matching.</summary>
+    public static readonly IReadOnlyList<string> EditionKeys = [Volumes, Edition, Tracking];
+
+    /// <summary>The highest "Volumes in this edition" an admin can declare.</summary>
+    public const int MaxVolumeTotal = 999;
 
     public const int MaxKeyLength = 32;
     public const int MaxValueLength = 200;
@@ -128,6 +172,32 @@ public static class DeclaredFactKeys
         return null;
     }
 
+    private static readonly Dictionary<DeclaredEdition, string> EditionSlugs = new()
+    {
+        [DeclaredEdition.Regular] = "regular",
+        [DeclaredEdition.Omnibus] = "omnibus",
+        [DeclaredEdition.Master] = "master",
+        [DeclaredEdition.Deluxe] = "deluxe",
+    };
+
+    /// <summary>The stored (and exported) value of an edition: <c>regular</c>, <c>omnibus</c>, <c>master</c> or <c>deluxe</c>.</summary>
+    public static string EditionSlug(DeclaredEdition edition) => EditionSlugs[edition];
+
+    /// <summary>The edition of a stored slug, or null (also for a slug this version does not know).</summary>
+    public static DeclaredEdition? ParseEdition(string? slug)
+    {
+        if (slug is null)
+            return null;
+        foreach (var (edition, value) in EditionSlugs)
+            if (string.Equals(value, slug, StringComparison.Ordinal))
+                return edition;
+        return null;
+    }
+
+    /// <summary>A stored "Volumes in this edition" value, or null when it is not a whole number in 1..<see cref="MaxVolumeTotal"/>.</summary>
+    public static int? ParseVolumeTotal(string? value) =>
+        int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var n) && n >= 1 && n <= MaxVolumeTotal ? n : null;
+
     /// <summary>Trims and collapses inner whitespace; null for blank, too long or control characters.</summary>
     public static string? CleanName(string? name)
     {
@@ -145,7 +215,7 @@ public static class DeclaredFactKeys
 /// Compares a declaration with a linked record (owner, 2026-09-27: when they disagree the Info panel shows BOTH
 /// with a clear conflict indication). Pure; a declaration never changes or vetoes the record here.
 /// </summary>
-public static class DeclaredFactsComparer
+public static partial class DeclaredFactsComparer
 {
     /// <summary>
     /// Whether a declared type contradicts what the record says about its origin and format. Unknown record
@@ -205,14 +275,38 @@ public static class DeclaredFactsComparer
     /// True when both sides name creators and not one declared name matches a record name. Names match on
     /// their folded word set, so word order, case, accents and punctuation do not matter
     /// (<c>ODA Eiichiro</c> = <c>Eiichiro Oda</c>); a spelling variant (<c>Eiichirou</c>) is a different name.
+    /// 1.39.0: a name with another name in brackets - MangaUpdates writes an author's alias that way, <c>Pen Name (Other Name)</c> -
+    /// matches by the whole name, by the name before the brackets and by each name inside them, on either side.
+    /// <paramref name="recordAliases"/> are more names of the record's creators (the stored author records' main and other names); they
+    /// count as record names but are not shown.
     /// </summary>
-    public static bool CreatorsConflict(IReadOnlyCollection<string> declared, IReadOnlyCollection<string> record)
+    public static bool CreatorsConflict(
+        IReadOnlyCollection<string> declared, IReadOnlyCollection<string> record, IEnumerable<string>? recordAliases = null)
     {
         if (declared.Count == 0 || record.Count == 0)
             return false;
-        var keys = record.Select(NameKey).Where(k => k.Length > 0).ToHashSet(StringComparer.Ordinal);
-        return keys.Count > 0 && !declared.Select(NameKey).Any(keys.Contains);
+        var keys = record.Concat(recordAliases ?? []).SelectMany(NameKeys).ToHashSet(StringComparer.Ordinal);
+        return keys.Count > 0 && !declared.SelectMany(NameKeys).Any(keys.Contains);
     }
+
+    /// <summary>
+    /// The <see cref="NameKey"/>s a name is known by: the whole name, and for <c>Name (Other)</c> / <c>Name [Other]</c> the name before
+    /// the brackets and each name inside them. Empty keys are dropped.
+    /// </summary>
+    public static IEnumerable<string> NameKeys(string name)
+    {
+        var keys = new List<string> { NameKey(name) };
+        var outside = BracketedName().Replace(name, " ");
+        if (!string.Equals(outside, name, StringComparison.Ordinal))
+        {
+            keys.Add(NameKey(outside));
+            keys.AddRange(BracketedName().Matches(name).Select(m => NameKey(m.Groups["inner"].Value)));
+        }
+        return keys.Where(k => k.Length > 0).Distinct(StringComparer.Ordinal);
+    }
+
+    [GeneratedRegex(@"[(\[](?<inner>[^()\[\]]+)[)\]]", RegexOptions.CultureInvariant)]
+    private static partial Regex BracketedName();
 
     /// <summary>Folded, order-free key of a person's name: lower-case words without accents or punctuation, sorted.</summary>
     public static string NameKey(string name)

@@ -4,6 +4,7 @@ using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Admin;
+using com.lifepixer.mangapixer.Server.Features.Metadata.Authors;
 using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
@@ -31,6 +32,7 @@ public sealed class DeclaredFactsService
     private readonly Providers.MetadataProviderRegistry _providers;
     private readonly ILogger<DeclaredFactsService> _logger;
     private readonly TimeProvider _time;
+    private readonly IAuthorAliasSource _aliases;
 
     public DeclaredFactsService(
         MangaPixerDbContext db,
@@ -39,7 +41,8 @@ public sealed class DeclaredFactsService
         SeriesInfoResolver resolver,
         Providers.MetadataProviderRegistry providers,
         ILogger<DeclaredFactsService> logger,
-        TimeProvider time)
+        TimeProvider time,
+        IAuthorAliasSource aliases)
     {
         _db = db;
         _audit = audit;
@@ -48,6 +51,7 @@ public sealed class DeclaredFactsService
         _providers = providers;
         _logger = logger;
         _time = time;
+        _aliases = aliases;
     }
 
     // --- Admin: one scope ---
@@ -92,8 +96,33 @@ public sealed class DeclaredFactsService
         return DeclaredFactsResult<DeclaredFactsScopeDto>.Ok(await LibraryScopeDtoAsync(library, ct));
     }
 
-    public Task<DeclaredFactsResult<DeclaredFactsScopeDto>> ClearFolderAsync(string nodePublicId, string? actor, CancellationToken ct = default) =>
-        SetFolderAsync(nodePublicId, new SetDeclaredFactsRequest(), actor, ct);
+    /// <summary>
+    /// 1.39.0: replaces the folder's OWN edition facts (volumes in this edition, edition label, track completion) - folders only, never
+    /// inherited; its type and creators are left alone (and a type / creator save leaves these alone).
+    /// </summary>
+    public async Task<DeclaredFactsResult<DeclaredFactsScopeDto>> SetFolderEditionAsync(
+        string nodePublicId, SetDeclaredEditionRequest request, string? actor, CancellationToken ct = default)
+    {
+        var (values, error) = ValidateEdition(request);
+        if (values is null)
+            return new(MetadataLinkResultCode.InvalidRequest, Error: error);
+        var (code, node) = await FolderAsync(nodePublicId, ct);
+        if (node is null)
+            return new(code);
+        await ReplaceEditionAsync(node.LibraryId, node.Id, values, actor, ct);
+        return DeclaredFactsResult<DeclaredFactsScopeDto>.Ok(await FolderScopeDtoAsync(node, ct));
+    }
+
+    /// <summary>Clears everything declared on the folder itself: type, creators and (1.39.0) its edition facts.</summary>
+    public async Task<DeclaredFactsResult<DeclaredFactsScopeDto>> ClearFolderAsync(string nodePublicId, string? actor, CancellationToken ct = default)
+    {
+        var (code, node) = await FolderAsync(nodePublicId, ct);
+        if (node is null)
+            return new(code);
+        await ReplaceAsync(node.LibraryId, node.Id, DeclaredFacts.Empty, actor, ct);
+        await ReplaceEditionAsync(node.LibraryId, node.Id, DeclaredEditionFacts.Empty, actor, ct);
+        return DeclaredFactsResult<DeclaredFactsScopeDto>.Ok(await FolderScopeDtoAsync(node, ct));
+    }
 
     public Task<DeclaredFactsResult<DeclaredFactsScopeDto>> ClearLibraryAsync(string libraryPublicId, string? actor, CancellationToken ct = default) =>
         SetLibraryAsync(libraryPublicId, new SetDeclaredFactsRequest(), actor, ct);
@@ -119,6 +148,7 @@ public sealed class DeclaredFactsService
             NodeId = node.PublicId,
             Effective = dto,
             Conflict = effective.IsEmpty ? null : await ConflictAsync(node, effective, ct),
+            Edition = node.Kind == (int)CatalogNodeKind.Folder ? await OwnEditionDtoAsync(node.Id, ct) : null,
         };
     }
 
@@ -129,9 +159,23 @@ public sealed class DeclaredFactsService
             return null;
         var typeConflict = declared.TypeValue is { } type
             && DeclaredFactsComparer.TypeConflicts(type, (MetadataOrigin?)record.Origin, (MetadataFormat?)record.Format);
-        var recordCreators = MetadataJson.ReadList<MetadataJson.Creator>(record.CreatorsJson)
+        var credits = MetadataJson.ReadList<MetadataJson.Creator>(record.CreatorsJson);
+        var recordCreators = credits
             .Select(c => c.Name).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        var creatorConflict = DeclaredFactsComparer.CreatorsConflict(declared.Creators.Select(c => c.Name).ToList(), recordCreators);
+        var declaredNames = declared.Creators.Select(c => c.Name).ToList();
+        var creatorConflict = DeclaredFactsComparer.CreatorsConflict(declaredNames, recordCreators);
+        if (creatorConflict && record.Provider == MetadataProviderAllowlist.MangaUpdates)
+        {
+            // 1.39.0: a declared pen name is no conflict when it is one of the record author's other names (stored author records only -
+            // fetched when an admin asked; nothing is sent here).
+            var authorIds = credits.Select(c => c.ProviderId).OfType<string>().Where(id => id.Length > 0).ToList();
+            if (authorIds.Count > 0)
+            {
+                var stored = await _aliases.GetAsync(authorIds, ct);
+                creatorConflict = DeclaredFactsComparer.CreatorsConflict(
+                    declaredNames, recordCreators, stored.Values.SelectMany(a => a.OtherNames.Prepend(a.Name)));
+            }
+        }
         if (!typeConflict && !creatorConflict)
             return null;
         return new DeclaredFactsConflictDto
@@ -184,6 +228,69 @@ public sealed class DeclaredFactsService
         }
         var type = request.Type is { } declared ? DeclaredFactKeys.TypeSlug(declared) : null;
         return (new DeclaredFacts(type, creators), null);
+    }
+
+    /// <summary>1.39.0: cleaned edition facts of a request, or a machine error code (<c>volumes_invalid</c>, <c>edition_invalid</c>).</summary>
+    internal static (DeclaredEditionFacts? Values, string? Error) ValidateEdition(SetDeclaredEditionRequest request)
+    {
+        if (request.VolumeTotal is { } n && (n < 1 || n > DeclaredFactKeys.MaxVolumeTotal))
+            return (null, "volumes_invalid");
+        if (request.Edition is { } e && !Enum.IsDefined(e))
+            return (null, "edition_invalid");
+        return (new DeclaredEditionFacts(request.VolumeTotal, request.Edition, !request.Tracking), null);
+    }
+
+    /// <summary>
+    /// 1.39.0: replaces the edition keys (volumes, edition, tracking) of one folder; rows of other keys (type, creator) are left alone.
+    /// One row per key, written only when set (tracking only when off).
+    /// </summary>
+    private async Task ReplaceEditionAsync(long libraryId, long nodeId, DeclaredEditionFacts values, string? actor, CancellationToken ct)
+    {
+        var now = _time.GetUtcNow();
+        var existing = await _db.DeclaredFacts
+            .Where(f => f.LibraryId == libraryId && f.NodeId == nodeId
+                && (f.Key == DeclaredFactKeys.Volumes || f.Key == DeclaredFactKeys.Edition || f.Key == DeclaredFactKeys.Tracking))
+            .ToListAsync(ct);
+        var wanted = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (values.VolumeTotal is { } volumes)
+            wanted[DeclaredFactKeys.Volumes] = volumes.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (values.Edition is { } edition)
+            wanted[DeclaredFactKeys.Edition] = DeclaredFactKeys.EditionSlug(edition);
+        if (values.TrackingOff)
+            wanted[DeclaredFactKeys.Tracking] = DeclaredFactKeys.TrackingOff;
+
+        var changed = false;
+        var keep = new HashSet<DeclaredFactEntity>();
+        foreach (var (key, value) in wanted)
+        {
+            var row = existing.FirstOrDefault(f => !keep.Contains(f) && f.Key == key);
+            if (row is null)
+            {
+                row = new DeclaredFactEntity { LibraryId = libraryId, NodeId = nodeId, Key = key, Value = value, CreatedAt = now, UpdatedAt = now };
+                _db.DeclaredFacts.Add(row);
+                changed = true;
+            }
+            else if (!string.Equals(row.Value, value, StringComparison.Ordinal) || row.Role is not null)
+            {
+                row.Value = value;
+                row.Role = null;
+                row.UpdatedAt = now;
+                changed = true;
+            }
+            keep.Add(row);
+        }
+        var removed = existing.Where(f => !keep.Contains(f)).ToList();
+        if (!changed && removed.Count == 0)
+            return;
+        _db.DeclaredFacts.RemoveRange(removed);
+        await _db.SaveChangesAsync(ct);
+
+        var cleared = wanted.Count == 0;
+        await _audit.RecordAsync(cleared ? AuditActions.DeclaredFactsClear : AuditActions.DeclaredFactsSet, AuditResults.Success, actor,
+            ct: ct, targetLibraryId: libraryId, targetItemId: nodeId);
+        _logger.LogInformation(LogEvents.Metadata.DeclaredEditionChanged,
+            "Declared edition {Change} on folder {NodeId}: volumes {HasVolumes}, edition {HasEdition}, tracking off {TrackingOff}",
+            cleared ? "cleared" : "set", nodeId, values.VolumeTotal is not null, values.Edition is not null, values.TrackingOff);
     }
 
     /// <summary>Replaces the v1 keys (type, creator) of one scope; rows of other keys are left alone.</summary>
@@ -254,7 +361,7 @@ public sealed class DeclaredFactsService
             NodeId = node.PublicId,
             LibraryId = library.PublicId,
             DisplayName = node.DisplayName,
-            Own = ToValuesDto(DeclaredFactsResolution.OwnFacts(ownRows)),
+            Own = ToValuesDto(DeclaredFactsResolution.OwnFacts(ownRows)) with { Edition = await OwnEditionDtoAsync(node.Id, ct) },
             Inherited = ToEffectiveDto(Downward(inherited), from),
         };
     }
@@ -298,6 +405,15 @@ public sealed class DeclaredFactsService
             facts = DeclaredFactsResolution.Combine(mine, facts);
         }
         return (facts, (typeFrom, creatorsFrom));
+    }
+
+    /// <summary>1.39.0: the edition facts declared on the folder itself, or null when none are set.</summary>
+    private async Task<DeclaredEditionDto?> OwnEditionDtoAsync(long nodeId, CancellationToken ct)
+    {
+        var facts = (await DeclaredFactsResolution.LoadEditionAsync(_db, [nodeId], ct)).GetValueOrDefault(nodeId);
+        return facts is null || facts.IsEmpty
+            ? null
+            : new DeclaredEditionDto { VolumeTotal = facts.VolumeTotal, Edition = facts.Edition, Tracking = !facts.TrackingOff };
     }
 
     /// <summary>Facts seen from a child: Own becomes Inherited (Library stays Library).</summary>
