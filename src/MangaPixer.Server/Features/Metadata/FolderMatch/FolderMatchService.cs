@@ -100,7 +100,10 @@ public sealed class FolderMatchService
             {
                 rows.Add(new FolderMatchRowDto
                 {
-                    NodeId = id, DisplayName = node.DisplayName, Status = FolderMatchStatus.NotAFolder, CurrentState = state,
+                    NodeId = id,
+                    DisplayName = node.DisplayName,
+                    Status = FolderMatchStatus.NotAFolder,
+                    CurrentState = state,
                 });
                 continue;
             }

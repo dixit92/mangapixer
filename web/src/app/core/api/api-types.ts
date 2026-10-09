@@ -1522,6 +1522,84 @@ export interface ArtistFolderResultDto {
   queued?: number;
 }
 
+// --- Match folders by name (1.38.0): stored data only ---
+
+export type FolderMatchKind = 'Artists' | 'Collections';
+export type FolderMatchStatus = 'Proposed' | 'Ambiguous' | 'NoMatch' | 'Decided' | 'NotAFolder' | 'NotFound';
+
+export interface FolderMatchPreviewRequest {
+  kind: FolderMatchKind;
+  /** 1-200 selected nodes. */
+  nodeIds: string[];
+}
+
+export interface FolderMatchArtistDto {
+  /** The name the folder would declare (the MangaUpdates main name). */
+  name: string;
+  /** `author` ("Story & art") or `artist`. */
+  role: string;
+  /** The artist's name that equals the folder's name. */
+  matchedName: string;
+  provider: string;
+  recordCount: number;
+}
+
+export interface FolderMatchRecordDto {
+  provider: string;
+  externalId: string;
+  title: string;
+  matchedTitle: string;
+  year?: number | null;
+  providerType?: string | null;
+  /** Linked as a series (Confirmed / Auto) somewhere on this server. */
+  linkedAsSeries?: boolean;
+}
+
+export interface FolderMatchRowDto {
+  nodeId: string;
+  displayName: string;
+  status: FolderMatchStatus;
+  currentState?: SeriesLinkState | null;
+  artists?: FolderMatchArtistDto[];
+  records?: FolderMatchRecordDto[];
+  /** Collections without a local match: the exact text "Search the web for the rest" would send. */
+  searchText?: string | null;
+}
+
+export interface FolderMatchPreviewDto {
+  kind: FolderMatchKind;
+  rows: FolderMatchRowDto[];
+  compared: number;
+}
+
+export interface FolderMatchApplyItem {
+  nodeId: string;
+  name?: string | null;
+  role?: string | null;
+  provider?: string | null;
+  externalId?: string | null;
+}
+
+export interface FolderMatchApplyRequest {
+  kind: FolderMatchKind;
+  items: FolderMatchApplyItem[];
+  setDoujinContent?: boolean;
+}
+
+export interface FolderMatchApplyItemResultDto {
+  nodeId: string;
+  /** `ok` or an error code. */
+  code: string;
+  queued?: number;
+}
+
+export interface FolderMatchApplyResultDto {
+  kind: FolderMatchKind;
+  succeeded: number;
+  failed: number;
+  results: FolderMatchApplyItemResultDto[];
+}
+
 /** 1.34.0: what marking a folder "Collection about" did. */
 export interface CollectionAboutResultDto {
   change: NodeSeriesLinkChangeDto;

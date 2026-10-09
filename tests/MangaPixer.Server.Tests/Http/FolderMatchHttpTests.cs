@@ -59,7 +59,11 @@ public sealed class FolderMatchHttpTests
         var now = DateTimeOffset.UtcNow;
         var lib = new LibraryEntity
         {
-            PublicId = Lib, DisplayName = "Folder Match", RootPath = "/synthetic/" + Lib, CreatedAt = now, MetadataEnabled = metadataEnabled,
+            PublicId = Lib,
+            DisplayName = "Folder Match",
+            RootPath = "/synthetic/" + Lib,
+            CreatedAt = now,
+            MetadataEnabled = metadataEnabled,
         };
         db.Libraries.Add(lib);
         await db.SaveChangesAsync();
