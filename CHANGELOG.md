@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.37.1] - 2026-10-09
+
 ### Fixed
 
 - **Reviewing on a phone: the Undo message covered the review buttons.** After Accept, Later or another review action, the message with **Undo** popped up at the bottom of the screen, right over the bottom bar's buttons, so the next row had to wait until it went away. It now opens just above the bar; the buttons stay visible and tappable, and **Undo** is still within reach of your thumb. Desktop is unchanged.
