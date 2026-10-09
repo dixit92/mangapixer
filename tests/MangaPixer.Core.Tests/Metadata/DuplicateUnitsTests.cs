@@ -142,4 +142,24 @@ public sealed class DuplicateUnitsTests
         Assert.Empty(stack.Duplicates);
         Assert.Equal(3, stack.PresentCount);
     }
+
+    [Fact]
+    public void GroupsIn_NamesTheFilesOfEachDuplicate_PerFolder_AsFindInCountsThem()
+    {
+        var first = Row("Series c001");
+        var again = Row("Series c001 [2]");
+        var rows = new[]
+        {
+            first, again, Row("Series c002"),
+            Row("Series c005-c007"), Row("Series c005-c007 [2]"),
+            Row("Series c001", "Season 2"),
+        };
+
+        var groups = DuplicateUnits.GroupsIn(rows);
+
+        var only = Assert.Single(groups);
+        Assert.Equal((MissingUnitKind.Chapter, 1m, 2), (only.Unit.Kind, only.Unit.Number, only.Unit.Files));
+        Assert.Equal([first.Id, again.Id], only.Rows.Select(r => r.Id));
+        Assert.Equal(Found(DuplicateUnits.FindIn(rows)), Found(groups.Select(g => g.Unit)));
+    }
 }

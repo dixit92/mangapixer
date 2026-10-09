@@ -393,6 +393,38 @@ public sealed class ExportRebuildServiceTests
     }
 
     [Fact]
+    public async Task Duplicates_NameEachFileByItsNodeId_AndAreLeftOutWhenThereAreNone()
+    {
+        await using var kit = await ExportTestKit.CreateAsync();
+        var series = await kit.Db.AddFolderAsync(null, "Synthetic Series");
+        var first = await kit.Db.AddArchiveAsync(series, "Synthetic Series c001.cbz");
+        var again = await kit.Db.AddArchiveAsync(series, "Synthetic Series c001 [v2].cbz");
+        await kit.Db.AddArchiveAsync(series, "Synthetic Series c002.cbz");
+        await kit.Db.AddLinkAsync(series, await kit.Db.AddRecordAsync("9101", "Synthetic Series"));
+        var clean = await kit.Db.AddFolderAsync(null, "Synthetic Other");
+        await kit.Db.AddArchiveAsync(clean, "Synthetic Other c001.cbz");
+        await kit.Db.AddArchiveAsync(clean, "Synthetic Other c002.cbz");
+        await kit.Db.AddLinkAsync(clean, await kit.Db.AddRecordAsync("9102", "Synthetic Other"));
+
+        await kit.RebuildAsync();
+        var items = (await kit.PageAsync()).GetProperty("items").EnumerateArray()
+            .ToDictionary(i => i.GetProperty("nodeId").GetString()!);
+
+        var duplicate = Assert.Single(items[series.PublicId].GetProperty("duplicates").EnumerateArray());
+        Assert.Equal(("Chapter", "1"), (duplicate.GetProperty("kind").GetString(), duplicate.GetProperty("number").GetString()));
+        var files = duplicate.GetProperty("files").EnumerateArray().ToList();
+        Assert.Equal([first.PublicId, again.PublicId], files.Select(f => f.GetProperty("nodeId").GetString()));
+        Assert.Equal(["Synthetic Series c001.cbz", "Synthetic Series c001 [v2].cbz"], files.Select(f => f.GetProperty("name").GetString()));
+        Assert.Equal("Synthetic Series", files[0].GetProperty("folder").GetString());
+        // No duplicates: the key is left out, so the item's stored form (and its fingerprint) is what it was before 1.38.0.
+        Assert.False(items[clean.PublicId].TryGetProperty("duplicates", out _));
+
+        var withoutBlock = (await kit.PageAsync(include: "completion")).GetProperty("items").EnumerateArray()
+            .Single(i => i.GetProperty("nodeId").GetString() == series.PublicId);
+        Assert.False(withoutBlock.TryGetProperty("duplicates", out _));
+    }
+
+    [Fact]
     public async Task Paging_WalksEveryItemOnce_AndIncludeDropsBlocks()
     {
         await using var kit = await ExportTestKit.CreateAsync();

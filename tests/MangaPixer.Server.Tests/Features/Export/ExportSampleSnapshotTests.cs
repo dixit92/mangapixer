@@ -145,6 +145,8 @@ public sealed class ExportSampleSnapshotTests
         var artistFolder = await kit.Db.AddFolderAsync(doujin, "Sample Artist");
         await kit.Db.AddArchiveAsync(artistFolder, "Sample Artist - Night Story.cbz");
         Link(db, artistFolder, null, SeriesLinkState.ArtistFolder, null, null);
+        // 1.38.0: a second scan of volume 3 in the series folder - the item lists the duplicate with each file (created last as well).
+        await kit.Db.AddArchiveAsync(quest, "Synthetic Quest v03 [alt scan].cbz");
         await db.SaveChangesAsync();
 
         var answer = await kit.Export().PageAsync(lib.PublicId, ExportJson.Format(T0), null, null, null);

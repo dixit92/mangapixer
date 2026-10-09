@@ -10,6 +10,9 @@ using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 /// </summary>
 public sealed record DuplicateUnit(MissingUnitKind Kind, decimal Number, int Files);
 
+/// <summary>One duplicate with the archive rows that state it, in the rows' order (1.38.0: the export names each file).</summary>
+public sealed record DuplicateGroup(DuplicateUnit Unit, IReadOnlyList<GroupingRow> Rows);
+
 /// <summary>
 /// Duplicate chapter / volume numbers (1.31.0). PURE, from the unit numbers the names state (<see cref="UnitNumbers"/>); no
 /// database, no path.
@@ -34,12 +37,8 @@ public static class DuplicateUnits
         var counts = new Dictionary<(MissingUnitKind Kind, decimal Number), int>();
         foreach (var u in units)
         {
-            if (u.IsEmpty)
-                continue;
-            var (kind, number, end) = u.Chapter is { } c ? (MissingUnitKind.Chapter, c, u.ChapterEnd) : (MissingUnitKind.Volume, u.Volume!.Value, u.VolumeEnd);
-            if (end is not null)
-                continue; // a range
-            counts[(kind, number)] = counts.GetValueOrDefault((kind, number)) + 1;
+            if (KeyOf(u) is { } key)
+                counts[key] = counts.GetValueOrDefault(key) + 1;
         }
         return counts.Where(kv => kv.Value > 1)
             .OrderBy(kv => kv.Key.Kind).ThenBy(kv => kv.Key.Number)
@@ -53,14 +52,42 @@ public static class DuplicateUnits
     /// a bare <c>01.cbz</c> in a <c>Volumes</c> folder is volume 1). Folder rows are ignored. A number duplicated in two
     /// containers is listed once per container.
     /// </summary>
-    public static IReadOnlyList<DuplicateUnit> FindIn(IEnumerable<GroupingRow> rows)
+    public static IReadOnlyList<DuplicateUnit> FindIn(IEnumerable<GroupingRow> rows) => GroupsIn(rows).Select(g => g.Unit).ToList();
+
+    /// <summary>
+    /// <see cref="FindIn"/> with the archive rows that state each duplicate (1.38.0, the metadata export: each file's node id, so a
+    /// client can open one in the reader). Same rules and order as <see cref="FindIn"/>.
+    /// </summary>
+    public static IReadOnlyList<DuplicateGroup> GroupsIn(IEnumerable<GroupingRow> rows)
     {
         ArgumentNullException.ThrowIfNull(rows);
-        return rows.Where(r => r.Kind == GroupingRowKind.Archive)
-            .GroupBy(r => r.ContainerName ?? string.Empty, StringComparer.Ordinal)
-            .SelectMany(g => Find(g.Select(VolumeGrouping.UnitsOf)))
-            .OrderBy(d => d.Kind).ThenBy(d => d.Number)
-            .ToList();
+        var groups = new List<DuplicateGroup>();
+        foreach (var container in rows.Where(r => r.Kind == GroupingRowKind.Archive)
+                     .GroupBy(r => r.ContainerName ?? string.Empty, StringComparer.Ordinal))
+        {
+            var byUnit = new Dictionary<(MissingUnitKind Kind, decimal Number), List<GroupingRow>>();
+            foreach (var row in container)
+            {
+                if (KeyOf(VolumeGrouping.UnitsOf(row)) is not { } key)
+                    continue;
+                if (!byUnit.TryGetValue(key, out var stating))
+                    byUnit[key] = stating = [];
+                stating.Add(row);
+            }
+            groups.AddRange(byUnit.Where(kv => kv.Value.Count > 1)
+                .OrderBy(kv => kv.Key.Kind).ThenBy(kv => kv.Key.Number)
+                .Select(kv => new DuplicateGroup(new DuplicateUnit(kv.Key.Kind, kv.Key.Number, kv.Value.Count), kv.Value)));
+        }
+        return groups.OrderBy(g => g.Unit.Kind).ThenBy(g => g.Unit.Number).ToList();
+    }
+
+    /// <summary>The unit a file states for duplicate purposes: its chapter, else its volume; null for no number or a range.</summary>
+    private static (MissingUnitKind Kind, decimal Number)? KeyOf(UnitNumbers u)
+    {
+        if (u.IsEmpty)
+            return null;
+        var (kind, number, end) = u.Chapter is { } c ? (MissingUnitKind.Chapter, c, u.ChapterEnd) : (MissingUnitKind.Volume, u.Volume!.Value, u.VolumeEnd);
+        return end is null ? (kind, number) : null; // a range is never a duplicate
     }
 
     /// <summary>The API form: the number as the names state it (<c>1</c>, <c>45.5</c>).</summary>

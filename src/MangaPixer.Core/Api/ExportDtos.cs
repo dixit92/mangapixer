@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangapixer.Core.Api;
 
+using System.Text.Json.Serialization;
+
 // The read-only metadata export (1.33.0, for MangaList): every library and, per library, every live node with its own series
 // link, as a stored per-item snapshot with incremental sync (updatedSince + removals). Vocabulary values are plain strings
 // mapped explicitly on the server (the wire format is the contract). Names only - no DTO carries a path. Times are UTC ISO 8601
@@ -104,6 +106,40 @@ public sealed record ExportItemDto
 
     /// <summary>When the record is looked at again, or null without a record (omitted when not requested).</summary>
     public ExportRefreshDto? Refresh { get; init; }
+
+    /// <summary>
+    /// 1.38.0: chapter / volume numbers that more than one file of a linked series folder states, each with its files (the first
+    /// 50). Left out of the item when there are none or the node is not a linked series folder - and when not requested.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<ExportDuplicateDto>? Duplicates { get; init; }
+}
+
+/// <summary>One number that several files in the same folder state (chapter 12 uploaded twice), with each of those files.</summary>
+public sealed record ExportDuplicateDto
+{
+    /// <summary><c>Volume</c> or <c>Chapter</c>.</summary>
+    public required string Kind { get; init; }
+
+    /// <summary>The number as the names state it (<c>"1"</c>, <c>"45.5"</c>).</summary>
+    public required string Number { get; init; }
+
+    /// <summary>The files that state it, in the folder's name order (the first 20).</summary>
+    public required IReadOnlyList<ExportDuplicateFileDto> Files { get; init; }
+}
+
+/// <summary>One file of a duplicate: open it in the reader at <c>/reader/{nodeId}</c>.</summary>
+public sealed record ExportDuplicateFileDto
+{
+    /// <summary>The archive's node id.</summary>
+    public required string NodeId { get; init; }
+
+    /// <summary>The file name on disk.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>The name of the folder the file is in: the series folder itself or one of its unit subfolders (<c>Volumes</c>,
+    /// <c>Season 2</c>) - a number is a duplicate only within one folder.</summary>
+    public string? Folder { get; init; }
 }
 
 /// <summary>The node's own link row.</summary>
