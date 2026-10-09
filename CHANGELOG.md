@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Match folders by name: "Circle (Artist)" folders.** A folder named in the doujin style, `Circle (Artist)` or `[Circle (Artist)]`, is now also compared by each of its two names on its own, so it finds its artist when your stored series know either the circle or the artist. When both are known, the list shows the folder with both matches for you to pick. A year or a tag in brackets (`(2019)`, `(Digital)`) is not taken for a name, and collections are compared as before. Nothing is sent; automatic matching is unchanged.
+
+### Fixed
+
+- **Duplicates that were not duplicates.** Files were listed as copies of the same chapter or volume whenever they stated the same number, so `Title 009 Vol 01 Name` next to `Title 001 Vol 01 Name` (a chapter written before its volume) and `Title Season 1 v01` next to `Title Season 2 v01` in one folder showed up as several copies of volume 1. Files now count as copies only when their names differ by tags alone - a scanlation group, a year, `(Digital)`, a copy marker - or by words, never by another number. This applies to the Missing report, the review list's duplicate counts, the Volumes view's stacks and the metadata export's `duplicates`, and matches MangaList's own duplicates finder. How file names are read is unchanged.
+
 ## [1.38.0] - 2026-10-09
 
 ### Added

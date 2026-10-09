@@ -37,6 +37,7 @@ The same line appears under the series on its page (everyone sees it, like the "
 - **It is a note, not a gap.** Nothing is missing or "behind" because of it, and the totals count each number once. Both files stay where they are and both are listed; MangaPixer never removes or merges anything.
 - **Per folder.** Only files in the same folder are compared, so `Season 1` and `Season 2` that both have a chapter 1 are not duplicates (that is a [restart](#what-counts)).
 - **Not duplicates:** the parts of a split chapter (`2.1` and `2.2`, or a file `2` next to its parts), a range (`Ch. 1-5`) next to a single chapter, and names that state no number.
+- **Only real copies** (*1.39.0*). Files count as copies only when their names differ by tags alone - a scanlation group, a year, `(Digital)`, a copy marker in brackets - or by words, never by another number. So `Title 009 Vol 01 Name` next to `Title 001 Vol 01 Name` (a chapter written before its volume) and `Title Season 1 v01` next to `Title Season 2 v01` in one folder are not copies of volume 1, while `Title v08 (GroupA)` and `Title v08 (GroupB)` are.
 - A volume number repeated in two volume files (two editions of volume 3) is listed here too; the [Volumes view](volumes.md) keeps showing them as two cards.
 
 ## Which total it compares with
