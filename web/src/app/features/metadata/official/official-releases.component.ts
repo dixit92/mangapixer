@@ -27,6 +27,7 @@ export const COMPLETION_EDITIONS: readonly { value: CompletionBasis | ''; label:
   { value: 'OfficialChapters', label: 'Official chapters' },
   { value: 'AllChapters', label: 'Chapter-based' },
   { value: 'OriginRun', label: 'Original run' },
+  { value: 'Edition', label: 'Your edition' },
 ];
 
 const SUMMARY_KEYS: Record<SeriesAnswer, keyof OfficialReleasesSummaryDto> = {
@@ -111,6 +112,7 @@ export function completionEmptyText(filter: CompletionFilter, language: string, 
       @if (summary(); as s) {
         <p class="summary" data-testid="official-summary">
           {{ s.series }} linked series@if (s.upgrades > 0) { · <span class="up">{{ s.upgrades }} with an upgrade available</span> }
+          @if (s.notTracked) { · <span data-testid="official-not-tracked">{{ s.notTracked }} not tracked</span> }
         </p>
       }
 

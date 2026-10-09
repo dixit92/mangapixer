@@ -1,7 +1,9 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 
+import { DeclaredFactsApiService } from '../declared/declared-facts-api.service';
 import { MissingReportApiService } from './missing-report-api.service';
 import { SeriesMissingLineComponent } from './series-missing-line.component';
 import { gap, missingRow, ownerProgress } from './missing.testing';
@@ -11,7 +13,11 @@ describe('SeriesMissingLineComponent', () => {
     const api = { forNodeViewer: vi.fn(() => (response === 'error' ? throwError(() => ({ status: 404 })) : of(response))) };
     TestBed.configureTestingModule({
       imports: [SeriesMissingLineComponent],
-      providers: [provideRouter([]), { provide: MissingReportApiService, useValue: api }],
+      providers: [
+        provideRouter([]),
+        { provide: MissingReportApiService, useValue: api },
+        { provide: DeclaredFactsApiService, useValue: { version: signal(0) } },
+      ],
     });
     const fixture = TestBed.createComponent(SeriesMissingLineComponent);
     fixture.componentRef.setInput('nodeId', 'series-1');

@@ -74,6 +74,7 @@ type Filter = 'missing' | 'all';
         <p class="summary" data-testid="missing-summary">
           {{ s.series }} linked series · <span class="behind">{{ s.behind }} behind</span> · {{ s.holes }} with gaps ·
           {{ s.upToDate }} up to date @if (s.noTotal) { · {{ s.noTotal }} without a total } @if (s.noVerdict) { · {{ s.noVerdict }} not comparable }
+          @if (s.notTracked) { · <span data-testid="missing-not-tracked">{{ s.notTracked }} not tracked</span> }
           @if (s.upgrades) {
             · <button type="button" class="link" (click)="openOfficial.emit()" data-testid="missing-upgrades-link">{{ s.upgrades }} with official volumes to get</button>
           }

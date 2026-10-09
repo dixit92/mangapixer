@@ -27,6 +27,33 @@ describe('series progress labels', () => {
     officialStatus: 'Ongoing' as const, latestChapter: 65, scanlationComplete: false,
   };
 
+  it('an edition declared on the folder (1.39.0): its volumes first, the edition named in the mark and the sentence', () => {
+    const ended = { origin: 'Japan' as const, originStatus: 'Complete' as const, originVolumes: 30, officialVolumes: 30, officialStatus: 'Complete' as const };
+    const all = progress(ended, {
+      reach: reach([[1, 10]], []), volumeTotalOverride: 10, edition: 'Omnibus', completion: 'CompleteCollection', completionBasis: 'Edition',
+      completionTarget: 10, completionHeld: 10, answer: 'HaveItAll',
+    });
+    expect(trackersLine(all)).toBe('Omnibus edition: 10 volumes · Complete (Japan): 30 volumes · English: 30 volumes, complete');
+    expect(completionMarkLabel(all)).toBe('Finished - you have it all (Omnibus edition)');
+    expect(answerSentence(all)).toBe('Ended in Japan: you have all 10 volumes of the omnibus edition.');
+    const some = progress(ended, {
+      reach: reach([[1, 2]], []), volumeTotalOverride: 6, missingVolumes: 4, completion: 'FinishedNotHeld', completionBasis: 'Edition',
+      completionTarget: 6, completionHeld: 2, answer: 'FinishedMissing',
+    });
+    expect(trackersLine(some)).toContain('This edition: 6 volumes');
+    expect(editionLabel(some)).toBe('Your edition');
+    expect(answerSentence(some)).toBe('Ended in Japan: you have 2 of the 6 volumes of this edition.');
+  });
+
+  it('tracking off (1.39.0): what the folder holds, then "Completion not tracked" - no answer', () => {
+    const p = progress(owner, { reach: reach([[1, 14]], []), trackingOff: true, answer: 'CantTell', answerReason: 'NotTracked' });
+    expect(folderLine(p)).toBe('You have volumes 1-14 · completion not tracked');
+    expect(folderLine({ ...p, reach: null })).toBe('Completion not tracked');
+    expect(progressIcon(p)).toBe('remove_circle_outline');
+    expect(completionMarkLabel(p)).toBeNull();
+    expect(answerSentence(p)).toBe('Completion not tracked: an admin turned it off for this folder.');
+  });
+
   it('the owner example: origin, the English publisher and the scanlation; volumes + chapters up to date', () => {
     const p = progress(owner, { reach: reach([[1, 14]], [[47, 65]]) });
     expect(trackersLine(p)).toBe('Ongoing (Japan): 22 volumes · English (Yen Press): 14 volumes, ongoing · English chapters: to chapter 65');

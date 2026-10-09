@@ -314,9 +314,10 @@ public static class SeriesProgress
 
         var candidates = new List<(CompletionBasis Basis, int Target, int Held, bool Chapters, bool InLanguage, bool Whole)>();
         // 1.39.0: an edition override replaces the regular edition's volume bases (official volumes, the origin run by volumes) with the
-        // declared edition's volumes 1..N held as volume FILES; like every basis it needs the origin run to have ended.
+        // declared edition's volumes 1..N held as volume FILES (a folder without volume files has no edition answer); like every basis it
+        // needs the origin run to have ended.
         var edition = f.VolumeOverride;
-        if (f.OriginEnded && edition is { } declared && declared > 0)
+        if (f.OriginEnded && edition is { } declared && declared > 0 && reach.VolumeFiles.Count > 0)
         {
             var held = Enumerable.Range(1, Math.Min(declared, MissingUnits.MaxNumber)).Count(reach.VolumeFiles.Contains);
             candidates.Add((CompletionBasis.Edition, declared, held, false, true, held >= declared));

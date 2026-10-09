@@ -7,18 +7,23 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { Observable, switchMap } from 'rxjs';
 
-import { ApiError, DeclaredCreatorDto, DeclaredFactsScopeDto, DeclaredType } from '../../../core/api/api-types';
+import { ApiError, DeclaredCreatorDto, DeclaredEdition, DeclaredFactsScopeDto, DeclaredType } from '../../../core/api/api-types';
 import { DeclaredFactsApiService, DeclaredScope } from './declared-facts-api.service';
 import {
+  DECLARED_EDITION_OPTIONS,
   DECLARED_MAX_CREATORS,
   DECLARED_MAX_NAME,
+  DECLARED_MAX_VOLUMES,
   DECLARED_ROLE_OPTIONS,
   DECLARED_TYPE_OPTIONS,
   creatorsText,
   declaredErrorText,
   declaredRoleLabel,
   declaredTypeLabel,
+  hasEdition,
   sourceText,
 } from './declared-facts';
 
@@ -31,13 +36,16 @@ export type DeclaredFactsDialogResult = DeclaredFactsScopeDto | undefined;
  * "Declared facts" editor (1.28.0) for one folder or one library, admin only: a type select and a
  * creator list (name + optional role, as chips). What applies from above is shown as the
  * fallback, so an empty field reads "inherits Manhwa from Shelf". Save replaces this scope's
- * declaration; "Clear" removes it (the value from above applies again).
+ * declaration; "Clear" removes it (the value from above applies again). 1.39.0: a folder also gets
+ * "This folder's edition" - volumes in this edition, the edition label and "Track completion" - for
+ * the folder itself only (never inherited, never on a library), saved apart from the type / creators.
  */
 @Component({
   selector: 'app-declared-facts-dialog',
   standalone: true,
   imports: [
     FormsModule, MatButtonModule, MatChipsModule, MatDialogModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule,
+    MatSlideToggleModule,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -102,6 +110,40 @@ export type DeclaredFactsDialogResult = DeclaredFactsScopeDto | undefined;
             <mat-icon>add</mat-icon> Add
           </button>
         </div>
+
+        @if (data.kind === 'folder') {
+          <h3 class="section">This folder's edition</h3>
+          <p class="small" data-testid="declared-edition-hint">
+            For this folder only, not the folders below it. Use it when the folder holds another edition than the regular one
+            (an omnibus or master edition): its volumes are counted instead of the series' volume list. Never used for matching.
+          </p>
+          <div class="edition-row">
+            <mat-form-field appearance="outline" class="volumes-field" subscriptSizing="dynamic">
+              <mat-label>Volumes in this edition</mat-label>
+              <input matInput type="number" inputmode="numeric" min="1" [max]="maxVolumes" step="1" [ngModel]="volumes()"
+                     (ngModelChange)="setVolumes($event)" data-testid="declared-volumes" aria-label="Volumes in this edition">
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="edition-field" subscriptSizing="dynamic">
+              <mat-label>Edition</mat-label>
+              <mat-select [value]="edition() ?? ''" (selectionChange)="edition.set($event.value || null)" data-testid="declared-edition-select"
+                          aria-label="Edition">
+                <mat-option value="">Not set</mat-option>
+                @for (o of editionOptions; track o.value) {
+                  <mat-option [value]="o.value">{{ o.label }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+          </div>
+          <mat-slide-toggle [checked]="tracking()" (change)="tracking.set($event.checked)" data-testid="declared-tracking">
+            Track completion
+          </mat-slide-toggle>
+          @if (!tracking()) {
+            <p class="small" data-testid="declared-tracking-off">
+              Completion, missing volumes and upgrades are not shown for this folder. The link, the series information, covers and
+              refreshes stay.
+            </p>
+          }
+        }
         @if (error()) { <p class="error" role="alert" data-testid="declared-error">{{ error() }}</p> }
       } @else if (error()) {
         <p class="error" role="alert" data-testid="declared-error">{{ error() }}</p>
@@ -126,6 +168,9 @@ export type DeclaredFactsDialogResult = DeclaredFactsScopeDto | undefined;
     .add-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
     .name-field { flex: 1 1 200px; }
     .role-field { flex: 0 1 150px; }
+    .edition-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .volumes-field { flex: 1 1 180px; }
+    .edition-field { flex: 1 1 150px; }
     .error { color: #ff8a80; }
     .clear { margin-right: auto; }
   `],
@@ -136,6 +181,8 @@ export class DeclaredFactsDialogComponent {
   private readonly api = inject(DeclaredFactsApiService);
 
   readonly typeOptions = DECLARED_TYPE_OPTIONS;
+  readonly editionOptions = DECLARED_EDITION_OPTIONS;
+  readonly maxVolumes = DECLARED_MAX_VOLUMES;
   readonly roleOptions = DECLARED_ROLE_OPTIONS;
   readonly maxName = DECLARED_MAX_NAME;
   readonly roleLabel = declaredRoleLabel;
@@ -145,12 +192,16 @@ export class DeclaredFactsDialogComponent {
   readonly creators = signal<DeclaredCreatorDto[]>([]);
   readonly draftName = signal('');
   readonly draftRole = signal('');
+  /** 1.39.0, folders only: "Volumes in this edition" (null = not set), the edition label and "Track completion". */
+  readonly volumes = signal<number | null>(null);
+  readonly edition = signal<DeclaredEdition | null>(null);
+  readonly tracking = signal(true);
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
 
   readonly hasOwn = computed(() => {
     const own = this.scope()?.own;
-    return !!own && (!!own.type || (own.creators ?? []).length > 0);
+    return !!own && (!!own.type || (own.creators ?? []).length > 0 || hasEdition(own.edition));
   });
 
   readonly canAdd = computed(() => {
@@ -181,6 +232,21 @@ export class DeclaredFactsDialogComponent {
     this.scope.set(s);
     this.type.set(s.own.type ?? null);
     this.creators.set([...(s.own.creators ?? [])]);
+    this.volumes.set(s.own.edition?.volumeTotal ?? null);
+    this.edition.set(s.own.edition?.edition ?? null);
+    this.tracking.set(s.own.edition?.tracking !== false);
+  }
+
+  /** An empty field clears the count; anything else is sent as typed (the server checks 1-999 whole numbers). */
+  setVolumes(value: number | string | null): void {
+    this.volumes.set(value === null || value === '' ? null : Number(value));
+  }
+
+  /** The edition facts as saved now differ from the dialog's (only then is the second call made). */
+  private editionChanged(): boolean {
+    const own = this.scope()?.own.edition;
+    return (own?.volumeTotal ?? null) !== this.volumes() || (own?.edition ?? null) !== this.edition()
+      || (own?.tracking !== false) !== this.tracking();
   }
 
   add(): void {
@@ -201,14 +267,24 @@ export class DeclaredFactsDialogComponent {
   save(): void {
     // A name typed but not added yet is still meant.
     if (this.draftName().trim()) this.add();
-    this.run(this.api.set(this.data, { type: this.type(), creators: this.creators() }));
+    const volumes = this.volumes();
+    if (volumes !== null && (!Number.isInteger(volumes) || volumes < 1 || volumes > DECLARED_MAX_VOLUMES)) {
+      this.error.set(declaredErrorText({ error: 'volumes_invalid' }));
+      return;
+    }
+    // The type / creators and (1.39.0, folders) the edition facts are saved apart, so neither save can clear the other.
+    const editionSave = this.data.kind === 'folder' && this.editionChanged();
+    const facts = this.api.set(this.data, { type: this.type(), creators: this.creators() });
+    this.run(editionSave
+      ? facts.pipe(switchMap(() => this.api.setEdition(this.data.id, { volumeTotal: volumes, edition: this.edition(), tracking: this.tracking() })))
+      : facts);
   }
 
   clear(): void {
     this.run(this.api.clear(this.data));
   }
 
-  private run(call: ReturnType<DeclaredFactsApiService['set']>): void {
+  private run(call: Observable<DeclaredFactsScopeDto>): void {
     this.busy.set(true);
     this.error.set(null);
     call.subscribe({

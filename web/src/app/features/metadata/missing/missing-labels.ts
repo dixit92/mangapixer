@@ -12,6 +12,7 @@ export const MISSING_SOURCE_LABELS: Record<MissingTotalSource, string> = {
   LatestChapter: 'latest release',
   Converted: 'estimate',
   Released: 'released in your language',
+  Declared: 'your edition',
 };
 
 export const MISSING_CONFIDENCE_LABELS: Record<MissingConfidence, string> = {
@@ -70,6 +71,7 @@ export function haveSentence(gap: MissingUnitGapDto): string {
  */
 export function totalTooltip(gap: MissingUnitGapDto): string {
   if (gap.source === 'Released') return "Total from the chapters the series' volume list names as released in your preferred language";
+  if (gap.source === 'Declared') return 'Total from "Volumes in this edition", declared for this folder';
   return gap.confidence ? `Total from the ${MISSING_CONFIDENCE_LABELS[gap.confidence]}` : '';
 }
 

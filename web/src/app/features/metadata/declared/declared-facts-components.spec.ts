@@ -33,6 +33,8 @@ describe('DeclaredFactsDialogComponent', () => {
       get: vi.fn(() => of(scope)),
       set: vi.fn((_s: unknown, req: { type: unknown; creators: unknown }) => of({ ...scope, own: { type: req.type, creators: req.creators } })),
       clear: vi.fn(() => of({ ...scope, own: { type: null, creators: [] } })),
+      setEdition: vi.fn((_id: string, req: { volumeTotal: number | null; edition: unknown; tracking: boolean }) =>
+        of({ ...scope, own: { ...scope.own, edition: req } })),
     };
     const ref = { close: vi.fn() };
     TestBed.configureTestingModule({
@@ -103,6 +105,71 @@ describe('DeclaredFactsDialogComponent', () => {
   });
 });
 
+/** 1.39.0: the folder's own edition facts in the editor - folders only, saved apart from the type / creators. */
+describe('DeclaredFactsDialogComponent edition', () => {
+  function create(scope: DeclaredFactsScopeDto = FOLDER_SCOPE, kind: 'folder' | 'library' = 'folder') {
+    const api = {
+      get: vi.fn(() => of(scope)),
+      set: vi.fn(() => of(scope)),
+      clear: vi.fn(() => of(scope)),
+      setEdition: vi.fn((_id: string, req: unknown) => of({ ...scope, own: { ...scope.own, edition: req } })),
+    };
+    const ref = { close: vi.fn() };
+    TestBed.configureTestingModule({
+      imports: [DeclaredFactsDialogComponent],
+      providers: [
+        provideNoopAnimations(),
+        { provide: DeclaredFactsApiService, useValue: api },
+        { provide: MatDialogRef, useValue: ref },
+        { provide: MAT_DIALOG_DATA, useValue: { kind, id: kind === 'folder' ? 'f1' : 'lib1' } },
+      ],
+    });
+    const fixture = TestBed.createComponent(DeclaredFactsDialogComponent);
+    fixture.detectChanges();
+    return { fixture, el: fixture.nativeElement as HTMLElement, c: fixture.componentInstance, api, ref };
+  }
+
+  it('shows the edition controls for a folder only', () => {
+    expect(create().el.querySelector('[data-testid="declared-volumes"]')).not.toBeNull();
+    TestBed.resetTestingModule();
+    const library: DeclaredFactsScopeDto = { ...FOLDER_SCOPE, nodeId: null, inherited: {} };
+    const { el } = create(library, 'library');
+    expect(el.querySelector('[data-testid="declared-volumes"]')).toBeNull();
+    expect(el.querySelector('[data-testid="declared-tracking"]')).toBeNull();
+  });
+
+  it('loads the own edition, saves the type first and then the changed edition', () => {
+    const scope: DeclaredFactsScopeDto = { ...FOLDER_SCOPE, own: { type: 'Manga', creators: [], edition: { volumeTotal: 10, edition: 'Omnibus', tracking: true } } };
+    const { c, api, ref, el, fixture } = create(scope);
+    expect([c.volumes(), c.edition(), c.tracking()]).toEqual([10, 'Omnibus', true]);
+    expect(el.querySelector('[data-testid="declared-clear"]')).not.toBeNull();
+
+    c.setVolumes('12');
+    c.tracking.set(false);
+    fixture.detectChanges();
+    expect(text(el.querySelector('[data-testid="declared-tracking-off"]')!)).toContain('Completion, missing volumes and upgrades are not shown');
+    c.save();
+    expect(api.set).toHaveBeenCalledWith({ kind: 'folder', id: 'f1' }, { type: 'Manga', creators: [] });
+    expect(api.setEdition).toHaveBeenCalledWith('f1', { volumeTotal: 12, edition: 'Omnibus', tracking: false });
+    expect(ref.close).toHaveBeenCalledWith(expect.objectContaining({ own: expect.objectContaining({ edition: { volumeTotal: 12, edition: 'Omnibus', tracking: false } }) }));
+  });
+
+  it('does not save the edition when it did not change, and refuses a count out of range', () => {
+    const { c, api, el, fixture } = create();
+    c.save();
+    expect(api.set).toHaveBeenCalledTimes(1);
+    expect(api.setEdition).not.toHaveBeenCalled();
+
+    c.setVolumes(0);
+    c.save();
+    fixture.detectChanges();
+    expect(api.set).toHaveBeenCalledTimes(1);
+    expect(text(el.querySelector('[data-testid="declared-error"]')!)).toContain('Volumes in this edition must be a whole number from 1 to 999');
+    c.setVolumes('');
+    expect(c.volumes()).toBeNull();
+  });
+});
+
 /** The "Declared" line (Info panel, series page): type + creators with their source, and a conflict badge with both sides. */
 describe('DeclaredFactsLineComponent', () => {
   function create(dto: NodeDeclaredFactsDto | 'error') {
@@ -141,6 +208,14 @@ describe('DeclaredFactsLineComponent', () => {
     const conflict = el.querySelector('[data-testid="declared-conflict"]')!;
     expect(conflict.getAttribute('role')).toBe('note');
     expect(text(conflict)).toContain('Conflict MangaUpdates says: Manga · Web Author');
+  });
+
+  it('shows the own edition of the folder, also when nothing else is declared (1.39.0)', () => {
+    const { el } = create({ nodeId: 'n1', effective: { creators: [] }, edition: { volumeTotal: 12, edition: 'Omnibus', tracking: false } });
+    expect(text(el.querySelector('[data-testid="declared-line"]')!)).toBe('Declared: Omnibus - 12 volumes · Completion not tracked');
+    TestBed.resetTestingModule();
+    const both = create({ nodeId: 'n1', effective: { type: 'Manga', creators: [] }, edition: { volumeTotal: 1, tracking: true } });
+    expect(text(both.el.querySelector('[data-testid="declared-line"]')!)).toBe('Declared: Manga (Japan) · 1 volume');
   });
 
   it('reads again after a declared-facts change', () => {
