@@ -194,6 +194,7 @@ public sealed class AuthorAliasLookupTests : IAsyncLifetime
         _h.Handler.Respond = _ =>
         {
             sentAt.Add(_clock.GetUtcNow());
+            _clock.Advance(TimeSpan.FromMilliseconds(300)); // each answer takes 300 ms
             return null!; // the recorded fixtures answer
         };
 
@@ -203,8 +204,9 @@ public sealed class AuthorAliasLookupTests : IAsyncLifetime
             AuthorRequests().Select(r => r.Uri.AbsolutePath).ToArray());
         Assert.All(AuthorRequests(), r => Assert.Null(r.Body));
         Assert.Equal(3, sentAt.Count);
-        Assert.True(sentAt[1] - sentAt[0] >= TimeSpan.FromSeconds(1), $"gap {sentAt[1] - sentAt[0]}");
-        Assert.True(sentAt[2] - sentAt[1] >= TimeSpan.FromSeconds(1), $"gap {sentAt[2] - sentAt[1]}");
+        // A full second after the previous answer ended: 1.3 s from send to send, never less than 1 s.
+        Assert.Equal(TimeSpan.FromMilliseconds(1300), sentAt[1] - sentAt[0]);
+        Assert.Equal(TimeSpan.FromMilliseconds(1300), sentAt[2] - sentAt[1]);
         Assert.Equal([TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1)], _clock.Delays);
 
         Assert.Equal(("completed", 3, 3, 2, 1, 0), (run.Outcome, run.Total, run.Requests, run.Stored, run.NotFound, run.Failed));

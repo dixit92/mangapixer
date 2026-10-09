@@ -22,7 +22,7 @@ public sealed record AuthorAliasPlan(int Eligible, int Fetched, IReadOnlyList<Au
 /// Every request goes through <see cref="MetadataGateway.DetailCallAsync{T}"/> with the Interactive origin - every switch gate (the
 /// config kill, Fetch with the CURRENT consent, the allowlist, the library), the persisted backoff, the ONE daily budget and the
 /// MangaUpdates bucket - and NOT the automatic consent. Requests run one at a time, paced at one per second on the injected clock
-/// (<see cref="Interval"/>); the gateway's own pacing is tied to the Automatic origin. Never part of automatic matching, the
+/// (<see cref="Interval"/> after the previous request ended); the gateway's own pacing is tied to the Automatic origin. Never part of automatic matching, the
 /// scheduled refresh or any background pass of its own accord.
 /// Logs record ids, counts, codes and timings only - never a name.
 /// </summary>
@@ -187,7 +187,6 @@ public sealed class AuthorAliasLookupService
                         await Task.Delay(wait, _time, ct);
 
                     var call = new MetadataCallContext { Origin = MetadataCallOrigin.Interactive };
-                    var startedAt = _time.GetUtcNow();
                     ProviderAuthorRecord? author = null;
                     MetadataGatewayException? refusal = null;
                     try
@@ -202,9 +201,11 @@ public sealed class AuthorAliasLookupService
                     finally
                     {
                         // Counted and paced whenever a request went out - also when the answer was dropped or the run was cancelled.
+                        // The next one waits a full interval after this one ENDED, so two requests never leave less than a second
+                        // apart (the gateway's own checks before a send take varying time).
                         if (call.RequestsSent > 0)
                         {
-                            lastRequest = startedAt;
+                            lastRequest = _time.GetUtcNow();
                             state.CountRequest();
                         }
                     }
