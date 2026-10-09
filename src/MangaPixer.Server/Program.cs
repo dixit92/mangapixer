@@ -657,6 +657,8 @@ public sealed partial class Program
         services.AddScoped<Features.Metadata.Collections.CollectionAboutService>();
         // "Artist folder" (1.37.0): a folder of one artist's works - mark / remove / mark from review; declares the artist, queues the works.
         services.AddScoped<Features.Metadata.Artists.ArtistFolderService>();
+        // Artists' other names (1.38.0): stored MangaUpdates author records, read by "Match folders by name"; never sends a request.
+        services.AddScoped<Features.Metadata.Authors.IAuthorAliasSource, Features.Metadata.Authors.NoAuthorAliases>();
         // Missing volumes / chapters report (1.28.0): stored data only, no request.
         services.AddScoped<Features.Metadata.Missing.MissingReportService>();
         // Official releases tab (1.30.0, reach): stored data only, no request.
