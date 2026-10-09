@@ -1939,9 +1939,31 @@ export interface SetDeclaredFactsRequest {
   creators?: DeclaredCreatorDto[] | null;
 }
 
+/** 1.39.0: the edition label an admin can declare on a folder (stored as a slug: regular, omnibus, master, deluxe). */
+export type DeclaredEdition = 'Regular' | 'Omnibus' | 'Master' | 'Deluxe';
+
+/**
+ * 1.39.0: a folder's OWN edition facts - never inherited, never on a library, never matcher input. volumeTotal = "Volumes in this
+ * edition" (the volume answers count 1..N); tracking false = "Track completion: off" (no Completion / missing / upgrade answer).
+ */
+export interface DeclaredEditionDto {
+  volumeTotal?: number | null;
+  edition?: DeclaredEdition | null;
+  tracking?: boolean;
+}
+
+/** PUT /admin/metadata/folders/{id}/declared/edition (1.39.0): replaces the folder's edition facts; type and creators stay. */
+export interface SetDeclaredEditionRequest {
+  volumeTotal?: number | null;
+  edition?: DeclaredEdition | null;
+  tracking?: boolean;
+}
+
 export interface DeclaredFactValuesDto {
   type?: DeclaredType | null;
   creators?: DeclaredCreatorDto[];
+  /** 1.39.0: the folder's own edition facts; null when none are set (always for a library). */
+  edition?: DeclaredEditionDto | null;
 }
 
 export interface EffectiveDeclaredFactsDto {
@@ -1978,12 +2000,14 @@ export interface NodeDeclaredFactsDto {
   nodeId: string;
   effective: EffectiveDeclaredFactsDto;
   conflict?: DeclaredFactsConflictDto | null;
+  /** 1.39.0: the edition facts declared on this folder itself (never inherited). */
+  edition?: DeclaredEditionDto | null;
 }
 
 // --- Missing volumes / chapters report (1.28.0, admin-only; stored data only) ---
 
 export type MissingUnitKind = 'Volume' | 'Chapter';
-export type MissingTotalSource = 'English' | 'Origin' | 'LatestChapter' | 'Converted' | 'Released';
+export type MissingTotalSource = 'English' | 'Origin' | 'LatestChapter' | 'Converted' | 'Released' | 'Declared';
 export type MissingConfidence = 'Low' | 'Medium' | 'High';
 /** Worst first: Behind, Holes, UpToDate, NoTotal, then no verdict (Mixed, NoUnits). */
 export type MissingVerdict = 'Behind' | 'Holes' | 'UpToDate' | 'NoTotal' | 'Mixed' | 'NoUnits' | 'Restarts';
@@ -2052,6 +2076,8 @@ export interface MissingReportSummaryDto {
   noVerdict: number;
   /** 1.30.0: series with official volumes held only as chapters (the Official releases tab). */
   upgrades?: number;
+  /** 1.39.0: linked series left out because "Track completion" is off for their folder. */
+  notTracked?: number;
 }
 
 /** GET /admin/metadata/missing?library=&onlyMissing=&cursor=&limit= */
@@ -2286,12 +2312,12 @@ export interface SeriesTrackersDto {
 }
 
 export type SeriesCompletion = 'None' | 'FinishedNotHeld' | 'CompleteCollection';
-export type CompletionBasis = 'OfficialVolumes' | 'AllChapters' | 'OriginRun' | 'OfficialChapters';
+export type CompletionBasis = 'OfficialVolumes' | 'AllChapters' | 'OriginRun' | 'OfficialChapters' | 'Edition';
 /** 1.32.0: the one answer of the Completion tab - has the series ended, and does the folder hold all of it. */
 export type SeriesAnswer = 'CantTell' | 'HaveItAll' | 'FinishedMissing' | 'UpToDate' | 'MissingSome';
 export type SeriesAnswerReason =
   | 'None' | 'Running' | 'OnHiatus' | 'StatusUnknown' | 'WaitingForLanguage' | 'LanguageEditionDropped'
-  | 'NoNumbers' | 'NumberingRestarts' | 'NothingKnownReleased' | 'NoVolumeTotal' | 'OneShot';
+  | 'NoNumbers' | 'NumberingRestarts' | 'NothingKnownReleased' | 'NoVolumeTotal' | 'OneShot' | 'NotTracked';
 
 export interface SeriesProgressDto {
   trackers: SeriesTrackersDto;
@@ -2312,6 +2338,12 @@ export interface SeriesProgressDto {
   /** 1.32.0: the Completion tab's answer (also behind the completion mark). */
   answer?: SeriesAnswer;
   answerReason?: SeriesAnswerReason;
+  /** 1.39.0: "Volumes in this edition" declared on the folder (the volume answers count 1..N of that edition). */
+  volumeTotalOverride?: number | null;
+  /** 1.39.0: the edition label declared on the folder. */
+  edition?: DeclaredEdition | null;
+  /** 1.39.0: "Track completion" is off for the folder - no answer is given (answer CantTell, reason NotTracked). */
+  trackingOff?: boolean;
 }
 
 // --- Official releases tab (1.30.0; the Completion tab since 1.32.0 - the contract keeps its names) ---
@@ -2340,6 +2372,8 @@ export interface OfficialReleasesSummaryDto {
   upToDate?: number;
   missingSome?: number;
   cantTell?: number;
+  /** 1.39.0: linked series left out because "Track completion" is off for their folder. */
+  notTracked?: number;
 }
 
 /** GET /admin/metadata/official-releases?library=&filter=&cursor=&limit=&basis=&answer=&upgrades= */
@@ -2821,6 +2855,8 @@ export interface ExportItemDto {
   refresh?: ExportRefreshDto | null;
   /** 1.38.0: numbers stated by more than one file of a linked series folder, with each file; left out when there are none. */
   duplicates?: ExportDuplicateDto[] | null;
+  /** 1.39.0: "off" when "Track completion" is off for the folder (completion is null then); left out otherwise. */
+  tracking?: string | null;
 }
 
 /** 1.38.0: one number that several files in the same folder state. */
@@ -2919,6 +2955,10 @@ export interface ExportCompletionDto {
   upgradeVolumes: number[];
   computedAt: string;
   basedOnScanAt?: string | null;
+  /** 1.39.0: "Volumes in this edition" declared on the folder; left out when not set. */
+  volumeTotalOverride?: number | null;
+  /** 1.39.0: the declared edition slug (regular, omnibus, master, deluxe); left out when not set. */
+  edition?: string | null;
 }
 
 export interface ExportRefreshDto {

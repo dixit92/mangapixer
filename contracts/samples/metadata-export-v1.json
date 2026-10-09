@@ -352,6 +352,203 @@
       "volumes": null,
       "completion": null,
       "refresh": null
+    },
+    {
+      "nodeId": "n0020",
+      "nodeKind": "folder",
+      "carriedFrom": null,
+      "trail": [
+        "Shonen",
+        "Synthetic Quest Omnibus"
+      ],
+      "updatedAt": "2026-10-04T12:00:00.000Z",
+      "link": {
+        "state": "Confirmed",
+        "method": "search",
+        "score": 0.95,
+        "updatedAt": "2026-09-28T12:00:00.000Z"
+      },
+      "record": {
+        "provider": "mangaupdates",
+        "externalId": "10000000001",
+        "siteUrl": "https://www.mangaupdates.com/series/10000000001/sample",
+        "title": "Synthetic Quest",
+        "altTitles": [
+          "Synthetic Quest: The Journey",
+          "Shinsetsu Kuesuto"
+        ],
+        "type": "Manga",
+        "originStatus": "Ongoing",
+        "originVolumes": 5,
+        "latestChapter": "41",
+        "totalChapters": null,
+        "statusText": "5 Volumes (Ongoing)",
+        "licensedEn": true,
+        "translationComplete": false,
+        "completedInOrigin": false,
+        "englishPublishers": [
+          {
+            "name": "Synthetic Press",
+            "volumes": 3,
+            "chapters": null,
+            "status": "Ongoing",
+            "omnibus": false
+          }
+        ],
+        "fetchedAt": "2026-09-30T12:00:00.000Z"
+      },
+      "companions": {
+        "mangadex": "00000000-0000-4000-8000-000000000001",
+        "anilist": {
+          "id": 100001,
+          "chapters": 41,
+          "volumes": 5
+        }
+      },
+      "officialLinks": [
+        {
+          "kind": "publisher",
+          "label": "Official (original language)",
+          "url": "https://publisher.example.com/synthetic-quest",
+          "source": "mangadex"
+        },
+        {
+          "kind": "publisher",
+          "label": "Official English release",
+          "url": "https://english.example.com/titles/synthetic-quest",
+          "source": "mangadex"
+        },
+        {
+          "kind": "store",
+          "label": "BookWalker",
+          "url": "https://bookwalker.jp/series/100001/list",
+          "source": "mangadex"
+        }
+      ],
+      "volumes": {
+        "source": "merged",
+        "fetchedAt": "2026-10-02T12:00:00.000Z",
+        "items": [
+          {
+            "volume": "1",
+            "title": null,
+            "chapters": {
+              "from": "1",
+              "to": "8"
+            },
+            "englishDate": "2025-03-04",
+            "englishDateKind": "released",
+            "isbn": "9780000000011",
+            "sources": [
+              "mangadex",
+              "wikipedia"
+            ]
+          },
+          {
+            "volume": "2",
+            "title": null,
+            "chapters": {
+              "from": "9",
+              "to": "16"
+            },
+            "englishDate": "2025-07-01",
+            "englishDateKind": "released",
+            "isbn": "9780000000028",
+            "sources": [
+              "mangadex",
+              "wikipedia"
+            ]
+          },
+          {
+            "volume": "3",
+            "title": null,
+            "chapters": {
+              "from": "17",
+              "to": "24.5"
+            },
+            "englishDate": "2026-01",
+            "englishDateKind": "released",
+            "isbn": null,
+            "sources": [
+              "mangadex",
+              "wikipedia"
+            ]
+          },
+          {
+            "volume": "4",
+            "title": null,
+            "chapters": null,
+            "englishDate": "2027-02-09",
+            "englishDateKind": "announced",
+            "isbn": null,
+            "sources": [
+              "wikipedia"
+            ]
+          }
+        ]
+      },
+      "completion": {
+        "answer": "UpToDate",
+        "reason": "Running",
+        "upgradeAvailable": false,
+        "upgradeVolumes": [],
+        "computedAt": "2026-10-04T12:00:00.000Z",
+        "basedOnScanAt": "2026-10-03T11:00:00.000Z",
+        "volumeTotalOverride": 2,
+        "edition": "omnibus"
+      },
+      "refresh": {
+        "lastFetchedAt": "2026-09-30T12:00:00.000Z",
+        "nextDueAt": "2026-10-14T12:00:00.000Z",
+        "intervalDays": 14
+      }
+    },
+    {
+      "nodeId": "n0023",
+      "nodeKind": "folder",
+      "carriedFrom": null,
+      "trail": [
+        "Shonen",
+        "Synthetic Saga Reprint"
+      ],
+      "updatedAt": "2026-10-04T12:00:00.000Z",
+      "link": {
+        "state": "Confirmed",
+        "method": "search",
+        "score": 0.93,
+        "updatedAt": "2026-09-28T12:00:00.000Z"
+      },
+      "record": {
+        "provider": "mangaupdates",
+        "externalId": "10000000002",
+        "siteUrl": "https://www.mangaupdates.com/series/10000000002/sample",
+        "title": "Synthetic Saga",
+        "altTitles": [],
+        "type": "Manga",
+        "originStatus": "Complete",
+        "originVolumes": 2,
+        "latestChapter": "12",
+        "totalChapters": null,
+        "statusText": "2 Volumes (Complete)",
+        "licensedEn": false,
+        "translationComplete": false,
+        "completedInOrigin": true,
+        "englishPublishers": [],
+        "fetchedAt": "2026-09-30T12:00:00.000Z"
+      },
+      "companions": {
+        "mangadex": null,
+        "anilist": null
+      },
+      "officialLinks": [],
+      "volumes": null,
+      "completion": null,
+      "refresh": {
+        "lastFetchedAt": "2026-09-30T12:00:00.000Z",
+        "nextDueAt": "2026-12-29T12:00:00.000Z",
+        "intervalDays": 90
+      },
+      "tracking": "off"
     }
   ],
   "removed": [

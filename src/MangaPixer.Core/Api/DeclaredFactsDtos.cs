@@ -24,11 +24,39 @@ public sealed record SetDeclaredFactsRequest
     public IReadOnlyList<DeclaredCreatorDto>? Creators { get; init; }
 }
 
+/// <summary>
+/// 1.39.0: the edition facts of ONE folder itself (owner, 2026-10-09) - never inherited by its subfolders, never set on a library,
+/// never used by matching. <see cref="VolumeTotal"/> ("Volumes in this edition") makes the volume answers count volumes 1..N of
+/// this edition instead of the regular edition's list; <see cref="Edition"/> is a label; <see cref="Tracking"/> false ("Track
+/// completion: off") keeps the link, metadata, covers and refresh but gives no Completion / missing / upgrade answer.
+/// </summary>
+public sealed record DeclaredEditionDto
+{
+    public int? VolumeTotal { get; init; }
+    public DeclaredEdition? Edition { get; init; }
+    public bool Tracking { get; init; } = true;
+}
+
+/// <summary>
+/// 1.39.0: replaces the edition facts of one FOLDER (<c>PUT .../folders/{nodeId}/declared/edition</c>). A null volume total or edition
+/// clears it; <see cref="Tracking"/> defaults to true (tracked). The type and creators of the folder are left alone.
+/// </summary>
+public sealed record SetDeclaredEditionRequest
+{
+    /// <summary>"Volumes in this edition": a whole number 1..999, or null.</summary>
+    public int? VolumeTotal { get; init; }
+    public DeclaredEdition? Edition { get; init; }
+    public bool Tracking { get; init; } = true;
+}
+
 /// <summary>The facts declared on one scope itself.</summary>
 public sealed record DeclaredFactValuesDto
 {
     public DeclaredType? Type { get; init; }
     public IReadOnlyList<DeclaredCreatorDto> Creators { get; init; } = [];
+
+    /// <summary>1.39.0: the folder's own edition facts, or null when none are set (always null for a library).</summary>
+    public DeclaredEditionDto? Edition { get; init; }
 }
 
 /// <summary>
@@ -96,4 +124,10 @@ public sealed record NodeDeclaredFactsDto
 
     /// <summary>Set when a linked web record applies to the node and contradicts the declaration.</summary>
     public DeclaredFactsConflictDto? Conflict { get; init; }
+
+    /// <summary>
+    /// 1.39.0: the edition facts declared on this node itself (a folder; never inherited), or null when none are set or "Show series
+    /// information" is off for its library.
+    /// </summary>
+    public DeclaredEditionDto? Edition { get; init; }
 }

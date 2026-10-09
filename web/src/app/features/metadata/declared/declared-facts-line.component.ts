@@ -4,13 +4,13 @@ import { Subscription } from 'rxjs';
 
 import { NodeDeclaredFactsDto } from '../../../core/api/api-types';
 import { DeclaredFactsApiService } from './declared-facts-api.service';
-import { conflictText, creatorsText, declaredTypeLabel, hasDeclared, sourceText } from './declared-facts';
+import { conflictText, creatorsText, declaredTypeLabel, editionText, hasDeclared, hasEdition, sourceText } from './declared-facts';
 
 /**
  * The "Declared" line of the Info panel and the series page (1.28.0): the type and creators an admin
  * declared on this folder, a folder above it or the library, and - when the linked web record says
- * otherwise - a conflict badge with BOTH sides (owner, 2026-09-27). Renders nothing when nothing is
- * declared. Reads `/nodes/{id}/declared-facts` and again after any declared-facts change.
+ * otherwise - a conflict badge with BOTH sides (owner, 2026-09-27). 1.39.0: the folder's own edition
+ * ("Omnibus - 12 volumes", "Completion not tracked"). Renders nothing when nothing is declared. Reads `/nodes/{id}/declared-facts` and again after any declared-facts change.
  */
 @Component({
   selector: 'app-declared-facts-line',
@@ -28,6 +28,10 @@ import { conflictText, creatorsText, declaredTypeLabel, hasDeclared, sourceText 
           @if (d.effective.type && creators()) {&ngsp;·&ngsp;}
           @if (creators()) {
             <span [title]="creatorsSource()" data-testid="declared-creators">{{ creators() }}</span>
+          }
+          @if ((d.effective.type || creators()) && edition()) {&ngsp;·&ngsp;}
+          @if (edition()) {
+            <span title="Set on this folder only" data-testid="declared-edition">{{ edition() }}</span>
           }
         </p>
         @if (conflict(); as text) {
@@ -63,11 +67,12 @@ export class DeclaredFactsLineComponent {
   /** Only when something is declared (and the answer is for the current node). */
   readonly shown = computed(() => {
     const d = this.data();
-    return d && d.nodeId === this.nodeId() && hasDeclared(d.effective) ? d : null;
+    return d && d.nodeId === this.nodeId() && (hasDeclared(d.effective) || hasEdition(d.edition)) ? d : null;
   });
 
   readonly typeLabel = computed(() => declaredTypeLabel(this.shown()?.effective.type));
   readonly creators = computed(() => creatorsText(this.shown()?.effective.creators));
+  readonly edition = computed(() => editionText(this.shown()?.edition));
   readonly typeSource = computed(() => {
     const e = this.shown()?.effective;
     return e ? `Type ${sourceText(e.typeSource, e.typeFrom)}` : '';

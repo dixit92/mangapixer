@@ -113,6 +113,13 @@ public sealed record ExportItemDto
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<ExportDuplicateDto>? Duplicates { get; init; }
+
+    /// <summary>
+    /// 1.39.0: <c>off</c> when an admin turned "Track completion" off for the folder - the link, record, companions, volumes and refresh
+    /// stay, and <see cref="Completion"/> is null. Left out of the item otherwise (completion tracked).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Tracking { get; init; }
 }
 
 /// <summary>One number that several files in the same folder state (chapter 12 uploaded twice), with each of those files.</summary>
@@ -294,6 +301,17 @@ public sealed record ExportCompletionDto
 
     /// <summary>The library scan the answer was computed from, or null when the library was never scanned.</summary>
     public DateTimeOffset? BasedOnScanAt { get; init; }
+
+    /// <summary>
+    /// 1.39.0: the volumes an admin declared for the edition this folder holds ("Volumes in this edition", e.g. an omnibus edition): the
+    /// answer counts volumes 1..N of that edition, not the regular edition's list. Left out when not declared.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? VolumeTotalOverride { get; init; }
+
+    /// <summary>1.39.0: the edition label an admin declared: <c>regular</c>, <c>omnibus</c>, <c>master</c> or <c>deluxe</c>. Left out when not declared.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Edition { get; init; }
 }
 
 /// <summary>When the linked record is looked at again.</summary>

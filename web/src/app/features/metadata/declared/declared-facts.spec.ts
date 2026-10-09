@@ -1,5 +1,8 @@
 import { NodeDeclaredFactsDto } from '../../../core/api/api-types';
-import { conflictText, creatorsText, declaredErrorText, declaredSummary, declaredTypeLabel, DECLARED_TYPE_OPTIONS, hasDeclared, sourceText } from './declared-facts';
+import {
+  conflictText, creatorsText, declaredErrorText, declaredSummary, declaredTypeLabel, DECLARED_EDITION_OPTIONS, DECLARED_TYPE_OPTIONS, editionText,
+  hasDeclared, hasEdition, sourceText,
+} from './declared-facts';
 
 /** Declared facts labels (1.28.0): sources, summaries, the conflict line (both sides), error words. */
 describe('declared facts labels', () => {
@@ -49,5 +52,20 @@ describe('declared facts labels', () => {
     expect(declaredErrorText({ error: 'http_error', status: 404 })).toContain('no longer exists');
     expect(declaredErrorText({ error: 'x', message: 'Server says no' })).toBe('Server says no');
     expect(declaredErrorText(null)).toBe('Could not save.');
+  });
+});
+
+/** 1.39.0: the folder's own edition facts in words. */
+describe('declared edition labels', () => {
+  it('names the edition, its volumes and tracking off', () => {
+    expect(editionText({ volumeTotal: 12, edition: 'Omnibus', tracking: true })).toBe('Omnibus - 12 volumes');
+    expect(editionText({ volumeTotal: 1 })).toBe('1 volume');
+    expect(editionText({ edition: 'Master', tracking: false })).toBe('Master · Completion not tracked');
+    expect(editionText({ tracking: false })).toBe('Completion not tracked');
+    expect(editionText(null)).toBe('');
+    expect(hasEdition({ tracking: true })).toBe(false);
+    expect(hasEdition({ tracking: false })).toBe(true);
+    expect(DECLARED_EDITION_OPTIONS.map((o) => o.value)).toEqual(['Regular', 'Omnibus', 'Master', 'Deluxe']);
+    expect(declaredErrorText({ error: 'volumes_invalid' })).toContain('from 1 to 999');
   });
 });

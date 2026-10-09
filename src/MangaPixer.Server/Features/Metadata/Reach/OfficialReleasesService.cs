@@ -48,7 +48,9 @@ public sealed class OfficialReleasesService(MangaPixerDbContext db, ILogger<Offi
         var sw = Stopwatch.StartNew();
         var rows = await LinkedFoldersAsync(libraryId, ct);
         var progress = await new SeriesProgressLoader(db).LoadAsync(rows.Select(r => new SeriesProgressTarget(r.NodeId, r.RecordId)).ToList(), ct);
-        var evaluated = rows.Select(r => (Row: r, Entry: progress[r.NodeId])).ToList();
+        var all = rows.Select(r => (Row: r, Entry: progress[r.NodeId])).ToList();
+        // 1.39.0: a folder whose tracking an admin turned off gives no answer - left out of the tab and its counts (counted apart).
+        var evaluated = all.Where(x => !x.Entry.Result.Facts.TrackingOff).ToList();
 
         // By answer (1.32.0) for an answer filter and All; the 1.30.0 filters keep their order.
         var byAnswer = answer is not null || filter == OfficialReleasesFilter.All;
@@ -77,6 +79,7 @@ public sealed class OfficialReleasesService(MangaPixerDbContext db, ILogger<Offi
             UpToDate = CountOf(SeriesAnswer.UpToDate),
             MissingSome = CountOf(SeriesAnswer.MissingSome),
             CantTell = CountOf(SeriesAnswer.CantTell),
+            NotTracked = all.Count - evaluated.Count,
         };
         var filtered = counted.Where(x => (answer is { } a ? x.Entry.Result.Answer == a : Matches(x.Entry, filter))
             && (basis is null || (x.Entry.Result.Completion != SeriesCompletion.None && x.Entry.Result.CompletionBasis == basis))).ToList();

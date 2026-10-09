@@ -71,6 +71,31 @@ public sealed record DeclaredFacts(
     public bool IsEmpty => Type is null && Creators.Count == 0;
 }
 
+/// <summary>
+/// 1.39.0: the edition a folder holds (owner, 2026-10-09), an optional label next to "Volumes in this edition". Stored as a slug
+/// (<see cref="DeclaredFactKeys.EditionSlug"/>), never the enum's int.
+/// </summary>
+public enum DeclaredEdition
+{
+    Regular = 0,
+    Omnibus = 1,
+    Master = 2,
+    Deluxe = 3,
+}
+
+/// <summary>
+/// 1.39.0: the edition facts declared on ONE folder itself (owner, 2026-10-09) - never inherited by its subfolders, never set on a
+/// library, never matcher evidence. <paramref name="VolumeTotal"/> ("Volumes in this edition: N") makes the volume answers count
+/// volumes 1..N instead of the regular edition's volume list; <paramref name="Edition"/> is a label; <paramref name="TrackingOff"/>
+/// ("Track completion: off") keeps the link, metadata, covers and refresh but gives no Completion / missing / upgrade answer.
+/// </summary>
+public sealed record DeclaredEditionFacts(int? VolumeTotal = null, DeclaredEdition? Edition = null, bool TrackingOff = false)
+{
+    public static readonly DeclaredEditionFacts Empty = new();
+
+    public bool IsEmpty => VolumeTotal is null && Edition is null && !TrackingOff;
+}
+
 /// <summary>Keys, value vocabularies and limits of the <c>declared_facts</c> table.</summary>
 public static class DeclaredFactKeys
 {
@@ -79,6 +104,24 @@ public static class DeclaredFactKeys
 
     /// <summary>Multi-valued: one row per creator, value = the name, role optional.</summary>
     public const string Creator = "creator";
+
+    /// <summary>1.39.0, single-valued, folder scope only: "Volumes in this edition", value = a whole number (1..<see cref="MaxVolumeTotal"/>).</summary>
+    public const string Volumes = "volumes";
+
+    /// <summary>1.39.0, single-valued, folder scope only: the edition label, value = an edition slug (<see cref="EditionSlug"/>).</summary>
+    public const string Edition = "edition";
+
+    /// <summary>1.39.0, single-valued, folder scope only: value <see cref="TrackingOff"/>; no row = completion is tracked.</summary>
+    public const string Tracking = "tracking";
+
+    /// <summary>The stored value of <see cref="Tracking"/> when an admin turned "Track completion" off.</summary>
+    public const string TrackingOff = "off";
+
+    /// <summary>The own-scope edition keys (1.39.0): never inherited, never read by matching.</summary>
+    public static readonly IReadOnlyList<string> EditionKeys = [Volumes, Edition, Tracking];
+
+    /// <summary>The highest "Volumes in this edition" an admin can declare.</summary>
+    public const int MaxVolumeTotal = 999;
 
     public const int MaxKeyLength = 32;
     public const int MaxValueLength = 200;
@@ -127,6 +170,32 @@ public static class DeclaredFactKeys
                 return type;
         return null;
     }
+
+    private static readonly Dictionary<DeclaredEdition, string> EditionSlugs = new()
+    {
+        [DeclaredEdition.Regular] = "regular",
+        [DeclaredEdition.Omnibus] = "omnibus",
+        [DeclaredEdition.Master] = "master",
+        [DeclaredEdition.Deluxe] = "deluxe",
+    };
+
+    /// <summary>The stored (and exported) value of an edition: <c>regular</c>, <c>omnibus</c>, <c>master</c> or <c>deluxe</c>.</summary>
+    public static string EditionSlug(DeclaredEdition edition) => EditionSlugs[edition];
+
+    /// <summary>The edition of a stored slug, or null (also for a slug this version does not know).</summary>
+    public static DeclaredEdition? ParseEdition(string? slug)
+    {
+        if (slug is null)
+            return null;
+        foreach (var (edition, value) in EditionSlugs)
+            if (string.Equals(value, slug, StringComparison.Ordinal))
+                return edition;
+        return null;
+    }
+
+    /// <summary>A stored "Volumes in this edition" value, or null when it is not a whole number in 1..<see cref="MaxVolumeTotal"/>.</summary>
+    public static int? ParseVolumeTotal(string? value) =>
+        int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var n) && n >= 1 && n <= MaxVolumeTotal ? n : null;
 
     /// <summary>Trims and collapses inner whitespace; null for blank, too long or control characters.</summary>
     public static string? CleanName(string? name)

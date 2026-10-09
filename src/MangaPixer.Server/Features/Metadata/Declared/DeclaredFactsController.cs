@@ -10,8 +10,9 @@ using Microsoft.EntityFrameworkCore;
 
 /// <summary>
 /// Admin-only declared facts (1.28.0): read / replace / clear what is declared on a folder or a library.
-/// PUT replaces the scope's type and creator list (a null type or an empty list clears that key); DELETE
-/// clears both. Audited with ids only. No network.
+/// PUT replaces the scope's type and creator list (a null type or an empty list clears that key); 1.39.0: PUT .../edition replaces a
+/// folder's own edition facts (volumes in this edition, edition label, track completion); DELETE
+/// clears everything declared on the scope. Audited with ids only. No network.
 /// </summary>
 [ApiController]
 [Route("api/v1/admin/metadata")]
@@ -34,6 +35,13 @@ public sealed class DeclaredFactsAdminController : ControllerBase
     [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> SetFolder(string nodeId, [FromBody] SetDeclaredFactsRequest request, CancellationToken ct) =>
         ToResult(await _facts.SetFolderAsync(nodeId, request, Actor, ct));
+
+    /// <summary>1.39.0: the folder's own edition facts (volumes in this edition, edition label, track completion); type and creators stay.</summary>
+    [HttpPut("folders/{nodeId}/declared/edition")]
+    [ProducesResponseType<DeclaredFactsScopeDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> SetFolderEdition(string nodeId, [FromBody] SetDeclaredEditionRequest request, CancellationToken ct) =>
+        ToResult(await _facts.SetFolderEditionAsync(nodeId, request, Actor, ct));
 
     [HttpDelete("folders/{nodeId}/declared")]
     [ProducesResponseType<DeclaredFactsScopeDto>(StatusCodes.Status200OK)]
@@ -74,6 +82,8 @@ public sealed class DeclaredFactsAdminController : ControllerBase
         "creators_too_many" => $"At most {Core.Metadata.DeclaredFactKeys.MaxCreators} creators.",
         "creator_name_invalid" => $"A creator name must be 1-{Core.Metadata.DeclaredFactKeys.MaxValueLength} characters.",
         "creator_role_invalid" => "A creator role must be author, writer or artist (or none).",
+        "volumes_invalid" => $"Volumes in this edition must be a whole number from 1 to {Core.Metadata.DeclaredFactKeys.MaxVolumeTotal}.",
+        "edition_invalid" => "Unknown edition.",
         _ => "The request is not valid.",
     };
 }

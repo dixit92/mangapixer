@@ -126,6 +126,9 @@ public sealed record MissingReportSummaryDto
 
     /// <summary>1.30.0: series with official volumes in the preferred language held only as chapters (the Official releases tab).</summary>
     public int Upgrades { get; init; }
+
+    /// <summary>1.39.0: linked series left out of the report because an admin turned "Track completion" off for their folder.</summary>
+    public int NotTracked { get; init; }
 }
 
 /// <summary>A page of the report: worst first (behind, holes, up to date, no total, no verdict), then by name.</summary>

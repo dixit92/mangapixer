@@ -3,7 +3,9 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { SeriesProgressDto } from '../../../core/api/api-types';
-import { ANSWER_ICONS, ANSWER_LABELS, answerOf, answerSentence, editionLabel, upgradeSentence } from '../progress/series-progress-labels';
+import {
+  ANSWER_ICONS, ANSWER_LABELS, NOT_TRACKED_LABEL, answerOf, answerSentence, editionLabel, upgradeSentence,
+} from '../progress/series-progress-labels';
 
 /**
  * The chips of one series on the Completion tab (1.32.0, owner-approved wording): its answer ("Finished - you have it all",
@@ -49,7 +51,12 @@ export class SeriesAnswerChipComponent {
   readonly progress = input<SeriesProgressDto | null | undefined>(null);
 
   readonly answer = computed(() => answerOf(this.progress()));
-  readonly label = computed(() => { const a = this.answer(); return a ? ANSWER_LABELS[a] : ''; });
+  readonly label = computed(() => {
+    const a = this.answer();
+    // 1.39.0: "Track completion" off for the folder.
+    if (this.progress()?.trackingOff) return NOT_TRACKED_LABEL;
+    return a ? ANSWER_LABELS[a] : '';
+  });
   readonly icon = computed(() => { const a = this.answer(); return a ? ANSWER_ICONS[a] : ''; });
   readonly sentence = computed(() => { const p = this.progress(); return (p ? answerSentence(p) : null) ?? ''; });
   readonly edition = computed(() => { const p = this.progress(); return p ? editionLabel(p) : null; });

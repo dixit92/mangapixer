@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, effect, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, input, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { MissingSeriesDto } from '../../../core/api/api-types';
@@ -7,6 +7,7 @@ import { MissingReportApiService } from './missing-report-api.service';
 import { gapDetail, gapsOf, haveSentence } from './missing-labels';
 import { folderLine, trackersLine } from '../progress/series-progress-labels';
 import { CompletionMarkComponent } from '../official/completion-mark.component';
+import { DeclaredFactsApiService } from '../declared/declared-facts-api.service';
 
 /**
  * One line on the series page for admins (1.28.0): "You have volumes 1-7 of 10 (English) · 3 behind", from the
@@ -55,6 +56,8 @@ import { CompletionMarkComponent } from '../official/completion-mark.component';
 })
 export class SeriesMissingLineComponent {
   private readonly api = inject(MissingReportApiService);
+  /** 1.39.0: a saved declaration (edition volumes, track completion) changes the answers - read the line again. */
+  private readonly declared = inject(DeclaredFactsApiService);
 
   readonly nodeId = input.required<string>();
 
@@ -80,8 +83,11 @@ export class SeriesMissingLineComponent {
   constructor() {
     effect(() => {
       const id = this.nodeId();
-      this.row.set(null);
-      this.api.forNodeViewer(id).subscribe({ next: (r) => this.row.set(r), error: () => this.row.set(null) });
+      this.declared.version();
+      untracked(() => {
+        this.row.set(null);
+        this.api.forNodeViewer(id).subscribe({ next: (r) => this.row.set(r), error: () => this.row.set(null) });
+      });
     });
   }
 }
