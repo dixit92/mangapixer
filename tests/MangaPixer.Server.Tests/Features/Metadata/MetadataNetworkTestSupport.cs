@@ -28,6 +28,23 @@ public static class MuFixtures
     public const long BerserkId = 51239621230;
     public const long SoloLevelingId = 15180124327;
 
+    // 1.38.0: recorded author records (Fixtures/MangaUpdates/author-*.json). Berserk names Miura, Mori and Studio Gaga (no fixture: 404).
+    public const long MiuraId = 22635311083;
+    public const long MoriId = 38824888050;
+    public const long StudioGagaId = 58953789514;
+    public const long ChugongId = 71651794005;
+    public const long JangSeongRakId = 61564873920;
+
+    /// <summary>The recorded author record of an id, or null (the API answers 404 with an empty body).</summary>
+    public static string? AuthorFixture(long id) => id switch
+    {
+        MiuraId => Load("author-miura-kentaro"),
+        MoriId => Load("author-mori-kouji"),
+        ChugongId => Load("author-chugong"),
+        JangSeongRakId => Load("author-jang-seong-rak"),
+        _ => null,
+    };
+
     /// <summary>A hand-written AniList GraphQL response (1.28.0).</summary>
     public static string LoadAniList(string name)
     {
@@ -67,8 +84,8 @@ public sealed class ScriptedHandler : HttpMessageHandler
 
     public bool FailOnAnyRequest { get; set; }
 
-    /// <summary>Overrides the fixture routing when set.</summary>
-    public Func<HttpRequestMessage, HttpResponseMessage>? Respond { get; set; }
+    /// <summary>Overrides the fixture routing when set; a null answer falls back to the fixture routing.</summary>
+    public Func<HttpRequestMessage, HttpResponseMessage?>? Respond { get; set; }
 
     public IReadOnlyList<SeenRequest> Seen => _seen.ToList();
     public int CallCount => _seen.Count;
@@ -127,6 +144,13 @@ public sealed class ScriptedHandler : HttpMessageHandler
             if (body?.Contains("Berserk", StringComparison.Ordinal) == true)
                 return Json(MuFixtures.Load("berserk-search"));
             return Json("{\"total_hits\":0,\"results\":[]}");
+        }
+        if (request.Method == HttpMethod.Get && uri.AbsolutePath.StartsWith("/v1/authors/", StringComparison.Ordinal))
+        {
+            // 1.38.0: author records; an unknown id is a 404 with an empty body, as the real API answers.
+            return long.TryParse(uri.AbsolutePath["/v1/authors/".Length..], out var authorId) && MuFixtures.AuthorFixture(authorId) is { } author
+                ? Json(author)
+                : new HttpResponseMessage(HttpStatusCode.NotFound) { Content = new ByteArrayContent([]) };
         }
         if (request.Method == HttpMethod.Get && uri.AbsolutePath == $"/v1/series/{MuFixtures.BerserkId}")
             return Json(MuFixtures.Load("berserk-get"));

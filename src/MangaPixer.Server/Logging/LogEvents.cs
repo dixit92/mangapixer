@@ -461,5 +461,13 @@ public static class LogEvents
 
         // Metadata export (1.33.0, 9390-9399). Library ids, counts and timings only - never names, titles or tokens.
         public const int ExportRebuilt = 9390;
+
+        // Artists' other names (1.38.0, 9400-9409): the admin-run MangaUpdates author look-up. Ids, counts, codes and timings only -
+        // never a name.
+        public const int AuthorLookupStarted = 9400;
+        public const int AuthorLookupFinished = 9401;
+        public const int AuthorLookupRefused = 9402;
+        public const int AuthorLookupFailed = 9403;
+        public const int AuthorsPurged = 9404;
     }
 }
