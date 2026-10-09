@@ -45,8 +45,9 @@ public sealed class FolderMatchHttpTests
         }
     }
 
-    private static MetadataNetworkWebApplicationFactory NewFactory(IAuthorAliasSource? aliases = null) =>
-        new(failOnAnyRequest: true, configureServices: aliases is null ? null : s => s.AddScoped(_ => aliases));
+    private static MetadataNetworkWebApplicationFactory NewFactory(IAuthorAliasSource? aliases = null) => aliases is { } source
+        ? new(failOnAnyRequest: true, configureServices: s => s.AddScoped(_ => source))
+        : new(failOnAnyRequest: true);
 
     // Folders: fmA1 "Qzv Painter", fmA2 "Painter Qzv", fmA3 "Shared Name", fmA4 "Nobody Known", fmA5 "Second Inker" (Don't match),
     // fmA6 "Pen Alias", fmA7 "Comic Writer"; fmC1 "Tsuki no Niwa (Doujinshi)" (+ archive fmArc), fmC2 "Harbor Lights",
