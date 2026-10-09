@@ -399,4 +399,15 @@ public sealed class WorkDetectorTests
             Assert.DoesNotContain("Private", r, StringComparison.OrdinalIgnoreCase);
         });
     }
+
+    [Theory]
+    [InlineData("Second Pen")]
+    [InlineData("Main Pen")]
+    public void ProviderAuthor_WithAnAliasInBrackets_IsKnownByEitherName(string folderName)
+    {
+        // 1.39.0 (rules 4): a linked record's author "Main Pen (Second Pen)" names a folder called after either name.
+        string[] archives = ["Alpha Story.cbz", "Beta Tale.cbz", "Gamma Saga.cbz"];
+
+        Assert.Equal(WorkClass.ArtistCollection, _detector.Classify(Folder(folderName, archives, knownAuthors: ["Main Pen (Second Pen)"])).Class);
+    }
 }

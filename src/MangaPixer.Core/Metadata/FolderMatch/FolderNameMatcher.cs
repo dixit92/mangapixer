@@ -157,6 +157,8 @@ public static partial class FolderNameMatcher
             }
             AddName(declared);
             spellings.ForEach(AddName);
+            foreach (var form in AutoMatchText.AuthorNames(spellings))
+                AddName(form); // 1.39.0: "Main (Alias)" on a record names both
             foreach (var other in stored?.OtherNames ?? [])
                 AddName(other);
 

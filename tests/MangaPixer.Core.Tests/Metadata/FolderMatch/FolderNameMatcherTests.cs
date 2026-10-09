@@ -288,4 +288,13 @@ public sealed class FolderNameMatcherTests
 
         Assert.Empty(index.Match("Night Owl Circle (Family Given)"));
     }
+
+    [Fact]
+    public void ArtistIndex_ACreditWithAnAliasInBrackets_IsFoundByEitherName()
+    {
+        var index = new ArtistNameIndex(FolderNameMatcher.GroupArtists([Mu("101", "Main Pen (Second Pen)", "author", 1)]));
+
+        Assert.Single(index.Match("Second Pen"));
+        Assert.Single(index.Match("Main Pen"));
+    }
 }

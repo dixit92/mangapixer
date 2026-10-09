@@ -165,4 +165,14 @@ public sealed class AutoMatchTextTests
         Assert.Equal(AutoMatchText.DisambiguatedAliasFactor, AutoMatchText.BestTitleScore(["Moon Letter"], "Tsuki no Tegami", ["Moon Letter (SATO Hana)"]), 3);
         Assert.Equal(1.0, AutoMatchText.BestTitleScore(["Look Up"], "Look Up (SATO Hana)", []), 3); // the main title strips in full
     }
+
+    // --- 1.39.0 (rules 4): a record author's alias in brackets ---
+
+    [Theory]
+    [InlineData("Main Pen (Second Pen)", new[] { "Main Pen (Second Pen)", "Main Pen", "Second Pen" })]
+    [InlineData("Main Pen [Second Pen]", new[] { "Main Pen [Second Pen]", "Main Pen", "Second Pen" })]
+    [InlineData("Main Pen (2019)", new[] { "Main Pen (2019)", "Main Pen" })] // a year is not a name
+    [InlineData("Plain Name", new[] { "Plain Name" })]
+    public void AuthorNameForms_AreTheWholeNameTheNameBeforeTheBracketsAndEachNameInThem(string name, string[] expected) =>
+        Assert.Equal(expected, AutoMatchText.AuthorNameForms(name));
 }
