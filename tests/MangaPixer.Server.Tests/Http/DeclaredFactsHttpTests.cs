@@ -15,7 +15,8 @@ using Xunit;
 /// HTTP tests (WebApplicationFactory) for declared facts (1.28.0): the admin endpoints at folder and library
 /// scope (403 for a reader, 401 anonymously, validation codes, folders only), the node endpoint the Info panel
 /// reads (404 for a non-member, direct access in Incognito, inheritance from the library, a conflict with a
-/// linked record) and the DI wiring of <see cref="IDeclaredFactsReader"/>. Synthetic names only.
+/// linked record) and the DI wiring of <see cref="IDeclaredFactsReader"/>; 1.39.0: the folder's own edition facts (admin only, folders
+/// only, saved apart from the type) and tracking off reaching the Missing report. Synthetic names only.
 /// </summary>
 public sealed class DeclaredFactsHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
 {
@@ -279,6 +280,50 @@ public sealed class DeclaredFactsHttpTests : IClassFixture<MangaPixerWebApplicat
         Assert.Equal("MangaUpdates", dto.Conflict.ProviderName);
 
         (await admin.DeleteAsync("/api/v1/admin/metadata/folders/dfLinked/declared")).EnsureSuccessStatusCode();
+    }
+
+    // --- 1.39.0: the folder's own edition facts ---
+
+    [Fact]
+    public async Task Edition_AdminOnly_FolderOnly_SavedApart_AndTrackingOffLeavesTheMissingReport()
+    {
+        var admin = await AdminAsync();
+        var (reader, readerId) = await ReaderAsync("dfreader3");
+        await GrantAsync(readerId, LibPubId);
+        const string url = "/api/v1/admin/metadata/folders/dfLinked/declared/edition";
+        var body = new { volumeTotal = 12, edition = "Omnibus", tracking = false };
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await reader.PutAsJsonAsync(url, body)).StatusCode);
+        using (var anon = _factory.CreateClient())
+            Assert.Equal(HttpStatusCode.Unauthorized, (await anon.PutAsJsonAsync(url, body)).StatusCode);
+        var invalid = await admin.PutAsJsonAsync(url, new { volumeTotal = 1000 });
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+        Assert.Equal("volumes_invalid", (await invalid.Content.ReadFromJsonAsync<ApiError>(TestJson.Web))!.Error);
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PutAsJsonAsync(url, new { edition = "Bunkoban" })).StatusCode);
+        var archive = await admin.PutAsJsonAsync("/api/v1/admin/metadata/folders/dfArc/declared/edition", body);
+        Assert.Equal("not_a_folder", (await archive.Content.ReadFromJsonAsync<ApiError>(TestJson.Web))!.Error);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.PutAsJsonAsync($"/api/v1/admin/metadata/libraries/{LibPubId}/declared/edition", body)).StatusCode);
+
+        (await PutAsync(admin, "/api/v1/admin/metadata/folders/dfLinked/declared", Declare(DeclaredType.Manga))).EnsureSuccessStatusCode();
+        var saved = await OkAsync<DeclaredFactsScopeDto>(await admin.PutAsJsonAsync(url, body));
+        Assert.Equal(DeclaredType.Manga, saved.Own.Type); // the type stays
+        Assert.Equal(new DeclaredEditionDto { VolumeTotal = 12, Edition = DeclaredEdition.Omnibus, Tracking = false }, saved.Own.Edition);
+        // A type save leaves the edition alone; readers see it on the folder's Info panel line.
+        var retyped = await OkAsync<DeclaredFactsScopeDto>(await PutAsync(admin, "/api/v1/admin/metadata/folders/dfLinked/declared", Declare(DeclaredType.Manhwa)));
+        Assert.Equal(12, retyped.Own.Edition!.VolumeTotal);
+        Assert.Equal(DeclaredEdition.Omnibus, (await OkAsync<NodeDeclaredFactsDto>(await reader.GetAsync("/api/v1/nodes/dfLinked/declared-facts"))).Edition!.Edition);
+
+        // Tracking off: the linked folder leaves the Missing report and is counted apart; its own row says why.
+        var page = await OkAsync<MissingReportPageDto>(await admin.GetAsync("/api/v1/admin/metadata/missing?onlyMissing=false"));
+        Assert.DoesNotContain(page.Items, i => i.NodeId == "dfLinked");
+        Assert.Equal(1, page.Summary.NotTracked);
+
+        var cleared = await OkAsync<DeclaredFactsScopeDto>(await admin.DeleteAsync("/api/v1/admin/metadata/folders/dfLinked/declared"));
+        Assert.Null(cleared.Own.Type);
+        Assert.Null(cleared.Own.Edition);
+        var after = await OkAsync<MissingReportPageDto>(await admin.GetAsync("/api/v1/admin/metadata/missing?onlyMissing=false"));
+        Assert.Contains(after.Items, i => i.NodeId == "dfLinked");
+        Assert.Equal(0, after.Summary.NotTracked);
     }
 
     [Fact]
