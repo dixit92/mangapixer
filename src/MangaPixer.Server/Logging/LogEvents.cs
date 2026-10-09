@@ -461,5 +461,9 @@ public static class LogEvents
 
         // Metadata export (1.33.0, 9390-9399). Library ids, counts and timings only - never names, titles or tokens.
         public const int ExportRebuilt = 9390;
+
+        // Match folders by name (1.38.0, 9410-9419). Counts, kinds and timings only - never folder names, artist names or titles.
+        public const int FolderMatchPreviewed = 9410;
+        public const int FolderMatchApplied = 9411;
     }
 }
