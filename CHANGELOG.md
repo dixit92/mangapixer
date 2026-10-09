@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **A declared artist showed a false conflict with the series' own author.** MangaUpdates writes an author's other name in brackets after the main name (`Pen Name (Other Name)`), and the **Declared** line said **Conflict** when a folder declared that other name. A name now also matches the name before the brackets and each name inside them, and - once **Artists' other names** has been looked up - any of the author's other names stored on your server. Nothing is sent; matching is unchanged.
 - **Duplicates that were not duplicates.** Files were listed as copies of the same chapter or volume whenever they stated the same number, so `Title 009 Vol 01 Name` next to `Title 001 Vol 01 Name` (a chapter written before its volume) and `Title Season 1 v01` next to `Title Season 2 v01` in one folder showed up as several copies of volume 1. Files now count as copies only when their names differ by tags alone - a scanlation group, a year, `(Digital)`, a copy marker - or by words, never by another number. This applies to the Missing report, the review list's duplicate counts, the Volumes view's stacks and the metadata export's `duplicates`, and matches MangaList's own duplicates finder. How file names are read is unchanged.
 
 ## [1.38.0] - 2026-10-09
