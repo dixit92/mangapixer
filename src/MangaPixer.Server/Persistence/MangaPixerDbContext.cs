@@ -100,6 +100,7 @@ public sealed class MangaPixerDbContext : DbContext
     public DbSet<ExportLibraryStateEntity> ExportLibraryStates => Set<ExportLibraryStateEntity>();
     public DbSet<ExportCarryEntity> ExportCarries => Set<ExportCarryEntity>();
     public DbSet<ApiTokenEntity> ApiTokens => Set<ApiTokenEntity>();
+    public DbSet<MetadataAuthorEntity> MetadataAuthors => Set<MetadataAuthorEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -134,6 +135,7 @@ public sealed class MangaPixerDbContext : DbContext
         ConfigureJobSchedules(modelBuilder);
         ConfigureExportState(modelBuilder);
         ConfigureApiTokens(modelBuilder);
+        ConfigureMetadataAuthors(modelBuilder);
     }
 
     private static void ConfigureAppSettings(ModelBuilder mb)
@@ -1058,6 +1060,21 @@ public sealed class MangaPixerDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    /// <summary>Artists' other names: stored provider author records (1.38.0, migration AddMetadataAuthors).</summary>
+    private static void ConfigureMetadataAuthors(ModelBuilder mb)
+    {
+        mb.Entity<MetadataAuthorEntity>(e =>
+        {
+            e.ToTable("metadata_authors");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.Provider).IsRequired().HasMaxLength(32);
+            e.Property(x => x.ExternalId).IsRequired().HasMaxLength(64);
+            e.Property(x => x.Name).HasMaxLength(256);
+            e.HasIndex(x => new { x.Provider, x.ExternalId }).IsUnique();
         });
     }
 }
