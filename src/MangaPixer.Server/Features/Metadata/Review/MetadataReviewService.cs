@@ -653,7 +653,7 @@ public sealed class MetadataReviewService
             foreach (var directory in byRoot.GroupBy(r => r.ParentId))
             {
                 var found = DuplicateUnits.Find(directory.Select(r =>
-                    VolumeGrouping.UnitsOf(new GroupingRow(r.Name, GroupingRowKind.Archive, r.Name, string.Empty, r.ParentName))));
+                    new GroupingRow(r.Name, GroupingRowKind.Archive, r.Name, string.Empty, r.ParentName)));
                 chapters += found.Count(d => d.Kind == MissingUnitKind.Chapter);
                 volumes += found.Count(d => d.Kind == MissingUnitKind.Volume);
             }
