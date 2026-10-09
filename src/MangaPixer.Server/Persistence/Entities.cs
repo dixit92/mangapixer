@@ -2009,3 +2009,32 @@ public sealed class ApiTokenEntity
 
     public UserEntity? User { get; set; }
 }
+
+/// <summary>
+/// A provider's author record (1.38.0, migration AddMetadataAuthors): today a MangaUpdates author - the main name and the other
+/// names (pen names, other spellings and scripts) - fetched by the author id a stored series record lists for a creator, only when an
+/// admin asks ("Artists' other names"). Read by Match folders by name through <c>IAuthorAliasSource</c>. Not exported; removed by
+/// "Delete fetched web data".
+/// </summary>
+public sealed class MetadataAuthorEntity
+{
+    public long Id { get; set; }
+
+    /// <summary>Provider slug (max 32): <c>mangaupdates</c>.</summary>
+    public string Provider { get; set; } = string.Empty;
+
+    /// <summary>The provider's author id as text (max 64; MangaUpdates int64 in decimal). Unique with <see cref="Provider"/>.</summary>
+    public string ExternalId { get; set; } = string.Empty;
+
+    /// <summary>The record's main name (max 256); null when the author was not found or the answer could not be used.</summary>
+    public string? Name { get; set; }
+
+    /// <summary>The other names, a JSON array of strings (at most 50, each at most 256 characters, the main name left out).</summary>
+    public string? OtherNamesJson { get; set; }
+
+    /// <summary>When the answer was received.</summary>
+    public DateTimeOffset FetchedAt { get; set; }
+
+    /// <summary><c>MetadataAuthorStatus</c>: 0 ok, 1 not found, 2 failed (asked again by the next look-up).</summary>
+    public int Status { get; set; }
+}

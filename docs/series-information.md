@@ -167,6 +167,7 @@ Only to `api.mangaupdates.com` (search and series details) and `cdn.mangaupdates
 - with **Automatic matching** and **Compare covers** on, when two records tie on the title for a folder of volumes or a one-shot: the cover images of those two records, downloaded from `cdn.mangaupdates.com` by the address MangaUpdates gave (nothing from your library is sent with them);
 - with **Hide doujinshi & novels** ticked, and always for automatic searches, the fixed list of types to leave out (`Doujinshi`, `Novel`, `Artbook`, `Drama CD`; without `Doujinshi` below a folder whose **Content** is **Doujinshi & adult one-shots**);
 - MangaUpdates series numbers;
+- *from 1.38.0*, only when an admin presses **Look up the rest** under [Artists' other names](#artists-other-names): the MangaUpdates author numbers that the stored series records list for their creators, one request per author;
 - a fixed `User-Agent: MangaPixer/<version> (+https://github.com/dixit92/mangapixer)` - the same on every server of that version (before 1.32.0: `MangaPixer-Metadata`).
 
 Never sent: file paths, your file list, user accounts, reading progress, reports and their notes, cookies, or anything that identifies your server. MangaUpdates sees your server's IP address, as with any web request. Readers' browsers never contact MangaUpdates: covers are stored on your server and served by MangaPixer. Logs record IDs, counts, status codes and timings, never search text, folder names or titles.
@@ -174,6 +175,20 @@ Never sent: file paths, your file list, user accounts, reading progress, reports
 MangaPixer is polite to MangaUpdates: at most 2 requests per second (5 per second for cover images), a daily request budget, and when MangaUpdates asks it to slow down it waits (up to an hour) before trying again. Search results are kept in memory for an hour, so repeating a search sends nothing.
 
 Series data is provided by [MangaUpdates](https://www.mangaupdates.com) as-is and is credited to it wherever it is shown.
+
+## Artists' other names
+
+*New in 1.38.0.*
+
+Artists often publish under several names: pen names, other spellings, the name in Japanese, Korean or Chinese script. MangaUpdates keeps them on each author's page. MangaPixer can read them for the creators of the series you have linked, so **Match folders by name** recognises an artist's folder named with any of them.
+
+**Metadata Manager** > **Settings** > **Artists' other names** shows how many of the known authors are looked up ("12 of 1512 known authors fetched"). The known authors are the creators that a stored MangaUpdates record lists with their MangaUpdates author number, for series linked (confirmed, automatically, or as **Collection about**) in a library whose **Fetch** switch is on. **Look up the rest** says how many requests that takes and about how long, then reads one author page per second in the background - for 1500 authors, about 25 minutes. A progress bar and **Cancel** show while it runs; the card shows how many names were found when it ends.
+
+- It runs **only when you press the button** - never as part of Automatic matching, the scheduled refresh or any other background work.
+- Each request sends only the MangaUpdates author number and the fixed `User-Agent`, to `api.mangaupdates.com` - never a name, a search or anything from your library. It needs **Fetch from the web** (with the current consent) and MangaUpdates on the [allowed sites](#allowed-sites), but not Automatic matching.
+- Every request counts in the daily request budget. The look-up stops when the budget is spent, when MangaUpdates asks MangaPixer to slow down, when you switch web lookups off, or when you press **Cancel**; the authors it did not reach stay to look up, and pressing the button again continues there.
+- An author already looked up is not asked again for 180 days. An author MangaUpdates does not know is remembered as such; one whose answer could not be read is tried again next time.
+- Only the author's main name and other names are stored on your server (at most 50 names per author). **Delete all fetched web data** removes them; deleting one library's fetched data removes the names no remaining stored series needs. They are not part of the [metadata export](metadata-export.md).
 
 ## Allowed sites
 
@@ -228,7 +243,7 @@ Cover images and volume data are provided by [MangaDex](https://mangadex.org) an
 
 When an update changes what MangaPixer may send, or to which sites, the consent you gave earlier no longer covers it. Fetching from the web (and Automatic matching, when its own consent text changed) then stays off after the update, and admins see a banner on the administration pages: "An update changed what MangaPixer may send to metadata sites...". Choose **Review settings**, read the new consent text and the allowed sites, remove any site you don't want, tick the box and turn **Fetch from the web** back on. The banner goes away once every switch that was on has been accepted again, or when you leave it off.
 
-MangaPixer 1.28.0 is such an update: it adds AniList to the allowed sites, so an instance that fetched from the web before has to accept again. So is 1.29.0: it adds MangaDex, and Automatic matching's consent text now also covers volume covers and volume lists. And 1.32.0: it adds the Grand Comics Database and Wikipedia, names MangaPixer and its version in every request, and Automatic matching's text now also covers comics and the refresh times you choose.
+MangaPixer 1.28.0 is such an update: it adds AniList to the allowed sites, so an instance that fetched from the web before has to accept again. So is 1.29.0: it adds MangaDex, and Automatic matching's consent text now also covers volume covers and volume lists. And 1.32.0: it adds the Grand Comics Database and Wikipedia, names MangaPixer and its version in every request, and Automatic matching's text now also covers comics and the refresh times you choose. And 1.38.0: MangaUpdates may now also be sent the author numbers of the creators of series you have stored, when you ask for [artists' other names](#artists-other-names), and the names you confirm in Match folders by name. Automatic matching's consent is unchanged, but it stays paused with **Fetch from the web** until you accept the new text.
 
 <a id="series-metadata-page-admins"></a>
 ## Metadata Manager page (admins)
@@ -246,8 +261,9 @@ The **Settings** tab:
 - **Daily request budget**: one budget for everything - Identify, automatic matching and background refresh. A whole number, 5000 by default; every search, series fetch and cover image counts one, and the count resets at midnight server time (00:00 UTC before 1.32.0). The bar and the status line show the requests used today, whether MangaUpdates asked MangaPixer to wait, and the last error. When the budget is spent, automatic work stops and Identify waits until the next day; raise the budget whenever you need more.
 - **Automatic matching**: off by default, one switch for all libraries whose **Fetch** is on. It can only be turned on after ticking the box under its own consent text (folder names are sent automatically, without review), and only while **Fetch from the web** is on (the consent text appears once it is). Like the first consent, it folds behind **What is sent?** once you have agreed. Turning it off stops new lookups; links it made stay until you remove them. See [Automatic matching](#automatic-matching).
 - Per library: **Fetch**, **Show**, **Precedence**, **Match now** (see [Automatic matching settings](#automatic-matching-settings)) and **Delete fetched data** (removes that library's web links and the stored series and covers no other library uses).
+- **Artists' other names** (*new in 1.38.0*): see [Artists' other names](#artists-other-names).
 - **Advanced: matching thresholds**: the three thresholds and **Reset to defaults** (see [Automatic matching settings](#automatic-matching-settings)).
-- **Stored data**: "ComicInfo: X of Y archives read" shows how far the background ComicInfo read has come; **Delete all fetched web data** removes every web link, stored series and cover. Don't-match marks and ComicInfo information stay.
+- **Stored data**: "ComicInfo: X of Y archives read" shows how far the background ComicInfo read has come; **Delete all fetched web data** removes every web link, stored series and cover, and the stored artists' other names. Don't-match marks and ComicInfo information stay.
 
 To make sure the server never contacts MangaUpdates, whatever is set in the app, set `Metadata__NetworkDisabled=true` (see [Configuration](configuration.md#settings-stored-in-the-app)).
 

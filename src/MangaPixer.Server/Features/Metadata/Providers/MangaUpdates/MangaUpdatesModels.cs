@@ -111,3 +111,22 @@ internal sealed record MuTime
 {
     [JsonPropertyName("timestamp")] public long? Timestamp { get; init; }
 }
+
+/// <summary>
+/// An author record, the body of GET <c>/v1/authors/{author_id}</c> (1.38.0, artists' other names): only the names are read. The
+/// answer also carries birthday, birthplace, social links and comments - never read, never stored.
+/// </summary>
+internal sealed record MuAuthorRecord
+{
+    [JsonPropertyName("id")] public long? Id { get; init; }
+    [JsonPropertyName("name")] public string? Name { get; init; }
+    [JsonPropertyName("associated")] public List<MuAuthorName>? Associated { get; init; }
+
+    /// <summary>The name in its own script (often missing from <see cref="Associated"/>), e.g. the kanji of a Japanese name.</summary>
+    [JsonPropertyName("actualname")] public string? ActualName { get; init; }
+}
+
+internal sealed record MuAuthorName
+{
+    [JsonPropertyName("name")] public string? Name { get; init; }
+}

@@ -660,7 +660,12 @@ public sealed partial class Program
         // "Artist folder" (1.37.0): a folder of one artist's works - mark / remove / mark from review; declares the artist, queues the works.
         services.AddScoped<Features.Metadata.Artists.ArtistFolderService>();
         // Artists' other names (1.38.0): stored MangaUpdates author records, read by "Match folders by name"; never sends a request.
-        services.AddScoped<Features.Metadata.Authors.IAuthorAliasSource, Features.Metadata.Authors.NoAuthorAliases>();
+        services.AddScoped<Features.Metadata.Authors.IAuthorAliasSource, Features.Metadata.Authors.StoredAuthorAliases>();
+        // The look-up behind it (1.38.0, lane U): MangaUpdates author records, ONLY when an admin asks (admin endpoints, one run at a
+        // time in the background, 1 request/s through the gateway, counted in the daily budget).
+        services.AddScoped<Features.Metadata.Authors.AuthorAliasLookupService>();
+        services.AddScoped<Features.Metadata.Authors.AuthorAliasAdminService>();
+        services.AddSingleton<Features.Metadata.Authors.AuthorAliasLookupRunner>();
         // Missing volumes / chapters report (1.28.0): stored data only, no request.
         services.AddScoped<Features.Metadata.Missing.MissingReportService>();
         // Official releases tab (1.30.0, reach): stored data only, no request.

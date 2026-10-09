@@ -271,6 +271,11 @@ public static class AuditActions
     // 1.36.0: a token with the library:scan scope started a full library scan. Actor = the token's owner, TargetLibraryId = the
     // library, CorrelationId = the token's public id (never the secret). Only accepted requests are recorded (refusals are logged).
     public const string LibraryScanRequest = "library.scan.request";
+
+    // 1.38.0 Artists' other names: an admin started / cancelled the MangaUpdates author look-up. Start result = the number of author ids
+    // (`ids_<n>`); never a name.
+    public const string MetadataAuthorsFetch = "metadata.authors_fetch";
+    public const string MetadataAuthorsFetchCancel = "metadata.authors_fetch_cancel";
 }
 
 /// <summary>Canonical audit result verbs (kept short — the column is 32 chars).</summary>

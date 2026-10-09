@@ -381,7 +381,7 @@ public sealed class MetadataLinkService
     /// "Delete fetched web data": removes every web link (confirmed / auto /
     /// needs_review, and 1.34.0 "Collection about" - it names a fetched record; "Don't match" and (1.37.0) "Artist folder" rows are
     /// kept - they are admin decisions, not fetched data) globally or for one library, then every record no link
-    /// references any more. ComicInfo data is local and untouched.
+    /// references any more, and (1.38.0) the stored author records no remaining record names. ComicInfo data is local and untouched.
     /// </summary>
     public async Task<(MetadataLinkResultCode Code, MetadataPurgeResultDto? Result)> PurgeAsync(
         string? libraryPublicId, string? actor, CancellationToken ct = default)
@@ -418,6 +418,15 @@ public sealed class MetadataLinkService
             ? await _db.MetadataRecords.Select(r => r.Id).ToListAsync(ct)
             : candidateRecordIds;
         var recordsRemoved = await DeleteOrphanRecordsAsync(recordIds, ct);
+
+        // 1.38.0: the stored author records (artists' other names) are fetched data too - all of them for a global purge, else the ones
+        // no remaining stored record names.
+        var authorsRemoved = libraryId is null
+            ? await Authors.MetadataAuthorStore.DeleteAllAsync(_db, ct)
+            : await Authors.MetadataAuthorStore.DeleteUnreferencedAsync(_db, ct);
+        if (authorsRemoved > 0)
+            _logger.LogInformation(LogEvents.Metadata.AuthorsPurged, "Metadata purge: {Authors} author records removed (library {LibraryId})",
+                authorsRemoved, libraryId);
 
         await _audit.RecordAsync(AuditActions.MetadataPurge, AuditResults.Success, actor, ct: ct, targetLibraryId: libraryId);
         _logger.LogInformation(LogEvents.Metadata.Purged, "Metadata purge: {Links} links and {Records} records removed (library {LibraryId})",
