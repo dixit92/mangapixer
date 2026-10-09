@@ -22,6 +22,7 @@ public sealed class SeriesLinkStateReaderSweepTests
     /// </summary>
     private static readonly Dictionary<string, string> Readers = new(StringComparer.Ordinal)
     {
+        ["src/MangaPixer.Core/Api/FolderMatchDtos.cs"] = "1.38.0: a preview row shows the folder's own state (any value; Confirmed / Auto / Don't match / collection / artist folder = decided, unticked)",
         ["src/MangaPixer.Core/Api/MetadataAutoMatchDtos.cs"] = "review DTOs carry the state; MarkArtistFolder bulk; ArtistFolders count; the row's Artist",
         ["src/MangaPixer.Core/Api/MetadataDtos.cs"] = "link DTOs carry the state (record fields null)",
         ["src/MangaPixer.Core/Api/MetadataMissingDtos.cs"] = "Missing rows are Confirmed / Auto only: never an artist folder",
@@ -46,6 +47,7 @@ public sealed class SeriesLinkStateReaderSweepTests
         ["src/MangaPixer.Server/Features/Library/Moves/MoveConflictService.cs"] = "moves like an admin decision; retires nothing below",
         ["src/MangaPixer.Server/Features/Library/Moves/MovePairing.cs"] = "IsAdminDecision: kept on a move; another admin row on the other side is a conflict",
         ["src/MangaPixer.Server/Features/Metadata/Artists/ArtistFolderService.cs"] = "set (declares the artist, queues the works) / clear only this state",
+        ["src/MangaPixer.Server/Features/Metadata/FolderMatch/FolderMatchService.cs"] = "1.38.0: reads the own row (Needs review is not a decision; the other five are) and Confirmed / Auto records to rank; writes only through the single actions",
         ["src/MangaPixer.Server/Features/Metadata/AutoMatch/AutoMatchWorkSelector.cs"] = "CoverBelow Opens: classified (the detector makes it an artist collection) and walked",
         ["src/MangaPixer.Server/Features/Metadata/AutoMatch/CoveredWorkRetirement.cs"] = "a linked series' retirement stops at an artist folder (OpensMatching)",
         ["src/MangaPixer.Server/Features/Metadata/AutoMatch/LibraryTreeSnapshot.cs"] = "artist folders with their declared artists for the detector / planner",

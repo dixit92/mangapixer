@@ -1,5 +1,6 @@
 namespace com.lifepixer.mangapixer.Tests.Core.Metadata.FolderMatch;
 
+using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Core.Metadata.FolderMatch;
 using Xunit;
@@ -20,16 +21,16 @@ public sealed class FolderNameMatcherTests
     public void FolderForms_AreTheWrittenNameAndTheMatchersCleanedVariants()
     {
         var forms = FolderNameMatcher.FolderForms("Moonlit Garden (Complete) [Digital]");
-        Assert.Equal("moonlit garden complete digital", forms[0]);
-        Assert.Contains("moonlit garden", forms);
+        Assert.Equal(TitleNormalizer.ScoringForm("Moonlit Garden Complete Digital"), forms[0]);
+        Assert.Contains(TitleNormalizer.ScoringForm("Moonlit Garden"), forms);
     }
 
     [Fact]
     public void FolderForms_KeepATrailingEnglishTitleAsASecondVariant()
     {
         var forms = FolderNameMatcher.FolderForms("Tsuki no Niwa [Moonlit Garden]");
-        Assert.Contains("tsuki no niwa", forms);
-        Assert.Contains("moonlit garden", forms);
+        Assert.Contains(TitleNormalizer.ScoringForm("Tsuki no Niwa"), forms);
+        Assert.Contains(TitleNormalizer.ScoringForm("Moonlit Garden"), forms);
     }
 
     [Fact]

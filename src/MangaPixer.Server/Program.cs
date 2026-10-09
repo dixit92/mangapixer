@@ -655,6 +655,8 @@ public sealed partial class Program
         services.AddScoped<Features.Metadata.Review.MetadataReviewService>();
         // "Collection about" (1.34.0): a folder of works about a series - set / clear / accept from review; queues the works inside.
         services.AddScoped<Features.Metadata.Collections.CollectionAboutService>();
+        // "Match folders by name" (1.38.0): mark several folders as artist folders / collections by stored names; never sends a request.
+        services.AddScoped<Features.Metadata.FolderMatch.FolderMatchService>();
         // "Artist folder" (1.37.0): a folder of one artist's works - mark / remove / mark from review; declares the artist, queues the works.
         services.AddScoped<Features.Metadata.Artists.ArtistFolderService>();
         // Artists' other names (1.38.0): stored MangaUpdates author records, read by "Match folders by name"; never sends a request.
