@@ -2,6 +2,7 @@ namespace com.lifepixer.mangapixer.Core.Metadata;
 
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 
 // Declared facts (1.28.0): facts an ADMIN states about a folder or a whole
 // library - the type / format of the works below it and their creators -
@@ -214,7 +215,7 @@ public static class DeclaredFactKeys
 /// Compares a declaration with a linked record (owner, 2026-09-27: when they disagree the Info panel shows BOTH
 /// with a clear conflict indication). Pure; a declaration never changes or vetoes the record here.
 /// </summary>
-public static class DeclaredFactsComparer
+public static partial class DeclaredFactsComparer
 {
     /// <summary>
     /// Whether a declared type contradicts what the record says about its origin and format. Unknown record
@@ -274,14 +275,38 @@ public static class DeclaredFactsComparer
     /// True when both sides name creators and not one declared name matches a record name. Names match on
     /// their folded word set, so word order, case, accents and punctuation do not matter
     /// (<c>ODA Eiichiro</c> = <c>Eiichiro Oda</c>); a spelling variant (<c>Eiichirou</c>) is a different name.
+    /// 1.39.0: a name with another name in brackets - MangaUpdates writes an author's alias that way, <c>Pen Name (Other Name)</c> -
+    /// matches by the whole name, by the name before the brackets and by each name inside them, on either side.
+    /// <paramref name="recordAliases"/> are more names of the record's creators (the stored author records' main and other names); they
+    /// count as record names but are not shown.
     /// </summary>
-    public static bool CreatorsConflict(IReadOnlyCollection<string> declared, IReadOnlyCollection<string> record)
+    public static bool CreatorsConflict(
+        IReadOnlyCollection<string> declared, IReadOnlyCollection<string> record, IEnumerable<string>? recordAliases = null)
     {
         if (declared.Count == 0 || record.Count == 0)
             return false;
-        var keys = record.Select(NameKey).Where(k => k.Length > 0).ToHashSet(StringComparer.Ordinal);
-        return keys.Count > 0 && !declared.Select(NameKey).Any(keys.Contains);
+        var keys = record.Concat(recordAliases ?? []).SelectMany(NameKeys).ToHashSet(StringComparer.Ordinal);
+        return keys.Count > 0 && !declared.SelectMany(NameKeys).Any(keys.Contains);
     }
+
+    /// <summary>
+    /// The <see cref="NameKey"/>s a name is known by: the whole name, and for <c>Name (Other)</c> / <c>Name [Other]</c> the name before
+    /// the brackets and each name inside them. Empty keys are dropped.
+    /// </summary>
+    public static IEnumerable<string> NameKeys(string name)
+    {
+        var keys = new List<string> { NameKey(name) };
+        var outside = BracketedName().Replace(name, " ");
+        if (!string.Equals(outside, name, StringComparison.Ordinal))
+        {
+            keys.Add(NameKey(outside));
+            keys.AddRange(BracketedName().Matches(name).Select(m => NameKey(m.Groups["inner"].Value)));
+        }
+        return keys.Where(k => k.Length > 0).Distinct(StringComparer.Ordinal);
+    }
+
+    [GeneratedRegex(@"[(\[](?<inner>[^()\[\]]+)[)\]]", RegexOptions.CultureInvariant)]
+    private static partial Regex BracketedName();
 
     /// <summary>Folded, order-free key of a person's name: lower-case words without accents or punctuation, sorted.</summary>
     public static string NameKey(string name)

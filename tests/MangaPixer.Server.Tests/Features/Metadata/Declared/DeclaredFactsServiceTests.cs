@@ -6,6 +6,7 @@ using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Admin;
 using com.lifepixer.mangapixer.Server.Features.Metadata;
+using com.lifepixer.mangapixer.Server.Features.Metadata.Authors;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Declared;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers;
 using com.lifepixer.mangapixer.Server.Persistence;
@@ -38,7 +39,8 @@ public sealed class DeclaredFactsServiceTests : IAsyncLifetime
         _t.Resolver(),
         new MetadataProviderRegistry([]),
         NullLogger<DeclaredFactsService>.Instance,
-        TimeProvider.System);
+        TimeProvider.System,
+        new StoredAuthorAliases(_t.Db));
 
     private DeclaredFactsReader Reader() => new(_t.Db);
 
@@ -364,6 +366,29 @@ public sealed class DeclaredFactsServiceTests : IAsyncLifetime
         // Don't match below the link: no record applies, so no conflict.
         await _t.AddLinkAsync(archive, null, SeriesLinkState.DontMatch);
         Assert.Null((await Service().ForNodeAsync(archive)).Conflict);
+    }
+
+    [Fact]
+    public async Task ForNode_ADeclaredOtherNameOfTheRecordsAuthor_IsNoConflict()
+    {
+        var series = await _t.AddFolderAsync(null, "Series");
+        var record = await _t.AddRecordAsync("9002", "Synthetic Pen Title");
+        record.CreatorsJson = MetadataJson.WriteList([new MetadataJson.Creator("Main Pen", "author", "4242")]);
+        await _t.Db.SaveChangesAsync();
+        await _t.AddLinkAsync(series, record);
+        await SetFolderAsync(series, Declare(null, ("Second Pen", "author")));
+
+        // No stored author record yet: the names differ.
+        Assert.True((await Service().ForNodeAsync(series)).Conflict!.Creators);
+
+        // Once "Artists' other names" stored the author, the declared pen name is one of them.
+        _t.Db.MetadataAuthors.Add(new MetadataAuthorEntity
+        {
+            Provider = "mangaupdates", ExternalId = "4242", Name = "Main Pen", OtherNamesJson = """["Second Pen"]""",
+            FetchedAt = DateTimeOffset.UnixEpoch, Status = 0,
+        });
+        await _t.Db.SaveChangesAsync();
+        Assert.Null((await Service().ForNodeAsync(series)).Conflict);
     }
 
     [Fact]

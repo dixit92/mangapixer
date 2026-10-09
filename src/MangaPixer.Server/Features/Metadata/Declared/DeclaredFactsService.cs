@@ -4,6 +4,7 @@ using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Admin;
+using com.lifepixer.mangapixer.Server.Features.Metadata.Authors;
 using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
@@ -31,6 +32,7 @@ public sealed class DeclaredFactsService
     private readonly Providers.MetadataProviderRegistry _providers;
     private readonly ILogger<DeclaredFactsService> _logger;
     private readonly TimeProvider _time;
+    private readonly IAuthorAliasSource _aliases;
 
     public DeclaredFactsService(
         MangaPixerDbContext db,
@@ -39,7 +41,8 @@ public sealed class DeclaredFactsService
         SeriesInfoResolver resolver,
         Providers.MetadataProviderRegistry providers,
         ILogger<DeclaredFactsService> logger,
-        TimeProvider time)
+        TimeProvider time,
+        IAuthorAliasSource aliases)
     {
         _db = db;
         _audit = audit;
@@ -48,6 +51,7 @@ public sealed class DeclaredFactsService
         _providers = providers;
         _logger = logger;
         _time = time;
+        _aliases = aliases;
     }
 
     // --- Admin: one scope ---
@@ -155,9 +159,23 @@ public sealed class DeclaredFactsService
             return null;
         var typeConflict = declared.TypeValue is { } type
             && DeclaredFactsComparer.TypeConflicts(type, (MetadataOrigin?)record.Origin, (MetadataFormat?)record.Format);
-        var recordCreators = MetadataJson.ReadList<MetadataJson.Creator>(record.CreatorsJson)
+        var credits = MetadataJson.ReadList<MetadataJson.Creator>(record.CreatorsJson);
+        var recordCreators = credits
             .Select(c => c.Name).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        var creatorConflict = DeclaredFactsComparer.CreatorsConflict(declared.Creators.Select(c => c.Name).ToList(), recordCreators);
+        var declaredNames = declared.Creators.Select(c => c.Name).ToList();
+        var creatorConflict = DeclaredFactsComparer.CreatorsConflict(declaredNames, recordCreators);
+        if (creatorConflict && record.Provider == MetadataProviderAllowlist.MangaUpdates)
+        {
+            // 1.39.0: a declared pen name is no conflict when it is one of the record author's other names (stored author records only -
+            // fetched when an admin asked; nothing is sent here).
+            var authorIds = credits.Select(c => c.ProviderId).OfType<string>().Where(id => id.Length > 0).ToList();
+            if (authorIds.Count > 0)
+            {
+                var stored = await _aliases.GetAsync(authorIds, ct);
+                creatorConflict = DeclaredFactsComparer.CreatorsConflict(
+                    declaredNames, recordCreators, stored.Values.SelectMany(a => a.OtherNames.Prepend(a.Name)));
+            }
+        }
         if (!typeConflict && !creatorConflict)
             return null;
         return new DeclaredFactsConflictDto

@@ -51,7 +51,8 @@ public sealed class ArtistFolderServiceTests : IAsyncLifetime
     private MetadataAutoMatchService Matcher() => _h.ServiceWithRealMatcher(new DeclaredFactsReader(_db.Db));
 
     private DeclaredFactsService Declared() => new(_db.Db, new AuditService(_db.Db), _db.Settings(), _db.Resolver(),
-        new MetadataProviderRegistry([]), NullLogger<DeclaredFactsService>.Instance, TimeProvider.System);
+        new MetadataProviderRegistry([]), NullLogger<DeclaredFactsService>.Instance, TimeProvider.System,
+        new com.lifepixer.mangapixer.Server.Features.Metadata.Authors.NoAuthorAliases());
 
     private ArtistFolderService Artists()
     {

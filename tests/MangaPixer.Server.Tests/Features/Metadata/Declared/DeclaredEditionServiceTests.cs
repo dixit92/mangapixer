@@ -4,6 +4,7 @@ using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Admin;
 using com.lifepixer.mangapixer.Server.Features.Metadata;
+using com.lifepixer.mangapixer.Server.Features.Metadata.Authors;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Declared;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers;
 using com.lifepixer.mangapixer.Tests.Server.Features.Metadata;
@@ -32,7 +33,8 @@ public sealed class DeclaredEditionServiceTests : IAsyncLifetime
         _t.Resolver(),
         new MetadataProviderRegistry([]),
         NullLogger<DeclaredFactsService>.Instance,
-        TimeProvider.System);
+        TimeProvider.System,
+        new StoredAuthorAliases(_t.Db));
 
     private static SetDeclaredEditionRequest Edition(int? volumes, DeclaredEdition? edition = null, bool tracking = true) =>
         new() { VolumeTotal = volumes, Edition = edition, Tracking = tracking };
