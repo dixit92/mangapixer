@@ -384,8 +384,12 @@ public sealed class DeclaredFactsServiceTests : IAsyncLifetime
         // Once "Artists' other names" stored the author, the declared pen name is one of them.
         _t.Db.MetadataAuthors.Add(new MetadataAuthorEntity
         {
-            Provider = "mangaupdates", ExternalId = "4242", Name = "Main Pen", OtherNamesJson = """["Second Pen"]""",
-            FetchedAt = DateTimeOffset.UnixEpoch, Status = 0,
+            Provider = "mangaupdates",
+            ExternalId = "4242",
+            Name = "Main Pen",
+            OtherNamesJson = """["Second Pen"]""",
+            FetchedAt = DateTimeOffset.UnixEpoch,
+            Status = 0,
         });
         await _t.Db.SaveChangesAsync();
         Assert.Null((await Service().ForNodeAsync(series)).Conflict);
