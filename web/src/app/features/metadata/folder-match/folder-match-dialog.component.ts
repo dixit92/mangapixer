@@ -283,9 +283,9 @@ export class FolderMatchDialogComponent implements OnDestroy {
   });
 
   readonly webEligibleCount = computed(() => this.rows().filter((r) => this.webEligible(r)).length);
-  /** The ticked folders not searched yet. */
-  readonly webQueue = computed(() => this.rows().filter((r) => this.webEligible(r) && r.webTicked && r.webText.trim().length > 0
-    && (r.webState === 'idle' || r.webState === 'waiting')));
+  /** The ticked folders not searched yet - none unless "Search the web for the rest" is ticked. */
+  readonly webQueue = computed(() => (this.web() ? this.rows() : []).filter((r) => this.webEligible(r) && r.webTicked
+    && r.webText.trim().length > 0 && (r.webState === 'idle' || r.webState === 'waiting')));
   readonly webQueueLabel = computed(() => {
     const n = this.webQueue().length;
     return n > MAX_WEB_SEARCHES ? `the first ${MAX_WEB_SEARCHES} of ${n}` : plural(n, 'folder', 'folders');
