@@ -193,7 +193,7 @@ public sealed class AuthorAliasLookupTests : IAsyncLifetime
         _h.Handler.Respond = _ =>
         {
             sentAt.Add(_clock.GetUtcNow());
-            return null; // the recorded fixtures answer
+            return null!; // the recorded fixtures answer
         };
 
         var run = await RunAsync();
@@ -284,7 +284,7 @@ public sealed class AuthorAliasLookupTests : IAsyncLifetime
         {
             // The admin turns "Fetch from the web" off while the first request is out.
             _t.Db.AppSettings.ExecuteUpdate(s => s.SetProperty(x => x.MetadataEnabled, false));
-            return null;
+            return null!;
         };
 
         var run = await RunAsync();
@@ -323,7 +323,7 @@ public sealed class AuthorAliasLookupTests : IAsyncLifetime
         await BerserkAsync();
         _h.Handler.Respond = r => r.RequestUri!.AbsolutePath.EndsWith("/38824888050", StringComparison.Ordinal)
             ? ScriptedHandler.Json("not json")
-            : null;
+            : null!;
 
         var run = await RunAsync();
 
@@ -342,7 +342,7 @@ public sealed class AuthorAliasLookupTests : IAsyncLifetime
         _h.Handler.Respond = _ =>
         {
             cts.Cancel(); // the admin presses Cancel while the first request is out
-            return null;
+            return null!;
         };
 
         var service = Service();

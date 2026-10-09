@@ -84,8 +84,8 @@ public sealed class ScriptedHandler : HttpMessageHandler
 
     public bool FailOnAnyRequest { get; set; }
 
-    /// <summary>Overrides the fixture routing when set; a null answer falls back to the fixture routing.</summary>
-    public Func<HttpRequestMessage, HttpResponseMessage?>? Respond { get; set; }
+    /// <summary>Overrides the fixture routing when set (a null answer falls back to the fixture routing).</summary>
+    public Func<HttpRequestMessage, HttpResponseMessage>? Respond { get; set; }
 
     public IReadOnlyList<SeenRequest> Seen => _seen.ToList();
     public int CallCount => _seen.Count;
