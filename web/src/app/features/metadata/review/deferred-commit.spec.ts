@@ -122,4 +122,16 @@ describe('DeferredCommitQueue', () => {
       expect(commit).toHaveBeenCalledTimes(1);
     });
   });
+
+  it('opens its snackbar with the extra config asked for at that moment (a phone lifts it above the bottom bar)', () => {
+    const { bar } = fakeSnackBar();
+    let lift = false;
+    const q = new DeferredCommitQueue(bar, 6000, () => (lift ? { panelClass: 'mp-snack-above-bar' } : {}));
+    q.run({ label: 'Accepted', commit: () => of('ok'), undone: vi.fn() });
+    lift = true;
+    q.run({ label: 'Accepted again', commit: () => of('ok'), undone: vi.fn() });
+    const open = bar.open as unknown as ReturnType<typeof vi.fn>;
+    expect(open.mock.calls[0][2]).toEqual({ duration: 6000 });
+    expect(open.mock.calls[1][2]).toEqual({ panelClass: 'mp-snack-above-bar', duration: 6000 });
+  });
 });

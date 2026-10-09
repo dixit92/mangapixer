@@ -12,7 +12,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatSnackBar, MatSnackBarConfig } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Observable, map } from 'rxjs';
 
@@ -380,7 +380,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
   readonly hidden = signal<ReadonlySet<string>>(new Set());
 
   readonly phone = signal(false);
-  private readonly queue = new DeferredCommitQueue(this.snackBar);
+  private readonly queue = new DeferredCommitQueue(this.snackBar, 6000, () => this.snackLift());
   private pressTimer: ReturnType<typeof setTimeout> | null = null;
   private pressFired = false;
 
@@ -408,6 +408,21 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
       default: return `Nothing in ${reviewTabDef(this.tab()).label}.`;
     }
   });
+
+  /**
+   * 1.37.1 (owner, on a phone): the snackbar opened at the bottom edge, over the bottom action bar's buttons. While that bar is shown, a
+   * snackbar opens just above it: the bar's height (it grows with the focused name and the safe area) is measured as it opens.
+   */
+  private snackLift(): MatSnackBarConfig {
+    const bar = this.phone() ? this.host.nativeElement.querySelector<HTMLElement>('[data-testid="review-bottombar"]') : null;
+    if (!bar) return {};
+    document.documentElement.style.setProperty('--mp-snack-lift', `${Math.ceil(bar.getBoundingClientRect().height)}px`);
+    return { panelClass: 'mp-snack-above-bar' };
+  }
+
+  private snack(message: string, action: string, config: MatSnackBarConfig) {
+    return this.snackBar.open(message, action, { ...this.snackLift(), ...config });
+  }
 
   ngOnInit(): void {
     this.tab.set(this.initialTab() === 'Flags' ? 'NeedsReview' : this.initialTab());
@@ -472,7 +487,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
         ReviewAuthorsSheetComponent, { data: list.items }).afterDismissed().subscribe((a) => {
         if (a) this.setGroup({ kind: 'author', key: a.key, label: a.label });
       }),
-      error: (err: ApiError) => this.snackBar.open(err?.message || 'The authors could not be loaded', 'Close', { duration: 4000 }),
+      error: (err: ApiError) => this.snack(err?.message || 'The authors could not be loaded', 'Close', { duration: 4000 }),
     });
   }
 
@@ -551,7 +566,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
       },
       error: (err: ApiError) => {
         this.loadingMore.set(false);
-        this.snackBar.open(err?.message || 'Could not load more', 'Close', { duration: 4000 });
+        this.snack(err?.message || 'Could not load more', 'Close', { duration: 4000 });
       },
     });
   }
@@ -751,7 +766,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
     return this.api.reviewBulk(action, rows.map((r) => r.nodeId)).pipe(map((result: MetadataReviewBulkResultDto) => {
       const failed = result.results.filter((r) => r.code !== 'ok');
       if (failed.length > 0) {
-        this.snackBar.open(`${plural(failed.length, 'item')} could not be changed (${failed[0].code})`, 'Close', { duration: 5000 });
+        this.snack(`${plural(failed.length, 'item')} could not be changed (${failed[0].code})`, 'Close', { duration: 5000 });
       }
       return failed.map((f) => f.nodeId);
     }));
@@ -778,7 +793,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
       },
       failed: (err) => {
         this.unhide(ids);
-        this.snackBar.open(`Failed: ${(err as ApiError)?.message ?? 'error'}`, 'Close', { duration: 5000 });
+        this.snack(`Failed: ${(err as ApiError)?.message ?? 'error'}`, 'Close', { duration: 5000 });
       },
     });
   }
@@ -799,10 +814,10 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
         const moved = this.applyLater(done, on);
         this.loadSummary();
         const what = done.length === 1 ? done[0].displayName : plural(done.length, 'item');
-        this.snackBar.open(`${on ? BULK_DONE.Later : BULK_DONE.ClearLater} ${what}`, 'Undo', { duration: 5000 })
+        this.snack(`${on ? BULK_DONE.Later : BULK_DONE.ClearLater} ${what}`, 'Undo', { duration: 5000 })
           .onAction().subscribe(() => this.setLater(moved, !on));
       },
-      error: (err: ApiError) => this.snackBar.open(`Failed: ${err?.message ?? 'error'}`, 'Close', { duration: 5000 }),
+      error: (err: ApiError) => this.snack(`Failed: ${err?.message ?? 'error'}`, 'Close', { duration: 5000 }),
     });
   }
 
@@ -851,9 +866,9 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
           this.forget([item.nodeId]);
           this.metadataState.refresh(result.targetNodeId);
           this.loadSummary();
-          this.snackBar.open(`Re-attached to ${result.targetName}`, 'Close', { duration: 3000 });
+          this.snack(`Re-attached to ${result.targetName}`, 'Close', { duration: 3000 });
         },
-        error: (err: ApiError) => this.snackBar.open(`Re-attach failed: ${err?.message ?? 'error'}`, 'Close', { duration: 5000 }),
+        error: (err: ApiError) => this.snack(`Re-attach failed: ${err?.message ?? 'error'}`, 'Close', { duration: 5000 }),
       });
     });
   }

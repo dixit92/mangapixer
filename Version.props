@@ -442,7 +442,10 @@
          scored by their title, the character a last review-only search; matcher rules revision 3. -->
     <!-- 1.35.1 - PATCH (2026-10-07): the chapter pace is the average since the series began (latest chapter / days since the start
          year) until two rises are observed; the series page names the pace that set the schedule. -->
-    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
+    <!-- 1.37.1 - PATCH (2026-10-09, integrator-direct, owner live check of 1.37.0 on a phone): the review page's Undo snackbar opens
+         above the phone bottom bar (its overlay pane lifted by the bar's measured height). Web only; no migration, API or dependency
+         change. -->
+    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
