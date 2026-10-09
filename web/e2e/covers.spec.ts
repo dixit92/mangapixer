@@ -190,3 +190,54 @@ test('a folder with series inside: their web covers come first, per series, and 
     await expect(page.getByTestId('cover-picker-current')).toHaveCount(0);
   }
 });
+
+test('a series folder offers the series poster next to its web covers, and it fits every screen', async ({ page }) => {
+  await login(page);
+  const libraryId = await ensureLibrary(page);
+  const series = (await children(page, libraryId)).find((n) => n.displayName === 'Synthetic Series')!;
+  const volumes = await children(page, libraryId, series.id);
+  const image = volumes.map((n) => n.coverUrl!).find(Boolean)!;
+  // Contract-shaped options (CoverOptionsDto.poster / web): the fixture library is never linked (no provider, no stored poster), so
+  // the poster tile and two volume covers are added to the real options. The server side is covered by the HTTP tests.
+  await page.route(`**/api/v1/nodes/${series.id}/cover-options`, async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.webAvailable = true;
+    body.webUnavailableReason = null;
+    body.web = [
+      { volume: 1, covers: [
+        { id: 'e2e-pv1', kind: 'Volume', volume: 1, variant: 0, locale: 'en', stored: true, imageUrl: image },
+        { id: 'e2e-pv2', kind: 'Volume', volume: 1, variant: 0, locale: 'ja', stored: true, imageUrl: image },
+      ] },
+    ];
+    body.poster = { imageUrl: image };
+    await route.fulfill({ response, json: body });
+  });
+
+  for (const [width, height, name] of [[1280, 900, 'desktop'], [820, 1180, 'tablet'], [390, 844, 'phone']] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`/libraries/${libraryId}/browse`);
+    await openPickerFor(page, 'Synthetic Series');
+    await expect(page.getByTestId('cover-pick-poster')).toBeVisible();
+    await expect(page.getByTestId('cover-pick-poster')).toContainText('Series poster');
+    await expect(page.locator('app-cover-picker-dialog h3.section')).toHaveText(["Another item's cover", 'Covers from the web']);
+    await expect(page.getByTestId('cover-picker-web-unavailable')).toHaveCount(0);
+    await expectFitsScreen(page, `the cover picker of a series folder with a poster (${name})`);
+    await shot(page, `covers-05-poster-${name}`);
+
+    // The poster can be picked; the apply button is reachable (nothing - a snackbar, an overlay - covers it).
+    await page.getByTestId('cover-pick-poster').click();
+    await expect(page.getByTestId('cover-pick-poster')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('cover-pick-automatic')).toHaveAttribute('aria-pressed', 'false');
+    const apply = page.getByTestId('cover-picker-apply');
+    await expect(apply).toBeEnabled();
+    const box = (await apply.boundingBox())!;
+    const topmost = await page.evaluate(([x, y]) => {
+      const el = document.elementFromPoint(x, y);
+      return !!el?.closest('[data-testid="cover-picker-apply"]');
+    }, [box.x + box.width / 2, box.y + box.height / 2]);
+    expect(topmost, 'the "Use this cover" button is the topmost element at its centre').toBe(true);
+    await page.getByTestId('cover-picker-cancel').click();
+    await expect(page.getByTestId('cover-picker-current')).toHaveCount(0);
+  }
+});

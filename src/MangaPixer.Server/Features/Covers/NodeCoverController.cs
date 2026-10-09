@@ -18,7 +18,7 @@ using Microsoft.EntityFrameworkCore;
 /// <item><c>GET /nodes/{nodeId}/cover?v=</c> - the node's CURRENT resolved cover (choice > pin > automatic > file), for anyone
 /// with access to its library; the current token caches for a year, any other revalidates (<see cref="CoverCaching"/>).</item>
 /// <item>Admin: <c>GET /nodes/{nodeId}/cover-options</c>, <c>PUT</c> / <c>DELETE /nodes/{nodeId}/cover-choice</c>,
-/// <c>GET /nodes/{archiveId}/cover-crops/{left|right}</c> (picker previews).</item>
+/// <c>GET /nodes/{archiveId}/cover-crops/{left|right}</c> and <c>GET /nodes/{folderId}/cover-poster</c> (picker previews).</item>
 /// </list>
 /// Web covers reach non-admins only through a node (library access + the "Show saved web covers" rule). Every layered
 /// image falls back to the node's file thumbnail when its own file is missing. No path, title or name is logged.
@@ -148,6 +148,24 @@ public sealed class NodeCoverController : ControllerBase
             return NotFound(new ApiError { Error = "crop_unavailable", Message = "The page could not be cropped." });
         Response.Headers.CacheControl = CoverCaching.Revalidate;
         return File(stream, "image/webp");
+    }
+
+    /// <summary>
+    /// 1.39.0: the picker preview of a folder's linked series poster (admin). Served from the stored poster only - never a request;
+    /// 404 when the folder is not linked to a series record with a stored poster. Not behind "series information hidden": the cover
+    /// choice has its own rules.
+    /// </summary>
+    [HttpGet("cover-poster")]
+    [Authorize(Policy = "Admin")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPoster(string nodeId, CancellationToken ct)
+    {
+        var record = await _picker.PosterRecordOfAsync(nodeId, ct);
+        if (record is null || _posters.Open(record.Id, record.ImageVersion) is not { } poster)
+            return NotFound();
+        Response.Headers.CacheControl = "private, max-age=31536000, immutable";
+        Response.Headers.XContentTypeOptions = "nosniff";
+        return File(poster.Stream, poster.ContentType);
     }
 
     [HttpGet("cover-options")]

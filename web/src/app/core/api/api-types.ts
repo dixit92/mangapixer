@@ -2385,7 +2385,7 @@ export interface OfficialReleasesPageDto {
   language: string;
 }
 
-export type CoverMode = 'Automatic' | 'FilePinned' | 'Archive' | 'VolumeCover' | 'Crop';
+export type CoverMode = 'Automatic' | 'FilePinned' | 'Archive' | 'VolumeCover' | 'Crop' | 'Poster';
 export type CoverOptionKind = 'File' | 'CropLeft' | 'CropRight' | 'Archive';
 export type VolumeCoverKind = 'Volume' | 'Main';
 export type CoverCropSide = 'Left' | 'Right';
@@ -2444,6 +2444,14 @@ export interface CoverOptionsDto {
   webSeries?: WebCoverSeriesDto[];
   /** How many more series below have stored covers than `webSeries` lists. */
   webSeriesMore?: number;
+  /** 1.39.0: the stored poster of the folder's linked series (a choice of its own: `mode: 'Poster'`), or null. */
+  poster?: CoverPosterOptionDto | null;
+}
+
+/** 1.39.0: the series poster as a picker tile (choosing it sends `mode: 'Poster'` only). */
+export interface CoverPosterOptionDto {
+  /** The admin preview, versioned by the record and its image version. */
+  imageUrl: string;
 }
 
 /** PUT /nodes/{nodeId}/cover-choice (admin, lane C). */

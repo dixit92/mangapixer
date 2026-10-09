@@ -176,6 +176,9 @@ public enum CoverMode
     Archive = 2,
     VolumeCover = 3,
     Crop = 4,
+
+    /// <summary>1.39.0: the linked series' stored poster.</summary>
+    Poster = 5,
 }
 
 /// <summary>A node's current cover.</summary>
@@ -213,6 +216,16 @@ public sealed record CoverOptionDto
 
     public required string ImageUrl { get; init; }
     public required string Label { get; init; }
+}
+
+/// <summary>
+/// 1.39.0: the stored poster of the series a folder is linked to, as a picker tile. It is not a request body: choosing it sends
+/// <c>Mode = Poster</c> only (the record is always the folder's nearest link's at resolve time).
+/// </summary>
+public sealed record CoverPosterOptionDto
+{
+    /// <summary>The picker preview (<c>GET /nodes/{nodeId}/cover-poster</c>, admin), versioned by the record and its image version.</summary>
+    public required string ImageUrl { get; init; }
 }
 
 /// <summary>A known web cover (a <c>volume_covers</c> row).</summary>
@@ -282,6 +295,12 @@ public sealed record CoverOptionsDto
 
     /// <summary>How many more series below have stored web covers than <see cref="WebSeries"/> lists.</summary>
     public int WebSeriesMore { get; init; }
+
+    /// <summary>
+    /// 1.39.0: the stored poster of the folder's linked series (own or inherited Confirmed / Auto link), or null: no link, no stored poster,
+    /// the web layer closed (<see cref="WebUnavailableReason"/> says why), a file, or a folder that is not a series itself.
+    /// </summary>
+    public CoverPosterOptionDto? Poster { get; init; }
 }
 
 /// <summary>Sets a node's cover (<c>PUT /nodes/{nodeId}/cover-choice</c>, admin).</summary>
