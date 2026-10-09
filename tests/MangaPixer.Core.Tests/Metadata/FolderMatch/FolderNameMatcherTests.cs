@@ -248,4 +248,44 @@ public sealed class FolderNameMatcherTests
         var hits = index.Match("Shared Title");
         Assert.Equal([30L, 20L], hits.Select(h => h.RecordId));
     }
+
+    // --- 1.39.0: "Circle (Artist)" folders ---
+
+    [Theory]
+    [InlineData("Night Owl Circle (Family Given)")]
+    [InlineData("[Night Owl Circle (Family Given)]")]
+    public void ArtistIndex_FindsTheArtistInsideACircleArtistName(string folder)
+    {
+        var index = new ArtistNameIndex(FolderNameMatcher.GroupArtists([Mu("101", "Family Given", "author", 1)]));
+
+        Assert.Equal("Family Given", Assert.Single(index.Match(folder)).DeclaredName);
+    }
+
+    [Fact]
+    public void ArtistIndex_FindsTheCircleToo_AndBothKnownAreTwoMatches()
+    {
+        var index = new ArtistNameIndex(FolderNameMatcher.GroupArtists([
+            Mu("101", "Family Given", "author", 1),
+            Mu("202", "Night Owl Circle", "artist", 2),
+        ]));
+
+        Assert.Equal("Night Owl Circle", Assert.Single(index.Match("Night Owl Circle (Unknown Person)")).DeclaredName);
+        Assert.Equal(["Family Given", "Night Owl Circle"], index.Match("Night Owl Circle (Family Given)").Select(a => a.DeclaredName).Order());
+    }
+
+    [Theory]
+    [InlineData("Moonlit Garden (2019)")]
+    [InlineData("Moonlit Garden (Digital)")]
+    public void ArtistForms_SkipABracketThatIsAYearOrATag(string folder)
+    {
+        Assert.Equal(FolderNameMatcher.FolderForms(folder), FolderNameMatcher.ArtistForms(folder));
+    }
+
+    [Fact]
+    public void TitleIndex_DoesNotUseTheBracketNames()
+    {
+        var index = new TitleNameIndex([new TitledRecord(7, "Family Given", [])]);
+
+        Assert.Empty(index.Match("Night Owl Circle (Family Given)"));
+    }
 }
