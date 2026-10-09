@@ -45,6 +45,14 @@ describe('DeclaredFactsApiService', () => {
     expect(api.version()).toBe(1);
   });
 
+  it('saves a folder\'s own edition facts at their own URL (1.39.0)', () => {
+    api.setEdition('f 1', { volumeTotal: 12, edition: 'Omnibus', tracking: false }).subscribe();
+    const put = http.expectOne({ method: 'PUT', url: '/api/v1/admin/metadata/folders/f%201/declared/edition' });
+    expect(put.request.body).toEqual({ volumeTotal: 12, edition: 'Omnibus', tracking: false });
+    put.flush(SCOPE);
+    expect(api.version()).toBe(1);
+  });
+
   it('reads the node view', () => {
     api.forNode('n/1').subscribe();
     http.expectOne({ method: 'GET', url: '/api/v1/nodes/n%2F1/declared-facts' }).flush({ nodeId: 'n/1', effective: {} });

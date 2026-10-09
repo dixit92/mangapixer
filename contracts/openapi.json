@@ -5060,6 +5060,85 @@
         }
       }
     },
+    "/api/v1/admin/metadata/folders/{nodeId}/declared/edition": {
+      "put": {
+        "tags": [
+          "DeclaredFactsAdmin"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetDeclaredEditionRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetDeclaredEditionRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/SetDeclaredEditionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeclaredFactsScopeDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeclaredFactsScopeDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeclaredFactsScopeDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/metadata/libraries/{libraryId}/declared": {
       "get": {
         "tags": [
@@ -10316,6 +10395,36 @@
           }
         }
       },
+      "DeclaredEdition": {
+        "type": "integer"
+      },
+      "DeclaredEditionDto": {
+        "type": "object",
+        "properties": {
+          "volumeTotal": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "edition": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DeclaredEdition"
+              }
+            ]
+          },
+          "tracking": {
+            "type": "boolean"
+          }
+        }
+      },
       "DeclaredFactsConflictDto": {
         "required": [
           "providerName"
@@ -10395,6 +10504,16 @@
             "items": {
               "$ref": "#/components/schemas/DeclaredCreatorDto"
             }
+          },
+          "edition": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DeclaredEditionDto"
+              }
+            ]
           }
         }
       },
@@ -10620,6 +10739,21 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "volumeTotalOverride": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "edition": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -10771,6 +10905,12 @@
             "items": {
               "$ref": "#/components/schemas/ExportDuplicateDto"
             }
+          },
+          "tracking": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -14557,6 +14697,14 @@
               "string"
             ],
             "format": "int32"
+          },
+          "notTracked": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -15118,6 +15266,16 @@
                 "$ref": "#/components/schemas/DeclaredFactsConflictDto"
               }
             ]
+          },
+          "edition": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DeclaredEditionDto"
+              }
+            ]
           }
         }
       },
@@ -15355,6 +15513,14 @@
             "format": "int32"
           },
           "cantTell": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "notTracked": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "integer",
@@ -16361,6 +16527,28 @@
           },
           "answerReason": {
             "$ref": "#/components/schemas/SeriesAnswerReason"
+          },
+          "volumeTotalOverride": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "edition": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DeclaredEdition"
+              }
+            ]
+          },
+          "trackingOff": {
+            "type": "boolean"
           }
         }
       },
@@ -16645,6 +16833,33 @@
             ]
           },
           "setDoujinContent": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SetDeclaredEditionRequest": {
+        "type": "object",
+        "properties": {
+          "volumeTotal": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "edition": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DeclaredEdition"
+              }
+            ]
+          },
+          "tracking": {
             "type": "boolean"
           }
         }

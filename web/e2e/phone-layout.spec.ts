@@ -170,6 +170,14 @@ test('the declared-facts dialog and its type list fit a phone and a tablet scree
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-declared-facts.png` });
     for (const p of await layoutProblems(page)) failures.push(`${size.width} px declared facts: ${p.kind}: ${p.what} - ${p.detail}`);
 
+    // 1.39.0: the folder's own edition - the volumes field, the edition select and "Track completion" off with its note.
+    await page.getByTestId('declared-tracking').getByRole('switch').click();
+    await expect(page.getByTestId('declared-tracking-off')).toBeVisible();
+    await page.getByTestId('declared-tracking-off').scrollIntoViewIfNeeded();
+    await settle(page);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-declared-edition.png` });
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px declared edition: ${p.kind}: ${p.what} - ${p.detail}`);
+
     // Open the type list with the keyboard (a closed mat-select is driven by keys, 1.29.0 CI flake).
     await page.getByTestId('declared-type-select').focus();
     await page.keyboard.press('Enter');
@@ -181,6 +189,29 @@ test('the declared-facts dialog and its type list fit a phone and a tablet scree
     await page.keyboard.press('Escape');
   }
   expect(failures, `declared-facts dialog does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
+});
+
+test('a folder declares its own edition and turns completion tracking off; the declared line says so (1.39.0)', async ({ page }) => {
+  test.setTimeout(120_000);
+  await login(page);
+  const [, folderId] = await ensureLibrary(page);
+  const headers = await csrf(page.request);
+  try {
+    await page.setViewportSize(SIZES[0]);
+    await page.goto(`/series/${folderId}`);
+    await page.getByTestId('series-admin-menu').click();
+    await page.getByTestId('declared-facts').click();
+    await page.getByTestId('declared-volumes').fill('12');
+    await page.getByTestId('declared-tracking').getByRole('switch').click();
+    const saved = page.waitForResponse((r) => r.url().endsWith(`/folders/${folderId}/declared/edition`) && r.request().method() === 'PUT');
+    await page.getByTestId('declared-save').click();
+    expect((await saved).status()).toBe(200);
+    await expect(page.getByTestId('declared-edition')).toHaveText('12 volumes · Completion not tracked');
+    await expectFitsScreen(page, 'series page with a declared edition');
+  } finally {
+    // The volume library is shared with the Volumes view specs: leave nothing declared on its series folder.
+    await page.request.delete(`/api/v1/admin/metadata/folders/${folderId}/declared`, { headers });
+  }
 });
 
 test('the admin trash card with held libraries and a confirm step fits a phone and a tablet screen', async ({ page }) => {
