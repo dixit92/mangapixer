@@ -168,7 +168,7 @@ public sealed class ExportUnitTests
     public void Include_DefaultsToEveryBlock_AndRefusesUnknownNames()
     {
         Assert.True(ExportService.TryParseInclude(null, out var all));
-        Assert.Equal(["completion", "refresh", "volumes"], all.Order());
+        Assert.Equal(["completion", "duplicates", "refresh", "volumes"], all.Order());
         Assert.True(ExportService.TryParseInclude("volumes, refresh", out var two));
         Assert.Equal(["refresh", "volumes"], two.Order());
         Assert.True(ExportService.TryParseInclude("", out var none));

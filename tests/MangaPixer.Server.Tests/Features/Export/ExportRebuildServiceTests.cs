@@ -413,9 +413,10 @@ public sealed class ExportRebuildServiceTests
         var duplicate = Assert.Single(items[series.PublicId].GetProperty("duplicates").EnumerateArray());
         Assert.Equal(("Chapter", "1"), (duplicate.GetProperty("kind").GetString(), duplicate.GetProperty("number").GetString()));
         var files = duplicate.GetProperty("files").EnumerateArray().ToList();
-        Assert.Equal([first.PublicId, again.PublicId], files.Select(f => f.GetProperty("nodeId").GetString()));
-        Assert.Equal(["Synthetic Series c001.cbz", "Synthetic Series c001 [v2].cbz"], files.Select(f => f.GetProperty("name").GetString()));
-        Assert.Equal("Synthetic Series", files[0].GetProperty("folder").GetString());
+        // In the folder's name order (a space sorts before the dot).
+        Assert.Equal([again.PublicId, first.PublicId], files.Select(f => f.GetProperty("nodeId").GetString()));
+        Assert.Equal(["Synthetic Series c001 [v2].cbz", "Synthetic Series c001.cbz"], files.Select(f => f.GetProperty("name").GetString()));
+        Assert.Equal(JsonValueKind.Null, files[0].GetProperty("folder").ValueKind); // in the series folder itself
         // No duplicates: the key is left out, so the item's stored form (and its fingerprint) is what it was before 1.38.0.
         Assert.False(items[clean.PublicId].TryGetProperty("duplicates", out _));
 
