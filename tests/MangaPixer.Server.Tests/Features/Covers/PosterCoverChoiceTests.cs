@@ -225,12 +225,7 @@ public sealed class PosterCoverChoiceTests
         Assert.True(await kit.Db.Db.NodeCoverChoices.AnyAsync(c => c.NodeId == series.Folder.Id));
 
         // The link is back: so is the poster, at the same URL.
-        kit.Db.Db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
-        {
-            NodeId = series.Folder.Id, LibraryId = series.Folder.LibraryId, State = (int)SeriesLinkState.Auto,
-            RecordId = series.Record.Id, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
-        });
-        await kit.Db.Db.SaveChangesAsync();
+        await kit.Db.AddLinkAsync(series.Folder, series.Record, SeriesLinkState.Auto);
         Assert.Equal(chosen.Url, (await ResolveAsync(kit, series.Folder)).Url);
 
         // No stored poster any more.
