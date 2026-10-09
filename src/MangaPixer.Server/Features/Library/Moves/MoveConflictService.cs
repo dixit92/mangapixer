@@ -307,6 +307,10 @@ public sealed class MoveConflictService
         from.NodeId = toId;
         from.LibraryId = target.LibraryId;
         from.UpdatedAt = now;
+        // 1.37.0: as folder carry-over does (1.33.0), the metadata export shows the old node's id as the new item's carriedFrom
+        // instead of a removal + an addition.
+        var fromPublicId = await _db.CatalogNodes.AsNoTracking().Where(n => n.Id == fromId).Select(n => n.PublicId).FirstAsync(ct);
+        _db.ExportCarries.Add(new ExportCarryEntity { NewNodeId = toId, OldNodeId = fromId, OldNodePublicId = fromPublicId, At = now });
         await _db.SaveChangesAsync(ct);
         // As after an admin link: a folder linked or marked Don't match speaks for its subtree.
         // (A "Collection about" row retires nothing: its items are works of their own, 1.34.0.)

@@ -28,6 +28,8 @@ import {
 import { REVIEW_TABS, plural, reviewTabDef } from '../admin-metadata/metadata-admin-labels';
 import { IdentifyDialogService, IdentifyMode } from '../identify-dialog/identify-dialog.service';
 import { collectionLabel } from '../collection-labels';
+import { artistFolderLabel } from '../artist-folder/artist-folder-labels';
+import { ArtistFolderDialogService } from '../artist-folder/artist-folder-dialog.service';
 import { MetadataApiService, ReviewListFilter } from '../metadata-api.service';
 import { MetadataReviewStateService } from '../metadata-review-state.service';
 import { MetadataStateService } from '../metadata-state.service';
@@ -60,6 +62,8 @@ export function bulkActions(tab: MetadataReviewTab): BulkDef[] {
         { action: 'AcceptTop', label: 'Accept top candidates', short: 'Accept', icon: 'done_all' },
         // 1.34.0: the rows that look like a collection about a series (the others answer "no suggestion").
         { action: 'AcceptCollection', label: 'Accept as collections', short: 'Collections', icon: 'collections_bookmark' },
+        // 1.37.0: each selected folder becomes an artist folder named after itself (archives answer "not a folder").
+        { action: 'MarkArtistFolder', label: 'Artist folders', short: 'Artists', icon: 'palette' },
         { action: 'DontMatch', label: 'Don\'t match', icon: 'block' },
         { action: 'RerunMatching', label: 'Re-run matching', short: 'Re-run', icon: 'refresh' },
         { action: 'Later', label: 'Later', icon: 'schedule' },
@@ -72,6 +76,7 @@ export function bulkActions(tab: MetadataReviewTab): BulkDef[] {
       ];
     case 'Unmatched':
       return [
+        { action: 'MarkArtistFolder', label: 'Artist folders', short: 'Artists', icon: 'palette' },
         { action: 'DontMatch', label: 'Don\'t match', icon: 'block' },
         { action: 'RerunMatching', label: 'Re-run matching', icon: 'refresh' },
       ];
@@ -91,6 +96,7 @@ const BULK_DONE: Record<MetadataReviewBulkAction, string> = {
   Later: 'Set aside for later:',
   ClearLater: 'Back in the list:',
   AcceptCollection: 'Accepted as collections:',
+  MarkArtistFolder: 'Marked artist folders:',
 };
 
 /** The review action a single-row action sends through `review/bulk`. */
@@ -201,7 +207,7 @@ const ROW_BULK: Partial<Record<ReviewRowAction, MetadataReviewBulkAction>> = {
             Select all {{ visible().length }} shown
           </mat-checkbox>
           @if (!phone()) {
-            <span class="keys">j/k move · a accept · f collection · d don't match · i identify · l later · g same author · x select · e covers</span>
+            <span class="keys">j/k move · a accept · f collection · r artist folder · d don't match · i identify · l later · g same author · x select · e covers</span>
           }
         </div>
       }
@@ -331,6 +337,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
   private readonly reviewState = inject(MetadataReviewStateService);
   private readonly metadataState = inject(MetadataStateService);
   private readonly identifyDialog = inject(IdentifyDialogService);
+  private readonly artistDialog = inject(ArtistFolderDialogService);
   private readonly dialog = inject(MatDialog);
   private readonly bottomSheet = inject(MatBottomSheet);
   private readonly snackBar = inject(MatSnackBar);
@@ -397,7 +404,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
     switch (this.tab()) {
       case 'NeedsReview': return 'Nothing waits for review.';
       case 'MissingFolders': return 'No links are left on missing folders.';
-      case 'Collections': return 'No folder is marked as a collection about a series.';
+      case 'Collections': return 'No folder is marked as a collection about a series or as an artist\'s folder.';
       default: return `Nothing in ${reviewTabDef(this.tab()).label}.`;
     }
   });
@@ -416,7 +423,10 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
   }
 
   count(key: keyof MetadataReviewSummaryDto): number {
-    return this.summary()?.[key] ?? 0;
+    const summary = this.summary();
+    if (!summary) return 0;
+    // 1.37.0: the Collections tab lists the artist folders too.
+    return key === 'collections' ? summary.collections + (summary.artistFolders ?? 0) : summary[key] ?? 0;
   }
 
   setTab(tab: MetadataReviewTab): void {
@@ -681,6 +691,12 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
       case 'clearCollection':
         this.defer([item], `Collection cleared on ${item.displayName}`, () => none(this.api.clearCollection(item.nodeId)));
         return;
+      case 'artistFolder':
+        void this.markArtistFolder(item);
+        return;
+      case 'clearArtistFolder':
+        this.defer([item], `Artist folder removed from ${item.displayName}`, () => none(this.api.clearArtistFolder(item.nodeId)));
+        return;
       case 'changeCollection':
       case 'collectionAbout':
         this.identify(item, 'collection');
@@ -707,6 +723,16 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
         this.defer([item], `${BULK_DONE[bulk]} ${item.displayName}`, () => this.bulkCall(bulk, [item]));
       }
     }
+  }
+
+  /**
+   * 1.37.0 (key r): asks for the artist (the folder's name by default), then marks the folder an artist's folder after the Undo window -
+   * its row goes, the artist is declared and its works are queued.
+   */
+  private async markArtistFolder(item: MetadataReviewItemDto): Promise<void> {
+    const artist = await this.artistDialog.open(item.displayName);
+    if (!artist) return;
+    this.defer([item], `${artistFolderLabel(artist.name)} - ${item.displayName}`, () => none(this.api.acceptArtist(item.nodeId, artist)));
   }
 
   runBulk(action: MetadataReviewBulkAction): void {

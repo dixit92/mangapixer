@@ -309,6 +309,31 @@
         "nextDueAt": "2026-12-29T12:00:00.000Z",
         "intervalDays": 90
       }
+    },
+    {
+      "nodeId": "n0017",
+      "nodeKind": "folder",
+      "carriedFrom": null,
+      "trail": [
+        "Doujin",
+        "Sample Artist"
+      ],
+      "updatedAt": "2026-10-04T12:00:00.000Z",
+      "link": {
+        "state": "ArtistFolder",
+        "method": null,
+        "score": null,
+        "updatedAt": "2026-09-28T12:00:00.000Z"
+      },
+      "record": null,
+      "companions": {
+        "mangadex": null,
+        "anilist": null
+      },
+      "officialLinks": [],
+      "volumes": null,
+      "completion": null,
+      "refresh": null
     }
   ],
   "removed": [

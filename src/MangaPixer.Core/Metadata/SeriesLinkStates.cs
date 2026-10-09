@@ -11,30 +11,34 @@ public static class SeriesLinkStates
     public static bool IsSeries(SeriesLinkState state) => state switch
     {
         SeriesLinkState.Confirmed or SeriesLinkState.Auto => true,
-        SeriesLinkState.NeedsReview or SeriesLinkState.DontMatch or SeriesLinkState.CollectionAbout => false,
+        SeriesLinkState.NeedsReview or SeriesLinkState.DontMatch or SeriesLinkState.CollectionAbout or SeriesLinkState.ArtistFolder => false,
         _ => throw Unknown(state),
     };
 
     /// <summary>The nearest-row walk (self, then ancestors) stops at this row; Needs review is skipped (not a decision yet).</summary>
     public static bool StopsInheritance(SeriesLinkState state) => state switch
     {
-        SeriesLinkState.Confirmed or SeriesLinkState.Auto or SeriesLinkState.DontMatch or SeriesLinkState.CollectionAbout => true,
+        SeriesLinkState.Confirmed or SeriesLinkState.Auto or SeriesLinkState.DontMatch or SeriesLinkState.CollectionAbout
+            or SeriesLinkState.ArtistFolder => true,
         SeriesLinkState.NeedsReview => false,
         _ => throw Unknown(state),
     };
 
-    /// <summary>The node's OWN series information shows the linked record (a collection: as "Collection about", without numbers).</summary>
+    /// <summary>
+    /// The node's OWN series information shows the linked record (a collection: as "Collection about", without numbers). An artist
+    /// folder (1.37.0) has no record.
+    /// </summary>
     public static bool ShowsRecordOnSelf(SeriesLinkState state) => state switch
     {
         SeriesLinkState.Confirmed or SeriesLinkState.Auto or SeriesLinkState.CollectionAbout => true,
-        SeriesLinkState.NeedsReview or SeriesLinkState.DontMatch => false,
+        SeriesLinkState.NeedsReview or SeriesLinkState.DontMatch or SeriesLinkState.ArtistFolder => false,
         _ => throw Unknown(state),
     };
 
     /// <summary>An admin decision: on a move it wins over an automatic suggestion, a different one is a conflict.</summary>
     public static bool IsAdminDecision(SeriesLinkState state) => state switch
     {
-        SeriesLinkState.Confirmed or SeriesLinkState.DontMatch or SeriesLinkState.CollectionAbout => true,
+        SeriesLinkState.Confirmed or SeriesLinkState.DontMatch or SeriesLinkState.CollectionAbout or SeriesLinkState.ArtistFolder => true,
         SeriesLinkState.Auto or SeriesLinkState.NeedsReview => false,
         _ => throw Unknown(state),
     };
@@ -44,7 +48,7 @@ public static class SeriesLinkStates
     {
         SeriesLinkState.Confirmed or SeriesLinkState.Auto => MatchingCoverKind.Covers,
         SeriesLinkState.DontMatch or SeriesLinkState.NeedsReview => MatchingCoverKind.Blocks,
-        SeriesLinkState.CollectionAbout => MatchingCoverKind.Opens,
+        SeriesLinkState.CollectionAbout or SeriesLinkState.ArtistFolder => MatchingCoverKind.Opens,
         _ => throw Unknown(state),
     };
 
@@ -61,7 +65,7 @@ public enum MatchingCoverKind
     /// <summary>Nothing below is matched, whatever is nearer (Don't match: privacy; Needs review: undecided).</summary>
     Blocks = 1,
 
-    /// <summary>A collection: its items are works of their own, matched automatically.</summary>
+    /// <summary>A collection or (1.37.0) an artist folder: its items are works of their own, matched automatically.</summary>
     Opens = 2,
 }
 

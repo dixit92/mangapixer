@@ -437,6 +437,57 @@ public sealed class ApiTokenHttpTests
         Assert.Single(await admin.GetFromJsonAsync<List<ApiTokenDto>>("/api/v1/admin/tokens", TestJson.Web) ?? []);
     }
 
+    [Fact]
+    public async Task ClearRevoked_RemovesOnlyRevokedAndExpiredTokens_AuditsEach_AndNeedsAnAdminCookieWithCsrf()
+    {
+        await using var factory = new ApiTokenTestFactory();
+        var admin = await factory.AdminAsync();
+        var active = await factory.CreateTokenAsync("active");
+        var revoked = await factory.CreateTokenAsync("revoked");
+        var expired = await factory.CreateTokenAsync("expired", 30);
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.PostAsync($"/api/v1/admin/tokens/{revoked.Token.Id}/revoke", null)).StatusCode);
+        await factory.CreateUserAsync("second", "Second-Admin-Pass-1!", isAdmin: true);
+        var second = await factory.LoginAsync("second", "Second-Admin-Pass-1!");
+        var paused = await factory.CreateTokenAsync("paused", client: second);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+            var past = DateTimeOffset.UtcNow.AddMinutes(-1);
+            await db.ApiTokens.Where(t => t.PublicId == expired.Token.Id).ExecuteUpdateAsync(s => s.SetProperty(t => t.ExpiresAt, past));
+            // Its admin is demoted: the token is paused (it works again if they are an admin again), so it is kept.
+            await db.Users.Where(u => u.NormalizedUserName == "SECOND").ExecuteUpdateAsync(s => s.SetProperty(u => u.IsAdmin, false));
+        }
+
+        // A token cannot clear anything (cookie only), and a cookie POST without the CSRF header is refused.
+        var anonymous = await factory.CreateClient().PostAsync("/api/v1/admin/tokens/clear-revoked", null);
+        var withToken = await factory.BearerClient(active.Secret).PostAsync("/api/v1/admin/tokens/clear-revoked", null);
+        Assert.Equal(anonymous.StatusCode, withToken.StatusCode);
+        Assert.False(withToken.IsSuccessStatusCode);
+        var noCsrf = factory.CreateClient();
+        await noCsrf.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest { Username = "admin", Password = ApiTokenTestFactory.AdminPassword });
+        Assert.Equal(HttpStatusCode.BadRequest, (await noCsrf.PostAsync("/api/v1/admin/tokens/clear-revoked", null)).StatusCode);
+        Assert.Equal(4, (await admin.GetFromJsonAsync<List<ApiTokenDto>>("/api/v1/admin/tokens", TestJson.Web))!.Count);
+
+        var response = await admin.PostAsync("/api/v1/admin/tokens/clear-revoked", null);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(2, (await response.Content.ReadFromJsonAsync<ClearApiTokensResponse>(TestJson.Web))!.Removed);
+
+        var left = (await admin.GetFromJsonAsync<List<ApiTokenDto>>("/api/v1/admin/tokens", TestJson.Web))!;
+        Assert.Equal(new[] { paused.Token.Id, active.Token.Id }.Order(), left.Select(t => t.Id).Order());
+        Assert.Equal(HttpStatusCode.OK, (await factory.BearerClient(active.Secret).GetAsync(Ping)).StatusCode); // untouched
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+            var deleted = await db.AuditEvents.AsNoTracking().Where(a => a.Action == "api_token.delete").Select(a => a.CorrelationId).ToListAsync();
+            Assert.Equal(new[] { revoked.Token.Id, expired.Token.Id }.Order(), deleted.Order());
+        }
+        Assert.DoesNotContain(revoked.Secret, factory.CapturedLogText(), StringComparison.Ordinal);
+
+        // Nothing left to clear: still 200, zero removed.
+        var again = await admin.PostAsync("/api/v1/admin/tokens/clear-revoked", null);
+        Assert.Equal(0, (await again.Content.ReadFromJsonAsync<ClearApiTokensResponse>(TestJson.Web))!.Removed);
+    }
+
     /// <summary>The route pattern with every parameter filled with a placeholder.</summary>
     private static string Concrete(RoutePattern pattern)
     {

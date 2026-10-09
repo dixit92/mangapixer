@@ -132,6 +132,12 @@ public enum VolumeEntryKind
     /// or a volume released in the preferred language after it. A placeholder, never opened.
     /// </summary>
     MissingVolume = 3,
+
+    /// <summary>
+    /// 1.37.0: stories collected in one volume - two or more archives of a folder that is neither a series nor a collection, each
+    /// linked to the same collected-volume (tankoubon) record (<see cref="StoryCollectionGrouping"/>).
+    /// </summary>
+    CollectionStack = 4,
 }
 
 /// <summary>
@@ -158,6 +164,9 @@ public sealed record VolumeEntry
 
     /// <summary>Kind Stack.</summary>
     public VolumeStack? Stack { get; init; }
+
+    /// <summary>Kind CollectionStack (1.37.0).</summary>
+    public StoryCollection? Collection { get; init; }
 
     /// <summary>
     /// Kind MissingVolume: the missing volume's number. 1.34.1: also kind Archive at rank 0 - a volume archive shown as its own card

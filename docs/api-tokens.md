@@ -73,6 +73,10 @@ The **API tokens** card lists every token with its name, its first characters (f
 
 Press **Revoke** next to the token and confirm. It stops working at once; the program that used it gets "unauthorized" from then on. A revoked token stays in the list, marked **Revoked**, and cannot be turned back on - create a new one instead. Creating and revoking a token is recorded in the **Audit trail**.
 
+## Clear revoked tokens
+
+When the list holds revoked or expired tokens, press **Clear revoked** below it and confirm. Every revoked or expired token is removed from the list; they no longer work, so nothing changes for the programs you use. Active tokens stay, and so do tokens that are paused because their admin is no longer an active admin (they work again when that changes). The **Audit trail** keeps each removed token's history and records the removal.
+
 ## Keep tokens safe
 
 - Treat a token like a password: anyone who has it can read your series information (and, with **Request library scans**, start library scans).

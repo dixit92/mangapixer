@@ -56,5 +56,7 @@ export function ownSeriesInfo(info: SeriesInfoDto | null | undefined): boolean {
   // 1.34.0: a folder's own "Collection about" row shows its series too (never inherited).
   const ownWeb = !!info.web && !!link && !link.inherited
     && (link.state === 'Confirmed' || link.state === 'Auto' || link.state === 'CollectionAbout');
-  return ownWeb || (info.comicInfo?.itemsWithComicInfo ?? 0) > 0;
+  // 1.37.0: a folder's own "Artist folder" row shows on itself (no record).
+  const ownArtist = !!link && !link.inherited && link.state === 'ArtistFolder';
+  return ownWeb || ownArtist || (info.comicInfo?.itemsWithComicInfo ?? 0) > 0;
 }

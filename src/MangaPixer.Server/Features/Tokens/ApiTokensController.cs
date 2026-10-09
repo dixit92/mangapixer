@@ -9,9 +9,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 /// <summary>
-/// Administration of personal access tokens (1.33.0): list, create (the secret is answered once), revoke. Admin cookie only (the
-/// default scheme; a token cannot reach these routes), CSRF-checked like every unsafe admin call. Audit rows and logs carry the
-/// token's public id only.
+/// Administration of personal access tokens (1.33.0): list, create (the secret is answered once), revoke, and (1.37.0) clear the revoked
+/// and expired ones from the list. Admin cookie only (the default scheme; a token cannot reach these routes), CSRF-checked like every
+/// unsafe admin call. Audit rows and logs carry the token's public id only.
 /// </summary>
 [ApiController]
 [Route("api/v1/admin/tokens")]
@@ -58,5 +58,22 @@ public sealed class ApiTokensController(ApiTokenService tokens, AuditService aud
         await audit.RecordAsync(AuditActions.ApiTokenRevoke, AuditResults.Success, User.Identity?.Name,
             targetUserId: revoked.UserId, correlationId: revoked.PublicId, ct);
         return NoContent();
+    }
+
+    /// <summary>
+    /// 1.37.0: removes every revoked or expired token from the list ("Clear revoked"). Active and paused tokens stay. One audit row per
+    /// removed token (its public id); nothing about a secret is involved - only its hash was ever stored, and that goes with the row.
+    /// </summary>
+    [HttpPost("clear-revoked")]
+    [ProducesResponseType<ClearApiTokensResponse>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ClearRevoked(CancellationToken ct)
+    {
+        var removed = await tokens.ClearRevokedAsync(ct);
+        foreach (var (publicId, userId) in removed)
+            await audit.RecordAsync(AuditActions.ApiTokenDelete, AuditResults.Success, User.Identity?.Name,
+                targetUserId: userId, correlationId: publicId, ct);
+        if (removed.Count > 0)
+            logger.LogInformation(LogEvents.Auth.ApiTokensCleared, "API tokens cleared: {Count} revoked or expired tokens removed", removed.Count);
+        return Ok(new ClearApiTokensResponse { Removed = removed.Count });
     }
 }

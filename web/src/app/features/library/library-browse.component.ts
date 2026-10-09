@@ -30,6 +30,7 @@ import { VolumeIncompleteBadgeComponent } from '../../shared/volume-stack/volume
 import { OfficialReleaseBadgeComponent } from '../../shared/volume-stack/official-release-badge.component';
 import { AlsoInVolumeBadgeComponent } from '../../shared/volume-stack/also-in-volume-badge.component';
 import { VolumeViewSwitchComponent } from './volume-view-switch.component';
+import { storiesLabel } from '../../shared/volume-stack/stories-label';
 import { VolumeSeriesStatusComponent } from './volume-series-status.component';
 import { MissingChapterCardComponent } from '../../shared/volume-stack/missing-chapter-card.component';
 import { VolumeStackStarComponent } from '../../shared/volume-stack/volume-stack-star.component';
@@ -465,19 +466,22 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
              (pointerleave)="onCardPointerCancel()">
             <!-- Series information on hover (1.27.0): the cover, the title and the (i) are
                  hover zones of the item that shows the (i); the popover sits beside the card. -->
-            @if (node.kind === 'VolumeStack' && node.volumeStack; as stack) {
+            @if (node.kind === 'VolumeStack' && (node.volumeStack || node.collectionStack)) {
               <!-- Virtual volume stack (1.29.0): the shared stacked-paper card; the incomplete mark sits top-left
-                   (bottom-left while selecting, where the select check owns top-left). -->
-              <app-stack-card [stacked]="true">
+                   (bottom-left while selecting, where the select check owns top-left). 1.37.0: a stack of stories collected in one
+                   volume uses the same card, without volume badges (no completion, no missing count). -->
+              <app-stack-card [stacked]="true" [attr.data-testid]="node.collectionStack ? 'collection-stack-card' : null">
                 @if (node.coverUrl) {
                   <img appCover [src]="node.coverUrl" alt="" loading="lazy">
                 }
                 <mat-icon class="cover-fallback">collections_bookmark</mat-icon>
-                <app-volume-incomplete-badge [summary]="stack" [moved]="selectMode()" />
-                <!-- 1.30.0 (reach): the volume is out officially in the preferred language (bottom-left; select mode moves the
-                     incomplete mark there). -->
-                @if (!selectMode()) {
-                  <app-official-release-badge [language]="stack.officialRelease" />
+                @if (node.volumeStack; as stack) {
+                  <app-volume-incomplete-badge [summary]="stack" [moved]="selectMode()" />
+                  <!-- 1.30.0 (reach): the volume is out officially in the preferred language (bottom-left; select mode moves the
+                       incomplete mark there). -->
+                  @if (!selectMode()) {
+                    <app-official-release-badge [language]="stack.officialRelease" />
+                  }
                 }
                 @if (node.isFavorite && !selectMode()) {
                   <app-volume-stack-star />
@@ -1529,6 +1533,10 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
       // A stack is not a stored node: it opens its own view inside the (real) folder it is listed under.
       return ['/libraries', this.libraryId(), 'browse', node.parentId, 'volume', node.volumeStack.key];
     }
+    if (node.kind === 'VolumeStack' && node.collectionStack) {
+      // 1.37.0: stories collected in one volume open their own view inside the folder, like a volume stack.
+      return ['/libraries', this.libraryId(), 'browse', node.parentId, 'collection', node.collectionStack.key];
+    }
     if (node.kind === 'Folder') {
       return ['/libraries', this.libraryId(), 'browse', node.id];
     }
@@ -1561,8 +1569,9 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     return node.kind === 'VolumeStack' ? node.readRollup === 'Read' : node.isRead;
   }
 
-  /** The card subtitle of a stack: "10 chapters", "Volume + 4 chapters", "8 of 10 chapters". */
+  /** The card subtitle of a stack: "10 chapters", "Volume + 4 chapters", "8 of 10 chapters"; 1.37.0: "3 stories". */
   stackSubtitle(node: CatalogNodeDto): string {
+    if (node.collectionStack) return storiesLabel(node.collectionStack.storyCount);
     const s = node.volumeStack;
     if (!s) return '';
     const chapters = s.presentCount - (s.hasVolumeArchive ? 1 : 0);
@@ -1864,9 +1873,17 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   private stackMembers(stacks: CatalogNodeDto[]): Observable<Map<string, string[]>> {
     if (stacks.length === 0) return of(new Map<string, string[]>());
     return forkJoin(stacks.map((s) =>
-      this.api.getVolumeStack(s.parentId, s.volumeStack!.key).pipe(
-        map((dto) => [s.id, dto.slots.flatMap((slot) => (slot.item ? [slot.item.id] : []))] as const),
-      ))).pipe(map((pairs) => new Map(pairs)));
+      this.stackItems(s).pipe(map((items) => [s.id, items.map((item) => item.id)] as const)),
+    )).pipe(map((pairs) => new Map(pairs)));
+  }
+
+  /** The archives a listed stack holds, from its own endpoint: a volume stack's slots, or (1.37.0) the stories of a collected volume. */
+  private stackItems(stack: CatalogNodeDto): Observable<CatalogNodeDto[]> {
+    if (stack.collectionStack) {
+      return this.api.getCollectionStack(stack.parentId, stack.collectionStack.key).pipe(map((dto) => dto.items));
+    }
+    return this.api.getVolumeStack(stack.parentId, stack.volumeStack!.key).pipe(
+      map((dto) => dto.slots.flatMap((slot) => (slot.item ? [slot.item] : []))));
   }
 
   /**
@@ -2168,8 +2185,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     if (stacks.length === 0) return;
     const folderId = this.parentId();
     forkJoin(stacks.map((s) =>
-      this.api.getVolumeStack(s.parentId, s.volumeStack!.key).pipe(
-        map((dto) => ({ id: s.id, items: dto.slots.flatMap((slot) => (slot.item ? [slot.item] : [])) })),
+      this.stackItems(s).pipe(
+        map((items) => ({ id: s.id, items })),
         catchError(() => of(null)),
       ))).subscribe((results) => {
       if (this.parentId() !== folderId) return;

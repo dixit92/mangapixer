@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -48,7 +48,7 @@ const STATUS_TEXT: Record<ApiTokenDto['status'], string> = {
  * API tokens card (1.33.0, `<app-api-tokens-card />`): personal access tokens that let another app (MangaList) read the
  * metadata export and - with the scan scope (1.36.0) - request a full library scan, and nothing else.
  * - The list: name, the token's first characters, what it may do (its scopes), owner, created / expires / last used, status;
- *   revoke after a confirm.
+ *   revoke after a confirm; "Clear revoked" (1.37.0) removes every revoked or expired token from the list after a confirm.
  * - Create: a name, what it may do ("Read the metadata export" ticked by default, "Request library scans" not; at least one) and an
  *   expiry (30 / 90 days, 1 year - the default - or never). The token is shown ONCE with a copy button; the server keeps only
  *   its hash. Scopes cannot be changed later: create a new token instead.
@@ -127,6 +127,24 @@ const STATUS_TEXT: Record<ApiTokenDto['status'], string> = {
               </li>
             }
           </ul>
+          @if (clearable() > 0) {
+            @if (clearing()) {
+              <div class="confirm" role="alertdialog" data-testid="api-tokens-clear-confirm">
+                <p>
+                  Remove {{ clearable() === 1 ? 'the revoked or expired token' : 'the ' + clearable() + ' revoked or expired tokens' }}
+                  from this list? They no longer work. The audit trail keeps their history.
+                </p>
+                <div class="actions">
+                  <button mat-flat-button color="warn" type="button" data-testid="api-tokens-clear-yes"
+                          [disabled]="busy()" (click)="clearRevoked()">Remove</button>
+                  <button mat-button type="button" [disabled]="busy()" (click)="clearing.set(false)">Cancel</button>
+                </div>
+              </div>
+            } @else {
+              <button mat-stroked-button type="button" class="clear" data-testid="api-tokens-clear" [disabled]="busy()"
+                      (click)="clearing.set(true)">Clear revoked</button>
+            }
+          }
         }
 
         <form class="create" (ngSubmit)="create()" data-testid="api-token-create-form">
@@ -189,6 +207,7 @@ const STATUS_TEXT: Record<ApiTokenDto['status'], string> = {
     .meta { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 13px; color: #bbb; margin: 4px 0; }
     .can { font-size: 13px; color: #bbb; margin: 2px 0 4px; overflow-wrap: anywhere; }
     .tokens button { margin-top: 4px; }
+    .clear { margin-top: 10px; }
     .scopes { border: 0; padding: 0; margin: 8px 0; min-width: 0; }
     .scopes legend { font-size: 14px; padding: 0; margin: 0 0 4px; }
     .check { display: flex; align-items: flex-start; gap: 8px; margin: 6px 0; font-size: 14px; cursor: pointer; }
@@ -227,6 +246,10 @@ export class ApiTokensCardComponent implements OnInit {
   readonly created = signal<CreateApiTokenResponse | null>(null);
   readonly copied = signal(false);
   readonly revoking = signal<string | null>(null);
+  /** The "Clear revoked" confirm is open (1.37.0). */
+  readonly clearing = signal(false);
+  /** How many listed tokens "Clear revoked" would remove: the revoked and the expired ones. */
+  readonly clearable = computed(() => this.tokens().filter((t) => t.status === 'revoked' || t.status === 'expired').length);
   readonly error = signal<string | null>(null);
 
   ngOnInit(): void {
@@ -316,6 +339,26 @@ export class ApiTokensCardComponent implements OnInit {
         this.busy.set(false);
         this.revoking.set(null);
         this.error.set(e?.message || 'The token could not be revoked.');
+        this.load();
+      },
+    });
+  }
+
+  /** Removes the revoked and expired tokens from the list, after the confirm, then reloads. */
+  clearRevoked(): void {
+    if (this.busy()) return;
+    this.busy.set(true);
+    this.error.set(null);
+    this.api.clearRevokedApiTokens().subscribe({
+      next: () => {
+        this.busy.set(false);
+        this.clearing.set(false);
+        this.load();
+      },
+      error: (e: ApiError) => {
+        this.busy.set(false);
+        this.clearing.set(false);
+        this.error.set(e?.message || 'The revoked tokens could not be removed.');
         this.load();
       },
     });

@@ -141,6 +141,11 @@ public sealed class ExportSampleSnapshotTests
         await kit.TombstoneAsync(oldName);
         await kit.CarryOver().MoveRowsAsync(oldName.Id, newName.Id, default);
         await db.NodeSeriesLinks.Where(l => l.NodeId == gone.Id).ExecuteDeleteAsync();
+        // 1.37.0: a folder marked as one artist's works - no record; its works are items of their own (created last: earlier ids stay).
+        var artistFolder = await kit.Db.AddFolderAsync(doujin, "Sample Artist");
+        await kit.Db.AddArchiveAsync(artistFolder, "Sample Artist - Night Story.cbz");
+        Link(db, artistFolder, null, SeriesLinkState.ArtistFolder, null, null);
+        await db.SaveChangesAsync();
 
         var answer = await kit.Export().PageAsync(lib.PublicId, ExportJson.Format(T0), null, null, null);
         Assert.True(answer.Json is not null, answer.Error);

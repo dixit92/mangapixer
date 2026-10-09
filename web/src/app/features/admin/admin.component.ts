@@ -27,6 +27,7 @@ import {
   SystemPlatform,
   YacReaderDetectDto,
   YacReaderImportPreviewDto,
+  ScanStarterDto,
 } from '../../core/api/api-types';
 import { libraryPathCopy } from './library-path-copy';
 import { DebugLogCardComponent } from './debug-log-card.component';
@@ -119,10 +120,13 @@ import { ApiTokensCardComponent } from './api-tokens/api-tokens-card.component';
               <mat-list-item>
                 <span matListItemIcon><app-library-icon [name]="lib.name" [icon]="lib.icon" [size]="24" /></span>
                 <div matListItemTitle>{{ lib.name }}</div>
-                <div matListItemLine>
+                <div matListItemLine class="lib-line">
                   @if (lib.itemCount !== null) { {{ lib.itemCount }} items }
                   @if (lib.lastScanCompleted && !lib.isScanning) {
                     · last scan {{ lib.lastScanCompleted | date:'short' }}
+                    @if (lib.lastScanStartedBy; as by) {
+                      <span data-testid="last-scan-by">{{ scanStarterText(by) }}</span>
+                    }
                   }
                 </div>
                 <span matListItemMeta class="lib-meta">
@@ -598,6 +602,9 @@ import { ApiTokensCardComponent } from './api-tokens/api-tokens-card.component';
       min-height: 76px;
     }
     .lib-meta, .snapshot-actions { align-self: center; }
+    /* 1.37.0: the counts line also says who started the last scan ("by token <name>"); it wraps instead of running past a
+       phone's edge (the row grows, see above). */
+    .lib-line { white-space: normal !important; overflow-wrap: anywhere; }
     /* Restore buttons (Backups > "Restore from a snapshot"): a fixed trailing
        column, vertically centered against the two-line title/timestamp text,
        so the buttons line up regardless of file name or timestamp length
@@ -820,6 +827,20 @@ export class AdminComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.stopPolling();
+  }
+
+  /** "by schedule", "by admin <name>", "by token <name>" (1.37.0); a removed account or token keeps its kind. */
+  scanStarterText(by: ScanStarterDto): string {
+    switch (by.kind) {
+      case 'schedule':
+        return 'by schedule';
+      case 'admin':
+        return by.name ? `by admin ${by.name}` : 'by a removed admin';
+      case 'token':
+        return by.name ? `by token ${by.name}` : 'by a removed token';
+      default:
+        return '';
+    }
   }
 
   scanRunId(libraryId: string): string | undefined {

@@ -1157,9 +1157,9 @@ public sealed class MetadataRecordEntity
 /// <summary>
 /// At most one series link per catalog node (1.24.0), folder OR archive. The
 /// resolver walks self -> ancestors (bounded 64) and the nearest row wins; a
-/// <c>DontMatch</c> or (1.34.0) <c>CollectionAbout</c> row stops inheritance. Invariant (enforced in code):
-/// <see cref="RecordId"/> is null iff <see cref="State"/> is DontMatch (stage 2
-/// adds needs_review without a candidate). Cascades with the node and the
+/// <c>DontMatch</c>, (1.34.0) <c>CollectionAbout</c> or (1.37.0) <c>ArtistFolder</c> row stops inheritance. Invariant (enforced in
+/// code): <see cref="RecordId"/> is null iff <see cref="State"/> is DontMatch or ArtistFolder (stage 2 adds needs_review without a
+/// candidate). Cascades with the node and the
 /// library; a record cannot be deleted while a link references it.
 /// </summary>
 public sealed class NodeSeriesLinkEntity
@@ -1170,7 +1170,10 @@ public sealed class NodeSeriesLinkEntity
     /// <summary>Denormalized for per-library purge / review.</summary>
     public long LibraryId { get; set; }
 
-    /// <summary><c>SeriesLinkState</c>: 0 confirmed, 1 auto, 2 needs_review, 3 dont_match, 4 collection_about (1.34.0, keeps its record).</summary>
+    /// <summary>
+    /// <c>SeriesLinkState</c>: 0 confirmed, 1 auto, 2 needs_review, 3 dont_match, 4 collection_about (1.34.0, keeps its record),
+    /// 5 artist_folder (1.37.0, no record; no migration - no constraint on the column).
+    /// </summary>
     public int State { get; set; }
     public long? RecordId { get; set; }
 

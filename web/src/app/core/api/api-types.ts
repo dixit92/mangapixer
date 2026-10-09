@@ -100,6 +100,11 @@ export interface CatalogNodeDto {
   favoriteStackCount?: number | null;
   /** 1.29.0: set only on a browse entry of kind 'VolumeStack' (the Volumes view of a series). */
   volumeStack?: VolumeStackSummaryDto | null;
+  /**
+   * 1.37.0 (tankoubon stacks): set only on a browse entry of kind 'VolumeStack' that stands for stories collected in one volume (two or
+   * more archives of a folder that is neither a series nor a collection, linked to the same record); `volumeStack` is null on it.
+   */
+  collectionStack?: CollectionStackSummaryDto | null;
   /** 1.29.0: where coverUrl comes from (the cover layer); null/absent = the file cover. */
   coverSource?: CardCoverSource | null;
   /** 1.30.0 (reach): on a chapter archive, the volume key of a volume FILE of the same series that already holds it ("Also in Volume 10"). */
@@ -269,6 +274,17 @@ export interface LibraryDto {
   scanHour?: number | null;
   /** Weekday of a Weekly scan with an hour (0 = Sunday ... 6); null = Sunday. Admin responses only. */
   scanWeekday?: number | null;
+  /** Who started the last completed scan (1.37.0). Only in responses to an admin; null when unknown. */
+  lastScanStartedBy?: ScanStarterDto | null;
+}
+
+/**
+ * Who started a scan (1.37.0): the schedule, an admin (their user name) or an API token (its name). `name` is null for the schedule,
+ * or when that account or token has since been removed. Never a token value.
+ */
+export interface ScanStarterDto {
+  kind: 'schedule' | 'admin' | 'token';
+  name?: string | null;
 }
 
 /** Request to set a library's icon (1.22.0). Null clears back to the default. */
@@ -1010,12 +1026,18 @@ export interface RotatingBackupStatusDto {
 // Mirrors MangaPixer.Core/Api/MetadataDtos.cs + Core/Metadata/MetadataVocabulary.cs.
 // Enums arrive as their C# names (JsonStringEnumConverter).
 
-/** `CollectionAbout` (1.34.0): the folder's own link is "Collection about" a series - shown as context, without numbers. */
-export type SeriesInfoState = 'None' | 'ComicInfo' | 'Web' | 'WebAndComicInfo' | 'Mixed' | 'DontMatch' | 'CollectionAbout';
+/**
+ * `CollectionAbout` (1.34.0): the folder's own link is "Collection about" a series - shown as context, without numbers.
+ * `ArtistFolder` (1.37.0): the folder's own link is "Artist folder" - the works of one artist (its declared creator); no record.
+ */
+export type SeriesInfoState = 'None' | 'ComicInfo' | 'Web' | 'WebAndComicInfo' | 'Mixed' | 'DontMatch' | 'CollectionAbout' | 'ArtistFolder';
 export type MetadataPrecedence = 'WebFirst' | 'ComicInfoFirst';
 export type MetadataPrecedenceSource = 'Default' | 'Library' | 'Folder';
-/** `CollectionAbout` (1.34.0): a folder of works about the linked series (fan works) - stops inheritance, matching continues below. */
-export type SeriesLinkState = 'Confirmed' | 'Auto' | 'NeedsReview' | 'DontMatch' | 'CollectionAbout';
+/**
+ * `CollectionAbout` (1.34.0): a folder of works about the linked series (fan works) - stops inheritance, matching continues below.
+ * `ArtistFolder` (1.37.0): a folder of one artist's works - no record, stops inheritance, matching continues below archive by archive.
+ */
+export type SeriesLinkState = 'Confirmed' | 'Auto' | 'NeedsReview' | 'DontMatch' | 'CollectionAbout' | 'ArtistFolder';
 export type MetadataMatchMethod = 'Search' | 'Reference' | 'ComicInfoWebHint' | 'Auto';
 export type MetadataOrigin =
   | 'Japan' | 'Korea' | 'ChinaTaiwan' | 'EnglishOriginal' | 'Philippines' | 'Indonesia' | 'Thailand'
@@ -1438,7 +1460,7 @@ export type MetadataFolderContent = 'Auto' | 'DoujinshiAndAdultOneShots' | 'NotD
 export type MetadataMatchRunTrigger = 'Scan' | 'Bulk' | 'Retry' | 'Rerun' | 'Recheck';
 export type MetadataMatchRunStatus = 'Running' | 'Completed' | 'Cancelled';
 export type MetadataReviewBulkAction = 'AcceptTop' | 'DontMatch' | 'RerunMatching' | 'Confirm' | 'Unlink' | 'Later' | 'ClearLater'
-  | 'AcceptCollection';
+  | 'AcceptCollection' | 'MarkArtistFolder';
 export type MetadataFlagReason = 'WrongSeries' | 'WrongDetails' | 'NotOneSeries' | 'Other';
 export type MetadataFlagState = 'Open' | 'Relinked' | 'Unlinked' | 'DontMatch' | 'Dismissed';
 
@@ -1483,6 +1505,23 @@ export interface MetadataReviewAcceptCollectionRequest {
   rank: number;
 }
 
+/** 1.37.0: marks a folder an artist's folder; both optional (default: the folder's name, role `author` = "Story & art"). */
+export interface SetArtistFolderRequest {
+  name?: string | null;
+  role?: string | null;
+}
+
+/** 1.37.0: what marking a folder an artist's folder did. */
+export interface ArtistFolderResultDto {
+  change: NodeSeriesLinkChangeDto;
+  /** The artist as declared on the folder. */
+  artist: DeclaredCreatorDto;
+  /** The artist was added to the folder's own declared creators (false: already declared there). */
+  creatorAdded?: boolean;
+  /** Works at and below the folder queued for automatic matching now (0 while automatic matching is off). */
+  queued?: number;
+}
+
 /** 1.34.0: what marking a folder "Collection about" did. */
 export interface CollectionAboutResultDto {
   change: NodeSeriesLinkChangeDto;
@@ -1524,6 +1563,8 @@ export interface MetadataReviewSummaryDto {
   recheckPending: number;
   /** 1.34.0: folders marked "Collection about" a series. */
   collections: number;
+  /** 1.37.0: folders marked an artist's folder (listed in the Collections tab too; not part of `collections`). */
+  artistFolders: number;
 }
 
 export interface MetadataReviewLinkDto {
@@ -1604,6 +1645,8 @@ export interface MetadataReviewItemDto {
   sameFolder?: MetadataReviewGroupHintDto | null;
   /** 1.34.0 (Needs review, folders): "Looks like a collection about <Series>" - one of the stored candidates. */
   collection?: MetadataReviewCollectionHintDto | null;
+  /** 1.37.0 (Collections tab, an artist folder): the artist it declares (its first own declared creator). */
+  artist?: DeclaredCreatorDto | null;
   /** 1.31.0 (folder works): chapter numbers that more than one file of the same folder states. */
   duplicateChapters?: number;
   /** 1.31.0 (folder works): the same for volume numbers. */
@@ -2063,6 +2106,26 @@ export interface VolumeStackDto {
   duplicates?: DuplicateUnitDto[];
 }
 
+/** A stack of stories collected in one volume as a browse entry (CatalogNodeDto.collectionStack, 1.37.0). No volume / missing counts. */
+export interface CollectionStackSummaryDto {
+  key: string;
+  /** The collected volume's title (the linked record's), else the first story's name. */
+  title: string;
+  storyCount: number;
+}
+
+/** GET /nodes/{folderId}/collection-stacks/{key} (1.37.0): the stories of one stack, in folder order. */
+export interface CollectionStackDto {
+  folderId: string;
+  key: string;
+  title: string;
+  coverUrl?: string | null;
+  storyCount: number;
+  items: CatalogNodeDto[];
+  previousKey?: string | null;
+  nextKey?: string | null;
+}
+
 /** GET /nodes/{nodeId}/volume-view (lane S): whether a folder has a Volumes view and whether it is on for the viewer. */
 export interface VolumeViewDto {
   nodeId: string;
@@ -2072,6 +2135,8 @@ export interface VolumeViewDto {
   defaultActive?: boolean;
   consolidated: boolean;
   stackCount: number;
+  /** 1.37.0: stacks of stories collected in one volume (not counted in `stackCount`). */
+  collectionStackCount?: number;
   /**
    * 1.34.0: a webtoon / manhwa / manhua without a real volume list - the view lists its chapters in chapter order (the switch says
    * Chapters), never volumes from a list or missing-volume placeholders.
@@ -2679,7 +2744,7 @@ export interface ExportItemDto {
 }
 
 export interface ExportLinkDto {
-  state: 'Confirmed' | 'Auto' | 'NeedsReview' | 'DontMatch' | 'CollectionAbout';
+  state: 'Confirmed' | 'Auto' | 'NeedsReview' | 'DontMatch' | 'CollectionAbout' | 'ArtistFolder';
   method?: string | null;
   score?: number | null;
   updatedAt: string;
@@ -2804,6 +2869,14 @@ export interface CreateApiTokenRequest {
 export interface CreateApiTokenResponse {
   token: ApiTokenDto;
   secret: string;
+}
+
+/**
+ * POST /admin/tokens/clear-revoked (1.37.0): how many revoked or expired tokens were removed from the list. Active tokens and
+ * tokens paused because their admin is no longer an active admin are kept.
+ */
+export interface ClearApiTokensResponse {
+  removed: number;
 }
 
 /** GET /export/ping: which credential was accepted, and the server's clock. */

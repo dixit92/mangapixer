@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Injector, OnInit, computed, inject, input, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatIconModule } from '@angular/material/icon';
@@ -14,6 +14,9 @@ import { IdentifyDialogService } from './identify-dialog/identify-dialog.service
 import { PRECEDENCE_LABELS } from './series-info-labels';
 import { rerunMessage } from './rerun-labels';
 import { FOLDER_CONTENT_OPTIONS, contentCaption, contentSuggestion, rematchMessage, sumRematch } from './folder-content';
+import { DeclaredFactsApiService } from './declared/declared-facts-api.service';
+import { ArtistFolderDialogService } from './artist-folder/artist-folder-dialog.service';
+import { ARTIST_FOLDER_TIP, artistFolderResultMessage } from './artist-folder/artist-folder-labels';
 
 /**
  * Browse selection-bar "Series" menu for admins (1.24.0), mirroring the reading-
@@ -25,7 +28,7 @@ import { FOLDER_CONTENT_OPTIONS, contentCaption, contentSuggestion, rematchMessa
  * Content setting for the selected FOLDERS (with the one folder's current value and
  * the detector's suggestion when exactly one is selected). 1.34.0: "Identify one by one" for several selected nodes (the identify dialog's
  * stepping mode), "Re-run matching" for one or several (per-item reasons), and "Collection about..." (exactly one FOLDER: the identify dialog's
- * "pick the series" mode) and "Clear collection" (only clears Collection about rows). Link changes are announced
+ * "pick the series" mode) and "Clear collection" (only clears Collection about rows); 1.37.0: "Artist folder..." (exactly one FOLDER). Link changes are announced
  * through `MetadataStateService` so the cards' (i) update in place.
  */
 @Component({
@@ -53,6 +56,11 @@ import { FOLDER_CONTENT_OPTIONS, contentCaption, contentSuggestion, rematchMessa
               matTooltip="A folder of works about a series (fan works): the folder shows the series, its items are matched on their own"
               matTooltipPosition="left" data-testid="bulk-collection">
         <mat-icon>collections_bookmark</mat-icon> Collection about…
+      </button>
+      <!-- 1.37.0: one artist's works (exactly one FOLDER). -->
+      <button mat-menu-item [disabled]="selectedNodes().length !== 1 || selectedFolders().length !== 1" (click)="artistFolder()"
+              [matTooltip]="artistTip" matTooltipPosition="left" data-testid="bulk-artist-folder">
+        <mat-icon>palette</mat-icon> Artist folder…
       </button>
       <mat-divider />
       <button mat-menu-item (click)="dontMatch(true)" data-testid="bulk-dont-match">
@@ -111,6 +119,9 @@ export class SeriesSelectionActionsComponent implements OnInit {
   private readonly metadataState = inject(MetadataStateService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly identifyDialog = inject(IdentifyDialogService);
+  private readonly artistDialog = inject(ArtistFolderDialogService);
+  // Resolved on use only (after a save): hosts that never mark an artist folder do not need the declared-facts API.
+  private readonly injector = inject(Injector);
 
   /** Every node currently listed. */
   readonly nodes = input.required<CatalogNodeDto[]>();
@@ -238,6 +249,30 @@ export class SeriesSelectionActionsComponent implements OnInit {
   collection(): void {
     const folders = this.selectedFolders();
     if (folders.length === 1 && this.selectedNodes().length === 1) void this.identifyDialog.open(folders[0].id, 'collection');
+  }
+
+  readonly artistTip = ARTIST_FOLDER_TIP;
+
+  /** 1.37.0: asks for the artist (the folder's name by default), then marks the one selected folder an artist's folder. */
+  async artistFolder(): Promise<void> {
+    const folders = this.selectedFolders();
+    if (folders.length !== 1 || this.selectedNodes().length !== 1) return;
+    const folder = folders[0];
+    const artist = await this.artistDialog.open(folder.displayName);
+    if (!artist) return;
+    this.busy.set(true);
+    this.api.setArtistFolder(folder.id, artist).subscribe({
+      next: (result) => {
+        this.busy.set(false);
+        this.injector.get(DeclaredFactsApiService).version.update((v) => v + 1);
+        this.metadataState.refresh(folder.id);
+        this.snackBar.open(artistFolderResultMessage(result), 'Close', { duration: 5000 });
+      },
+      error: (err: { message?: string }) => {
+        this.busy.set(false);
+        this.snackBar.open(`Failed: ${err?.message ?? 'error'}`, 'Close', { duration: 4000 });
+      },
+    });
   }
 
   /** 1.34.0: clears "Collection about" on the selected folders (any other link stays). */

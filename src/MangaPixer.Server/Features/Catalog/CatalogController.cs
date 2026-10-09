@@ -80,6 +80,11 @@ public sealed class CatalogController : ControllerBase
             .Select(g => new { LibraryId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.LibraryId, x => x.Count, ct);
 
+        // 1.37.0: who started the last scan (admin names, token names) - for an admin only.
+        var starters = User.IsInRole("admin")
+            ? await Scanning.ScanStarters.LastCompletedAsync(_db, libraries.Select(l => l.Id).ToList(), ct)
+            : [];
+
         var dtos = libraries.Select(l => new LibraryDto
         {
             Id = l.PublicId,
@@ -89,6 +94,7 @@ public sealed class CatalogController : ControllerBase
             LastScanCompleted = l.LastScanCompleted,
             DefaultReaderMode = (ReaderMode?)l.DefaultReaderMode,
             Icon = l.Icon,
+            LastScanStartedBy = starters.GetValueOrDefault(l.Id),
         }).ToList();
 
         return Ok(dtos);

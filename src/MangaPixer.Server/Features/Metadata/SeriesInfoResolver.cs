@@ -14,7 +14,8 @@ using Microsoft.EntityFrameworkCore;
 /// 1. <b>Web link</b>: walk the node ITSELF, then its parent, grandparent...
 ///    (bounded 64, nearest first). The first link row wins; "Don't match" means no
 ///    web series and stops inheritance; "Collection about" (1.34.0) shows its record on its
-///    own folder only (state <see cref="SeriesInfoState.CollectionAbout"/>) and stops inheritance.
+///    own folder only (state <see cref="SeriesInfoState.CollectionAbout"/>) and stops inheritance; "Artist folder" (1.37.0) shows on
+///    its own folder only (state <see cref="SeriesInfoState.ArtistFolder"/>, no record, no ComicInfo merge) and stops inheritance.
 /// 2. <b>ComicInfo</b>: an archive uses its own row; a folder aggregates its direct
 ///    child archives (or, when none of those carry ComicInfo, the archives one
 ///    level deeper), max 500 rows. The folder's series is the most common Series
@@ -76,6 +77,9 @@ public sealed class SeriesInfoResolver
         if (nearestLink is { RecordId: { } recordId } && (SeriesLinkStates.IsSeries((SeriesLinkState)nearestLink.State) || ownCollection))
             record = await _db.MetadataRecords.AsNoTracking().FirstOrDefaultAsync(r => r.Id == recordId, ct);
         ownCollection &= record is not null;
+        // 1.37.0: an "Artist folder" row shows on its OWN folder (no record: the folder's name, the declared artist below it); below it
+        // the walk stops with no series, like a collection.
+        var ownArtistFolder = nearestLink is { State: (int)SeriesLinkState.ArtistFolder } && linkHolder?.Id == node.Id;
 
         // 3. Precedence.
         var (precedence, precedenceSource) = await ResolvePrecedenceAsync(node.LibraryId, chainIds, chain, ct);
@@ -119,9 +123,11 @@ public sealed class SeriesInfoResolver
             (null, true, false) => SeriesInfoState.ComicInfo,
             _ => nearestLink?.State == (int)SeriesLinkState.DontMatch ? SeriesInfoState.DontMatch : SeriesInfoState.None,
         };
+        if (ownArtistFolder)
+            state = SeriesInfoState.ArtistFolder;
 
         // A collection's items are other works: their ComicInfo never fills the series' fields.
-        var dto = Merge(record, mixed || ownCollection ? null : ci, ownCollection ? MetadataPrecedence.WebFirst : precedence);
+        var dto = Merge(record, mixed || ownCollection || ownArtistFolder ? null : ci, ownCollection ? MetadataPrecedence.WebFirst : precedence);
         var title = dto.Title;
         var sources = new Dictionary<string, MetadataFieldSource>(dto.Sources);
         if (title is null && state is not SeriesInfoState.None and not SeriesInfoState.DontMatch)

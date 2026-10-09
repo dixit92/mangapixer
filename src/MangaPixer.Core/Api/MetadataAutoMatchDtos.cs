@@ -36,7 +36,10 @@ public enum MetadataReviewTab
     /// <summary>Links / Don't match rows on removed folders that carry-over could not place.</summary>
     MissingFolders = 6,
 
-    /// <summary>1.34.0: folders an admin marked "Collection about" a series ("Collections").</summary>
+    /// <summary>
+    /// 1.34.0: folders an admin marked "Collection about" a series ("Collections"); 1.37.0: and folders marked an artist's folder -
+    /// both are folders whose items are works of their own.
+    /// </summary>
     Collections = 7,
 }
 
@@ -108,6 +111,12 @@ public enum MetadataReviewBulkAction
     /// sets its Content to "Doujinshi &amp; adult one-shots" and queues its works; a row without a suggestion answers <c>no_suggestion</c>.
     /// </summary>
     AcceptCollection = 7,
+
+    /// <summary>
+    /// 1.37.0: marks each FOLDER an artist's folder, the artist being the folder's own name ("Story &amp; art"), and queues its works;
+    /// an archive answers <c>not_a_folder</c>.
+    /// </summary>
+    MarkArtistFolder = 8,
 }
 
 /// <summary>Why a user flagged a series.</summary>
@@ -173,6 +182,12 @@ public sealed record MetadataReviewSummaryDto
 
     /// <summary>1.34.0: folders marked "Collection about" a series.</summary>
     public int Collections { get; init; }
+
+    /// <summary>
+    /// 1.37.0: folders an admin marked an artist's folder. They are listed in the Collections tab with the collections (folders whose
+    /// items are works of their own); <see cref="Collections"/> keeps counting only the "Collection about" folders.
+    /// </summary>
+    public int ArtistFolders { get; init; }
 
     /// <summary>Queue rows still waiting to be matched.</summary>
     public required int Pending { get; init; }
@@ -334,6 +349,12 @@ public sealed record MetadataReviewItemDto
     /// nothing is stored. Null when the signal is not there.
     /// </summary>
     public MetadataReviewCollectionHintDto? Collection { get; init; }
+
+    /// <summary>
+    /// 1.37.0 (Collections tab, an artist folder): the artist the folder declares (its first own declared creator); null for any other
+    /// row, and for an artist folder whose declared creators were removed.
+    /// </summary>
+    public DeclaredCreatorDto? Artist { get; init; }
 
     /// <summary>
     /// 1.31.0 (folder works): how many chapter numbers more than one file of the same folder below it states ("2 duplicate chapters").

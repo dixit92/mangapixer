@@ -155,7 +155,7 @@ describe('ReviewRowComponent', () => {
     (el.querySelector('[data-testid="review-notLater"]') as HTMLButtonElement).click();
     expect(events.map((e) => e.action)).toEqual(['notLater']);
     expect(rowActions('NeedsReview', item).map((a) => [a.action, a.key])).toEqual([
-      ['accept', 'a'], ['identify', 'i'], ['collectionAbout', 'f'], ['dontMatch', 'd'], ['notLater', 'l']]);
+      ['accept', 'a'], ['identify', 'i'], ['collectionAbout', 'f'], ['artistFolder', 'r'], ['dontMatch', 'd'], ['notLater', 'l']]);
     expect(rowActions('NeedsReview', reviewItem()).at(-1)!.action).toBe('later');
     // Only Needs review offers it.
     expect(rowActions('Unmatched', reviewItem()).some((a) => a.action === 'later')).toBe(false);
@@ -246,7 +246,10 @@ describe('ReviewRowComponent', () => {
 
   it('offers per-tab actions', () => {
     const it = reviewItem();
-    expect(rowActions('Unmatched', it).map((a) => a.action)).toEqual(['identify', 'collectionAbout', 'dontMatch']);
+    expect(rowActions('Unmatched', it).map((a) => a.action)).toEqual(['identify', 'collectionAbout', 'artistFolder', 'dontMatch']);
+    // 1.37.0: an archive is never an artist folder (nor a collection).
+    expect(rowActions('Unmatched', reviewItem({ nodeKind: 'Archive' })).map((a) => a.action)).toEqual(['identify', 'dontMatch']);
+    expect(rowActions('NeedsReview', reviewItem({ nodeKind: 'Archive' })).some((a) => a.action === 'artistFolder')).toBe(false);
     expect(rowActions('DontMatch', it).map((a) => a.action)).toEqual(['clearDontMatch']);
     expect(rowActions('MissingFolders', it).map((a) => a.action)).toEqual(['reattach', 'deleteMissing']);
     expect(rowActions('Confirmed', it).map((a) => a.action)).toEqual(['identify', 'unlink']);

@@ -8,7 +8,7 @@ It works without any network access. Names like `Series v03 c012` group on their
 
 Open a series folder that has something to group. In the top bar a **Volumes | Folders** switch appears next to the series information button. **Volumes** is the grouped view; **Folders** is the real folder list with every file and subfolder as it is on disk. Your choice is remembered for you.
 
-The switch is only shown where a Volumes view exists: a folder whose files group into volumes, or a folder linked to a series that holds volumes (its Volumes view shows the series status, see [Missing volumes and chapters](#missing-volumes-and-chapters)). *New in 1.34.0:* for a webtoon, manhwa or manhua without a volume list the switch reads **Chapters | Folders** (see [Webtoons, manhwa and manhua](#webtoons-manhwa-and-manhua)). Under another sort (Recently added, Recently read, Recently updated) the list is flat and the switch shows **Folders**; *new in 1.31.0:* picking **Volumes** then switches the sort back to **Name** and says so ("Sorted by name for the Volumes view", with **Undo**). The read-state filters, **Favorites only** and **Hide empty folders** work in both views: in the Volumes view a volume follows the same read badge its card shows (**Read** = every chapter read, **Reading** = some read or in progress, **Unread** = none read) and counts as a favorite when any of its chapters is starred; missing-volume cards are hidden while a filter is on.
+The switch is only shown where a Volumes view exists: a folder whose files group into volumes, or a folder linked to a series that holds volumes (its Volumes view shows the series status, see [Missing volumes and chapters](#missing-volumes-and-chapters)). *New in 1.34.0:* for a webtoon, manhwa or manhua without a volume list the switch reads **Chapters | Folders** (see [Webtoons, manhwa and manhua](#webtoons-manhwa-and-manhua)). *New in 1.37.0:* a folder of stories where two or more of them belong to the same collected volume shows the switch too (see [Stories collected in one volume](#stories-collected-in-one-volume)). Under another sort (Recently added, Recently read, Recently updated) the list is flat and the switch shows **Folders**; *new in 1.31.0:* picking **Volumes** then switches the sort back to **Name** and says so ("Sorted by name for the Volumes view", with **Undo**). The read-state filters, **Favorites only** and **Hide empty folders** work in both views: in the Volumes view a volume follows the same read badge its card shows (**Read** = every chapter read, **Reading** = some read or in progress, **Unread** = none read) and counts as a favorite when any of its chapters is starred; missing-volume cards are hidden while a filter is on.
 
 *New in 1.31.0:* tapping a series on the home page's **New chapters** row opens a linked series in its Volumes view (sorted by name, with the **Continue** row on top showing the chapter to read next), unless you chose **Folders** for it. A series without a link, or without a Volumes view, opens as before, sorted by **Recently updated**.
 
@@ -65,6 +65,16 @@ When a folder is linked to a series, its generic unit subfolders are merged into
 
 A series with a real volume list (a manhwa that MangaDex lists in volumes, for example) keeps its volume stacks.
 
+## Stories collected in one volume
+
+*New in 1.37.0.* An artist's folder often holds individual stories, one archive each, that were later collected in a book (a *tankoubon*). When two or more archives of such a folder are each linked to the **same** collected-volume record (automatically or with **Identify**), the Volumes view shows them as **one stacked card**: the record's title, its stored cover, and "3 stories". The stacked card sits among the stories in the order of its title. Tap it to open the stories, in folder order, each with its own cover (page 1), with the read state, favorite star and series information button of a normal card; **Select** works there and on the stacked card as for a volume (see [Selecting a whole volume](#selecting-a-whole-volume)).
+
+- It applies in any folder that is **neither a series nor a collection**: a folder with no link of its own (or one waiting in review, marked **Don't match** or an [artist folder](series-information.md#artist-folders)), never a folder linked to a series and never a [collection about a series](series-information.md#collections-about-a-series). Only the archives directly in the folder are stacked.
+- One archive alone with a record stays a normal card. Archives linked to different records stay apart.
+- The stack has no volume number, no completion mark and no "missing" placeholders: the record's list of contents is not a table of contents of your folder, and its volume count describes the book, not the folder. The other files of the folder group as before.
+- The cover is the record's poster that MangaPixer stored when the record was fetched, shown under the same rules as other web covers (**Volume covers from the web** on, and the folder's [cover preference](covers.md) showing web covers); otherwise the first story's own cover. The browser never contacts a provider.
+- **Folders** shows every story as its own card, as on disk. A new or changed link shows on the next visit, without a rescan.
+
 ## Missing volumes and chapters
 
 "Missing" means **released in your preferred language** - **Preferred language (covers and releases)** in **Metadata Manager** > **Settings** (English by default). A volume or chapter that exists only in the original language is never marked missing.
@@ -109,7 +119,7 @@ Records fetched before 1.30.0 don't carry the English publisher's own status yet
 
 ## Opening a stack
 
-Tap a stack to open the volume: its cover, "Volume 3", how many chapters you have of how many (and how many extras), where the grouping came from, **Previous** and **Next** volume, and the chapters in reading order with the read state, favorite star and series information button of a normal card. Tapping a chapter opens the reader as usual; the reader's previous / next chapter follow the folder, not the stack.
+Tap a volume stack to open the volume: its cover, "Volume 3", how many chapters you have of how many (and how many extras), where the grouping came from, **Previous** and **Next** volume, and the chapters in reading order with the read state, favorite star and series information button of a normal card. Tapping a chapter opens the reader as usual; the reader's previous / next chapter follow the folder, not the stack.
 
 The chapters follow your library view: as cards, or - when your library view is **List** (the **View** menu on the folder list) - as the same compact rows the folder list uses, with the columns you chose there. A missing chapter is a compact dashed row in the list.
 

@@ -83,6 +83,22 @@ public sealed class ApiTokenService
     }
 
     /// <summary>
+    /// Removes every revoked or expired token (1.37.0, "Clear revoked"): they can never work again, so the list need not keep them. An
+    /// active token, or one paused because its admin is no longer an active admin (it works again when that changes), is kept. The
+    /// audit trail keeps each token's creation and revocation rows. Returns the removed tokens (public id and owner).
+    /// </summary>
+    public async Task<IReadOnlyList<(string PublicId, long UserId)>> ClearRevokedAsync(CancellationToken ct = default)
+    {
+        var now = _clock.GetUtcNow();
+        var gone = await _db.ApiTokens.Where(t => t.RevokedAt != null || (t.ExpiresAt != null && t.ExpiresAt <= now)).ToListAsync(ct);
+        if (gone.Count == 0)
+            return [];
+        _db.ApiTokens.RemoveRange(gone);
+        await _db.SaveChangesAsync(ct);
+        return gone.Select(t => (t.PublicId, t.UserId)).ToList();
+    }
+
+    /// <summary>
     /// Checks a presented token. On success the token's last-used time is brought up to date (at most once per
     /// <see cref="LastUsedResolution"/>). The presented value is only hashed; it is never logged or stored.
     /// </summary>

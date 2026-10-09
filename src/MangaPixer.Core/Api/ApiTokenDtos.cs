@@ -70,6 +70,15 @@ public sealed record CreateApiTokenResponse
         $"CreateApiTokenResponse {{ Token = {Token?.Id}, Secret = [redacted] }}";
 }
 
+/// <summary>
+/// The answer to <c>POST /api/v1/admin/tokens/clear-revoked</c> (1.37.0): how many revoked or expired tokens were removed from the
+/// list. Active tokens, and tokens paused because their admin is no longer an active admin, are never removed.
+/// </summary>
+public sealed record ClearApiTokensResponse
+{
+    public required int Removed { get; init; }
+}
+
 /// <summary>Limits of the token API, shared by the server and the client.</summary>
 public static class ApiTokenLimits
 {

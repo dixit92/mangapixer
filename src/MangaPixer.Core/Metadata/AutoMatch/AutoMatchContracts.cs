@@ -99,6 +99,8 @@ public sealed record ChildFolderShape(string DisplayName, int DescendantArchiveC
 /// <c>IsCollection</c> (1.34.0): an admin marked the folder "Collection about" a series - its archives are works of their own.
 /// <c>CollectionSeries</c> (1.34.0): the title of the series the nearest "Collection about" folder (this one or an ancestor) is about -
 /// the parody of the works below it (a record title the caller holds locally, never a folder or file name).
+/// <c>IsMarkedArtistFolder</c> (1.37.0): an admin marked the folder an artist's folder - its archives are works of their own. The
+/// declared artist is NOT carried here: it reaches scoring as a declared creator (<see cref="DeclaredHints"/>), a hint that never vetoes.
 /// </summary>
 public sealed record FolderShape(
     string DisplayName,
@@ -109,7 +111,8 @@ public sealed record FolderShape(
     string? CategoryHint = null,
     IReadOnlyList<string>? KnownAuthorNames = null,
     bool IsCollection = false,
-    string? CollectionSeries = null);
+    string? CollectionSeries = null,
+    bool IsMarkedArtistFolder = false);
 
 /// <summary>Archives of a collection folder that form one work (a numbered mini-series, or one archive).</summary>
 public sealed record ArchiveGroup(string QueryTitle, IReadOnlyList<int> ArchiveIndexes);

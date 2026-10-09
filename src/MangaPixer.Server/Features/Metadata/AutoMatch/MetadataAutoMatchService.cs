@@ -181,11 +181,16 @@ public sealed class MetadataAutoMatchService
         return snapshot;
     }
 
-    /// <summary>The snapshot with the library's current "Collection about" folders (re-read every time: one small indexed query).</summary>
+    /// <summary>
+    /// The snapshot with the library's current "Collection about" folders and (1.37.0) artist folders (re-read every time: small
+    /// indexed queries).
+    /// </summary>
     private async Task<LibraryTreeSnapshot> WithCurrentCollectionsAsync(LibraryTreeSnapshot tree, CancellationToken ct)
     {
         var collections = await LibraryTreeSnapshot.LoadCollectionsAsync(_db, tree.LibraryId, ct);
-        return tree.SameCollections(collections) ? tree : tree.WithCollections(collections);
+        var current = tree.SameCollections(collections) ? tree : tree.WithCollections(collections);
+        var artistFolders = await LibraryTreeSnapshot.LoadArtistFoldersAsync(_db, tree.LibraryId, ct);
+        return current.SameArtistFolders(artistFolders) ? current : current.WithArtistFolders(artistFolders);
     }
 
     /// <summary>
@@ -241,8 +246,11 @@ public sealed class MetadataAutoMatchService
     /// library's "Fetch from the web" is on (otherwise "Match this library now" finds them), and not when a Don't match, a waiting
     /// folder or a nearer linked series above still covers the folder. Works that already have a queue row are left as they are.
     /// Returns how many works were queued.
+    /// 1.37.0: with <paramref name="requeueFinished"/> (an admin marked the folder an artist's folder - the declared artist is new
+    /// scoring input) works whose finished row found no link (Unmatched, failed, skipped, cancelled) are queued again too; works
+    /// waiting or being looked up are left alone, and a work with a link of its own is never a work here.
     /// </summary>
-    public async Task<int> EnqueueBelowAsync(long libraryId, long folderId, CancellationToken ct = default)
+    public async Task<int> EnqueueBelowAsync(long libraryId, long folderId, CancellationToken ct = default, bool requeueFinished = false)
     {
         if (_detector is null || !await IsAutomaticEnabledAsync(ct))
             return 0;
@@ -255,7 +263,28 @@ public sealed class MetadataAutoMatchService
         if (MatchingCover.IsCovered(chain.Where(links.ContainsKey).Select(id => links[id])))
             return 0;
         var works = AutoMatchWorkSelector.SelectBelow(tree, _detector, links, folderId);
-        return await EnqueueAsync(libraryId, works, QueueReason.Rerun, MetadataMatchRunTrigger.Rerun, reviewFirst: false, requeueUnmatched: false, ct);
+        if (!requeueFinished)
+            return await EnqueueAsync(libraryId, works, QueueReason.Rerun, MetadataMatchRunTrigger.Rerun, reviewFirst: false, requeueUnmatched: false, ct);
+
+        var anchors = works.Select(w => w.AnchorNodeId).ToList();
+        var busy = new HashSet<long>();
+        foreach (var chunk in anchors.Chunk(500))
+        {
+            var ids = chunk.ToList();
+            busy.UnionWith(await _db.MetadataMatchQueue.AsNoTracking()
+                .Where(q => ids.Contains(q.NodeId) && (q.State == QueueState.Pending || q.State == QueueState.Leased))
+                .Select(q => q.NodeId)
+                .ToListAsync(ct));
+        }
+        var due = works.Where(w => !busy.Contains(w.AnchorNodeId)).ToList();
+        if (due.Count == 0)
+            return 0;
+        var runId = await CreateRunAsync(libraryId, MetadataMatchRunTrigger.Rerun, reviewFirst: false, due.Count, ct);
+        await EnqueueIntoRunAsync(libraryId, runId, due, QueueReason.Rerun, reviewFirst: false, requeue: true, ct);
+        _logger.LogInformation(LogEvents.Metadata.AutoMatchQueued, "Automatic matching: {Count} works queued for library {LibraryId} (run {RunId})",
+            due.Count, libraryId, runId);
+        _state.Signal();
+        return due.Count;
     }
 
     /// <summary>Everything "Match this library now" would queue (no network).</summary>
@@ -591,9 +620,15 @@ public sealed class MetadataAutoMatchService
         var tombstoned = (int)CatalogNodeAvailability.Tombstoned;
         var band = (int)MatchBand.NeedsReview;
         var reach = (int)MatchReason.ReachConflict;
+        var reviewOnly = (int)MatchLevel.ReviewOnly;
+        var artist = (int)WorkClass.ArtistCollection;
+        var folder = (int)CatalogNodeKind.Folder;
         return _db.MetadataMatchQueue.Where(q =>
             q.State == QueueState.Done && q.Outcome == band
-            && (q.RulesRevision == null || q.RulesRevision < MatcherRules.Revision)
+            && (q.RulesRevision == null || q.RulesRevision < MatcherRules.Revision
+                // 1.37.0: a folder that 1.34.2 - 1.36.0 pinned in review as one artist-folder work, whatever its stamp: checked once
+                // more, it hands over to its archives (it is then Skipped, so it is never selected again).
+                || (q.Level == reviewOnly && q.WorkClass == artist && _db.CatalogNodes.Any(n => n.Id == q.NodeId && n.Kind == folder)))
             && (q.OutcomeReasons & reach) == 0
             && _db.NodeSeriesLinks.Any(l => l.NodeId == q.NodeId && l.State == needsReview && l.MatchMethod == auto)
             && _db.CatalogNodes.Any(n => n.Id == q.NodeId && n.Availability != tombstoned)
@@ -801,8 +836,22 @@ public sealed class MetadataAutoMatchService
         if (classification.Level != MatchLevel.Archive)
             return 0;
         var links = await OwnLinksAsync(row.LibraryId, ct);
-        if (links.ContainsKey(node.Id) || CoveredByAncestors(tree, node.Id, links))
-            return 0; // The folder or a covering ancestor has a link row: it speaks for the archives.
+        if (CoveredByAncestors(tree, node.Id, links))
+            return 0; // A covering ancestor has a link row: it speaks for the archives.
+        if (links.TryGetValue(node.Id, out var own))
+        {
+            // 1.37.0: an artist folder never keeps a folder-level review row. A re-run or a re-check of one that waits in review as one
+            // work drops that row (and its candidates) - it was the matcher's, never an admin decision - and its archives are queued.
+            var stale = own == SeriesLinkState.NeedsReview && IsArtistFolder(classification)
+                && row.Reason is QueueReason.Rerun or QueueReason.Recheck;
+            if (!stale)
+                return 0; // The folder has its own link row: it speaks for the archives.
+            await _db.MetadataMatchCandidates.Where(c => c.NodeId == node.Id).ExecuteDeleteAsync(ct);
+            await _db.NodeSeriesLinks.Where(l => l.NodeId == node.Id && l.State == (int)SeriesLinkState.NeedsReview).ExecuteDeleteAsync(ct);
+            links.Remove(node.Id);
+            _logger.LogInformation(LogEvents.Metadata.AutoMatchSkipped,
+                "Automatic matching: artist folder {NodeId} no longer waits in review as one work; its archives are matched one by one", node.Id);
+        }
         var works = AutoMatchWorkSelector.ArchiveWorks(tree, node.Id, classification, links).ToList();
         var anchors = works.Select(w => w.AnchorNodeId).ToList();
         var known = (await _db.MetadataMatchQueue.AsNoTracking().Where(q => anchors.Contains(q.NodeId)).Select(q => q.NodeId).ToListAsync(ct)).ToHashSet();
@@ -825,6 +874,9 @@ public sealed class MetadataAutoMatchService
         or "budget_exhausted" or "provider_backoff" or "provider_busy" or "provider_not_allowed";
 
     private sealed record CheckedWork(DetectedWork Work, WorkClassification Classification);
+
+    private static bool IsArtistFolder(WorkClassification classification) =>
+        classification is { Class: WorkClass.ArtistCollection, Level: MatchLevel.Archive };
 
     /// <summary>The row's work as it is NOW, or null when it is no longer something to match.</summary>
     private async Task<CheckedWork?> RecheckAsync(MetadataMatchQueueEntity row, LibraryTreeSnapshot tree, CancellationToken ct)
@@ -850,6 +902,10 @@ public sealed class MetadataAutoMatchService
         if (node.IsFolder)
         {
             var classification = _detector!.Classify(tree.ShapeOf(node.Id));
+            // 1.37.0: an artist folder is matched archive by archive, also when an admin re-runs it or a re-check finds it waiting in
+            // review as one work (queued before its author was known) - it hands over to its archives (see HandOverToArchivesAsync).
+            if (IsArtistFolder(classification))
+                return null;
             var level = classification.Level switch
             {
                 MatchLevel.Folder or MatchLevel.ReviewOnly => classification.Level,

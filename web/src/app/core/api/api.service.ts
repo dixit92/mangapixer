@@ -16,6 +16,7 @@ import {
   ApiTokenDto,
   CreateApiTokenRequest,
   CreateApiTokenResponse,
+  ClearApiTokensResponse,
   SeriesRefreshCadenceDto,
   UpdateRefreshCadenceRequest,
   AddBookmarkRequest,
@@ -32,6 +33,7 @@ import {
   SetFolderCoverPreferenceRequest,
   UpdateFolderViewSettingsRequest,
   VolumeStackDto,
+  CollectionStackDto,
   VolumeViewDto,
   ChangePasswordRequest,
   ContinueReadingEntry,
@@ -393,6 +395,11 @@ export class ApiService {
     return this.get<VolumeStackDto>(`/nodes/${nodeId}/volumes/${encodeURIComponent(key)}`);
   }
 
+  /** One stack of stories collected in one volume (1.37.0): its stories in folder order. */
+  getCollectionStack(nodeId: string, key: string): Observable<CollectionStackDto> {
+    return this.get<CollectionStackDto>(`/nodes/${nodeId}/collection-stacks/${encodeURIComponent(key)}`);
+  }
+
   /** Admin: a folder's own Volumes view override (1.29.0; null = inherit the library). */
   getFolderViewSettings(nodeId: string): Observable<FolderViewSettingsDto> {
     return this.get<FolderViewSettingsDto>(`/admin/folders/${nodeId}/view-settings`);
@@ -661,6 +668,11 @@ export class ApiService {
   /** Revokes a token: it stops working at once. */
   revokeApiToken(id: string): Observable<void> {
     return this.post<void>(`/admin/tokens/${encodeURIComponent(id)}/revoke`, {});
+  }
+
+  /** Removes every revoked or expired token from the list (1.37.0); active and paused tokens stay. */
+  clearRevokedApiTokens(): Observable<ClearApiTokensResponse> {
+    return this.post<ClearApiTokensResponse>('/admin/tokens/clear-revoked', {});
   }
 
   // --- Scheduled jobs (admin, 1.32.0) ---

@@ -196,6 +196,10 @@ public static class AuditActions
     /// <summary>1.34.0: a folder marked "Collection about" a series (result <c>review</c> when accepted from Needs review).</summary>
     public const string MetadataCollection = "metadata.collection";
     public const string MetadataCollectionClear = "metadata.collection.clear";
+
+    /// <summary>1.37.0: a folder marked an artist's folder (result <c>review</c> when marked from Needs review / Unmatched).</summary>
+    public const string MetadataArtistFolder = "metadata.artist_folder";
+    public const string MetadataArtistFolderClear = "metadata.artist_folder.clear";
     public const string MetadataRefresh = "metadata.refresh";
     public const string MetadataPrecedenceSet = "metadata.precedence.set";
     public const string MetadataPrecedenceClear = "metadata.precedence.clear";
@@ -261,6 +265,8 @@ public static class AuditActions
     // Personal access tokens (1.33.0). CorrelationId = the token's public id; TargetUserId = its owner. Never the secret.
     public const string ApiTokenCreate = "api_token.create";
     public const string ApiTokenRevoke = "api_token.revoke";
+    // 1.37.0: a revoked or expired token removed from the list by "Clear revoked" (one row per token).
+    public const string ApiTokenDelete = "api_token.delete";
 
     // 1.36.0: a token with the library:scan scope started a full library scan. Actor = the token's owner, TargetLibraryId = the
     // library, CorrelationId = the token's public id (never the secret). Only accepted requests are recorded (refusals are logged).

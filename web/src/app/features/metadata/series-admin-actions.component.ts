@@ -1,11 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Injector, computed, inject, input, output, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { Observable } from 'rxjs';
+import { Observable, tap } from 'rxjs';
 
 import { FolderMetadataContentDto, MetadataFolderContent, MetadataPrecedence, SeriesInfoDto } from '../../core/api/api-types';
 import { MetadataApiService } from './metadata-api.service';
@@ -15,6 +15,9 @@ import { FOLDER_CONTENT_OPTIONS, contentCaption, contentSuggestion, rematchMessa
 import { DeclaredFactsDialogService } from './declared/declared-facts-dialog.service';
 import { MangaDexMatchDialogService } from './companion/mangadex-match-dialog.service';
 import { CoverPickerDialogService } from '../../shared/cover-picker/cover-picker-dialog.service';
+import { DeclaredFactsApiService } from './declared/declared-facts-api.service';
+import { ArtistFolderDialogService } from './artist-folder/artist-folder-dialog.service';
+import { ARTIST_FOLDER_TIP, artistFolderLabel, artistFolderResultMessage } from './artist-folder/artist-folder-labels';
 
 /**
  * Admin menu for one node's series metadata (1.24.0), shared by the overlay and the
@@ -30,6 +33,8 @@ import { CoverPickerDialogService } from '../../shared/cover-picker/cover-picker
  * - Choose cover... (1.29.0) - the cover picker for this node (folders and archives).
  * - Collection about... / Clear collection (1.34.0, folders): this folder holds works ABOUT a series (fan works) - pick the
  *   series in the identify dialog's collection mode; the folder shows it as context, its items are matched on their own.
+ * - Artist folder... / Remove artist folder (1.37.0, folders): one artist's works - the artist (the folder's name by default) becomes
+ *   the folder's declared creator, the folder is never a series, each work inside is matched on its own.
  * - Content (folders, stage 2): Auto / Doujinshi & adult one-shots / Not doujinshi, with
  *   where the current value comes from and the detector's suggestion (loaded when the
  *   menu opens; hidden when the server has no Content setting).
@@ -93,6 +98,16 @@ import { CoverPickerDialogService } from '../../shared/cover-picker/cover-picker
             <mat-icon>undo</mat-icon> Clear collection
           </button>
         }
+        <!-- 1.37.0: one artist's works - never a series, each work inside matched on its own. -->
+        @if (ownArtistFolder()) {
+          <button mat-menu-item (click)="clearArtistFolder()" data-testid="clear-artist-folder">
+            <mat-icon>undo</mat-icon> Remove artist folder
+          </button>
+        } @else {
+          <button mat-menu-item (click)="artistFolder()" data-testid="artist-folder" [matTooltip]="artistTip">
+            <mat-icon>palette</mat-icon> Artist folder…
+          </button>
+        }
       }
       <!-- 1.29.0 cover layer: the admin's cover choice for this node. -->
       <mat-divider />
@@ -154,6 +169,9 @@ export class SeriesAdminActionsComponent {
   private readonly declaredDialog = inject(DeclaredFactsDialogService);
   private readonly mangaDexDialog = inject(MangaDexMatchDialogService);
   private readonly coverPicker = inject(CoverPickerDialogService);
+  private readonly artistDialog = inject(ArtistFolderDialogService);
+  // Resolved on use only (after a save): hosts that never mark an artist folder do not need the declared-facts API.
+  private readonly injector = inject(Injector);
 
   readonly info = input.required<SeriesInfoDto>();
   readonly changed = output<void>();
@@ -262,8 +280,31 @@ export class SeriesAdminActionsComponent {
   /** The node's OWN row is a web link (a series, not a collection). */
   readonly ownLink = computed(() => {
     const link = this.info().link;
-    return !!link && !link.inherited && link.state !== 'DontMatch' && link.state !== 'CollectionAbout';
+    return !!link && !link.inherited && link.state !== 'DontMatch' && link.state !== 'CollectionAbout' && link.state !== 'ArtistFolder';
   });
+
+  /** 1.37.0: the node's OWN row is "Artist folder". */
+  readonly ownArtistFolder = computed(() => {
+    const link = this.info().link;
+    return !!link && !link.inherited && link.state === 'ArtistFolder';
+  });
+
+  readonly artistTip = ARTIST_FOLDER_TIP;
+
+  /** 1.37.0: asks for the artist (the folder's name by default), then marks this folder an artist's folder. */
+  async artistFolder(): Promise<void> {
+    const info = this.info();
+    // The folder's own name when the info is its own; otherwise the field starts empty (empty = the folder's name, on the server).
+    const artist = await this.artistDialog.open(info.anchorNodeId === info.nodeId ? info.anchorDisplayName : '');
+    if (!artist) return;
+    const declaredChanged = () => this.injector.get(DeclaredFactsApiService).version.update((v) => v + 1);
+    this.run(this.api.setArtistFolder(info.nodeId, artist).pipe(tap(declaredChanged)), artistFolderLabel(artist.name), true,
+      artistFolderResultMessage);
+  }
+
+  clearArtistFolder(): void {
+    this.run(this.api.clearArtistFolder(this.info().nodeId), 'Artist folder removed (the declared artist stays)', true);
+  }
 
   /** 1.34.0: the node's OWN row is "Collection about" a series. */
   readonly ownCollection = computed(() => {
@@ -304,15 +345,15 @@ export class SeriesAdminActionsComponent {
     this.run(call, precedence ? 'Source precedence set' : 'Source precedence cleared');
   }
 
-  /** `linkChange`: the node's own link row changed, so browse must learn its new state. */
-  run(call: Observable<unknown>, message: string, linkChange = false): void {
+  /** `linkChange`: the node's own link row changed, so browse must learn its new state. `describe` words the result (1.37.0). */
+  run<T>(call: Observable<T>, message: string, linkChange = false, describe?: (result: T) => string): void {
     const nodeId = this.info().nodeId;
     this.busy.set(true);
     call.subscribe({
-      next: () => {
+      next: (result) => {
         this.busy.set(false);
         if (linkChange) this.metadataState.refresh(nodeId);
-        this.snackBar.open(message, 'Close', { duration: 2500 });
+        this.snackBar.open(describe ? describe(result) : message, 'Close', { duration: describe ? 5000 : 2500 });
         this.changed.emit();
       },
       error: (err: { message?: string }) => {

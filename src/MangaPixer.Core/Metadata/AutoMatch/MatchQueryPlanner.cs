@@ -55,7 +55,10 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
 
         var anatomies = archives.Select(ArchiveNameAnatomy.Parse).ToList();
         var authorTags = DominantCreatorTags(anatomies);
-        if (classification.Class == WorkClass.ArtistCollection && name.Primary.Length > 0)
+        // 1.37.0: a folder an admin MARKED an artist's folder adds no author tag of its own - not its name (it need not be an
+        // author's; as a tag it would veto the right record at archive level) and not the declared artist (a declared creator is a
+        // hint, never a veto: it reaches the scorer through DeclaredHints). A DETECTED artist folder keeps its name tag (1.28.0).
+        if (classification.Class == WorkClass.ArtistCollection && !folder.IsMarkedArtistFolder && name.Primary.Length > 0)
             AddDistinct(authorTags, name.Primary);
         if (folder.ParentDisplayName is { } parent && AutoMatchText.IsAuthorLike(parent, requireTwoTokens: true))
             AddDistinct(authorTags, TitleNormalizer.Normalize(parent).Primary);
@@ -156,7 +159,8 @@ public sealed class MatchQueryPlanner : IMatchQueryPlanner
             if (AutoMatchText.IsAuthorLike(tag, requireTwoTokens: false))
                 AddDistinct(authorTags, tag);
         }
-        if (classification.Class == WorkClass.ArtistCollection
+        // 1.37.0: a MARKED artist folder adds no author tag of its own (see the folder plan above).
+        if (classification.Class == WorkClass.ArtistCollection && !folder.IsMarkedArtistFolder
             && TitleNormalizer.Normalize(folder.DisplayName).Primary is { Length: > 0 } artist)
             AddDistinct(authorTags, artist);
 

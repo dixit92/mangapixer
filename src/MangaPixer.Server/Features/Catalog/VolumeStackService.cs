@@ -36,6 +36,7 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
             DefaultActive = view.Available && await entries.IsDefaultActiveAsync(view, ct),
             Consolidated = view.Consolidated,
             StackCount = view.StackCount,
+            CollectionStackCount = view.CollectionStackCount,
             ChaptersOnly = view.ChaptersOnly,
             HasSeriesStatus = view.Status is not null,
             SeriesStatus = view.Status?.Status,

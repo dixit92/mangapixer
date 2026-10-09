@@ -142,7 +142,7 @@ import { SeriesRefreshCadenceComponent } from './series-refresh-cadence/series-r
 
         @if (auth.isAdmin()) {
           <section class="section admin" aria-label="Series administration">
-            <app-series-refresh-cadence [linkNodeId]="i.state === 'CollectionAbout' ? null : i.link?.nodeId" />
+            <app-series-refresh-cadence [linkNodeId]="i.state === 'CollectionAbout' || i.state === 'ArtistFolder' ? null : i.link?.nodeId" />
             <app-series-admin-actions [info]="i" (changed)="load(i.anchorNodeId)" />
           </section>
         } @else if (i.web && i.state !== 'CollectionAbout') {

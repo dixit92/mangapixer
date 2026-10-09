@@ -49,6 +49,14 @@ describe('SeriesInfoSummaryComponent', () => {
     expect(el.querySelector('[data-testid="series-collection-note"]')!.textContent).toContain('its items are matched on their own');
   });
 
+  it('1.37.0: shows an artist folder with its lead and note, never as a series', () => {
+    const f = render(seriesInfo({ state: 'ArtistFolder', title: 'Beta Painter' }));
+    expect(q(f, '[data-testid="series-artist-folder"]')!.textContent).toContain('Artist folder');
+    expect(q(f, '[data-testid="series-title"]')!.textContent).toContain('Beta Painter');
+    expect(q(f, '[data-testid="series-artist-folder-note"]')!.textContent).toContain('each work inside is matched on its own');
+    expect(q(f, '[data-testid="series-collection"]')).toBeNull();
+  });
+
   it('a series is not a collection', () => {
     const f = render(seriesInfo({ state: 'Web' }));
     expect((f.nativeElement as HTMLElement).querySelector('[data-testid="series-collection"]')).toBeNull();
