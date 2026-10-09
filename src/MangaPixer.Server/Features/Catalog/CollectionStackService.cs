@@ -4,13 +4,15 @@ using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Server.Features.Auth;
 using com.lifepixer.mangapixer.Server.Features.Covers;
+using com.lifepixer.mangapixer.Server.Persistence;
 
 /// <summary>
 /// The read surface of stacks of stories collected in one volume besides browse (1.37.0, "tankoubon stacks"): one stack's stories as
-/// browse cards. Stored data only; the viewer needs access to the folder's library.
+/// browse cards. Stored data only; the viewer needs access to the folder's library. Inside a stack each story shows its OWN page 1
+/// (owner, 2026-10-08): the cover layer would give every linked story the same record poster, which the stack card already shows.
 /// </summary>
 public sealed class CollectionStackService(VolumeEntryService entries, CatalogBrowseService browse, LibraryAuthorizationService auth,
-    CollectionStackCoverService covers)
+    CollectionStackCoverService covers, MangaPixerDbContext db)
 {
     /// <summary>One stack of stories in a folder and its head, or null (unknown folder / key, no access, no such stack here).</summary>
     public async Task<(FolderVolumeEntries View, StoryCollection Collection, CollectionStackHead? Head)?> FindAsync(
@@ -40,7 +42,14 @@ public sealed class CollectionStackService(VolumeEntryService entries, CatalogBr
 
         var rows = collection.Members.Select(m => view.Rows[m.Id]).ToList();
         var cards = (await browse.EnrichAsync(rows, userId, view.LibraryId, ct)).ToDictionary(n => n.Id, StringComparer.Ordinal);
-        var items = collection.Members.Select(m => cards[m.Id]).ToList();
+        var own = await new FileCoverResolver(db, versioned: true)
+            .ResolveUrlsAsync(rows.Select(r => new CoverTarget(r.InternalId, r.Id, false)).ToList(), ct);
+        var items = collection.Members
+            .Select(m => view.Rows[m.Id])
+            .Select(r => own.TryGetValue(r.InternalId, out var url)
+                ? cards[r.Id] with { CoverUrl = url, CoverSource = CardCoverSource.File }
+                : cards[r.Id])
+            .ToList();
         var keys = StoryCollectionGrouping.CollectionKeys(view.Entries);
         var index = keys.ToList().IndexOf(collection.Key);
         return new CollectionStackDto
@@ -48,7 +57,7 @@ public sealed class CollectionStackService(VolumeEntryService entries, CatalogBr
             FolderId = view.FolderPublicId,
             Key = collection.Key,
             Title = head?.Title ?? rows[0].DisplayName,
-            CoverUrl = head?.Poster?.Url ?? items[0].CoverUrl,
+            CoverUrl = head?.Poster?.Url ?? cards[rows[0].Id].CoverUrl,
             StoryCount = items.Count,
             Items = items,
             PreviousKey = index > 0 ? keys[index - 1] : null,

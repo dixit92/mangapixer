@@ -94,8 +94,9 @@ public sealed class CollectionStackHttpTests : IClassFixture<MangaPixerWebApplic
 
         var page = await BrowseAsync(admin, ArtistPubId);
         Assert.Equal(3, page.TotalCount);
-        Assert.Equal(["Sample Artist - Alpha Story", "Synthetic Collected Volume", "Sample Artist - Gamma Story"], page.Items.Select(n => n.DisplayName));
-        var stack = page.Items[1];
+        // Owner (2026-10-08): a stack sorts by its record's title, among the stories.
+        Assert.Equal(["Sample Artist - Alpha Story", "Sample Artist - Gamma Story", "Synthetic Collected Volume"], page.Items.Select(n => n.DisplayName));
+        var stack = page.Items[2];
         Assert.Equal((CatalogNodeKind.VolumeStack, $"cs.{ArtistPubId}.{TankKey}", ArtistPubId), (stack.Kind, stack.Id, stack.ParentId));
         Assert.Null(stack.VolumeStack);
         Assert.Equal((TankKey, 2), (stack.CollectionStack!.Key, stack.CollectionStack.StoryCount));
@@ -142,7 +143,7 @@ public sealed class CollectionStackHttpTests : IClassFixture<MangaPixerWebApplic
         var admin = await AdminAsync();
 
         // No stored poster yet: the card shows the first story's cover; the stack cover route redirects there.
-        var before = (await BrowseAsync(admin, ArtistPubId)).Items[1];
+        var before = (await BrowseAsync(admin, ArtistPubId)).Items.Single(n => n.Kind == CatalogNodeKind.VolumeStack);
         Assert.StartsWith("/api/v1/items/csb/cover", before.CoverUrl);
         using var noRedirect = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
         (await noRedirect.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest { Username = "admin", Password = "TestPassword123!" })).EnsureSuccessStatusCode();
@@ -160,18 +161,24 @@ public sealed class CollectionStackHttpTests : IClassFixture<MangaPixerWebApplic
         }
         try
         {
-            var card = (await BrowseAsync(admin, ArtistPubId)).Items[1];
+            var card = (await BrowseAsync(admin, ArtistPubId)).Items.Single(n => n.Kind == CatalogNodeKind.VolumeStack);
             Assert.StartsWith($"/api/v1/nodes/{ArtistPubId}/collection-stacks/{TankKey}/cover?v=", card.CoverUrl);
             Assert.Equal(CardCoverSource.Poster, card.CoverSource);
             var view = await OkAsync<CollectionStackDto>(await admin.GetAsync($"/api/v1/nodes/{ArtistPubId}/collection-stacks/{TankKey}"));
             Assert.Equal(card.CoverUrl, view.CoverUrl);
+            // Inside the stack each story shows its OWN page 1, not the record poster again (owner, 2026-10-08).
+            Assert.All(view.Items, i =>
+            {
+                Assert.StartsWith($"/api/v1/items/{i.Id}/cover", i.CoverUrl);
+                Assert.Equal(CardCoverSource.File, i.CoverSource);
+            });
             var image = await admin.GetAsync(card.CoverUrl);
             Assert.Equal(HttpStatusCode.OK, image.StatusCode);
             Assert.Equal("image/png", image.Content.Headers.ContentType!.MediaType);
 
             // The library hides saved web covers: the first story's cover again, and the cover route redirects to it.
             await SetWebCoversHiddenAsync(true);
-            var hidden = (await BrowseAsync(admin, ArtistPubId)).Items[1];
+            var hidden = (await BrowseAsync(admin, ArtistPubId)).Items.Single(n => n.Kind == CatalogNodeKind.VolumeStack);
             Assert.StartsWith("/api/v1/items/csb/cover", hidden.CoverUrl);
             var redirect = await noRedirect.GetAsync(card.CoverUrl);
             Assert.Equal(HttpStatusCode.Redirect, redirect.StatusCode);

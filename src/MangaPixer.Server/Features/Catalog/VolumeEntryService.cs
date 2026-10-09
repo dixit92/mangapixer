@@ -136,7 +136,7 @@ public sealed class VolumeEntryService
     }
 
     /// <summary>A direct archive child of a qualifying folder with its own Confirmed / Auto link (1.37.0).</summary>
-    private sealed record StoryLink(long NodeId, string NodePublicId, long RecordId, string RecordPublicId);
+    private sealed record StoryLink(long NodeId, string NodePublicId, long RecordId, string RecordPublicId, string RecordTitle);
 
     private sealed record UnitFolder(long Id, string Name, long ParentId, bool Generic, List<CatalogBrowseService.BrowseRow> Archives, List<CatalogBrowseService.BrowseRow> SubFolders);
 
@@ -285,9 +285,9 @@ public sealed class VolumeEntryService
             return [];
         var recordIds = rows.Select(r => r.RecordId).Distinct().ToList();
         var records = await _db.MetadataRecords.AsNoTracking().Where(r => recordIds.Contains(r.Id))
-            .Select(r => new { r.Id, r.PublicId }).ToDictionaryAsync(r => r.Id, r => r.PublicId, ct);
+            .Select(r => new { r.Id, r.PublicId, r.Title }).ToDictionaryAsync(r => r.Id, ct);
         return rows.Where(r => records.ContainsKey(r.RecordId))
-            .Select(r => new StoryLink(r.NodeId, r.PublicId, r.RecordId, records[r.RecordId]))
+            .Select(r => new StoryLink(r.NodeId, r.PublicId, r.RecordId, records[r.RecordId].PublicId, records[r.RecordId].Title))
             .OrderBy(r => r.NodeId)
             .ToList();
     }
@@ -385,7 +385,10 @@ public sealed class VolumeEntryService
         if (context.StoriesQualify && stories.Count > 0)
         {
             var keyByRow = stories.ToDictionary(s => s.NodePublicId, s => s.RecordPublicId, StringComparer.Ordinal);
-            var storyGrouping = StoryCollectionGrouping.Group(rows, keyByRow);
+            // Owner (2026-10-08): a stack sorts by its record's title.
+            var titleByKey = stories.GroupBy(s => s.RecordPublicId, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.First().RecordTitle, StringComparer.Ordinal);
+            var storyGrouping = StoryCollectionGrouping.Group(rows, keyByRow, titleByKey);
             var records = stories.GroupBy(s => s.RecordPublicId, StringComparer.Ordinal)
                 .ToDictionary(g => g.Key, g => g.First().RecordId, StringComparer.Ordinal);
             return new FolderVolumeEntries(

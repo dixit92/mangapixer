@@ -40,6 +40,25 @@ public sealed class StoryCollectionGroupingTests
     }
 
     [Fact]
+    public void WithTheRecordsTitle_TheStackSortsByThatTitle_AmongTheStories()
+    {
+        // Sort keys as the catalog stores them (the title's key is built the same way).
+        static GroupingRow Stored(string name) =>
+            new("id:" + name, GroupingRowKind.Archive, name, com.lifepixer.mangapixer.Core.Ordering.SortKey.ForNode(CatalogNodeKind.Archive, name));
+        var rows = new List<GroupingRow> { Stored("Beta Story"), Stored("Delta Story"), Stored("Gamma Story"), Stored("Zeta Story") };
+        var links = Links(("Beta Story", "rec1"), ("Zeta Story", "rec1"));
+
+        // Owner (2026-10-08): the stack is placed by its record's title ("Epsilon Tales": after Delta, before Gamma), not by Beta's place.
+        var byTitle = StoryCollectionGrouping.Group(rows, links, new Dictionary<string, string>(StringComparer.Ordinal) { ["rec1"] = "Epsilon Tales" });
+        Assert.Equal(["id:Delta Story", "cs:rec1", "id:Gamma Story"], byTitle.Entries.Select(e => e.Id));
+        Assert.Equal(com.lifepixer.mangapixer.Core.Ordering.SortKey.ForNode(CatalogNodeKind.Archive, "Epsilon Tales"), byTitle.Entries[1].SortKey);
+
+        // No title known: the first member's place, as before.
+        var noTitle = StoryCollectionGrouping.Group(rows, links, new Dictionary<string, string>(StringComparer.Ordinal) { ["rec1"] = " " });
+        Assert.Equal(["cs:rec1", "id:Delta Story", "id:Gamma Story"], noTitle.Entries.Select(e => e.Id));
+    }
+
+    [Fact]
     public void OneArchiveAlone_WithARecord_StaysANormalCard()
     {
         var rows = new List<GroupingRow> { Archive("Story A"), Archive("Story B") };

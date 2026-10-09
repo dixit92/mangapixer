@@ -229,7 +229,8 @@ public sealed class CollectionStackEntryTests : IDisposable
         Assert.Equal(artist.Folder.PublicId, stack.ParentId);
         Assert.StartsWith($"/api/v1/items/{artist.B.PublicId}/cover", stack.CoverUrl); // no stored poster: the first story's cover
         Assert.Equal(FolderReadRollup.Unread, stack.ReadRollup);
-        Assert.Equal(["Sample Artist - Alpha Story", "Synthetic Collected Volume", "Sample Artist - Gamma Story"], page.Items.Select(n => n.DisplayName));
+        // Owner (2026-10-08): the stack sorts by its record's title, among the stories.
+        Assert.Equal(["Sample Artist - Alpha Story", "Sample Artist - Gamma Story", "Synthetic Collected Volume"], page.Items.Select(n => n.DisplayName));
 
         var flat = await browse.BrowseAsync(user.Id, lib.Id, artist.Folder.Id, null, group: "flat");
         Assert.Equal(4, flat.TotalCount);

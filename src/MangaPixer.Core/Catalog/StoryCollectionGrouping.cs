@@ -57,13 +57,15 @@ public static class StoryCollectionGrouping
     }
 
     /// <summary>
-    /// The entries of a folder that is neither a series nor a collection: each story collection becomes one entry in the place of its
-    /// first member (rank 2, that member's SortKey - among the loose archives), and the other rows go through
+    /// The entries of a folder that is neither a series nor a collection: each story collection becomes one entry among the loose
+    /// archives (rank 2), placed by its record's title (owner, 2026-10-08: <paramref name="titleByKey"/>, sorted like an archive of that
+    /// name) - or, without a title, in the place of its first member - and the other rows go through
     /// <see cref="VolumeGrouping.Group"/> unchanged - with NO volume map and no missing-volume placeholders (a collected volume's record
     /// is not this folder's series: its volume total would invent missing volumes). With no collection the result is exactly
     /// <c>VolumeGrouping.Group(rows, null)</c>.
     /// </summary>
-    public static StoryGroupingResult Group(IReadOnlyList<GroupingRow> rows, IReadOnlyDictionary<string, string> recordKeyByRowId)
+    public static StoryGroupingResult Group(IReadOnlyList<GroupingRow> rows, IReadOnlyDictionary<string, string> recordKeyByRowId,
+        IReadOnlyDictionary<string, string>? titleByKey = null)
     {
         var (collections, rest) = Split(rows, recordKeyByRowId);
         var volumes = VolumeGrouping.Group(rest, map: null, markMissingVolumes: false);
@@ -78,7 +80,9 @@ public static class StoryCollectionGrouping
                 Kind = VolumeEntryKind.CollectionStack,
                 Rank = 2,
                 VolumeKey = string.Empty,
-                SortKey = collection.Members[0].SortKey,
+                SortKey = titleByKey is not null && titleByKey.TryGetValue(collection.Key, out var title) && !string.IsNullOrWhiteSpace(title)
+                    ? Ordering.SortKey.ForNode(CatalogNodeKind.Archive, title)
+                    : collection.Members[0].SortKey,
                 Id = EntryIdPrefix + collection.Key,
                 Collection = collection,
             });
