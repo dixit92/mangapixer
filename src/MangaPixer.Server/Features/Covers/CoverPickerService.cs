@@ -355,6 +355,16 @@ public sealed class CoverPickerService
         return await _db.MetadataRecords.AsNoTracking().FirstOrDefaultAsync(r => r.Id == link.RecordId!.Value, ct);
     }
 
+    /// <summary>
+    /// The record whose STORED poster the picker previews for a folder (<c>GET /nodes/{nodeId}/cover-poster</c>): the folder's linked
+    /// series record, null when the node is gone, is not a folder, is not linked to a series or has no stored poster.
+    /// </summary>
+    public async Task<MetadataRecordEntity?> PosterRecordOfAsync(string nodePublicId, CancellationToken ct)
+    {
+        var node = await LiveNodeAsync(nodePublicId, ct);
+        return node is null ? null : await LinkedSeriesRecordAsync(node, ct) is { ImageState: StoredImageState } record ? record : null;
+    }
+
     /// <summary>The poster tile: only when the choice would show (a stored poster, the web layer open for this folder).</summary>
     private async Task<CoverPosterOptionDto?> PosterOptionAsync(CatalogNodeEntity node, CancellationToken ct)
     {

@@ -160,14 +160,8 @@ public sealed class NodeCoverController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetPoster(string nodeId, CancellationToken ct)
     {
-        var node = await _db.CatalogNodes.AsNoTracking().FirstOrDefaultAsync(n => n.PublicId == nodeId, ct);
-        if (node is null || node.Kind != (int)CatalogNodeKind.Folder || node.Availability == (int)CatalogNodeAvailability.Tombstoned)
-            return NotFound();
-        var links = await CoverLinks.NearestAsync(_db, [node.Id], ct);
-        if (!links.TryGetValue(node.Id, out var link) || !link.IsLinked)
-            return NotFound();
-        var record = await _db.MetadataRecords.AsNoTracking().FirstOrDefaultAsync(r => r.Id == link.RecordId!.Value, ct);
-        if (record is not { ImageState: 1 } || _posters.Open(record.Id, record.ImageVersion) is not { } poster)
+        var record = await _picker.PosterRecordOfAsync(nodeId, ct);
+        if (record is null || _posters.Open(record.Id, record.ImageVersion) is not { } poster)
             return NotFound();
         Response.Headers.CacheControl = "private, max-age=31536000, immutable";
         Response.Headers.XContentTypeOptions = "nosniff";
