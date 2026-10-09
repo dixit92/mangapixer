@@ -7,7 +7,8 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
 
-import { MetadataReviewItemDto, MetadataReviewPageDto, MetadataReviewTab } from '../../../core/api/api-types';
+import { MetadataReviewItemDto, MetadataReviewPageDto, MetadataReviewTab, SetArtistFolderRequest } from '../../../core/api/api-types';
+import { ArtistFolderDialogService } from '../artist-folder/artist-folder-dialog.service';
 import { reviewItem, summary } from '../admin-metadata/metadata-admin.testing';
 import { IdentifyDialogService } from '../identify-dialog/identify-dialog.service';
 import { MetadataApiService } from '../metadata-api.service';
@@ -48,7 +49,9 @@ describe('ReviewDashboardComponent', () => {
   ];
 
   function create(opts: { pages?: Partial<Record<MetadataReviewTab, MetadataReviewItemDto[]>>; phone?: boolean;
-    failIds?: string[]; reviewError?: number; tab?: MetadataReviewTab; apiOverrides?: Record<string, unknown> } = {}) {
+    failIds?: string[]; reviewError?: number; tab?: MetadataReviewTab; apiOverrides?: Record<string, unknown>;
+    /** What the artist-folder dialog answers (default: Beta Painter, Story & art; null = cancelled). */
+    artist?: SetArtistFolderRequest | null } = {}) {
     const snack = fakeSnackBar();
     const pages = opts.pages ?? { NeedsReview: rows };
     const api = {
@@ -65,6 +68,8 @@ describe('ReviewDashboardComponent', () => {
       clearDontMatch: vi.fn((nodeId: string) => of({ nodeId })),
       acceptCollection: vi.fn((nodeId: string) => of({ change: { nodeId } })),
       clearCollection: vi.fn((nodeId: string) => of({ nodeId })),
+      acceptArtist: vi.fn((nodeId: string) => of({ change: { nodeId }, artist: { name: 'Beta Painter', role: 'author' }, queued: 3 })),
+      clearArtistFolder: vi.fn((nodeId: string) => of({ nodeId })),
       deleteMissing: vi.fn(() => of(undefined)),
       setReviewLater: vi.fn((_nodeId: string, _on: boolean) => of(undefined)),
       getReviewAuthors: vi.fn(() => of({ items: [{ key: 'circlea', label: 'Circle A', count: 4, later: 1 }, { key: 'artistb', label: 'Artist B', count: 2 }] })),
@@ -77,6 +82,8 @@ describe('ReviewDashboardComponent', () => {
       open: vi.fn(() => ({ afterClosed: () => of({ targetNodeId: 't1', targetName: 'New Folder' }) })),
     };
     const identify = { open: vi.fn(() => Promise.resolve(true)) };
+    const artist = { open: vi.fn((): Promise<SetArtistFolderRequest | undefined> => Promise.resolve(opts.artist === undefined
+      ? { name: 'Beta Painter', role: 'author' } : (opts.artist ?? undefined))) };
     const reviewState = { refresh: vi.fn(), summary: signal(null) };
     const metadataState = { refresh: vi.fn() };
     TestBed.configureTestingModule({
@@ -88,6 +95,7 @@ describe('ReviewDashboardComponent', () => {
         { provide: MatSnackBar, useValue: snack.bar },
         { provide: MatDialog, useValue: dialog },
         { provide: IdentifyDialogService, useValue: identify },
+        { provide: ArtistFolderDialogService, useValue: artist },
         { provide: MetadataReviewStateService, useValue: reviewState },
         { provide: MetadataStateService, useValue: metadataState },
         { provide: BreakpointObserver, useValue: { observe: () => of({ matches: !!opts.phone, breakpoints: {} }) } },
@@ -105,7 +113,7 @@ describe('ReviewDashboardComponent', () => {
       target.dispatchEvent(e);
       fixture.detectChanges();
     };
-    return { fixture, el, c, api, snack, dialog, identify, reviewState, metadataState, names, key };
+    return { fixture, el, c, api, snack, dialog, identify, artist, reviewState, metadataState, names, key };
   }
 
   it('loads the Needs review tab with the counts on the tabs', () => {
@@ -538,6 +546,70 @@ describe('ReviewDashboardComponent', () => {
       c.focusIndex.set(0);
       fixture.detectChanges();
       expect(el.querySelector('[data-testid="bar-acceptCollection"]')!.textContent).toContain('Collection');
+    });
+  });
+
+  describe('1.37.0: Artist folder', () => {
+    const folder = reviewItem({ nodeId: 'n5', displayName: 'Beta Painter', workClass: 'Ambiguous', matchLevel: 'ReviewOnly' });
+    const archive = reviewItem({ nodeId: 'n6', nodeKind: 'Archive', displayName: 'Qzv Harbor Tale.cbz', workClass: 'CollectionLeaf', matchLevel: 'Archive' });
+
+    it('"r" asks for the artist, then marks the focused folder after the Undo window', async () => {
+      const { api, snack, key, artist } = create({ pages: { NeedsReview: [folder] } });
+      key('r');
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(artist.open).toHaveBeenCalledWith('Beta Painter');
+      expect(snack.last().label).toBe('Artist folder: Beta Painter - Beta Painter');
+      expect(api.acceptArtist).not.toHaveBeenCalled();
+      snack.close();
+      expect(api.acceptArtist).toHaveBeenCalledWith('n5', { name: 'Beta Painter', role: 'author' });
+    });
+
+    it('a cancelled dialog changes nothing', async () => {
+      const { api, key, names, artist } = create({ pages: { NeedsReview: [folder] }, artist: null });
+      key('r');
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(artist.open).toHaveBeenCalled();
+      expect(names()).toEqual(['Beta Painter']);
+      expect(api.acceptArtist).not.toHaveBeenCalled();
+    });
+
+    it('is offered on folder rows only, in Needs review and Unmatched, with the bulk action for the selection', () => {
+      const { el, key, artist } = create({ pages: { NeedsReview: [archive, folder] } });
+      expect(el.querySelector('[data-node="n5"] [data-testid="review-artistFolder"]')).not.toBeNull();
+      expect(el.querySelector('[data-node="n6"] [data-testid="review-artistFolder"]')).toBeNull();
+      key('r'); // the focused row is the archive: nothing happens
+      expect(artist.open).not.toHaveBeenCalled();
+      TestBed.resetTestingModule();
+
+      const unmatched = create({ tab: 'Unmatched', pages: { Unmatched: [folder] } });
+      expect(unmatched.el.querySelector('[data-node="n5"] [data-testid="review-artistFolder"]')).not.toBeNull();
+      unmatched.c.toggle('n5');
+      unmatched.fixture.detectChanges();
+      (unmatched.el.querySelector('[data-testid="bulk-MarkArtistFolder"]') as HTMLButtonElement).click();
+      unmatched.snack.close();
+      expect(unmatched.api.reviewBulk).toHaveBeenCalledWith('MarkArtistFolder', ['n5']);
+    });
+
+    it('the Collections tab lists artist folders with their artist, counts them, and removes the mark', () => {
+      const marked = reviewItem({
+        nodeId: 'n8', displayName: 'Beta Painter', candidates: [], reasons: [], artist: { name: 'Beta Painter', role: 'author' },
+        link: { state: 'ArtistFolder', updatedAt: '2026-10-08T10:00:00Z' },
+      });
+      const { c, el, api, snack } = create({
+        tab: 'Collections', pages: { Collections: [marked] },
+        apiOverrides: { getReviewSummary: vi.fn(() => of(summary({ collections: 1, artistFolders: 2 }))) },
+      });
+      expect(el.querySelector('[data-testid="review-tab-Collections"] .badge')!.textContent!.trim()).toBe('3');
+      expect(el.querySelector('[data-testid="review-link"]')!.textContent).toContain('Artist folder: Beta Painter');
+      // No series to compare with: only the folder's own cover.
+      expect(el.querySelectorAll('[data-node="n8"] [data-testid="review-covers"] figure').length).toBe(1);
+      const buttons = Array.from(el.querySelectorAll('[data-node="n8"] .actions button')).map((b) => b.getAttribute('data-testid'));
+      expect(buttons).toEqual(['review-clearArtistFolder']);
+      c.onRowAction({ action: 'clearArtistFolder', item: marked });
+      snack.close();
+      expect(api.clearArtistFolder).toHaveBeenCalledWith('n8');
     });
   });
 });

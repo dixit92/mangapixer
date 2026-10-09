@@ -12,6 +12,8 @@ import { MetadataStateService } from './metadata-state.service';
 import { SeriesAdminActionsComponent } from './series-admin-actions.component';
 import { CoverPickerDialogService } from '../../shared/cover-picker/cover-picker-dialog.service';
 import { seriesInfo } from './series-info.testing';
+import { ArtistFolderDialogService } from './artist-folder/artist-folder-dialog.service';
+import { DeclaredFactsApiService } from './declared/declared-facts-api.service';
 
 @Component({
   standalone: true,
@@ -44,6 +46,8 @@ describe('SeriesAdminActionsComponent', () => {
       clearDontMatch: vi.fn(() => of({ nodeId: info.nodeId })),
       unlink: vi.fn(() => of({ nodeId: info.nodeId })),
       clearCollection: vi.fn(() => of({ nodeId: info.nodeId })),
+      setArtistFolder: vi.fn(() => of({ change: { nodeId: info.nodeId }, artist: { name: 'Beta Painter', role: 'author' }, queued: 2 })),
+      clearArtistFolder: vi.fn(() => of({ nodeId: info.nodeId })),
       setFolderPrecedence: vi.fn(() => of({ nodeId: info.nodeId, precedence: 'WebFirst' })),
       clearFolderPrecedence: vi.fn(() => of(undefined)),
       // Stage 2 Content setting; null = a server without it (501).
@@ -54,6 +58,8 @@ describe('SeriesAdminActionsComponent', () => {
     const state = { announce: vi.fn(), refresh: vi.fn() };
     const mangaDex = { open: vi.fn(() => Promise.resolve(true)) };
     const coverPicker = { open: vi.fn(() => Promise.resolve({ mode: 'FilePinned', imageUrl: '/api/v1/items/a1/cover?v=1' })) };
+    const artist = { open: vi.fn(() => Promise.resolve({ name: 'Beta Painter', role: 'author' })) };
+    const declaredApi = { version: signal(0) };
     TestBed.configureTestingModule({
       imports: [HostComponent],
       providers: [
@@ -63,6 +69,8 @@ describe('SeriesAdminActionsComponent', () => {
         { provide: MetadataStateService, useValue: state },
         { provide: MangaDexMatchDialogService, useValue: mangaDex },
         { provide: CoverPickerDialogService, useValue: coverPicker },
+        { provide: ArtistFolderDialogService, useValue: artist },
+        { provide: DeclaredFactsApiService, useValue: declaredApi },
       ],
     });
     const fixture = TestBed.createComponent(HostComponent);
@@ -70,7 +78,7 @@ describe('SeriesAdminActionsComponent', () => {
     fixture.detectChanges();
     (fixture.nativeElement.querySelector('[data-testid="series-admin-menu"]') as HTMLButtonElement).click();
     fixture.detectChanges();
-    return { fixture, api, dialog, state, mangaDex, coverPicker };
+    return { fixture, api, dialog, state, mangaDex, coverPicker, artist, declaredApi };
   }
 
   const item = (sel: string) => document.querySelector(sel) as HTMLButtonElement | null;
@@ -254,6 +262,45 @@ describe('SeriesAdminActionsComponent', () => {
       expect(item('[data-testid="mangadex-match"]')).toBeNull();
       item('[data-testid="clear-collection"]')!.click();
       expect(api.clearCollection).toHaveBeenCalledWith('f1');
+      expect(state.refresh).toHaveBeenCalledWith('f1');
+    });
+  });
+
+  describe('1.37.0: Artist folder', () => {
+    it('a folder offers "Artist folder..." - the dialog starts with its name; marking announces the change and the declared artist', async () => {
+      const { fixture, api, artist, state, declaredApi } = create(seriesInfo({ nodeId: 'f1', anchorNodeId: 'f1', anchorDisplayName: 'Beta Painter' }));
+      item('[data-testid="artist-folder"]')!.click();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(artist.open).toHaveBeenCalledWith('Beta Painter');
+      expect(api.setArtistFolder).toHaveBeenCalledWith('f1', { name: 'Beta Painter', role: 'author' });
+      expect(state.refresh).toHaveBeenCalledWith('f1');
+      expect(declaredApi.version()).toBe(1);
+      expect(fixture.componentInstance.changes).toBe(1);
+    });
+
+    it('starts with an empty name when the information shown is inherited (the server uses the folder name)', async () => {
+      const { artist } = create(seriesInfo({ nodeId: 'f2', anchorNodeId: 'p1', anchorDisplayName: 'Parent Series' }));
+      item('[data-testid="artist-folder"]')!.click();
+      await Promise.resolve();
+      expect(artist.open).toHaveBeenCalledWith('');
+    });
+
+    it('an archive does not offer it', () => {
+      create(seriesInfo({ nodeId: 'a1', nodeKind: 'Archive' }), true);
+      expect(item('[data-testid="artist-folder"]')).toBeNull();
+    });
+
+    it('an own artist folder offers Remove artist folder, not Unlink', () => {
+      const info = seriesInfo({
+        nodeId: 'f1', state: 'ArtistFolder', title: 'Beta Painter',
+        link: { state: 'ArtistFolder', nodeId: 'f1', inherited: false, linkedAt: '2026-10-08T00:00:00Z' },
+      });
+      const { api, state } = create(info, true);
+      expect(item('[data-testid="artist-folder"]')).toBeNull();
+      expect(item('[data-testid="unlink"]')).toBeNull();
+      item('[data-testid="clear-artist-folder"]')!.click();
+      expect(api.clearArtistFolder).toHaveBeenCalledWith('f1');
       expect(state.refresh).toHaveBeenCalledWith('f1');
     });
   });

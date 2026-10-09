@@ -181,11 +181,16 @@ public sealed class MetadataAutoMatchService
         return snapshot;
     }
 
-    /// <summary>The snapshot with the library's current "Collection about" folders (re-read every time: one small indexed query).</summary>
+    /// <summary>
+    /// The snapshot with the library's current "Collection about" folders and (1.37.0) artist folders (re-read every time: small
+    /// indexed queries).
+    /// </summary>
     private async Task<LibraryTreeSnapshot> WithCurrentCollectionsAsync(LibraryTreeSnapshot tree, CancellationToken ct)
     {
         var collections = await LibraryTreeSnapshot.LoadCollectionsAsync(_db, tree.LibraryId, ct);
-        return tree.SameCollections(collections) ? tree : tree.WithCollections(collections);
+        var current = tree.SameCollections(collections) ? tree : tree.WithCollections(collections);
+        var artistFolders = await LibraryTreeSnapshot.LoadArtistFoldersAsync(_db, tree.LibraryId, ct);
+        return current.SameArtistFolders(artistFolders) ? current : current.WithArtistFolders(artistFolders);
     }
 
     /// <summary>
@@ -241,8 +246,11 @@ public sealed class MetadataAutoMatchService
     /// library's "Fetch from the web" is on (otherwise "Match this library now" finds them), and not when a Don't match, a waiting
     /// folder or a nearer linked series above still covers the folder. Works that already have a queue row are left as they are.
     /// Returns how many works were queued.
+    /// 1.37.0: with <paramref name="requeueFinished"/> (an admin marked the folder an artist's folder - the declared artist is new
+    /// scoring input) works whose finished row found no link (Unmatched, failed, skipped, cancelled) are queued again too; works
+    /// waiting or being looked up are left alone, and a work with a link of its own is never a work here.
     /// </summary>
-    public async Task<int> EnqueueBelowAsync(long libraryId, long folderId, CancellationToken ct = default)
+    public async Task<int> EnqueueBelowAsync(long libraryId, long folderId, CancellationToken ct = default, bool requeueFinished = false)
     {
         if (_detector is null || !await IsAutomaticEnabledAsync(ct))
             return 0;
@@ -255,7 +263,28 @@ public sealed class MetadataAutoMatchService
         if (MatchingCover.IsCovered(chain.Where(links.ContainsKey).Select(id => links[id])))
             return 0;
         var works = AutoMatchWorkSelector.SelectBelow(tree, _detector, links, folderId);
-        return await EnqueueAsync(libraryId, works, QueueReason.Rerun, MetadataMatchRunTrigger.Rerun, reviewFirst: false, requeueUnmatched: false, ct);
+        if (!requeueFinished)
+            return await EnqueueAsync(libraryId, works, QueueReason.Rerun, MetadataMatchRunTrigger.Rerun, reviewFirst: false, requeueUnmatched: false, ct);
+
+        var anchors = works.Select(w => w.AnchorNodeId).ToList();
+        var busy = new HashSet<long>();
+        foreach (var chunk in anchors.Chunk(500))
+        {
+            var ids = chunk.ToList();
+            busy.UnionWith(await _db.MetadataMatchQueue.AsNoTracking()
+                .Where(q => ids.Contains(q.NodeId) && (q.State == QueueState.Pending || q.State == QueueState.Leased))
+                .Select(q => q.NodeId)
+                .ToListAsync(ct));
+        }
+        var due = works.Where(w => !busy.Contains(w.AnchorNodeId)).ToList();
+        if (due.Count == 0)
+            return 0;
+        var runId = await CreateRunAsync(libraryId, MetadataMatchRunTrigger.Rerun, reviewFirst: false, due.Count, ct);
+        await EnqueueIntoRunAsync(libraryId, runId, due, QueueReason.Rerun, reviewFirst: false, requeue: true, ct);
+        _logger.LogInformation(LogEvents.Metadata.AutoMatchQueued, "Automatic matching: {Count} works queued for library {LibraryId} (run {RunId})",
+            due.Count, libraryId, runId);
+        _state.Signal();
+        return due.Count;
     }
 
     /// <summary>Everything "Match this library now" would queue (no network).</summary>

@@ -655,6 +655,8 @@ public sealed partial class Program
         services.AddScoped<Features.Metadata.Review.MetadataReviewService>();
         // "Collection about" (1.34.0): a folder of works about a series - set / clear / accept from review; queues the works inside.
         services.AddScoped<Features.Metadata.Collections.CollectionAboutService>();
+        // "Artist folder" (1.37.0): a folder of one artist's works - mark / remove / mark from review; declares the artist, queues the works.
+        services.AddScoped<Features.Metadata.Artists.ArtistFolderService>();
         // Missing volumes / chapters report (1.28.0): stored data only, no request.
         services.AddScoped<Features.Metadata.Missing.MissingReportService>();
         // Official releases tab (1.30.0, reach): stored data only, no request.

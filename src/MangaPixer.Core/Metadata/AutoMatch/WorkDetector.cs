@@ -13,6 +13,9 @@ using System.Globalization;
 /// <item>1.34.0: a folder an admin marked "Collection about" a series (<see cref="FolderShape.IsCollection"/>) is a
 /// <see cref="WorkClass.CollectionLeaf"/> at archive level whatever its shape: its loose archives are works of their own (a numbered
 /// mini-series grouped), its subfolders are classified on their own.</item>
+/// <item>1.37.0: a folder an admin marked an artist's folder (<see cref="FolderShape.IsMarkedArtistFolder"/>) is an
+/// <see cref="WorkClass.ArtistCollection"/> at archive level whatever its shape, on the same terms (no loose archives: not matched
+/// itself, its subfolders are classified on their own).</item>
 /// <item>Depth 0 (the library root) is <see cref="WorkClass.Excluded"/>; a unit-named folder below
 /// a non-root parent (<c>Volumes</c>, <c>Season 2</c>, <c>Part 3</c>) is <see cref="WorkClass.UnitSub"/>.</item>
 /// <item>Subfolders (empty ones ignored): two or more non-unit subfolders make a franchise container
@@ -79,6 +82,16 @@ public sealed class WorkDetector : IWorkDetector
                 ? Result(WorkClass.CollectionLeaf, MatchLevel.Archive,
                     [Invariant($"collection about a series: {archives.Count} archives are works of their own")], groups, collectionContent)
                 : Result(WorkClass.CollectionContainer, MatchLevel.None, ["collection about a series: no loose archives"], content: collectionContent);
+        }
+
+        if (folder.IsMarkedArtistFolder)
+        {
+            var artistContent = SuggestContent(archives.Select(ArchiveNameAnatomy.Parse).ToList());
+            var groups = GroupArchives(archives);
+            return groups.Count > 0
+                ? Result(WorkClass.ArtistCollection, MatchLevel.Archive,
+                    [Invariant($"marked an artist's folder: {archives.Count} archives are works of their own")], groups, artistContent)
+                : Result(WorkClass.ArtistCollection, MatchLevel.None, ["marked an artist's folder: no loose archives"], content: artistContent);
         }
 
         if (folder.Depth >= 2 && AutoMatchText.IsUnitFolderName(folder.DisplayName))

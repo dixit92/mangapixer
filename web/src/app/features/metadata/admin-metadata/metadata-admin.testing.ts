@@ -13,7 +13,7 @@ import { AUTO_CONSENT_TEXT_VERSION, CONSENT_TEXT_VERSION } from './settings/meta
 
 export function summary(overrides: Partial<MetadataReviewSummaryDto> = {}): MetadataReviewSummaryDto {
   return {
-    needsReview: 3, later: 0, autoLinked: 12, unmatched: 2, openFlags: 1, dontMatch: 4, confirmed: 20, missingFolders: 1, pending: 0, recheckPending: 0, collections: 0,
+    needsReview: 3, later: 0, autoLinked: 12, unmatched: 2, openFlags: 1, dontMatch: 4, confirmed: 20, missingFolders: 1, pending: 0, recheckPending: 0, collections: 0, artistFolders: 0,
     ...overrides,
   };
 }

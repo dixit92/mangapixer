@@ -707,6 +707,8 @@ export class IdentifyDialogComponent implements OnInit {
 export function restorePrevious(api: MetadataApiService, nodeId: string, previous: NodeSeriesLinkDto | null): Observable<unknown> {
   if (!previous) return api.unlink(nodeId);
   if (previous.state === 'DontMatch') return api.setDontMatch(nodeId);
+  // 1.37.0: the declared artist stayed when the row was replaced; re-marking adds the folder's name only when it is not declared.
+  if (previous.state === 'ArtistFolder') return api.setArtistFolder(nodeId);
   if (previous.state === 'CollectionAbout') {
     return api.setCollection(nodeId, {
       provider: previous.provider ?? '',

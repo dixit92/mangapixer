@@ -50,6 +50,9 @@ import { DeclaredFactsLineComponent } from './declared/declared-facts-line.compo
         @if (i.state === 'CollectionAbout') {
           <!-- 1.34.0: a folder of works about this series (fan works) - the series is context, not this folder. -->
           <p class="collection-lead" data-testid="series-collection">Collection about</p>
+        } @else if (i.state === 'ArtistFolder') {
+          <!-- 1.37.0: one artist's works - the artist is the declared creator (the line below). -->
+          <p class="collection-lead" data-testid="series-artist-folder">Artist folder</p>
         }
         <h2 class="title" data-testid="series-title">{{ i.title }}</h2>
         @if (altTitles().length > 0) {
@@ -82,6 +85,10 @@ import { DeclaredFactsLineComponent } from './declared/declared-facts-line.compo
         @if (i.state === 'CollectionAbout') {
           <p class="muted collection-note" data-testid="series-collection-note">
             A folder of works about this series. Nothing in it is part of the series; its items are matched on their own.
+          </p>
+        } @else if (i.state === 'ArtistFolder') {
+          <p class="muted collection-note" data-testid="series-artist-folder-note">
+            One artist's works. The folder is not a series; each work inside is matched on its own, with the artist as a hint.
           </p>
         }
         @if (i.statusText && !compact()) {

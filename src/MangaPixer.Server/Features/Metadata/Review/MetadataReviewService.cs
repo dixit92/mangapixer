@@ -45,6 +45,7 @@ public sealed class MetadataReviewService
     private readonly ICoverResolver _covers;
     private readonly TimeProvider _time;
     private readonly Collections.CollectionAboutService? _collections;
+    private readonly Artists.ArtistFolderService? _artists;
 
     public MetadataReviewService(
         MangaPixerDbContext db,
@@ -55,10 +56,12 @@ public sealed class MetadataReviewService
         AuditService audit,
         ILogger<MetadataReviewService> logger,
         TimeProvider time,
-        Collections.CollectionAboutService? collections = null)
+        Collections.CollectionAboutService? collections = null,
+        Artists.ArtistFolderService? artists = null)
     {
         _time = time;
         _collections = collections;
+        _artists = artists;
         _db = db;
         _links = links;
         _identify = identify;
@@ -89,6 +92,7 @@ public sealed class MetadataReviewService
             DontMatch = await LinksOf(SeriesLinkState.DontMatch, libraryId).CountAsync(ct),
             Confirmed = await LinksOf(SeriesLinkState.Confirmed, libraryId).CountAsync(ct),
             Collections = await LinksOf(SeriesLinkState.CollectionAbout, libraryId).CountAsync(ct),
+            ArtistFolders = await LinksOf(SeriesLinkState.ArtistFolder, libraryId).CountAsync(ct),
             MissingFolders = await _carryOver.StrandedFolderIds(libraryId).CountAsync(ct),
             Pending = await _db.MetadataMatchQueue
                 .Where(q => (q.State == QueueState.Pending || q.State == QueueState.Leased) && (libraryId == null || q.LibraryId == libraryId))
@@ -105,6 +109,17 @@ public sealed class MetadataReviewService
         var s = (int)state;
         return _db.NodeSeriesLinks.AsNoTracking()
             .Where(l => l.State == s && (libraryId == null || l.LibraryId == libraryId)
+                && _db.CatalogNodes.Any(n => n.Id == l.NodeId && n.Availability != tombstoned));
+    }
+
+    /// <summary>1.37.0: the Collections tab - "Collection about" folders and artist folders, on live nodes.</summary>
+    private IQueryable<NodeSeriesLinkEntity> CollectionTabRows(long? libraryId)
+    {
+        var tombstoned = (int)CatalogNodeAvailability.Tombstoned;
+        var collection = (int)SeriesLinkState.CollectionAbout;
+        var artist = (int)SeriesLinkState.ArtistFolder;
+        return _db.NodeSeriesLinks.AsNoTracking()
+            .Where(l => (l.State == collection || l.State == artist) && (libraryId == null || l.LibraryId == libraryId)
                 && _db.CatalogNodes.Any(n => n.Id == l.NodeId && n.Availability != tombstoned));
     }
 
@@ -179,7 +194,8 @@ public sealed class MetadataReviewService
                     {
                         MetadataReviewTab.AutoLinked => AutoAnchors(libraryId),
                         MetadataReviewTab.Confirmed => LinksOf(SeriesLinkState.Confirmed, libraryId),
-                        MetadataReviewTab.Collections => LinksOf(SeriesLinkState.CollectionAbout, libraryId),
+                        // 1.37.0: artist folders too - like collections, folders whose items are works of their own.
+                        MetadataReviewTab.Collections => CollectionTabRows(libraryId),
                         _ => LinksOf(SeriesLinkState.DontMatch, libraryId),
                     };
                     total = await q.CountAsync(ct);
@@ -428,6 +444,14 @@ public sealed class MetadataReviewService
             ? folderIds.Where(id => links.TryGetValue(id, out var l) && l.State == (int)SeriesLinkState.NeedsReview).ToList()
             : [];
         var archiveNames = await DirectArchiveNamesAsync(waitingFolders, ct);
+        // 1.37.0: the artist each artist folder declares (its first own creator).
+        var artistFolders = links.Values.Where(l => l.State == (int)SeriesLinkState.ArtistFolder).Select(l => l.NodeId).ToList();
+        var artists = artistFolders.Count == 0 ? [] : (await _db.DeclaredFacts.AsNoTracking()
+                .Where(f => f.NodeId != null && artistFolders.Contains(f.NodeId.Value) && f.Key == DeclaredFactKeys.Creator)
+                .Select(f => new { NodeId = f.NodeId!.Value, f.Value, f.Role, f.Position, f.Id })
+                .ToListAsync(ct))
+            .GroupBy(f => f.NodeId)
+            .ToDictionary(g => g.Key, g => g.OrderBy(f => f.Position).ThenBy(f => f.Id).Select(f => new DeclaredCreatorDto { Name = f.Value, Role = f.Role }).First());
 
         var items = new List<MetadataReviewItemDto>();
         foreach (var id in nodeIds)
@@ -474,6 +498,7 @@ public sealed class MetadataReviewService
                 Collection = archiveNames.TryGetValue(id, out var names) && candidates.TryGetValue(id, out var stored)
                     ? CollectionHint(names, stored)
                     : null,
+                Artist = artists.GetValueOrDefault(id),
                 OpenFlagCount = flagCounts.GetValueOrDefault(id),
                 Flags = flags.TryGetValue(node.PublicId, out var nodeFlags) ? nodeFlags : [],
             });
@@ -699,6 +724,23 @@ public sealed class MetadataReviewService
         };
     }
 
+    /// <summary>
+    /// 1.37.0: "Artist folder" from the review dashboard (key <c>r</c>) - marks a live FOLDER (waiting in Needs review or Unmatched) an
+    /// artist's folder: its review row and candidates go, the artist is declared (default the folder's name) and its works are queued.
+    /// Errors as <see cref="Artists.ArtistFolderService.SetAsync"/>; a removed folder is not found. No network.
+    /// </summary>
+    public async Task<Artists.ArtistFolderOutcome> AcceptArtistAsync(string nodePublicId, SetArtistFolderRequest? request, string? actor,
+        CancellationToken ct = default)
+    {
+        if (_artists is null)
+            return new(MetadataLinkResultCode.InvalidRequest, Error: "unavailable");
+        var live = await _db.CatalogNodes.AsNoTracking()
+            .AnyAsync(n => n.PublicId == nodePublicId && n.Availability != (int)CatalogNodeAvailability.Tombstoned, ct);
+        if (!live)
+            return new(MetadataLinkResultCode.NodeNotFound);
+        return await _artists.SetAsync(nodePublicId, request, actor, ct, auditResult: "review");
+    }
+
     /// <summary>The collection suggestion of one waiting folder now (the bulk action's input), or null.</summary>
     private async Task<MetadataReviewCollectionHintDto?> CollectionHintOfAsync(long nodeId, CancellationToken ct)
     {
@@ -819,6 +861,16 @@ public sealed class MetadataReviewService
                     if (!inReview || await CollectionHintOfAsync(node.Id, ct) is not { } hint)
                         return "no_suggestion";
                     return (await AcceptCollectionAsync(nodePublicId, hint.Rank, actor, ct)).Error ?? "ok";
+                }
+            case MetadataReviewBulkAction.MarkArtistFolder:
+                {
+                    var outcome = await AcceptArtistAsync(nodePublicId, null, actor, ct);
+                    return outcome.Code switch
+                    {
+                        MetadataLinkResultCode.Ok => "ok",
+                        MetadataLinkResultCode.NodeNotFound => "not_found",
+                        _ => outcome.Error ?? "invalid_request",
+                    };
                 }
             default:
                 return "invalid_action";

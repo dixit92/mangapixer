@@ -111,7 +111,8 @@ public sealed record ExportLinkDto
 {
     /// <summary>
     /// <c>Confirmed</c>, <c>Auto</c>, <c>NeedsReview</c>, <c>DontMatch</c> or (1.34.0) <c>CollectionAbout</c> - a folder of works about the
-    /// <c>record</c> (a label: never matched as the series, no numbers). Treat an unknown state as "not a series".
+    /// <c>record</c> (a label: never matched as the series, no numbers) or (1.37.0) <c>ArtistFolder</c> - a folder of one artist's works
+    /// (no <c>record</c>, no companions or completion; its works are items of their own). Treat an unknown state as "not a series".
     /// </summary>
     public required string State { get; init; }
 

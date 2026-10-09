@@ -20,6 +20,7 @@ import {
 } from '../admin-metadata/metadata-admin-labels';
 import { MetadataApiService } from '../metadata-api.service';
 import { collectionLabel } from '../collection-labels';
+import { artistFolderLabel } from '../artist-folder/artist-folder-labels';
 import { CoverCompareDirective } from './cover-compare/cover-compare.directive';
 import { QueuedImageDirective, QueuedImageState } from './queued-image.directive';
 import { candidateBlocks, FAMILY_REASONS, familyRoleLabel, SERIES_FAMILY_NOTE } from './series-family';
@@ -31,7 +32,9 @@ export type ReviewRowAction =
   // 1.34.0: "Collection about" a series.
   | 'acceptCollection' | 'changeCollection' | 'clearCollection'
   // 1.34.1: mark a waiting folder "Collection about" a series you pick (Identify in collection mode).
-  | 'collectionAbout';
+  | 'collectionAbout'
+  // 1.37.0: mark a waiting folder one artist's folder (key r), or remove that mark (Collections tab).
+  | 'artistFolder' | 'clearArtistFolder';
 
 export interface ReviewRowActionEvent {
   action: ReviewRowAction;
@@ -67,6 +70,9 @@ const COLLECTION_ABOUT: ReviewActionDef = {
   action: 'collectionAbout', label: 'Collection about…', short: 'Collection', icon: 'collections_bookmark', key: 'f',
 };
 
+/** 1.37.0: a waiting FOLDER can be marked one artist's folder (key r): its works are then matched one by one. */
+const ARTIST_FOLDER: ReviewActionDef = { action: 'artistFolder', label: 'Artist folder…', short: 'Artist', icon: 'palette', key: 'r' };
+
 /** The row actions each tab offers, in button order (the phone bottom bar uses the same list). */
 export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto): ReviewActionDef[] {
   switch (tab) {
@@ -77,6 +83,7 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
         { action: 'accept', label: 'Accept', icon: 'check', key: 'a', primary: !item.collection },
         { action: 'identify', label: 'Identify…', icon: 'travel_explore', key: 'i' },
         ...(item.nodeKind === 'Folder' && !item.collection ? [COLLECTION_ABOUT] : []),
+        ...(item.nodeKind === 'Folder' ? [ARTIST_FOLDER] : []),
         { action: 'dontMatch', label: 'Don\'t match', icon: 'block', key: 'd' },
         // 1.33.0: remembered on the server - the row goes to the end of Needs review for every admin until it is decided.
         item.laterAt
@@ -93,12 +100,16 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
     case 'Unmatched':
       return [
         { action: 'identify', label: 'Identify…', icon: 'travel_explore', key: 'i', primary: true },
-        ...(item.nodeKind === 'Folder' ? [COLLECTION_ABOUT] : []),
+        ...(item.nodeKind === 'Folder' ? [COLLECTION_ABOUT, ARTIST_FOLDER] : []),
         { action: 'dontMatch', label: 'Don\'t match', icon: 'block', key: 'd' },
       ];
     case 'DontMatch':
       return [{ action: 'clearDontMatch', label: 'Clear Don\'t match', icon: 'undo', primary: true }];
     case 'Collections':
+      // 1.37.0: artist folders are listed here too (folders whose works are matched on their own).
+      if (item.link?.state === 'ArtistFolder') {
+        return [{ action: 'clearArtistFolder', label: 'Remove artist folder', short: 'Remove', icon: 'undo', primary: true }];
+      }
       return [
         { action: 'changeCollection', label: 'Change series…', short: 'Change', icon: 'travel_explore', key: 'i' },
         { action: 'clearCollection', label: 'Clear collection', short: 'Clear', icon: 'undo', primary: true },
@@ -157,6 +168,8 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
             }
             <figcaption>Yours</figcaption>
           </figure>
+          <!-- 1.37.0: an artist folder names no series - only its own cover. -->
+          @if (it.link?.state !== 'ArtistFolder') {
           <figure class="cover">
             @if (candidateCoverUrl(); as url) {
               <!-- A provider request: queued, retried, and "No cover" with a retry when it gives up (1.29.0). -->
@@ -176,6 +189,7 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
             }
             <figcaption>{{ it.link && !hasCandidates() ? 'Linked' : 'Selected' }}</figcaption>
           </figure>
+          }
         </div>
         <div class="main">
       <div class="head">
@@ -259,6 +273,12 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
           <p class="link" data-testid="review-link">
             <mat-icon inline>collections_bookmark</mat-icon>
             {{ collectionText(link.title || link.externalId) }}
+            <span class="muted">· {{ link.updatedAt | date: 'mediumDate' }}</span>
+          </p>
+        } @else if (link.state === 'ArtistFolder') {
+          <p class="link" data-testid="review-link">
+            <mat-icon inline>palette</mat-icon>
+            {{ artistText(it.artist?.name) }}
             <span class="muted">· {{ link.updatedAt | date: 'mediumDate' }}</span>
           </p>
         } @else if (link.state !== 'NeedsReview' && link.state !== 'DontMatch') {
@@ -530,6 +550,11 @@ export class ReviewRowComponent {
 
   emit(action: ReviewRowAction): void {
     this.action.emit({ action, item: this.item(), rank: action === 'accept' || action === 'acceptCollection' ? this.rank() : undefined });
+  }
+
+  /** 1.37.0: "Artist folder: Name" on an artist folder's row (Collections tab). */
+  artistText(name: string | null | undefined): string {
+    return artistFolderLabel(name);
   }
 
   collectionText(title: string | null | undefined): string {
