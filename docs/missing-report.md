@@ -24,6 +24,7 @@ The report shows **Behind or with gaps** by default. Switch to **All linked seri
 - **An official volume you hold as chapters is an upgrade, never missing.** When the English edition has volume 15 out and you have its chapters as chapter files, the series is not behind; the row says "Volume 15 available in English (an upgrade, not missing)".
 - **Chapters are compared only when you keep chapter files.** A folder of volume files is never "behind" a scanlation.
 - **Webtoons, manhwa and manhua are counted in chapters** (*new in 1.34.0*). For a series MangaUpdates marks as a webtoon, or a manhwa or manhua, without a real volume list (two or more volumes on MangaDex, or a Wikipedia list), no volume of an English print edition is ever missing or an upgrade: the row says which chapters you have and which are missing. See [Webtoons, manhwa and manhua](volumes.md#webtoons-manhwa-and-manhua).
+- **A folder can declare its own edition** (*new in 1.39.0*). With **Volumes in this edition** set in the folder's [declared facts](declared-hints.md#this-folders-edition) - an omnibus or master edition, say - the folder's volumes are counted against that number (volumes 1 to N, as volume files), not against the regular edition's list; the total is shown as "(your edition)". A folder whose **Track completion** is off is not listed at all; the line above the list counts it as "not tracked".
 - **A nearly empty MangaDex list is no list** (*new in 1.34.0*): at most one real volume while most chapters are in no volume. It no longer places chapters or makes volumes "missing"; the other sources apply as when MangaDex has no list.
 
 ## Duplicate numbers
@@ -47,6 +48,7 @@ MangaPixer uses the first of these totals that applies to your language:
 
 | Total | Language | Confidence | Shown as |
 |---|---|---|---|
+| *New in 1.39.0:* the folder's own **Volumes in this edition**, for volumes only (see [This folder's edition](declared-hints.md#this-folders-edition)) | any | high: an admin declared it | (your edition) |
 | The English publisher's count ("10 Volumes / 60 Chapters; Ongoing") | English | high | (English) |
 | The other unit's English total converted with AniList's chapters per volume (see below) | English | medium | ~ (estimate) |
 | The chapters the series' volume list names as released in your language, for chapters only | any | medium: includes fan translations | (released in your language) |
