@@ -37,6 +37,9 @@ public enum MissingTotalSource
     /// only).
     /// </summary>
     Released = 4,
+
+    /// <summary>1.39.0: the volumes an admin declared for the edition this folder holds ("Volumes in this edition"; volumes only).</summary>
+    Declared = 5,
 }
 
 /// <summary>How far the total can be trusted as "what you could own".</summary>

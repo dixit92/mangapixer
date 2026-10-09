@@ -62,6 +62,9 @@ public static class ExportVocabulary
         _ => "CantTell",
     };
 
+    /// <summary>1.39.0: the item-level <c>tracking</c> value when an admin turned "Track completion" off (the key is left out otherwise).</summary>
+    public const string TrackingOff = "off";
+
     public static string Reason(SeriesAnswerReason reason) => reason switch
     {
         SeriesAnswerReason.Running => "Running",

@@ -50,6 +50,9 @@ public sealed record OfficialReleasesSummaryDto
     public int UpToDate { get; init; }
     public int MissingSome { get; init; }
     public int CantTell { get; init; }
+
+    /// <summary>1.39.0: linked series left out of the tab because an admin turned "Track completion" off for their folder.</summary>
+    public int NotTracked { get; init; }
 }
 
 /// <summary>

@@ -62,8 +62,11 @@ public sealed class MissingReportService
         var rows = await LinkedFoldersAsync(libraryId, null, ct);
         var conversions = await ConversionsAsync(rows, ct);
         var results = await EvaluateAsync(rows, conversions, ct);
+        // 1.39.0: a folder whose tracking an admin turned off gives no answer - left out of the list and its counts (counted apart).
+        var notTracked = results.Values.Count(r => r.Progress.Result.Facts.TrackingOff);
         var ordered = rows
             .Select(r => (Row: r, Result: results[r.NodeId].Result, Progress: results[r.NodeId].Progress))
+            .Where(x => !x.Progress.Result.Facts.TrackingOff)
             .OrderBy(x => x.Result.Verdict)
             .ThenByDescending(x => Math.Max(x.Result.Volumes?.BehindBy ?? 0, x.Result.Chapters?.BehindBy ?? 0))
             .ThenBy(x => x.Row.DisplayName, StringComparer.OrdinalIgnoreCase)
@@ -78,6 +81,7 @@ public sealed class MissingReportService
             NoTotal = ordered.Count(x => x.Result.Verdict == MissingVerdict.NoTotal),
             NoVerdict = ordered.Count(x => x.Result.Verdict is MissingVerdict.Mixed or MissingVerdict.NoUnits or MissingVerdict.Restarts),
             Upgrades = ordered.Count(x => x.Progress.Result.UpgradeVolumes.Count > 0),
+            NotTracked = notTracked,
         };
         var filtered = onlyMissing
             ? ordered.Where(x => x.Result.Verdict is MissingVerdict.Behind or MissingVerdict.Holes).ToList()
@@ -96,7 +100,10 @@ public sealed class MissingReportService
         });
     }
 
-    /// <summary>The report row of one folder with its own link, or null (no such node, not a linked folder).</summary>
+    /// <summary>
+    /// The report row of one folder with its own link, or null (no such node, not a linked folder). 1.39.0: a folder whose tracking is
+    /// off keeps its row (the series line says "Completion not tracked"): no verdict, its progress says <c>trackingOff</c>.
+    /// </summary>
     public async Task<MissingSeriesDto?> ForNodeAsync(string nodePublicId, CancellationToken ct = default)
     {
         var nodeId = await _db.CatalogNodes.Where(n => n.PublicId == nodePublicId).Select(n => (long?)n.Id).FirstOrDefaultAsync(ct);

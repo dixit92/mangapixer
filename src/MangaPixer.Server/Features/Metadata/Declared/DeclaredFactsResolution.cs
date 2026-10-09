@@ -87,6 +87,50 @@ internal static class DeclaredFactsResolution
             creators.Count == 0 ? null : ownCreators ? DeclaredFactSource.Own : Downward(above.CreatorsSource));
     }
 
+    /// <summary>
+    /// 1.39.0: the edition facts declared ON each of the given folders (keys <c>volumes</c>, <c>edition</c>, <c>tracking</c>) - own scope
+    /// only, never inherited and never read by matching. Folders without any are absent; unreadable values are ignored. One query.
+    /// </summary>
+    internal static async Task<Dictionary<long, DeclaredEditionFacts>> LoadEditionAsync(
+        MangaPixerDbContext db, IReadOnlyCollection<long> nodeIds, CancellationToken ct)
+    {
+        var result = new Dictionary<long, DeclaredEditionFacts>();
+        if (nodeIds.Count == 0)
+            return result;
+        var ids = nodeIds as List<long> ?? nodeIds.ToList();
+        var rows = await db.DeclaredFacts.AsNoTracking()
+            .Where(f => f.NodeId != null && ids.Contains(f.NodeId.Value)
+                && (f.Key == DeclaredFactKeys.Volumes || f.Key == DeclaredFactKeys.Edition || f.Key == DeclaredFactKeys.Tracking))
+            .OrderBy(f => f.Id)
+            .Select(f => new { NodeId = f.NodeId!.Value, f.Key, f.Value })
+            .ToListAsync(ct);
+        foreach (var group in rows.GroupBy(r => r.NodeId))
+        {
+            var facts = EditionFacts(group.Select(r => (r.Key, r.Value)));
+            if (!facts.IsEmpty)
+                result[group.Key] = facts;
+        }
+        return result;
+    }
+
+    /// <summary>The edition facts of one folder's rows (the first readable row per key wins).</summary>
+    internal static DeclaredEditionFacts EditionFacts(IEnumerable<(string Key, string Value)> rows)
+    {
+        int? volumes = null;
+        DeclaredEdition? edition = null;
+        var trackingOff = false;
+        foreach (var (key, value) in rows)
+        {
+            if (key == DeclaredFactKeys.Volumes)
+                volumes ??= DeclaredFactKeys.ParseVolumeTotal(value);
+            else if (key == DeclaredFactKeys.Edition)
+                edition ??= DeclaredFactKeys.ParseEdition(value);
+            else if (key == DeclaredFactKeys.Tracking)
+                trackingOff |= value == DeclaredFactKeys.TrackingOff;
+        }
+        return new DeclaredEditionFacts(volumes, edition, trackingOff);
+    }
+
     private static DeclaredFactSource? Downward(DeclaredFactSource? source) => source switch
     {
         null => null,

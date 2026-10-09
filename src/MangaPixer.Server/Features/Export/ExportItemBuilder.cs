@@ -117,7 +117,9 @@ public sealed class ExportItemBuilder(MangaPixerDbContext db)
                 Volumes = record is null || !isSeries
                     ? null
                     : ExportVolumes.Project(maps[record.Id].ToList(), WikipediaVolumeService.ReadDetails(details?.DetailsJson), details?.CheckedAt, today),
-                Completion = progress.TryGetValue(link.NodeId, out var entry) ? Completion(entry) : null,
+                // 1.39.0: tracking off - no Completion block (null, as for any item without an answer) and the item says tracking "off".
+                Completion = progress.TryGetValue(link.NodeId, out var entry) && !entry.Result.Facts.TrackingOff ? Completion(entry) : null,
+                Tracking = progress.TryGetValue(link.NodeId, out var tracked) && tracked.Result.Facts.TrackingOff ? ExportVocabulary.TrackingOff : null,
                 Refresh = record is null || !isSeries ? null : Refresh(record),
                 Duplicates = progress.TryGetValue(link.NodeId, out var series) ? Duplicates(series.Rows) : null,
             };
@@ -214,6 +216,8 @@ public sealed class ExportItemBuilder(MangaPixerDbContext db)
             UpgradeVolumes = dto.UpgradeVolumes,
             ComputedAt = default,
             BasedOnScanAt = null,
+            VolumeTotalOverride = entry.Result.Facts.VolumeOverride,
+            Edition = entry.Result.Facts.Edition is { } edition ? DeclaredFactKeys.EditionSlug(edition) : null,
         };
     }
 

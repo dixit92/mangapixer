@@ -86,6 +86,8 @@ public sealed class SeriesProgressLoader(MangaPixerDbContext db)
         }
 
         var comicInfo = await ComicInfoAsync(folders.Keys.ToList(), ct);
+        // 1.39.0: what an admin declared on each series folder itself (edition volumes, label, tracking) - own scope only.
+        var editions = await Declared.DeclaredFactsResolution.LoadEditionAsync(db, targets.Select(t => t.NodeId).Distinct().ToList(), ct);
         var language = await ReleasedInLanguage.PreferredAsync(db, ct);
         var recordIds = targets.Select(t => t.RecordId).Distinct().ToList();
         var maps = (await db.SeriesVolumeMaps.AsNoTracking().Where(m => recordIds.Contains(m.RecordId)).ToListAsync(ct))
@@ -115,7 +117,8 @@ public sealed class SeriesProgressLoader(MangaPixerDbContext db)
             }
             var restarts = MissingUnits.Evaluate(missingFolders, new PublishedTotals()).Verdict == MissingVerdict.Restarts;
             var record = records.GetValueOrDefault(target.RecordId);
-            var (map, facts) = MapAndFacts(maps[target.RecordId].ToList(), record, language, target.ChaptersPerVolume);
+            var (map, facts) = MapAndFacts(maps[target.RecordId].ToList(), record, language, target.ChaptersPerVolume,
+                editions.GetValueOrDefault(target.NodeId));
             var progress = SeriesProgress.Evaluate(rows, map, facts, restarts);
             var units = rows.Select(VolumeGrouping.UnitsOf).ToList();
             result[target.NodeId] = new SeriesProgressEntry(progress, rows,
@@ -147,9 +150,13 @@ public sealed class SeriesProgressLoader(MangaPixerDbContext db)
     /// what is released in the preferred language. <paramref name="ratio"/> (an admin's AniList lookup) is preferred for totals.
     /// 1.34.0: a near-empty MangaDex map is no list (<see cref="Volumes.VolumeMapService.IsUsable"/>), and a webtoon / manhwa / manhua
     /// without a real list is in chapter mode (<see cref="VolumeListRules.ChaptersOnly"/>: the map's <c>ChaptersOnly</c>, no ratio).
+    /// 1.39.0: <paramref name="edition"/> - what an admin declared on the series folder itself - goes into the facts only
+    /// (<see cref="ProgressFacts.VolumeOverride"/>, <see cref="ProgressFacts.Edition"/>, <see cref="ProgressFacts.TrackingOff"/>): the map
+    /// stays the regular edition's, so chapter answers and the Volumes view's stacks are unchanged while the volume answers count the
+    /// declared edition's volumes 1..N. Callers that only want the map (the view map, the volume-cover pass) pass none.
     /// </summary>
     public static (VolumeMapInput Map, ProgressFacts Facts) MapAndFacts(
-        IReadOnlyList<SeriesVolumeMapEntity> maps, RecordRow? record, string language, double? ratio = null)
+        IReadOnlyList<SeriesVolumeMapEntity> maps, RecordRow? record, string language, double? ratio = null, DeclaredEditionFacts? edition = null)
     {
         ArgumentNullException.ThrowIfNull(maps);
         var mangadex = Volumes.VolumeMapService.UsableMangaDexMap(maps);
@@ -192,7 +199,10 @@ public sealed class SeriesProgressLoader(MangaPixerDbContext db)
             english && record?.LatestChapter is { } latest && latest >= 1 ? (int)Math.Floor(latest) : null,
             english ? record?.TranslationComplete : null,
             release.Chapters,
-            ratio ?? mapRatio);
+            ratio ?? mapRatio,
+            edition?.VolumeTotal,
+            edition?.Edition,
+            edition?.TrackingOff ?? false);
         return (map, facts);
     }
 
