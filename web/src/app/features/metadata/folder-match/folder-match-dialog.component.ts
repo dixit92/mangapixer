@@ -166,7 +166,7 @@ const MAX_WEB_CANDIDATES = 8;
                 }
                 @if (r.result) {
                   <div class="result" [class.error]="r.result !== 'ok'" [attr.data-testid]="'folder-match-result-' + r.row.nodeId">
-                    {{ result(r) }}
+                    {{ resultLabel(r) }}
                   </div>
                 }
               </div>
@@ -265,7 +265,7 @@ export class FolderMatchDialogComponent implements OnDestroy {
   readonly busy = computed(() => this.loading() || this.searching() || this.applying());
   private stopped = false;
   private destroyed = false;
-  private result: FolderMatchDialogResult | undefined;
+  private outcome: FolderMatchDialogResult | undefined;
 
   readonly folderCount = plural(this.data.folders.length, 'folder selected', 'folders selected');
   readonly ignoredText = plural(this.data.ignored, 'archive', 'archives');
@@ -335,7 +335,7 @@ export class FolderMatchDialogComponent implements OnDestroy {
     return `${c.title}${details.length ? ' - ' + details.join(', ') : ''}`;
   }
 
-  result(r: FolderMatchRowState): string {
+  resultLabel(r: FolderMatchRowState): string {
     return resultText(r.result ?? '', r.resultMessage);
   }
 
@@ -499,13 +499,13 @@ export class FolderMatchDialogComponent implements OnDestroy {
       this.error.set(`Marking failed: ${(e as { message?: string })?.message ?? 'error'}`);
     } finally {
       this.applying.set(false);
-      if (marked.length || failed) this.result = { kind, marked, failed, queued };
+      if (marked.length || failed) this.outcome = { kind, marked, failed, queued };
     }
   }
 
   close(): void {
     this.stopped = true;
-    this.ref.close(this.result);
+    this.ref.close(this.outcome);
   }
 }
 

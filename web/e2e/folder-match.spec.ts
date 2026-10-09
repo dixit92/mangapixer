@@ -9,7 +9,7 @@ import { expectFitsScreen } from './layout';
  *   ambiguous row needs a pick, "Search the web for the rest" shows the exact search text per folder and sends only ticked rows through
  *   the Identify search; a web result is only offered; Apply marks the local matches in one call and the picked web result through
  *   Collection about;
- * - desktop and phone widths fit the screen, and nothing covers the dialog's buttons.
+ * - desktop, tablet and phone widths fit the screen, and nothing covers the dialog's buttons.
  * Optional: E2E_SCREENSHOT_DIR saves the reviewed screenshots.
  */
 const ADMIN_USER = process.env['E2E_ADMIN_USER'] ?? 'admin';
@@ -108,7 +108,9 @@ function collectionsPreview(nodes: Node[]) {
   };
 }
 
-for (const viewport of [{ width: 1280, height: 900, name: 'desktop' }, { width: 390, height: 844, name: 'phone' }]) {
+for (const viewport of [
+  { width: 1280, height: 900, name: 'desktop' }, { width: 820, height: 1180, name: 'tablet' }, { width: 390, height: 844, name: 'phone' },
+]) {
   test(`browse (${viewport.name}): Match folders by name - preview with tick boxes, opt-in web search, apply`, async ({ page, baseURL }) => {
     test.skip(!FIXTURE_ROOT, 'E2E_SERIES_FIXTURE_ROOT not set: no synthetic library available');
     const foreign = watchForeignRequests(page, baseURL!);

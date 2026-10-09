@@ -8,6 +8,7 @@ using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Admin;
 using com.lifepixer.mangapixer.Server.Features.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Authors;
+using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Metadata.FolderMatch;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
@@ -172,7 +173,7 @@ public sealed class FolderMatchHttpTests
                       join r in db.MetadataRecords on l.RecordId equals (long?)r.Id into rs
                       from r in rs.DefaultIfEmpty()
                       select new { n.PublicId, l.State, ExternalId = r == null ? null : r.ExternalId })
-            .ToDictionaryAsync(x => x.PublicId, x => ((SeriesLinkState)x.State, x.ExternalId));
+            .ToDictionaryAsync(x => x.PublicId, x => ((SeriesLinkState)x.State, (string?)x.ExternalId));
     }
 
     [Fact]
