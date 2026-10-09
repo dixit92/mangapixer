@@ -5,6 +5,7 @@ using System.Text.Json;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
+using com.lifepixer.mangapixer.Core.Metadata.Missing;
 using com.lifepixer.mangapixer.Server.Features.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MangaUpdates;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Reach;
@@ -118,6 +119,7 @@ public sealed class ExportItemBuilder(MangaPixerDbContext db)
                     : ExportVolumes.Project(maps[record.Id].ToList(), WikipediaVolumeService.ReadDetails(details?.DetailsJson), details?.CheckedAt, today),
                 Completion = progress.TryGetValue(link.NodeId, out var entry) ? Completion(entry) : null,
                 Refresh = record is null || !isSeries ? null : Refresh(record),
+                Duplicates = progress.TryGetValue(link.NodeId, out var series) ? Duplicates(series.Rows) : null,
             };
             result.Add(new ExportBuiltItem(link.NodeId, link.PublicId, item));
         }
@@ -177,6 +179,28 @@ public sealed class ExportItemBuilder(MangaPixerDbContext db)
                 .ToList(),
             FetchedAt = ExportJson.Truncate(r.FetchedAt),
         };
+    }
+
+    /// <summary>Files per duplicate listed in the export (a number stated by more files is rare; the count stays in the report).</summary>
+    public const int MaxDuplicateFiles = 20;
+
+    /// <summary>
+    /// 1.38.0: the duplicate numbers of a linked series folder with each file's node id and name - the same rules as the Missing report
+    /// (<see cref="DuplicateUnits.GroupsIn"/>), from the rows the Completion answer was computed from; null when there are none.
+    /// </summary>
+    private static List<ExportDuplicateDto>? Duplicates(IReadOnlyList<GroupingRow> rows)
+    {
+        var groups = DuplicateUnits.GroupsIn(rows);
+        if (groups.Count == 0)
+            return null;
+        return groups.Take(MissingUnits.MaxListed).Select(g => new ExportDuplicateDto
+        {
+            Kind = g.Unit.Kind == MissingUnitKind.Volume ? "Volume" : "Chapter",
+            Number = VolumeGrouping.Canonical(g.Unit.Number),
+            Files = g.Rows.Take(MaxDuplicateFiles)
+                .Select(r => new ExportDuplicateFileDto { NodeId = r.Id, Name = r.Name, Folder = r.ContainerName })
+                .ToList(),
+        }).ToList();
     }
 
     private static ExportCompletionDto Completion(SeriesProgressEntry entry)

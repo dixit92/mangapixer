@@ -431,7 +431,12 @@
          never linked, works matched archive by archive, the declared artist a hint); stories collected in one volume stack in the
          Volumes view; an artist folder no longer stays in Needs review as one work; Clear revoked tokens; the last scan says who
          started it; a "Use old" move conflict records the export carry. No migration; matcher rules revision unchanged (3). -->
-    <MangaPixerVersionMinor>37</MangaPixerVersionMinor>
+    <!-- 1.38.0 - MINOR (2026-10-09, cycle "Match Folders by Name and Artist Aliases"): Match folders by name (bulk artist folders /
+         collections by stored names; opt-in web search for the rest); artists' other names - a new kind of request, MangaUpdates
+         author records by id, only when an admin asks (main consent 5); the export lists duplicate files with their node ids;
+         tablet browse breadcrumb; Undo of Identify on an artist folder. Migration AddMetadataAuthors (additive); matcher rules
+         revision unchanged (3). -->
+    <MangaPixerVersionMinor>38</MangaPixerVersionMinor>
     <!-- 1.31.1 - PATCH (2026-10-01, integrator-direct, owner live check of 1.31.0): content signatures backfilled for archives
          analysed before 1.5.0 (their moves were never recognised); Re-attach to a folder in another library; "Episode N" next
          to a volume is a part label, not a chapter; the review list shows the file's own page 1, never the cover layer's;
@@ -445,7 +450,7 @@
     <!-- 1.37.1 - PATCH (2026-10-09, integrator-direct, owner live check of 1.37.0 on a phone): the review page's Undo snackbar opens
          above the phone bottom bar (its overlay pane lifted by the bar's measured height). Web only; no migration, API or dependency
          change. -->
-    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
+    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->

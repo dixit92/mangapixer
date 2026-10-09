@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.38.0] - 2026-10-09
+
+### Added
+
+- **Match folders by name.** When a folder holds many artists' folders, or collections named after their series, an admin can now mark them all at once: select the folders in the browse view (up to 200), then **Series** > **Match folders by name…**, and choose **As artist folders** or **As collections**. Each folder's name is compared only with what your server already stores - nothing is sent: as artist folders, with every name of the artists of your stored series records (any spelling, any name order, and - once fetched - their other names from MangaUpdates), declaring the artist's main MangaUpdates name; as collections, with the titles and other titles of your stored series records. A list with tick boxes shows what would happen before anything changes: a folder with one match is ticked, a folder with several asks you to pick one, a folder without a match is left alone (or, as an artist folder, marked with its own name if you tick that), and a folder that already has a link or a mark is shown with it, unticked. **Mark** marks each ticked folder exactly as **Artist folder…** or **Collection about…** does for one folder (a collection's series cover is downloaded when your server does not have it yet), and says per folder what happened. For collections without a match, **Search the web for the rest** (off until you tick it) shows the exact search text of each folder - editable, each with its own tick box - and sends only the ticked ones to MangaUpdates, like the Identify search: one per second, at most 50 per run, stopping when MangaUpdates asks to slow down or the daily budget is spent; the results are only offered for you to pick. See [Match folders by name](docs/series-information.md#match-folders-by-name).
+- **Artists' other names.** Metadata Manager > Settings has a new **Artists' other names** card: MangaPixer can read the MangaUpdates author page of each creator of your linked series - pen names, other spellings, the name in Japanese, Korean or Chinese script - so **Match folders by name** recognises an artist's folder named with any of them. It runs only when you press **Look up the rest** (the card says how many requests and about how long): one request per second, counted in the daily budget, sending only the MangaUpdates author number; it stops when the budget is spent or MangaUpdates asks to slow down, and **Cancel** stops it - the next press continues where it stopped. An author is asked again only after 180 days. **Delete all fetched web data** removes the names.
+- **The metadata export lists duplicate files.** A linked series folder's item now carries `duplicates`: each chapter or volume number that more than one file in the same folder states (the duplicates the Missing report shows), with every file's node id, name and unit subfolder - so an app such as MangaList can open each copy in the reader (`/reader/{nodeId}`) and let you judge which to keep. It is a new optional block, `include=duplicates`, on by default; the key is left out when a folder has no duplicates, so other items do not change. Read-only, no new route; `schemaVersion` stays 1. See [Metadata export](docs/metadata-export.md).
+
+### Fixed
+
+- **Tablet browse: the Volumes | Folders switch squeezed the folder trail to a letter.** At tablet width (about 820 px) the controls left the breadcrumb a letter or two. When the switch is shown, the trail now keeps its own room and the controls move to a second row; desktop and phone are unchanged.
+- **Undo after Identify on an artist folder added the folder's name as a second artist.** When an artist folder's artist had been renamed in the dialog and Identify then linked the folder, **Undo** marked it an artist folder again with the folder's name, so the folder ended up with two declared artists. Undo now puts back the artist that was declared.
+
+### Changed
+
+- **The web-lookups consent text is now version 5.** It adds that MangaUpdates may be sent the author numbers of the creators of series you have stored (when you ask for artists' other names) and the names you confirm in Match folders by name. Fetching from the web - and with it Automatic matching - stays paused after the update until an admin accepts the new text (Metadata Manager > Settings); Automatic matching's own consent is unchanged.
+- **THIRD-PARTY-NOTICES: the list of web build and test packages is regenerated** from a reproducible Linux install (it was a stale Windows snapshot); the shipped packages' sections are unchanged.
+
 ## [1.37.1] - 2026-10-09
 
 ### Fixed

@@ -17,6 +17,7 @@ import { FOLDER_CONTENT_OPTIONS, contentCaption, contentSuggestion, rematchMessa
 import { DeclaredFactsApiService } from './declared/declared-facts-api.service';
 import { ArtistFolderDialogService } from './artist-folder/artist-folder-dialog.service';
 import { ARTIST_FOLDER_TIP, artistFolderResultMessage } from './artist-folder/artist-folder-labels';
+import { FolderMatchMenuItemDirective } from './folder-match/folder-match-menu-item.directive';
 
 /**
  * Browse selection-bar "Series" menu for admins (1.24.0), mirroring the reading-
@@ -34,7 +35,7 @@ import { ARTIST_FOLDER_TIP, artistFolderResultMessage } from './artist-folder/ar
 @Component({
   selector: 'app-series-selection-actions',
   standalone: true,
-  imports: [MatButtonModule, MatIconModule, MatMenuModule, MatDividerModule, MatTooltipModule],
+  imports: [MatButtonModule, MatIconModule, MatMenuModule, MatDividerModule, MatTooltipModule, FolderMatchMenuItemDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (shown()) {
@@ -62,6 +63,7 @@ import { ARTIST_FOLDER_TIP, artistFolderResultMessage } from './artist-folder/ar
               [matTooltip]="artistTip" matTooltipPosition="left" data-testid="bulk-artist-folder">
         <mat-icon>palette</mat-icon> Artist folder…
       </button>
+      <button mat-menu-item [appFolderMatch]="selectedNodes()" [disabled]="selectedFolders().length === 0" data-testid="bulk-folder-match"><mat-icon>drive_file_rename_outline</mat-icon> Match folders by name…</button>
       <mat-divider />
       <button mat-menu-item (click)="dontMatch(true)" data-testid="bulk-dont-match">
         <mat-icon>block</mat-icon> Don't match

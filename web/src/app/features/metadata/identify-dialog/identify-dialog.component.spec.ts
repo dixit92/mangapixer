@@ -6,6 +6,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { Subject, of, throwError } from 'rxjs';
 
 import { IdentifyContextDto, IdentifyPreviewDto, IdentifySearchResultDto } from '../../../core/api/api-types';
+import { DeclaredFactsApiService } from '../declared/declared-facts-api.service';
 import { MetadataApiService } from '../metadata-api.service';
 import { MetadataStateService } from '../metadata-state.service';
 import { IdentifyDialogComponent, restorePrevious } from './identify-dialog.component';
@@ -94,6 +95,7 @@ describe('IdentifyDialogComponent', () => {
         provideNoopAnimations(),
         provideRouter([]),
         { provide: MetadataApiService, useValue: api },
+        { provide: DeclaredFactsApiService, useValue: { get: vi.fn() } },
         { provide: MAT_DIALOG_DATA, useValue: { nodeId: nodeIds?.[0] ?? 'n1', nodeIds, mode } },
         { provide: MatDialogRef, useValue: dialogRef },
         { provide: MatSnackBar, useValue: snackBar },
@@ -532,5 +534,26 @@ describe('IdentifyDialogComponent', () => {
     expect(api.setDontMatch).toHaveBeenCalledWith('n1');
     restorePrevious(svc, 'n1', { nodeId: 'n1', state: 'Confirmed', provider: 'mangaupdates', externalId: '7', matchMethod: 'Search', updatedAt: 'x' });
     expect(api.link).toHaveBeenCalledWith('n1', { provider: 'mangaupdates', externalId: '7', matchMethod: 'Search' });
+  });
+
+  it('restorePrevious re-marks an artist folder with its declared artist, not the folder name (1.38.0)', () => {
+    const setArtistFolder = vi.fn(() => of({}));
+    const svc = { setArtistFolder } as unknown as MetadataApiService;
+    const scope = (creators: { name: string; role?: string | null }[]) =>
+      of({ libraryId: 'l1', displayName: 'Folder', own: { creators }, inherited: {} });
+    const renamed = { get: vi.fn(() => scope([{ name: 'Pen Name', role: 'artist' }, { name: 'Other', role: 'author' }])) };
+    const artistRow = { nodeId: 'n1', state: 'ArtistFolder' as const, updatedAt: 'x' };
+
+    restorePrevious(svc, 'n1', artistRow, renamed as unknown as DeclaredFactsApiService).subscribe();
+    expect(renamed.get).toHaveBeenCalledWith({ kind: 'folder', id: 'n1' });
+    expect(setArtistFolder).toHaveBeenLastCalledWith('n1', { name: 'Pen Name', role: 'artist' });
+
+    const none = { get: vi.fn(() => scope([])) };
+    restorePrevious(svc, 'n1', artistRow, none as unknown as DeclaredFactsApiService).subscribe();
+    expect(setArtistFolder).toHaveBeenLastCalledWith('n1', {});
+
+    const failing = { get: vi.fn(() => throwError(() => ({ error: 'http_error' }))) };
+    restorePrevious(svc, 'n1', artistRow, failing as unknown as DeclaredFactsApiService).subscribe();
+    expect(setArtistFolder).toHaveBeenLastCalledWith('n1', {});
   });
 });

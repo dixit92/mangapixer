@@ -349,10 +349,12 @@ public sealed class MetadataIdentifyService
 
     /// <summary>
     /// 1.34.0: marks a folder "Collection about" a provider record - the record is fetched and stored first when it is not stored yet
-    /// (gated, as for <see cref="LinkAsync"/>), then its poster (a failed image never fails the change).
+    /// (gated, as for <see cref="LinkAsync"/>), then its poster (a failed image never fails the change; not with
+    /// <paramref name="storeImage"/> false).
     /// </summary>
     public async Task<(MetadataLinkResultCode Code, NodeSeriesLinkChangeDto? Change)> SetCollectionAboutAsync(
-        string nodePublicId, LinkSeriesRequest request, string? actor, CancellationToken ct = default, string? auditResult = null)
+        string nodePublicId, LinkSeriesRequest request, string? actor, CancellationToken ct = default, string? auditResult = null,
+        bool storeImage = true)
     {
         if (!MetadataIdentifiers.IsValidProvider(request.Provider) || !MetadataIdentifiers.IsValidExternalId(request.ExternalId))
             return (MetadataLinkResultCode.InvalidRequest, null);
@@ -371,7 +373,8 @@ public sealed class MetadataIdentifyService
         }
 
         var result = await _links.SetCollectionAboutAsync(nodePublicId, request, actor, ct, auditResult);
-        if (result.Code == MetadataLinkResultCode.Ok)
+        // 1.38.0: Match folders by name sends nothing - a poster that is not stored yet waits for the next Refresh.
+        if (result.Code == MetadataLinkResultCode.Ok && storeImage)
         {
             var record = await _db.MetadataRecords.FirstAsync(r => r.Provider == request.Provider && r.ExternalId == request.ExternalId, ct);
             if (record.ImageState != 1)

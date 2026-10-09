@@ -368,32 +368,36 @@ THE SOFTWARE.
   https://github.com/marella/material-icons. The icon fonts ship as
   `.woff`/`.woff2` in the SPA.
 
-## 4. Web build and test packages - npm (766)
+## 4. Web build and test packages - npm (764)
 
 These are dev dependencies and their transitive trees: the Angular CLI and build
 toolchain, TypeScript, ESLint, Vitest, jsdom and Playwright. None is in the shipped
-SPA. The inventory reflects a Windows x64 install; platform-specific optional
-binaries such as `lightningcss-*`, `@esbuild/*` and `@rollup/*` differ on other
-operating systems, including the Linux image build stage.
+SPA. The inventory reflects a Linux x64 install (`npm ci` in `node:24-bookworm-slim`,
+the image the web build stage uses): the lockfile's dev packages that the install
+places in `node_modules`. Platform-specific optional binaries such as
+`lightningcss-*`, `@esbuild/*` and `@rollup/*` differ on other operating systems.
 
 - `@ampproject/remapping` - 2.3.0 - Apache-2.0 - https://github.com/ampproject/remapping
 - `@angular-devkit/architect` - 0.2202.0 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/architect` - 0.2202.1 - MIT - https://github.com/angular/angular-cli
 - `@angular-devkit/build-angular` - 22.2.0 - MIT - https://github.com/angular/angular-cli
 - `@angular-devkit/build-webpack` - 0.2202.0 - MIT - https://github.com/angular/angular-cli
 - `@angular-devkit/core` - 22.2.0 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/schematics` - 22.2.0 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/core` - 22.2.1 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/schematics` - 22.2.1 - MIT - https://github.com/angular/angular-cli
 - `@angular-eslint/builder` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/bundled-angular-compiler` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular-eslint/eslint-plugin` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/eslint-plugin-template` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `@angular-eslint/eslint-plugin` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/schematics` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/template-parser` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/utils` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular/build` - 22.2.0 - MIT - https://github.com/angular/angular-cli
-- `@angular/cli` - 22.2.0 - MIT - https://github.com/angular/angular-cli
-- `@angular/compiler-cli` - 22.2.0 - MIT - https://github.com/angular/angular
-- `@asamuzakjp/css-color` - 7.0.1 - MIT - https://github.com/asamuzaK/cssColor
-- `@asamuzakjp/dom-selector` - 9.2.1 - MIT - https://github.com/asamuzaK/domSelector
+- `@angular/build` - 22.2.1 - MIT - https://github.com/angular/angular-cli
+- `@angular/cli` - 22.2.1 - MIT - https://github.com/angular/angular-cli
+- `@angular/compiler-cli` - 22.2.1 - MIT - https://github.com/angular/angular
+- `@asamuzakjp/css-color` - 7.1.3 - MIT - https://github.com/asamuzaK/cssColor
+- `@asamuzakjp/dom-selector` - 9.2.4 - MIT - https://github.com/asamuzaK/domSelector
 - `@babel/code-frame` - 7.29.7 - MIT - https://github.com/babel/babel
 - `@babel/code-frame` - 8.0.6 - MIT - https://github.com/babel/babel
 - `@babel/compat-data` - 7.29.7 - MIT - https://github.com/babel/babel
@@ -503,14 +507,14 @@ operating systems, including the Linux image build stage.
 - `@babel/types` - 8.0.6 - MIT - https://github.com/babel/babel
 - `@bramus/specificity` - 2.4.2 - MIT - https://github.com/bramus/specificity
 - `@bufbuild/protobuf` - 2.15.0 - Apache-2.0 AND BSD-3-Clause - https://github.com/bufbuild/protobuf-es
-- `@csstools/color-helpers` - 6.1.1 - MIT-0 - https://github.com/csstools/postcss-plugins
-- `@csstools/css-calc` - 3.4.0 - MIT - https://github.com/csstools/postcss-plugins
-- `@csstools/css-color-parser` - 4.2.3 - MIT - https://github.com/csstools/postcss-plugins
-- `@csstools/css-parser-algorithms` - 4.0.0 - MIT - https://github.com/csstools/postcss-plugins
-- `@csstools/css-syntax-patches-for-csstree` - 1.1.14 - MIT-0 - https://github.com/csstools/postcss-plugins
-- `@csstools/css-tokenizer` - 4.0.1 - MIT - https://github.com/csstools/postcss-plugins
+- `@csstools/color-helpers` - 6.1.2 - MIT-0 - https://github.com/csstools/postcss-plugins
+- `@csstools/css-calc` - 3.4.3 - MIT - https://github.com/csstools/postcss-plugins
+- `@csstools/css-color-parser` - 4.2.6 - MIT - https://github.com/csstools/postcss-plugins
+- `@csstools/css-parser-algorithms` - 4.0.2 - MIT - https://github.com/csstools/postcss-plugins
+- `@csstools/css-syntax-patches-for-csstree` - 1.1.15 - MIT-0 - https://github.com/csstools/postcss-plugins
+- `@csstools/css-tokenizer` - 4.0.2 - MIT - https://github.com/csstools/postcss-plugins
 - `@discoveryjs/json-ext` - 1.1.0 - MIT - https://github.com/discoveryjs/json-ext
-- `@esbuild/win32-x64` - 0.28.2 - MIT - https://github.com/evanw/esbuild
+- `@esbuild/linux-x64` - 0.28.2 - MIT - https://github.com/evanw/esbuild
 - `@eslint-community/eslint-utils` - 4.10.1 - MIT - https://github.com/eslint-community/eslint-utils
 - `@eslint-community/regexpp` - 4.12.2 - MIT - https://github.com/eslint-community/regexpp
 - `@eslint/config-array` - 0.21.2 - Apache-2.0 - https://github.com/eslint/rewrite
@@ -559,10 +563,10 @@ operating systems, including the Linux image build stage.
 - `@jsonjoy.com/codegen` - 17.67.0 - Apache-2.0 - https://github.com/jsonjoy-com/codegen
 - `@jsonjoy.com/fs-core` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
 - `@jsonjoy.com/fs-fsa` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
-- `@jsonjoy.com/fs-node` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
 - `@jsonjoy.com/fs-node-builtins` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
 - `@jsonjoy.com/fs-node-to-fsa` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
 - `@jsonjoy.com/fs-node-utils` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
+- `@jsonjoy.com/fs-node` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
 - `@jsonjoy.com/fs-print` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
 - `@jsonjoy.com/fs-snapshot` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
 - `@jsonjoy.com/json-pack` - 1.21.0 - Apache-2.0 - https://github.com/jsonjoy-com/json-pack
@@ -573,20 +577,19 @@ operating systems, including the Linux image build stage.
 - `@jsonjoy.com/util` - 17.67.0 - Apache-2.0 - https://github.com/jsonjoy-com/util
 - `@leichtgewicht/ip-codec` - 2.0.5 - MIT - https://github.com/martinheidegger/ip-codec
 - `@listr2/prompt-adapter-inquirer` - 4.2.7 - MIT - https://github.com/listr2/listr2
-- `@lmdb/lmdb-win32-x64` - 3.5.6 - MIT - https://github.com/kriszyp/lmdb-js
+- `@lmdb/lmdb-linux-x64` - 3.5.6 - MIT - https://github.com/kriszyp/lmdb-js
 - `@modelcontextprotocol/core` - 2.0.0 - MIT - https://github.com/modelcontextprotocol/typescript-sdk
 - `@modelcontextprotocol/server` - 2.0.0 - MIT - https://github.com/modelcontextprotocol/typescript-sdk
-- `@msgpackr-extract/msgpackr-extract-win32-x64` - 3.0.4 - MIT - https://github.com/kriszyp/msgpackr-extract
+- `@msgpackr-extract/msgpackr-extract-linux-x64` - 3.0.4 - MIT - https://github.com/kriszyp/msgpackr-extract
+- `@napi-rs/nice-linux-x64-gnu` - 1.1.1 - MIT - https://github.com/Brooooooklyn/nice
 - `@napi-rs/nice` - 1.1.1 - MIT - https://github.com/Brooooooklyn/nice
-- `@napi-rs/nice-win32-x64-msvc` - 1.1.1 - MIT - https://github.com/Brooooooklyn/nice
 - `@ngtools/webpack` - 22.2.0 - MIT - https://github.com/angular/angular-cli
 - `@noble/hashes` - 1.8.0 - MIT - https://github.com/paulmillr/noble-hashes
-- `@oxc-parser/binding-win32-x64-msvc` - 0.150.0 - MIT - https://github.com/oxc-project/oxc
-- `@oxc-project/types` - 0.139.0 - MIT - https://github.com/oxc-project/oxc
+- `@oxc-parser/binding-linux-x64-gnu` - 0.150.0 - MIT - https://github.com/oxc-project/oxc
 - `@oxc-project/types` - 0.149.0 - MIT - https://github.com/oxc-project/oxc
 - `@oxc-project/types` - 0.150.0 - MIT - https://github.com/oxc-project/oxc
+- `@parcel/watcher-linux-x64-glibc` - 2.6.0 - MIT - https://github.com/parcel-bundler/watcher
 - `@parcel/watcher` - 2.6.0 - MIT - https://github.com/parcel-bundler/watcher
-- `@parcel/watcher-win32-x64` - 2.6.0 - MIT - https://github.com/parcel-bundler/watcher
 - `@peculiar/asn1-cms` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
 - `@peculiar/asn1-csr` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
 - `@peculiar/asn1-ecc` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
@@ -595,31 +598,30 @@ operating systems, including the Linux image build stage.
 - `@peculiar/asn1-pkcs9` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
 - `@peculiar/asn1-rsa` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
 - `@peculiar/asn1-schema` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-x509` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
 - `@peculiar/asn1-x509-attr` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-x509` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
 - `@peculiar/utils` - 2.0.3 - MIT - https://github.com/PeculiarVentures/pvtsutils
 - `@peculiar/x509` - 1.14.3 - MIT - https://github.com/PeculiarVentures/x509
 - `@playwright/test` - 1.63.0 - Apache-2.0 - https://github.com/microsoft/playwright
-- `@rolldown/binding-win32-x64-msvc` - 1.1.5 - MIT - https://github.com/rolldown/rolldown
-- `@rolldown/binding-win32-x64-msvc` - 1.2.8 - MIT - https://github.com/rolldown/rolldown
+- `@rolldown/binding-linux-x64-gnu` - 1.2.8 - MIT - https://github.com/rolldown/rolldown
 - `@rolldown/pluginutils` - 1.0.1 - MIT - https://github.com/rolldown/plugins
-- `@schematics/angular` - 22.2.0 - MIT - https://github.com/angular/angular-cli
+- `@schematics/angular` - 22.2.1 - MIT - https://github.com/angular/angular-cli
 - `@types/body-parser` - 1.19.6 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/bonjour` - 3.5.13 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/chai` - 5.2.3 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
-- `@types/connect` - 3.4.38 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/connect-history-api-fallback` - 1.5.4 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
+- `@types/connect` - 3.4.38 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/deep-eql` - 4.0.2 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/esrecurse` - 4.3.1 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/estree` - 1.0.9 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
-- `@types/express` - 5.0.6 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/express-serve-static-core` - 5.1.3 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
+- `@types/express` - 5.0.6 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/gensync` - 1.0.5 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/http-errors` - 2.0.5 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/jsesc` - 2.5.1 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/json-schema` - 7.0.15 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/less` - 3.0.8 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
-- `@types/node` - 24.13.6 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
+- `@types/node` - 24.19.1 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/qs` - 6.15.1 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/range-parser` - 1.2.7 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/send` - 1.2.1 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
@@ -663,14 +665,14 @@ operating systems, including the Linux image build stage.
 - `@xtuc/long` - 4.2.2 - Apache-2.0 - https://github.com/dcodeIO/long.js
 - `accepts` - 1.3.8 - MIT - https://github.com/jshttp/accepts
 - `accepts` - 2.0.0 - MIT - https://github.com/jshttp/accepts
-- `acorn` - 8.18.0 - MIT - https://github.com/acornjs/acorn
 - `acorn-jsx` - 5.3.2 - MIT - https://github.com/acornjs/acorn-jsx
+- `acorn` - 8.18.0 - MIT - https://github.com/acornjs/acorn
 - `adjust-sourcemap-loader` - 4.0.0 - MIT - https://github.com/bholloway/adjust-sourcemap-loader
 - `agent-base` - 9.0.0 - MIT - https://github.com/TooTallNate/proxy-agents
-- `ajv` - 6.15.0 - MIT - https://github.com/ajv-validator/ajv
-- `ajv` - 8.20.0 - MIT - https://github.com/ajv-validator/ajv
 - `ajv-formats` - 3.0.1 - MIT - https://github.com/ajv-validator/ajv-formats
 - `ajv-keywords` - 5.1.0 - MIT - https://github.com/epoberezkin/ajv-keywords
+- `ajv` - 6.15.0 - MIT - https://github.com/ajv-validator/ajv
+- `ajv` - 8.20.0 - MIT - https://github.com/ajv-validator/ajv
 - `angular-eslint` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `ansi-colors` - 4.1.3 - MIT - https://github.com/doowb/ansi-colors
 - `ansi-escapes` - 7.3.0 - MIT - https://github.com/sindresorhus/ansi-escapes
@@ -733,8 +735,8 @@ operating systems, including the Linux image build stage.
 - `content-type` - 2.1.0 - MIT - https://github.com/jshttp/content-type
 - `convert-source-map` - 1.9.0 - MIT - https://github.com/thlorenz/convert-source-map
 - `convert-source-map` - 2.0.0 - MIT - https://github.com/thlorenz/convert-source-map
-- `cookie` - 0.7.2 - MIT - https://github.com/jshttp/cookie
 - `cookie-signature` - 1.2.2 - MIT - https://github.com/visionmedia/node-cookie-signature
+- `cookie` - 0.7.2 - MIT - https://github.com/jshttp/cookie
 - `copy-anything` - 3.0.5 - MIT - https://github.com/mesqueeb/copy-anything
 - `copy-webpack-plugin` - 14.0.0 - MIT - https://github.com/webpack/copy-webpack-plugin
 - `core-js-compat` - 3.50.0 - MIT - https://github.com/zloirock/core-js
@@ -745,14 +747,14 @@ operating systems, including the Linux image build stage.
 - `css-tree` - 3.2.1 - MIT - https://github.com/csstree/csstree
 - `css-what` - 8.0.0 - BSD-2-Clause - https://github.com/fb55/css-what
 - `cssesc` - 3.0.0 - MIT - https://github.com/mathiasbynens/cssesc
-- `data-urls` - 7.0.0 - MIT - https://github.com/jsdom/data-urls
+- `data-urls` - 8.0.0 - MIT - https://github.com/jsdom/data-urls
 - `debug` - 2.6.9 - MIT - https://github.com/visionmedia/debug
 - `debug` - 3.2.7 - MIT - https://github.com/visionmedia/debug
 - `debug` - 4.4.3 - MIT - https://github.com/debug-js/debug
 - `decimal.js` - 10.6.0 - MIT - https://github.com/MikeMcl/decimal.js
 - `deep-is` - 0.1.4 - MIT - https://github.com/thlorenz/deep-is
-- `default-browser` - 5.5.1 - MIT - https://github.com/sindresorhus/default-browser
 - `default-browser-id` - 5.0.1 - MIT - https://github.com/sindresorhus/default-browser-id
+- `default-browser` - 5.5.1 - MIT - https://github.com/sindresorhus/default-browser
 - `define-lazy-prop` - 3.0.0 - MIT - https://github.com/sindresorhus/define-lazy-prop
 - `depd` - 1.1.2 - MIT - https://github.com/dougwilson/nodejs-depd
 - `depd` - 2.0.0 - MIT - https://github.com/dougwilson/nodejs-depd
@@ -779,17 +781,17 @@ operating systems, including the Linux image build stage.
 - `es-errors` - 1.3.0 - MIT - https://github.com/ljharb/es-errors
 - `es-module-lexer` - 2.3.2 - MIT - https://github.com/guybedford/es-module-lexer
 - `es-object-atoms` - 1.1.2 - MIT - https://github.com/ljharb/es-object-atoms
-- `esbuild` - 0.28.2 - MIT - https://github.com/evanw/esbuild
 - `esbuild-wasm` - 0.28.2 - MIT - https://github.com/evanw/esbuild
+- `esbuild` - 0.28.2 - MIT - https://github.com/evanw/esbuild
 - `escalade` - 3.2.0 - MIT - https://github.com/lukeed/escalade
 - `escape-html` - 1.0.3 - MIT - https://github.com/component/escape-html
 - `escape-string-regexp` - 4.0.0 - MIT - https://github.com/sindresorhus/escape-string-regexp
-- `eslint` - 9.39.5 - MIT - https://github.com/eslint/eslint
 - `eslint-scope` - 8.4.0 - BSD-2-Clause - https://github.com/eslint/js
 - `eslint-scope` - 9.1.2 - BSD-2-Clause - https://github.com/eslint/js
 - `eslint-visitor-keys` - 3.4.3 - Apache-2.0 - https://github.com/eslint/eslint-visitor-keys
 - `eslint-visitor-keys` - 4.2.1 - Apache-2.0 - https://github.com/eslint/js
 - `eslint-visitor-keys` - 5.0.1 - Apache-2.0 - https://github.com/eslint/js
+- `eslint` - 9.39.5 - MIT - https://github.com/eslint/eslint
 - `espree` - 10.4.0 - BSD-2-Clause - https://github.com/eslint/js
 - `esquery` - 1.7.0 - BSD-3-Clause - https://github.com/estools/esquery
 - `esrecurse` - 4.3.0 - BSD-2-Clause - https://github.com/estools/esrecurse
@@ -812,8 +814,8 @@ operating systems, including the Linux image build stage.
 - `fill-range` - 7.1.1 - MIT - https://github.com/jonschlinkert/fill-range
 - `finalhandler` - 2.1.1 - MIT - https://github.com/pillarjs/finalhandler
 - `find-up` - 5.0.0 - MIT - https://github.com/sindresorhus/find-up
-- `flat` - 5.0.2 - BSD-3-Clause - https://github.com/hughsk/flat
 - `flat-cache` - 4.0.1 - MIT - https://github.com/jaredwray/flat-cache
+- `flat` - 5.0.2 - BSD-3-Clause - https://github.com/hughsk/flat
 - `flatted` - 3.4.4 - ISC - https://github.com/WebReflection/flatted
 - `flru` - 1.0.2 - MIT - https://github.com/lukeed/flru
 - `forwarded` - 0.2.0 - MIT - https://github.com/jshttp/forwarded
@@ -881,7 +883,7 @@ operating systems, including the Linux image build stage.
 - `js-tokens` - 10.0.0 - MIT - https://github.com/lydell/js-tokens
 - `js-tokens` - 4.0.0 - MIT - https://github.com/lydell/js-tokens
 - `js-yaml` - 4.3.2 - MIT - https://github.com/nodeca/js-yaml
-- `jsdom` - 30.1.1 - MIT - https://github.com/jsdom/jsdom
+- `jsdom` - 30.1.2 - MIT - https://github.com/jsdom/jsdom
 - `jsesc` - 3.1.0 - MIT - https://github.com/mathiasbynens/jsesc
 - `json-buffer` - 3.0.1 - MIT - https://github.com/dominictarr/json-buffer
 - `json-parse-even-better-errors` - 2.3.1 - MIT - https://github.com/npm/json-parse-even-better-errors
@@ -894,12 +896,12 @@ operating systems, including the Linux image build stage.
 - `keyv` - 4.5.4 - MIT - https://github.com/jaredwray/keyv
 - `kind-of` - 6.0.3 - MIT - https://github.com/jonschlinkert/kind-of
 - `launch-editor` - 2.14.1 - MIT - https://github.com/vitejs/launch-editor
-- `less` - 4.9.1 - Apache-2.0 - https://github.com/less/less.js
 - `less-loader` - 13.0.0 - MIT - https://github.com/webpack/less-loader
+- `less` - 4.9.1 - Apache-2.0 - https://github.com/less/less.js
 - `levn` - 0.4.1 - MIT - https://github.com/gkz/levn
 - `license-webpack-plugin` - 4.0.2 - ISC - https://github.com/xz64/license-webpack-plugin
+- `lightningcss-linux-x64-gnu` - 1.33.0 - MPL-2.0 - https://github.com/parcel-bundler/lightningcss
 - `lightningcss` - 1.33.0 - MPL-2.0 - https://github.com/parcel-bundler/lightningcss
-- `lightningcss-win32-x64-msvc` - 1.33.0 - MPL-2.0 - https://github.com/parcel-bundler/lightningcss
 - `lines-and-columns` - 1.2.4 - MIT - https://github.com/eventualbuddha/lines-and-columns
 - `listr2` - 11.1.0 - MIT - https://github.com/listr2/listr2
 - `lmdb` - 3.5.6 - MIT - https://github.com/kriszyp/lmdb-js
@@ -922,11 +924,11 @@ operating systems, including the Linux image build stage.
 - `merge-descriptors` - 2.0.0 - MIT - https://github.com/sindresorhus/merge-descriptors
 - `merge-stream` - 2.0.0 - MIT - https://github.com/grncdr/merge-stream
 - `micromatch` - 4.0.8 - MIT - https://github.com/micromatch/micromatch
-- `mime` - 1.6.0 - MIT - https://github.com/broofa/node-mime
 - `mime-db` - 1.52.0 - MIT - https://github.com/jshttp/mime-db
 - `mime-db` - 1.54.0 - MIT - https://github.com/jshttp/mime-db
 - `mime-types` - 2.1.35 - MIT - https://github.com/jshttp/mime-types
 - `mime-types` - 3.0.2 - MIT - https://github.com/jshttp/mime-types
+- `mime` - 1.6.0 - MIT - https://github.com/broofa/node-mime
 - `mimic-function` - 5.0.1 - MIT - https://github.com/sindresorhus/mimic-function
 - `mini-css-extract-plugin` - 2.10.2 - MIT - https://github.com/webpack/mini-css-extract-plugin
 - `minimatch` - 10.2.6 - BlueOak-1.0.0 - https://github.com/isaacs/minimatch
@@ -935,8 +937,8 @@ operating systems, including the Linux image build stage.
 - `mrmime` - 2.0.1 - MIT - https://github.com/lukeed/mrmime
 - `ms` - 2.0.0 - MIT - https://github.com/zeit/ms
 - `ms` - 2.1.3 - MIT - https://github.com/vercel/ms
-- `msgpackr` - 1.12.1 - MIT - https://github.com/kriszyp/msgpackr
 - `msgpackr-extract` - 3.0.4 - MIT - https://github.com/kriszyp/msgpackr-extract
+- `msgpackr` - 1.12.1 - MIT - https://github.com/kriszyp/msgpackr
 - `multicast-dns` - 7.2.5 - MIT - https://github.com/mafintosh/multicast-dns
 - `mute-stream` - 3.0.0 - ISC - https://github.com/npm/mute-stream
 - `nanoid` - 3.3.18 - MIT - https://github.com/ai/nanoid
@@ -982,9 +984,8 @@ operating systems, including the Linux image build stage.
 - `picomatch` - 4.0.7 - MIT - https://github.com/micromatch/picomatch
 - `piscina` - 5.3.2 - MIT - https://github.com/piscinajs/piscina
 - `pkijs` - 3.4.1 - BSD-3-Clause - https://github.com/PeculiarVentures/PKI.js
-- `playwright` - 1.63.0 - Apache-2.0 - https://github.com/microsoft/playwright
 - `playwright-core` - 1.63.0 - Apache-2.0 - https://github.com/microsoft/playwright
-- `postcss` - 8.5.28 - MIT - https://github.com/postcss/postcss
+- `playwright` - 1.63.0 - Apache-2.0 - https://github.com/microsoft/playwright
 - `postcss-loader` - 8.2.1 - MIT - https://github.com/webpack/postcss-loader
 - `postcss-media-query-parser` - 0.2.3 - MIT - https://github.com/dryoma/postcss-media-query-parser
 - `postcss-modules-extract-imports` - 3.1.0 - ISC - https://github.com/css-modules/postcss-modules-extract-imports
@@ -994,6 +995,7 @@ operating systems, including the Linux image build stage.
 - `postcss-safe-parser` - 7.1.0 - MIT - https://github.com/postcss/postcss-safe-parser
 - `postcss-selector-parser` - 7.1.6 - MIT - https://github.com/postcss/postcss-selector-parser
 - `postcss-value-parser` - 4.2.0 - MIT - https://github.com/TrySound/postcss-value-parser
+- `postcss` - 8.5.28 - MIT - https://github.com/postcss/postcss
 - `powershell-utils` - 0.1.0 - MIT - https://github.com/sindresorhus/powershell-utils
 - `powershell-utils` - 0.2.1 - MIT - https://github.com/sindresorhus/powershell-utils
 - `prelude-ls` - 1.2.1 - MIT - https://github.com/gkz/prelude-ls
@@ -1010,8 +1012,8 @@ operating systems, including the Linux image build stage.
 - `raw-body` - 3.0.2 - MIT - https://github.com/stream-utils/raw-body
 - `readdirp` - 5.1.1 - MIT - https://github.com/paulmillr/readdirp
 - `reflect-metadata` - 0.2.2 - Apache-2.0 - https://github.com/rbuckton/reflect-metadata
-- `regenerate` - 1.4.2 - MIT - https://github.com/mathiasbynens/regenerate
 - `regenerate-unicode-properties` - 10.2.2 - MIT - https://github.com/mathiasbynens/regenerate-unicode-properties
+- `regenerate` - 1.4.2 - MIT - https://github.com/mathiasbynens/regenerate
 - `regex-parser` - 2.3.1 - MIT - https://github.com/IonicaBizau/regex-parser.js
 - `regexpu-core` - 6.4.0 - MIT - https://github.com/mathiasbynens/regexpu-core
 - `regjsgen` - 0.8.0 - MIT - https://github.com/bnjmnt4n/regjsgen
@@ -1020,16 +1022,15 @@ operating systems, including the Linux image build stage.
 - `resolve-from` - 4.0.0 - MIT - https://github.com/sindresorhus/resolve-from
 - `resolve-url-loader` - 5.0.0 - MIT - https://github.com/bholloway/resolve-url-loader
 - `restore-cursor` - 5.1.0 - MIT - https://github.com/sindresorhus/restore-cursor
-- `rolldown` - 1.1.5 - MIT - https://github.com/rolldown/rolldown
 - `rolldown` - 1.2.8 - MIT - https://github.com/rolldown/rolldown
 - `router` - 2.2.0 - MIT - https://github.com/pillarjs/router
 - `run-applescript` - 7.1.0 - MIT - https://github.com/sindresorhus/run-applescript
 - `safe-buffer` - 5.2.1 - MIT - https://github.com/feross/safe-buffer
 - `safer-buffer` - 2.1.2 - MIT - https://github.com/ChALkeR/safer-buffer
-- `sass` - 1.104.1 - MIT - https://github.com/sass/dart-sass
+- `sass-embedded-linux-x64` - 1.104.1 - MIT - https://github.com/sass/embedded-host-node
 - `sass-embedded` - 1.104.1 - MIT - https://github.com/sass/embedded-host-node
-- `sass-embedded-win32-x64` - 1.104.1 - MIT - https://github.com/sass/embedded-host-node
 - `sass-loader` - 17.0.1 - MIT - https://github.com/webpack/sass-loader
+- `sass` - 1.104.1 - MIT - https://github.com/sass/dart-sass
 - `sax` - 1.6.1 - BlueOak-1.0.0 - https://github.com/isaacs/sax-js
 - `saxes` - 6.0.0 - ISC - https://github.com/lddubeau/saxes
 - `schema-utils` - 4.5.0 - MIT - https://github.com/webpack/schema-utils
@@ -1045,18 +1046,18 @@ operating systems, including the Linux image build stage.
 - `shebang-command` - 2.0.0 - MIT - https://github.com/kevva/shebang-command
 - `shebang-regex` - 3.0.0 - MIT - https://github.com/sindresorhus/shebang-regex
 - `shell-quote` - 1.10.0 - MIT - https://github.com/ljharb/shell-quote
-- `side-channel` - 1.1.1 - MIT - https://github.com/ljharb/side-channel
 - `side-channel-list` - 1.0.1 - MIT - https://github.com/ljharb/side-channel-list
 - `side-channel-map` - 1.0.1 - MIT - https://github.com/ljharb/side-channel-map
 - `side-channel-weakmap` - 1.0.2 - MIT - https://github.com/ljharb/side-channel-weakmap
+- `side-channel` - 1.1.1 - MIT - https://github.com/ljharb/side-channel
 - `siginfo` - 2.0.0 - ISC - https://github.com/emilbayes/siginfo
 - `signal-exit` - 4.1.0 - ISC - https://github.com/tapjs/signal-exit
 - `slice-ansi` - 9.0.0 - MIT - https://github.com/chalk/slice-ansi
-- `source-map` - 0.6.1 - BSD-3-Clause - https://github.com/mozilla/source-map
-- `source-map` - 0.8.0 - BSD-3-Clause - https://github.com/mozilla/source-map
 - `source-map-js` - 1.2.1 - BSD-3-Clause - https://github.com/7rulnik/source-map-js
 - `source-map-loader` - 5.0.0 - MIT - https://github.com/webpack-contrib/source-map-loader
 - `source-map-support` - 0.5.21 - MIT - https://github.com/evanw/node-source-map-support
+- `source-map` - 0.6.1 - BSD-3-Clause - https://github.com/mozilla/source-map
+- `source-map` - 0.8.0 - BSD-3-Clause - https://github.com/mozilla/source-map
 - `stackback` - 0.0.2 - MIT - https://github.com/shtylman/node-stackback
 - `statuses` - 1.5.0 - MIT - https://github.com/jshttp/statuses
 - `statuses` - 2.0.2 - MIT - https://github.com/jshttp/statuses
@@ -1079,12 +1080,12 @@ operating systems, including the Linux image build stage.
 - `tinyexec` - 1.3.1 - MIT - https://github.com/tinylibs/tinyexec
 - `tinyglobby` - 0.2.17 - MIT - https://github.com/SuperchupuDev/tinyglobby
 - `tinyrainbow` - 3.1.1 - MIT - https://github.com/tinylibs/tinyrainbow
-- `tldts` - 7.4.12 - MIT - https://github.com/remusao/tldts
 - `tldts-core` - 7.4.12 - MIT - https://github.com/remusao/tldts
+- `tldts` - 7.4.12 - MIT - https://github.com/remusao/tldts
 - `to-regex-range` - 5.0.1 - MIT - https://github.com/micromatch/to-regex-range
 - `toidentifier` - 1.0.1 - MIT - https://github.com/component/toidentifier
 - `tough-cookie` - 6.0.2 - BSD-3-Clause - https://github.com/salesforce/tough-cookie
-- `tr46` - 6.0.0 - MIT - https://github.com/jsdom/tr46
+- `tr46` - 7.0.0 - MIT - https://github.com/jsdom/tr46
 - `tree-dump` - 1.1.0 - Apache-2.0 - https://github.com/streamich/tree-dump
 - `ts-api-utils` - 2.5.0 - MIT - https://github.com/JoshuaKGoldberg/ts-api-utils
 - `tslib` - 1.14.1 - 0BSD - https://github.com/microsoft/tslib
@@ -1092,10 +1093,10 @@ operating systems, including the Linux image build stage.
 - `type-check` - 0.4.0 - MIT - https://github.com/gkz/type-check
 - `type-is` - 2.1.0 - MIT - https://github.com/jshttp/type-is
 - `typed-assert` - 1.0.9 - MIT - https://github.com/elierotenberg/typed-assert
-- `typescript` - 6.0.3 - Apache-2.0 - https://github.com/microsoft/TypeScript
 - `typescript-eslint` - 8.69.0 - MIT - https://github.com/typescript-eslint/typescript-eslint
-- `undici` - 8.10.2 - MIT - https://github.com/nodejs/undici
-- `undici-types` - 7.18.2 - MIT - https://github.com/nodejs/undici
+- `typescript` - 6.0.3 - Apache-2.0 - https://github.com/microsoft/TypeScript
+- `undici-types` - 7.24.6 - MIT - https://github.com/nodejs/undici
+- `undici` - 8.11.2 - MIT - https://github.com/nodejs/undici
 - `unicode-canonical-property-names-ecmascript` - 2.0.1 - MIT - https://github.com/mathiasbynens/unicode-canonical-property-names-ecmascript
 - `unicode-match-property-ecmascript` - 2.0.0 - MIT - https://github.com/mathiasbynens/unicode-match-property-ecmascript
 - `unicode-match-property-value-ecmascript` - 2.2.1 - MIT - https://github.com/mathiasbynens/unicode-match-property-value-ecmascript
@@ -1108,22 +1109,20 @@ operating systems, including the Linux image build stage.
 - `varint` - 6.0.0 - MIT - https://github.com/chrisdickinson/varint
 - `vary` - 1.1.2 - MIT - https://github.com/jshttp/vary
 - `verkit` - 0.3.2 - MIT - https://github.com/sxzz/verkit
-- `vite` - 8.1.5 - MIT - https://github.com/vitejs/vite
 - `vite` - 8.3.0 - MIT - https://github.com/vitejs/vite
 - `vitest` - 4.1.11 - MIT - https://github.com/vitest-dev/vitest
 - `w3c-xmlserializer` - 6.0.0 - MIT - https://github.com/jsdom/w3c-xmlserializer
 - `watchpack` - 2.5.2 - MIT - https://github.com/webpack/watchpack
 - `weak-lru-cache` - 1.2.2 - MIT - https://github.com/kriszyp/weak-lru-cache
 - `webidl-conversions` - 8.0.1 - BSD-2-Clause - https://github.com/jsdom/webidl-conversions
-- `webpack` - 5.111.0 - MIT - https://github.com/webpack/webpack
 - `webpack-dev-middleware` - 8.3.0 - MIT - https://github.com/webpack/webpack-dev-middleware
 - `webpack-dev-server` - 6.0.0 - MIT - https://github.com/webpack/webpack-dev-server
 - `webpack-merge` - 6.0.1 - MIT - https://github.com/survivejs/webpack-merge
 - `webpack-sources` - 3.5.1 - MIT - https://github.com/webpack/webpack-sources
 - `webpack-subresource-integrity` - 5.1.0 - MIT - https://github.com/waysact/webpack-subresource-integrity
+- `webpack` - 5.111.0 - MIT - https://github.com/webpack/webpack
 - `whatwg-mimetype` - 5.0.0 - MIT - https://github.com/jsdom/whatwg-mimetype
-- `whatwg-url` - 16.0.1 - MIT - https://github.com/jsdom/whatwg-url
-- `whatwg-url` - 17.1.2 - MIT - https://github.com/jsdom/whatwg-url
+- `whatwg-url` - 17.2.0 - MIT - https://github.com/jsdom/whatwg-url
 - `which` - 2.0.2 - ISC - https://github.com/isaacs/node-which
 - `why-is-node-running` - 2.3.0 - MIT - https://github.com/mafintosh/why-is-node-running
 - `wildcard` - 2.0.1 - MIT - https://github.com/DamonOehlman/wildcard
@@ -1138,8 +1137,8 @@ operating systems, including the Linux image build stage.
 - `xxhash-wasm` - 1.1.0 - MIT - https://github.com/jungomi/xxhash-wasm
 - `y18n` - 5.0.8 - ISC - https://github.com/yargs/y18n
 - `yallist` - 3.1.1 - ISC - https://github.com/isaacs/yallist
-- `yargs` - 18.1.0 - MIT - https://github.com/yargs/yargs
 - `yargs-parser` - 22.0.0 - ISC - https://github.com/yargs/yargs-parser
+- `yargs` - 18.1.0 - MIT - https://github.com/yargs/yargs
 - `yocto-queue` - 0.1.0 - MIT - https://github.com/sindresorhus/yocto-queue
 - `yoctocolors` - 2.2.0 - MIT - https://github.com/sindresorhus/yoctocolors
 
@@ -1202,5 +1201,7 @@ CI runs `node web/scripts/check-notices-drift.mjs --publish <tmp>/server --publi
 (the `notices` job in `.github/workflows/ci.yml`). It compares by name and version the shipped
 .NET set (section 1, parts 1a and 1b) with the publish output above and the web runtime set
 (section 3) with `npm ls --omit=dev --all`, prints missing, extra and mismatched packages, and
-fails on any difference. Sections 2 and 4 are not checked: section 4 is a Windows x64 install
-and section 2 needs a restore of the test projects.
+fails on any difference. Sections 2 and 4 are not checked: section 4 depends on the platform's
+optional binaries and section 2 needs a restore of the test projects. Section 4 lists, one line per
+name and version, every `package-lock.json` entry marked `"dev": true` whose folder `npm ci` created
+in `node:24-bookworm-slim` (license and repository from its `package.json`).

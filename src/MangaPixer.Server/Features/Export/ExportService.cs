@@ -29,9 +29,10 @@ public sealed class ExportService(MangaPixerDbContext db, ExportRebuildService r
     public const string Volumes = "volumes";
     public const string Completion = "completion";
     public const string Refresh = "refresh";
+    public const string Duplicates = "duplicates";
 
-    /// <summary>The optional item blocks <c>include</c> names (all by default).</summary>
-    public static readonly IReadOnlyList<string> OptionalBlocks = [Volumes, Completion, Refresh];
+    /// <summary>The optional item blocks <c>include</c> names (all by default; 1.38.0 adds <c>duplicates</c>).</summary>
+    public static readonly IReadOnlyList<string> OptionalBlocks = [Volumes, Completion, Refresh, Duplicates];
 
     public async Task<ExportLibrariesDto> LibrariesAsync(CancellationToken ct = default)
     {

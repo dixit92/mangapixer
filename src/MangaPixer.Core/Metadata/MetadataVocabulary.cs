@@ -216,6 +216,8 @@ public static class MetadataConsent
     /// 3 (1.29.0): MangaDex (volume covers and volume lists) joins the allowed sites.
     /// 4 (1.32.0): the Grand Comics Database (comics) and Wikipedia (volume -> chapter lists) join the allowed sites;
     /// requests carry a fixed User-Agent naming MangaPixer, its version and its project URL.
+    /// 5 (1.38.0): a new kind of MangaUpdates request - the author records of creators of stored series (artists' other names),
+    /// only when an admin asks - and the search text an admin confirms in Match folders by name. The automatic consent stays 4.
     /// </summary>
-    public const int CurrentVersion = 4;
+    public const int CurrentVersion = 5;
 }

@@ -17,7 +17,8 @@ using com.lifepixer.mangapixer.Core.Metadata;
 /// Requests: <c>POST /v1/series/search</c> with exactly
 /// <c>{"search", "page", "perpage"}</c> (plus the FIXED <c>"filter_types"</c> list
 /// <see cref="HiddenTypes"/> when the admin hides doujinshi and novels), and
-/// <c>GET /v1/series/{id}</c> with the numeric id only. Nothing else is sent
+/// <c>GET /v1/series/{id}</c> with the numeric id only, and (1.38.0, artists' other names, only when an admin asks)
+/// <c>GET /v1/authors/{author_id}</c> with the numeric author id a stored record lists for a creator. Nothing else is sent
 /// (headers come from the named client).
 /// </summary>
 internal sealed class MangaUpdatesProvider : IMetadataProvider
@@ -98,6 +99,24 @@ internal sealed class MangaUpdatesProvider : IMetadataProvider
         MetadataHttp.EnsureSuccess(response);
         var series = Deserialize<MuSeries>(await MetadataHttp.ReadBoundedAsync(response, MetadataHttp.MaxJsonBytes, ct));
         return MangaUpdatesMapping.ToRecord(series, id);
+    }
+
+    /// <summary>
+    /// One author record (1.38.0): <c>GET /v1/authors/{id}</c> with the numeric id only; null when MangaUpdates does not know the
+    /// id (404, an empty body). Called only through <see cref="MetadataGateway.DetailCallAsync{T}"/>.
+    /// </summary>
+    internal async Task<ProviderAuthorRecord?> GetAuthorAsync(long authorId, CancellationToken ct)
+    {
+        if (authorId <= 0)
+            return null;
+
+        var client = _httpFactory.CreateClient(MetadataHttp.MangaUpdatesApiClient);
+        using var response = await client.GetAsync(ApiBase + "authors/" + authorId.ToString(CultureInfo.InvariantCulture), ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+        MetadataHttp.EnsureSuccess(response);
+        var author = Deserialize<MuAuthorRecord>(await MetadataHttp.ReadBoundedAsync(response, MetadataHttp.MaxJsonBytes, ct));
+        return MangaUpdatesMapping.ToAuthor(author, authorId);
     }
 
     private static T Deserialize<T>(byte[] json) where T : class
@@ -323,6 +342,36 @@ public static class MangaUpdatesMapping
         };
     }
 
+    /// <summary>At most this many other names are kept per author (1.38.0).</summary>
+    public const int MaxAuthorOtherNames = 50;
+
+    /// <summary>Each name is cleaned to one line of at most this many characters (1.38.0).</summary>
+    public const int MaxAuthorNameLength = 256;
+
+    /// <summary>Placeholders MangaUpdates shows for an unknown real name; never kept as a name.</summary>
+    private static readonly IReadOnlySet<string> s_noName = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "N/A", "NA", "-", "?", "Unknown", "None" };
+
+    /// <summary>
+    /// An author record -> its main name and other names (1.38.0): the associated names, then the name in its own script
+    /// (<c>actualname</c>) when it is not among them; cleaned to one line, duplicates (case-insensitive) and the main name left out,
+    /// at most <see cref="MaxAuthorOtherNames"/>. A record without a main name is unreadable.
+    /// </summary>
+    internal static ProviderAuthorRecord ToAuthor(MuAuthorRecord a, long requestedId)
+    {
+        var name = MetadataText.Line(a.Name, MaxAuthorNameLength) ?? throw new MetadataResponseInvalidException("missing_name");
+        var others = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { name };
+        foreach (var raw in (a.Associated ?? []).Select(x => x.Name).Append(a.ActualName))
+        {
+            if (others.Count >= MaxAuthorOtherNames)
+                break;
+            if (MetadataText.Line(raw, MaxAuthorNameLength) is { } other && !s_noName.Contains(other) && seen.Add(other))
+                others.Add(other);
+        }
+        // Keyed by the id that was asked for - the id the stored series records name - even if MangaUpdates answers with another.
+        return new ProviderAuthorRecord(requestedId.ToString(CultureInfo.InvariantCulture), name, others);
+    }
+
     private static int? Max(int? a, int? b) => a is null ? b : b is null ? a : Math.Max(a.Value, b.Value);
 
     private static string? SiteUrl(string? url) =>
@@ -332,3 +381,6 @@ public static class MangaUpdatesMapping
             ? uri.AbsoluteUri
             : null;
 }
+
+/// <summary>A provider's author record (1.38.0): the main name and the other names, cleaned.</summary>
+public sealed record ProviderAuthorRecord(string ExternalId, string Name, IReadOnlyList<string> OtherNames);

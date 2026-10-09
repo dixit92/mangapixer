@@ -33,16 +33,21 @@ public sealed class CollectionAboutService
         _autoMatch = autoMatch;
     }
 
-    /// <summary>Marks a folder "Collection about" a record. May throw <see cref="MetadataGatewayException"/> when the record must be fetched.</summary>
+    /// <summary>
+    /// Marks a folder "Collection about" a record. May throw <see cref="MetadataGatewayException"/> when the record must be fetched.
+    /// <paramref name="storeImage"/> false (1.38.0, Match folders by name - stored data only): a stored record's poster that is not stored
+    /// yet is not downloaded now.
+    /// </summary>
     public async Task<(MetadataLinkResultCode Code, CollectionAboutResultDto? Result)> SetAsync(
-        string nodePublicId, SetCollectionAboutRequest request, string? actor, CancellationToken ct = default, string? auditResult = null)
+        string nodePublicId, SetCollectionAboutRequest request, string? actor, CancellationToken ct = default, string? auditResult = null,
+        bool storeImage = true)
     {
         var (code, change) = await _identify.SetCollectionAboutAsync(nodePublicId, new LinkSeriesRequest
         {
             Provider = request.Provider,
             ExternalId = request.ExternalId,
             MatchMethod = request.MatchMethod,
-        }, actor, ct, auditResult);
+        }, actor, ct, auditResult, storeImage);
         if (code != MetadataLinkResultCode.Ok || change is null)
             return (code, null);
 

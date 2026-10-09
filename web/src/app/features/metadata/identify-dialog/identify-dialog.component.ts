@@ -11,7 +11,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { Observable } from 'rxjs';
+import { Observable, catchError, map, of, switchMap } from 'rxjs';
 
 import {
   ApiError,
@@ -23,6 +23,7 @@ import {
   NodeSeriesLinkChangeDto,
   NodeSeriesLinkDto,
 } from '../../../core/api/api-types';
+import { DeclaredFactsApiService } from '../declared/declared-facts-api.service';
 import { MetadataApiService } from '../metadata-api.service';
 import { MetadataStateService } from '../metadata-state.service';
 import { creditGroups } from '../series-info-labels';
@@ -329,6 +330,7 @@ export class IdentifyDialogComponent implements OnInit {
   private readonly dialogRef = inject<MatDialogRef<IdentifyDialogComponent, IdentifyDialogResult>>(MatDialogRef);
   private readonly snackBar = inject(MatSnackBar);
   private readonly metadataState = inject(MetadataStateService);
+  private readonly declared = inject(DeclaredFactsApiService);
   private readonly data = inject<IdentifyDialogData>(MAT_DIALOG_DATA);
 
   readonly STRENGTH = STRENGTH_LABELS;
@@ -692,7 +694,7 @@ export class IdentifyDialogComponent implements OnInit {
   private offerUndo(change: NodeSeriesLinkChangeDto, message: string, undone: string): void {
     const ref = this.snackBar.open(message, 'Undo', { duration: 8000 });
     ref.onAction().subscribe(() => {
-      restorePrevious(this.api, change.nodeId, change.previous ?? null).subscribe({
+      restorePrevious(this.api, change.nodeId, change.previous ?? null, this.declared).subscribe({
         next: () => {
           this.metadataState.refresh(change.nodeId);
           this.snackBar.open(undone, 'Close', { duration: 2500 });
@@ -704,11 +706,22 @@ export class IdentifyDialogComponent implements OnInit {
 }
 
 /** The call that puts a node's own link row back to `previous`. */
-export function restorePrevious(api: MetadataApiService, nodeId: string, previous: NodeSeriesLinkDto | null): Observable<unknown> {
+export function restorePrevious(
+  api: MetadataApiService, nodeId: string, previous: NodeSeriesLinkDto | null, declared?: DeclaredFactsApiService,
+): Observable<unknown> {
   if (!previous) return api.unlink(nodeId);
   if (previous.state === 'DontMatch') return api.setDontMatch(nodeId);
-  // 1.37.0: the declared artist stayed when the row was replaced; re-marking adds the folder's name only when it is not declared.
-  if (previous.state === 'ArtistFolder') return api.setArtistFolder(nodeId);
+  // 1.37.0: the declared artist stayed when the row was replaced. Marking puts the artist FIRST among the folder's own declared
+  // creators, so re-mark with that one (a no-op on the creators); only a folder with no declared creator gets its name (1.38.0 -
+  // before, an artist renamed in the dialog came back with the folder's name as a second creator).
+  if (previous.state === 'ArtistFolder') {
+    if (!declared) return api.setArtistFolder(nodeId);
+    return declared.get({ kind: 'folder', id: nodeId }).pipe(
+      map((facts) => facts.own.creators?.[0] ?? null),
+      catchError(() => of(null)),
+      switchMap((artist) => api.setArtistFolder(nodeId, artist ? { name: artist.name, role: artist.role ?? null } : {})),
+    );
+  }
   if (previous.state === 'CollectionAbout') {
     return api.setCollection(nodeId, {
       provider: previous.provider ?? '',

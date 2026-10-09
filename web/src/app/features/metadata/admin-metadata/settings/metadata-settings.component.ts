@@ -29,14 +29,17 @@ import { LibraryMatchPanelComponent } from './library-match-panel.component';
 import { MetadataProvidersComponent } from './metadata-providers.component';
 import { coverLanguageOptions, volumeCoversWaitingLabel } from './volume-covers';
 import { CoverSettingsCardComponent } from './cover-settings-card.component';
+import { AuthorAliasesCardComponent } from '../../authors/author-aliases-card.component';
 
 /**
  * Consent text version the page shows; must equal the server's `currentConsentVersion`. 2 (1.28.0): the text
  * describes the provider allowlist (MangaUpdates + AniList); an instance that accepted 1 re-accepts.
  * 3 (1.29.0): MangaDex (volume covers and volume lists) joins the allowed sites; an earlier consent is not carried over.
  * 4 (1.32.0): the Grand Comics Database (comics) and Wikipedia (volume lists) join; the fixed User-Agent is described.
+ * 5 (1.38.0): MangaUpdates author numbers (artists' other names, when an admin asks) and the search text confirmed in Match folders
+ * by name; the automatic consent stays 4.
  */
-export const CONSENT_TEXT_VERSION = 4;
+export const CONSENT_TEXT_VERSION = 5;
 
 /**
  * Automatic-lookups consent text version (stage 2, owner decisions 2 + 3); must equal the
@@ -122,7 +125,7 @@ export function validateThresholds(
   imports: [
     DatePipe, FormsModule, MatButtonModule, MatCheckboxModule, MatExpansionModule, MatFormFieldModule, MatIconModule,
     MatInputModule, MatProgressBarModule, MatSelectModule, MatSlideToggleModule, LibraryMatchPanelComponent, MetadataProvidersComponent,
-    CoverSettingsCardComponent,
+    CoverSettingsCardComponent, AuthorAliasesCardComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -153,8 +156,9 @@ export function validateThresholds(
               <p><strong>What is sent:</strong></p>
               <ul>
                 <li><strong>MangaUpdates</strong> (description, authors, genres, publication status, English release totals,
-                  cover art): the search text you confirm in the Identify dialog (usually a folder or file name) and
-                  MangaUpdates record numbers.</li>
+                  cover art): the search text you confirm in the Identify dialog or in Match folders by name (usually a folder or
+                  file name), MangaUpdates record numbers, and, when you ask for artists' other names, the MangaUpdates author
+                  numbers of the creators of series you have stored.</li>
                 <li><strong>Grand Comics Database</strong> (comics and graphic novels: publisher, start year, country, language,
                   format, number of issues or volumes; cover thumbnails shown only while you choose): the search text you confirm
                   in the Identify dialog (usually a folder or file name), a start year when the name has one, and GCD record
@@ -179,7 +183,7 @@ export function validateThresholds(
               <p><strong>What is never sent:</strong> file paths, your file list, user accounts, reading progress, or
                 anything that identifies this server.</p>
               <p><strong>When:</strong> only when an admin runs Identify, Look up, Refresh, Choose cover or a Missing-report
-                lookup in an enabled library. Nothing happens automatically unless you also turn on Automatic matching.</p>
+                lookup in an enabled library, or asks for artists' other names. Nothing happens automatically unless you also turn on Automatic matching.</p>
               <p>Fetched information and covers are stored on this server as-is. You can switch this off at any time; stored
                 information stays until you delete it.</p>
             </div>
@@ -204,6 +208,8 @@ export function validateThresholds(
             </div>
           </section>
 
+          <!-- Artists' other names (1.38.0): MangaUpdates author records, looked up only when an admin asks. -->
+          <app-author-aliases-card [settings]="s" />
           </div>
           <div class="col">
           <!-- 2. The ONE daily budget (decision 5) -->

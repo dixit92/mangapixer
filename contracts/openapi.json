@@ -4467,6 +4467,144 @@
         }
       }
     },
+    "/api/v1/admin/metadata/folder-match/preview": {
+      "post": {
+        "tags": [
+          "MetadataFolderMatch"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderMatchPreviewRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderMatchPreviewRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderMatchPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderMatchPreviewDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderMatchPreviewDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderMatchPreviewDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/metadata/folder-match/apply": {
+      "post": {
+        "tags": [
+          "MetadataFolderMatch"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderMatchApplyRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderMatchApplyRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderMatchApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderMatchApplyResultDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderMatchApplyResultDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderMatchApplyResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/nodes/{nodeId}/series-info/flags": {
       "post": {
         "tags": [
@@ -5685,6 +5823,173 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/metadata/authors": {
+      "get": {
+        "tags": [
+          "AuthorAliases"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorAliasStatusDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorAliasStatusDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorAliasStatusDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/metadata/authors/lookup": {
+      "post": {
+        "tags": [
+          "AuthorAliases"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorAliasStatusDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorAliasStatusDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorAliasStatusDto"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorAliasStatusDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorAliasStatusDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorAliasStatusDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/metadata/authors/lookup/cancel": {
+      "post": {
+        "tags": [
+          "AuthorAliases"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorAliasStatusDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorAliasStatusDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorAliasStatusDto"
                 }
               }
             }
@@ -9147,6 +9452,151 @@
           }
         }
       },
+      "AuthorAliasRunDto": {
+        "type": "object",
+        "properties": {
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "requests": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "stored": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "notFound": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "failed": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "retryAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "AuthorAliasStatusDto": {
+        "type": "object",
+        "properties": {
+          "eligible": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "fetched": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "toFetch": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "withOtherNames": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "refreshAfterDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "secondsPerRequest": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "blockedReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "running": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AuthorAliasRunDto"
+              }
+            ]
+          },
+          "lastRun": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AuthorAliasRunDto"
+              }
+            ]
+          }
+        }
+      },
       "BackupLocationUpdate": {
         "type": "object",
         "properties": {
@@ -10173,6 +10623,49 @@
           }
         }
       },
+      "ExportDuplicateDto": {
+        "required": [
+          "kind",
+          "number",
+          "files"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportDuplicateFileDto"
+            }
+          }
+        }
+      },
+      "ExportDuplicateFileDto": {
+        "required": [
+          "nodeId",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "folder": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "ExportErrorDto": {
         "required": [
           "error"
@@ -10269,6 +10762,15 @@
                 "$ref": "#/components/schemas/ExportRefreshDto"
               }
             ]
+          },
+          "duplicates": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ExportDuplicateDto"
+            }
           }
         }
       },
@@ -10795,6 +11297,292 @@
             ]
           }
         }
+      },
+      "FolderMatchApplyItem": {
+        "required": [
+          "nodeId"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "role": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "provider": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "FolderMatchApplyItemResultDto": {
+        "required": [
+          "nodeId",
+          "code"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "queued": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "FolderMatchApplyRequest": {
+        "required": [
+          "kind",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/FolderMatchKind"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FolderMatchApplyItem"
+            }
+          },
+          "setDoujinContent": {
+            "type": "boolean"
+          }
+        }
+      },
+      "FolderMatchApplyResultDto": {
+        "required": [
+          "kind",
+          "succeeded",
+          "failed",
+          "results"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/FolderMatchKind"
+          },
+          "succeeded": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "failed": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FolderMatchApplyItemResultDto"
+            }
+          }
+        }
+      },
+      "FolderMatchArtistDto": {
+        "required": [
+          "name",
+          "role",
+          "matchedName",
+          "provider",
+          "recordCount"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "matchedName": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "recordCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "FolderMatchKind": {
+        "type": "integer"
+      },
+      "FolderMatchPreviewDto": {
+        "required": [
+          "kind",
+          "rows",
+          "compared"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/FolderMatchKind"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FolderMatchRowDto"
+            }
+          },
+          "compared": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "FolderMatchPreviewRequest": {
+        "required": [
+          "kind",
+          "nodeIds"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/FolderMatchKind"
+          },
+          "nodeIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "FolderMatchRecordDto": {
+        "required": [
+          "provider",
+          "externalId",
+          "title",
+          "matchedTitle"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "externalId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "matchedTitle": {
+            "type": "string"
+          },
+          "year": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "providerType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "linkedAsSeries": {
+            "type": "boolean"
+          }
+        }
+      },
+      "FolderMatchRowDto": {
+        "required": [
+          "nodeId",
+          "displayName",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FolderMatchStatus"
+          },
+          "currentState": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SeriesLinkState"
+              }
+            ]
+          },
+          "artists": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FolderMatchArtistDto"
+            }
+          },
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FolderMatchRecordDto"
+            }
+          },
+          "searchText": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "FolderMatchStatus": {
+        "type": "integer"
       },
       "FolderMetadataContentDto": {
         "required": [
@@ -17473,6 +18261,9 @@
       "name": "NodeMissing"
     },
     {
+      "name": "MetadataFolderMatch"
+    },
+    {
       "name": "MetadataFlags"
     },
     {
@@ -17486,6 +18277,9 @@
     },
     {
       "name": "MetadataAutoMatch"
+    },
+    {
+      "name": "AuthorAliases"
     },
     {
       "name": "MetadataArtistFolder"

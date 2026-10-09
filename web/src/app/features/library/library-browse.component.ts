@@ -578,6 +578,11 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
       border-radius: 10px;
     }
     .browse-bar.selecting { background: #1c1730; border-color: rgba(124,77,255,0.5); }
+    /* 1.38.0: with the Volumes | Folders switch the controls squeezed the trail to a letter on a tablet (820 px). The bar
+       may wrap: the trail keeps at least 240 px on the first row and the controls move to a second row, right-aligned.
+       Where everything fits (desktop) nothing moves; the phone rule below still gives the trail its own row. */
+    .browse-bar.has-view-switch { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; }
+    .browse-bar.has-view-switch .breadcrumbs { flex: 1 1 240px; }
     .breadcrumbs {
       flex: 1 1 auto; min-width: 0;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -749,7 +754,7 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
         font-size: 15px; line-height: 1.35;
       }
       /* The Volumes | Folders switch (1.29.0) would squeeze the trail: the bar wraps, the trail takes its own row. */
-      .browse-bar.has-view-switch { flex-wrap: wrap; }
+      .browse-bar.has-view-switch { flex-wrap: wrap; justify-content: flex-start; }
       .browse-bar.has-view-switch .breadcrumbs { flex-basis: 100%; }
       .breadcrumbs a { padding: 2px 0; }
       .breadcrumbs .sep { color: #6b6b78; }

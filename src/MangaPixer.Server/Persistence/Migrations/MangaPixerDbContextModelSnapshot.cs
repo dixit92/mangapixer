@@ -1195,6 +1195,43 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.ToTable("library_grants", (string)null);
                 });
 
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.MetadataAuthorEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ExternalId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("FetchedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OtherNamesJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Provider", "ExternalId")
+                        .IsUnique();
+
+                    b.ToTable("metadata_authors", (string)null);
+                });
+
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.MetadataCompanionEntity", b =>
                 {
                     b.Property<long>("Id")
