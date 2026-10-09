@@ -31,7 +31,6 @@ export class FolderMatchDialogService {
       data: { folders, ignored: nodes.filter((n) => n.kind !== 'Folder').length },
       width: phone ? '100vw' : '720px',
       maxWidth: '100vw',
-      height: phone ? '100vh' : undefined,
       maxHeight: phone ? '100vh' : '90vh',
       ariaLabel: 'Match folders by name',
       autoFocus: 'first-tabbable',
