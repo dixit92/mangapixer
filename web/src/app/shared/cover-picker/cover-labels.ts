@@ -51,6 +51,7 @@ export function modeLabel(mode: CoverMode): string {
     case 'Archive': return "Another item's cover";
     case 'VolumeCover': return 'A cover from the web';
     case 'Crop': return 'A half of page 1';
+    case 'Poster': return 'The series poster';
   }
 }
 

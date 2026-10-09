@@ -74,7 +74,7 @@ public sealed record CoverResolution
 /// <summary>
 /// The cover layer at read time (1.29.0, design 2.9 / 6.1): per node, the FIRST that applies of
 /// <list type="number">
-/// <item>the admin's choice (another archive's file cover, a stored web cover, a half of page 1) - it wins over a folder's inherited
+/// <item>the admin's choice (another archive's file cover, a stored web cover, a half of page 1, 1.39.0: the linked series' stored poster) - it wins over a folder's inherited
 /// "File covers", while the library's "Show saved web covers" (unless a folder says Web covers) still hides a chosen web cover;</item>
 /// <item>the admin's "use the file's cover" pin (stops: the file);</item>
 /// <item>the automatic decision (<c>node_auto_covers</c>) while its layer is allowed - a crop needs "Crop jacket spreads", a web
@@ -109,6 +109,9 @@ public sealed class CoverResolutionService
         public Dictionary<long, long> ContentVersions { get; } = [];
         public Dictionary<long, (long Id, string PublicId)> FolderCoverArchives { get; } = [];
         public Dictionary<long, MetadataRecordEntity?> PosterRecords { get; } = [];
+
+        /// <summary>1.39.0: the record behind each node's admin Poster choice (the nearest Confirmed / Auto link's), null when there is none.</summary>
+        public Dictionary<long, MetadataRecordEntity?> ChosenPosterRecords { get; } = [];
     }
 
     /// <summary>Resolves the cover of each target; targets without any cover (an empty folder) are omitted.</summary>
@@ -264,6 +267,8 @@ public sealed class CoverResolutionService
         foreach (var (id, nearest) in await FolderCoverPreferences.NearestAsync(_db, batch.Nodes.Keys.ToList(), ct))
             batch.FolderPreferences[id] = nearest.Preference;
 
+        await LoadChosenPostersAsync(batch, ct);
+
         var posterNodes = batch.Autos.Values.Where(a => a.Source == (int)AutoCoverSource.Poster).Select(a => a.NodeId).ToList();
         if (posterNodes.Count > 0)
         {
@@ -276,6 +281,20 @@ public sealed class CoverResolutionService
                 batch.PosterRecords[nodeId] = links.TryGetValue(nodeId, out var l) && ShowsPoster(l) && records.TryGetValue(l.RecordId!.Value, out var r)
                     ? r : null;
         }
+    }
+
+    private async Task LoadChosenPostersAsync(Batch batch, CancellationToken ct)
+    {
+        var nodes = batch.Choices.Values.Where(c => c.Mode == (int)CoverChoiceMode.Poster).Select(c => c.NodeId).ToList();
+        if (nodes.Count == 0)
+            return;
+        // The record is never stored on the choice: it is the nearest linked series' (Confirmed / Auto) at resolve time.
+        var links = await CoverLinks.NearestAsync(_db, nodes, ct);
+        var recordIds = links.Values.Where(l => l.IsLinked).Select(l => l.RecordId!.Value).Distinct().ToList();
+        var records = await _db.MetadataRecords.AsNoTracking().Where(r => recordIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, ct);
+        foreach (var nodeId in nodes)
+            batch.ChosenPosterRecords[nodeId] = links.TryGetValue(nodeId, out var l) && l.IsLinked && records.TryGetValue(l.RecordId!.Value, out var r)
+                ? r : null;
     }
 
     private CoverResolution? Resolve(Batch batch, long nodeId, string publicId, bool isFolder)
@@ -325,6 +344,15 @@ public sealed class CoverResolutionService
                 case CoverChoiceMode.VolumeCover when chosenWebAllowed && choice.VolumeCoverId is { } coverId
                     && batch.VolumeCovers.TryGetValue(coverId, out var cover) && IsServable(cover):
                     return WebLayer(batch, nodeId, publicId, isFolder, CardCoverSource.Chosen, "c", choice.Version, cover);
+                case CoverChoiceMode.Poster when isFolder && chosenWebAllowed && batch.ChosenPosterRecords.TryGetValue(nodeId, out var posterRecord)
+                    && posterRecord is { ImageState: 1 }:
+                    // 1.39.0: the stored poster of the nearest linked series; another record or image version gives a new token.
+                    return WithFallbackArchive(batch, Layer(nodeId, publicId, CardCoverSource.Chosen, CoverImageKind.Poster, "c", choice.Version) with
+                    {
+                        RecordId = posterRecord.Id,
+                        ImageVersion = posterRecord.ImageVersion,
+                        Version = Token("c", choice.Version, "poster", posterRecord.Id, posterRecord.ImageVersion),
+                    }, nodeId, isFolder);
                 case CoverChoiceMode.Crop when choice.CropSide is { } side && OwnArchive(batch, nodeId, isFolder) is { } own:
                     return Layer(nodeId, publicId, CardCoverSource.Chosen, CoverImageKind.Crop, "c", choice.Version) with
                     {

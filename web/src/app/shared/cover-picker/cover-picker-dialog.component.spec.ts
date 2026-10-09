@@ -154,6 +154,65 @@ describe('CoverPickerDialogComponent', () => {
     expect(q('cover-picker-web-unavailable')!.textContent).toContain('series inside this folder');
   });
 
+  // 1.39.0: the linked series' stored poster is one more tile under "Covers from the web".
+  const poster = { imageUrl: '/api/v1/nodes/f1/cover-poster?v=r1-2' };
+
+  it('offers the series poster as a tile under Covers from the web, next to the volume covers', () => {
+    const { el, q } = create(options({ poster }));
+    const tile = q('cover-pick-poster')!;
+    expect(tile.textContent).toContain('Series poster');
+    expect(tile.querySelector('img')!.getAttribute('src')).toBe(poster.imageUrl);
+    expect(tile.getAttribute('aria-pressed')).toBe('false');
+    const sections = Array.from(el.querySelectorAll('h3.section')).map((h) => h.textContent?.trim());
+    expect(sections).toEqual(["Another item's cover", 'Covers from the web']);
+    // After the web heading, before the volume covers.
+    const heading = el.querySelectorAll('h3.section')[1];
+    expect(heading.compareDocumentPosition(tile) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(tile.compareDocumentPosition(q('cover-pick-web-vc1')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(el.textContent).not.toContain('MangaUpdates'); // the credit lives in Metadata Manager only
+  });
+
+  it('has no poster tile when the server offers none', () => {
+    const { q } = create();
+    expect(q('cover-pick-poster')).toBeNull();
+    const { q: q2 } = create(options({ poster: null }));
+    expect(q2('cover-pick-poster')).toBeNull();
+  });
+
+  it('choosing the poster sends the mode only, and announces the new card as chosen', () => {
+    const { fixture, q, api, coverState, ref } = create(options({ poster }));
+    api.setChoice.mockReturnValue(of({ mode: 'Poster', imageUrl: '/api/v1/nodes/f1/cover?v=poster' }));
+    q('cover-pick-poster')!.click();
+    fixture.detectChanges();
+    expect(q('cover-pick-poster')!.getAttribute('aria-pressed')).toBe('true');
+    expect(q('cover-pick-automatic')!.getAttribute('aria-pressed')).toBe('false');
+    q('cover-picker-apply')!.click();
+    expect(api.setChoice).toHaveBeenCalledWith('f1', { mode: 'Poster' });
+    expect(coverState.announce).toHaveBeenCalledWith({ nodeId: 'f1', coverUrl: '/api/v1/nodes/f1/cover?v=poster', coverSource: 'Chosen' });
+    expect(ref.close).toHaveBeenCalledWith(expect.objectContaining({ mode: 'Poster' }));
+  });
+
+  it('opens with the poster selected when it is the current choice, and Automatic clears it', () => {
+    const { fixture, q, api } = create(options({ poster, current: { mode: 'Poster', imageUrl: '/api/v1/nodes/f1/cover?v=poster' } }));
+    expect(q('cover-pick-poster')!.getAttribute('aria-pressed')).toBe('true');
+    expect(q('cover-picker-current')!.textContent).toContain('The series poster');
+    q('cover-pick-automatic')!.click();
+    fixture.detectChanges();
+    q('cover-picker-apply')!.click();
+    expect(api.clearChoice).toHaveBeenCalledWith('f1');
+  });
+
+  it('a poster without any volume covers shows the tile and no "not available" line', () => {
+    const { q } = create(options({ poster, web: [], webAvailable: false, webUnavailableReason: 'no_companion' }));
+    expect(q('cover-pick-poster')).not.toBeNull();
+    expect(q('cover-picker-web-unavailable')).toBeNull();
+  });
+
+  it('a folder with series inside offers no poster tile (several series: out of scope)', () => {
+    const { q } = create(options({ ...seriesInside(), poster: null }));
+    expect(q('cover-pick-poster')).toBeNull();
+  });
+
   it('shows a load error and cannot apply', () => {
     const { el, q } = create('error');
     expect(el.textContent).toContain('Boom');
@@ -165,5 +224,6 @@ describe('CoverPickerDialogComponent', () => {
     expect(choiceFor({ kind: 'file' })).toEqual({ mode: 'FilePinned' });
     expect(choiceFor({ kind: 'crop', side: 'Left' })).toEqual({ mode: 'Crop', cropSide: 'Left' });
     expect(choiceFor({ kind: 'web', coverId: 'vc1' })).toEqual({ mode: 'VolumeCover', volumeCoverId: 'vc1' });
+    expect(choiceFor({ kind: 'poster' })).toEqual({ mode: 'Poster' });
   });
 });

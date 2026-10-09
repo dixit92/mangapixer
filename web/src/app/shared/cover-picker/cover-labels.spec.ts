@@ -18,10 +18,11 @@ describe('cover labels', () => {
     expect(cardSource({ mode: 'FilePinned' })).toBe('File');
     expect(cardSource({ mode: 'Archive' })).toBe('Chosen');
     expect(cardSource({ mode: 'VolumeCover' })).toBe('Chosen');
+    expect(cardSource({ mode: 'Poster' })).toBe('Chosen');
   });
 
   it('names every mode', () => {
-    for (const mode of ['Automatic', 'FilePinned', 'Archive', 'VolumeCover', 'Crop'] as const) {
+    for (const mode of ['Automatic', 'FilePinned', 'Archive', 'VolumeCover', 'Crop', 'Poster'] as const) {
       expect(modeLabel(mode).length).toBeGreaterThan(3);
     }
   });
