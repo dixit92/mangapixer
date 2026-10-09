@@ -6,8 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **This folder's edition.** A folder that holds another edition of a series than the regular one - an omnibus, master or deluxe edition - can now say so: **Admin** > **Declared facts…** on a folder has a new section **This folder's edition** with **Volumes in this edition**, an optional **Edition** label (Regular, Omnibus, Master, Deluxe) and **Track completion**. With a volume count set, the folder's volumes are counted against that number (volumes 1 to N, as volume files) instead of the regular edition's volume list: the volume total, the missing volumes and the Completion answer (**Finished - you have it all (Omnibus edition)**) follow the edition, and no volume is offered as an upgrade. Chapter answers and the stacks of the Volumes view are unchanged. The settings belong to the folder itself - they are not inherited by the folders below it, cannot be set on a library and are never used for matching. See [This folder's edition](docs/declared-hints.md#this-folders-edition).
+- **Stop tracking a series without unlinking it.** Turn **Track completion** off for a folder you keep linked but do not collect to the end. The link, the series information, covers and refreshes stay; the folder gets no Completion, missing or upgrade answer: it leaves the Missing report and the Completion tab (their summaries count it as "not tracked"), and its series line says **Completion not tracked**. **Don't match** is still there for a folder that should have no series at all.
+
 ### Changed
 
+- **Metadata export: edition and tracking.** The Completion block gains `volumeTotalOverride` and `edition` for a folder with a declared edition, and an item whose completion tracking is off says `"tracking": "off"` and has no Completion block (`completion` is `null`). Each key is left out when it is not set, so items without them keep their form; `schemaVersion` stays 1. See [Completion](docs/metadata-export.md#completion).
+- **API (admin): a folder's edition.** `PUT /api/v1/admin/metadata/folders/{nodeId}/declared/edition` (`SetDeclaredEditionRequest`: `volumeTotal`, `edition`, `tracking`); `DeclaredFactValuesDto` and `NodeDeclaredFactsDto` gain `edition`; `DELETE .../folders/{nodeId}/declared` also clears the edition facts. `SeriesProgressDto` gains `volumeTotalOverride`, `edition`, `trackingOff`; `CompletionBasis` gains `Edition`, `SeriesAnswerReason` gains `NotTracked`, `MissingTotalSource` gains `Declared`; the Missing report and Completion summaries gain `notTracked`.
 - **Match folders by name: "Circle (Artist)" folders.** A folder named in the doujin style, `Circle (Artist)` or `[Circle (Artist)]`, is now also compared by each of its two names on its own, so it finds its artist when your stored series know either the circle or the artist. When both are known, the list shows the folder with both matches for you to pick. A year or a tag in brackets (`(2019)`, `(Digital)`) is not taken for a name, and collections are compared as before. Nothing is sent; automatic matching is unchanged.
 
 ### Fixed
