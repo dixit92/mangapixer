@@ -104,9 +104,11 @@ export function outcomeLabel(run: AuthorAliasRunDto): string {
         } @else {
           <p class="muted small">All known authors are looked up; each is asked again after {{ st.refreshAfterDays }} days.</p>
         }
-        @if (!st.running && st.lastRun; as last) {
-          <p class="small" data-testid="md-authors-last">Last look-up {{ outcome(last) }}: {{ last.stored }} found, {{ last.notFound }} not on
-            MangaUpdates{{ last.failed ? ', ' + last.failed + ' failed' : '' }} ({{ last.requests }} request{{ last.requests === 1 ? '' : 's' }}).</p>
+        @if (st.lastRun; as last) {
+          @if (!st.running) {
+            <p class="small" data-testid="md-authors-last">Last look-up {{ outcome(last) }}: {{ last.stored }} found, {{ last.notFound }} not on
+              MangaUpdates{{ last.failed ? ', ' + last.failed + ' failed' : '' }} ({{ last.requests }} request{{ last.requests === 1 ? '' : 's' }}).</p>
+          }
         }
       } @else if (!error()) {
         <p class="muted small">Loading…</p>
