@@ -35,8 +35,14 @@ public sealed class AuthorAliasHttpTests
         await db.SaveChangesAsync();
         db.CatalogNodes.Add(new CatalogNodeEntity
         {
-            PublicId = "auSeries", LibraryId = lib.Id, Kind = 0, DisplayName = "Berserk", RelativePath = "auSeries", PathKey = "auSeries",
-            SortKey = "0Berserk", CreatedAt = DateTimeOffset.UtcNow,
+            PublicId = "auSeries",
+            LibraryId = lib.Id,
+            Kind = 0,
+            DisplayName = "Berserk",
+            RelativePath = "auSeries",
+            PathKey = "auSeries",
+            SortKey = "0Berserk",
+            CreatedAt = DateTimeOffset.UtcNow,
         });
         await db.SaveChangesAsync();
     }

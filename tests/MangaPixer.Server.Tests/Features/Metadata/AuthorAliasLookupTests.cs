@@ -130,8 +130,9 @@ public sealed class AuthorAliasLookupTests : IAsyncLifetime
         Assert.Equal("42", author.ExternalId);
         Assert.Equal("Main Name", author.Name);
         Assert.Equal(MangaUpdatesMapping.MaxAuthorOtherNames, author.OtherNames.Count);
-        Assert.Equal(new string('x', 256), author.OtherNames[0]);
-        Assert.Equal("Pen Name 1", author.OtherNames[1]);
+        Assert.Equal("pen name 1", author.OtherNames[0]); // the first spelling wins; "Pen  Name\n1" later is the same name
+        Assert.Equal(new string('x', 256), author.OtherNames[1]);
+        Assert.Equal("Pen Name 2", author.OtherNames[2]);
         Assert.DoesNotContain(author.OtherNames, n => n.Equals("Main Name", StringComparison.OrdinalIgnoreCase) || n == "N/A");
         Assert.Equal(author.OtherNames.Count, author.OtherNames.Distinct(StringComparer.OrdinalIgnoreCase).Count());
 
