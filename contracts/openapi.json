@@ -7435,6 +7435,28 @@
         }
       }
     },
+    "/api/v1/nodes/{nodeId}/cover-poster": {
+      "get": {
+        "tags": [
+          "NodeCover"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/nodes/{nodeId}/cover-options": {
       "get": {
         "tags": [
@@ -10134,6 +10156,16 @@
               "string"
             ],
             "format": "int32"
+          },
+          "poster": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CoverPosterOptionDto"
+              }
+            ]
           }
         }
       },
@@ -10174,6 +10206,17 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "CoverPosterOptionDto": {
+        "required": [
+          "imageUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "imageUrl": {
+            "type": "string"
           }
         }
       },
