@@ -169,7 +169,7 @@ export type DeclaredFactsDialogResult = DeclaredFactsScopeDto | undefined;
     .name-field { flex: 1 1 200px; }
     .role-field { flex: 0 1 150px; }
     .edition-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
-    .volumes-field { flex: 1 1 180px; }
+    .volumes-field { flex: 1 1 210px; }
     .edition-field { flex: 1 1 150px; }
     .error { color: #ff8a80; }
     .clear { margin-right: auto; }
