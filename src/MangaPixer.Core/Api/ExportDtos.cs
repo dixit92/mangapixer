@@ -137,8 +137,8 @@ public sealed record ExportDuplicateFileDto
     /// <summary>The file name on disk.</summary>
     public required string Name { get; init; }
 
-    /// <summary>The name of the folder the file is in: the series folder itself or one of its unit subfolders (<c>Volumes</c>,
-    /// <c>Season 2</c>) - a number is a duplicate only within one folder.</summary>
+    /// <summary>The unit subfolder the file is in (<c>Volumes</c>, <c>Season 2</c>), or null when it is in the series folder itself - a
+    /// number is a duplicate only within one folder.</summary>
     public string? Folder { get; init; }
 }
 
