@@ -88,7 +88,8 @@ public sealed class CollectionStackEntryTests : IDisposable
         Assert.Null(view.Status);
         Assert.Null(view.SeriesFolderId);
         Assert.Equal(
-            ["archive:Sample Artist - Alpha Story", "collection:Sample Artist - Beta Story+Sample Artist - Delta Story", "archive:Sample Artist - Gamma Story"],
+            // Owner (2026-10-08): placed by the record's title ("Synthetic Collected Volume"), after the stories.
+            ["archive:Sample Artist - Alpha Story", "archive:Sample Artist - Gamma Story", "collection:Sample Artist - Beta Story+Sample Artist - Delta Story"],
             Kinds(view));
         var key = view.Entries.Single(e => e.Kind == VolumeEntryKind.CollectionStack).Collection!.Key;
         Assert.Equal(artist.Tank.PublicId, key);

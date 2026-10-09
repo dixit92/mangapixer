@@ -7,6 +7,7 @@ using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Metadata;
 using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using com.lifepixer.mangapixer.Tests.Server.Features.Catalog;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -158,6 +159,18 @@ public sealed class CollectionStackHttpTests : IClassFixture<MangaPixerWebApplic
             await db.SaveChangesAsync();
             byte[] png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4];
             await scope.ServiceProvider.GetRequiredService<MetadataImageStore>().PublishAsync(record.Id, record.ImageVersion, png);
+            // The cover layer's automatic decision for a story linked on its own: its record's poster (what the cover pass decides).
+            var storyB = await db.CatalogNodes.SingleAsync(n => n.PublicId == "csb");
+            db.NodeAutoCovers.Add(new NodeAutoCoverEntity
+            {
+                NodeId = storyB.Id,
+                Source = (int)AutoCoverSource.Poster,
+                Reason = (int)AutoCoverReason.LocalNotCover,
+                InputsKey = "seeded",
+                Version = 1,
+                DecidedAt = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync();
         }
         try
         {
@@ -166,7 +179,10 @@ public sealed class CollectionStackHttpTests : IClassFixture<MangaPixerWebApplic
             Assert.Equal(CardCoverSource.Poster, card.CoverSource);
             var view = await OkAsync<CollectionStackDto>(await admin.GetAsync($"/api/v1/nodes/{ArtistPubId}/collection-stacks/{TankKey}"));
             Assert.Equal(card.CoverUrl, view.CoverUrl);
-            // Inside the stack each story shows its OWN page 1, not the record poster again (owner, 2026-10-08).
+            // Folders: the story shows the poster the cover layer decided ...
+            var flatB = (await BrowseAsync(admin, ArtistPubId, "group=flat")).Items.Single(i => i.Id == "csb");
+            Assert.Equal(CardCoverSource.Poster, flatB.CoverSource);
+            // ... but inside the stack each story shows its OWN page 1, not the record poster again (owner, 2026-10-08).
             Assert.All(view.Items, i =>
             {
                 Assert.StartsWith($"/api/v1/items/{i.Id}/cover", i.CoverUrl);
