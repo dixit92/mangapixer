@@ -2741,6 +2741,24 @@ export interface ExportItemDto {
   volumes?: ExportVolumesDto | null;
   completion?: ExportCompletionDto | null;
   refresh?: ExportRefreshDto | null;
+  /** 1.38.0: numbers stated by more than one file of a linked series folder, with each file; left out when there are none. */
+  duplicates?: ExportDuplicateDto[] | null;
+}
+
+/** 1.38.0: one number that several files in the same folder state. */
+export interface ExportDuplicateDto {
+  /** Volume or Chapter. */
+  kind: string;
+  number: string;
+  files: ExportDuplicateFileDto[];
+}
+
+/** 1.38.0: one file of a duplicate - open it at /reader/{nodeId}. */
+export interface ExportDuplicateFileDto {
+  nodeId: string;
+  name: string;
+  /** The unit subfolder, or null in the series folder itself. */
+  folder?: string | null;
 }
 
 export interface ExportLinkDto {

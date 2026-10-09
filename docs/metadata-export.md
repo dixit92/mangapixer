@@ -47,7 +47,7 @@ All endpoints below are `GET`, under `/api/v1/export/`, and answer JSON. Times a
 | `updatedSince` | Optional: only items changed at or after this time (inclusive), plus the removals since then. Without it: a full sync. |
 | `cursor` | The `nextCursor` of the previous page. Repeat the other parameters unchanged. |
 | `limit` | Items per page, 1-500 (default 200). |
-| `include` | Optional blocks to return, comma-separated: `volumes`, `completion`, `refresh`. Default: all three. `include=` returns none. |
+| `include` | Optional blocks to return, comma-separated: `volumes`, `completion`, `refresh`, `duplicates` (1.38.0). Default: all four. `include=` returns none. |
 
 ```json
 {
@@ -96,6 +96,7 @@ folder's declared creator in MangaPixer (not part of the export).
 | `volumes` | The per-volume list (below), or `null` when none is stored. |
 | `completion` | The Completion answer (below), or `null` - only folders with a Confirmed or Auto link have one. |
 | `refresh` | `lastFetchedAt`, `intervalDays`, `nextDueAt`: when MangaPixer read the record and looks at it again; `null` without a record and for `CollectionAbout` (its record is not refreshed automatically). `officialLinks` is `[]` and `volumes` / `completion` are `null` for `CollectionAbout` too. |
+| `duplicates` | (1.38.0) Chapter or volume numbers that more than one file states - the same duplicates the Missing report lists - each with its files: `{ kind, number, files: [{ nodeId, name, folder }] }`. Open a file in the reader at `/reader/{nodeId}`. `kind` is `Volume` or `Chapter`; `number` is exact (`"12.5"`); `folder` is the unit subfolder (`Volumes`, `Season 2`) or `null` in the series folder itself (a number is a duplicate only within one folder). Only folders with a Confirmed or Auto link have it, and the key is **left out** when there are none. At most 50 numbers, 20 files each. |
 
 ### Volumes
 

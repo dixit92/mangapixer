@@ -10173,6 +10173,49 @@
           }
         }
       },
+      "ExportDuplicateDto": {
+        "required": [
+          "kind",
+          "number",
+          "files"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportDuplicateFileDto"
+            }
+          }
+        }
+      },
+      "ExportDuplicateFileDto": {
+        "required": [
+          "nodeId",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "folder": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "ExportErrorDto": {
         "required": [
           "error"
@@ -10269,6 +10312,15 @@
                 "$ref": "#/components/schemas/ExportRefreshDto"
               }
             ]
+          },
+          "duplicates": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ExportDuplicateDto"
+            }
           }
         }
       },
