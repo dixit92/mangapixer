@@ -427,7 +427,11 @@
          the double-page Upscaling overlay follows its page; a non-series folder can take the web cover of a series inside it; API
          tokens may request a full library scan (library:scan scope); Wikidata lag no longer stalls Wikipedia lists; sidebar height;
          Audit trail moved. No migration. -->
-    <MangaPixerVersionMinor>36</MangaPixerVersionMinor>
+    <!-- 1.37.0 - MINOR (2026-10-08, cycle "Artist Folders and Tankoubon Stacks"): "Match folder to artist" (SeriesLinkState.ArtistFolder:
+         never linked, works matched archive by archive, the declared artist a hint); stories collected in one volume stack in the
+         Volumes view; an artist folder no longer stays in Needs review as one work; Clear revoked tokens; the last scan says who
+         started it; a "Use old" move conflict records the export carry. No migration; matcher rules revision unchanged (3). -->
+    <MangaPixerVersionMinor>37</MangaPixerVersionMinor>
     <!-- 1.31.1 - PATCH (2026-10-01, integrator-direct, owner live check of 1.31.0): content signatures backfilled for archives
          analysed before 1.5.0 (their moves were never recognised); Re-attach to a folder in another library; "Episode N" next
          to a volume is a part label, not a chapter; the review list shows the file's own page 1, never the cover layer's;

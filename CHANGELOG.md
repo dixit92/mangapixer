@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.37.0] - 2026-10-08
+
 ### Added
 
 - **Artist folders.** An admin can now say "this folder is one artist's folder": **Artist folder…** in the **Admin** menu of a folder's panel or series page, in the browse **Series** menu (one folder selected), or on a folder row waiting in **Needs review** or **Unmatched** (key `r`; **Artist folders** in the bulk bar marks every selected folder with its own name). A small dialog asks for the artist - the folder's name by default - and the role (**Story & art** by default). In one step the folder is never linked to a series and nothing inside inherits a link from it; the artist becomes the folder's declared creator (its other declared facts stay), so a record by that artist counts in a work's favour - a hint, never a veto; the folder's own review row goes; and - unlike **Don't match** - automatic matching keeps working inside it, archive by archive: with **Automatic matching** on the works inside are queued at once, those that found nothing before included. Nothing new is sent: the artist is only compared on your server. The folder's panel says **Artist folder**; artist folders are listed on the **Collections** tab of the review, kept by **Delete fetched web data**, carried over when a folder is renamed or moved, and exported with the new link state `ArtistFolder`. **Remove artist folder** takes the mark off; the declared artist stays. See [Artist folders](docs/series-information.md#artist-folders).
