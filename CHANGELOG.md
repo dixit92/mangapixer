@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.39.0] - 2026-10-09
+
 ### Added
 
 - **This folder's edition.** A folder that holds another edition of a series than the regular one - an omnibus, master or deluxe edition - can now say so: **Admin** > **Declared facts…** on a folder has a new section **This folder's edition** with **Volumes in this edition**, an optional **Edition** label (Regular, Omnibus, Master, Deluxe) and **Track completion**. With a volume count set, the folder's volumes are counted against that number (volumes 1 to N, as volume files) instead of the regular edition's volume list: the volume total, the missing volumes and the Completion answer (**Finished - you have it all (Omnibus edition)**) follow the edition, and no volume is offered as an upgrade. Chapter answers and the stacks of the Volumes view are unchanged. The settings belong to the folder itself - they are not inherited by the folders below it, cannot be set on a library and are never used for matching. See [This folder's edition](docs/declared-hints.md#this-folders-edition).

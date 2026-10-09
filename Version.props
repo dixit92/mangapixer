@@ -436,7 +436,12 @@
          author records by id, only when an admin asks (main consent 5); the export lists duplicate files with their node ids;
          tablet browse breadcrumb; Undo of Identify on an artist folder. Migration AddMetadataAuthors (additive); matcher rules
          revision unchanged (3). -->
-    <MangaPixerVersionMinor>38</MangaPixerVersionMinor>
+    <!-- 1.39.0 - MINOR (2026-10-09, cycle "Edition Override and Poster Cover"): a folder's own edition (volumes in this edition, edition
+         label) and "Track completion" off without unlinking, with export fields; the series poster as a cover choice; duplicate units only
+         when names differ by tags alone; Match folders by name reads "Circle (Artist)"; a declared creator matching an alias in brackets or
+         a stored other name is no conflict; the matcher knows a record author's alias in brackets - matcher rules revision 4. No migration,
+         no new consent, no new kind of request. -->
+    <MangaPixerVersionMinor>39</MangaPixerVersionMinor>
     <!-- 1.31.1 - PATCH (2026-10-01, integrator-direct, owner live check of 1.31.0): content signatures backfilled for archives
          analysed before 1.5.0 (their moves were never recognised); Re-attach to a folder in another library; "Episode N" next
          to a volume is a part label, not a chapter; the review list shows the file's own page 1, never the cover layer's;
