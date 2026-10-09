@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **The metadata export lists duplicate files.** A linked series folder's item now carries `duplicates`: each chapter or volume number that more than one file in the same folder states (the duplicates the Missing report shows), with every file's node id, name and unit subfolder - so an app such as MangaList can open each copy in the reader (`/reader/{nodeId}`) and let you judge which to keep. It is a new optional block, `include=duplicates`, on by default; the key is left out when a folder has no duplicates, so other items do not change. Read-only, no new route; `schemaVersion` stays 1. See [Metadata export](docs/metadata-export.md).
+
+### Fixed
+
+- **Tablet browse: the Volumes | Folders switch squeezed the folder trail to a letter.** At tablet width (about 820 px) the controls left the breadcrumb a letter or two. When the switch is shown, the trail now keeps its own room and the controls move to a second row; desktop and phone are unchanged.
+- **Undo after Identify on an artist folder added the folder's name as a second artist.** When an artist folder's artist had been renamed in the dialog and Identify then linked the folder, **Undo** marked it an artist folder again with the folder's name, so the folder ended up with two declared artists. Undo now puts back the artist that was declared.
+
+### Changed
+
+- **THIRD-PARTY-NOTICES: the list of web build and test packages is regenerated** from a reproducible Linux install (it was a stale Windows snapshot); the shipped packages' sections are unchanged.
+
 ## [1.37.1] - 2026-10-09
 
 ### Fixed
