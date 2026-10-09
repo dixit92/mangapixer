@@ -175,8 +175,11 @@ describe('CoverPickerDialogComponent', () => {
   it('has no poster tile when the server offers none', () => {
     const { q } = create();
     expect(q('cover-pick-poster')).toBeNull();
-    const { q: q2 } = create(options({ poster: null }));
-    expect(q2('cover-pick-poster')).toBeNull();
+  });
+
+  it('has no poster tile when the server sends poster: null', () => {
+    const { q } = create(options({ poster: null }));
+    expect(q('cover-pick-poster')).toBeNull();
   });
 
   it('choosing the poster sends the mode only, and announces the new card as chosen', () => {
