@@ -170,6 +170,24 @@ test('the phone layout groups too', async ({ page }) => {
   await shot(page, 'volumes-04-phone');
 });
 
+test('on a tablet the switch leaves the breadcrumb readable (1.38.0)', async ({ page }) => {
+  await page.setViewportSize({ width: 820, height: 1180 });
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  await setSwitch(page, null);
+  await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+
+  await expect(page.getByTestId('volume-view-switch')).toBeVisible();
+  const trail = page.locator('.browse-bar .breadcrumbs');
+  await expect(trail).toContainText('Stacked Saga');
+  // Before 1.38.0 the controls squeezed the trail to a letter or two (ellipsed): the whole trail must fit its box.
+  const box = await trail.evaluate((el) => ({ width: el.clientWidth, needed: el.scrollWidth }));
+  expect(box.needed, `trail needs ${box.needed}px, has ${box.width}px`).toBeLessThanOrEqual(box.width + 1);
+  expect(box.width).toBeGreaterThanOrEqual(200);
+  await expectFitsScreen(page);
+  await shot(page, 'volumes-04b-tablet');
+});
+
 test('a stack shows a star when one of its chapters is starred', async ({ page }) => {
   await login(page);
   const [libraryId, folderId] = await ensureLibrary(page);
