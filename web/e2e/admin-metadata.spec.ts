@@ -405,6 +405,44 @@ test('phone: Later from the bottom bar, and the Later filter fits the screen', a
   expect(foreign).toEqual([]);
 });
 
+test('phone: the Undo snackbar opens above the bottom action bar, never over its buttons', async ({ page, baseURL }) => {
+  const foreign = watchForeignRequests(page, baseURL!);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+  await mockStage2(page);
+  await page.goto('/admin/metadata?tab=review');
+  await expect(page.getByTestId('review-row')).toHaveCount(3);
+  const bar = page.getByTestId('review-bottombar');
+  const snack = page.locator('mat-snack-bar-container');
+  // Owner (1.37.0 on a phone): the snackbar covered the bar's buttons. Its bottom edge must be at or above the bar's top edge.
+  const overlap = async () => {
+    const s = await snack.last().boundingBox();
+    const b = await bar.boundingBox();
+    return s && b ? Math.round(s.y + s.height - b.y) : 999;
+  };
+
+  // Later (sent at once, an Undo snackbar).
+  await page.getByTestId('review-name').nth(1).click();
+  const sent = page.waitForResponse((r) => /\/review\/r2\/later$/.test(r.url()));
+  await bar.getByTestId('bar-later').click();
+  await sent;
+  await expect(snack.last()).toBeVisible();
+  await expect.poll(overlap).toBeLessThanOrEqual(0);
+
+  // Accept (deferred until the Undo window closes) - the same place.
+  await page.getByTestId('review-name').first().click();
+  await bar.getByTestId('bar-accept').click();
+  await expect(snack.last()).toContainText('Undo');
+  await expect.poll(overlap).toBeLessThanOrEqual(0);
+  // The bar's buttons stay reachable: what is painted at a button's centre belongs to the bar.
+  const button = await bar.locator('button').first().boundingBox();
+  const inBar = await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('[data-testid="review-bottombar"]'),
+    [button!.x + button!.width / 2, button!.y + button!.height / 2]);
+  expect(inBar).toBe(true);
+  await shot(page, 'r-06-review-snackbar-phone');
+  expect(foreign).toEqual([]);
+});
+
 test('Same author (1.33.0): a row\'s chip lists the circle\'s works together, bulk Later on them, the Authors list', async ({ page, baseURL }) => {
   const foreign = watchForeignRequests(page, baseURL!);
   await login(page);

@@ -71,3 +71,9 @@ html, body {
   --mp-accent: #b39dff;
   --mp-accent-bg: rgba(124, 77, 255, 0.18);
 }
+
+/* 1.37.1: on a phone the review page's snackbar (Undo) opens just above its bottom action bar instead of over its buttons; the
+   review page measures the bar into --mp-snack-lift when it opens a snackbar. */
+.mat-mdc-snack-bar-container.mp-snack-above-bar {
+  margin-bottom: calc(var(--mp-snack-lift, 76px) + 8px) !important;
+}

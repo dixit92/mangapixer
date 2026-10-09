@@ -1,4 +1,4 @@
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatSnackBar, MatSnackBarConfig } from '@angular/material/snack-bar';
 import { Observable, ReplaySubject, of } from 'rxjs';
 
 /** One review action whose request waits until its Undo window is over. */
@@ -34,6 +34,8 @@ export class DeferredCommitQueue {
   constructor(
     private readonly snackBar: MatSnackBar,
     private readonly durationMs = 6000,
+    /** Extra snackbar config at the moment it opens (1.37.1: on a phone, lift it above the review page's bottom bar). */
+    private readonly configure: () => MatSnackBarConfig = () => ({}),
   ) {}
 
   get hasPending(): boolean {
@@ -44,7 +46,7 @@ export class DeferredCommitQueue {
     this.flush();
     const p: Pending = { action: action as DeferredAction<never>, settled: false };
     this.pending = p;
-    const ref = this.snackBar.open(action.label, 'Undo', { duration: this.durationMs });
+    const ref = this.snackBar.open(action.label, 'Undo', { ...this.configure(), duration: this.durationMs });
     ref.onAction().subscribe(() => this.undo(p));
     ref.afterDismissed().subscribe(({ dismissedByAction }) => {
       if (!dismissedByAction) this.commit(p);
