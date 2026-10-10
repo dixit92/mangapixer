@@ -100,7 +100,7 @@ import { CatalogNodeDto, SearchResultsDto, SeriesMatchDto } from '../../core/api
   `,
   styles: [`
     .search-field { width: 100%; max-width: 600px; }
-    .result-count { color: #999; margin: 16px 0; }
+    .result-count { color: var(--mp-text-muted); margin: 16px 0; }
     .results-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -109,11 +109,11 @@ import { CatalogNodeDto, SearchResultsDto, SeriesMatchDto } from '../../core/api
     .result-card { cursor: pointer; text-decoration: none; color: inherit; display: block; }
     .cover {
       position: relative; aspect-ratio: 2 / 3; border-radius: 8px; overflow: hidden;
-      background: rgba(255,255,255,0.06);
+      background: rgb(var(--mp-ink-rgb) / 0.06);
       display: flex; align-items: center; justify-content: center;
     }
     .cover img { width: 100%; height: 100%; object-fit: cover; position: relative; z-index: 1; }
-    .cover-fallback { font-size: 44px; width: 44px; height: 44px; color: #777; position: absolute; z-index: 0; }
+    .cover-fallback { font-size: 44px; width: 44px; height: 44px; color: var(--mp-text-faint); position: absolute; z-index: 0; }
     /* Folder-vs-archive kind badge (1.12.0): a small, legible corner marker so the
        node kind reads at a glance even when a real cover image is showing (the
        cover-fallback icon above is hidden then). Mirrors the compact circular-chip
@@ -122,7 +122,7 @@ import { CatalogNodeDto, SearchResultsDto, SeriesMatchDto } from '../../core/api
       position: absolute; top: 4px; left: 4px; z-index: 2;
       display: flex; align-items: center; justify-content: center;
       width: 20px; height: 20px; border-radius: 50%;
-      background: rgba(0, 0, 0, 0.65); color: #fff;
+      background: rgb(var(--mp-shade-rgb) / 0.65); color: var(--mp-on-scrim);
     }
     .kind-badge mat-icon { font-size: 14px; width: 14px; height: 14px; line-height: 14px; }
     .result-title {
@@ -132,10 +132,10 @@ import { CatalogNodeDto, SearchResultsDto, SeriesMatchDto } from '../../core/api
     .series-matches { margin-bottom: 8px; }
     .section-heading { margin: 16px 0 12px; font-size: 16px; font-weight: 500; }
     .result-aka {
-      margin-top: 2px; font-size: 12px; color: #999;
+      margin-top: 2px; font-size: 12px; color: var(--mp-text-muted);
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .no-results { color: #999; padding: 32px; text-align: center; }
+    .no-results { color: var(--mp-text-muted); padding: 32px; text-align: center; }
   `],
 })
 export class SearchComponent {

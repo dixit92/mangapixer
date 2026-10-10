@@ -77,11 +77,11 @@ export function seriesStatusLine(view: VolumeViewDto | null | undefined): string
   `,
   styles: [`
     :host { display: block; }
-    .status { display: flex; align-items: flex-start; gap: 6px; margin: -6px 0 12px; font-size: 13px; color: #b8b8c6; min-width: 0; }
+    .status { display: flex; align-items: flex-start; gap: 6px; margin: -6px 0 12px; font-size: 13px; color: var(--mp-text-secondary); min-width: 0; }
     .text { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
-    .status.missing .folder { color: #ffcc80; }
-    .status.missing mat-icon { color: #ffcc80; }
-    .status.complete mat-icon, .status.complete .folder { color: #a5d6a7; }
+    .status.missing .folder { color: var(--mp-warn); }
+    .status.missing mat-icon { color: var(--mp-warn); }
+    .status.complete mat-icon, .status.complete .folder { color: var(--mp-success-soft); }
     mat-icon { font-size: 18px; width: 18px; height: 18px; flex: none; }
   `],
 })

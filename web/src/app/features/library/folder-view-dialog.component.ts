@@ -47,10 +47,10 @@ type Choice = 'auto' | 'on' | 'off';
     </mat-dialog-actions>
   `,
   styles: [`
-    .hint { color: #b8b8c6; font-size: 13px; margin: 0 0 12px; max-width: 420px; }
+    .hint { color: var(--mp-text-secondary); font-size: 13px; margin: 0 0 12px; max-width: 420px; }
     .choices { display: flex; flex-direction: column; }
-    .sub { color: #8a8a99; font-size: 12px; }
-    .error { color: #ff8a80; }
+    .sub { color: var(--mp-text-dim); font-size: 12px; }
+    .error { color: var(--mp-error); }
   `],
 })
 export class FolderViewDialogComponent implements OnInit {

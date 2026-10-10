@@ -50,7 +50,7 @@ import { LibraryIconComponent } from '../../shared/library-icon/library-icon.com
     }
     .library-card { cursor: pointer; }
     h3 { margin: 8px 0 4px 0; }
-    p { margin: 0; color: #666; font-size: 14px; }
+    p { margin: 0; color: var(--mp-text-faint); font-size: 14px; }
   `],
 })
 export class LibraryListComponent implements OnInit {
