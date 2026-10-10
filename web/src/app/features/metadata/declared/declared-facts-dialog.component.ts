@@ -161,17 +161,17 @@ export type DeclaredFactsDialogResult = DeclaredFactsScopeDto | undefined;
   `,
   styles: [`
     .lead { margin-top: 0; }
-    .small { font-size: 12px; color: #9a9aa8; margin: 4px 0 8px; }
+    .small { font-size: 12px; color: var(--mp-text-muted); margin: 4px 0 8px; }
     .type-field { width: 100%; margin-top: 8px; }
     .section { margin: 16px 0 6px; font-size: 13px; font-weight: 600; }
-    .role { color: #b0b0c0; }
+    .role { color: var(--mp-text-muted); }
     .add-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
     .name-field { flex: 1 1 200px; }
     .role-field { flex: 0 1 150px; }
     .edition-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
     .volumes-field { flex: 1 1 210px; }
     .edition-field { flex: 1 1 150px; }
-    .error { color: #ff8a80; }
+    .error { color: var(--mp-error); }
     .clear { margin-right: auto; }
   `],
 })

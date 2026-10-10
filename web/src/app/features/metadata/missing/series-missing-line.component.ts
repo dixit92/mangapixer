@@ -46,11 +46,11 @@ import { DeclaredFactsApiService } from '../declared/declared-facts-api.service'
     }
   `,
   styles: [`
-    .missing-line { margin: 8px 0 0; font-size: 13px; color: #c8c8d4; }
-    .detail { color: #ffcc80; }
-    .dup { color: #ffcc80; font-size: 12px; overflow-wrap: anywhere; }
-    .more { margin-left: 10px; font-size: 12px; color: #b39dff; }
-    .trackers { color: #9a9aa8; font-size: 12px; }
+    .missing-line { margin: 8px 0 0; font-size: 13px; color: var(--mp-text-secondary); }
+    .detail { color: var(--mp-warn); }
+    .dup { color: var(--mp-warn); font-size: 12px; overflow-wrap: anywhere; }
+    .more { margin-left: 10px; font-size: 12px; color: var(--mp-accent); }
+    .trackers { color: var(--mp-text-muted); font-size: 12px; }
     .mark { margin-left: 8px; }
   `],
 })

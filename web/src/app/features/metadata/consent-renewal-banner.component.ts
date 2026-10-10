@@ -32,8 +32,8 @@ import { MetadataReviewStateService } from './metadata-review-state.service';
   `,
   styles: [`
     .renew { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 8px 0 12px; padding: 10px 14px;
-      border-radius: 10px; background: rgba(255, 179, 0, 0.1); border: 1px solid rgba(255, 179, 0, 0.35); color: #ffe0a3; }
-    .renew mat-icon { color: #ffb300; flex: none; }
+      border-radius: 10px; background: rgb(var(--mp-warn-strong-rgb) / 0.1); border: 1px solid rgb(var(--mp-warn-strong-rgb) / 0.35); color: var(--mp-warn); }
+    .renew mat-icon { color: var(--mp-warn-strong); flex: none; }
     p { margin: 0; flex: 1 1 260px; font-size: 14px; }
   `],
 })

@@ -46,13 +46,13 @@ import { conflictText, creatorsText, declaredTypeLabel, editionText, hasDeclared
   styles: [`
     :host { display: block; }
     .declared { clear: both; }
-    .facts { margin: 2px 0; font-size: 13px; color: #c8c8d4; }
-    .muted { color: #8a8a99; }
-    .conflict { display: flex; align-items: flex-start; gap: 6px; margin: 4px 0; font-size: 13px; color: #ffcc80; }
+    .facts { margin: 2px 0; font-size: 13px; color: var(--mp-text-secondary); }
+    .muted { color: var(--mp-text-dim); }
+    .conflict { display: flex; align-items: flex-start; gap: 6px; margin: 4px 0; font-size: 13px; color: var(--mp-warn); }
     .conflict mat-icon { flex: none; margin-top: 1px; }
     .badge {
       display: inline-block; padding: 0 6px; margin-right: 4px; border-radius: 4px; font-size: 11px; font-weight: 600;
-      text-transform: uppercase; letter-spacing: 0.4px; color: #1a1a22; background: #ffcc80;
+      text-transform: uppercase; letter-spacing: 0.4px; color: var(--mp-surface-raised); background: var(--mp-warn);
     }
   `],
 })

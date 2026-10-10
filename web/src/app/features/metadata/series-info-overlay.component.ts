@@ -102,24 +102,24 @@ import { SeriesInfoSummaryComponent } from './series-info-summary.component';
   `,
   styles: [`
     :host { display: block; height: 100%; }
-    .sheet { display: flex; flex-direction: column; height: 100%; max-height: 100%; background: #16161f; color: #e6e6ee; }
+    .sheet { display: flex; flex-direction: column; height: 100%; max-height: 100%; background: var(--mp-surface); color: var(--mp-text); }
     .head { display: flex; align-items: center; justify-content: space-between; padding: 8px 8px 0 16px; }
-    .kicker { font-size: 11px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: #8a8a99; }
+    .kicker { font-size: 11px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: var(--mp-text-dim); }
     .body { flex: 1 1 auto; overflow-y: auto; padding: 4px 16px 12px; }
-    .foot { flex: 0 0 auto; padding: 10px 16px 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
-    .source { margin: 0 0 4px; font-size: 12px; color: #b0b0c0; }
-    .source a { color: #b39dff; }
-    .muted { color: #8a8a99; }
+    .foot { flex: 0 0 auto; padding: 10px 16px 14px; border-top: 1px solid rgb(var(--mp-ink-rgb) / 0.08); }
+    .source { margin: 0 0 4px; font-size: 12px; color: var(--mp-text-muted); }
+    .source a { color: var(--mp-accent); }
+    .muted { color: var(--mp-text-dim); }
     .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
     .actions mat-icon { margin-right: 4px; }
     .state { padding: 24px 16px; display: flex; justify-content: center; }
-    .error { color: #ff8a80; }
+    .error { color: var(--mp-error); }
     /* Hosts: the dialog is a full-height right sheet, the bottom sheet grows to 90vh. */
-    ::ng-deep .series-info-side-sheet .mat-mdc-dialog-surface { border-radius: 0; background: #16161f; }
+    ::ng-deep .series-info-side-sheet .mat-mdc-dialog-surface { border-radius: 0; background: var(--mp-surface); }
     ::ng-deep .series-info-side-sheet .mat-mdc-dialog-container { max-height: 100vh; }
     ::ng-deep .series-info-bottom-sheet.mat-bottom-sheet-container,
     ::ng-deep .series-info-bottom-sheet .mat-bottom-sheet-container {
-      max-height: 90vh; padding: 0; background: #16161f; border-radius: 12px 12px 0 0;
+      max-height: 90vh; padding: 0; background: var(--mp-surface); border-radius: 12px 12px 0 0;
     }
   `],
 })

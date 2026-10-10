@@ -90,14 +90,14 @@ import { AdminMetadataTab } from '../admin-metadata/metadata-admin-labels';
     .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 8px; }
     .in-page .stats { margin-top: 0; }
     .stat { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 10px; text-decoration: none; color: inherit;
-      background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.06); font: inherit; text-align: left; cursor: pointer; }
-    .stat:hover { background: rgba(255, 255, 255, 0.07); }
-    .stat:focus-visible { outline: 2px solid #b39dff; }
-    .stat.hot { border-color: #7c4dff; }
+      background: rgb(var(--mp-ink-rgb) / 0.04); border: 1px solid rgb(var(--mp-ink-rgb) / 0.06); font: inherit; text-align: left; cursor: pointer; }
+    .stat:hover { background: rgb(var(--mp-ink-rgb) / 0.07); }
+    .stat:focus-visible { outline: 2px solid var(--mp-accent); }
+    .stat.hot { border-color: var(--mp-accent-strong); }
     .value { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
-    .value.on { color: #81c784; }
-    .of { font-size: 13px; font-weight: 400; color: #9a9aa8; }
-    .label { font-size: 12px; color: #9a9aa8; }
+    .value.on { color: var(--mp-success); }
+    .of { font-size: 13px; font-weight: 400; color: var(--mp-text-muted); }
+    .label { font-size: 12px; color: var(--mp-text-muted); }
     mat-card-actions mat-icon { margin-right: 4px; }
   `],
 })

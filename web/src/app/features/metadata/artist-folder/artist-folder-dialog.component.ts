@@ -64,7 +64,7 @@ const MAX_NAME = 200;
   `,
   styles: [`
     .lead { margin: 0 0 6px; overflow-wrap: anywhere; }
-    .small { margin: 0 0 12px; font-size: 13px; line-height: 1.45; color: #a8a8b8; }
+    .small { margin: 0 0 12px; font-size: 13px; line-height: 1.45; color: var(--mp-text-muted); }
     .fields { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-start; }
     .name-field { flex: 1 1 220px; min-width: 0; }
     .role-field { flex: 0 1 160px; min-width: 140px; }

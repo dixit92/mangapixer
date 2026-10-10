@@ -105,10 +105,10 @@ import { FolderMatchMenuItemDirective } from './folder-match/folder-match-menu-i
   styles: [`
     :host { display: contents; }
     mat-icon { margin-right: 4px; }
-    .suggest { margin-left: 8px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #ffcc80; }
+    .suggest { margin-left: 8px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--mp-warn); }
     .caption {
       display: block; padding: 6px 16px 2px; font-size: 11px; font-weight: 600;
-      text-transform: uppercase; letter-spacing: 0.5px; color: #8a8a99;
+      text-transform: uppercase; letter-spacing: 0.5px; color: var(--mp-text-dim);
     }
     @media (max-width: 599.98px) {
       .lbl { display: none; }

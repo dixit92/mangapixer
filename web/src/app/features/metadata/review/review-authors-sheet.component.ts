@@ -27,13 +27,13 @@ import { MetadataReviewAuthorDto } from '../../../core/api/api-types';
   `,
   styles: [`
     .sheet { padding: 4px 0 calc(8px + env(safe-area-inset-bottom)); max-height: 70vh; overflow-y: auto; }
-    h3 { font-size: 14px; font-weight: 500; margin: 4px 8px 8px; color: #d0d0dc; }
+    h3 { font-size: 14px; font-weight: 500; margin: 4px 8px 8px; color: var(--mp-text-secondary); }
     .author { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 8px; border: 0;
       background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; border-radius: 8px; }
-    .author:hover, .author:focus-visible { background: rgba(255, 255, 255, 0.06); }
+    .author:hover, .author:focus-visible { background: rgb(var(--mp-ink-rgb) / 0.06); }
     .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .count { font-size: 12px; font-weight: 600; padding: 0 7px; border-radius: 9px; background: rgba(255, 183, 77, 0.2); line-height: 20px; }
-    .empty { color: #9a9aa8; margin: 8px; }
+    .count { font-size: 12px; font-weight: 600; padding: 0 7px; border-radius: 9px; background: rgb(var(--mp-caution-rgb) / 0.2); line-height: 20px; }
+    .empty { color: var(--mp-text-muted); margin: 8px; }
   `],
 })
 export class ReviewAuthorsSheetComponent {

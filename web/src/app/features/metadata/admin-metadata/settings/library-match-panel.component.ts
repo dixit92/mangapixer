@@ -55,11 +55,11 @@ import { daysLabel, plural, waitingLabel } from '../metadata-admin-labels';
     </div>
   `,
   styles: [`
-    .panel { padding: 10px 12px; margin: 4px 0 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.04); display: flex; flex-direction: column; gap: 4px; }
+    .panel { padding: 10px 12px; margin: 4px 0 8px; border-radius: 8px; background: rgb(var(--mp-ink-rgb) / 0.04); display: flex; flex-direction: column; gap: 4px; }
     .figures { margin: 0; font-size: 14px; }
-    .note { margin: 0 0 4px; font-size: 12px; color: #9a9aa8; }
-    .warn { color: #ffb300; font-size: 13px; margin: 4px 0; }
-    .error { color: #f44336; font-size: 13px; }
+    .note { margin: 0 0 4px; font-size: 12px; color: var(--mp-text-muted); }
+    .warn { color: var(--mp-warn-strong); font-size: 13px; margin: 4px 0; }
+    .error { color: var(--mp-error-strong); font-size: 13px; }
     .actions { display: flex; gap: 8px; margin-top: 6px; }
   `],
 })

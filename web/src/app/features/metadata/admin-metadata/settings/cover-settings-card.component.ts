@@ -48,15 +48,15 @@ import { MetadataApiService } from '../../metadata-api.service';
   `,
   styles: [`
     :host { display: contents; }
-    .card { background: #1c1c26; border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 12px; padding: 14px 18px; min-width: 0; }
+    .card { background: var(--mp-surface-raised); border: 1px solid rgb(var(--mp-ink-rgb) / 0.07); border-radius: 12px; padding: 14px 18px; min-width: 0; }
     h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 16px; font-weight: 500; }
-    h3 mat-icon { font-size: 20px; width: 20px; height: 20px; color: #b39dff; }
+    h3 mat-icon { font-size: 20px; width: 20px; height: 20px; color: var(--mp-accent); }
     h4 { margin: 16px 0 6px; font-size: 14px; }
-    .note { font-size: 12px; color: #9a9aa8; margin: 4px 0 8px; }
+    .note { font-size: 12px; color: var(--mp-text-muted); margin: 4px 0 8px; }
     .small { font-size: 12px; }
     .libs { display: flex; flex-direction: column; gap: 6px; }
-    .ok { color: #4caf50; }
-    .error { color: #f44336; }
+    .ok { color: var(--mp-success-strong); }
+    .error { color: var(--mp-error-strong); }
     @media (max-width: 599.98px) { .card { padding: 12px; } }
   `],
 })
