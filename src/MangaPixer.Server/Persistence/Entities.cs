@@ -549,6 +549,17 @@ public sealed class ReaderPreferencesEntity
     /// </summary>
     public string? StackViewMode { get; set; }
 
+    /// <summary>
+    /// Base theme (1.40.0): one of <c>ThemeVocabulary.Bases</c> (dark / light / black / sepia / system); null = the default
+    /// (dark). Written only through the appearance endpoint, which validates it.
+    /// </summary>
+    public string? Theme { get; set; }
+
+    /// <summary>
+    /// Accent (1.40.0): one of <c>ThemeVocabulary.Accents</c>; null = the default (violet).
+    /// </summary>
+    public string? Accent { get; set; }
+
     public UserEntity? User { get; set; }
 }
 
