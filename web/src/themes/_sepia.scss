@@ -1,13 +1,15 @@
 /* Sepia base theme (1.40.0 theming, lane V): `<html data-theme="sepia">` - warm paper for long reading sessions.
  * A light theme: paper surfaces in the #f4ecd8 family, brown-black text, a brown ink (so hover fills, borders and dividers are warm,
- * not grey) and status colours darkened until they read on paper. Angular Material's neutral family (the page background behind
- * `mat-app-background`, menus, dialogs, form fields) is warmed to the same paper. Scrims and text over cover art (`--mp-shade-rgb`,
+ * not grey) and status colours darkened until they read on paper. The root background is painted with the paper colour (the page
+ * otherwise shows the browser's white canvas), and Angular Material's neutral family (toolbar, cards, menus, dialogs, form fields) is
+ * warmed to the same paper. Scrims and text over cover art (`--mp-shade-rgb`,
  * `--mp-on-scrim`) are the same in every theme and are not set here.
  * The accent tokens set here are violet's (the default accent) on paper; every other accent sets its own sepia values in
  * `_accents.scss` on `:root[data-accent=...][data-theme='sepia']`, which out-ranks this block.
  */
 :root[data-theme='sepia'] {
   color-scheme: light;
+  background-color: var(--mat-sys-background);
 
   --mp-ink-rgb: 67 45 20;
 

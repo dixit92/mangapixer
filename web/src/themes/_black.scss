@@ -3,12 +3,14 @@
  * black so cards, panels and dialogs stay distinguishable. Text, status and accent colours are the dark theme's (`:root` in
  * styles.scss) - they keep at least the contrast they have on dark, because the surfaces only got darker - except the faintest
  * text, lifted one step.
- * Angular Material paints the page (`<body class="mat-app-background">` = `--mat-sys-background`) and its own surfaces (menus,
- * dialogs, form fields, snackbars) from the neutral family, so that family moves to black too. Only base-theme tokens live here:
- * accents are `_accents.scss` (the dark-family accent values apply on black).
+ * The page itself shows the browser's canvas (Chrome paints #121212 for `color-scheme: dark`; `mat-app-background` on <body> paints
+ * nothing in Material 22), so this theme paints the root background black. Angular Material paints its own surfaces (toolbar, cards,
+ * menus, dialogs, form fields, snackbars) from the neutral family, so that family moves to black too. Only base-theme tokens live
+ * here: accents are `_accents.scss` (the dark-family accent values apply on black).
  */
 :root[data-theme='black'] {
   color-scheme: dark;
+  background-color: var(--mat-sys-background);
 
   --mp-surface: #000;
   --mp-surface-raised: #101014;
