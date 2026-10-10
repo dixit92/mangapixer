@@ -156,28 +156,28 @@ import { SeriesRefreshCadenceComponent } from './series-refresh-cadence/series-r
   `,
   styles: [`
     :host { display: block; }
-    .page { max-width: 920px; margin: 0 auto; padding: 8px 4px 32px; color: #e6e6ee; }
-    .state { display: flex; justify-content: center; padding: 48px 0; color: #b0b0c0; }
-    .back a { display: inline-flex; align-items: center; gap: 4px; color: #b39dff; text-decoration: none; font-size: 14px; }
+    .page { max-width: 920px; margin: 0 auto; padding: 8px 4px 32px; color: var(--mp-text); }
+    .state { display: flex; justify-content: center; padding: 48px 0; color: var(--mp-text-muted); }
+    .back a { display: inline-flex; align-items: center; gap: 4px; color: var(--mp-accent); text-decoration: none; font-size: 14px; }
     .back mat-icon { font-size: 18px; width: 18px; height: 18px; }
-    .hero { margin: 12px 0 8px; padding: 16px; border-radius: 12px; background: #14141c; border: 1px solid rgba(255, 255, 255, 0.08); }
+    .hero { margin: 12px 0 8px; padding: 16px; border-radius: 12px; background: var(--mp-surface); border: 1px solid rgb(var(--mp-ink-rgb) / 0.08); }
     .hero ::ng-deep .poster { width: 200px; height: 284px; }
     .hero ::ng-deep .title { font-size: 26px; }
     .hero-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; clear: both; }
     .hero-actions mat-icon { margin-right: 4px; }
-    .section { margin: 10px 0; padding: 10px 16px; border-radius: 10px; background: rgba(255, 255, 255, 0.03); }
+    .section { margin: 10px 0; padding: 10px 16px; border-radius: 10px; background: rgb(var(--mp-ink-rgb) / 0.03); }
     .section summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
     .section h3 { margin: 4px 0 8px; font-size: 15px; }
     .about { white-space: pre-line; line-height: 1.55; }
     .details { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 8px 0; }
-    .details dt { color: #8a8a99; }
+    .details dt { color: var(--mp-text-dim); }
     .details dd { margin: 0; }
     .items { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .items th, .items td { text-align: left; padding: 4px 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
-    .items a { color: #d8ccff; text-decoration: none; }
-    .muted { color: #8a8a99; }
+    .items th, .items td { text-align: left; padding: 4px 8px; border-bottom: 1px solid rgb(var(--mp-ink-rgb) / 0.06); }
+    .items a { color: var(--mp-accent-soft); text-decoration: none; }
+    .muted { color: var(--mp-text-dim); }
     .small { font-size: 12px; word-break: break-all; }
-    a { color: #b39dff; }
+    a { color: var(--mp-accent); }
     @media (max-width: 599.98px) {
       .hero { padding: 12px; }
       .hero ::ng-deep .poster { width: 96px; height: 136px; }

@@ -64,12 +64,12 @@ export interface MangaDexMatchDialogData {
     </mat-dialog-actions>
   `,
   styles: [`
-    .small { font-size: 13px; color: #c8c8d0; }
-    .muted { color: #9a9aa8; }
+    .small { font-size: 13px; color: var(--mp-text-secondary); }
+    .muted { color: var(--mp-text-muted); }
     .current { font-size: 13px; margin: 8px 0 12px; line-height: 1.6; }
-    .current a { color: #b39dff; }
+    .current a { color: var(--mp-accent); }
     .ref { width: 100%; }
-    .error { color: #f44336; }
+    .error { color: var(--mp-error-strong); }
   `],
 })
 export class MangaDexMatchDialogComponent implements OnInit {

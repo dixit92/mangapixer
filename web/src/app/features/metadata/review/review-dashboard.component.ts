@@ -284,46 +284,46 @@ const ROW_BULK: Partial<Record<ReviewRowAction, MetadataReviewBulkAction>> = {
     :host { display: block; }
     .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; }
     .tabs { display: flex; flex-wrap: wrap; gap: 6px; }
-    .tab { border: 1px solid rgba(255, 255, 255, 0.12); background: transparent; color: #d0d0dc; border-radius: 18px;
+    .tab { border: 1px solid rgb(var(--mp-ink-rgb) / 0.12); background: transparent; color: var(--mp-text-secondary); border-radius: 18px;
       padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
-    .tab:hover { background: rgba(255, 255, 255, 0.05); }
-    .tab.active { background: rgba(179, 157, 255, 0.2); border-color: #b39dff; color: #fff; }
-    .tab:focus-visible { outline: 2px solid #b39dff; }
-    .badge { font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 9px; background: rgba(255, 255, 255, 0.12); line-height: 18px; }
-    .badge.hot { background: #7c4dff; color: #fff; }
+    .tab:hover { background: rgb(var(--mp-ink-rgb) / 0.05); }
+    .tab.active { background: rgb(var(--mp-accent-rgb) / 0.2); border-color: var(--mp-accent); color: var(--mp-text-strong); }
+    .tab:focus-visible { outline: 2px solid var(--mp-accent); }
+    .badge { font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 9px; background: rgb(var(--mp-ink-rgb) / 0.12); line-height: 18px; }
+    .badge.hot { background: var(--mp-accent-strong); color: var(--mp-on-accent); }
     .lib-filter { width: 220px; }
-    .hint { font-size: 13px; color: #9a9aa8; margin: 10px 0; }
+    .hint { font-size: 13px; color: var(--mp-text-muted); margin: 10px 0; }
     .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 10px; }
     .later-filter { display: flex; flex-wrap: wrap; gap: 6px; }
     .later-filter .tab, .filters .authors { padding: 3px 10px; font-size: 12px; }
     .group-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0; font-size: 12px; padding: 2px 4px 2px 10px;
-      border-radius: 16px; background: rgba(255, 183, 77, 0.16); border: 1px solid rgba(255, 204, 128, 0.45); color: #ffe0b2; }
+      border-radius: 16px; background: rgb(var(--mp-caution-rgb) / 0.16); border: 1px solid rgb(var(--mp-warn-rgb) / 0.45); color: var(--mp-warn); }
     .group-chip .glabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     .gclear { border: 0; background: transparent; color: inherit; cursor: pointer; padding: 2px; border-radius: 50%; display: inline-flex; }
-    .gclear:hover, .gclear:focus-visible { background: rgba(255, 255, 255, 0.12); }
-    .menu-count { margin-left: 8px; font-size: 12px; font-weight: 600; color: #ffcc80; }
-    .menu-empty { margin: 8px 16px; color: #9a9aa8; font-size: 13px; }
-    .recheck { font-size: 13px; color: #90caf9; margin: 0 0 10px; display: flex; align-items: center; gap: 6px; }
+    .gclear:hover, .gclear:focus-visible { background: rgb(var(--mp-ink-rgb) / 0.12); }
+    .menu-count { margin-left: 8px; font-size: 12px; font-weight: 600; color: var(--mp-warn); }
+    .menu-empty { margin: 8px 16px; color: var(--mp-text-muted); font-size: 13px; }
+    .recheck { font-size: 13px; color: var(--mp-info); margin: 0 0 10px; display: flex; align-items: center; gap: 6px; }
     .select-line { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
-    .keys { font-size: 12px; color: #8a8a99; }
+    .keys { font-size: 12px; color: var(--mp-text-dim); }
     .rows { display: flex; flex-direction: column; gap: 8px; padding-bottom: 72px; }
     .wrap { touch-action: manipulation; }
     .phone .wrap { -webkit-touch-callout: none; user-select: none; }
     .state { display: flex; justify-content: center; padding: 32px 0; }
-    .error { color: #ff8a80; }
-    .empty { display: flex; flex-direction: column; align-items: center; padding: 40px 0; color: #9a9aa8; }
-    .empty mat-icon { font-size: 40px; width: 40px; height: 40px; color: #81c784; }
+    .error { color: var(--mp-error); }
+    .empty { display: flex; flex-direction: column; align-items: center; padding: 40px 0; color: var(--mp-text-muted); }
+    .empty mat-icon { font-size: 40px; width: 40px; height: 40px; color: var(--mp-success); }
     .more { display: flex; justify-content: center; margin: 8px 0 80px; }
     .bulkbar { position: sticky; bottom: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 14px;
-      margin-top: 8px; border-radius: 12px; background: #2a2540; border: 1px solid #5e4b9c; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); }
+      margin-top: 8px; border-radius: 12px; background: var(--mp-surface-accent); border: 1px solid rgb(var(--mp-accent-strong-rgb) / 0.6); box-shadow: 0 6px 18px rgb(var(--mp-shade-rgb) / 0.45); }
     .bulkbar mat-icon { margin-right: 2px; }
     .bottombar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; align-items: center; justify-content: space-around;
-      gap: 2px; padding: 4px 4px calc(4px + env(safe-area-inset-bottom)); background: #211d33; border-top: 1px solid #5e4b9c; }
+      gap: 2px; padding: 4px 4px calc(4px + env(safe-area-inset-bottom)); background: var(--mp-surface-accent); border-top: 1px solid rgb(var(--mp-accent-strong-rgb) / 0.6); }
     .bottombar button { display: inline-flex; flex-direction: column; align-items: center; min-width: 0; padding: 0 6px; height: 52px; }
     .bottombar .lbl { font-size: 11px; line-height: 14px; white-space: nowrap; }
     .sel-count { font-weight: 600; }
     .bottombar:has(.bar-name) { flex-wrap: wrap; }
-    .bar-name { flex: 1 0 100%; font-size: 12px; color: #b0b0c0; text-align: center; padding: 2px 8px 0;
+    .bar-name { flex: 1 0 100%; font-size: 12px; color: var(--mp-text-muted); text-align: center; padding: 2px 8px 0;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     @media (max-width: 599.98px) {
       .lib-filter { width: 100%; }
