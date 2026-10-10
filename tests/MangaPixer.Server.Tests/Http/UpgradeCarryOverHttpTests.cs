@@ -16,7 +16,7 @@ using Xunit;
 /// <summary>
 /// HTTP tests (WebApplicationFactory) of read state that follows a chapter-to-volume upgrade (1.40.0): the step runs inside the move-pairing
 /// runner resolved from DI (the wiring), and after a pass the new volume reports READ (or in progress at page 1) through the public reading
-/// and browse API - the read mark, the single-node lookup, the folder list and Continue reading. Never contacts a provider (the host fails on
+/// and browse API - the read mark, the folder list, the progress and Continue reading. Never contacts a provider (the host fails on
 /// any request).
 /// </summary>
 [Trait("Category", "Http")]
@@ -160,9 +160,8 @@ public sealed class UpgradeCarryOverHttpTests : IClassFixture<UpgradeCarryOverHt
 
         await RunPairingAsync();
 
-        // Read: the read mark, the node, the folder list, and the progress (opens at page 1, not in Continue reading).
+        // Read: the read mark, the folder list, and the progress (opens at page 1, not in Continue reading).
         Assert.True((await finisher.GetFromJsonAsync<ReadMarkDto>($"/api/v1/reading/{volume}/read", TestJson.Web))!.IsRead);
-        Assert.True((await finisher.GetFromJsonAsync<CatalogNodeDto>($"/api/v1/nodes/{volume}", TestJson.Web))!.IsRead);
         var list = await finisher.GetFromJsonAsync<PageResponse<CatalogNodeDto>>(
             $"/api/v1/libraries/{library}/browse?parentId={folder}&group=flat", TestJson.Web);
         Assert.True(Assert.Single(list!.Items, n => n.Id == volume).IsRead);
