@@ -46,6 +46,7 @@ public sealed class SeriesLinkStateReaderSweepTests
         ["src/MangaPixer.Server/Features/Jobs/ScheduledJobsService.cs"] = "refresh cadence: Confirmed / Auto only",
         ["src/MangaPixer.Server/Features/Library/Moves/MoveConflictService.cs"] = "moves like an admin decision; retires nothing below",
         ["src/MangaPixer.Server/Features/Library/Moves/MovePairing.cs"] = "IsAdminDecision: kept on a move; another admin row on the other side is a conflict",
+        ["src/MangaPixer.Server/Features/Library/Moves/UpgradeCarryOverService.cs"] = "1.40.0: the Volumes view's series rule (Confirmed / Auto with a record); Don't match / collection / artist folder on the folder or above: no carry",
         ["src/MangaPixer.Server/Features/Metadata/Artists/ArtistFolderService.cs"] = "set (declares the artist, queues the works) / clear only this state",
         ["src/MangaPixer.Server/Features/Metadata/FolderMatch/FolderMatchService.cs"] = "1.38.0: reads the own row (Needs review is not a decision; the other five are) and Confirmed / Auto records to rank; writes only through the single actions",
         ["src/MangaPixer.Server/Features/Metadata/Authors/AuthorAliasLookupService.cs"] = "Confirmed / Auto / Collection about only (a record's creators): never an artist folder (no record)",

@@ -252,7 +252,8 @@ public sealed class MoveTestHarness : IDisposable
         new(db, new AuditService(db), TimeProvider.System, [], NullLogger<MetadataCarryOverService>.Instance);
 
     public static MovePairingService Pairing(MangaPixerDbContext db) =>
-        new(db, CarryOver(db), TimeProvider.System, NullLogger<MovePairingService>.Instance);
+        new(db, CarryOver(db), new UpgradeCarryOverService(db, TimeProvider.System, NullLogger<UpgradeCarryOverService>.Instance),
+            TimeProvider.System, NullLogger<MovePairingService>.Instance);
 
     public static MoveConflictService Conflicts(MangaPixerDbContext db) =>
         new(db, CarryOver(db), new AuditService(db), TimeProvider.System, NullLogger<MoveConflictService>.Instance);

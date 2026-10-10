@@ -171,6 +171,11 @@ public static class LogEvents
         // 1.31.1 content-signature backfill (archives analysed before 1.5.0 never got a signature)
         public const int SignatureBackfillPass = 3120;
         public const int SignatureBackfillFailed = 3121;
+
+        // 1.40.0 read state across a chapter-to-volume upgrade (3130-3134 reserved for lane U)
+        public const int UpgradeCarryOverPass = 3130;
+        public const int UpgradeCarryOverSkipped = 3131;
+        public const int UpgradeCarryOverFailed = 3132;
     }
 
     /// <summary>Worker pool, supervisor, scheduler, scratch, persistence, and page delivery.</summary>

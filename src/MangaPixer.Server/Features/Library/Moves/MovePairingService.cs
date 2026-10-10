@@ -17,30 +17,46 @@ using Microsoft.EntityFrameworkCore;
 /// folders' rows to the new folders, and marks the old archive handled (<c>node_moves</c>) so nothing runs twice. The old
 /// archive stays a tombstone (the trash purges it after the window; it is held while a conflict is open).
 /// Idempotent; one indexed query when there is nothing to do. Local only; logs ids and counts.
+/// 1.40.0: then carries read state onto a volume archive that replaced its chapter archives (<see cref="UpgradeCarryOverService"/>) -
+/// after the pairing, so a real move wins.
 /// </summary>
 public sealed class MovePairingService
 {
     private readonly MangaPixerDbContext _db;
     private readonly MetadataCarryOverService _carryOver;
+    private readonly UpgradeCarryOverService _upgrades;
     private readonly TimeProvider _time;
     private readonly ILogger<MovePairingService> _logger;
 
-    public MovePairingService(MangaPixerDbContext db, MetadataCarryOverService carryOver, TimeProvider time, ILogger<MovePairingService> logger)
+    public MovePairingService(MangaPixerDbContext db, MetadataCarryOverService carryOver, UpgradeCarryOverService upgrades, TimeProvider time,
+        ILogger<MovePairingService> logger)
     {
         _db = db;
         _carryOver = carryOver;
+        _upgrades = upgrades;
         _time = time;
         _logger = logger;
     }
 
-    public sealed record PassResult(int Paired, int Conflicts, int Waiting, int Ambiguous, int ManifestMismatch, int Busy, int FoldersCarried);
+    public sealed record PassResult(int Paired, int Conflicts, int Waiting, int Ambiguous, int ManifestMismatch, int Busy, int FoldersCarried)
+    {
+        /// <summary>1.40.0: what the chapter-to-volume upgrade step of the same pass carried.</summary>
+        public UpgradeCarryOverService.PassResult Upgrades { get; init; } = UpgradeCarryOverService.PassResult.None;
+    }
 
     private sealed record OldRow(long Id, long LibraryId, long? ParentId, long ByteLength, string Signature, long ContentVersion,
         long LastSeenScanRevision, DateTimeOffset? TombstonedAt, DateTimeOffset CreatedAt);
 
     private sealed record NewRow(long Id, long LibraryId, long? ParentId, long ByteLength, string? Signature, long ContentVersion, DateTimeOffset CreatedAt);
 
+    /// <summary>One pass: identical-content pairing first, then the chapter-to-volume upgrades (whose evidence excludes what was just paired).</summary>
     public async Task<PassResult> RunAsync(CancellationToken ct = default)
+    {
+        var paired = await PairAsync(ct);
+        return paired with { Upgrades = await _upgrades.RunAsync(ct) };
+    }
+
+    private async Task<PassResult> PairAsync(CancellationToken ct)
     {
         var watch = Stopwatch.StartNew();
         var now = _time.GetUtcNow();

@@ -8,6 +8,7 @@ public static class MovesServiceExtensions
     public static IServiceCollection AddLibraryMoves(this IServiceCollection services)
     {
         services.AddScoped<MovePairingService>();
+        services.AddScoped<UpgradeCarryOverService>();
         services.AddScoped<MoveConflictService>();
         services.AddScoped<ITombstoneHolds, MoveTombstoneHolds>();
         services.AddSingleton<MovePairingRunner>();
