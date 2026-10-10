@@ -1,5 +1,10 @@
 /* MangaPixer global styles */
 @use '@angular/material' as mat;
+// Base-theme variants and accents (1.40.0). Sass allows `@use` only before every other rule, so these sit here; their selectors
+// (`:root[data-theme=...]`, `:root[data-accent=...]`) out-rank `:root` and `html`, so the order in the built CSS does not matter.
+@use './themes/black';
+@use './themes/sepia';
+@use './themes/accents';
 
 html {
   @include mat.theme((
