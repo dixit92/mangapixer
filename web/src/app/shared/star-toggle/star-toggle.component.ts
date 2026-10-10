@@ -51,6 +51,7 @@ import { FavoritesStateService } from '../../core/favorites/favorites-state.serv
     :host(.overlay) .star-btn {
       position: absolute; top: 4px; left: 4px; z-index: 3;
       background: rgb(var(--mp-shade-rgb) / 0.45);
+      --mat-icon-button-icon-color: color-mix(in srgb, var(--mp-on-scrim) 80%, transparent);
     }
     :host(.overlay.bottom-right) .star-btn { top: auto; left: auto; bottom: 4px; right: 4px; }
     .star-btn.active mat-icon { color: var(--mp-warn-strong); }
