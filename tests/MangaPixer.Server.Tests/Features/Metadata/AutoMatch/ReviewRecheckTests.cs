@@ -5,6 +5,7 @@ using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
+using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -163,6 +164,10 @@ public sealed class ReviewRecheckTests : IAsyncLifetime
 
         Assert.Equal((int)SeriesLinkState.NeedsReview, (await LinkOfAsync(alpha))!.State);
         Assert.Equal(MatcherRules.Revision, (await QueueOfAsync(alpha)).RulesRevision);
+        // 1.40.0: the decision line names the band WRITTEN (it said "Auto" while the row stayed in review), and the score.
+        var decided = _h.Net.Logs.Lines.Where(l => l.Contains($" {LogEvents.Metadata.AutoMatchDecided} ") && l.Contains($"node {alpha.Id}:")).ToList();
+        Assert.Equal(2, decided.Count);
+        Assert.All(decided, l => Assert.Contains($"node {alpha.Id}: NeedsReview, scored Auto (", l));
     }
 
     [Fact]

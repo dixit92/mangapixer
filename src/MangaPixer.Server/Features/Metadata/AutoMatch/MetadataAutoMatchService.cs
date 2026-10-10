@@ -814,13 +814,16 @@ public sealed class MetadataAutoMatchService
             return;
         }
 
-        await WriteOutcomeAsync(row, work, lookup, call, ct);
+        var written = await WriteOutcomeAsync(row, work, lookup, call, ct);
         // A decided folder-level work speaks for its subtree: archive results inside it are retired.
         if (work.Work.Level is MatchLevel.Folder or MatchLevel.ReviewOnly)
             await CoveredWorkRetirement.RetireBelowAsync(_db, tree, work.Work.AnchorNodeId, ct);
+        // 1.40.0: the band WRITTEN (a review-first run, a review-only work or an unread record holds an Auto score in review) -
+        // the line said the scored band before, so a re-check of a review-first row read "Auto" while the row stayed in review.
         _logger.LogInformation(LogEvents.Metadata.AutoMatchDecided,
-            "Automatic matching decided node {NodeId}: {Band} ({Requests} requests, {Covers} covers compared: {CoverCheck}, {ElapsedMs} ms)",
-            row.NodeId, lookup.Outcome.Band, call.RequestsSent, lookup.CoversCompared, lookup.CoverCheck, watch.ElapsedMilliseconds);
+            "Automatic matching decided node {NodeId}: {Band}, scored {Scored} ({Requests} requests, {Covers} covers compared: {CoverCheck}, {ElapsedMs} ms)",
+            row.NodeId, written?.ToString() ?? "Skipped", lookup.Outcome.Band, call.RequestsSent, lookup.CoversCompared, lookup.CoverCheck,
+            watch.ElapsedMilliseconds);
     }
 
     /// <summary>
@@ -953,7 +956,8 @@ public sealed class MetadataAutoMatchService
     }
 
     /// <summary>ONE transaction: link rows / candidates / retry date, the queue row and the run counters. Idempotent.</summary>
-    private async Task WriteOutcomeAsync(MetadataMatchQueueEntity row, CheckedWork work, WorkLookupResult lookup,
+    /// <summary>Writes the outcome; returns the band written, or null when a link made meanwhile won (the row is skipped).</summary>
+    private async Task<MatchBand?> WriteOutcomeAsync(MetadataMatchQueueEntity row, CheckedWork work, WorkLookupResult lookup,
         MetadataCallContext call, CancellationToken ct)
     {
         var outcome = lookup.Outcome;
@@ -985,7 +989,7 @@ public sealed class MetadataAutoMatchService
             {
                 await tx.RollbackAsync(ct);
                 await FinishAsync(row.Id, row.RunId, QueueState.Skipped, null, 0, null, call.RequestsSent, ct);
-                return;
+                return null;
             }
 
             await _db.MetadataMatchCandidates.Where(c => c.NodeId == work.Work.AnchorNodeId).ExecuteDeleteAsync(ct);
@@ -1078,6 +1082,7 @@ public sealed class MetadataAutoMatchService
             await AddRequestsAsync(row.RunId, call.RequestsSent - before, ct);
         }
         await CompleteRunIfDoneAsync(row.RunId, ct);
+        return band;
     }
 
     private void AddCandidates(long nodeId, IReadOnlyList<ScoredCandidate> candidates, WorkLookupResult lookup, DateTimeOffset now)
