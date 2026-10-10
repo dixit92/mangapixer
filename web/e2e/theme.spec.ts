@@ -72,7 +72,7 @@ test.describe('appearance', () => {
     await page.getByRole('radio', { name: /^Light\b/ }).click();
     expect((await saved).status()).toBe(204);
     await expect(html(page)).toHaveAttribute('data-theme', 'light');
-    expect(await html(page).evaluate((el) => el.style.colorScheme)).toBe('light');
+    expect(await html(page).evaluate((el) => getComputedStyle(el).colorScheme)).toBe('light');
     await expect(page.getByRole('radio', { name: /^Light\b/ })).toHaveAttribute('aria-checked', 'true');
 
     // The server copy: forget the device copy, reload - the app paints dark first, then the user's stored Light.
@@ -136,7 +136,7 @@ test.describe('appearance', () => {
     await page.goto('/login', { waitUntil: 'domcontentloaded' });
     await expect(html(page)).toHaveAttribute('data-theme', 'sepia');
     await expect(html(page)).toHaveAttribute('data-accent', 'amber');
-    expect(await html(page).evaluate((el) => el.style.colorScheme)).toBe('light');
+    expect(await html(page).evaluate((el) => getComputedStyle(el).colorScheme)).toBe('light');
 
     // A value outside the vocabulary falls back to the defaults.
     await page.evaluate(() => localStorage.setItem('mangapixer-theme', 'neon'));

@@ -16,20 +16,14 @@ import {
 export const THEME_STORAGE_KEY = 'mangapixer-theme';
 export const ACCENT_STORAGE_KEY = 'mangapixer-accent';
 
-/** The CSS `color-scheme` each painted base uses: Material (`theme-type: color-scheme`) and native controls follow it. */
-export const COLOR_SCHEME: Record<ResolvedThemeBase, 'dark' | 'light'> = {
-  dark: 'dark',
-  black: 'dark',
-  light: 'light',
-  sepia: 'light',
-};
-
 const PREFERS_LIGHT = '(prefers-color-scheme: light)';
 
 /**
  * The theme engine (1.40.0). Holds the user's base theme and accent and paints them on `<html>`:
- * `data-theme` (the RESOLVED base - `system` becomes light or dark from the device, followed live), `data-accent`,
- * `color-scheme`, and `<meta name="theme-color">` from the painted surface.
+ * `data-theme` (the RESOLVED base - `system` becomes light or dark from the device, followed live), `data-accent`, and
+ * `<meta name="theme-color">` from the painted surface. `color-scheme` (which Material and native controls follow) comes from
+ * `styles.scss`, keyed on `data-theme` (dark / black -> dark, light / sepia -> light), so whatever sets the attribute - this
+ * service, the boot script, a test or a screenshot tool - gets the matching scheme; nothing writes it inline.
  *
  * Storage: per user on the server (`GET /reading/preferences`, `PUT /reading/preferences/appearance`) with a device copy
  * in localStorage, which the inline script in `index.html` applies before Angular boots (no flash of dark before light).
@@ -173,7 +167,6 @@ export class ThemeService {
     const root = document.documentElement;
     const theme = root.getAttribute('data-theme');
     const accent = root.getAttribute('data-accent');
-    const scheme = root.style.colorScheme;
     try {
       return requests.map((r) => {
         root.setAttribute('data-theme', r.base);
@@ -190,7 +183,6 @@ export class ThemeService {
     } finally {
       restore(root, 'data-theme', theme);
       restore(root, 'data-accent', accent);
-      root.style.colorScheme = scheme;
     }
   }
 
@@ -201,7 +193,6 @@ export class ThemeService {
     const resolved = this.resolved();
     root.setAttribute('data-theme', resolved);
     root.setAttribute('data-accent', this._accent());
-    root.style.colorScheme = COLOR_SCHEME[resolved];
     this.updateThemeColor();
   }
 

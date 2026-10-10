@@ -60,7 +60,6 @@ describe('ThemeService', () => {
     localStorage.clear();
     root.removeAttribute('data-theme');
     root.removeAttribute('data-accent');
-    root.style.colorScheme = '';
     media = new FakeMediaQuery(false);
     globalThis.matchMedia = ((q: string) => {
       expect(q).toBe('(prefers-color-scheme: light)');
@@ -89,7 +88,7 @@ describe('ThemeService', () => {
     expect(service.accent()).toBe('violet');
     expect(root.getAttribute('data-theme')).toBe('dark');
     expect(root.getAttribute('data-accent')).toBe('violet');
-    expect(root.style.colorScheme).toBe('dark');
+    expect(root.style.colorScheme).toBe(''); // color-scheme comes from styles.scss, keyed on data-theme
   });
 
   it('restores the device copy on construction', () => {
@@ -99,7 +98,6 @@ describe('ThemeService', () => {
     expect(service.base()).toBe('sepia');
     expect(root.getAttribute('data-theme')).toBe('sepia');
     expect(root.getAttribute('data-accent')).toBe('teal');
-    expect(root.style.colorScheme).toBe('light'); // sepia is a light scheme for Material and native controls
   });
 
   it('falls back to the defaults for bad stored values', () => {
@@ -116,10 +114,8 @@ describe('ThemeService', () => {
     service.setBase('light');
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('light');
     expect(root.getAttribute('data-theme')).toBe('light');
-    expect(root.style.colorScheme).toBe('light');
     service.setBase('black');
     expect(root.getAttribute('data-theme')).toBe('black');
-    expect(root.style.colorScheme).toBe('dark');
     expect(api.setAppearance).not.toHaveBeenCalled();
   });
 
@@ -150,7 +146,6 @@ describe('ThemeService', () => {
 
     media.change(false);
     expect(root.getAttribute('data-theme')).toBe('dark');
-    expect(root.style.colorScheme).toBe('dark');
     media.change(true);
     expect(root.getAttribute('data-theme')).toBe('light');
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('system'); // the CHOICE is stored, not the resolved base
@@ -274,7 +269,6 @@ describe('ThemeService', () => {
     expect(Object.keys(samples[0]).sort()).toEqual(['accent', 'accentStrong', 'surface', 'text']);
     expect(root.getAttribute('data-theme')).toBe('sepia');
     expect(root.getAttribute('data-accent')).toBe('teal');
-    expect(root.style.colorScheme).toBe('light');
   });
 
   it('isOpaque tells a painted colour from a transparent one (black is opaque)', () => {
