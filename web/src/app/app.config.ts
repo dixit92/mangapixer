@@ -17,6 +17,7 @@ import { xsrfInterceptor } from './core/auth/xsrf.interceptor';
 import { incognitoInterceptor } from './core/incognito/incognito.interceptor';
 import { AuthService } from './core/auth/auth.service';
 import { LibraryBrowseReuseStrategy } from './core/routing/library-browse-reuse.strategy';
+import { ThemeService } from './core/theme/theme.service';
 
 /**
  * App configuration. Provides router, animations, HTTP client with XSRF
@@ -45,5 +46,6 @@ export const appConfig: ApplicationConfig = {
       const auth = inject(AuthService);
       return auth.initialize();
     }),
+    provideAppInitializer(() => inject(ThemeService).start()),
   ],
 };

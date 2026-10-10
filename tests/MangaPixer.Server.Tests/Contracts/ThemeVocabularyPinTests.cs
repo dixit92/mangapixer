@@ -13,6 +13,7 @@ using Xunit;
 public sealed partial class ThemeVocabularyPinTests
 {
     private const string VocabularyRelativePath = "web/src/app/core/theme/theme-vocabulary.ts";
+    private const string IndexRelativePath = "web/src/index.html";
 
     [GeneratedRegex(@"export const (?<name>THEME_BASES|THEME_ACCENTS)\s*=\s*\[(?<body>[^\]]*)\]", RegexOptions.Singleline)]
     private static partial Regex ListDeclaration();
@@ -22,6 +23,12 @@ public sealed partial class ThemeVocabularyPinTests
 
     [GeneratedRegex(@"'(?<name>[^']+)'")]
     private static partial Regex QuotedName();
+
+    [GeneratedRegex(@"var (?<name>bases|accents)\s*=\s*\[(?<body>[^\]]*)\]")]
+    private static partial Regex BootScriptList();
+
+    [GeneratedRegex(@"var theme = '(?<base>[^']+)', accent = '(?<accent>[^']+)'")]
+    private static partial Regex BootScriptDefaults();
 
     private static string FindRepoRoot()
     {
@@ -72,6 +79,26 @@ public sealed partial class ThemeVocabularyPinTests
         Assert.Equal(ThemeVocabulary.DefaultAccent, WebDefault(source, "DEFAULT_THEME_ACCENT"));
         Assert.True(ThemeVocabulary.IsBase(ThemeVocabulary.DefaultBase));
         Assert.True(ThemeVocabulary.IsAccent(ThemeVocabulary.DefaultAccent));
+    }
+
+    /// <summary>The no-flash script in index.html (it runs before Angular, so it cannot import the TS lists).</summary>
+    [Fact]
+    public void IndexBootScript_ListsAndDefaults_MatchTheServer()
+    {
+        var html = File.ReadAllText(Path.Combine(FindRepoRoot(), IndexRelativePath));
+        string[] List(string name)
+        {
+            var m = BootScriptList().Matches(html).FirstOrDefault(x => x.Groups["name"].Value == name);
+            Assert.True(m is not null, $"var {name} not found in the index.html boot script.");
+            return QuotedName().Matches(m!.Groups["body"].Value).Select(x => x.Groups["name"].Value).ToArray();
+        }
+
+        Assert.Equal(ThemeVocabulary.Bases, List("bases"));
+        Assert.Equal(ThemeVocabulary.Accents, List("accents"));
+        var defaults = BootScriptDefaults().Match(html);
+        Assert.True(defaults.Success, "the boot script's defaults were not found in index.html.");
+        Assert.Equal(ThemeVocabulary.DefaultBase, defaults.Groups["base"].Value);
+        Assert.Equal(ThemeVocabulary.DefaultAccent, defaults.Groups["accent"].Value);
     }
 
     [Theory]

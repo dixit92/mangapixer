@@ -3,6 +3,29 @@
 <head>
   <meta charset="utf-8" />
   <title>MangaPixer</title>
+  <!-- Theme before the first paint (1.40.0): applies this device's last appearance (the copy ThemeService keeps in
+       localStorage) to <html> before the stylesheet and the app load, so a light theme never flashes dark first.
+       The two lists must equal theme-vocabulary.ts (pinned by ThemeVocabularyPinTests). Unknown values -> dark / violet.
+       Inline on purpose: the server sends no Content-Security-Policy; behind a proxy that forbids inline scripts the app
+       still themes itself once it starts, only a moment later. -->
+  <script>
+    (function () {
+      var bases = ['dark', 'light', 'black', 'sepia', 'system'];
+      var accents = ['violet', 'blue', 'teal', 'green', 'amber', 'rose'];
+      var theme = 'dark', accent = 'violet', root = document.documentElement;
+      try {
+        var t = localStorage.getItem('mangapixer-theme'), a = localStorage.getItem('mangapixer-accent');
+        if (bases.indexOf(t) >= 0) theme = t;
+        if (accents.indexOf(a) >= 0) accent = a;
+      } catch (e) { /* no storage: defaults */ }
+      if (theme === 'system') {
+        theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      }
+      root.setAttribute('data-theme', theme);
+      root.setAttribute('data-accent', accent);
+      root.style.colorScheme = theme === 'light' || theme === 'sepia' ? 'light' : 'dark';
+    })();
+  </script>
   <base href="/" />
   <!-- viewport-fit=cover: lets the installed (standalone) PWA lay out under the
        display cutout/gesture bars instead of being fit into a slightly-smaller
