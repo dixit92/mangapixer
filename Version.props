@@ -441,7 +441,12 @@
          when names differ by tags alone; Match folders by name reads "Circle (Artist)"; a declared creator matching an alias in brackets or
          a stored other name is no conflict; the matcher knows a record author's alias in brackets - matcher rules revision 4. No migration,
          no new consent, no new kind of request. -->
-    <MangaPixerVersionMinor>39</MangaPixerVersionMinor>
+    <!-- 1.40.0 - MINOR (2026-10-10, cycle "Themes and Metadata Designs"): per-user themes (Dark / Light / Black / Sepia / System) and
+         accent colours (Violet / Blue / Teal / Green / Amber / Rose) on semantic colour tokens - every component, lint-enforced; a volume
+         that replaces its chapters keeps their read state (the move-pairing pass, also at startup); the automatic-matching decision log
+         names the stored band. Migration AddThemePreference (additive); no new consent, no new kind of request; matcher rules revision
+         unchanged (4). -->
+    <MangaPixerVersionMinor>40</MangaPixerVersionMinor>
     <!-- 1.31.1 - PATCH (2026-10-01, integrator-direct, owner live check of 1.31.0): content signatures backfilled for archives
          analysed before 1.5.0 (their moves were never recognised); Re-attach to a folder in another library; "Episode N" next
          to a volume is a part label, not a chapter; the review list shows the file's own page 1, never the cover layer's;

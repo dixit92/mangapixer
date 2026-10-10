@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.40.0] - 2026-10-10
+
 ### Added
 
 - **Themes.** **Settings** > **Appearance** sets how MangaPixer looks for your account: **Dark** (the default, as before), **Light**, **Black** (true black for OLED screens, with cards and menus a step above black so they stay apart), **Sepia** (warm paper with brown text) or **System**, which follows your device's light or dark setting and switches with it while the app is open. Each choice shows a small preview, applies at once and follows you to every device; other users keep their own. The app opens straight in your theme (each browser keeps a copy of your last choice), and every page follows it - the reader too: its toolbars, menus and the area around the page take the theme's colours; the page itself is never changed. See [Appearance](docs/users-and-access.md#appearance).
