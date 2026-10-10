@@ -83,9 +83,9 @@ import { ApiError } from '../../core/api/api-types';
   styles: [`
     .pc-container { display: flex; justify-content: center; align-items: center; min-height: 60vh; }
     mat-card { max-width: 440px; width: 100%; }
-    .hint { color: #aaa; font-size: 14px; margin-bottom: 8px; }
+    .hint { color: var(--mp-text-muted); font-size: 14px; margin-bottom: 8px; }
     form { display: flex; flex-direction: column; gap: 16px; }
-    .error { color: #f44336; font-size: 14px; }
+    .error { color: var(--mp-error-strong); font-size: 14px; }
     button[type="submit"] { align-self: flex-end; }
   `],
 })

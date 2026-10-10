@@ -103,15 +103,15 @@ export const INHERIT = '';
     mat-card { margin: 0; }
     .global-row { margin-bottom: 4px; }
     .global-row mat-form-field { width: 260px; }
-    .scope-note { color: #999; font-size: 13px; margin: 0 0 12px; }
-    .categories { border-left: 2px solid rgba(255, 255, 255, 0.12); padding-left: 16px; margin-left: 4px; }
+    .scope-note { color: var(--mp-text-muted); font-size: 13px; margin: 0 0 12px; }
+    .categories { border-left: 2px solid rgb(var(--mp-ink-rgb) / 0.12); padding-left: 16px; margin-left: 4px; }
     .category-row { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
     .category-row mat-form-field { flex: 1 1 auto; }
-    .state { flex: 0 0 72px; font-size: 13px; color: #999; }
-    .state.override { color: #ffb300; font-weight: 500; }
-    .hint { color: #999; font-size: 13px; margin: 4px 0 0; }
-    .muted { color: #999; font-size: 14px; }
-    .error { color: #f44336; font-size: 14px; margin: 8px 0; }
+    .state { flex: 0 0 72px; font-size: 13px; color: var(--mp-text-muted); }
+    .state.override { color: var(--mp-warn-strong); font-weight: 500; }
+    .hint { color: var(--mp-text-muted); font-size: 13px; margin: 4px 0 0; }
+    .muted { color: var(--mp-text-muted); font-size: 14px; }
+    .error { color: var(--mp-error-strong); font-size: 14px; margin: 8px 0; }
   `],
 })
 export class DebugLogCardComponent implements OnInit {

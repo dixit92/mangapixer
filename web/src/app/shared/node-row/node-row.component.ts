@@ -112,52 +112,52 @@ export function directionShort(mode: ReaderMode): string {
   styles: [`
     :host { display: block; min-width: 0; }
     .node-wrap { position: relative; border-radius: 8px; min-width: 0; display: flex; align-items: center; gap: 4px; }
-    .node-wrap.selected { outline: 2px solid #7c4dff; outline-offset: 3px; }
+    .node-wrap.selected { outline: 2px solid var(--mp-accent-strong); outline-offset: 3px; }
     .row-select {
       flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
       width: 28px; height: 28px; padding: 0; border: none; border-radius: 6px;
-      background: transparent; color: #8a8a99; cursor: pointer;
+      background: transparent; color: var(--mp-text-dim); cursor: pointer;
     }
     .row-select mat-icon { font-size: 20px; width: 20px; height: 20px; }
-    .row-select[aria-checked="true"] { color: #7c4dff; }
+    .row-select[aria-checked="true"] { color: var(--mp-accent-strong); }
     .node-card {
       flex: 1 1 auto; min-width: 0; cursor: pointer; text-decoration: none; color: inherit;
       display: flex; align-items: center; gap: 12px;
-      padding: 6px; border-radius: 8px; background: rgba(255, 255, 255, 0.03);
+      padding: 6px; border-radius: 8px; background: rgb(var(--mp-ink-rgb) / 0.03);
     }
     .cover {
       position: relative; width: 46px; height: 66px; flex: 0 0 auto; border-radius: 4px; overflow: hidden;
-      background: rgba(255, 255, 255, 0.06); display: flex; align-items: center; justify-content: center;
+      background: rgb(var(--mp-ink-rgb) / 0.06); display: flex; align-items: center; justify-content: center;
     }
     .cover img { width: 100%; height: 100%; object-fit: cover; position: relative; z-index: 1; }
-    .cover-fallback { font-size: 24px; width: 24px; height: 24px; color: #777; position: absolute; z-index: 0; }
+    .cover-fallback { font-size: 24px; width: 24px; height: 24px; color: var(--mp-text-faint); position: absolute; z-index: 0; }
     .node-text { flex: 1 1 auto; min-width: 0; }
     .node-title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .node-sub { font-size: 12px; color: #999; }
+    .node-sub { font-size: 12px; color: var(--mp-text-muted); }
     /* The trailing marker group sits in normal flow at the right of the row, not over the 46px thumbnail. The rollup badge
        lives in a shared child component, hence ::ng-deep for that rule (its own list-view sizing keys off the browse page). */
     .row-markers { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding-right: 4px; }
     .badge {
       position: static; font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 10px;
-      background: rgba(124, 77, 255, 0.9); color: #fff;
+      background: rgb(var(--mp-accent-strong-rgb) / 0.9); color: var(--mp-on-accent);
     }
     :host .node-card .row-markers ::ng-deep .badge { position: static; font-size: 11px; padding: 2px 6px; }
-    .badge.read { background: rgba(76, 175, 80, 0.95); }
-    .badge.dir { background: rgba(0, 0, 0, 0.65); }
-    .check { line-height: 0; color: #fff; border-radius: 50%; background: transparent; }
-    .check.on { color: #7c4dff; background: #fff; }
+    .badge.read { background: rgb(var(--mp-success-strong-rgb) / 0.95); color: var(--mp-on-scrim); }
+    .badge.dir { background: rgb(var(--mp-shade-rgb) / 0.65); color: var(--mp-on-scrim); }
+    .check { line-height: 0; color: var(--mp-on-scrim); border-radius: 50%; background: transparent; }
+    .check.on { color: var(--mp-accent-strong); background: var(--mp-on-scrim); }
     .check mat-icon { font-size: 24px; width: 24px; height: 24px; }
     /* Touch range fill (long-press "Select to here"): a small floating action over the long-pressed row's cover. */
     .range-prompt {
       position: absolute; inset: 0; z-index: 4;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 6px; padding: 8px; background: rgba(10, 8, 20, 0.85); border-radius: 8px;
+      gap: 6px; padding: 8px; background: rgb(var(--mp-shade-rgb) / 0.85); border-radius: 8px;
     }
     .range-prompt button {
       border: none; border-radius: 6px; padding: 6px 10px; font-size: 12px; font-weight: 600;
-      cursor: pointer; background: #7c4dff; color: #fff; width: 100%;
+      cursor: pointer; background: var(--mp-accent-strong); color: var(--mp-on-accent); width: 100%;
     }
-    .range-prompt button.cancel { background: rgba(255, 255, 255, 0.12); }
+    .range-prompt button.cancel { background: color-mix(in srgb, var(--mp-on-scrim) 12%, transparent); color: var(--mp-on-scrim); }
   `],
 })
 export class NodeRowComponent {

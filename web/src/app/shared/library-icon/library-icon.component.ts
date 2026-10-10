@@ -76,14 +76,14 @@ export interface DefaultLibraryBadge {
  * distinguishable companions so libraries don't all collapse to one color.
  */
 const PALETTE: readonly { bg: string; fg: string }[] = [
-  { bg: '#7c4dff', fg: '#ffffff' }, // violet (app accent)
-  { bg: '#00acc1', fg: '#ffffff' }, // cyan (app tertiary)
-  { bg: '#e53935', fg: '#ffffff' }, // red
-  { bg: '#43a047', fg: '#ffffff' }, // green
-  { bg: '#fb8c00', fg: '#1a1a1a' }, // amber
-  { bg: '#3949ab', fg: '#ffffff' }, // indigo
-  { bg: '#d81b60', fg: '#ffffff' }, // pink
-  { bg: '#00897b', fg: '#ffffff' }, // teal
+  { bg: '#7c4dff', fg: '#ffffff' }, // theme-exempt: library identity colour (fixed in every theme), violet (app accent)
+  { bg: '#00acc1', fg: '#ffffff' }, // theme-exempt: library identity colour (fixed in every theme), cyan (app tertiary)
+  { bg: '#e53935', fg: '#ffffff' }, // theme-exempt: library identity colour (fixed in every theme), red
+  { bg: '#43a047', fg: '#ffffff' }, // theme-exempt: library identity colour (fixed in every theme), green
+  { bg: '#fb8c00', fg: '#1a1a1a' }, // theme-exempt: library identity colour (fixed in every theme), amber
+  { bg: '#3949ab', fg: '#ffffff' }, // theme-exempt: library identity colour (fixed in every theme), indigo
+  { bg: '#d81b60', fg: '#ffffff' }, // theme-exempt: library identity colour (fixed in every theme), pink
+  { bg: '#00897b', fg: '#ffffff' }, // theme-exempt: library identity colour (fixed in every theme), teal
 ];
 
 /**

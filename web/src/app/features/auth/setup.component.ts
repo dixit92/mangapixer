@@ -101,7 +101,7 @@ import { ApiError } from '../../core/api/api-types';
       gap: 16px;
     }
     .error {
-      color: #f44336;
+      color: var(--mp-error-strong);
       font-size: 14px;
     }
     button[type="submit"] {

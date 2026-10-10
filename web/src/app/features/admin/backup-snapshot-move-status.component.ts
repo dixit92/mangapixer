@@ -73,8 +73,8 @@ const ISSUE_TEXT: Record<string, string> = {
     .move { font-size: 14px; margin: 8px 0; }
     .move p { margin: 4px 0; }
     progress { width: 100%; max-width: 480px; height: 8px; }
-    .ok { color: #4caf50; }
-    .issues { color: #ffb300; }
+    .ok { color: var(--mp-success-strong); }
+    .issues { color: var(--mp-warn-strong); }
     .issues ul { margin: 4px 0; padding-left: 20px; }
     code { font-size: 12px; }
   `],

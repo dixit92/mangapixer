@@ -83,14 +83,14 @@ export const ALLOWED_ICONS: readonly string[] = [
     .picker-cell {
       display: inline-flex; align-items: center; justify-content: center;
       width: 40px; height: 40px;
-      border: 1px solid var(--mp-nav-border, rgba(255,255,255,0.08));
+      border: 1px solid var(--mp-nav-border, rgb(var(--mp-ink-rgb) / 0.08));
       border-radius: 8px;
       background: transparent;
       cursor: pointer;
       color: inherit;
     }
-    .picker-cell:hover { background: rgba(255,255,255,0.06); }
-    .picker-cell.selected { border-color: var(--mp-accent, #b39dff); background: var(--mp-accent-bg, rgba(124,77,255,0.18)); }
+    .picker-cell:hover { background: rgb(var(--mp-ink-rgb) / 0.06); }
+    .picker-cell.selected { border-color: var(--mp-accent, var(--mp-accent)); background: var(--mp-accent-bg, rgb(var(--mp-accent-strong-rgb) / 0.18)); }
     .picker-cell.default { font-size: 11px; }
     .picker-close { margin-left: 8px; background: none; border: none; color: inherit; cursor: pointer; text-decoration: underline; }
   `],

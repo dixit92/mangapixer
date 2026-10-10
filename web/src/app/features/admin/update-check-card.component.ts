@@ -100,13 +100,13 @@ import { ApiError, UpdateCheckStatusDto } from '../../core/api/api-types';
   styles: [`
     :host { display: block; min-width: 0; }
     mat-card { margin: 0; }
-    .scope-note { color: #999; font-size: 13px; margin: 8px 0 12px; }
+    .scope-note { color: var(--mp-text-muted); font-size: 13px; margin: 8px 0 12px; }
     .status { display: flex; align-items: center; gap: 8px; min-height: 24px; margin-bottom: 4px; }
-    .status .avail { color: #ffb300; font-weight: 500; }
-    .status .ok { color: #4caf50; }
-    .versions { color: #999; font-size: 13px; margin: 4px 0 12px; }
-    .muted { color: #999; font-size: 14px; }
-    .error { color: #f44336; font-size: 14px; margin: 8px 0; }
+    .status .avail { color: var(--mp-warn-strong); font-weight: 500; }
+    .status .ok { color: var(--mp-success-strong); }
+    .versions { color: var(--mp-text-muted); font-size: 13px; margin: 4px 0 12px; }
+    .muted { color: var(--mp-text-muted); font-size: 14px; }
+    .error { color: var(--mp-error-strong); font-size: 14px; margin: 8px 0; }
   `],
 })
 export class UpdateCheckCardComponent implements OnInit {

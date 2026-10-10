@@ -193,19 +193,19 @@ const STATUS_TEXT: Record<ApiTokenDto['status'], string> = {
   styles: [`
     :host { display: block; min-width: 0; }
     mat-card { margin: 0; }
-    .hint, .muted { color: #999; font-size: 13px; margin: 6px 0; }
+    .hint, .muted { color: var(--mp-text-muted); font-size: 13px; margin: 6px 0; }
     h4 { margin: 16px 0 6px; }
     h5 { margin: 0 0 6px; font-size: 14px; overflow-wrap: anywhere; }
     .tokens { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 10px; }
-    .tokens li { border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 8px 10px; min-width: 0; }
-    .tokens li.off .name { color: #999; }
+    .tokens li { border: 1px solid rgb(var(--mp-ink-rgb) / 0.08); border-radius: 6px; padding: 8px 10px; min-width: 0; }
+    .tokens li.off .name { color: var(--mp-text-muted); }
     .head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
     .name { font-weight: 500; overflow-wrap: anywhere; }
-    .prefix { font-size: 12px; color: #bbb; }
-    .status { font-size: 12px; border-radius: 10px; padding: 1px 8px; background: rgba(76, 175, 80, 0.15); color: #81c784; }
-    .status:not([data-status="active"]) { background: rgba(255, 255, 255, 0.08); color: #bbb; }
-    .meta { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 13px; color: #bbb; margin: 4px 0; }
-    .can { font-size: 13px; color: #bbb; margin: 2px 0 4px; overflow-wrap: anywhere; }
+    .prefix { font-size: 12px; color: var(--mp-text-secondary); }
+    .status { font-size: 12px; border-radius: 10px; padding: 1px 8px; background: rgb(var(--mp-success-strong-rgb) / 0.15); color: var(--mp-success); }
+    .status:not([data-status="active"]) { background: rgb(var(--mp-ink-rgb) / 0.08); color: var(--mp-text-secondary); }
+    .meta { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 13px; color: var(--mp-text-secondary); margin: 4px 0; }
+    .can { font-size: 13px; color: var(--mp-text-secondary); margin: 2px 0 4px; overflow-wrap: anywhere; }
     .tokens button { margin-top: 4px; }
     .clear { margin-top: 10px; }
     .scopes { border: 0; padding: 0; margin: 8px 0; min-width: 0; }
@@ -213,21 +213,21 @@ const STATUS_TEXT: Record<ApiTokenDto['status'], string> = {
     .check { display: flex; align-items: flex-start; gap: 8px; margin: 6px 0; font-size: 14px; cursor: pointer; }
     .check input { margin: 3px 0 0; flex: 0 0 auto; }
     .check .label { display: block; }
-    .check .sub { display: block; color: #999; font-size: 12px; overflow-wrap: anywhere; }
+    .check .sub { display: block; color: var(--mp-text-muted); font-size: 12px; overflow-wrap: anywhere; }
     .row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0; font-size: 14px; }
     .row label { min-width: 110px; }
     input, select { font: inherit; padding: 4px 6px; max-width: 100%; min-width: 0; box-sizing: border-box; }
     input { flex: 1 1 160px; }
-    .secret { border: 1px solid rgba(255, 179, 0, 0.6); border-radius: 6px; padding: 10px 12px; margin: 10px 0; font-size: 14px; }
+    .secret { border: 1px solid rgb(var(--mp-warn-strong-rgb) / 0.6); border-radius: 6px; padding: 10px 12px; margin: 10px 0; font-size: 14px; }
     .secret p { margin: 4px 0; }
-    .value { display: block; margin: 8px 0; padding: 8px; background: rgba(255, 255, 255, 0.06); border-radius: 4px;
+    .value { display: block; margin: 8px 0; padding: 8px; background: rgb(var(--mp-ink-rgb) / 0.06); border-radius: 4px;
              font-size: 13px; overflow-wrap: anywhere; word-break: break-all; user-select: all; }
-    .confirm { border: 1px solid rgba(244, 67, 54, 0.5); border-radius: 6px; padding: 8px 10px; margin: 8px 0 0; font-size: 14px; }
+    .confirm { border: 1px solid rgb(var(--mp-error-strong-rgb) / 0.5); border-radius: 6px; padding: 8px 10px; margin: 8px 0 0; font-size: 14px; }
     .confirm p { margin: 4px 0; }
     .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-    .warn { color: #ffb300; }
-    .ok { color: #4caf50; font-size: 14px; }
-    .error { color: #f44336; font-size: 14px; margin: 8px 0; }
+    .warn { color: var(--mp-warn-strong); }
+    .ok { color: var(--mp-success-strong); font-size: 14px; }
+    .error { color: var(--mp-error-strong); font-size: 14px; margin: 8px 0; }
   `],
 })
 export class ApiTokensCardComponent implements OnInit {

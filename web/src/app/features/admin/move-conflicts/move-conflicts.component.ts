@@ -121,38 +121,38 @@ type View = 'open' | 'resolved';
   styles: [`
     :host { display: block; }
     .page { max-width: 1180px; margin: 0 auto; padding-bottom: 32px; }
-    .back a { display: inline-flex; align-items: center; gap: 4px; color: #b39dff; text-decoration: none; font-size: 14px; }
+    .back a { display: inline-flex; align-items: center; gap: 4px; color: var(--mp-accent); text-decoration: none; font-size: 14px; }
     .back mat-icon { font-size: 18px; width: 18px; height: 18px; }
     .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; margin: 8px 0 4px; }
     h1 { font-size: 24px; font-weight: 500; margin: 0; }
-    .count { font-size: 12px; font-weight: 600; padding: 0 8px; border-radius: 10px; background: #7c4dff; color: #fff; line-height: 20px; }
-    .intro { margin: 4px 0 12px; color: #9a9aa8; font-size: 13px; max-width: 860px; }
+    .count { font-size: 12px; font-weight: 600; padding: 0 8px; border-radius: 10px; background: var(--mp-accent-strong); color: var(--mp-on-accent); line-height: 20px; }
+    .intro { margin: 4px 0 12px; color: var(--mp-text-muted); font-size: 13px; max-width: 860px; }
     .toolbar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 8px; }
     .bulk { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
-    .confirm { margin: 8px 0; padding: 10px 12px; border-radius: 10px; background: #2a2236; border: 1px solid rgba(179, 157, 255, 0.4); }
+    .confirm { margin: 8px 0; padding: 10px 12px; border-radius: 10px; background: var(--mp-surface-accent); border: 1px solid rgb(var(--mp-accent-rgb) / 0.4); }
     .confirm p { margin: 0 0 8px; }
     .confirm-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-    .message { margin: 4px 0 8px; font-size: 13px; color: #a5d6a7; }
+    .message { margin: 4px 0 8px; font-size: 13px; color: var(--mp-success-soft); }
     .list { display: flex; flex-direction: column; gap: 8px; }
-    .row { display: flex; gap: 8px 12px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: #1c1c26;
-      border: 1px solid rgba(255, 255, 255, 0.06); border-left: 3px solid #ffb74d; }
-    .row.resolved { border-left-color: #555; }
+    .row { display: flex; gap: 8px 12px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: var(--mp-surface-raised);
+      border: 1px solid rgb(var(--mp-ink-rgb) / 0.06); border-left: 3px solid var(--mp-caution); }
+    .row.resolved { border-left-color: var(--mp-text-faint); }
     .pick { flex: none; margin-top: -6px; }
     .body { flex: 1; min-width: 0; }
     header { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
     .name { font-weight: 500; font-size: 15px; color: inherit; text-decoration: none; overflow-wrap: anywhere; }
     a.name:hover { text-decoration: underline; }
-    .kind, .done { padding: 0 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); font-size: 12px; line-height: 20px; }
-    .done { background: rgba(129, 199, 132, 0.16); color: #a5d6a7; }
-    .meta { margin: 2px 0 6px; font-size: 12px; color: #9a9aa8; overflow-wrap: anywhere; }
+    .kind, .done { padding: 0 8px; border-radius: 10px; background: rgb(var(--mp-ink-rgb) / 0.08); font-size: 12px; line-height: 20px; }
+    .done { background: rgb(var(--mp-success-rgb) / 0.16); color: var(--mp-success-soft); }
+    .meta { margin: 2px 0 6px; font-size: 12px; color: var(--mp-text-muted); overflow-wrap: anywhere; }
     .sides { display: flex; flex-wrap: wrap; gap: 4px 24px; font-size: 13px; }
     .side { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
-    .side .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #8a8a99; }
-    .side.old span:last-child { color: #ffcc80; }
+    .side .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--mp-text-dim); }
+    .side.old span:last-child { color: var(--mp-warn); }
     .actions { display: flex; flex-direction: column; gap: 4px; flex: none; }
     .state { display: flex; justify-content: center; padding: 32px 0; }
-    .error { color: #ff8a80; }
-    .empty { display: flex; flex-direction: column; align-items: center; padding: 32px 0; color: #8a8a99; text-align: center; }
+    .error { color: var(--mp-error); }
+    .empty { display: flex; flex-direction: column; align-items: center; padding: 32px 0; color: var(--mp-text-dim); text-align: center; }
     .more { display: flex; justify-content: center; margin-top: 12px; }
     @media (max-width: 599.98px) {
       h1 { font-size: 20px; }
