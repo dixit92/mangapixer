@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Themes.** **Settings** > **Appearance** sets how MangaPixer looks for your account: **Dark** (the default, as before), **Light**, **Black** (true black for OLED screens, with cards and menus a step above black so they stay apart), **Sepia** (warm paper with brown text) or **System**, which follows your device's light or dark setting and switches with it while the app is open. Each choice shows a small preview, applies at once and follows you to every device; other users keep their own. The app opens straight in your theme (each browser keeps a copy of your last choice), and every page follows it - the reader too: its toolbars, menus and the area around the page take the theme's colours; the page itself is never changed. See [Appearance](docs/users-and-access.md#appearance).
+- **Accent colour.** Pick the colour of buttons, selections, switches, tabs and highlights: Violet (as before), Blue, Teal, Green, Amber or Rose. Every accent is tuned separately for the dark themes (Dark, Black) and the light ones (Light, Sepia) so text in the accent colour stays readable; on Amber, text on accent-coloured buttons is dark.
+
+### Changed
+
+- **API: appearance.** `GET /api/v1/reading/preferences` returns `theme` and `accent`; new `PUT /api/v1/reading/preferences/appearance` (`theme`, `accent`, each optional; an unknown value is a 400). `PUT /api/v1/reading/preferences` ignores both fields, so a client that sends back the whole preferences object never resets a theme chosen meanwhile.
+- **Upgrade note:** this version adds a database migration (`AddThemePreference`: two optional columns on the reader preferences; every existing user keeps Dark). No new consent, no new kind of request, and the matcher's rules are unchanged. The media worker protocol is unchanged (5).
+
+### Fixed
+
+- **A volume that replaces its chapters keeps what you read.** When a tool replaces a series' chapter files with the volume file that collects them (in the same folder), the volume now counts as read for everyone who had read every chapter the series' volume list gives for it (extras such as a chapter 9.5 are optional), and as in progress at its first page for those who had read some of them. It needs a series link with a stored volume list and happens on the next scan, or when the server starts, while the removed chapters are still in the trash. A volume someone has already marked read or started reading is left as it is, and one you mark unread afterwards stays unread. Upgrades made before this version are repaired the same way if their chapters are still in the trash. See [Rescans, moves and deletions](docs/library-layout.md#rescans-moves-and-deletions).
+- **The automatic matching log named the wrong result.** For a work held in **Needs review** although it scored well enough to link (a review-first run, or a work that is always reviewed), the log line said "Auto"; it now names the result stored and, separately, the score.
+
 ## [1.39.0] - 2026-10-09
 
 ### Added
