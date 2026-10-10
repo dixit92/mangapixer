@@ -24,6 +24,14 @@ public sealed class UpgradeCarryOverService
     /// <summary>The <see cref="ReadMarkEntity.Source"/> of a read mark this pass writes.</summary>
     public const string MarkSource = "upgrade";
 
+    /// <summary>
+    /// The <see cref="ReadMarkEntity.Source"/> a replaced chapter's read mark takes once its read state was carried onto the volume
+    /// (1.40.0). Marking the volume unread removes its mark and progress - the state of a volume nobody touched - so without this the
+    /// next pass would carry it again for as long as the chapters stay in the trash. A user with a carried mark among the evidence is
+    /// skipped; the mark itself stays, so a chapter restored from the trash is still read. Nothing else reads a read mark's source.
+    /// </summary>
+    public const string CarriedEvidenceSource = "carried";
+
     /// <summary>Unit subfolders are followed this many levels up to the linked folder (the Volumes view's depth).</summary>
     private const int MaxUnitDepth = 3;
 
@@ -200,7 +208,7 @@ public sealed class UpgradeCarryOverService
 
         var evidence = coverage.Evidence.ToList();
         var marks = await _db.ReadMarks.AsNoTracking().Where(m => evidence.Contains(m.ItemId))
-            .Select(m => new { m.UserId, m.ItemId, m.MarkedAt }).ToListAsync(ct);
+            .Select(m => new { m.UserId, m.ItemId, m.MarkedAt, m.Source }).ToListAsync(ct);
         var progress = await _db.ReadingProgress.AsNoTracking().Where(p => evidence.Contains(p.ItemId))
             .Select(p => new { p.UserId, p.ItemId, p.State, p.UpdatedAt, p.CompletedAt }).ToListAsync(ct);
         var userIds = marks.Select(m => m.UserId).Concat(progress.Select(p => p.UserId)).Distinct().ToList();
@@ -215,6 +223,8 @@ public sealed class UpgradeCarryOverService
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
         foreach (var userId in userIds.Order())
         {
+            if (marks.Any(m => m.UserId == userId && m.Source == CarriedEvidenceSource))
+                continue; // Carried before: what the user did with the volume since then stands.
             var readFiles = marks.Where(m => m.UserId == userId).Select(m => m.ItemId)
                 .Concat(progress.Where(p => p.UserId == userId && p.State == (int)ReadingState.Completed).Select(p => p.ItemId))
                 .ToHashSet();
@@ -265,6 +275,12 @@ public sealed class UpgradeCarryOverService
             }
         }
         await _db.SaveChangesAsync(ct);
+        var carried = carriedRead.Concat(carriedProgress).ToList();
+        if (carried.Count > 0)
+        {
+            await _db.ReadMarks.Where(m => evidence.Contains(m.ItemId) && carried.Contains(m.UserId))
+                .ExecuteUpdateAsync(u => u.SetProperty(m => m.Source, CarriedEvidenceSource), ct);
+        }
         await tx.CommitAsync(ct);
         _db.ChangeTracker.Clear();
         return (carriedRead, carriedProgress);

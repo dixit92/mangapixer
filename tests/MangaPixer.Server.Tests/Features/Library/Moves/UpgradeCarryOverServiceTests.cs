@@ -167,6 +167,35 @@ public sealed class UpgradeCarryOverServiceTests : IDisposable
         Assert.Equal(1, await _h.CountAsync(db => db.ReadMarks.CountAsync(m => m.UserId == owner && m.ItemId == volume)));
     }
 
+    [Fact]
+    public async Task AVolumeMarkedUnreadAfterItsCarry_IsNotCarriedAgain()
+    {
+        var ids = await SeedAsync(CaseAFiles, CaseAList);
+        var owner = await _h.AddUserAsync("owner", admin: true);
+        var partial = await _h.AddUserAsync("partial");
+        foreach (var id in ids.Values)
+            await _h.MarkReadAsync(owner, id);
+        await _h.MarkReadAsync(partial, ids[Chapter("001")]);
+        var volume = await UpgradeAsync(ids.Keys);
+        await _h.PairAsync();
+        await AssertReadAsync(owner, volume);
+        await AssertInProgressAtFirstPageAsync(partial, volume);
+
+        // Both users mark the volume unread: the reading API removes its read mark AND its progress, the state a volume never touched has.
+        await using (var db = _h.NewContext())
+        {
+            await db.ReadMarks.Where(m => m.ItemId == volume).ExecuteDeleteAsync();
+            await db.ReadingProgress.Where(p => p.ItemId == volume).ExecuteDeleteAsync();
+        }
+        await _h.PairAsync();
+
+        await AssertNothingAsync(owner, volume);
+        await AssertNothingAsync(partial, volume);
+        // The replaced chapters keep their read marks (a restore from the trash still shows them read).
+        Assert.NotNull(await MarkAsync(owner, ids[Chapter("001")]));
+        Assert.NotNull(await MarkAsync(partial, ids[Chapter("001")]));
+    }
+
     // (b) 12 listed units (3, 4.1 and 4.2 never present) - only 9 files existed.
     private static readonly string[] CaseBFiles = [Chapter("001"), Chapter("002"), .. Enumerable.Range(5, 7).Select(i => Chapter(Pad(i)))];
     private static string CaseBList => ListJson((1, ["1", "2", "3", "4.1", "4.2", "5", "6", "7", "8", "9", "10", "11"]), (2, Range(12, 20)));
