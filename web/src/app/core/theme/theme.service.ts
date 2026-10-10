@@ -198,7 +198,7 @@ export class ThemeService {
 
   /**
    * `<meta name="theme-color">` = the colour the page is painted with, so the browser / OS bars match it: the body's background
-   * when it paints one, else the page colour on <html> (`--mp-page`, per base - black #000 and sepia paper included).
+   * when it paints one, else the page colour on <html> (`--mp-page`, per base - the black and sepia pages included).
    */
   private updateThemeColor(): void {
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
