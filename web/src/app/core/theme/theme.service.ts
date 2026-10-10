@@ -196,7 +196,11 @@ export class ThemeService {
     this.updateThemeColor();
   }
 
-  /** `<meta name="theme-color">` = the colour the page is painted with (the app background), so the bars match it. */
+  /**
+   * `<meta name="theme-color">` = the colour the page is painted with, so the browser / OS bars match it: the body's background
+   * when it paints one, else the theme's `--mp-surface` (the app leaves the body transparent today; index.html starts with the
+   * dark surface).
+   */
   private updateThemeColor(): void {
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     if (!meta || typeof getComputedStyle !== 'function') return;
