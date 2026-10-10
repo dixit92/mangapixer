@@ -1,6 +1,6 @@
 {
   "name": "com.lifepixer.mangapixer.web",
-  "version": "1.39.0",
+  "version": "1.40.0",
   "description": "MangaPixer Angular web reader",
   "private": true,
   "scripts": {
@@ -8,11 +8,12 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "lint": "ng lint",
+    "lint": "ng lint && node scripts/check-theme-colors.mjs --enforce",
     "test": "ng test",
     "test:ci": "ng test",
     "e2e": "npx playwright test",
-    "api:check": "node scripts/check-openapi-drift.mjs"
+    "api:check": "node scripts/check-openapi-drift.mjs",
+    "theme:check": "node scripts/check-theme-colors.mjs"
   },
   "dependencies": {
     "@angular/animations": "^22.2.1",

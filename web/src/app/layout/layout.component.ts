@@ -150,7 +150,7 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
     .brand-text { position: relative; top: -2px; }
     .spacer { flex: 1 1 auto; }
     /* The page the link points to: a soft pill behind it (also on the icon buttons), on top of aria-current. */
-    .nav-link.active-link { background: rgba(255, 255, 255, 0.16); }
+    .nav-link.active-link { background: rgb(var(--mp-ink-rgb) / 0.16); }
     /* Phones (390px): menu + brand + two text links + the account button overflowed the toolbar by ~12px, so every
        page scrolled sideways and the account button was clipped; the links are icon buttons now, so only the gap
        after the brand is tightened. */
@@ -181,7 +181,7 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
     .user-info mat-icon { font-size: 20px; width: 20px; height: 20px; }
     .menu-count {
       margin-left: 8px; padding: 0 7px; border-radius: 9px; font-size: 11px; font-weight: 600;
-      line-height: 18px; background: #7c4dff; color: #fff;
+      line-height: 18px; background: var(--mp-accent-strong); color: var(--mp-on-accent);
     }
   `],
 })

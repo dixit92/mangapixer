@@ -23,12 +23,12 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
   `,
   styles: [`
     :host { display: block; }
-    .pair { display: flex; gap: 12px; padding: 10px; background: #1e1e28; border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 10px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); }
+    .pair { display: flex; gap: 12px; padding: 10px; background: var(--mp-surface-raised); border: 1px solid rgb(var(--mp-ink-rgb) / 0.12);
+      border-radius: 10px; box-shadow: 0 10px 30px rgb(var(--mp-shade-rgb) / 0.5); }
     figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
-    img, .none { width: min(200px, 40vw); height: min(284px, 57vw); object-fit: contain; border-radius: 6px; background: #2a2a36; }
-    .none { display: flex; align-items: center; justify-content: center; color: #8a8a99; font-size: 13px; }
-    figcaption { font-size: 12px; color: #c8c8d4; }
+    img, .none { width: min(200px, 40vw); height: min(284px, 57vw); object-fit: contain; border-radius: 6px; background: var(--mp-surface-high); }
+    .none { display: flex; align-items: center; justify-content: center; color: var(--mp-text-dim); font-size: 13px; }
+    figcaption { font-size: 12px; color: var(--mp-text-secondary); }
   `],
 })
 export class CoverComparePopoverComponent {

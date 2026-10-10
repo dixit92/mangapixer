@@ -215,29 +215,29 @@ const MAX_WEB_CANDIDATES = 8;
   styles: [`
     .content { display: block; }
     .lead { margin: 0 0 8px; overflow-wrap: anywhere; }
-    .note { color: #a8a8b8; }
+    .note { color: var(--mp-text-muted); }
     .kind { margin: 0 0 8px; max-width: 100%; flex-wrap: wrap; }
-    .small { margin: 4px 0 8px; font-size: 13px; line-height: 1.45; color: #a8a8b8; }
-    .error { color: #ef9a9a; }
+    .small { margin: 4px 0 8px; font-size: 13px; line-height: 1.45; color: var(--mp-text-muted); }
+    .error { color: var(--mp-error); }
     .summary { margin: 8px 0 4px; font-weight: 500; }
     .rows { list-style: none; margin: 0; padding: 0; }
     .row {
       display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 4px; align-items: start;
-      padding: 6px 0; border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 6px 0; border-top: 1px solid rgb(var(--mp-ink-rgb) / 0.08);
     }
-    .row.muted .name { color: #8a8a99; }
+    .row.muted .name { color: var(--mp-text-dim); }
     .tick { margin-top: -6px; }
     .body { min-width: 0; }
     .name { font-weight: 500; overflow-wrap: anywhere; }
-    .status { font-size: 13px; color: #a8a8b8; overflow-wrap: anywhere; }
-    .status.warn { color: #ffcc80; }
+    .status { font-size: 13px; color: var(--mp-text-muted); overflow-wrap: anywhere; }
+    .status.warn { color: var(--mp-warn); }
     .choice { font-size: 14px; overflow-wrap: anywhere; }
     .pick { width: 100%; margin-top: 6px; }
     .web-row { display: flex; gap: 4px; align-items: center; margin-top: 6px; }
     .web-text { flex: 1 1 auto; min-width: 0; }
-    .result { margin-top: 4px; font-size: 13px; color: #a5d6a7; }
-    .result.error { color: #ef9a9a; }
-    .web { margin-top: 12px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.12); }
+    .result { margin-top: 4px; font-size: 13px; color: var(--mp-success-soft); }
+    .result.error { color: var(--mp-error); }
+    .web { margin-top: 12px; padding-top: 8px; border-top: 1px solid rgb(var(--mp-ink-rgb) / 0.12); }
     .web-actions { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
   `],
 })

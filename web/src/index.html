@@ -3,6 +3,29 @@
 <head>
   <meta charset="utf-8" />
   <title>MangaPixer</title>
+  <!-- Theme before the first paint (1.40.0): applies this device's last appearance (the copy ThemeService keeps in
+       localStorage) to <html> before the stylesheet and the app load, so a light theme never flashes dark first
+       (styles.scss derives color-scheme from data-theme).
+       The two lists must equal theme-vocabulary.ts (pinned by ThemeVocabularyPinTests). Unknown values -> dark / violet.
+       Inline on purpose: the server sends no Content-Security-Policy; behind a proxy that forbids inline scripts the app
+       still themes itself once it starts, only a moment later. -->
+  <script>
+    (function () {
+      var bases = ['dark', 'light', 'black', 'sepia', 'system'];
+      var accents = ['violet', 'blue', 'teal', 'green', 'amber', 'rose'];
+      var theme = 'dark', accent = 'violet', root = document.documentElement;
+      try {
+        var t = localStorage.getItem('mangapixer-theme'), a = localStorage.getItem('mangapixer-accent');
+        if (bases.indexOf(t) >= 0) theme = t;
+        if (accents.indexOf(a) >= 0) accent = a;
+      } catch (e) { /* no storage: defaults */ }
+      if (theme === 'system') {
+        theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      }
+      root.setAttribute('data-theme', theme);
+      root.setAttribute('data-accent', accent);
+    })();
+  </script>
   <base href="/" />
   <!-- viewport-fit=cover: lets the installed (standalone) PWA lay out under the
        display cutout/gesture bars instead of being fit into a slightly-smaller
@@ -20,7 +43,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black" />
   <meta name="apple-mobile-web-app-title" content="MangaPixer" />
-  <meta name="theme-color" content="#333333" />
+  <meta name="theme-color" content="#121212" />
   <link rel="icon" type="image/svg+xml" href="assets/icons/icon.svg" />
   <link rel="icon" type="image/x-icon" href="favicon.ico" />
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png" />

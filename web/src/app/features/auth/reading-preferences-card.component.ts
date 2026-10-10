@@ -53,9 +53,9 @@ import { ApiError, UserPreferencesDto } from '../../core/api/api-types';
   `,
   styles: [`
     mat-card { max-width: 600px; margin: 24px auto 0; }
-    .hint { color: #999; font-size: 13px; margin: 10px 0 0; }
-    .muted { color: #999; font-size: 14px; }
-    .error { color: #f44336; font-size: 14px; margin-top: 8px; }
+    .hint { color: var(--mp-text-muted); font-size: 13px; margin: 10px 0 0; }
+    .muted { color: var(--mp-text-muted); font-size: 14px; }
+    .error { color: var(--mp-error-strong); font-size: 14px; margin-top: 8px; }
   `],
 })
 export class ReadingPreferencesCardComponent implements OnInit {

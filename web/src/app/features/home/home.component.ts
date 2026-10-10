@@ -330,8 +330,8 @@ import {
   `,
   styles: [`
     h3 { margin: 8px 0 12px; }
-    .muted { color: #999; font-size: 14px; }
-    .error { color: #ff8a80; font-size: 13px; margin: 0 0 8px; }
+    .muted { color: var(--mp-text-muted); font-size: 14px; }
+    .error { color: var(--mp-error); font-size: 13px; margin: 0 0 8px; }
     /* Home is a plain content page now (the shell provides the gutter padding and
        the library sidebar); no in-component sidebar/flex layout remains. */
     .strip-section { margin-bottom: 28px; }
@@ -348,23 +348,23 @@ import {
       position: absolute; top: 4px; right: 4px; z-index: 3;
       display: inline-flex; align-items: center; justify-content: center;
       width: 26px; height: 26px; padding: 0; border: none; border-radius: 50%;
-      background: rgba(0, 0, 0, 0.6); color: #fff; opacity: 0.8; cursor: pointer;
+      background: rgb(var(--mp-shade-rgb) / 0.6); color: var(--mp-on-scrim); opacity: 0.8; cursor: pointer;
       transition: opacity .12s ease, background .12s ease;
     }
-    .dismiss:hover, .dismiss:focus-visible { opacity: 1; background: rgba(0, 0, 0, 0.82); outline: none; }
+    .dismiss:hover, .dismiss:focus-visible { opacity: 1; background: rgb(var(--mp-shade-rgb) / 0.82); outline: none; }
     .dismiss mat-icon { font-size: 18px; width: 18px; height: 18px; }
     .cover {
       position: relative; width: 100%; aspect-ratio: 2 / 3; border-radius: 8px;
-      overflow: hidden; background: rgba(255,255,255,0.06);
+      overflow: hidden; background: rgb(var(--mp-ink-rgb) / 0.06);
       display: flex; align-items: center; justify-content: center;
     }
     .cover img { width: 100%; height: 100%; object-fit: cover; position: relative; z-index: 1; }
-    .cover-fallback { position: absolute; font-size: 48px; width: 48px; height: 48px; color: #777; z-index: 0; }
+    .cover-fallback { position: absolute; font-size: 48px; width: 48px; height: 48px; color: var(--mp-text-faint); z-index: 0; }
     .cont-title {
       margin-top: 6px; font-size: 13px; font-weight: 500;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .cont-page { font-size: 12px; color: #999; }
+    .cont-page { font-size: 12px; color: var(--mp-text-muted); }
     .latest { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     /* Home view toolbar: the card-size slider that sizes BOTH cover strips. Mirrors the
        library browse view's top card-size control; wraps on narrow phones and the slider
@@ -377,13 +377,13 @@ import {
        chrome, not a control belonging to whichever section sits under it. */
     .toolbar-scope {
       display: flex; align-items: center; gap: 6px; flex: 0 0 auto;
-      color: #8a8a99; font-size: 11px; font-weight: 600; text-transform: uppercase;
-      letter-spacing: .4px; padding-right: 8px; border-right: 1px solid rgba(255,255,255,.1);
+      color: var(--mp-text-dim); font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .4px; padding-right: 8px; border-right: 1px solid rgb(var(--mp-ink-rgb) / 0.1);
     }
     .size-control { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
-    .size-control .size-icon { font-size: 18px; width: 18px; height: 18px; color: #8a8a99; }
+    .size-control .size-icon { font-size: 18px; width: 18px; height: 18px; color: var(--mp-text-dim); }
     .size-slider {
-      width: 180px; max-width: 60vw; accent-color: #7c4dff; cursor: pointer;
+      width: 180px; max-width: 60vw; accent-color: var(--mp-accent-strong); cursor: pointer;
       background: transparent;
     }
     /* New chapters: a heading, then one sub-row per library headed by the library name
@@ -393,42 +393,42 @@ import {
     .section-head h3 { margin-bottom: 8px; }
     /* Section-scope divider (1.20.0): ties the Filter button to the "New chapters" heading
        it scopes to, instead of floating unattached in the row. Purely decorative. */
-    .head-divider { width: 1px; height: 16px; background: rgba(255,255,255,.14); margin: 0 -4px 8px 0; }
+    .head-divider { width: 1px; height: 16px; background: rgb(var(--mp-ink-rgb) / 0.14); margin: 0 -4px 8px 0; }
     /* Read-state filter (1.17.0): mirrors the library browse toolbar's filter button
        and menu styling so the two filters read as the same control at a glance. */
     .menu-caption {
       display: block; padding: 6px 16px 2px; font-size: 11px; font-weight: 600;
-      text-transform: uppercase; letter-spacing: 0.5px; color: #8a8a99;
+      text-transform: uppercase; letter-spacing: 0.5px; color: var(--mp-text-dim);
     }
     ::ng-deep .view-options-menu .selected-option {
-      background: rgba(124, 77, 255, 0.16);
+      background: rgb(var(--mp-accent-strong-rgb) / 0.16);
     }
     ::ng-deep .view-options-menu .selected-option,
     ::ng-deep .view-options-menu .selected-option .mat-icon {
-      color: #b39dff;
+      color: var(--mp-accent);
     }
     .filter-toggle { margin-bottom: 8px; }
     .filter-toggle mat-icon { margin-right: 4px; }
-    .filter-toggle.filter-active { border-color: #7c4dff; color: #b39dff; }
-    .filter-toggle.filter-active mat-icon { color: #b39dff; }
+    .filter-toggle.filter-active { border-color: var(--mp-accent-strong); color: var(--mp-accent); }
+    .filter-toggle.filter-active mat-icon { color: var(--mp-accent); }
     .empty { margin: 4px 0 0; }
     .recent-lib { margin-bottom: 12px; }
     .recent-lib h4 {
-      margin: 4px 0 4px; font-size: 14px; font-weight: 500; color: #cfcfd4;
+      margin: 4px 0 4px; font-size: 14px; font-weight: 500; color: var(--mp-text-secondary);
       cursor: pointer; text-decoration: none; display: inline-block;
     }
-    .recent-lib h4:hover { color: #fff; }
+    .recent-lib h4:hover { color: var(--mp-text-strong); }
     /* Stacked-paper affordance: the shared app-stack-card (1.29.0) draws two offset
        sheets behind the cover when the unit holds more than one new chapter. */
     .badge {
       position: absolute; top: 6px; right: 6px; z-index: 2;
       font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 10px;
-      background: rgba(124, 77, 255, 0.92); color: #fff; letter-spacing: 0.2px;
+      background: rgb(var(--mp-accent-strong-rgb) / 0.92); color: var(--mp-on-accent); letter-spacing: 0.2px;
     }
     /* Read-state marker (1.20.0): top-left (browse's own Read/Reading colours), so it never
        collides with the top-right "+N new" badge; Unread renders nothing (quiet default). */
     .badge.read-state { left: 6px; right: auto; }
-    .badge.read-state.read { background: rgba(76, 175, 80, .95); }
+    .badge.read-state.read { background: rgb(var(--mp-success-strong-rgb) / 0.95); }
     .library-grid {
       display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px;
     }
@@ -438,7 +438,7 @@ import {
     .card-dir {
       position: absolute; top: 10px; right: 10px;
       display: inline-flex; align-items: center; justify-content: center;
-      color: #8a8a99;
+      color: var(--mp-text-dim);
     }
     .card-dir mat-icon { font-size: 20px; width: 20px; height: 20px; }
   `],

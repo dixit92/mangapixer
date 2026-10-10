@@ -314,23 +314,23 @@ function rhythm(job: ScheduledJobDto): string {
     .clock { font-size: 14px; margin: 4px 0 6px; }
     .groups { container-type: inline-size; }
     .group { margin: 14px 0 0; }
-    .group h4 { margin: 0 0 6px; font-size: 14px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; color: #b0b0b0; }
+    .group h4 { margin: 0 0 6px; font-size: 14px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; color: var(--mp-text-muted); }
     .group > .what { margin: 0 0 6px; }
 
     /* Library scans: one row per library, the columns lined up (1.35.0, owner: "not neat"). */
-    .scans { border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 2px 10px; }
+    .scans { border: 1px solid rgb(var(--mp-ink-rgb) / 0.08); border-radius: 6px; padding: 2px 10px; }
     .scan-head, .scan-row {
       display: grid; align-items: center; gap: 4px 12px; padding: 6px 0;
       grid-template-columns: minmax(120px, 1.3fr) 130px 100px 120px minmax(130px, 1fr) minmax(130px, 1fr);
       font-size: 13px;
     }
-    .scan-head { color: #999; font-size: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
-    .scan-row + .scan-row { border-top: 1px solid rgba(255, 255, 255, 0.05); }
+    .scan-head { color: var(--mp-text-muted); font-size: 12px; border-bottom: 1px solid rgb(var(--mp-ink-rgb) / 0.08); }
+    .scan-row + .scan-row { border-top: 1px solid rgb(var(--mp-ink-rgb) / 0.05); }
     .lib { font-weight: 500; overflow-wrap: anywhere; font-size: 14px; }
 
     /* The other jobs: cards of equal height per row, the runs line at the bottom of each. */
     .jobs { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 10px; align-items: stretch; }
-    .jobs li { border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 8px 10px; min-width: 0; display: flex; flex-direction: column; }
+    .jobs li { border: 1px solid rgb(var(--mp-ink-rgb) / 0.08); border-radius: 6px; padding: 8px 10px; min-width: 0; display: flex; flex-direction: column; }
     /* The refresh card has a row of its own, so its neighbours keep their own height. */
     .jobs li.wide { grid-column: 1 / -1; }
     @container (min-width: 760px) {
@@ -338,17 +338,17 @@ function rhythm(job: ScheduledJobDto): string {
     }
     .head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
     .name { font-weight: 500; overflow-wrap: anywhere; }
-    .badge { font-size: 12px; color: #4caf50; }
-    .what, .hint, .muted, .runs, .status { color: #999; font-size: 13px; margin: 4px 0; }
+    .badge { font-size: 12px; color: var(--mp-success-strong); }
+    .what, .hint, .muted, .runs, .status { color: var(--mp-text-muted); font-size: 13px; margin: 4px 0; }
     /* Label and value side by side in every card (the value never wraps under its label); stacked on a phone. */
     .row { display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: center; gap: 4px 8px; margin: 6px 0; font-size: 14px; }
     .row > select { justify-self: start; }
     .rhythm { font-size: 13px; grid-template-columns: 56px minmax(0, 1fr); }
-    .rhythm .k { color: #999; }
+    .rhythm .k { color: var(--mp-text-muted); }
     select { font: inherit; font-size: 14px; padding: 4px 6px; max-width: 100%; }
     .runs { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: auto; padding-top: 6px; }
-    .error { color: #f44336; font-size: 14px; margin: 8px 0; }
-    .confirm { border: 1px solid rgba(244, 67, 54, 0.5); border-radius: 6px; padding: 10px 12px; margin: 10px 0; font-size: 14px; }
+    .error { color: var(--mp-error-strong); font-size: 14px; margin: 8px 0; }
+    .confirm { border: 1px solid rgb(var(--mp-error-strong-rgb) / 0.5); border-radius: 6px; padding: 10px 12px; margin: 10px 0; font-size: 14px; }
     .confirm h5 { margin: 0 0 6px; font-size: 14px; }
     .confirm p { margin: 4px 0; }
     .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }

@@ -160,40 +160,40 @@ export function completionEmptyText(filter: CompletionFilter, language: string, 
   `,
   styles: [`
     :host { display: block; }
-    .intro { margin: 0 0 12px; color: #9a9aa8; font-size: 13px; }
-    .intro strong { color: #c8c8d4; font-weight: 500; }
+    .intro { margin: 0 0 12px; color: var(--mp-text-muted); font-size: 13px; }
+    .intro strong { color: var(--mp-text-secondary); font-weight: 500; }
     .toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 8px; }
     .toolbar.second { justify-content: flex-start; }
     /* The toggles scroll sideways inside their own box on a phone rather than widening the page. */
     .filters { max-width: 100%; overflow-x: auto; }
-    .count { color: #9a9aa8; font-size: 12px; }
+    .count { color: var(--mp-text-muted); font-size: 12px; }
     .lib-filter { width: 220px; }
     .edition-filter { width: 180px; }
-    .summary { margin: 4px 0 12px; font-size: 13px; color: #c8c8d4; }
-    .summary .up { color: #b39dff; }
+    .summary { margin: 4px 0 12px; font-size: 13px; color: var(--mp-text-secondary); }
+    .summary .up { color: var(--mp-accent); }
     .list { display: flex; flex-direction: column; gap: 8px; }
-    .row { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: #1c1c26;
-      border: 1px solid rgba(255, 255, 255, 0.06); border-left: 3px solid #555; }
-    .row.HaveItAll { border-left-color: #81c784; }
-    .row.FinishedMissing { border-left-color: #ffb74d; }
-    .row.UpToDate { border-left-color: #64b5f6; }
-    .row.MissingSome { border-left-color: #ef5350; }
-    .cover { width: 48px; height: 68px; object-fit: cover; border-radius: 4px; flex: none; background: #2a2a36; }
-    .cover.none { display: flex; align-items: center; justify-content: center; color: #6a6a78; }
+    .row { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: var(--mp-surface-raised);
+      border: 1px solid rgb(var(--mp-ink-rgb) / 0.06); border-left: 3px solid var(--mp-text-faint); }
+    .row.HaveItAll { border-left-color: var(--mp-success); }
+    .row.FinishedMissing { border-left-color: var(--mp-caution); }
+    .row.UpToDate { border-left-color: rgb(var(--mp-info-rgb)); }
+    .row.MissingSome { border-left-color: var(--mp-error-strong); }
+    .cover { width: 48px; height: 68px; object-fit: cover; border-radius: 4px; flex: none; background: var(--mp-surface-high); }
+    .cover.none { display: flex; align-items: center; justify-content: center; color: var(--mp-text-faint); }
     .body { flex: 1; min-width: 0; }
     header { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
     .name { font-weight: 500; font-size: 15px; color: inherit; text-decoration: none; overflow-wrap: anywhere; }
     .name:hover { text-decoration: underline; }
-    .auto { color: #ffcc80; font-size: 12px; }
-    .meta { margin: 2px 0 4px; font-size: 12px; color: #9a9aa8; overflow-wrap: anywhere; }
+    .auto { color: var(--mp-warn); font-size: 12px; }
+    .meta { margin: 2px 0 4px; font-size: 12px; color: var(--mp-text-muted); overflow-wrap: anywhere; }
     .line { margin: 2px 0; font-size: 13px; overflow-wrap: anywhere; }
-    .answer-line { color: #e0e0ea; }
-    .line.trackers { color: #9a9aa8; font-size: 12px; }
-    .upgrade-line { color: #b39dff; }
-    .open { flex: none; color: #b39dff; }
+    .answer-line { color: var(--mp-text); }
+    .line.trackers { color: var(--mp-text-muted); font-size: 12px; }
+    .upgrade-line { color: var(--mp-accent); }
+    .open { flex: none; color: var(--mp-accent); }
     .state { display: flex; justify-content: center; padding: 32px 0; }
-    .error { color: #ff8a80; }
-    .empty { display: flex; flex-direction: column; align-items: center; padding: 32px 0; color: #8a8a99; text-align: center; }
+    .error { color: var(--mp-error); }
+    .empty { display: flex; flex-direction: column; align-items: center; padding: 32px 0; color: var(--mp-text-dim); text-align: center; }
     .empty p { max-width: 560px; }
     .more { display: flex; justify-content: center; margin-top: 12px; }
     @media (max-width: 599.98px) {

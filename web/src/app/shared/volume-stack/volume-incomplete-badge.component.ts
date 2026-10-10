@@ -31,12 +31,12 @@ import { DUPLICATE_TIP, duplicateListText, duplicatesLabel } from '../duplicate-
     .incomplete {
       position: absolute; top: 6px; left: 6px; z-index: 2;
       font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 10px;
-      background: rgba(255, 179, 0, 0.95); color: #1a1200;
+      background: rgb(var(--mp-warn-strong-rgb) / 0.95); color: var(--mp-on-warn);
     }
     .incomplete.moved { top: auto; bottom: 6px; }
     .dup {
       position: absolute; top: 6px; left: 6px; z-index: 2; max-width: calc(100% - 12px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-      font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 10px; background: rgba(38, 50, 56, 0.92); color: #ffcc80;
+      font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 10px; background: rgb(var(--mp-shade-rgb) / 0.92); color: #ffcc80; /* theme-exempt: amber text on the always-dark pill over cover art (--mp-warn turns dark in light themes) */
       border: 1px solid rgba(255, 204, 128, 0.4);
     }
     .dup.below { top: 30px; }

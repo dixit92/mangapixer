@@ -36,8 +36,8 @@ import { FlagDialogData, FlagDialogResult } from './flag-dialog.component';
   `,
   styles: [`
     :host { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .state { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: #ffcc80; }
-    .state.done { color: #9a9aa8; }
+    .state { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--mp-warn); }
+    .state.done { color: var(--mp-text-muted); }
     button mat-icon { margin-right: 4px; }
   `],
 })

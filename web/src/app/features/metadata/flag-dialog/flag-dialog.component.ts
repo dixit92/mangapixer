@@ -81,12 +81,12 @@ export function flagErrorText(err: (ApiError & { status?: number }) | null | und
     .lead { margin-top: 0; }
     .reasons { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
     .opt { display: block; }
-    .hint { display: block; font-size: 12px; color: #9a9aa8; }
+    .hint { display: block; font-size: 12px; color: var(--mp-text-muted); }
     .note { width: 100%; }
-    .small { font-size: 12px; color: #9a9aa8; margin: 0; }
-    .error { color: #ff8a80; }
+    .small { font-size: 12px; color: var(--mp-text-muted); margin: 0; }
+    .error { color: var(--mp-error); }
     .thanks { display: flex; align-items: center; gap: 8px; }
-    .thanks mat-icon { color: #81c784; }
+    .thanks mat-icon { color: var(--mp-success); }
   `],
 })
 export class FlagDialogComponent {

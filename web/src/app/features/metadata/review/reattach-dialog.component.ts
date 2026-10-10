@@ -88,21 +88,21 @@ interface Crumb {
     </mat-dialog-actions>
   `,
   styles: [`
-    .hint { font-size: 13px; color: #b0b0c0; margin-top: 0; }
+    .hint { font-size: 13px; color: var(--mp-text-muted); margin-top: 0; }
     .lib { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px; }
-    .lib select { flex: 1 1 auto; min-width: 0; padding: 4px; background: transparent; color: inherit; border: 1px solid rgba(255, 255, 255, 0.24); border-radius: 4px; }
-    .lib option { color: #000; }
+    .lib select { flex: 1 1 auto; min-width: 0; padding: 4px; background: transparent; color: inherit; border: 1px solid rgb(var(--mp-ink-rgb) / 0.24); border-radius: 4px; }
+    .lib option { color: rgb(var(--mp-shade-rgb)); }
     .crumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; font-size: 13px; margin-bottom: 6px; }
     .crumbs .current { font-weight: 600; padding: 0 8px; }
     .sep { opacity: 0.5; }
     .folders { display: flex; flex-direction: column; max-height: 50vh; overflow-y: auto; }
     .folder { display: flex; align-items: center; border-radius: 6px; }
-    .folder.chosen { background: rgba(179, 157, 255, 0.18); }
+    .folder.chosen { background: rgb(var(--mp-accent-rgb) / 0.18); }
     .pick { all: unset; flex: 1 1 auto; display: flex; align-items: center; gap: 8px; padding: 8px; cursor: pointer; overflow-wrap: anywhere; }
-    .pick:focus-visible { outline: 2px solid #b39dff; }
+    .pick:focus-visible { outline: 2px solid var(--mp-accent); }
     .state { display: flex; justify-content: center; padding: 16px; }
-    .muted { color: #9a9aa8; }
-    .error { color: #f44336; }
+    .muted { color: var(--mp-text-muted); }
+    .error { color: var(--mp-error-strong); }
   `],
 })
 export class ReattachDialogComponent implements OnInit {

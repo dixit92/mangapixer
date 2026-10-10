@@ -118,15 +118,15 @@ export function outcomeLabel(run: AuthorAliasRunDto): string {
   `,
   styles: [`
     :host { display: contents; }
-    .card { background: #1c1c26; border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 12px; padding: 14px 18px; min-width: 0; }
+    .card { background: var(--mp-surface-raised); border: 1px solid rgb(var(--mp-ink-rgb) / 0.07); border-radius: 12px; padding: 14px 18px; min-width: 0; }
     h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 16px; font-weight: 500; }
-    h3 mat-icon { font-size: 20px; width: 20px; height: 20px; color: #b39dff; }
-    .note { font-size: 12px; color: #9a9aa8; margin: 4px 0 8px; }
+    h3 mat-icon { font-size: 20px; width: 20px; height: 20px; color: var(--mp-accent); }
+    .note { font-size: 12px; color: var(--mp-text-muted); margin: 4px 0 8px; }
     .status { margin: 8px 0; }
     .row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 8px; }
     .small { font-size: 12px; }
-    .muted { color: #9a9aa8; }
-    .error { color: #f44336; }
+    .muted { color: var(--mp-text-muted); }
+    .error { color: var(--mp-error-strong); }
     mat-progress-bar { margin-top: 4px; }
     @media (max-width: 599.98px) { .card { padding: 12px; } }
   `],

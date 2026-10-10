@@ -214,15 +214,15 @@ export const SNAPSHOT_MOVE_POLL_MS = 1000;
     select, input { font: inherit; padding: 4px 6px; }
     .location { width: 100%; max-width: 480px; margin-top: 8px; box-sizing: border-box; }
     mat-radio-group { display: flex; flex-wrap: wrap; gap: 12px; }
-    .managed { color: #999; font-size: 12px; margin-left: 8px; }
-    .hint, .muted { color: #999; font-size: 13px; margin: 6px 0; }
-    .warn { color: #ffb300; font-size: 13px; margin: 4px 0; }
-    .ok { color: #4caf50; font-size: 14px; }
+    .managed { color: var(--mp-text-muted); font-size: 12px; margin-left: 8px; }
+    .hint, .muted { color: var(--mp-text-muted); font-size: 13px; margin: 6px 0; }
+    .warn { color: var(--mp-warn-strong); font-size: 13px; margin: 4px 0; }
+    .ok { color: var(--mp-success-strong); font-size: 14px; }
     .notice { font-size: 14px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-    .banner { background: rgba(244, 67, 54, 0.15); color: #f44336; padding: 8px 12px; border-radius: 4px; margin-bottom: 12px; font-size: 14px; }
+    .banner { background: rgb(var(--mp-error-strong-rgb) / 0.15); color: var(--mp-error-strong); padding: 8px 12px; border-radius: 4px; margin-bottom: 12px; font-size: 14px; }
     .reauth { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
     .actions { display: flex; gap: 8px; margin-top: 12px; }
-    .error { color: #f44336; font-size: 14px; margin: 8px 0; }
+    .error { color: var(--mp-error-strong); font-size: 14px; margin: 8px 0; }
     h4 { margin: 16px 0 6px; }
   `],
 })

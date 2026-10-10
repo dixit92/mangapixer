@@ -144,9 +144,9 @@ const COLUMNS: SortableColumn[] = [
   styles: [`
     :host { display: block; min-width: 0; }
     mat-card { margin: 0; }
-    .muted { color: #999; font-size: 14px; }
-    .error { color: #f44336; font-size: 14px; margin: 8px 0; }
-    .scope-note { color: #999; font-size: 13px; margin: 0 0 8px; }
+    .muted { color: var(--mp-text-muted); font-size: 14px; }
+    .error { color: var(--mp-error-strong); font-size: 14px; margin: 8px 0; }
+    .scope-note { color: var(--mp-text-muted); font-size: 13px; margin: 0 0 8px; }
     .tiles {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -158,15 +158,15 @@ const COLUMNS: SortableColumn[] = [
       flex-direction: column;
       padding: 10px 12px;
       border-radius: 6px;
-      background: rgba(255, 255, 255, 0.06);
+      background: rgb(var(--mp-ink-rgb) / 0.06);
     }
     .tile-value { font-size: 20px; font-weight: 600; line-height: 1.2; }
-    .tile-label { font-size: 12px; color: #999; }
+    .tile-label { font-size: 12px; color: var(--mp-text-muted); }
     .table-scroll { overflow-x: auto; margin: 4px 0 12px; }
     table { border-collapse: collapse; width: 100%; font-size: 13px; }
     th, td { padding: 6px 10px; text-align: left; white-space: nowrap; }
-    thead th { border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
-    tbody tr:nth-child(even) { background: rgba(255, 255, 255, 0.03); }
+    thead th { border-bottom: 1px solid rgb(var(--mp-ink-rgb) / 0.12); }
+    tbody tr:nth-child(even) { background: rgb(var(--mp-ink-rgb) / 0.03); }
     .sort-btn {
       background: none;
       border: none;

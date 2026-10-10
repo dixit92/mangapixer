@@ -37,7 +37,7 @@ import { InstallHintService } from './shared/install-hint/install-hint.service';
       right: 0;
       padding: 2px 8px;
       font-size: 11px;
-      color: rgba(255, 255, 255, 0.35);
+      color: rgb(var(--mp-ink-rgb) / 0.35);
       text-align: right;
       pointer-events: none;
       z-index: 1;

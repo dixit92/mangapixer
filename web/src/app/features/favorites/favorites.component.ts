@@ -123,36 +123,36 @@ import {
     .fav-link { text-decoration: none; color: inherit; display: block; }
     .cover {
       position: relative; aspect-ratio: 2 / 3; border-radius: 8px; overflow: hidden;
-      background: rgba(255,255,255,0.06);
+      background: rgb(var(--mp-ink-rgb) / 0.06);
       display: flex; align-items: center; justify-content: center;
     }
     .cover img { width: 100%; height: 100%; object-fit: cover; position: relative; z-index: 1; }
-    .cover-fallback { font-size: 44px; width: 44px; height: 44px; color: #777; position: absolute; z-index: 0; }
+    .cover-fallback { font-size: 44px; width: 44px; height: 44px; color: var(--mp-text-faint); position: absolute; z-index: 0; }
     .kind-badge {
       position: absolute; top: 4px; right: 4px; z-index: 2;
       display: flex; align-items: center; justify-content: center;
       width: 20px; height: 20px; border-radius: 50%;
-      background: rgba(0, 0, 0, 0.65); color: #fff;
+      background: rgb(var(--mp-shade-rgb) / 0.65); color: var(--mp-on-scrim);
     }
     .kind-badge mat-icon { font-size: 14px; width: 14px; height: 14px; line-height: 14px; }
     .fav-title {
       margin-top: 6px; font-size: 13px; font-weight: 500;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .fav-sub { font-size: 12px; color: #999; }
+    .fav-sub { font-size: 12px; color: var(--mp-text-muted); }
     /* Stack (1.27.0): the shared stacked card (app-stack-card, 1.29.0) draws the paper
        edges; the number of favorites inside sits in the top-right corner. */
     .count-badge {
       position: absolute; top: 6px; right: 6px; z-index: 2;
       font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 10px;
-      background: rgba(124, 77, 255, 0.92); color: #fff;
+      background: rgb(var(--mp-accent-strong-rgb) / 0.92); color: var(--mp-on-accent);
     }
     .load-more { display: flex; justify-content: center; margin: 24px 0; }
     .empty {
-      color: #999; padding: 48px 16px; text-align: center;
+      color: var(--mp-text-muted); padding: 48px 16px; text-align: center;
       display: flex; flex-direction: column; align-items: center; gap: 8px;
     }
-    .empty mat-icon { font-size: 40px; width: 40px; height: 40px; color: #777; }
+    .empty mat-icon { font-size: 40px; width: 40px; height: 40px; color: var(--mp-text-faint); }
   `],
 })
 export class FavoritesComponent implements OnInit, OnDestroy {

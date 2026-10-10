@@ -72,23 +72,23 @@ import { MetadataApiService } from '../../metadata-api.service';
   styles: [`
     h4 { margin: 12px 0 6px; font-size: 14px; font-weight: 500; }
     .chips { display: flex; flex-direction: column; gap: 6px; }
-    .chip { padding: 6px 4px 6px 10px; border-radius: 10px; background: rgba(179, 157, 255, 0.08); border: 1px solid rgba(179, 157, 255, 0.22); }
+    .chip { padding: 6px 4px 6px 10px; border-radius: 10px; background: rgb(var(--mp-accent-rgb) / 0.08); border: 1px solid rgb(var(--mp-accent-rgb) / 0.22); }
     .chip-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-    .globe { font-size: 18px; width: 18px; height: 18px; color: #b39dff; }
+    .globe { font-size: 18px; width: 18px; height: 18px; color: var(--mp-accent); }
     .pname { font-weight: 500; }
-    .hosts { font-size: 12px; color: #9a9aa8; font-family: monospace; overflow-wrap: anywhere; flex: 1 1 auto; }
+    .hosts { font-size: 12px; color: var(--mp-text-muted); font-family: monospace; overflow-wrap: anywhere; flex: 1 1 auto; }
     .remove { margin-left: auto; }
-    .line { display: grid; grid-template-columns: 64px 1fr; gap: 0 6px; margin: 2px 0 0 24px; font-size: 12px; color: #c8c8d4; }
-    .k { color: #9a9aa8; }
+    .line { display: grid; grid-template-columns: 64px 1fr; gap: 0 6px; margin: 2px 0 0 24px; font-size: 12px; color: var(--mp-text-secondary); }
+    .k { color: var(--mp-text-muted); }
     /* A full-width line under the card's rows (the GCD licence credit) - not the two-column label / value grid. */
-    .credit { margin: 4px 0 0 24px; font-size: 12px; color: #9a9aa8; }
+    .credit { margin: 4px 0 0 24px; font-size: 12px; color: var(--mp-text-muted); }
     .removed { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 8px; font-size: 13px; }
     .gone { display: inline-flex; align-items: center; gap: 2px; padding-left: 8px; border-radius: 10px;
-      border: 1px dashed rgba(255, 255, 255, 0.2); color: #9a9aa8; }
+      border: 1px dashed rgb(var(--mp-ink-rgb) / 0.2); color: var(--mp-text-muted); }
     .gone .pname { text-decoration: line-through; }
-    .none, .note { font-size: 12px; color: #ffb300; margin: 4px 0; }
-    .muted { color: #9a9aa8; }
-    .error { color: #f44336; font-size: 13px; }
+    .none, .note { font-size: 12px; color: var(--mp-warn-strong); margin: 4px 0; }
+    .muted { color: var(--mp-text-muted); }
+    .error { color: var(--mp-error-strong); font-size: 13px; }
     @media (max-width: 599.98px) {
       .line { display: block; margin-left: 4px; }
       .k { display: block; }

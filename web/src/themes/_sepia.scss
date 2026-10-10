@@ -1,0 +1,73 @@
+/* Sepia base theme (1.40.0 theming, lane V): `<html data-theme="sepia">` - warm paper for long reading sessions.
+ * A light theme: paper surfaces in the #f4ecd8 family, brown-black text, a brown ink (so hover fills, borders and dividers are warm,
+ * not grey) and status colours darkened until they read on paper. The root background is painted with the paper colour (the page
+ * otherwise shows the browser's white canvas), and Angular Material's neutral family (toolbar, cards, menus, dialogs, form fields) is
+ * warmed to the same paper. Scrims and text over cover art (`--mp-shade-rgb`,
+ * `--mp-on-scrim`) are the same in every theme and are not set here.
+ * The accent tokens set here are violet's (the default accent) on paper; every other accent sets its own sepia values in
+ * `_accents.scss` on `:root[data-accent=...][data-theme='sepia']`, which out-ranks this block.
+ */
+:root[data-theme='sepia'] {
+  color-scheme: light;
+  background-color: var(--mat-sys-background);
+
+  --mp-ink-rgb: 67 45 20;
+
+  --mp-text-strong: #1a1209;
+  --mp-text: #2b2117;
+  --mp-text-secondary: #45382a;
+  --mp-text-muted: #5e4f3e;
+  --mp-text-dim: #665645;
+  --mp-text-faint: #6f5f51;
+
+  --mp-surface: #f4ecd8;
+  --mp-surface-raised: #fbf6ea;
+  --mp-surface-high: #e9dfc7;
+
+  --mp-warn: #7a4c00;
+  --mp-warn-rgb: 122 76 0;
+  --mp-warn-strong: #a86e00;
+  --mp-warn-strong-rgb: 168 110 0;
+  --mp-on-warn: #000;
+  --mp-caution: #8a4b00;
+  --mp-caution-rgb: 138 75 0;
+  --mp-error: #a8231b;
+  --mp-error-strong: #c0392b;
+  --mp-error-strong-rgb: 192 57 43;
+  --mp-success: #2d652e;
+  --mp-success-rgb: 45 101 46;
+  --mp-success-soft: #2d652e;
+  --mp-success-strong: #387a3a;
+  --mp-success-strong-rgb: 56 122 58;
+  --mp-info: #1b5a96;
+  --mp-info-rgb: 27 90 150;
+  --mp-teal: #00655a;
+  --mp-teal-rgb: 0 101 90;
+
+  /* violet (the default accent) on paper: tones of today's #7c4dff (seed) - see _accents.scss for the tone rules */
+  --mp-accent: #6833ea;
+  --mp-accent-rgb: 104 51 234;
+  --mp-accent-strong: #7241f4;
+  --mp-accent-strong-rgb: 114 65 244;
+  --mp-accent-soft: #4f00d0;
+  --mp-on-accent: #fff;
+  --mp-surface-accent: #ebe0eb;
+
+  --mat-sys-background: #f4ecd8;
+  --mat-sys-on-background: #2b2117;
+  --mat-sys-surface: #f4ecd8;
+  --mat-sys-on-surface: #2b2117;
+  --mat-sys-on-surface-variant: #4f4334;
+  --mat-sys-surface-variant: #e7dbc2;
+  --mat-sys-surface-dim: #e2d6bc;
+  --mat-sys-surface-bright: #fbf6ea;
+  --mat-sys-surface-container-lowest: #fffbf2;
+  --mat-sys-surface-container-low: #f8f1e2;
+  --mat-sys-surface-container: #f0e6d0;
+  --mat-sys-surface-container-high: #ebe1ca;
+  --mat-sys-surface-container-highest: #e5dac0;
+  --mat-sys-outline: #85745e;
+  --mat-sys-outline-variant: #d4c5a9;
+  --mat-sys-inverse-surface: #3a3026;
+  --mat-sys-inverse-on-surface: #f8efe0;
+}

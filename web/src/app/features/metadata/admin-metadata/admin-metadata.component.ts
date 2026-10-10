@@ -93,12 +93,12 @@ export { ADMIN_METADATA_TABS, type AdminMetadataTab };
   styles: [`
     :host { display: block; }
     .page { max-width: 1180px; margin: 0 auto; padding-bottom: 32px; }
-    .back a { display: inline-flex; align-items: center; gap: 4px; color: #b39dff; text-decoration: none; font-size: 14px; }
+    .back a { display: inline-flex; align-items: center; gap: 4px; color: var(--mp-accent); text-decoration: none; font-size: 14px; }
     .back mat-icon { font-size: 18px; width: 18px; height: 18px; }
     .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; margin: 8px 0 4px; }
     h1 { font-size: 24px; font-weight: 500; margin: 0; }
     .tab { padding: 16px 2px 0; }
-    .count { margin-left: 6px; font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 9px; background: #7c4dff; color: #fff;
+    .count { margin-left: 6px; font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 9px; background: var(--mp-accent-strong); color: var(--mp-on-accent);
       line-height: 18px; }
     @media (max-width: 599.98px) {
       h1 { font-size: 20px; }

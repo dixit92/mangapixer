@@ -2090,6 +2090,9 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Accent")
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("AlwaysOpenReadFromStart")
                         .HasColumnType("INTEGER");
 
@@ -2147,6 +2150,9 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("StackViewMode")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Theme")
                         .HasColumnType("TEXT");
 
                     b.Property<long>("UserId")

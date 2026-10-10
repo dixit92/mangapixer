@@ -19,8 +19,8 @@ import { ListCreditDto } from '../core/api/api-types';
   `,
   styles: [`
     :host { display: block; }
-    .list-credit { color: #8a8a99; font-size: 12px; overflow-wrap: anywhere; }
-    .list-credit a { color: #b39dff; }
+    .list-credit { color: var(--mp-text-dim); font-size: 12px; overflow-wrap: anywhere; }
+    .list-credit a { color: var(--mp-accent); }
   `],
 })
 export class ListCreditComponent {

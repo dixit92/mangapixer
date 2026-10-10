@@ -38,13 +38,13 @@ import {
       max-width: 100%; }
     .chip span { overflow-wrap: anywhere; }
     mat-icon { font-size: 16px; width: 16px; height: 16px; flex: none; }
-    .HaveItAll { background: rgba(129, 199, 132, 0.16); color: #a5d6a7; }
-    .FinishedMissing { background: rgba(255, 183, 77, 0.16); color: #ffcc80; }
-    .UpToDate { background: rgba(100, 181, 246, 0.16); color: #90caf9; }
-    .MissingSome { background: rgba(239, 83, 80, 0.16); color: #ef9a9a; }
-    .CantTell { background: rgba(255, 255, 255, 0.08); color: #b0b0bc; }
-    .edition { border: 1px solid rgba(255, 255, 255, 0.18); color: #c8c8d4; line-height: 18px; }
-    .upgrade { background: rgba(179, 157, 255, 0.16); color: #b39dff; }
+    .HaveItAll { background: rgb(var(--mp-success-rgb) / 0.16); color: var(--mp-success-soft); }
+    .FinishedMissing { background: rgb(var(--mp-caution-rgb) / 0.16); color: var(--mp-warn); }
+    .UpToDate { background: rgb(var(--mp-info-rgb) / 0.16); color: var(--mp-info); }
+    .MissingSome { background: rgb(var(--mp-error-strong-rgb) / 0.16); color: var(--mp-error); }
+    .CantTell { background: rgb(var(--mp-ink-rgb) / 0.08); color: var(--mp-text-muted); }
+    .edition { border: 1px solid rgb(var(--mp-ink-rgb) / 0.18); color: var(--mp-text-secondary); line-height: 18px; }
+    .upgrade { background: rgb(var(--mp-accent-rgb) / 0.16); color: var(--mp-accent); }
   `],
 })
 export class SeriesAnswerChipComponent {

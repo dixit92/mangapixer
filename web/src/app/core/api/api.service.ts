@@ -99,6 +99,7 @@ import {
   UpdateUserRequest,
   UserGrantsDto,
   UserPreferencesDto,
+  AppearancePreferencesDto,
 } from './api-types';
 
 /**
@@ -336,6 +337,11 @@ export class ApiService {
 
   setPreferences(request: UserPreferencesDto): Observable<void> {
     return this.put<void>('/reading/preferences', request);
+  }
+
+  /** Stores the user's base theme and / or accent (1.40.0); a missing field keeps the stored value. */
+  setAppearance(request: AppearancePreferencesDto): Observable<void> {
+    return this.put<void>('/reading/preferences/appearance', request);
   }
 
   /** Resolved effective default reader mode for an item (1.2.0). */

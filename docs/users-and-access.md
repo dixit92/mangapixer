@@ -83,6 +83,7 @@ Things to know:
 Settings saved to **your account** follow you to every device:
 
 - **Settings** page:
+  - **Appearance**: the theme and the accent colour (see [Appearance](#appearance))
   - **Always open read archives from the start** (**Reading** card)
   - **Private Libraries**
   - **New Chapters**: how many **Days** count as new (default 30, 1–365) and which libraries contribute to the home row (**Show new chapters from**)
@@ -105,6 +106,23 @@ Settings saved **in the current browser only**:
 - Incognito (per tab)
 
 See [Reader](reader.md) for what each reader setting does.
+
+### Appearance
+
+**Settings** > **Appearance** sets how MangaPixer looks for your account. A choice applies at once and follows you to every
+device you sign in on; other users keep their own.
+
+- **Theme**: **Dark** (the default), **Light**, **Black** (true black, for OLED screens), **Sepia** (warm paper) or **System**,
+  which follows your device's light or dark setting and switches with it while the app is open. Each choice shows a small
+  preview.
+- **Accent**: the colour of buttons, selections and highlights - violet (the default), blue, teal, green, amber or rose.
+
+The reader follows the theme too: its toolbars, menus and the area around the page take the theme's colours (the page image
+itself is never changed).
+
+Each browser also keeps a copy of your last choice, so the app opens in the right theme straight away, and the sign-in page
+shows the theme last used on that device. If a reverse proxy in front of MangaPixer adds a `Content-Security-Policy` that
+forbids inline scripts, the app still applies your theme, only a moment after it opens.
 
 ## Sessions and security
 

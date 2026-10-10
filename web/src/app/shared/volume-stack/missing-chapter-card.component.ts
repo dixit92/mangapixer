@@ -26,9 +26,9 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
     :host { display: block; }
     .missing {
       aspect-ratio: 2 / 3; border-radius: 8px; box-sizing: border-box;
-      border: 2px dashed rgba(255, 255, 255, 0.22); background: rgba(255, 255, 255, 0.03);
+      border: 2px dashed rgb(var(--mp-ink-rgb) / 0.22); background: rgb(var(--mp-ink-rgb) / 0.03);
       display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
-      color: #8a8a99; cursor: default; user-select: none;
+      color: var(--mp-text-dim); cursor: default; user-select: none;
     }
     .num { font-size: 20px; font-weight: 600; text-align: center; }
     .tag { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }

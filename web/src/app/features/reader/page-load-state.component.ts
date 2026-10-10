@@ -47,12 +47,13 @@ export const slowLoadDelayMs = 3000;
     :host {
       display: inline-flex; align-items: center; gap: 10px;
       padding: 8px; border-radius: 999px;
-      background: rgba(0, 0, 0, 0.6); color: rgba(255, 255, 255, 0.92);
+      background: rgb(var(--mp-shade-rgb) / 0.6); color: color-mix(in srgb, var(--mp-on-scrim) 92%, transparent);
       font-size: 14px; line-height: 20px; pointer-events: none;
     }
     .ring {
       width: 20px; height: 20px; box-sizing: border-box; flex: none; border-radius: 50%;
-      border: 3px solid rgba(255, 255, 255, 0.28); border-top-color: rgba(255, 255, 255, 0.92);
+      border: 3px solid color-mix(in srgb, var(--mp-on-scrim) 28%, transparent);
+      border-top-color: color-mix(in srgb, var(--mp-on-scrim) 92%, transparent);
       animation: mp-page-load-spin 0.9s linear infinite;
     }
     .text { padding-right: 6px; }
@@ -146,10 +147,10 @@ function observeVisibility(el: Element, listener: (visible: boolean) => void): (
     .retry {
       pointer-events: auto; cursor: pointer; font: inherit; font-size: 14px; line-height: 20px; text-align: left;
       display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px;
-      border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.35);
-      background: rgba(0, 0, 0, 0.7); color: rgba(255, 255, 255, 0.92);
+      border-radius: 12px; border: 1px solid color-mix(in srgb, var(--mp-on-scrim) 35%, transparent);
+      background: rgb(var(--mp-shade-rgb) / 0.7); color: color-mix(in srgb, var(--mp-on-scrim) 92%, transparent);
     }
-    .retry:focus-visible { outline: 2px solid #b39dff; outline-offset: 2px; }
+    .retry:focus-visible { outline: 2px solid var(--mp-accent); outline-offset: 2px; }
     .retry mat-icon { flex: none; }
     .hint { opacity: 0.75; }
   `,

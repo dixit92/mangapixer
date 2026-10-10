@@ -879,11 +879,15 @@ public sealed class ReadingStateService
             ReducedMotion = prefs.ReducedMotion,
             PreferredBackground = prefs.PreferredBackground,
             AlwaysOpenReadFromStart = prefs.AlwaysOpenReadFromStart,
+            Theme = ThemeVocabulary.IsBase(prefs.Theme) ? prefs.Theme! : ThemeVocabulary.DefaultBase,
+            Accent = ThemeVocabulary.IsAccent(prefs.Accent) ? prefs.Accent! : ThemeVocabulary.DefaultAccent,
         };
     }
 
     /// <summary>
-    /// Updates reader preferences for a user. Creates if not exists.
+    /// Updates reader preferences for a user. Creates if not exists. The appearance fields (<see cref="UserPreferencesDto.Theme"/>,
+    /// <see cref="UserPreferencesDto.Accent"/>) are NOT written here (1.40.0): clients PUT back the whole DTO they loaded, so a
+    /// stale copy would reset a theme chosen meanwhile; <see cref="SetAppearanceAsync"/> writes them.
     /// </summary>
     public async Task SetPreferencesAsync(
         long userId,
@@ -915,6 +919,39 @@ public sealed class ReadingStateService
         }
 
         await _db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Stores the user's base theme and / or accent (1.40.0). A null field keeps the stored value. Returns false (nothing
+    /// written) when a given value is not in <see cref="ThemeVocabulary"/>. Creates the preferences row if absent, touching only
+    /// the two appearance columns.
+    /// </summary>
+    public async Task<bool> SetAppearanceAsync(
+        long userId,
+        AppearancePreferencesDto appearance,
+        CancellationToken ct = default)
+    {
+        if ((appearance.Theme is not null && !ThemeVocabulary.IsBase(appearance.Theme))
+            || (appearance.Accent is not null && !ThemeVocabulary.IsAccent(appearance.Accent)))
+        {
+            return false;
+        }
+
+        var prefs = await _db.ReaderPreferences
+            .FirstOrDefaultAsync(p => p.UserId == userId, ct);
+        if (prefs is null)
+        {
+            prefs = new ReaderPreferencesEntity { UserId = userId };
+            _db.ReaderPreferences.Add(prefs);
+        }
+
+        if (appearance.Theme is not null)
+            prefs.Theme = appearance.Theme;
+        if (appearance.Accent is not null)
+            prefs.Accent = appearance.Accent;
+
+        await _db.SaveChangesAsync(ct);
+        return true;
     }
 
     /// <summary>

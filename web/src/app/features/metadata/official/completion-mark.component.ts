@@ -28,8 +28,8 @@ import { answerOf, answerSentence, completionMarkLabel } from '../progress/serie
     .mark { display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; border-radius: 10px; font-size: 12px; line-height: 20px;
       max-width: 100%; }
     .mark span { overflow-wrap: anywhere; }
-    .complete { background: rgba(129, 199, 132, 0.16); color: #a5d6a7; }
-    .prompt { background: rgba(255, 183, 77, 0.16); color: #ffcc80; }
+    .complete { background: rgb(var(--mp-success-rgb) / 0.16); color: var(--mp-success-soft); }
+    .prompt { background: rgb(var(--mp-caution-rgb) / 0.16); color: var(--mp-warn); }
     mat-icon { font-size: 16px; width: 16px; height: 16px; flex: none; }
   `],
 })

@@ -45,7 +45,7 @@ export function cadenceLine(c: SeriesRefreshCadenceDto, nowMs: number): string {
   template: `
     @if (line(); as l) { <p class="cadence" data-testid="series-refresh-cadence">{{ l }}</p> }
   `,
-  styles: [`.cadence { color: #999; font-size: 13px; margin: 4px 0; }`],
+  styles: [`.cadence { color: var(--mp-text-muted); font-size: 13px; margin: 4px 0; }`],
 })
 export class SeriesRefreshCadenceComponent {
   private readonly api = inject(ApiService);

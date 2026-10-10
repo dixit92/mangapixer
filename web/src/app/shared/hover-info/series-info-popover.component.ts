@@ -29,9 +29,9 @@ import { SeriesInfoSummaryComponent } from '../../features/metadata/series-info-
       display: block; box-sizing: border-box;
       width: 340px; max-width: calc(100vw - 16px); max-height: min(440px, calc(100vh - 16px));
       overflow: auto; padding: 12px 14px;
-      background: #1e1e28; color: #e6e6ee;
-      border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      background: var(--mp-surface-raised); color: var(--mp-text);
+      border: 1px solid rgb(var(--mp-ink-rgb) / 0.1); border-radius: 8px;
+      box-shadow: 0 8px 24px rgb(var(--mp-shade-rgb) / 0.5);
     }
     :host ::ng-deep .title { font-size: 16px; }
     :host ::ng-deep .poster { width: 72px; height: 102px; }

@@ -153,11 +153,11 @@ import { ARTIST_FOLDER_TIP, artistFolderLabel, artistFolderResultMessage } from 
   styles: [`
     :host { display: inline-flex; }
     button mat-icon { margin-right: 4px; }
-    .why { display: block; max-width: 240px; padding: 0 16px 6px 56px; font-size: 12px; color: #9a9aa8; }
-    .suggest { margin-left: 8px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #ffcc80; }
+    .why { display: block; max-width: 240px; padding: 0 16px 6px 56px; font-size: 12px; color: var(--mp-text-muted); }
+    .suggest { margin-left: 8px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--mp-warn); }
     .caption {
       display: block; padding: 6px 16px 2px; font-size: 11px; font-weight: 600;
-      text-transform: uppercase; letter-spacing: 0.5px; color: #8a8a99;
+      text-transform: uppercase; letter-spacing: 0.5px; color: var(--mp-text-dim);
     }
   `],
 })

@@ -308,9 +308,9 @@ export const LAYOUT_OPTIONS: readonly ReaderOption<LayoutChoice>[] = [
     /* Selected-state highlight (1.10.0): the panel renders in a CDK overlay, so
        the rule is scoped via the reader-options-menu panel class and reaches the
        projected items with ::ng-deep. Same values as the 1.8.1 View menu. */
-    ::ng-deep .reader-options-menu .selected-option { background: rgba(124, 77, 255, 0.16); }
+    ::ng-deep .reader-options-menu .selected-option { background: rgb(var(--mp-accent-strong-rgb) / 0.16); }
     ::ng-deep .reader-options-menu .selected-option,
-    ::ng-deep .reader-options-menu .selected-option .mat-icon { color: #b39dff; }
+    ::ng-deep .reader-options-menu .selected-option .mat-icon { color: var(--mp-accent); }
     /* 1.19.0: the Upscaling menu carries two radio groups, so each needs a small
        caption, plus a one-line hint for why Enhance may be unavailable. */
     ::ng-deep .reader-options-menu .menu-group-label {
@@ -706,8 +706,8 @@ export interface ReaderOptionsHost {
       padding: 0 0 env(safe-area-inset-bottom, 0);
       border-top-left-radius: 20px; border-top-right-radius: 20px;
       max-height: 88vh;
-      background: var(--mat-sys-surface-container-high, #1e1e23);
-      color: var(--mat-sys-on-surface, #eee);
+      background: var(--mat-sys-surface-container-high);
+      color: var(--mat-sys-on-surface);
     }
     @media (prefers-reduced-motion: reduce) {
       /* Keep the enter/exit keyframes (the container waits on their events) but
@@ -718,7 +718,7 @@ export interface ReaderOptionsHost {
     .sheet { display: flex; flex-direction: column; gap: 14px; padding: 6px 16px 10px; }
     .grabber {
       width: 36px; height: 4px; border-radius: 2px; margin: 2px auto 0;
-      background: var(--mat-sys-outline-variant, rgba(255, 255, 255, 0.25));
+      background: var(--mat-sys-outline-variant);
     }
     .sheet-head { display: flex; align-items: center; justify-content: space-between; min-height: 40px; }
     .sheet-head h2 { margin: 0; font-size: 17px; font-weight: 500; line-height: 24px; }
@@ -727,32 +727,32 @@ export interface ReaderOptionsHost {
     .group-label {
       display: flex; align-items: baseline; justify-content: space-between; margin: 0;
       font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;
-      color: var(--mat-sys-on-surface-variant, #8a8a99);
+      color: var(--mat-sys-on-surface-variant);
     }
     .group-label .value { font-variant-numeric: tabular-nums; text-transform: none; letter-spacing: 0; font-weight: 500; }
     .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-    .note { margin: 0; font-size: 12px; line-height: 16px; color: var(--mat-sys-on-surface-variant, #8a8a99); }
+    .note { margin: 0; font-size: 12px; line-height: 16px; color: var(--mat-sys-on-surface-variant); }
     /* Same look as .note, but a separate class: .note is the narrow-portrait
        double-page explanation and a test asserts it is absent everywhere else. */
-    .group-hint { margin: 0; font-size: 12px; line-height: 16px; color: var(--mat-sys-on-surface-variant, #8a8a99); }
+    .group-hint { margin: 0; font-size: 12px; line-height: 16px; color: var(--mat-sys-on-surface-variant); }
     .hint-tap { display: block; padding: 0; background: none; border: 0; font-family: inherit; text-align: left; cursor: default; }
     /* Chips: 44px touch targets, the option's own glyph, and the accent highlight
        (not a tick) for the selected one. */
     .chip {
       display: inline-flex; align-items: center; gap: 6px;
       min-height: 44px; padding: 0 14px 0 12px; border-radius: 12px;
-      border: 1px solid var(--mat-sys-outline-variant, rgba(255, 255, 255, 0.22));
+      border: 1px solid var(--mat-sys-outline-variant);
       background: transparent; color: inherit; cursor: pointer;
       font: inherit; font-size: 14px; font-weight: 500; line-height: 20px;
       -webkit-tap-highlight-color: transparent;
       transition: background-color .15s ease, border-color .15s ease, color .15s ease;
     }
     .chip mat-icon { font-size: 20px; width: 20px; height: 20px; }
-    .chip.selected { background: var(--mp-accent-bg, rgba(124, 77, 255, 0.18)); color: var(--mp-accent, #b39dff); border-color: transparent; }
-    .chip:focus-visible { outline: 2px solid var(--mp-accent, #b39dff); outline-offset: 2px; }
+    .chip.selected { background: var(--mp-accent-bg); color: var(--mp-accent); border-color: transparent; }
+    .chip:focus-visible { outline: 2px solid var(--mp-accent); outline-offset: 2px; }
     .chip:disabled { opacity: 0.4; cursor: default; }
     @media (hover: hover) {
-      .chip:hover:not(.selected) { background: var(--mat-sys-surface-container-highest, rgba(255, 255, 255, 0.08)); }
+      .chip:hover:not(.selected) { background: var(--mat-sys-surface-container-highest); }
     }
     .width-slider { width: 100%; margin: 0; }
     /* Three equal icon-over-label tiles: fits a 320px screen without wrapping. */

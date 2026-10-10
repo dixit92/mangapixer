@@ -39,6 +39,8 @@ Everything MangaPixer does today, by area. The [README](../README.md) has the sh
 - Each user has their own progress, read marks and "Continue reading" row. You can dismiss items from the row, and finished ones hide automatically.
 - A "Start reading" / continue shortcut on each folder that opens the next unread item.
 - Optional "always open read items from the start" preference.
+- *New in 1.40.0:* **Themes** - each user picks **Dark** (the default), **Light**, **Black** (true black for OLED), **Sepia** or **System** (follows the device), and an accent colour, in **Settings** > **Appearance**; the choice follows the user to every device (see [Appearance](users-and-access.md#appearance)).
+- *New in 1.40.0:* a volume file that replaces its chapter files keeps their read state (see [Rescans, moves and deletions](library-layout.md#rescans-moves-and-deletions)).
 
 ## Home
 

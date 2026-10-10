@@ -1,0 +1,200 @@
+/* Accents (1.40.0 theming, lane V). `<html data-accent="...">` picks the brand / selection colour on top of any base theme.
+ *
+ * - `violet` is the accent the app always had: its dark values are the `:root` defaults in styles.scss and its light values are the
+ *   light base's own, so violet needs no rule here except on sepia (below, inside the sepia base's own block - see `_sepia.scss`).
+ * - Every other accent sets the seven `--mp-accent*` tokens three times: for the dark family (`dark`, `black`) on
+ *   `:root[data-accent=...]`, and for `light` and `sepia` on `:root[data-accent=...][data-theme=...]`. The light-family rules carry one
+ *   more attribute than the base blocks (`:root[data-theme=...]`), so they win whatever order the CSS is in.
+ * - Angular Material's primary and secondary families follow the accent through `_material-accent` (filled / tonal buttons, toggles,
+ *   checkboxes, focus rings, progress, tabs, chips). `mat.theme()` is included ONCE (styles.scss); including it per accent would emit
+ *   every `--mat-sys-*` variable again. The overrides use Material's own tone mapping (`core/tokens/m3/_md-sys-color.scss`) as
+ *   `light-dark(<light>, <dark>)` pairs, exactly like the variables `mat.theme()` emits, so they follow `color-scheme` on every base.
+ *   Tertiary (cyan), neutral surfaces and error stay as the base theme sets them.
+ *
+ * Values: each accent's palettes are the ones `ng generate @angular/material:theme-color --primary-color=<seed>` builds (primary from
+ * the seed; secondary at the seed's hue with lower chroma). The `--mp-*` values are tones of that primary palette (HCT tone ~ L*, so a
+ * tone has the same contrast for every hue):
+ *   dark family  accent t80 (~10:1 on the dark surfaces), soft t90, strong t48 (white on it ~4.8:1, like violet's #7c4dff), on-accent
+ *                white - except amber, whose strong is t75 with dark text (t10) on it: an amber fill at t48 is brown;
+ *   light        accent t40 (~6:1), soft t30, strong t46 (white on it >= 4.6:1, and >= 4.5:1 as text on the light surface);
+ *   sepia        accent t40 (~5.5:1 on paper), soft t30, strong t44 (>= 4.5:1 as text on paper);
+ *   surface-accent = strong mixed into the base surface (8% dark - violet's #1c1730 is ~8%; 6% amber; 12% light / sepia).
+ * The contrast table for every base x accent is in the lane note (Theme Variants and Accents, 1.40.0).
+ */
+@use 'sass:map';
+
+/// Angular Material's primary + secondary system colours from two tone maps (keys 20, 30, 40, 80, 90, 100). Only the variables
+/// Material 22's components read in this app are overridden (checked in the built bundle: primary, on-primary, primary-container,
+/// on-primary-container, inverse-primary, secondary-container, on-secondary-container) plus secondary / on-secondary; the `*-fixed`
+/// colours and surface-tint are left at violet's values (nothing paints with them) to keep the initial bundle small.
+@mixin _material-accent($p, $s) {
+  --mat-sys-primary: light-dark(#{map.get($p, 40)}, #{map.get($p, 80)});
+  --mat-sys-on-primary: light-dark(#{map.get($p, 100)}, #{map.get($p, 20)});
+  --mat-sys-primary-container: light-dark(#{map.get($p, 90)}, #{map.get($p, 30)});
+  --mat-sys-on-primary-container: light-dark(#{map.get($p, 30)}, #{map.get($p, 90)});
+  --mat-sys-inverse-primary: light-dark(#{map.get($p, 80)}, #{map.get($p, 40)});
+  --mat-sys-secondary: light-dark(#{map.get($s, 40)}, #{map.get($s, 80)});
+  --mat-sys-on-secondary: light-dark(#{map.get($s, 100)}, #{map.get($s, 20)});
+  --mat-sys-secondary-container: light-dark(#{map.get($s, 90)}, #{map.get($s, 30)});
+  --mat-sys-on-secondary-container: light-dark(#{map.get($s, 30)}, #{map.get($s, 90)});
+}
+
+// ---- blue: seed #2196f3 (Material Blue 500)
+$_blue-primary: (20: #003258, 30: #00497d, 40: #0061a4, 80: #9ecaff, 90: #d1e4ff, 100: #ffffff);
+$_blue-secondary: (20: #0c3253, 30: #28496b, 40: #416084, 80: #a9c9f2, 90: #d1e4ff, 100: #ffffff);
+:root[data-accent='blue'] {
+  @include _material-accent($_blue-primary, $_blue-secondary);
+  --mp-accent: #9ecaff;
+  --mp-accent-rgb: 158 202 255;
+  --mp-accent-strong: #0075c4;
+  --mp-accent-strong-rgb: 0 117 196;
+  --mp-accent-soft: #d1e4ff;
+  --mp-on-accent: #ffffff;
+  --mp-surface-accent: #121c29;
+}
+:root[data-accent='blue'][data-theme='light'] {
+  --mp-accent: #0061a4;
+  --mp-accent-rgb: 0 97 164;
+  --mp-accent-strong: #0070bc;
+  --mp-accent-strong-rgb: 0 112 188;
+  --mp-accent-soft: #00497d;
+  --mp-on-accent: #ffffff;
+  --mp-surface-accent: #e0eef7;
+}
+:root[data-accent='blue'][data-theme='sepia'] {
+  --mp-accent: #0061a4;
+  --mp-accent-rgb: 0 97 164;
+  --mp-accent-strong: #006bb4;
+  --mp-accent-strong-rgb: 0 107 180;
+  --mp-accent-soft: #00497d;
+  --mp-on-accent: #ffffff;
+  --mp-surface-accent: #dde5e4;
+}
+
+// ---- teal: seed #009688 (Material Teal 500)
+$_teal-primary: (20: #003731, 30: #005048, 40: #006a60, 80: #67d9c9, 90: #85f6e5, 100: #ffffff);
+$_teal-secondary: (20: #0c3731, 30: #264d48, 40: #3e655f, 80: #a5cfc7, 90: #c1ebe3, 100: #ffffff);
+:root[data-accent='teal'] {
+  @include _material-accent($_teal-primary, $_teal-secondary);
+  --mp-accent: #67d9c9;
+  --mp-accent-rgb: 103 217 201;
+  --mp-accent-strong: #008074;
+  --mp-accent-strong-rgb: 0 128 116;
+  --mp-accent-soft: #85f6e5;
+  --mp-on-accent: #ffffff;
+  --mp-surface-accent: #121d23;
+}
+:root[data-accent='teal'][data-theme='light'] {
+  --mp-accent: #006a60;
+  --mp-accent-rgb: 0 106 96;
+  --mp-accent-strong: #007b6f;
+  --mp-accent-strong-rgb: 0 123 111;
+  --mp-accent-soft: #005048;
+  --mp-on-accent: #ffffff;
+  --mp-surface-accent: #e0efee;
+}
+:root[data-accent='teal'][data-theme='sepia'] {
+  --mp-accent: #006a60;
+  --mp-accent-rgb: 0 106 96;
+  --mp-accent-strong: #00756a;
+  --mp-accent-strong-rgb: 0 117 106;
+  --mp-accent-soft: #005048;
+  --mp-on-accent: #ffffff;
+  --mp-surface-accent: #dde7db;
+}
+
+// ---- green: seed #43a047 (Material Green 600)
+$_green-primary: (20: #00390a, 30: #005313, 40: #006e1c, 80: #7ddc7a, 90: #98f994, 100: #ffffff);
+$_green-secondary: (20: #163716, 30: #2d4e2b, 40: #446741, 80: #aad1a2, 90: #c5edbd, 100: #ffffff);
+:root[data-accent='green'] {
+  @include _material-accent($_green-primary, $_green-secondary);
+  --mp-accent: #7ddc7a;
+  --mp-accent-rgb: 125 220 122;
+  --mp-accent-strong: #23832e;
+  --mp-accent-strong-rgb: 35 131 46;
+  --mp-accent-soft: #98f994;
+  --mp-on-accent: #ffffff;
+  --mp-surface-accent: #151d1d;
+}
+:root[data-accent='green'][data-theme='light'] {
+  --mp-accent: #006e1c;
+  --mp-accent-rgb: 0 110 28;
+  --mp-accent-strong: #1c7e29;
+  --mp-accent-strong-rgb: 28 126 41;
+  --mp-accent-soft: #005313;
+  --mp-on-accent: #ffffff;
+  --mp-surface-accent: #e4f0e5;
+}
+:root[data-accent='green'][data-theme='sepia'] {
+  --mp-accent: #006e1c;
+  --mp-accent-rgb: 0 110 28;
+  --mp-accent-strong: #147925;
+  --mp-accent-strong-rgb: 20 121 37;
+  --mp-accent-soft: #005313;
+  --mp-on-accent: #ffffff;
+  --mp-surface-accent: #dfe7d2;
+}
+
+// ---- amber: seed #ffb300 (Material Amber 600)
+$_amber-primary: (20: #432c00, 30: #604100, 40: #7e5700, 80: #ffba38, 90: #ffdeac, 100: #ffffff);
+$_amber-secondary: (20: #432c00, 30: #5e4109, 40: #795920, 80: #eac07d, 90: #ffdeac, 100: #ffffff);
+:root[data-accent='amber'] {
+  @include _material-accent($_amber-primary, $_amber-secondary);
+  --mp-accent: #ffba38;
+  --mp-accent-rgb: 255 186 56;
+  --mp-accent-strong: #f4ab00;
+  --mp-accent-strong-rgb: 244 171 0;
+  --mp-accent-soft: #ffdeac;
+  --mp-on-accent: #281900;
+  --mp-surface-accent: #211d1a;
+}
+:root[data-accent='amber'][data-theme='light'] {
+  --mp-accent: #7e5700;
+  --mp-accent-rgb: 126 87 0;
+  --mp-accent-strong: #916500;
+  --mp-accent-strong-rgb: 145 101 0;
+  --mp-accent-soft: #604100;
+  --mp-on-accent: #ffffff;
+  --mp-surface-accent: #f2ede0;
+}
+:root[data-accent='amber'][data-theme='sepia'] {
+  --mp-accent: #7e5700;
+  --mp-accent-rgb: 126 87 0;
+  --mp-accent-strong: #8b6000;
+  --mp-accent-strong-rgb: 139 96 0;
+  --mp-accent-soft: #604100;
+  --mp-on-accent: #ffffff;
+  --mp-surface-accent: #eee4ce;
+}
+
+// ---- rose: seed #e91e63 (Material Pink 500)
+$_rose-primary: (20: #660025, 30: #900038, 40: #bc004b, 80: #ffb2be, 90: #ffd9de, 100: #ffffff);
+$_rose-secondary: (20: #660025, 30: #871a3a, 40: #a73451, 80: #ffb2be, 90: #ffd9de, 100: #ffffff);
+:root[data-accent='rose'] {
+  @include _material-accent($_rose-primary, $_rose-secondary);
+  --mp-accent: #ffb2be;
+  --mp-accent-rgb: 255 178 190;
+  --mp-accent-strong: #df115c;
+  --mp-accent-strong-rgb: 223 17 92;
+  --mp-accent-soft: #ffd9de;
+  --mp-on-accent: #ffffff;
+  --mp-surface-accent: #241421;
+}
+:root[data-accent='rose'][data-theme='light'] {
+  --mp-accent: #bc004b;
+  --mp-accent-rgb: 188 0 75;
+  --mp-accent-strong: #d70357;
+  --mp-accent-strong-rgb: 215 3 87;
+  --mp-accent-soft: #900038;
+  --mp-on-accent: #ffffff;
+  --mp-surface-accent: #fae1eb;
+}
+:root[data-accent='rose'][data-theme='sepia'] {
+  --mp-accent: #bc004b;
+  --mp-accent-rgb: 188 0 75;
+  --mp-accent-strong: #cf0053;
+  --mp-accent-strong-rgb: 207 0 83;
+  --mp-accent-soft: #900038;
+  --mp-on-accent: #ffffff;
+  --mp-surface-accent: #f6d8d8;
+}
