@@ -361,7 +361,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                Styled inline to stay within the component CSS budget. -->
           <div class="webtoon-end"
                style="width:100%; box-sizing:border-box; display:flex; flex-direction:column;
-                      align-items:center; gap:14px; padding:40px 16px 64px; color:#ccc; text-align:center;">
+                      align-items:center; gap:14px; padding:40px 16px 64px; color:var(--mp-reader-text-muted); text-align:center;">
             <button mat-stroked-button (click)="prevChapter()" [disabled]="!hasPrevChapter()"
                     style="min-width:200px;">
               <mat-icon>skip_previous</mat-icon> Previous archive
@@ -570,13 +570,13 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     .reader-container {
       display: flex; flex-direction: column;
       position: fixed; inset: 0;
-      background: #101012; z-index: 1000;
+      background: var(--mp-reader-backdrop); z-index: 1000;
     }
     .reader-top {
       flex-shrink: 0;
       transition: transform .2s ease, opacity .2s ease;
     }
-    .reader-toolbar { background: #1c1c1f; color: #eee; }
+    .reader-toolbar { background: var(--mp-reader-chrome); color: var(--mp-reader-text); }
     /* Immersive (fullscreen only): the top chrome (toolbar + name row) OVERLAYS the viewport so
        hiding it frees the whole screen. Windowed reading keeps it in normal flow above the
        page, always visible. */
@@ -589,7 +589,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     .page-info { margin-left: 8px; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .spacer { flex: 1 1 auto; }
     /* The archive's name (wide screens): left, right after the page counter and a thin separator; one line. */
-    .name-sep { flex: 0 0 1px; align-self: center; height: 18px; margin: 0 12px; background: rgba(255, 255, 255, 0.3); }
+    .name-sep { flex: 0 0 1px; align-self: center; height: 18px; margin: 0 12px; background: rgb(var(--mp-ink-rgb) / 0.3); }
     .archive-name {
       flex: 0 1 auto; min-width: 0; margin-right: 12px; text-align: left;
       font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -598,9 +598,9 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     .reader-name-row {
       box-sizing: border-box; height: 28px; line-height: 28px;
       padding: 0 max(16px, env(safe-area-inset-left, 0px)) 0 max(16px, env(safe-area-inset-right, 0px));
-      background: #1c1c1f; color: #ccc; font-size: 13px; text-align: left;
+      background: var(--mp-reader-chrome); color: var(--mp-reader-text-muted); font-size: 13px; text-align: left;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      border-top: 1px solid rgb(var(--mp-ink-rgb) / 0.08);
     }
     /* Chapter arrows (1.17.0): the glyph implies a direction (skip_previous
        points left / skip_next points right), so it is mirrored when the reading
@@ -608,20 +608,20 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
        tint the reader's other "differs from default" indicators use, so the
        mismatch from the LTR default is visible at a glance. */
     .chapter-arrow.direction-mirrored mat-icon { transform: scaleX(-1); }
-    .chapter-arrow.direction-mirrored { color: #b39dff; }
+    .chapter-arrow.direction-mirrored { color: var(--mp-accent); }
     /* Reader menus' selected-state (1.10.0, F4): accent highlight instead of a
        checkmark, same values as the 1.8.1 browse View menu. The panels render in
        a CDK overlay, so the rules are scoped via the reader-options-menu panel
        class and reach the projected items with ::ng-deep. */
-    ::ng-deep .reader-options-menu .selected-option { background: rgba(124, 77, 255, 0.16); }
+    ::ng-deep .reader-options-menu .selected-option { background: rgb(var(--mp-accent-strong-rgb) / 0.16); }
     ::ng-deep .reader-options-menu .selected-option,
-    ::ng-deep .reader-options-menu .selected-option .mat-icon { color: #b39dff; }
+    ::ng-deep .reader-options-menu .selected-option .mat-icon { color: var(--mp-accent); }
     .status {
       flex: 1; display: flex; flex-direction: column;
       align-items: center; justify-content: center; gap: 16px;
-      color: #ccc; text-align: center; padding: 24px;
+      color: var(--mp-reader-text-muted); text-align: center; padding: 24px;
     }
-    .status.error mat-icon { font-size: 48px; width: 48px; height: 48px; color: #f4756a; }
+    .status.error mat-icon { font-size: 48px; width: 48px; height: 48px; color: var(--mp-error); }
     .reader-viewport {
       flex: 1; min-height: 0; position: relative; overflow: auto;
       display: flex;
@@ -698,7 +698,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     /* height:auto + the per-page aspect-ratio (set inline from the manifest) reserves
        each page's box before it lazy-loads; the faint background makes the reserved
        placeholder visible while the image streams in. */
-    .webtoon-page { height: auto; display: block; max-width: 100%; background: rgba(255, 255, 255, 0.04); }
+    .webtoon-page { height: auto; display: block; max-width: 100%; background: rgb(var(--mp-ink-rgb) / 0.04); }
     .width-slider { width: 140px; }
     .slider-icon { opacity: 0.7; margin-right: 2px; }
     .edge {
@@ -727,13 +727,13 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     .reader-nav {
       flex-shrink: 0; display: flex; align-items: center; gap: 6px;
       height: 48px; padding: 0 10px env(safe-area-inset-bottom, 0);
-      background: #1c1c1f; color: #ddd; z-index: 1001;
+      background: var(--mp-reader-chrome); color: var(--mp-reader-text-secondary); z-index: 1001;
       transition: transform .2s ease, opacity .2s ease;
     }
     .reader-nav.immersive { position: absolute; left: 0; right: 0; bottom: 0; }
     .reader-nav.immersive.chrome-hidden { transform: translateY(100%); opacity: 0; pointer-events: none; }
     /* Help overlay spotlight: keep the bar above the dimmed backdrop. */
-    .reader-nav.help-lit { z-index: 1004; box-shadow: 0 0 0 2px #7c4dff; }
+    .reader-nav.help-lit { z-index: 1004; box-shadow: 0 0 0 2px var(--mp-accent-strong); }
     .nav-end { min-width: 2.2em; text-align: center; font-size: 13px; font-variant-numeric: tabular-nums; opacity: .8; }
     /* The slider: a 44px-tall hit area (touch friendly) around a 6px track and a
        22px thumb; touch-action:none so the drag is never taken by native scroll. */
@@ -741,34 +741,34 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
       position: relative; flex: 1; height: 44px; cursor: pointer;
       touch-action: none; -webkit-tap-highlight-color: transparent;
     }
-    .scrub:focus-visible { outline: 2px solid #7c4dff; outline-offset: -2px; border-radius: 6px; }
+    .scrub:focus-visible { outline: 2px solid var(--mp-accent-strong); outline-offset: -2px; border-radius: 6px; }
     .scrub-track {
       position: absolute; left: 11px; right: 11px; top: 19px; height: 6px;
-      border-radius: 3px; background: rgba(255, 255, 255, 0.18); overflow: hidden;
+      border-radius: 3px; background: rgb(var(--mp-ink-rgb) / 0.18); overflow: hidden;
       display: flex;
     }
     .scrub.rtl .scrub-track { justify-content: flex-end; }
-    .scrub-fill { height: 100%; flex: none; background: #7c4dff; }
+    .scrub-fill { height: 100%; flex: none; background: var(--mp-accent-strong); }
     .scrub-thumb {
       position: absolute; top: 11px; width: 22px; height: 22px; margin-left: -11px;
-      border-radius: 50%; background: #fff; border: 3px solid #7c4dff;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); transition: transform .12s ease;
+      border-radius: 50%; background: var(--mp-on-accent); border: 3px solid var(--mp-accent-strong);
+      box-shadow: 0 1px 4px rgb(var(--mp-shade-rgb) / 0.5); transition: transform .12s ease;
     }
     .scrub:hover .scrub-thumb, .scrub.scrubbing .scrub-thumb { transform: scale(1.2); }
     .scrub-bubble {
       position: absolute; bottom: 42px; transform: translateX(-50%);
-      background: #222; color: #fff; border: 1px solid rgba(255, 255, 255, 0.2);
+      background: var(--mp-reader-chrome); color: var(--mp-reader-text); border: 1px solid rgb(var(--mp-ink-rgb) / 0.2);
       border-radius: 8px; padding: 6px 12px; font-size: 15px; font-weight: 600;
       font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 4px 14px rgb(var(--mp-shade-rgb) / 0.4);
     }
     /* Passive thin progress cue at the bottom edge while the chrome is hidden. */
     .progress-rail {
       position: fixed; left: 0; right: 0; bottom: 0; height: 3px;
-      background: rgba(255, 255, 255, 0.14); pointer-events: none; display: flex; z-index: 1002;
+      background: rgb(var(--mp-ink-rgb) / 0.14); pointer-events: none; display: flex; z-index: 1002;
     }
     .progress-rail.rtl { justify-content: flex-end; }
-    .progress-fill { height: 100%; flex: none; background: #7c4dff; transition: width .2s ease; }
+    .progress-fill { height: 100%; flex: none; background: var(--mp-accent-strong); transition: width .2s ease; }
     /* The tap zones carry no visible affordance during reading (no focus ring, no
        tap highlight). They are surfaced deliberately via the Help overlay instead. */
     .edge, .tap-toggle { -webkit-tap-highlight-color: transparent; }
@@ -778,46 +778,46 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     .help-overlay { position: fixed; inset: 0; z-index: 1003; }
     .help-backdrop {
       position: absolute; inset: 0; z-index: 0;
-      background: rgba(0, 0, 0, 0.55); border: 0; padding: 0; cursor: pointer;
+      background: rgb(var(--mp-shade-rgb) / 0.55); border: 0; padding: 0; cursor: pointer;
     }
     .help-zones {
       position: absolute; inset: 0; z-index: 1; display: flex;
-      pointer-events: none; color: #fff;
+      pointer-events: none; color: var(--mp-on-scrim);
     }
     .help-zone {
       display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
       gap: 8px; font-weight: 600; text-align: center; padding: 14vh 8px 0; line-height: 1.3;
-      border-inline: 1px dashed rgba(255, 255, 255, 0.35);
+      border-inline: 1px dashed color-mix(in srgb, var(--mp-on-scrim) 35%, transparent);
     }
     .help-zone mat-icon { font-size: 36px; width: 36px; height: 36px; }
-    .help-zone.side { flex: 0 0 30%; background: rgba(124, 77, 255, 0.22); }
-    .help-zone.center { flex: 0 0 40%; background: rgba(255, 255, 255, 0.10); }
+    .help-zone.side { flex: 0 0 30%; background: rgb(var(--mp-accent-strong-rgb) / 0.22); }
+    .help-zone.center { flex: 0 0 40%; background: color-mix(in srgb, var(--mp-on-scrim) 10%, transparent); }
     /* Webtoon tap-to-scroll legend (1.11.0): three horizontal bands by thirds. */
     .help-zones.vertical { flex-direction: column; }
     .help-zone.band {
       flex: 1 1 0; justify-content: center; padding: 0 8px;
-      border-inline: 0; border-block: 1px dashed rgba(255, 255, 255, 0.35);
-      background: rgba(124, 77, 255, 0.22);
+      border-inline: 0; border-block: 1px dashed color-mix(in srgb, var(--mp-on-scrim) 35%, transparent);
+      background: rgb(var(--mp-accent-strong-rgb) / 0.22);
     }
-    .help-zone.band.center { background: rgba(255, 255, 255, 0.10); }
+    .help-zone.band.center { background: color-mix(in srgb, var(--mp-on-scrim) 10%, transparent); }
     /* Full-width swipe legend across the middle of the surface. */
     .help-swipe {
       position: absolute; left: 6%; right: 6%; top: 38%; z-index: 1; pointer-events: none;
       display: flex; align-items: center; justify-content: center; gap: 14px;
-      padding: 12px 18px; border-radius: 12px; color: #fff; font-weight: 600; line-height: 1.4;
-      background: rgba(124, 77, 255, 0.55); border: 2px dashed rgba(255, 255, 255, 0.6);
+      padding: 12px 18px; border-radius: 12px; color: var(--mp-on-scrim); font-weight: 600; line-height: 1.4;
+      background: rgb(var(--mp-accent-strong-rgb) / 0.55); border: 2px dashed color-mix(in srgb, var(--mp-on-scrim) 60%, transparent);
     }
     .help-swipe mat-icon { font-size: 40px; width: 40px; height: 40px; flex: none; }
     .help-panel {
       position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%);
       z-index: 2; pointer-events: none; max-width: min(92vw, 460px); max-height: 46%; overflow: hidden;
-      background: rgba(20, 20, 22, 0.94); color: #eee;
-      border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; padding: 14px 18px;
+      background: color-mix(in srgb, var(--mp-reader-panel) 94%, transparent); color: var(--mp-reader-text);
+      border: 1px solid rgb(var(--mp-ink-rgb) / 0.15); border-radius: 12px; padding: 14px 18px;
     }
     .help-panel h3 { margin: 0 0 8px; }
     .help-panel ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.35; }
     .help-panel kbd {
-      background: #333; border: 1px solid #555; border-radius: 4px;
+      background: rgb(var(--mp-ink-rgb) / 0.12); border: 1px solid rgb(var(--mp-ink-rgb) / 0.28); border-radius: 4px;
       padding: 1px 6px; font-family: monospace; font-size: 12px;
     }
     .help-dismiss { margin: 12px 0 0; opacity: 0.65; font-size: 13px; text-align: center; }

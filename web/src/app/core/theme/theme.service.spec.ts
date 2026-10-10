@@ -262,6 +262,21 @@ describe('ThemeService', () => {
     expect(meta.content).toBe('rgb(250, 250, 250)');
   });
 
+  it('samplePalettes reads one sample per request and restores <html> as it was', () => {
+    localStorage.setItem(THEME_STORAGE_KEY, 'sepia');
+    localStorage.setItem(ACCENT_STORAGE_KEY, 'teal');
+    const service = create();
+    const samples = service.samplePalettes([
+      { base: 'light', accent: 'rose' },
+      { base: 'black', accent: 'blue' },
+    ]);
+    expect(samples.length).toBe(2);
+    expect(Object.keys(samples[0]).sort()).toEqual(['accent', 'accentStrong', 'surface', 'text']);
+    expect(root.getAttribute('data-theme')).toBe('sepia');
+    expect(root.getAttribute('data-accent')).toBe('teal');
+    expect(root.style.colorScheme).toBe('light');
+  });
+
   it('isOpaque tells a painted colour from a transparent one (black is opaque)', () => {
     expect(isOpaque('rgb(0, 0, 0)')).toBe(true);
     expect(isOpaque('rgb(0 0 0)')).toBe(true);

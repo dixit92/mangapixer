@@ -67,18 +67,18 @@ export interface BookmarksPanelHost {
       padding: 0 0 env(safe-area-inset-bottom, 0);
       border-top-left-radius: 20px; border-top-right-radius: 20px;
       max-height: 70vh;
-      background: var(--mat-sys-surface-container-high, #1e1e23);
-      color: var(--mat-sys-on-surface, #eee);
+      background: var(--mat-sys-surface-container-high);
+      color: var(--mat-sys-on-surface);
     }
     .sheet { display: flex; flex-direction: column; gap: 4px; padding: 6px 8px 10px; }
     .grabber {
       width: 36px; height: 4px; border-radius: 2px; margin: 2px auto 0;
-      background: var(--mat-sys-outline-variant, rgba(255, 255, 255, 0.25));
+      background: var(--mat-sys-outline-variant);
     }
     .sheet-head { display: flex; align-items: center; justify-content: space-between; min-height: 40px; padding: 0 8px; }
     .sheet-head h2 { margin: 0; font-size: 17px; font-weight: 500; line-height: 24px; }
     .sheet-head .close { margin-right: -8px; }
-    .empty { margin: 8px 16px 16px; font-size: 13px; color: var(--mat-sys-on-surface-variant, #8a8a99); }
+    .empty { margin: 8px 16px 16px; font-size: 13px; color: var(--mat-sys-on-surface-variant); }
     .bookmark-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
     .bookmark-row { display: flex; align-items: center; gap: 4px; }
     .jump {
@@ -86,10 +86,10 @@ export interface BookmarksPanelHost {
       padding: 0 8px; background: transparent; border: 0; border-radius: 8px; color: inherit; cursor: pointer;
       font: inherit; text-align: left; -webkit-tap-highlight-color: transparent;
     }
-    .jump mat-icon { color: var(--mp-accent, #b39dff); flex: none; }
+    .jump mat-icon { color: var(--mp-accent); flex: none; }
     .jump .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     @media (hover: hover) {
-      .jump:hover { background: var(--mat-sys-surface-container-highest, rgba(255, 255, 255, 0.08)); }
+      .jump:hover { background: var(--mat-sys-surface-container-highest); }
     }
   `],
 })
