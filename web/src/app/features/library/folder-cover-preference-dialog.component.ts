@@ -52,10 +52,10 @@ const LABELS: Record<FolderCoverPreference, string> = { Web: 'Web covers when av
     </mat-dialog-actions>
   `,
   styles: [`
-    .hint { color: #b8b8c6; font-size: 13px; margin: 0 0 12px; max-width: 420px; }
+    .hint { color: var(--mp-text-secondary); font-size: 13px; margin: 0 0 12px; max-width: 420px; }
     .choices { display: flex; flex-direction: column; }
-    .sub { color: #8a8a99; font-size: 12px; display: block; white-space: normal; }
-    .error { color: #ff8a80; }
+    .sub { color: var(--mp-text-dim); font-size: 12px; display: block; white-space: normal; }
+    .error { color: var(--mp-error); }
   `],
 })
 export class FolderCoverPreferenceDialogComponent implements OnInit {

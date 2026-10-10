@@ -31,15 +31,15 @@ import { MatIconModule } from '@angular/material/icon';
   `,
   styles: [`
     :host { display: inline-flex; flex: 0 0 auto; }
-    .switch { display: inline-flex; border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 8px; overflow: hidden; }
+    .switch { display: inline-flex; border: 1px solid rgb(var(--mp-ink-rgb) / 0.18); border-radius: 8px; overflow: hidden; }
     button {
       display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; border: 0; cursor: pointer;
-      background: transparent; color: #c9c9d6; font: inherit; font-size: 13px;
+      background: transparent; color: var(--mp-text-secondary); font: inherit; font-size: 13px;
     }
-    button + button { border-left: 1px solid rgba(255, 255, 255, 0.18); }
-    button.on { background: rgba(124, 77, 255, 0.22); color: #d4c7ff; }
+    button + button { border-left: 1px solid rgb(var(--mp-ink-rgb) / 0.18); }
+    button.on { background: rgb(var(--mp-accent-strong-rgb) / 0.22); color: var(--mp-accent-soft); }
     button:disabled { cursor: default; opacity: 0.55; }
-    button:focus-visible { outline: 2px solid #b39dff; outline-offset: -2px; }
+    button:focus-visible { outline: 2px solid var(--mp-accent); outline-offset: -2px; }
     mat-icon { font-size: 18px; width: 18px; height: 18px; }
     @media (max-width: 599.98px) { .lbl { display: none; } button { padding: 6px 8px; } }
   `],

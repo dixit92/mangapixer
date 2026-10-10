@@ -556,7 +556,7 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
   styles: [`
     .menu-caption {
       display: block; padding: 6px 16px 2px; font-size: 11px; font-weight: 600;
-      text-transform: uppercase; letter-spacing: 0.5px; color: #8a8a99;
+      text-transform: uppercase; letter-spacing: 0.5px; color: var(--mp-text-dim);
     }
     /* View menu selected-state (1.8.1): accent highlight replaces the per-item
        checkmark in all four submenus. The panel renders in a CDK overlay, so the
@@ -564,20 +564,20 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
        projected items with ::ng-deep. The subtle background lets Material's
        higher-specificity hover/focus states still read on top. */
     ::ng-deep .view-options-menu .selected-option {
-      background: rgba(124, 77, 255, 0.16);
+      background: rgb(var(--mp-accent-strong-rgb) / 0.16);
     }
     ::ng-deep .view-options-menu .selected-option,
     ::ng-deep .view-options-menu .selected-option .mat-icon {
-      color: #b39dff;
+      color: var(--mp-accent);
     }
     .browse-bar {
       position: sticky; top: 0; z-index: 20;
       display: flex; align-items: center; gap: 12px;
       margin-bottom: 16px; padding: 10px 12px;
-      background: #14141c; border: 1px solid rgba(255,255,255,0.08);
+      background: var(--mp-surface); border: 1px solid rgb(var(--mp-ink-rgb) / 0.08);
       border-radius: 10px;
     }
-    .browse-bar.selecting { background: #1c1730; border-color: rgba(124,77,255,0.5); }
+    .browse-bar.selecting { background: var(--mp-surface-accent); border-color: rgb(var(--mp-accent-strong-rgb) / 0.5); }
     /* 1.38.0: with the Volumes | Folders switch the controls squeezed the trail to a letter on a tablet (820 px). The bar
        may wrap: the trail keeps at least 240 px on the first row and the controls move to a second row, right-aligned.
        Where everything fits (desktop) nothing moves; the phone rule below still gives the trail its own row. */
@@ -587,10 +587,10 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
       flex: 1 1 auto; min-width: 0;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    .breadcrumbs a { text-decoration: none; color: #b39dff; }
+    .breadcrumbs a { text-decoration: none; color: var(--mp-accent); }
     /* Current folder: plain text, not a link. Slightly brighter than the muted
        ancestors' link color to read as "you are here", but no pointer/underline. */
-    .breadcrumbs .current { color: #e6e6ee; font-weight: 500; }
+    .breadcrumbs .current { color: var(--mp-text); font-weight: 500; }
     /* The selection bar's own rules (.count, .actions, .done) live in the shared app-selection-bar (1.30.0). */
     .select-toggle mat-icon { margin-right: 4px; }
     /* Card size slider (1.6.0). Sits inline in the browse bar between the
@@ -598,19 +598,19 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     .size-control { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
     .size-control .size-icon,
     ::ng-deep .view-options-menu .size-control-menu .size-icon {
-      font-size: 18px; width: 18px; height: 18px; color: #8a8a99;
+      font-size: 18px; width: 18px; height: 18px; color: var(--mp-text-dim);
     }
     .size-slider {
-      width: 120px; max-width: 34vw; accent-color: #7c4dff; cursor: pointer;
+      width: 120px; max-width: 34vw; accent-color: var(--mp-accent-strong); cursor: pointer;
       background: transparent;
     }
     /* Read-state filter button (1.10.0): a normal toolbar control; when a filter is
        active it wears the accent so the constrained view reads at a glance. */
     .filter-toggle mat-icon { margin-right: 4px; }
     .filter-toggle.filter-active {
-      border-color: #7c4dff; color: #b39dff;
+      border-color: var(--mp-accent-strong); color: var(--mp-accent);
     }
-    .filter-toggle.filter-active mat-icon { color: #b39dff; }
+    .filter-toggle.filter-active mat-icon { color: var(--mp-accent); }
     /* Card-size section inside the View menu (1.10.2). Hidden on desktop + iPad (they
        use the inline .size-control-inline toolbar slider); shown on the phone
        breakpoint, where the inline control and the old separate size button are gone.
@@ -618,7 +618,7 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
        viewport media query. */
     ::ng-deep .view-options-menu .view-size-section { display: none; padding: 2px 12px 10px; }
     ::ng-deep .view-options-menu .size-control-menu { display: flex; align-items: center; gap: 8px; padding: 6px 0 0; }
-    ::ng-deep .view-options-menu .size-slider { width: 180px; max-width: 60vw; accent-color: #7c4dff; }
+    ::ng-deep .view-options-menu .size-slider { width: 180px; max-width: 60vw; accent-color: var(--mp-accent-strong); }
     /* View modes. Card (1.6.0) is a single cover grid whose card size is a
        continuous slider — the min column width comes from the --card-size custom
        property fed by the component, replacing the former Grid/Poster modes and the
@@ -646,57 +646,57 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     }
     .nodes.list .node-wrap { min-width: 0; display: flex; align-items: center; gap: 4px; }
     .node-wrap { position: relative; border-radius: 8px; }
-    .node-wrap.selected { outline: 2px solid #7c4dff; outline-offset: 3px; }
+    .node-wrap.selected { outline: 2px solid var(--mp-accent-strong); outline-offset: 3px; }
     .node-card { cursor: pointer; text-decoration: none; color: inherit; display: block; }
     .cover {
       position: relative;
       aspect-ratio: 2 / 3;
       border-radius: 8px;
       overflow: hidden;
-      background: rgba(255,255,255,0.06);
+      background: rgb(var(--mp-ink-rgb) / 0.06);
       display: flex; align-items: center; justify-content: center;
     }
     .cover img {
       width: 100%; height: 100%; object-fit: cover;
       position: relative; z-index: 1;
     }
-    .cover-fallback { font-size: 44px; width: 44px; height: 44px; color: #777; position: absolute; z-index: 0; }
+    .cover-fallback { font-size: 44px; width: 44px; height: 44px; color: var(--mp-text-faint); position: absolute; z-index: 0; }
     .badge {
       position: absolute; top: 6px; right: 6px; z-index: 2;
       font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 10px;
-      background: rgba(124, 77, 255, 0.9); color: #fff;
+      background: rgb(var(--mp-accent-strong-rgb) / 0.9); color: var(--mp-on-accent);
     }
-    .badge.read { background: rgba(76, 175, 80, 0.95); }
+    .badge.read { background: rgb(var(--mp-success-strong-rgb) / 0.95); }
     /* The star owns bottom-right (1.28.0); the direction badge takes the top-left the star left, and moves
        back to bottom-right in select mode, where the select check owns top-left and the star is hidden. */
-    .badge.dir { right: auto; left: 6px; background: rgba(0,0,0,0.65); }
+    .badge.dir { right: auto; left: 6px; background: rgb(var(--mp-shade-rgb) / 0.65); }
     .nodes.selecting .badge.dir { top: auto; left: auto; bottom: 6px; right: 6px; }
     .check {
       position: absolute; top: 6px; left: 6px; z-index: 3;
-      color: #fff; line-height: 0;
-      border-radius: 50%; background: rgba(0, 0, 0, 0.45);
+      color: var(--mp-on-scrim); line-height: 0;
+      border-radius: 50%; background: rgb(var(--mp-shade-rgb) / 0.45);
     }
-    .check.on { color: #7c4dff; background: #fff; }
+    .check.on { color: var(--mp-accent-strong); background: var(--mp-on-scrim); }
     .check mat-icon { font-size: 24px; width: 24px; height: 24px; }
     /* Touch range fill (long-press "Select to here"). A small floating action over
        the long-pressed card's cover so it works without a positioned menu overlay. */
     .range-prompt {
       position: absolute; inset: 0; z-index: 4;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 6px; padding: 8px; background: rgba(10, 8, 20, 0.85); border-radius: 8px;
+      gap: 6px; padding: 8px; background: rgb(var(--mp-shade-rgb) / 0.85); border-radius: 8px;
     }
     .range-prompt button {
       border: none; border-radius: 6px; padding: 6px 10px; font-size: 12px; font-weight: 600;
-      cursor: pointer; background: #7c4dff; color: #fff; width: 100%;
+      cursor: pointer; background: var(--mp-accent-strong); color: var(--mp-on-accent); width: 100%;
     }
-    .range-prompt button.cancel { background: rgba(255,255,255,0.12); }
+    .range-prompt button.cancel { background: color-mix(in srgb, var(--mp-on-scrim) 12%, transparent); }
     .node-title {
       margin-top: 6px; font-size: 13px; font-weight: 500;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .node-sub { font-size: 12px; color: #999; }
-    .empty { color: #999; padding: 32px; text-align: center; }
-    .scroll-sentinel { min-height: 40px; text-align: center; color: #999; font-size: 12px; }
+    .node-sub { font-size: 12px; color: var(--mp-text-muted); }
+    .empty { color: var(--mp-text-muted); padding: 32px; text-align: center; }
+    .scroll-sentinel { min-height: 40px; text-align: center; color: var(--mp-text-muted); font-size: 12px; }
     /* A–Z/script jump rail, root level only. Sticky under the
        top bar (1.8.0): top = measured bar height, z-index below the bar's 20;
        opaque so cards don't show through while stuck. */
@@ -704,22 +704,22 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
       position: sticky; z-index: 10;
       display: flex; flex-wrap: wrap; gap: 4px;
       margin-bottom: 12px; padding: 6px 8px;
-      background: #14141c; border-radius: 8px;
+      background: var(--mp-surface); border-radius: 8px;
     }
     /* Base chip look shared by the sticky rail (.jump-chip) and the phone
        letter-picker menu (::ng-deep .jump-picker-menu .jump-chip, a CDK overlay
        outside this component); each keeps its own size/spacing override below. */
     .jump-chip,
     ::ng-deep .jump-picker-menu .jump-chip {
-      border: none; cursor: pointer; background: transparent; color: #b39dff;
+      border: none; cursor: pointer; background: transparent; color: var(--mp-accent);
       border-radius: 6px; font-weight: 600; line-height: 1;
     }
     .jump-chip { min-width: 28px; padding: 4px 8px; font-size: 12px; transition: background 0.1s; }
-    .jump-chip:hover { background: rgba(124,77,255,0.18); }
+    .jump-chip:hover { background: rgb(var(--mp-accent-strong-rgb) / 0.18); }
     /* Declared after :hover (same specificity) so an active chip stays solid purple
        even while hovered, instead of the hover tint winning the tie. */
     .jump-chip.active,
-    ::ng-deep .jump-picker-menu .jump-chip.active { background: #7c4dff; color: #fff; }
+    ::ng-deep .jump-picker-menu .jump-chip.active { background: var(--mp-accent-strong); color: var(--mp-on-accent); }
     /* Phone A-Z letter-picker (1.10.1): the trigger is hidden on desktop/iPad (the
        full rail is used there); shown on the phone breakpoint. The picker grid + its
        chips render in a CDK overlay outside this component, so they are styled via
@@ -757,13 +757,13 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
       .browse-bar.has-view-switch { flex-wrap: wrap; justify-content: flex-start; }
       .browse-bar.has-view-switch .breadcrumbs { flex-basis: 100%; }
       .breadcrumbs a { padding: 2px 0; }
-      .breadcrumbs .sep { color: #6b6b78; }
+      .breadcrumbs .sep { color: var(--mp-text-faint); }
       /* The current folder: the brightest crumb — the mobile "you are here".
          1.10.1: bounded to two lines with an ellipsis (and a more moderate size)
          so a long folder name truncates instead of ballooning the whole top bar. */
       .breadcrumbs .current {
         flex-basis: 100%;
-        font-size: 16px; font-weight: 700; color: #f0f0f6;
+        font-size: 16px; font-weight: 700; color: var(--mp-text);
         display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
         overflow: hidden;
       }

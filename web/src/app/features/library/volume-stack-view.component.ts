@@ -192,64 +192,64 @@ import { ListCreditComponent } from '../../shared/list-credit.component';
     :host { display: block; }
     .bar {
       display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 10px 12px;
-      background: #14141c; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px;
+      background: var(--mp-surface); border: 1px solid rgb(var(--mp-ink-rgb) / 0.08); border-radius: 10px;
     }
     /* Select mode: the bar turns into the selection bar and stays reachable while a long volume scrolls (as in browse). */
-    .bar.selecting { position: sticky; top: 0; z-index: 20; background: #1c1730; border-color: rgba(124, 77, 255, 0.5); }
+    .bar.selecting { position: sticky; top: 0; z-index: 20; background: var(--mp-surface-accent); border-color: rgb(var(--mp-accent-strong-rgb) / 0.5); }
     .crumbs { flex: 1 1 auto; min-width: 0; }
-    .crumbs a { text-decoration: none; color: #b39dff; }
-    .crumbs .current { color: #e6e6ee; font-weight: 500; }
+    .crumbs a { text-decoration: none; color: var(--mp-accent); }
+    .crumbs .current { color: var(--mp-text); font-weight: 500; }
     .nav { display: flex; gap: 8px; flex: 0 0 auto; }
     .select-toggle mat-icon { margin-right: 4px; }
     .head { display: flex; gap: 16px; align-items: flex-end; margin-bottom: 20px; }
     .head-cover {
       position: relative; width: 120px; aspect-ratio: 2 / 3; border-radius: 8px; overflow: hidden; flex: 0 0 auto;
-      background: rgba(255, 255, 255, 0.06); display: flex; align-items: center; justify-content: center;
+      background: rgb(var(--mp-ink-rgb) / 0.06); display: flex; align-items: center; justify-content: center;
     }
     .head-cover img { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: cover; }
-    .fallback { position: absolute; z-index: 0; font-size: 40px; width: 40px; height: 40px; color: #777; }
+    .fallback { position: absolute; z-index: 0; font-size: 40px; width: 40px; height: 40px; color: var(--mp-text-faint); }
     h1 { margin: 0 0 6px; font-size: 24px; }
     .view-switch { margin-left: auto; display: flex; gap: 2px; align-self: flex-start; }
-    .view-switch [aria-pressed='true'] { color: #b39dff; background: rgba(124, 77, 255, 0.16); }
-    .counts { margin: 0 0 4px; color: #e6e6ee; }
-    .source { margin: 0; color: #8a8a99; font-size: 13px; }
-    .dups { margin: 4px 0 0; color: #ffcc80; font-size: 13px; overflow-wrap: anywhere; }
+    .view-switch [aria-pressed='true'] { color: var(--mp-accent); background: rgb(var(--mp-accent-strong-rgb) / 0.16); }
+    .counts { margin: 0 0 4px; color: var(--mp-text); }
+    .source { margin: 0; color: var(--mp-text-dim); font-size: 13px; }
+    .dups { margin: 4px 0 0; color: var(--mp-warn); font-size: 13px; overflow-wrap: anywhere; }
     .slots { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
     /* List view: the shared row, one column on a phone and the viewer's list-column count from 960px (as in browse). */
     .slots.list { grid-template-columns: minmax(0, 1fr); gap: 8px; }
     .slot { display: block; color: inherit; text-decoration: none; }
     .slot-wrap { position: relative; border-radius: 8px; }
-    .slot-wrap.selected { outline: 2px solid #7c4dff; outline-offset: 3px; }
+    .slot-wrap.selected { outline: 2px solid var(--mp-accent-strong); outline-offset: 3px; }
     .cover {
       position: relative; aspect-ratio: 2 / 3; border-radius: 8px; overflow: hidden;
-      background: rgba(255, 255, 255, 0.06); display: flex; align-items: center; justify-content: center;
+      background: rgb(var(--mp-ink-rgb) / 0.06); display: flex; align-items: center; justify-content: center;
     }
     .cover img { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: cover; }
-    .slot:hover .cover, .slot:focus-visible .cover { outline: 2px solid rgba(124, 77, 255, 0.6); outline-offset: 1px; }
+    .slot:hover .cover, .slot:focus-visible .cover { outline: 2px solid rgb(var(--mp-accent-strong-rgb) / 0.6); outline-offset: 1px; }
     .badge {
       position: absolute; top: 6px; right: 6px; z-index: 2; font-size: 11px; font-weight: 600;
-      padding: 2px 6px; border-radius: 10px; background: rgba(124, 77, 255, 0.9); color: #fff;
+      padding: 2px 6px; border-radius: 10px; background: rgb(var(--mp-accent-strong-rgb) / 0.9); color: var(--mp-on-accent);
     }
-    .badge.read { background: rgba(76, 175, 80, 0.95); }
+    .badge.read { background: rgb(var(--mp-success-strong-rgb) / 0.95); }
     .check {
-      position: absolute; top: 6px; left: 6px; z-index: 3; color: #fff; line-height: 0;
-      border-radius: 50%; background: rgba(0, 0, 0, 0.45);
+      position: absolute; top: 6px; left: 6px; z-index: 3; color: var(--mp-on-scrim); line-height: 0;
+      border-radius: 50%; background: rgb(var(--mp-shade-rgb) / 0.45);
     }
-    .check.on { color: #7c4dff; background: #fff; }
+    .check.on { color: var(--mp-accent-strong); background: var(--mp-on-scrim); }
     .check mat-icon { font-size: 24px; width: 24px; height: 24px; }
     .range-prompt {
       position: absolute; inset: 0; z-index: 4;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 6px; padding: 8px; background: rgba(10, 8, 20, 0.85); border-radius: 8px;
+      gap: 6px; padding: 8px; background: rgb(var(--mp-shade-rgb) / 0.85); border-radius: 8px;
     }
     .range-prompt button {
       border: none; border-radius: 6px; padding: 6px 10px; font-size: 12px; font-weight: 600;
-      cursor: pointer; background: #7c4dff; color: #fff; width: 100%;
+      cursor: pointer; background: var(--mp-accent-strong); color: var(--mp-on-accent); width: 100%;
     }
-    .range-prompt button.cancel { background: rgba(255, 255, 255, 0.12); }
+    .range-prompt button.cancel { background: color-mix(in srgb, var(--mp-on-scrim) 12%, transparent); }
     .title { margin-top: 6px; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .sub { font-size: 12px; color: #999; min-height: 1em; }
-    .empty { color: #999; padding: 32px; text-align: center; }
+    .sub { font-size: 12px; color: var(--mp-text-muted); min-height: 1em; }
+    .empty { color: var(--mp-text-muted); padding: 32px; text-align: center; }
     @media (min-width: 960px) {
       .slots.list { grid-template-columns: repeat(var(--list-columns, 2), minmax(0, 1fr)); column-gap: 16px; }
     }
