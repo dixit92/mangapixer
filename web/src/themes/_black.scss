@@ -1,1 +1,29 @@
-/* 1.40.0 theme variants (lane V): black - values follow. */
+/* Black (OLED) base theme (1.40.0 theming, lane V): `<html data-theme="black">`.
+ * True black where the page shows through, so an OLED screen switches those pixels off; raised surfaces sit a few steps above
+ * black so cards, panels and dialogs stay distinguishable. Text, status and accent colours are the dark theme's (`:root` in
+ * styles.scss) - they keep at least the contrast they have on dark, because the surfaces only got darker - except the faintest
+ * text, lifted one step.
+ * Angular Material paints the page (`<body class="mat-app-background">` = `--mat-sys-background`) and its own surfaces (menus,
+ * dialogs, form fields, snackbars) from the neutral family, so that family moves to black too. Only base-theme tokens live here:
+ * accents are `_accents.scss` (the dark-family accent values apply on black).
+ */
+:root[data-theme='black'] {
+  color-scheme: dark;
+
+  --mp-surface: #000;
+  --mp-surface-raised: #101014;
+  --mp-surface-high: #1e1e27;
+
+  /* the one text change: dark's faintest text (#777) is lifted a step so it keeps >= 4.5:1 on the raised black surface */
+  --mp-text-faint: #808080;
+
+  --mat-sys-background: #000;
+  --mat-sys-surface: #000;
+  --mat-sys-surface-dim: #000;
+  --mat-sys-surface-bright: #2c2a2e;
+  --mat-sys-surface-container-lowest: #000;
+  --mat-sys-surface-container-low: #0c0b0d;
+  --mat-sys-surface-container: #141316;
+  --mat-sys-surface-container-high: #1c1b1e;
+  --mat-sys-surface-container-highest: #272529;
+}
