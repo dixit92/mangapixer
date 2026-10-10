@@ -128,36 +128,106 @@ html, body {
   --mp-teal-rgb: 128 203 196;
 }
 
-/* PROVISIONAL light values (1.40.0 integrator seam): enough to preview a component in light while it is being moved onto the
-   tokens (`document.documentElement.dataset.theme = 'light'`). The theme lane replaces them with the final, contrast-checked palette. */
+/* Light (1.40.0, final). Every text and status token reads at WCAG AA on --mp-surface, --mp-surface-raised and Material's light
+   background (4.5:1 body text; the -strong fills and UI marks 3:1) - the contrast table is in the lane note. Black and sepia live
+   in src/themes/ (`@use` lines at the end of this file); accents in src/themes/_accents.scss. */
 :root[data-theme='light'] {
   color-scheme: light;
   --mp-ink-rgb: 0 0 0;
-  --mp-text-strong: #000;
-  --mp-text: #1b1b23;
-  --mp-text-secondary: #3a3a48;
-  --mp-text-muted: #5c5c6c;
-  --mp-text-dim: #666676;
-  --mp-text-faint: #85858f;
-  --mp-surface: #f6f6fa;
+  --mp-text-strong: #0d0c12;
+  --mp-text: #1c1b22;
+  --mp-text-secondary: #3d3b47;
+  --mp-text-muted: #5b5966;
+  --mp-text-dim: #63616e;
+  --mp-text-faint: #6b6976;
+  --mp-surface: #f5f3fa;
   --mp-surface-raised: #fff;
-  --mp-surface-high: #e8e8f0;
-  --mp-surface-accent: #efeaff;
+  --mp-surface-high: #e9e6f0;
+  --mp-surface-accent: #efe9ff;
   --mp-accent: #5b33c9;
   --mp-accent-rgb: 91 51 201;
   --mp-accent-soft: #4b2aa8;
   --mp-warn: #8a5a00;
   --mp-warn-rgb: 138 90 0;
-  --mp-warn-strong: #b07800;
-  --mp-caution: #a35f00;
+  --mp-warn-strong: #a86f00;
+  --mp-warn-strong-rgb: 168 111 0;
+  --mp-caution: #9a5800;
+  --mp-caution-rgb: 154 88 0;
   --mp-error: #c62828;
   --mp-error-strong: #d32f2f;
+  --mp-error-strong-rgb: 211 47 47;
   --mp-success: #2e7d32;
   --mp-success-rgb: 46 125 50;
-  --mp-success-soft: #2e7d32;
+  --mp-success-soft: #33691e;
   --mp-success-strong: #388e3c;
+  --mp-success-strong-rgb: 56 142 60;
   --mp-info: #1565c0;
+  --mp-info-rgb: 21 101 192;
   --mp-teal: #00796b;
+  --mp-teal-rgb: 0 121 107;
+}
+
+/* The page itself (1.40.0): Material 22's `mat-app-background` paints nothing, so every page showed the browser canvas (#121212 in
+   a dark scheme). --mp-page keeps that exact dark look and gives every base its own page colour; black and sepia take Material's
+   background as lane V sets it in src/themes/. Also what <meta name="theme-color"> follows (ThemeService). */
+:root {
+  --mp-page: #121212;
+}
+
+:root[data-theme='light'] {
+  --mp-page: #fcfbfe;
+}
+
+:root[data-theme='black'],
+:root[data-theme='sepia'] {
+  --mp-page: var(--mat-sys-background);
+}
+
+html {
+  background-color: var(--mp-page);
+}
+
+/* Material and native controls follow `color-scheme` (`theme-type: color-scheme` above): one scheme per painted base. The theme
+   engine also sets it inline on <html>; these rules cover the first paint. */
+:root[data-theme='dark'],
+:root[data-theme='black'] {
+  color-scheme: dark;
+}
+
+:root[data-theme='light'],
+:root[data-theme='sepia'] {
+  color-scheme: light;
+}
+
+/* Reader (1.40.0): the reader keeps its own, darker chrome and a page backdrop that FOLLOWS the base theme. A separate block on
+   purpose - the colour guard suggests tokens only from the main :root block, and these are for features/reader/* alone. The dark
+   values are the reader's literals before 1.40.0 (no pixel change); black and sepia take their own surface / text tokens. */
+:root {
+  --mp-reader-backdrop: #101012;
+  --mp-reader-chrome: #1c1c1f;
+  --mp-reader-panel: #141416;
+  --mp-reader-text: #eee;
+  --mp-reader-text-secondary: #ddd;
+  --mp-reader-text-muted: #ccc;
+}
+
+:root[data-theme='light'] {
+  --mp-reader-backdrop: #e4e3e9;
+  --mp-reader-chrome: #f3f1f7;
+  --mp-reader-panel: #fff;
+  --mp-reader-text: #1c1b22;
+  --mp-reader-text-secondary: #2e2c36;
+  --mp-reader-text-muted: #4a4854;
+}
+
+:root[data-theme='black'],
+:root[data-theme='sepia'] {
+  --mp-reader-backdrop: var(--mp-surface);
+  --mp-reader-chrome: var(--mp-surface-raised);
+  --mp-reader-panel: var(--mp-surface-raised);
+  --mp-reader-text: var(--mp-text);
+  --mp-reader-text-secondary: var(--mp-text-secondary);
+  --mp-reader-text-muted: var(--mp-text-muted);
 }
 
 /* 1.37.1: on a phone the review page's snackbar (Undo) opens just above its bottom action bar instead of over its buttons; the

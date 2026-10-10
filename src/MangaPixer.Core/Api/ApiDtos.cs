@@ -353,9 +353,17 @@ public sealed record UserPreferencesDto
     public string? PreferredBackground { get; init; }
 
     /// <summary>
-    /// Theme preference: "dark", "light", or "system" (audit defect D23).
+    /// Base theme (1.40.0): one of <see cref="ThemeVocabulary.Bases"/>; "dark" until the user chooses. Read-only on
+    /// <c>PUT /reading/preferences</c> (ignored there, so a client echoing an older copy never resets it); written through
+    /// <c>PUT /reading/preferences/appearance</c>.
     /// </summary>
-    public string Theme { get; init; } = "dark";
+    public string Theme { get; init; } = ThemeVocabulary.DefaultBase;
+
+    /// <summary>
+    /// Accent (1.40.0): one of <see cref="ThemeVocabulary.Accents"/>; "violet" until the user chooses. Read-only here, like
+    /// <see cref="Theme"/>.
+    /// </summary>
+    public string Accent { get; init; } = ThemeVocabulary.DefaultAccent;
 
     /// <summary>
     /// When on, archives the user has marked read reopen from the FIRST page (1.9.0).
@@ -367,6 +375,19 @@ public sealed record UserPreferencesDto
     /// fully reversible.
     /// </summary>
     public bool AlwaysOpenReadFromStart { get; init; } = false;
+}
+
+/// <summary>
+/// Body of <c>PUT /api/v1/reading/preferences/appearance</c> (1.40.0): the user's base theme and accent. A missing (null)
+/// field keeps the stored value, so a client can change one without echoing the other; an unknown value is a 400.
+/// </summary>
+public sealed record AppearancePreferencesDto
+{
+    /// <summary>One of <see cref="ThemeVocabulary.Bases"/>, or null to keep the stored base.</summary>
+    public string? Theme { get; init; }
+
+    /// <summary>One of <see cref="ThemeVocabulary.Accents"/>, or null to keep the stored accent.</summary>
+    public string? Accent { get; init; }
 }
 
 /// <summary>

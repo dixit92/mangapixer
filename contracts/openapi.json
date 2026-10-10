@@ -1373,6 +1373,58 @@
         }
       }
     },
+    "/api/v1/reading/preferences/appearance": {
+      "put": {
+        "tags": [
+          "Reading"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppearancePreferencesDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppearancePreferencesDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/AppearancePreferencesDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/reading/library-preferences": {
       "get": {
         "tags": [
@@ -9524,6 +9576,23 @@
           },
           "status": {
             "type": "string"
+          }
+        }
+      },
+      "AppearancePreferencesDto": {
+        "type": "object",
+        "properties": {
+          "theme": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "accent": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -17793,6 +17862,9 @@
             ]
           },
           "theme": {
+            "type": "string"
+          },
+          "accent": {
             "type": "string"
           },
           "alwaysOpenReadFromStart": {

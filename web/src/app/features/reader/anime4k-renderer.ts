@@ -257,6 +257,7 @@ async function renderNow(req: UpscaleRequest): Promise<boolean> {
     const pass = encoder.beginRenderPass({
       colorAttachments: [{
         view: context.getCurrentTexture().createView(),
+        // theme-exempt: the upscaler's own render target, cleared before the page is drawn into it - part of the processed image, not the UI.
         clearValue: { r: 0, g: 0, b: 0, a: 1 },
         loadOp: 'clear',
         storeOp: 'store',

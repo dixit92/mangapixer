@@ -310,6 +310,32 @@ public sealed class ReadingController : ControllerBase
     }
 
     /// <summary>
+    /// Sets the current user's base theme and / or accent (1.40.0). A missing field keeps the stored value; a value outside the
+    /// appearance vocabulary is a 400 and changes nothing. Kept apart from <c>PUT preferences</c>, which ignores these fields.
+    /// </summary>
+    [HttpPut("preferences/appearance")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> SetAppearance(
+        [FromBody] AppearancePreferencesDto request,
+        CancellationToken ct)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        if (!await _stateService.SetAppearanceAsync(userId.Value, request, ct))
+        {
+            return BadRequest(new ApiError
+            {
+                Error = "invalid_appearance",
+                Message = "Unknown theme or accent.",
+            });
+        }
+
+        return NoContent();
+    }
+
+    /// <summary>
     /// Gets the current user's library browse presentation preferences (1.2.0).
     /// </summary>
     [HttpGet("library-preferences")]

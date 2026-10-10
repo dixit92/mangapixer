@@ -206,8 +206,21 @@ export interface UserPreferencesDto {
    * on the last page which always start from page 1. Optional for older servers.
    */
   alwaysOpenReadFromStart?: boolean;
-  /** Theme preference: "dark" (server default), "light" or "system". Optional so older fixtures keep compiling. */
+  /**
+   * Base theme (1.40.0): one of THEME_BASES ("dark" until the user chooses). Read-only on PUT /reading/preferences (the server
+   * ignores it there); written through PUT /reading/preferences/appearance. Optional so older fixtures keep compiling.
+   */
   theme?: string;
+  /** Accent (1.40.0): one of THEME_ACCENTS ("violet" until the user chooses). Read-only here, like `theme`. */
+  accent?: string;
+}
+
+/**
+ * Body of PUT /reading/preferences/appearance (1.40.0). A missing / null field keeps the stored value; an unknown value is a 400.
+ */
+export interface AppearancePreferencesDto {
+  theme?: string | null;
+  accent?: string | null;
 }
 
 export interface ContinueReadingEntry {

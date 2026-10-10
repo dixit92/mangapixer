@@ -11,6 +11,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { ApiService } from '../../core/api/api.service';
 import { ApiError, LibraryDto, LibraryViewPreferencesDto } from '../../core/api/api-types';
 import { ReadingPreferencesCardComponent } from './reading-preferences-card.component';
+import { AppearanceCardComponent } from './appearance-card.component';
 import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series-info-hover-preference.service';
 
 /**
@@ -31,6 +32,7 @@ import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series
     MatCheckboxModule,
     MatSelectModule,
     ReadingPreferencesCardComponent,
+    AppearanceCardComponent,
   ],
   template: `
     <mat-card>
@@ -109,6 +111,8 @@ import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series
         }
       </mat-card-content>
     </mat-card>
+
+    <app-appearance-card />
 
     <app-reading-preferences-card />
 
