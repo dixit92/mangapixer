@@ -47,13 +47,13 @@ import { InstallHintService } from './install-hint.service';
       bottom: calc(56px + env(safe-area-inset-bottom, 0px));
       width: min(calc(100vw - 24px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)), 420px);
       box-sizing: border-box; padding: 12px 16px 4px; border-radius: 12px;
-      background: var(--mp-surface-raised); color: var(--mp-text); border: 1px solid rgb(var(--mp-ink-rgb) / 0.16);
+      background: var(--mp-reader-chrome); color: var(--mp-reader-text); border: 1px solid rgb(var(--mp-ink-rgb) / 0.16);
       box-shadow: 0 6px 24px rgb(var(--mp-shade-rgb) / 0.5); font-size: 14px; line-height: 1.35;
     }
     .hint:focus { outline: none; }
     .hint:focus-visible { outline: 2px solid var(--mp-accent-strong); outline-offset: 2px; }
     h2 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
-    p { margin: 0 0 8px; color: var(--mp-text-secondary); }
+    p { margin: 0 0 8px; color: var(--mp-reader-text-muted); }
     ol { list-style: none; margin: 0; padding: 0; }
     li { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
     li > mat-icon { flex: none; color: var(--mp-accent); }
