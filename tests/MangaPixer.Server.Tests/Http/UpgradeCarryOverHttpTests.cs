@@ -74,8 +74,12 @@ public sealed class UpgradeCarryOverHttpTests : IClassFixture<UpgradeCarryOverHt
         await db.SaveChangesAsync();
         db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
         {
-            NodeId = folder.Id, LibraryId = library.Id, State = (int)SeriesLinkState.Confirmed, RecordId = record.Id,
-            CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
+            NodeId = folder.Id,
+            LibraryId = library.Id,
+            State = (int)SeriesLinkState.Confirmed,
+            RecordId = record.Id,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
         });
         db.SeriesVolumeMaps.Add(new SeriesVolumeMapEntity
         {
