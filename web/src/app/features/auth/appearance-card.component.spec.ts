@@ -7,6 +7,8 @@ import { THEME_ACCENTS, THEME_BASES, ThemeAccent, ThemeBase } from '../../core/t
 
 /** Appearance card (1.40.0): five base choices with previews, six accents, applied through ThemeService. */
 describe('AppearanceCardComponent', () => {
+  /** A distinct (valid) surface colour per sampled base, so a preview can be traced back to its base. */
+  const SURFACE: Record<string, number> = { dark: 10, light: 20, black: 30, sepia: 40 };
   function create(start: { base?: ThemeBase; accent?: ThemeAccent; error?: string | null } = {}) {
     const base = signal<ThemeBase>(start.base ?? 'dark');
     const accent = signal<ThemeAccent>(start.accent ?? 'violet');
@@ -18,7 +20,12 @@ describe('AppearanceCardComponent', () => {
       setBase: vi.fn((b: ThemeBase) => base.set(b)),
       setAccent: vi.fn((a: ThemeAccent) => accent.set(a)),
       samplePalettes: vi.fn((reqs: { base: string; accent: string }[]) =>
-        reqs.map((r) => ({ surface: `s-${r.base}`, text: `t-${r.base}`, accent: `a-${r.accent}`, accentStrong: `rgb(1, 2, ${THEME_ACCENTS.indexOf(r.accent as ThemeAccent)})` })),
+        reqs.map((r) => ({
+          surface: `rgb(${SURFACE[r.base]}, 0, 0)`,
+          text: 'rgb(0, 0, 1)',
+          accent: 'rgb(0, 0, 2)',
+          accentStrong: `rgb(1, 2, ${THEME_ACCENTS.indexOf(r.accent as ThemeAccent)})`,
+        })),
       ),
     };
     TestBed.configureTestingModule({
@@ -44,20 +51,17 @@ describe('AppearanceCardComponent', () => {
   it('previews each base with its sampled tokens; System shows light and dark halves', () => {
     const { el } = create();
     const halves = (b: string) =>
-      [...el.querySelectorAll<HTMLElement>(`.base[data-base="${b}"] .half`)].map((h) => h.style.background);
-    expect(halves('sepia').length).toBe(1);
-    expect(el.querySelector<HTMLElement>('.base[data-base="sepia"] .half')!.getAttribute('style')).toContain('s-sepia');
-    const system = [...el.querySelectorAll<HTMLElement>('.base[data-base="system"] .half')].map((h) => h.getAttribute('style'));
-    expect(system.length).toBe(2);
-    expect(system[0]).toContain('s-light');
-    expect(system[1]).toContain('s-dark');
+      [...el.querySelectorAll<HTMLElement>(`.base[data-base="${b}"] .half`)].map((h) => h.style.backgroundColor);
+    expect(halves('sepia')).toEqual(['rgb(40, 0, 0)']);
+    expect(halves('dark')).toEqual(['rgb(10, 0, 0)']);
+    expect(halves('system')).toEqual(['rgb(20, 0, 0)', 'rgb(10, 0, 0)']); // light | dark
   });
 
   it('paints the accent swatches from the tokens of the current base', () => {
     const { el, theme } = create({ base: 'light' });
     const lastCall = theme.samplePalettes.mock.calls.at(-1)![0] as { base: string; accent: string }[];
     expect(lastCall.every((r) => r.base === 'light')).toBe(true);
-    expect(el.querySelector<HTMLElement>('.accent[data-accent-choice="teal"] .fill')!.style.background).toBe('rgb(1, 2, 2)');
+    expect(el.querySelector<HTMLElement>('.accent[data-accent-choice="teal"] .fill')!.style.backgroundColor).toBe('rgb(1, 2, 2)');
   });
 
   it('a click chooses the base / accent through the theme service', () => {
