@@ -24,18 +24,18 @@ import { ChangeDetectionStrategy, Component, ViewEncapsulation, input } from '@a
     app-stack-card > .stack { position: relative; }
     app-stack-card > .stack > .cover {
       position: relative; z-index: 1; width: 100%; aspect-ratio: 2 / 3; border-radius: 8px;
-      overflow: hidden; background: rgba(255,255,255,0.06);
+      overflow: hidden; background: rgb(var(--mp-ink-rgb) / 0.06);
       display: flex; align-items: center; justify-content: center;
     }
     app-stack-card > .stack > .cover > img { width: 100%; height: 100%; object-fit: cover; position: relative; z-index: 1; }
     app-stack-card > .stack.stacked::before, app-stack-card > .stack.stacked::after {
       content: ''; position: absolute; inset: 0; border-radius: 8px; z-index: 0;
-      background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.08);
+      background: rgb(var(--mp-ink-rgb) / 0.1); border: 1px solid rgb(var(--mp-ink-rgb) / 0.08);
     }
     app-stack-card > .stack.stacked::before { transform: translate(4px, -4px); }
     app-stack-card > .stack.stacked::after { transform: translate(8px, -8px); opacity: 0.55; }
     a:hover > app-stack-card > .stack > .cover, a:focus-visible > app-stack-card > .stack > .cover {
-      outline: 2px solid rgba(124,77,255,0.6); outline-offset: 1px;
+      outline: 2px solid rgb(var(--mp-accent-strong-rgb) / 0.6); outline-offset: 1px;
     }
   `],
 })

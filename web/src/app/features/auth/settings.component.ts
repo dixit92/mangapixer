@@ -277,10 +277,10 @@ import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series
     .performance-card { margin-top: 24px; }
     .performance-card mat-form-field { width: 160px; }
     form { display: flex; flex-direction: column; gap: 16px; }
-    .error { color: #f44336; font-size: 14px; }
-    .success { color: #4caf50; font-size: 14px; }
-    .muted { color: #999; font-size: 14px; }
-    .hint { color: #999; font-size: 13px; margin: 0 0 16px; }
+    .error { color: var(--mp-error-strong); font-size: 14px; }
+    .success { color: var(--mp-success-strong); font-size: 14px; }
+    .muted { color: var(--mp-text-muted); font-size: 14px; }
+    .hint { color: var(--mp-text-muted); font-size: 13px; margin: 0 0 16px; }
     h3 { margin: 0 0 16px 0; }
     .private-library-list { display: flex; flex-direction: column; gap: 8px; }
   `],

@@ -194,26 +194,26 @@ type Pending =
     .row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 10px 0; font-size: 14px; }
     .row label { min-width: 110px; }
     select { font: inherit; padding: 4px 6px; max-width: 100%; }
-    .hint, .muted { color: #999; font-size: 13px; margin: 6px 0; }
+    .hint, .muted { color: var(--mp-text-muted); font-size: 13px; margin: 6px 0; }
     .auto { display: flex; align-items: flex-start; gap: 6px; font-size: 14px; margin: 10px 0; }
     .auto mat-icon { flex: 0 0 auto; margin-top: 3px; }
-    .link { background: none; border: none; padding: 0; margin-left: 4px; font: inherit; color: #b39ddb; text-decoration: underline; cursor: pointer; }
+    .link { background: none; border: none; padding: 0; margin-left: 4px; font: inherit; color: var(--mp-accent); text-decoration: underline; cursor: pointer; }
     h4 { margin: 16px 0 6px; }
     h5 { margin: 0 0 6px; font-size: 14px; }
     .libs { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
-    .libs li { border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 8px 10px; min-width: 0; }
+    .libs li { border: 1px solid rgb(var(--mp-ink-rgb) / 0.08); border-radius: 6px; padding: 8px 10px; min-width: 0; }
     .lib-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
     .name { font-weight: 500; overflow-wrap: anywhere; }
-    .hold { color: #ffb300; font-size: 13px; display: inline-flex; align-items: center; gap: 4px; }
+    .hold { color: var(--mp-warn-strong); font-size: 13px; display: inline-flex; align-items: center; gap: 4px; }
     .lib-counts { font-size: 13px; margin: 4px 0; }
     .libs button { margin-top: 4px; }
     .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-    .confirm { border: 1px solid rgba(244, 67, 54, 0.5); border-radius: 6px; padding: 10px 12px; margin: 12px 0; font-size: 14px; }
+    .confirm { border: 1px solid rgb(var(--mp-error-strong-rgb) / 0.5); border-radius: 6px; padding: 10px 12px; margin: 12px 0; font-size: 14px; }
     .confirm p { margin: 4px 0; }
-    .warn { color: #ffb300; }
-    .last { color: #999; font-size: 13px; margin-top: 12px; display: flex; flex-direction: column; gap: 2px; }
-    .ok { color: #4caf50; font-size: 14px; }
-    .error { color: #f44336; font-size: 14px; margin: 8px 0; }
+    .warn { color: var(--mp-warn-strong); }
+    .last { color: var(--mp-text-muted); font-size: 13px; margin-top: 12px; display: flex; flex-direction: column; gap: 2px; }
+    .ok { color: var(--mp-success-strong); font-size: 14px; }
+    .error { color: var(--mp-error-strong); font-size: 14px; margin: 8px 0; }
   `],
 })
 export class TrashCardComponent implements OnInit {

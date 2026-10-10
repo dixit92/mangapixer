@@ -47,23 +47,23 @@ import { InstallHintService } from './install-hint.service';
       bottom: calc(56px + env(safe-area-inset-bottom, 0px));
       width: min(calc(100vw - 24px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)), 420px);
       box-sizing: border-box; padding: 12px 16px 4px; border-radius: 12px;
-      background: #1c1c1f; color: #eee; border: 1px solid rgba(255, 255, 255, 0.16);
-      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5); font-size: 14px; line-height: 1.35;
+      background: var(--mp-reader-chrome); color: var(--mp-reader-text); border: 1px solid rgb(var(--mp-ink-rgb) / 0.16);
+      box-shadow: 0 6px 24px rgb(var(--mp-shade-rgb) / 0.5); font-size: 14px; line-height: 1.35;
     }
     .hint:focus { outline: none; }
-    .hint:focus-visible { outline: 2px solid #7c4dff; outline-offset: 2px; }
+    .hint:focus-visible { outline: 2px solid var(--mp-accent-strong); outline-offset: 2px; }
     h2 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
-    p { margin: 0 0 8px; color: #bbb; }
+    p { margin: 0 0 8px; color: var(--mp-reader-text-muted); }
     ol { list-style: none; margin: 0; padding: 0; }
     li { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
-    li > mat-icon { flex: none; color: #b39ddb; }
+    li > mat-icon { flex: none; color: var(--mp-accent); }
     mat-icon.inline { font-size: 16px; width: 16px; height: 16px; vertical-align: text-bottom; }
     .actions { display: flex; justify-content: flex-end; gap: 4px; margin-top: 4px; }
     button {
       min-height: 44px; padding: 0 12px; background: transparent; border: 0; border-radius: 8px;
-      color: #b39ddb; font: inherit; font-weight: 600; cursor: pointer;
+      color: var(--mp-accent); font: inherit; font-weight: 600; cursor: pointer;
     }
-    button:focus-visible { outline: 2px solid #7c4dff; }
+    button:focus-visible { outline: 2px solid var(--mp-accent-strong); }
   `],
 })
 export class InstallHintComponent {

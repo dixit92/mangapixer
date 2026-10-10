@@ -21,8 +21,8 @@ import { alsoInVolumeLabel } from '../../features/metadata/progress/series-progr
     :host { display: contents; }
     .also {
       display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle;
-      font-size: 11px; padding: 1px 7px; border-radius: 10px; background: rgba(38, 50, 56, 0.92); color: #b0bec5;
-      border: 1px solid rgba(176, 190, 197, 0.35);
+      font-size: 11px; padding: 1px 7px; border-radius: 10px; background: rgb(var(--mp-shade-rgb) / 0.92); color: color-mix(in srgb, var(--mp-on-scrim) 70%, transparent);
+      border: 1px solid color-mix(in srgb, var(--mp-on-scrim) 30%, transparent);
     }
     .also.overlay { position: absolute; left: 50%; transform: translateX(-50%); bottom: 34px; z-index: 2; max-width: calc(100% - 12px); }
   `],

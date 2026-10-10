@@ -21,7 +21,7 @@ import { officialReleaseLabel } from '../../features/metadata/progress/series-pr
     :host { display: contents; }
     .official {
       display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle;
-      font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 10px; background: rgba(124, 77, 255, 0.92); color: #fff;
+      font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 10px; background: rgb(var(--mp-accent-strong-rgb) / 0.92); color: var(--mp-on-accent);
     }
     .official.overlay { position: absolute; left: 6px; bottom: 6px; z-index: 2; max-width: calc(100% - 48px); }
   `],

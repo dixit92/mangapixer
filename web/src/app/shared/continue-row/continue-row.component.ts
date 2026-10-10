@@ -53,33 +53,33 @@ import { CoverImageDirective } from '../cover-image.directive';
       display: flex; align-items: center; gap: 14px;
       margin-bottom: 16px; padding: 10px 14px;
       text-decoration: none; color: inherit;
-      background: linear-gradient(90deg, rgba(124, 77, 255, 0.18), rgba(124, 77, 255, 0.04));
-      border: 1px solid rgba(124, 77, 255, 0.45);
+      background: linear-gradient(90deg, rgb(var(--mp-accent-strong-rgb) / 0.18), rgb(var(--mp-accent-strong-rgb) / 0.04));
+      border: 1px solid rgb(var(--mp-accent-strong-rgb) / 0.45);
       border-radius: 12px;
       transition: border-color 0.12s, background 0.12s;
     }
     .continue-row:hover {
-      border-color: rgba(124, 77, 255, 0.8);
-      background: linear-gradient(90deg, rgba(124, 77, 255, 0.26), rgba(124, 77, 255, 0.08));
+      border-color: rgb(var(--mp-accent-strong-rgb) / 0.8);
+      background: linear-gradient(90deg, rgb(var(--mp-accent-strong-rgb) / 0.26), rgb(var(--mp-accent-strong-rgb) / 0.08));
     }
     .cover {
       position: relative; flex: 0 0 auto;
       width: 44px; height: 64px; border-radius: 6px; overflow: hidden;
-      background: rgba(255, 255, 255, 0.06);
+      background: rgb(var(--mp-ink-rgb) / 0.06);
       display: flex; align-items: center; justify-content: center;
     }
     .cover img { width: 100%; height: 100%; object-fit: cover; position: relative; z-index: 1; }
-    .cover-fallback { font-size: 22px; width: 22px; height: 22px; color: #777; position: absolute; z-index: 0; }
+    .cover-fallback { font-size: 22px; width: 22px; height: 22px; color: var(--mp-text-faint); position: absolute; z-index: 0; }
     .info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
     .label {
       font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;
-      color: #b39dff;
+      color: var(--mp-accent);
     }
     .title {
-      font-size: 15px; font-weight: 600; color: #e6e6ee;
+      font-size: 15px; font-weight: 600; color: var(--mp-text);
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .resume { flex: 0 0 auto; color: #b39dff; font-size: 22px; width: 22px; height: 22px; }
+    .resume { flex: 0 0 auto; color: var(--mp-accent); font-size: 22px; width: 22px; height: 22px; }
   `],
 })
 export class ContinueRowComponent {

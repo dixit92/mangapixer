@@ -43,10 +43,11 @@ import { SeriesInfoOverlayService } from '../../features/metadata/series-info-ov
     :host(.overlay) { display: contents; }
     :host(.overlay) .info-btn {
       position: absolute; bottom: 4px; left: 4px; z-index: 3;
-      background: rgba(0, 0, 0, 0.45);
+      background: rgb(var(--mp-shade-rgb) / 0.45);
     }
     .info-btn { width: 28px; height: 28px; line-height: 28px; padding: 0; }
-    .info-btn mat-icon { font-size: 20px; width: 20px; height: 20px; color: #e6e6ee; }
+    .info-btn mat-icon { font-size: 20px; width: 20px; height: 20px; color: var(--mp-text); }
+    :host(.overlay) .info-btn mat-icon { color: var(--mp-on-scrim); }
     :host(.compact) .info-btn { width: 32px; height: 32px; }
   `],
 })

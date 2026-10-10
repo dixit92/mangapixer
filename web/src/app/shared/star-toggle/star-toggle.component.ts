@@ -50,10 +50,13 @@ import { FavoritesStateService } from '../../core/favorites/favorites-state.serv
     :host(.overlay) { display: contents; }
     :host(.overlay) .star-btn {
       position: absolute; top: 4px; left: 4px; z-index: 3;
-      background: rgba(0, 0, 0, 0.45);
+      background: rgb(var(--mp-shade-rgb) / 0.45);
+      --mat-icon-button-icon-color: color-mix(in srgb, var(--mp-on-scrim) 80%, transparent);
     }
     :host(.overlay.bottom-right) .star-btn { top: auto; left: auto; bottom: 4px; right: 4px; }
-    .star-btn.active mat-icon { color: #ffc107; }
+    .star-btn.active mat-icon { color: var(--mp-warn-strong); }
+    /* theme-exempt: the favourite star over a cover keeps its own amber on the always-dark disc (--mp-warn-strong turns brown in light themes) */
+    :host(.overlay) .star-btn.active mat-icon { color: #ffc107; }
     :host(.compact) .star-btn {
       width: 32px; height: 32px; line-height: 32px; padding: 0;
     }

@@ -628,29 +628,29 @@ import { ApiTokensCardComponent } from './api-tokens/api-tokens-card.component';
     }
     .yac-panel {
       margin: 4px 0 12px 56px; padding: 12px 16px;
-      border: 1px solid rgba(124, 77, 255, 0.5); border-radius: 8px;
-      background: rgba(124, 77, 255, 0.06);
+      border: 1px solid rgb(var(--mp-accent-strong-rgb) / 0.5); border-radius: 8px;
+      background: rgb(var(--mp-accent-strong-rgb) / 0.06);
     }
     .yac-head { display: flex; align-items: center; gap: 8px; font-weight: 500; }
-    .yac-head mat-icon { color: #b39dff; }
+    .yac-head mat-icon { color: var(--mp-accent); }
     .yac-ver { font-size: 12px; opacity: 0.7; }
     .yac-stats { margin: 8px 0 4px; font-size: 14px; }
     .yac-muted { margin: 0 0 8px; font-size: 12px; opacity: 0.7; }
     .yac-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
     .lib-panel {
       margin: 4px 0 12px 56px; padding: 12px 16px; border-radius: 8px;
-      border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.03);
+      border: 1px solid rgb(var(--mp-ink-rgb) / 0.14); background: rgb(var(--mp-ink-rgb) / 0.03);
     }
-    .lib-panel.danger { border-color: rgba(244, 67, 54, 0.5); background: rgba(244, 67, 54, 0.06); }
+    .lib-panel.danger { border-color: rgb(var(--mp-error-strong-rgb) / 0.5); background: rgb(var(--mp-error-strong-rgb) / 0.06); }
     .lib-panel-msg { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; line-height: 1.4; }
-    .lib-panel-msg mat-icon { color: #ff8a80; flex: 0 0 auto; }
+    .lib-panel-msg mat-icon { color: var(--mp-error); flex: 0 0 auto; }
     .lib-panel-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
     .rename-field { width: 320px; max-width: 100%; }
     .chip {
       display: inline-flex; align-items: center; gap: 6px;
       font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 12px;
     }
-    .chip.scanning { background: rgba(124, 77, 255, 0.18); color: #b39ddb; }
+    .chip.scanning { background: rgb(var(--mp-accent-strong-rgb) / 0.18); color: var(--mp-accent); }
     .chip mat-spinner { display: inline-block; }
     .grants {
       padding: 8px 16px 16px 72px;
@@ -665,7 +665,7 @@ import { ApiTokensCardComponent } from './api-tokens/api-tokens-card.component';
     .restore-message { margin: 12px 0 0; font-size: 13px; }
     .browser {
       margin-top: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      border: 1px solid rgb(var(--mp-ink-rgb) / 0.12);
       border-radius: 8px;
       padding: 8px 12px;
       max-width: 640px;
@@ -706,12 +706,12 @@ import { ApiTokensCardComponent } from './api-tokens/api-tokens-card.component';
     .browser-actions { display: inline-flex; align-items: center; gap: 4px; }
     .activation-link-box {
       margin-top: 16px; padding: 12px 16px; border-radius: 8px;
-      border: 1px solid rgba(76, 175, 80, 0.5); background: rgba(76, 175, 80, 0.06);
+      border: 1px solid rgb(var(--mp-success-strong-rgb) / 0.5); background: rgb(var(--mp-success-strong-rgb) / 0.06);
     }
     .activation-link-box p { margin: 0 0 8px; font-size: 14px; }
     .activation-url {
       display: block; word-break: break-all; font-size: 13px;
-      padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px; margin-bottom: 8px;
+      padding: 8px; background: rgb(var(--mp-shade-rgb) / 0.2); border-radius: 4px; margin-bottom: 8px;
     }
   `],
 })

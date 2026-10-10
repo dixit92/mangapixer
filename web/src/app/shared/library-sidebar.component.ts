@@ -130,17 +130,17 @@ import { LibraryIconComponent } from './library-icon/library-icon.component';
     }
     .nav-head-label {
       font-size: 11px; font-weight: 700; letter-spacing: 0.6px;
-      text-transform: uppercase; color: #8a8a99; white-space: nowrap; overflow: hidden;
+      text-transform: uppercase; color: var(--mp-text-dim); white-space: nowrap; overflow: hidden;
     }
     .sidebar.collapsed .nav-head { justify-content: center; }
     .sidebar.collapsed .nav-head-label { display: none; }
     .nav-collapse {
       display: inline-flex; align-items: center; justify-content: center;
       width: 30px; height: 30px; flex: 0 0 auto;
-      border: none; border-radius: 8px; background: transparent; color: #b8b8c4;
+      border: none; border-radius: 8px; background: transparent; color: var(--mp-text-secondary);
       cursor: pointer; transition: background .12s ease;
     }
-    .nav-collapse:hover { background: rgba(255,255,255,0.08); }
+    .nav-collapse:hover { background: rgb(var(--mp-ink-rgb) / 0.08); }
     .nav-collapse mat-icon { font-size: 20px; width: 20px; height: 20px; }
     .nav-item {
       display: flex; align-items: center; gap: 10px;
@@ -153,7 +153,7 @@ import { LibraryIconComponent } from './library-icon/library-icon.component';
          background and the trailing count spill past the sidebar's right border. */
       box-sizing: border-box;
     }
-    .nav-item:hover { background: rgba(255,255,255,0.06); }
+    .nav-item:hover { background: rgb(var(--mp-ink-rgb) / 0.06); }
     .nav-item.active { background: var(--mp-accent-bg); color: var(--mp-accent); }
     .nav-item mat-icon { font-size: 20px; width: 20px; height: 20px; flex: 0 0 auto; }
     /* min-width: 0 is required for a flex item to actually shrink below its
@@ -164,13 +164,13 @@ import { LibraryIconComponent } from './library-icon/library-icon.component';
     /* Reading-direction badge: a muted, non-interactive glyph tucked against
        the count. Subtle by design - the label lives in the tooltip /
        aria-label. */
-    .nav-dir { flex: 0 0 auto; color: #8a8a99; opacity: 0.9; }
+    .nav-dir { flex: 0 0 auto; color: var(--mp-text-dim); opacity: 0.9; }
     /* Fixed, right-aligned count column so 1- to 5-digit counts (e.g. 8715)
        don't reflow the row or spill past the sidebar edge - the name (above)
        truncates first instead. */
     .nav-count {
       flex: 0 0 auto; min-width: 2.5em; text-align: right;
-      font-size: 12px; color: #999; font-variant-numeric: tabular-nums;
+      font-size: 12px; color: var(--mp-text-muted); font-variant-numeric: tabular-nums;
     }
     /* Collapsed rail: icons only, centered; labels/counts/direction hidden (names
        surface as tooltips). */

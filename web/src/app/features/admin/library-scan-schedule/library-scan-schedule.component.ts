@@ -96,8 +96,8 @@ export const SCAN_SCHEDULE_OPTIONS: readonly { value: LibraryScanSchedule; label
     }
     .schedule-info { display: inline-flex; flex-wrap: wrap; gap: 4px 16px; opacity: 0.75; }
     select { font: inherit; padding: 4px 6px; max-width: 100%; }
-    .schedule-error { color: var(--mp-warn, #ff8a80); }
-    .link { background: none; border: none; padding: 0; margin-left: 4px; font: inherit; color: #b39ddb; text-decoration: underline; cursor: pointer; }
+    .schedule-error { color: var(--mp-warn, var(--mp-error)); }
+    .link { background: none; border: none; padding: 0; margin-left: 4px; font: inherit; color: var(--mp-accent); text-decoration: underline; cursor: pointer; }
     @media (max-width: 600px) {
       .scan-schedule { padding-left: 16px; }
     }
