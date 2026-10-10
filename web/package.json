@@ -12,7 +12,8 @@
     "test": "ng test",
     "test:ci": "ng test",
     "e2e": "npx playwright test",
-    "api:check": "node scripts/check-openapi-drift.mjs"
+    "api:check": "node scripts/check-openapi-drift.mjs",
+    "theme:check": "node scripts/check-theme-colors.mjs"
   },
   "dependencies": {
     "@angular/animations": "^22.2.1",
