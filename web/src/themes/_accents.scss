@@ -23,31 +23,25 @@
  */
 @use 'sass:map';
 
-/// Angular Material's primary + secondary system colours from two tone maps (keys 10, 20, 30, 40, 80, 90, 100).
+/// Angular Material's primary + secondary system colours from two tone maps (keys 20, 30, 40, 80, 90, 100). Only the variables
+/// Material 22's components read in this app are overridden (checked in the built bundle: primary, on-primary, primary-container,
+/// on-primary-container, inverse-primary, secondary-container, on-secondary-container) plus secondary / on-secondary; the `*-fixed`
+/// colours and surface-tint are left at violet's values (nothing paints with them) to keep the initial bundle small.
 @mixin _material-accent($p, $s) {
   --mat-sys-primary: light-dark(#{map.get($p, 40)}, #{map.get($p, 80)});
   --mat-sys-on-primary: light-dark(#{map.get($p, 100)}, #{map.get($p, 20)});
   --mat-sys-primary-container: light-dark(#{map.get($p, 90)}, #{map.get($p, 30)});
   --mat-sys-on-primary-container: light-dark(#{map.get($p, 30)}, #{map.get($p, 90)});
-  --mat-sys-primary-fixed: #{map.get($p, 90)};
-  --mat-sys-primary-fixed-dim: #{map.get($p, 80)};
-  --mat-sys-on-primary-fixed: #{map.get($p, 10)};
-  --mat-sys-on-primary-fixed-variant: #{map.get($p, 30)};
   --mat-sys-inverse-primary: light-dark(#{map.get($p, 80)}, #{map.get($p, 40)});
-  --mat-sys-surface-tint: light-dark(#{map.get($p, 40)}, #{map.get($p, 80)});
   --mat-sys-secondary: light-dark(#{map.get($s, 40)}, #{map.get($s, 80)});
   --mat-sys-on-secondary: light-dark(#{map.get($s, 100)}, #{map.get($s, 20)});
   --mat-sys-secondary-container: light-dark(#{map.get($s, 90)}, #{map.get($s, 30)});
   --mat-sys-on-secondary-container: light-dark(#{map.get($s, 30)}, #{map.get($s, 90)});
-  --mat-sys-secondary-fixed: #{map.get($s, 90)};
-  --mat-sys-secondary-fixed-dim: #{map.get($s, 80)};
-  --mat-sys-on-secondary-fixed: #{map.get($s, 10)};
-  --mat-sys-on-secondary-fixed-variant: #{map.get($s, 30)};
 }
 
 // ---- blue: seed #2196f3 (Material Blue 500)
-$_blue-primary: (10: #001d36, 20: #003258, 30: #00497d, 40: #0061a4, 80: #9ecaff, 90: #d1e4ff, 100: #ffffff);
-$_blue-secondary: (10: #001d36, 20: #0c3253, 30: #28496b, 40: #416084, 80: #a9c9f2, 90: #d1e4ff, 100: #ffffff);
+$_blue-primary: (20: #003258, 30: #00497d, 40: #0061a4, 80: #9ecaff, 90: #d1e4ff, 100: #ffffff);
+$_blue-secondary: (20: #0c3253, 30: #28496b, 40: #416084, 80: #a9c9f2, 90: #d1e4ff, 100: #ffffff);
 :root[data-accent='blue'] {
   @include _material-accent($_blue-primary, $_blue-secondary);
   --mp-accent: #9ecaff;
@@ -78,8 +72,8 @@ $_blue-secondary: (10: #001d36, 20: #0c3253, 30: #28496b, 40: #416084, 80: #a9c9
 }
 
 // ---- teal: seed #009688 (Material Teal 500)
-$_teal-primary: (10: #00201c, 20: #003731, 30: #005048, 40: #006a60, 80: #67d9c9, 90: #85f6e5, 100: #ffffff);
-$_teal-secondary: (10: #00201c, 20: #0c3731, 30: #264d48, 40: #3e655f, 80: #a5cfc7, 90: #c1ebe3, 100: #ffffff);
+$_teal-primary: (20: #003731, 30: #005048, 40: #006a60, 80: #67d9c9, 90: #85f6e5, 100: #ffffff);
+$_teal-secondary: (20: #0c3731, 30: #264d48, 40: #3e655f, 80: #a5cfc7, 90: #c1ebe3, 100: #ffffff);
 :root[data-accent='teal'] {
   @include _material-accent($_teal-primary, $_teal-secondary);
   --mp-accent: #67d9c9;
@@ -110,8 +104,8 @@ $_teal-secondary: (10: #00201c, 20: #0c3731, 30: #264d48, 40: #3e655f, 80: #a5cf
 }
 
 // ---- green: seed #43a047 (Material Green 600)
-$_green-primary: (10: #002204, 20: #00390a, 30: #005313, 40: #006e1c, 80: #7ddc7a, 90: #98f994, 100: #ffffff);
-$_green-secondary: (10: #012104, 20: #163716, 30: #2d4e2b, 40: #446741, 80: #aad1a2, 90: #c5edbd, 100: #ffffff);
+$_green-primary: (20: #00390a, 30: #005313, 40: #006e1c, 80: #7ddc7a, 90: #98f994, 100: #ffffff);
+$_green-secondary: (20: #163716, 30: #2d4e2b, 40: #446741, 80: #aad1a2, 90: #c5edbd, 100: #ffffff);
 :root[data-accent='green'] {
   @include _material-accent($_green-primary, $_green-secondary);
   --mp-accent: #7ddc7a;
@@ -142,8 +136,8 @@ $_green-secondary: (10: #012104, 20: #163716, 30: #2d4e2b, 40: #446741, 80: #aad
 }
 
 // ---- amber: seed #ffb300 (Material Amber 600)
-$_amber-primary: (10: #281900, 20: #432c00, 30: #604100, 40: #7e5700, 80: #ffba38, 90: #ffdeac, 100: #ffffff);
-$_amber-secondary: (10: #281900, 20: #432c00, 30: #5e4109, 40: #795920, 80: #eac07d, 90: #ffdeac, 100: #ffffff);
+$_amber-primary: (20: #432c00, 30: #604100, 40: #7e5700, 80: #ffba38, 90: #ffdeac, 100: #ffffff);
+$_amber-secondary: (20: #432c00, 30: #5e4109, 40: #795920, 80: #eac07d, 90: #ffdeac, 100: #ffffff);
 :root[data-accent='amber'] {
   @include _material-accent($_amber-primary, $_amber-secondary);
   --mp-accent: #ffba38;
@@ -174,8 +168,8 @@ $_amber-secondary: (10: #281900, 20: #432c00, 30: #5e4109, 40: #795920, 80: #eac
 }
 
 // ---- rose: seed #e91e63 (Material Pink 500)
-$_rose-primary: (10: #400014, 20: #660025, 30: #900038, 40: #bc004b, 80: #ffb2be, 90: #ffd9de, 100: #ffffff);
-$_rose-secondary: (10: #400014, 20: #660025, 30: #871a3a, 40: #a73451, 80: #ffb2be, 90: #ffd9de, 100: #ffffff);
+$_rose-primary: (20: #660025, 30: #900038, 40: #bc004b, 80: #ffb2be, 90: #ffd9de, 100: #ffffff);
+$_rose-secondary: (20: #660025, 30: #871a3a, 40: #a73451, 80: #ffb2be, 90: #ffd9de, 100: #ffffff);
 :root[data-accent='rose'] {
   @include _material-accent($_rose-primary, $_rose-secondary);
   --mp-accent: #ffb2be;
