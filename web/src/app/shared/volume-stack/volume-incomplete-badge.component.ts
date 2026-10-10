@@ -31,7 +31,7 @@ import { DUPLICATE_TIP, duplicateListText, duplicatesLabel } from '../duplicate-
     .incomplete {
       position: absolute; top: 6px; left: 6px; z-index: 2;
       font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 10px;
-      background: rgb(var(--mp-warn-strong-rgb) / 0.95); color: var(--mp-surface); /* theme-token-wanted: --mp-on-warn (dark text on the amber fill) */
+      background: rgb(var(--mp-warn-strong-rgb) / 0.95); color: var(--mp-on-warn);
     }
     .incomplete.moved { top: auto; bottom: 6px; }
     .dup {
