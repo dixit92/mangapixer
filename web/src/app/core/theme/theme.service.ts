@@ -198,14 +198,18 @@ export class ThemeService {
 
   /**
    * `<meta name="theme-color">` = the colour the page is painted with, so the browser / OS bars match it: the body's background
-   * when it paints one, else the theme's `--mp-surface` (the app leaves the body transparent today; index.html starts with the
-   * dark surface).
+   * when it paints one, else the page colour on <html> (`--mp-page`, per base - black #000 and sepia paper included).
    */
   private updateThemeColor(): void {
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     if (!meta || typeof getComputedStyle !== 'function') return;
-    const painted = document.body ? getComputedStyle(document.body).backgroundColor : '';
-    const color = isOpaque(painted) ? painted : getComputedStyle(document.documentElement).getPropertyValue('--mp-surface').trim();
+    const body = document.body ? getComputedStyle(document.body).backgroundColor : '';
+    const root = getComputedStyle(document.documentElement);
+    const color = isOpaque(body)
+      ? body
+      : isOpaque(root.backgroundColor)
+        ? root.backgroundColor
+        : root.getPropertyValue('--mp-page').trim();
     if (color) meta.setAttribute('content', color);
   }
 }

@@ -257,6 +257,13 @@ describe('ThemeService', () => {
     expect(meta.content).toBe('rgb(250, 250, 250)');
   });
 
+  it('without a painted body, theme-color follows the page colour on <html>', () => {
+    root.style.backgroundColor = 'rgb(0, 0, 0)';
+    create();
+    expect(meta.content).toBe('rgb(0, 0, 0)'); // black is a painted colour, not "transparent"
+    root.style.backgroundColor = '';
+  });
+
   it('samplePalettes reads one sample per request and restores <html> as it was', () => {
     localStorage.setItem(THEME_STORAGE_KEY, 'sepia');
     localStorage.setItem(ACCENT_STORAGE_KEY, 'teal');

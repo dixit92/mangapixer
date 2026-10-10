@@ -751,7 +751,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     .scrub-fill { height: 100%; flex: none; background: var(--mp-accent-strong); }
     .scrub-thumb {
       position: absolute; top: 11px; width: 22px; height: 22px; margin-left: -11px;
-      border-radius: 50%; background: var(--mp-on-accent); border: 3px solid var(--mp-accent-strong);
+      border-radius: 50%; background: var(--mp-on-scrim); border: 3px solid var(--mp-accent-strong);
       box-shadow: 0 1px 4px rgb(var(--mp-shade-rgb) / 0.5); transition: transform .12s ease;
     }
     .scrub:hover .scrub-thumb, .scrub.scrubbing .scrub-thumb { transform: scale(1.2); }

@@ -162,6 +162,26 @@ html, body {
   --mp-teal-rgb: 0 121 107;
 }
 
+/* The page itself (1.40.0): Material 22's `mat-app-background` paints nothing, so every page showed the browser canvas (#121212 in
+   a dark scheme). --mp-page keeps that exact dark look and gives every base its own page colour; black and sepia take Material's
+   background as lane V sets it in src/themes/. Also what <meta name="theme-color"> follows (ThemeService). */
+:root {
+  --mp-page: #121212;
+}
+
+:root[data-theme='light'] {
+  --mp-page: #fcfbfe;
+}
+
+:root[data-theme='black'],
+:root[data-theme='sepia'] {
+  --mp-page: var(--mat-sys-background);
+}
+
+html {
+  background-color: var(--mp-page);
+}
+
 /* Material and native controls follow `color-scheme` (`theme-type: color-scheme` above): one scheme per painted base. The theme
    engine also sets it inline on <html>; these rules cover the first paint. */
 :root[data-theme='dark'],
