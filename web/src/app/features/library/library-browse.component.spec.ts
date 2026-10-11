@@ -1128,6 +1128,131 @@ describe('LibraryBrowseComponent infinite scroll + sticky nav (1.8.0)', () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
+  // --- infinite scroll ---
+
+  it('renders a sentinel (and no Load More button) while more pages exist', () => {
+    const { el } = setup({ withIntersectionObserver: true, browse: () => of(page([node('a')], 'c1')) });
+    expect(el.querySelector('.scroll-sentinel')).not.toBeNull();
+    expect(el.querySelector('.scroll-sentinel button')).toBeNull();
+  });
+
+  it('shows no sentinel once the last page is loaded', () => {
+    const { el } = setup({ withIntersectionObserver: true, browse: () => of(page([node('a')], null)) });
+    expect(el.querySelector('.scroll-sentinel')).toBeNull();
+  });
+
+  it('appends the next page (never rebuilds) when the sentinel intersects, then re-arms the observer', () => {
+    let call = 0;
+    const { comp, browseLibrary, fixture } = setup({
+      withIntersectionObserver: true,
+      browse: () => of(call++ === 0 ? page([node('a')], 'c1') : page([node('b')], null)),
+    });
+    expect(FakeIntersectionObserver.instances.length).toBe(1);
+    const io = FakeIntersectionObserver.instances[0];
+    expect(io.observe).toHaveBeenCalledTimes(1);
+    expect(io.opts?.rootMargin).toContain('600px');
+
+    const before = comp.nodes()[0];
+    io.intersect();
+    fixture.detectChanges();
+
+    expect(browseLibrary).toHaveBeenCalledTimes(2);
+    expect(browseLibrary.mock.calls[1][2]).toBe('c1'); // cursor of the next page
+    expect(comp.nodes().map((n) => n.id)).toEqual(['a', 'b']);
+    expect(comp.nodes()[0]).toBe(before); // same object: the existing card is untouched
+    expect(comp.hasMore()).toBe(false);
+    expect(fixture.nativeElement.querySelector('.scroll-sentinel')).toBeNull();
+  });
+
+  it('re-observes the sentinel after an append that still has more (crossing-only observer semantics)', () => {
+    let call = 0;
+    const { fixture } = setup({
+      withIntersectionObserver: true,
+      browse: () => of(call++ === 0 ? page([node('a')], 'c1') : page([node('b')], 'c2')),
+    });
+    const io = FakeIntersectionObserver.instances[0];
+    io.intersect();
+    fixture.detectChanges();
+    expect(io.unobserve).toHaveBeenCalledTimes(1);
+    expect(io.observe).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not double-load while a page is in flight', () => {
+    const pending = new Subject<PageResponse<CatalogNodeDto>>();
+    let call = 0;
+    const { comp, browseLibrary } = setup({
+      withIntersectionObserver: true,
+      browse: () => (call++ === 0 ? of(page([node('a')], 'c1')) : pending.asObservable()),
+    });
+    const io = FakeIntersectionObserver.instances[0];
+    io.intersect();
+    io.intersect();
+    comp.loadMore();
+    expect(browseLibrary).toHaveBeenCalledTimes(2);
+    expect(comp.loadingMore()).toBe(true);
+    pending.next(page([node('b')], null));
+    expect(comp.loadingMore()).toBe(false);
+    expect(comp.nodes().length).toBe(2);
+  });
+
+  it('drops a late append response when the list was reset meanwhile (sort change)', () => {
+    const pending = new Subject<PageResponse<CatalogNodeDto>>();
+    let call = 0;
+    const { comp } = setup({
+      withIntersectionObserver: true,
+      browse: () => {
+        const n = call++;
+        if (n === 0) return of(page([node('a')], 'c1'));
+        if (n === 1) return pending.asObservable();       // the append, still in flight
+        return of(page([node('z')], null));               // the reload after setSort
+      },
+    });
+    FakeIntersectionObserver.instances[0].intersect();
+    comp.setSort('recentlyAdded');
+    expect(comp.nodes().map((n) => n.id)).toEqual(['z']);
+    pending.next(page([node('b')], null)); // stale
+    expect(comp.nodes().map((n) => n.id)).toEqual(['z']);
+    expect(comp.loadingMore()).toBe(false);
+  });
+
+  it('falls back to a Load More button when IntersectionObserver is unavailable', () => {
+    const { el, comp } = setup({ browse: () => of(page([node('a')], 'c1')) });
+    expect(comp.autoLoadSupported).toBe(false);
+    expect(el.querySelector('.scroll-sentinel button')).not.toBeNull();
+  });
+
+  // --- initial-count preference ---
+
+  it('requests the stored libraryPageSize for the initial page', () => {
+    const { browseLibrary } = setup({ prefs: { libraryPageSize: 100 } });
+    expect(browseLibrary.mock.calls[0][3]).toBe(100);
+  });
+
+  it('falls back to 50 when libraryPageSize is unset, 0, or out of range', () => {
+    expect(setup({}).browseLibrary.mock.calls[0][3]).toBe(50);
+    TestBed.resetTestingModule();
+    expect(setup({ prefs: { libraryPageSize: 0 } }).browseLibrary.mock.calls[0][3]).toBe(50);
+    TestBed.resetTestingModule();
+    expect(setup({ prefs: { libraryPageSize: 5000 } }).browseLibrary.mock.calls[0][3]).toBe(50);
+  });
+
+  // --- Read-state filter (1.10.0, F1) ---
+
+  it('the initial browse sends no readState filter (all → server default)', () => {
+    const { browseLibrary } = setup({});
+    // browseLibrary(libId, parentId, cursor, pageSize, sort, direction, readState)
+    expect(browseLibrary.mock.calls[0][6]).toBe('all');
+  });
+
+  it('setReadStateFilter reloads from the top and passes the filter to the API', () => {
+    const { comp, browseLibrary } = setup({ browse: () => of(page([node('a')], 'c1')) });
+    comp.setReadStateFilter('unread');
+    expect(comp.readStateFilter()).toBe('unread');
+    const last = browseLibrary.mock.calls.at(-1)!;
+    expect(last[2]).toBeNull();      // reloaded from the top (cursor null)
+    expect(last[6]).toBe('unread');  // filter forwarded
+  });
+
   it('setReadStateFilter with the current value is a no-op (no reload)', () => {
     const { comp, browseLibrary } = setup({});
     comp.setReadStateFilter('all');
