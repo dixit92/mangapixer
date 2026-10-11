@@ -2058,7 +2058,7 @@ describe('ReaderComponent phone controls + menu highlight (1.10.0)', () => {
     fixture.detectChanges();
     const panel = openMenu(el, fixture, 'Display');
     const groups = Array.from(panel.querySelectorAll('[role="group"]')).map((g) => g.getAttribute('aria-label'));
-    expect(groups).toEqual(['Layout', 'Page width', 'Tap to scroll']);
+    expect(groups).toEqual(['Layout', 'Page width', 'Tap to scroll', 'Edge taps']); // Edge taps: 1.41.0 vertical edge zones
     expect(panel.querySelector('[role="group"][aria-label="Page width"] input[type="range"]')).toBeTruthy();
     expect(itemByLabel(panel, 'Vertical (webtoon)').getAttribute('aria-checked')).toBe('true');
     expect(groupItems(panel, 'Tap to scroll').map((i) => i.getAttribute('aria-label')))

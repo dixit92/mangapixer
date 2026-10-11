@@ -10,7 +10,7 @@ import {
   ReaderPreferencesService, PageAnimation, PageQuality, Upscaler, DownscaleFilter, EnhanceQuality,
 } from '../../core/reading/reader-preferences.service';
 import { DOWNSCALE_FILTER_OPTIONS, filterOptionHint } from '../../core/reading/downscale-filters';
-import { WebtoonNavPreferencesService, WebtoonTapStep } from './webtoon-nav.service';
+import { WebtoonNavPreferencesService, WebtoonTapStep, WebtoonForwardEdge } from './webtoon-nav.service';
 import { UpscaleSupportService } from './upscale.directive';
 import { availabilityFor } from './upscale-engine';
 
@@ -59,6 +59,15 @@ export const WEBTOON_TAP_STEP_OPTIONS: readonly ReaderOption<WebtoonTapStep>[] =
   { value: 80, label: '80%', icon: '' },
   { value: 90, label: '90%', icon: '' },
   { value: 100, label: '100%', icon: '' },
+];
+
+/**
+ * Webtoon edge taps (1.41.0, owner 2026-10-11): which side edge of the middle band steps forward (the other steps
+ * back); the swipe follows it. Per device; the vertical view ignores the series' reading direction.
+ */
+export const WEBTOON_FORWARD_EDGE_OPTIONS: readonly ReaderOption<WebtoonForwardEdge>[] = [
+  { value: 'right', label: 'Right goes forward', icon: 'east' },
+  { value: 'left', label: 'Left goes forward', icon: 'west' },
 ];
 
 export const FIT_OPTIONS: readonly ReaderOption<FitMode>[] = [
@@ -456,8 +465,8 @@ export interface ReaderOptionsHost {
  * Design:
  *  - 1.41.0: the sheet follows the bar's grouping - the action tiles (Bookmark page / Bookmarks / Favorite / Series
  *    info, the last only when the archive has series information), then a Display section (Layout, Image fit or
- *    Page width, Reading direction, Page transition or Tap to scroll) and a Quality section (Upscaling, Enhance
- *    quality, Page quality, Downscale filter), then the archive buttons and help.
+ *    Page width, Reading direction, Page transition or Tap to scroll + Edge taps) and a Quality section (Upscaling,
+ *    Enhance quality, Page quality, Downscale filter), then the archive buttons and help.
  *  - Progressive disclosure: settings are GROUPED (Layout / Image fit /
  *    Direction / Page transition) as labelled radio-groups of chips, not a flat
  *    15-item menu. Each group is a single row (or two) of large, labelled,
@@ -567,6 +576,22 @@ export interface ReaderOptionsHost {
               </button>
             }
           </div>
+        </section>
+        <!-- 1.41.0: which middle-band edge (and swipe) goes forward. Inactive, not hidden, while Tap to scroll is Off. -->
+        <section class="group">
+          <h4 class="group-label" id="reader-options-edges">Edge taps</h4>
+          <div class="chips" role="radiogroup" aria-labelledby="reader-options-edges">
+            @for (opt of forwardEdgeOptions; track opt.value) {
+              <button type="button" class="chip" role="radio"
+                      [class.selected]="webtoonNav.forwardEdge() === opt.value"
+                      [attr.aria-checked]="webtoonNav.forwardEdge() === opt.value"
+                      [disabled]="!webtoonNav.tapZonesEnabled()"
+                      (click)="webtoonNav.setForwardEdge(opt.value)">
+                <mat-icon aria-hidden="true">{{ opt.icon }}</mat-icon>{{ opt.label }}
+              </button>
+            }
+          </div>
+          @if (!webtoonNav.tapZonesEnabled()) { <p class="group-hint">Off while Tap to scroll is Off.</p> }
         </section>
       } @else {
         <section class="group">
@@ -780,6 +805,7 @@ export class ReaderOptionsSheetComponent {
   readonly directionOptions = DIRECTION_OPTIONS;
   readonly transitionOptions = PAGE_ANIMATION_OPTIONS;
   readonly tapStepOptions = WEBTOON_TAP_STEP_OPTIONS;
+  readonly forwardEdgeOptions = WEBTOON_FORWARD_EDGE_OPTIONS;
   readonly upscalerOptions = UPSCALER_OPTIONS;
   readonly enhanceQualityOptions = ENHANCE_QUALITY_OPTIONS;
   readonly pageQualityOptions = PAGE_QUALITY_OPTIONS;

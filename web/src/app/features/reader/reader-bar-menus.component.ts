@@ -6,10 +6,10 @@ import { MatSliderModule } from '@angular/material/slider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { ReaderPreferencesService, PageAnimation } from '../../core/reading/reader-preferences.service';
-import { WebtoonNavPreferencesService, WebtoonTapStep } from './webtoon-nav.service';
+import { WebtoonNavPreferencesService, WebtoonTapStep, WebtoonForwardEdge } from './webtoon-nav.service';
 import {
   ReaderOptionsHost, LayoutChoice, LAYOUT_OPTIONS, FIT_OPTIONS, DIRECTION_OPTIONS, PAGE_ANIMATION_OPTIONS,
-  WEBTOON_TAP_STEP_OPTIONS, READER_MENU_STYLES, activeLayout, pickLayout,
+  WEBTOON_TAP_STEP_OPTIONS, WEBTOON_FORWARD_EDGE_OPTIONS, READER_MENU_STYLES, activeLayout, pickLayout,
 } from './reader-settings-menu.component';
 
 /** Keys the Page width slider handles itself; inside the menu they would otherwise move focus between items. */
@@ -19,7 +19,8 @@ const SliderKeys = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', '
  * The bar's Display menu (1.41.0, owner decision 5): how the pages are laid out on screen, in one menu instead of
  * four bar buttons - Layout (the old Reading mode menu), Image fit, Reading direction and Page transition; in the
  * vertical view the Page width slider takes Image fit's place, Reading direction drops out and Tap to scroll takes
- * Page transition's slot, as the bar did before. Every list is the phone sheet's own (`LAYOUT_OPTIONS`, `FIT_OPTIONS`,
+ * Page transition's slot, as the bar did before, followed by Edge taps (1.41.0: which middle-band edge goes forward;
+ * shown but disabled while Tap to scroll is Off). Every list is the phone sheet's own (`LAYOUT_OPTIONS`, `FIT_OPTIONS`,
  * ...) and the layout rule is the sheet's `activeLayout`, so the two surfaces cannot drift. The trigger shows the
  * reading mode on screen (`icon`, the reader's `viewIcon()`).
  *
@@ -67,6 +68,17 @@ const SliderKeys = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', '
                 {{ opt.label }}
               </button>
             }
+          </div>
+          <div role="group" aria-label="Edge taps">
+            <div class="menu-group-label">Edge taps</div>
+            @for (opt of forwardEdgeOptions; track opt.value) {
+              <button mat-menu-item role="menuitemradio" [disabled]="!webtoonNav.tapZonesEnabled()"
+                      [class.selected-option]="webtoonNav.forwardEdge() === opt.value"
+                      [attr.aria-checked]="webtoonNav.forwardEdge() === opt.value"
+                      (click)="chooseForwardEdge(opt.value)" [attr.aria-label]="'Edge taps: ' + opt.label">
+                <mat-icon>{{ opt.icon }}</mat-icon> {{ opt.label }}</button>
+            }
+            @if (!webtoonNav.tapZonesEnabled()) { <div class="menu-hint">Off while Tap to scroll is Off.</div> }
           </div>
         } @else {
           <div role="group" aria-label="Image fit">
@@ -121,6 +133,7 @@ export class ReaderDisplayMenuComponent {
   readonly directionOptions = DIRECTION_OPTIONS;
   readonly transitionOptions = PAGE_ANIMATION_OPTIONS;
   readonly tapStepOptions = WEBTOON_TAP_STEP_OPTIONS;
+  readonly forwardEdgeOptions = WEBTOON_FORWARD_EDGE_OPTIONS;
 
   /** The layout to highlight - the phone sheet's rule. */
   readonly layout = computed(() => activeLayout(this.host()));
@@ -128,6 +141,7 @@ export class ReaderDisplayMenuComponent {
   chooseLayout(choice: LayoutChoice): void { pickLayout(this.host(), choice); }
   chooseTransition(mode: PageAnimation): void { this.prefs.setPageAnimation(mode); }
   chooseTapStep(step: WebtoonTapStep): void { this.webtoonNav.setTapStep(step); }
+  chooseForwardEdge(edge: WebtoonForwardEdge): void { this.webtoonNav.setForwardEdge(edge); }
 
   /**
    * Keyboard inside the menu: the Page width slider keeps its own arrow keys, and Tab from a menu item moves to the
