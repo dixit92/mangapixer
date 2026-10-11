@@ -191,7 +191,8 @@ public sealed class JumpIndexLevelsHttpTests : IClassFixture<MangaPixerWebApplic
         Assert.Equal([9, 11, 10, 10, 10, 10, 1, 1], index.Buckets.Select(b => b.Count).ToArray());
         string[] expected =
         [
-            "Ranged Saga - Ch. 001.cbz", "Ranged Saga - Ch. 010.cbz", "Ranged Saga - Ch. 020.cbz", "Ranged Saga - Ch. 030.cbz",
+            // "010.5" lists before "010" (natural order compares ".5.cbz" with ".cbz"), so it starts the range 10-19.
+            "Ranged Saga - Ch. 001.cbz", "Ranged Saga - Ch. 010.5.cbz", "Ranged Saga - Ch. 020.cbz", "Ranged Saga - Ch. 030.cbz",
             "Ranged Saga - Ch. 040.cbz", "Ranged Saga - Ch. 050.cbz", "Ranged Saga - Ch. 060.cbz", "Ranged Saga - Oneshot.cbz",
         ];
         for (var i = 0; i < expected.Length; i++)
