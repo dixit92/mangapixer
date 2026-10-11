@@ -216,7 +216,7 @@ export const READER_MENU_STYLES = `
   }
   ::ng-deep .reader-options-menu .option-text { display: flex; flex-direction: column; line-height: 18px; }
   ::ng-deep .reader-options-menu .option-note { font-size: 11px; line-height: 14px; opacity: 0.7; white-space: normal; max-width: 200px; }
-  ::ng-deep .reader-options-menu .menu-slider { display: block; width: 100%; min-width: 200px; margin: 0; padding: 0 8px; box-sizing: border-box; }
+  ::ng-deep .reader-options-menu .mat-mdc-slider.menu-slider { display: block; width: auto; min-width: 168px; margin: 0 16px 4px; }
   ::ng-deep .reader-options-menu .menu-divider { height: 1px; margin: 4px 0; background: var(--mat-sys-outline-variant); }
 `;
 
