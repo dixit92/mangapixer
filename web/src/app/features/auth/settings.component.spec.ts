@@ -210,7 +210,7 @@ function inputChange(value: number): Event {
 describe('SettingsComponent — New Chapters (home window)', () => {
   let httpMock: HttpTestingController;
 
-  function createComponent(homeRecentWindowDays: number | undefined = 30) {
+  function createComponent(homeRecentWindowDays: number | undefined = 30, homeStacksPerLibrary: number | undefined = undefined) {
     TestBed.configureTestingModule({
       imports: [SettingsComponent],
       providers: [
@@ -228,7 +228,7 @@ describe('SettingsComponent — New Chapters (home window)', () => {
     httpMock.expectOne('/api/v1/reading/home-libraries').flush({ excludedLibraryIds: [] });
     httpMock.expectOne('/api/v1/reading/library-preferences').flush({
       viewMode: 'card', density: 'comfortable', sort: 'name', direction: '',
-      cardSize: '', libraryPageSize: 50, homeRecentWindowDays,
+      cardSize: '', libraryPageSize: 50, homeRecentWindowDays, homeStacksPerLibrary,
     });
     httpMock.expectOne('/api/v1/reading/preferences').flush({
       defaultReaderMode: 'PagedLtr', preferDoubleSpread: false, reducedMotion: false,
@@ -243,6 +243,44 @@ describe('SettingsComponent — New Chapters (home window)', () => {
     const cmp = createComponent(14).componentInstance;
     expect(cmp.homeWindowLoaded()).toBe(true);
     expect(cmp.homeWindowDays()).toBe(14);
+  });
+
+  it('loads the stored homeStacksPerLibrary preset, and shows 12 when unset or not a preset (1.41.0)', () => {
+    expect(createComponent(30, 24).componentInstance.homeStacks()).toBe(24);
+    TestBed.resetTestingModule();
+    expect(createComponent(30, 0).componentInstance.homeStacks()).toBe(12);
+    TestBed.resetTestingModule();
+    expect(createComponent(30, 17).componentInstance.homeStacks()).toBe(12);
+  });
+
+  it('saves a stacks preset by echoing the whole blob back, and reverts on failure (1.41.0)', () => {
+    const cmp = createComponent(14).componentInstance;
+
+    cmp.setHomeStacks(selectChange(24));
+    const req = httpMock.expectOne('/api/v1/reading/library-preferences');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual(expect.objectContaining({
+      viewMode: 'card', libraryPageSize: 50, homeRecentWindowDays: 14, homeStacksPerLibrary: 24,
+    }));
+    req.flush(null);
+    expect(cmp.homeStacks()).toBe(24);
+
+    // A later window save keeps the stored stacks (the blob is echoed, not rebuilt).
+    cmp.setHomeWindowDays(inputChange(7));
+    const windowReq = httpMock.expectOne('/api/v1/reading/library-preferences');
+    expect(windowReq.request.body.homeStacksPerLibrary).toBe(24);
+    windowReq.flush(null);
+
+    cmp.setHomeStacks(selectChange(6));
+    httpMock.expectOne('/api/v1/reading/library-preferences').flush(
+      { error: 'server_error', message: 'nope', detail: null, correlationId: null },
+      { status: 500, statusText: 'Server Error' },
+    );
+    expect(cmp.homeStacks()).toBe(24);
+    expect(cmp.homeStacksError()).toBe('nope');
+
+    cmp.setHomeStacks(selectChange(7)); // not a preset: ignored, no request
+    httpMock.expectNone('/api/v1/reading/library-preferences');
   });
 
   it('falls back to the 30-day default when unset (0)', () => {

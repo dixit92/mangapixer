@@ -459,6 +459,15 @@ public sealed record LibraryViewPreferencesDto
     public string CardSize { get; init; } = "";
     public int LibraryPageSize { get; init; }
     public int HomeRecentWindowDays { get; init; }
+
+    /// <summary>
+    /// Per-user number of stacks per library in the home "New chapters" row (1.41.0).
+    /// 0 means unset - <c>RecentChaptersService</c> uses its default (12) - and non-zero
+    /// values are clamped to 1..50 by the service when the home row asks without an
+    /// explicit count; stored and returned verbatim here, like HomeRecentWindowDays.
+    /// </summary>
+    public int HomeStacksPerLibrary { get; init; }
+
     public int ListColumns { get; init; }
 
     /// <summary>

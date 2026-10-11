@@ -549,7 +549,7 @@ export class HomeComponent implements OnInit {
   }
 
   private loadRecentChapters(): void {
-    this.api.getRecentChapters(12, this.recentReadStateFilter()).subscribe({
+    this.api.getRecentChapters(undefined, this.recentReadStateFilter()).subscribe({
       next: (dto: RecentChaptersDto) => this.recentGroups.set(dto.libraries),
       error: () => this.recentGroups.set([]),
     });

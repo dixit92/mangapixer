@@ -39,7 +39,7 @@ using Microsoft.EntityFrameworkCore;
 /// </description></item>
 /// <item><description>
 /// Within a library, stacks are ordered by <see cref="RecentChapterStack.LatestAddedAt"/>
-/// descending; <c>perLibrary</c> (default 12, max 50) caps STACKS. <c>NewCount</c> is the number
+/// descending; <c>perLibrary</c> (default: the caller's stored preference, else 12; max 50) caps STACKS. <c>NewCount</c> is the number
 /// of candidate archives attributed to the stack (always ≥ 1).
 /// </description></item>
 /// <item><description>
@@ -101,8 +101,10 @@ public sealed class RecentChaptersService
         HomeReadStateFilter readState = HomeReadStateFilter.All,
         CancellationToken ct = default)
     {
+        // An explicit count wins (API callers); without one the caller's stored
+        // "stacks per library" preference applies (1.41.0), else the default.
         var cap = perLibrary is null or < 1
-            ? DefaultPerLibrary
+            ? await ResolveStacksPerLibraryAsync(userId, ct)
             : Math.Min(perLibrary.Value, MaxPerLibrary);
 
         var visibleLibs = await _auth.GetVisibleLibraryIdsAsync(userId, incognito, ct);
@@ -169,6 +171,23 @@ public sealed class RecentChaptersService
                     .ToList(),
             })
             .ToList();
+    }
+
+    /// <summary>
+    /// The caller's stored "stacks per library" for the home row (1.41.0,
+    /// <see cref="ReaderPreferencesEntity.HomeStacksPerLibrary"/>): 0 / no row -> <see cref="DefaultPerLibrary"/>,
+    /// otherwise clamped to 1..<see cref="MaxPerLibrary"/>. Used only when the request names no explicit count.
+    /// </summary>
+    private async Task<int> ResolveStacksPerLibraryAsync(long userId, CancellationToken ct)
+    {
+        var stored = await _db.ReaderPreferences
+            .Where(p => p.UserId == userId)
+            .Select(p => (int?)p.HomeStacksPerLibrary)
+            .FirstOrDefaultAsync(ct);
+
+        return stored is null or 0
+            ? DefaultPerLibrary
+            : Math.Clamp(stored.Value, 1, MaxPerLibrary);
     }
 
     /// <summary>

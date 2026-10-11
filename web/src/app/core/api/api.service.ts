@@ -236,9 +236,13 @@ export class ApiService {
    * `LibraryReadStateFilter` (same wire values) rather than a separate type — a
    * transient toolbar control, not a persisted preference; 'all' sends no param
    * (server default = unfiltered).
+   *
+   * `perLibrary` (1.41.0): omitted -> the server uses the caller's stored
+   * "stacks per library" preference (default 12); pass a number to override it.
    */
-  getRecentChapters(perLibrary = 12, readState: LibraryReadStateFilter = 'all'): Observable<RecentChaptersDto> {
-    let params = new HttpParams().set('perLibrary', perLibrary.toString());
+  getRecentChapters(perLibrary?: number, readState: LibraryReadStateFilter = 'all'): Observable<RecentChaptersDto> {
+    let params = new HttpParams();
+    if (perLibrary !== undefined) params = params.set('perLibrary', perLibrary.toString());
     if (readState !== 'all') params = params.set('readState', readState);
     return this.get<RecentChaptersDto>('/home/recent-chapters', params);
   }

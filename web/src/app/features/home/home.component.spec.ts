@@ -435,6 +435,8 @@ describe('HomeComponent', () => {
     cmp.setRecentReadStateFilter('read');
     const req = httpMock.expectOne((r) => r.url === '/api/v1/home/recent-chapters');
     expect(req.request.params.get('readState')).toBe('read');
+    // 1.41.0: no explicit count - the server applies the user's stored "stacks per library".
+    expect(req.request.params.has('perLibrary')).toBe(false);
     req.flush({ libraries: [] });
     fixture.detectChanges();
 

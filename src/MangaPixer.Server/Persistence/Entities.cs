@@ -508,6 +508,14 @@ public sealed class ReaderPreferencesEntity
     public int HomeRecentWindowDays { get; set; }
 
     /// <summary>
+    /// Per-user number of stacks per library in the home "New chapters" row (1.41.0):
+    /// 0 = unset -> <c>RecentChaptersService</c> falls back to its default (12). The
+    /// Settings screen offers 6 / 12 / 24 / 50; the service clamps any stored value to
+    /// 1..50 when it reads it, so the column is stored verbatim like the others.
+    /// </summary>
+    public int HomeStacksPerLibrary { get; set; }
+
+    /// <summary>
     /// Per-user list-view column count (1.18.0), 1-3, on wide viewports: 0 = unset
     /// -> the frontend applies its own default (2). Mirrors LibraryCardSize's
     /// presentation-only, stored-verbatim pattern.

@@ -390,6 +390,7 @@ export interface LibraryViewPreferencesDto {
    * server clamps stored values to 1-365.
    */
   homeRecentWindowDays?: number;
+  homeStacksPerLibrary?: number;
   /**
    * Optional (1.18.0): the per-user list-view column count (1-3) on wide
    * viewports. 0/omitted/unrecognized → the frontend default (2). Stored
