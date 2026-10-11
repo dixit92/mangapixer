@@ -4,7 +4,7 @@ Select any archive in a library to open it in the reader. This page covers the r
 
 ![The reader on desktop: a single page centered on a dark background, the toolbar above and the page slider below](../assets/screenshots/docs-reader-desktop.png)
 
-![The reader toolbar on desktop: back arrow and page counter on the left; previous and next archive, reading mode, image fit, direction, page transition, help and fullscreen on the right](../assets/screenshots/docs-reader-toolbar-desktop.png)
+![The reader toolbar on desktop: back arrow, page counter and the archive's name on the left; previous and next archive, Series info, the bookmark menu, the favorite star, the Display and Quality menus, help and fullscreen on the right](../assets/screenshots/docs-reader-toolbar-desktop.png)
 
 ## Toolbar
 
@@ -49,7 +49,7 @@ On screens narrower than 600 px, the toolbar keeps only **Next archive**, **Full
 
 Changing a setting, bookmarking the page or favoriting the archive keeps the sheet open.
 
-![The Reader options bottom sheet on a phone in vertical mode: Layout, Page width, Tap to scroll, Upscaling with Crisp selected (AMD FSR 1), and Page quality](../assets/screenshots/docs-reader-phone-options.png)
+![The Reader options bottom sheet on a phone in vertical mode: the Bookmark page, Bookmarks, Favorite and Series info tiles, then the Display section with Layout, Page width and Tap to scroll, and the start of the Quality section](../assets/screenshots/docs-reader-phone-options.png)
 
 ## Page modes
 
