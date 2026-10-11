@@ -120,10 +120,11 @@ test.describe('desktop and tablet bar', () => {
       await page.getByRole('button', { name: 'Bookmark menu', exact: true }).click();
       const bookmarkItem = page.getByRole('menuitem', { name: 'Bookmark this page' });
       await expect(bookmarkItem).toBeVisible();
-      // Escape returned keyboard focus to the Quality button, whose tooltip ("Quality - GPU: ...", longer with WebGPU) fades out
-      // over the new menu for ~100 ms; measure the settled menu.
+      // Measure the SETTLED menu: Material ignores pointer events while a menu animates in (~100 ms, the panel looks dimmed), and
+      // Escape left the Quality button focused, whose tooltip ("Quality - GPU: ...") fades out over the new menu. Something that
+      // really covers the item would still fail this poll.
       await expect(page.locator('.mat-mdc-tooltip-panel')).toHaveCount(0);
-      expect(await tapHits(page, bookmarkItem)).toBe(true);
+      await expect.poll(() => tapHits(page, bookmarkItem), { timeout: 2_000 }).toBe(true);
       await page.keyboard.press('Escape');
     });
   }
@@ -216,7 +217,7 @@ test('phone: the sheet is grouped like the bar and offers Series info', async ({
   await expect(sheet.getByRole('heading', { name: 'Quality', exact: true })).toBeVisible();
   const series = sheet.getByRole('button', { name: 'Series info', exact: true });
   await expect(series).toBeVisible();
-  expect(await tapHits(page, 'app-reader-options-sheet button[aria-label="Series info"]')).toBe(true);
+  await expect.poll(() => tapHits(page, 'app-reader-options-sheet button[aria-label="Series info"]'), { timeout: 2_000 }).toBe(true);
   await expectFitsScreen(page, 'the Reader options sheet');
   await series.click();
   await expect(page).toHaveURL(new RegExp(`/series/${SERIES}$`));
