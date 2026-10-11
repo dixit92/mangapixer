@@ -169,7 +169,7 @@ test('an unread archive in progress resumes mid-way in Vertical when the mode an
 test('switching Single page to Vertical keeps the current page', async ({ page }) => {
   const saves = await openReader(page, { mode: 'PagedLtr', read: false });
   await expect(page.locator('.page-info')).toContainText(`${SAVED + 1} / ${PAGES}`);
-  await page.getByRole('button', { name: 'Reading mode' }).click();
+  await page.getByRole('button', { name: 'Display', exact: true }).click(); // 1.41.0: the layout is a group of the Display menu
   await page.getByRole('menuitemradio', { name: /Vertical/ }).click();
   await expectResumedAtSavedPage(page, saves);
 });

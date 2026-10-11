@@ -13,6 +13,7 @@ import { of, Subject } from 'rxjs';
 
 import { ReaderComponent } from './reader.component';
 import { ReaderOptionsSheetComponent } from './reader-settings-menu.component';
+import { DoubleTapWindowMs } from './double-tap';
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { FavoritesStateService } from '../../core/favorites/favorites-state.service';
 import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
@@ -1486,7 +1487,7 @@ describe('ReaderComponent in-reader bookmarks (1.17.0)', () => {
     expect(c.currentPage()).toBe(4);
   });
 
-  it('renders the toolbar toggle reflecting bookmarked state via aria-pressed', () => {
+  it('renders the bar\'s bookmark trigger reflecting the bookmarked state (1.41.0: a menu)', () => {
     TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
     const fixture = TestBed.createComponent(ReaderComponent);
     fixture.detectChanges(); // ngOnInit
@@ -1498,18 +1499,18 @@ describe('ReaderComponent in-reader bookmarks (1.17.0)', () => {
     fixture.detectChanges();
 
     const el = fixture.nativeElement as HTMLElement;
-    let toggle = el.querySelector('[aria-label="Bookmark this page"]') as HTMLButtonElement;
-    expect(toggle).toBeTruthy();
-    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    let trigger = el.querySelector('[aria-label="Bookmark menu"]') as HTMLButtonElement;
+    expect(trigger).toBeTruthy();
+    expect(trigger.textContent?.trim()).toBe('bookmark_border');
 
     c.bookmarks.set([
       { id: 'b1', itemId: 'item-1', ordinal: 0, normalizedAnchor: 0, label: null, createdAt: '2026-01-01T00:00:00Z' },
     ]);
     fixture.detectChanges();
 
-    toggle = el.querySelector('[aria-label="Remove bookmark from this page"]') as HTMLButtonElement;
-    expect(toggle).toBeTruthy();
-    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    trigger = el.querySelector('[aria-label="Bookmark menu, this page is bookmarked"]') as HTMLButtonElement;
+    expect(trigger).toBeTruthy();
+    expect(trigger.textContent?.trim()).toBe('bookmark');
   });
 });
 
@@ -1884,26 +1885,34 @@ describe('ReaderComponent phone controls + menu highlight (1.10.0)', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
   });
 
-  it('DESKTOP / TABLET: the full bar keeps every control, no overflow trigger (+ Upscaling, 1.19.0)', () => {
+  it('DESKTOP / TABLET: the grouped bar (1.41.0) - arrows, bookmark menu, favorite, Display, Quality, help, fullscreen', () => {
     const { c, labels } = render(false);
     expect(c.compact()).toBe(false);
     expect(labels()).toEqual([
       'Back to folder',
       'No previous archive', 'No next archive',
-      'Reading mode', 'Bookmark this page', 'Bookmarks', 'Add to favorites', 'Image fit', 'Switch to right-to-left', 'Page transition',
-      // 1.19.0 image scaling: the second settings-menu slot (Upscaling + Page quality).
-      'Upscaling',
+      // (Series info sits here when the archive has series information - reader-top-bar.spec.ts.)
+      'Bookmark menu', 'Add to favorites', 'Display', 'Quality',
       'Reading help', 'Enter fullscreen',
     ]);
   });
 
-  it('DESKTOP webtoon: the settings slot offers Tap to scroll instead of Page transition (1.11.0)', () => {
-    const { c, fixture, labels } = render(false);
+  it('DESKTOP webtoon: the same bar - no width slider, transition or tap-to-scroll button of its own (1.41.0)', () => {
+    const { c, fixture, el, labels } = render(false);
+    const paged = labels();
     c.view.set('webtoon');
     fixture.detectChanges();
-    expect(labels()).toContain('Tap to scroll');
-    expect(labels()).not.toContain('Page transition');
-    expect(labels().filter((l) => l === 'Tap to scroll' || l === 'Page transition').length).toBe(1); // one slot
+    expect(labels()).toEqual(paged);
+    expect(el.querySelector('.reader-toolbar mat-slider')).toBeNull();
+  });
+
+  it('DESKTOP: the Display trigger shows the reading mode on screen', () => {
+    const { c, fixture, el } = render(false);
+    const icon = () => (el.querySelector('.reader-toolbar button[aria-label="Display"] mat-icon') as HTMLElement).textContent?.trim();
+    expect(icon()).toBe('crop_portrait');
+    c.view.set('webtoon');
+    fixture.detectChanges();
+    expect(icon()).toBe('view_day');
   });
 
   it('PHONE webtoon: the bar width slider moves into the sheet too', () => {
@@ -1964,21 +1973,27 @@ describe('ReaderComponent phone controls + menu highlight (1.10.0)', () => {
     return match!;
   }
 
-  it('F4 reading-mode menu: menuitemradio items, the active one highlighted with its OWN glyph (no tick)', () => {
+  /** The items of one labelled group of a menu panel. */
+  function groupItems(panel: HTMLElement, group: string): HTMLElement[] {
+    return Array.from(panel.querySelectorAll<HTMLElement>(`[role="group"][aria-label="${group}"] button[mat-menu-item]`));
+  }
+
+  it('F4 Display menu, Layout: menuitemradio items, the active one highlighted with its OWN glyph (no tick)', () => {
     const { c, el, fixture } = render(false);
     c.viewPref.set('spread');
     c.coverIsStandalone.set(true);
     c.view.set('spread');
     fixture.detectChanges();
-    const panel = openMenu(el, fixture, 'Reading mode');
+    const panel = openMenu(el, fixture, 'Display');
 
-    expect(items(panel).length).toBe(5);
+    const layout = groupItems(panel, 'Layout');
+    expect(layout.length).toBe(5);
     for (const item of items(panel)) expect(item.getAttribute('role')).toBe('menuitemradio');
     const on = itemByLabel(panel, 'Double page (shifted)');
     expect(on.classList.contains('selected-option')).toBe(true);
     expect(on.getAttribute('aria-checked')).toBe('true');
     expect(on.querySelector('mat-icon')?.textContent?.trim()).toBe('auto_stories');
-    for (const item of items(panel)) {
+    for (const item of layout) {
       expect(item.querySelector('mat-icon')?.textContent?.trim()).not.toBe('check');
       if (item !== on) {
         expect(item.classList.contains('selected-option')).toBe(false);
@@ -1987,17 +2002,121 @@ describe('ReaderComponent phone controls + menu highlight (1.10.0)', () => {
     }
   });
 
-  it('F4 image-fit menu: the active fit is highlighted (it previously had no selected-state at all)', () => {
+  it('F4 Display menu: Layout, Image fit, Reading direction and Page transition, each with one highlighted option', () => {
     const { c, el, fixture } = render(false);
     c.setFitMode('width');
+    c.direction.set('rtl');
     fixture.detectChanges();
-    const panel = openMenu(el, fixture, 'Image fit');
-    expect(items(panel).map((i) => i.getAttribute('role'))).toEqual(Array(4).fill('menuitemradio'));
-    expect(itemByLabel(panel, 'Fit width').classList.contains('selected-option')).toBe(true);
+    const panel = openMenu(el, fixture, 'Display');
+    const groups = Array.from(panel.querySelectorAll('[role="group"]')).map((g) => g.getAttribute('aria-label'));
+    expect(groups).toEqual(['Layout', 'Image fit', 'Reading direction', 'Page transition']);
+    for (const g of groups) {
+      const on = groupItems(panel, g!).filter((i) => i.getAttribute('aria-checked') === 'true');
+      expect(on.length, `${g} has one checked option`).toBe(1);
+      expect(on[0].classList.contains('selected-option')).toBe(true);
+    }
+    expect(itemByLabel(panel, 'Single page').getAttribute('aria-checked')).toBe('true'); // the server's view, no device pick
     expect(itemByLabel(panel, 'Fit width').getAttribute('aria-checked')).toBe('true');
-    expect(itemByLabel(panel, 'Fit screen').classList.contains('selected-option')).toBe(false);
     expect(itemByLabel(panel, 'Fit screen').getAttribute('aria-checked')).toBe('false');
-    expect(panel.querySelectorAll('mat-icon').length).toBe(4); // every option keeps a glyph
+    expect(itemByLabel(panel, 'Right to left').getAttribute('aria-checked')).toBe('true');
+    expect(groupItems(panel, 'Image fit').map((i) => i.getAttribute('aria-label'))).toEqual([
+      'Image fit: Fit screen', 'Image fit: Fit width', 'Image fit: Fit height', 'Image fit: Original size',
+    ]);
+    expect(groupItems(panel, 'Image fit').every((i) => !!i.querySelector('mat-icon'))).toBe(true); // every option keeps a glyph
+  });
+
+  /** A picked item closes its menu; the panel leaves the overlay on the next task. */
+  const menuGone = () => new Promise((r) => setTimeout(r));
+
+  it('Display menu picks apply through the reader (fit, direction, layout)', async () => {
+    const { c, el, fixture } = render(false);
+    let panel = openMenu(el, fixture, 'Display');
+    itemByLabel(panel, 'Original size').click();
+    fixture.detectChanges();
+    expect(c.fitMode()).toBe('original');
+    await menuGone();
+    panel = openMenu(el, fixture, 'Display');
+    itemByLabel(panel, 'Right to left').click();
+    fixture.detectChanges();
+    expect(c.direction()).toBe('rtl');
+    await menuGone();
+    const choose = vi.spyOn(c, 'chooseView');
+    panel = openMenu(el, fixture, 'Display');
+    itemByLabel(panel, 'Vertical (webtoon)').click();
+    expect(choose).toHaveBeenCalledWith('webtoon');
+  });
+
+  it('Display menu in webtoon: Page width replaces Image fit, no direction, Tap to scroll replaces the transition', () => {
+    const { c, el, fixture } = render(false);
+    c.view.set('webtoon');
+    fixture.detectChanges();
+    const panel = openMenu(el, fixture, 'Display');
+    const groups = Array.from(panel.querySelectorAll('[role="group"]')).map((g) => g.getAttribute('aria-label'));
+    expect(groups).toEqual(['Layout', 'Page width', 'Tap to scroll']);
+    expect(panel.querySelector('[role="group"][aria-label="Page width"] input[type="range"]')).toBeTruthy();
+    expect(itemByLabel(panel, 'Vertical (webtoon)').getAttribute('aria-checked')).toBe('true');
+    expect(groupItems(panel, 'Tap to scroll').map((i) => i.getAttribute('aria-label')))
+      .toEqual(['Tap to scroll: Off', 'Tap to scroll: 80%', 'Tap to scroll: 90%', 'Tap to scroll: 100%']);
+  });
+
+  it('Display menu: Tab from an item reaches the Page width slider instead of closing the menu', () => {
+    const { c, el, fixture } = render(false);
+    c.view.set('webtoon');
+    fixture.detectChanges();
+    const panel = openMenu(el, fixture, 'Display');
+    const slider = panel.querySelector('input[type="range"]') as HTMLInputElement;
+    const tab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    itemByLabel(panel, 'Single page').dispatchEvent(tab);
+    expect(tab.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(slider);
+    // The slider keeps its own arrow keys: they never reach the menu's item navigation.
+    const arrow = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true });
+    const reached = vi.fn();
+    document.body.addEventListener('keydown', reached);
+    slider.dispatchEvent(arrow);
+    document.body.removeEventListener('keydown', reached);
+    expect(reached).not.toHaveBeenCalled();
+  });
+
+  it('Bookmark menu: the trigger shows the page\'s state; the items bookmark / unbookmark and open the list', async () => {
+    const { c, el, fixture } = render(false);
+    const trigger = () => el.querySelector('.reader-toolbar button.bookmark-trigger') as HTMLElement;
+    expect(trigger().getAttribute('aria-label')).toBe('Bookmark menu');
+    expect(trigger().textContent).toContain('bookmark_border');
+    const toggle = vi.spyOn(c, 'toggleBookmark').mockImplementation(() => { /* no HTTP */ });
+    let panel = openMenu(el, fixture, 'Bookmark menu');
+    const add = items(panel).find((i) => i.getAttribute('aria-label') === 'Bookmark this page')!;
+    expect(add.textContent).toContain('Bookmark this page');
+    add.click();
+    fixture.detectChanges();
+    expect(toggle).toHaveBeenCalledTimes(1);
+    await menuGone();
+
+    c.bookmarks.set([{ id: 'b1', itemId: 'item-1', ordinal: 0, normalizedAnchor: 0, label: null, createdAt: '2026-01-01T00:00:00Z' }]);
+    c.currentPage.set(0);
+    fixture.detectChanges();
+    expect(trigger().getAttribute('aria-label')).toBe('Bookmark menu, this page is bookmarked');
+    expect(trigger().textContent).toContain('bookmark');
+    expect(trigger().textContent).not.toContain('bookmark_border');
+    expect(trigger().classList.contains('marked')).toBe(true);
+    panel = openMenu(el, fixture, 'Bookmark menu, this page is bookmarked');
+    expect(items(panel).find((i) => i.getAttribute('aria-label') === 'Remove bookmark from this page')!.textContent)
+      .toContain('Remove bookmark');
+  });
+
+  it('Bookmark menu: "Bookmarks..." opens the list once the menu has closed, and the list keeps the chrome pinned', () => {
+    const { c, el, fixture } = render(false);
+    const dismissed = new Subject<void>();
+    const open = vi.spyOn(TestBed.inject(MatBottomSheet), 'open')
+      .mockReturnValue({ afterDismissed: () => dismissed.asObservable() } as never);
+    const panel = openMenu(el, fixture, 'Bookmark menu');
+    expect(c.menuOpen()).toBe(true);
+    items(panel).find((i) => i.getAttribute('aria-label') === 'Bookmarks')!.click();
+    fixture.detectChanges();
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(c.menuOpen(), 'pinned under the list').toBe(true);
+    dismissed.next();
+    expect(c.menuOpen()).toBe(false);
   });
 });
 
@@ -2059,14 +2178,17 @@ describe('ReaderComponent webtoon tap-to-scroll (1.11.0)', () => {
     expect(calls.at(-1)).toEqual({ top: 460, behavior: 'smooth' });  // 1000 - 540
   });
 
-  it('centre third toggles the chrome (fullscreen) instead of scrolling', () => {
+  it('centre third toggles the chrome (fullscreen) instead of scrolling, after the double-tap window (1.41.0)', () => {
+    vi.useFakeTimers();
     const c = create();
     const { calls } = useFakeScroller(c);
     c.isFullscreen.set(true);
     c.chromeVisible.set(true);
     c.onWebtoonTap(tap(100 + 300));
+    vi.advanceTimersByTime(DoubleTapWindowMs);
     expect(calls.length).toBe(0);
     expect(c.chromeVisible()).toBe(false);
+    vi.useRealTimers();
   });
 
   it('honours the chosen step and clamps at both ends of the strip', () => {
@@ -2080,23 +2202,27 @@ describe('ReaderComponent webtoon tap-to-scroll (1.11.0)', () => {
     expect(calls.length).toBe(1); // already at the bottom: nothing to do, and NO chapter advance
   });
 
-  it('off: a tap anywhere toggles the chrome (the pre-1.11.0 reader) and the scroller stays fully native', () => {
+  it('off: a tap anywhere toggles the chrome (the pre-1.11.0 reader) and the scroller stays native (bar double-tap zoom)', () => {
+    vi.useFakeTimers();
     const c = create();
     TestBed.inject(WebtoonNavPreferencesService).setTapStep(0);
     const { calls } = useFakeScroller(c);
     c.isFullscreen.set(true);
     c.chromeVisible.set(true);
     c.onWebtoonTap(tap(100 + 590)); // bottom third would scroll if zones were on
+    vi.advanceTimersByTime(DoubleTapWindowMs);
     expect(calls.length).toBe(0);
     expect(c.chromeVisible()).toBe(false);
-    expect(c.webtoonTouchAction()).toBeNull();
+    // Pans and the pinch stay native; only the browser's double-tap zoom is off (a double tap is fullscreen, 1.41.0).
+    expect(c.webtoonTouchAction()).toBe('manipulation');
+    vi.useRealTimers();
   });
 
   it('touch-action claims horizontal drags only while on and not pinch-zoomed', () => {
     const c = create();
     expect(c.webtoonTouchAction()).toBe('pan-y pinch-zoom');
     c.zoomed.set(true);
-    expect(c.webtoonTouchAction()).toBeNull();
+    expect(c.webtoonTouchAction()).toBe('manipulation');
   });
 
   it('a tap on the end-of-chapter footer buttons is left to the button', () => {

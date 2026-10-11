@@ -152,7 +152,7 @@ test('wheel: a trackpad flick (a long inertial stream of wheel events) turns exa
 
 test('wheel: in fit width a tall page scrolls natively and never turns', async ({ page }) => {
   await openFakeReader(page, 'e2ewheelwidth');
-  await page.getByRole('button', { name: 'Image fit' }).click();
+  await page.getByRole('button', { name: 'Display', exact: true }).click(); // 1.41.0: Image fit is a group of the Display menu
   await page.getByRole('menuitemradio', { name: /Fit width/ }).click();
   await expect(page.getByRole('menuitemradio', { name: /Fit width/ })).toHaveCount(0);
   const viewport = page.locator('.reader-viewport');

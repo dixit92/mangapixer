@@ -7,12 +7,10 @@ import { MatBottomSheet } from '@angular/material/bottom-sheet';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatToolbarModule } from '@angular/material/toolbar';
-import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatSliderModule } from '@angular/material/slider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBarModule, MatSnackBar, MatSnackBarRef, TextOnlySnackBar } from '@angular/material/snack-bar';
-import { map } from 'rxjs';
+import { Subscription, map } from 'rxjs';
 
 import { ApiService } from '../../core/api/api.service';
 import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.component';
@@ -20,9 +18,13 @@ import { FavoritesStateService } from '../../core/favorites/favorites-state.serv
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
 import {
-  ReaderSettingsMenuComponent, ReaderOptionsSheetComponent, ReaderOptionsHost,
-  ReaderView, ViewPref, FitMode, ReadingDirection, FIT_OPTIONS, DOWNSCALE_FILTER_OPTIONS,
+  ReaderQualityMenuComponent, ReaderOptionsSheetComponent, ReaderOptionsHost,
+  ReaderView, ViewPref, FitMode, ReadingDirection, DOWNSCALE_FILTER_OPTIONS,
 } from './reader-settings-menu.component';
+import { ReaderBookmarkMenuComponent, ReaderDisplayMenuComponent } from './reader-bar-menus.component';
+import { DoubleTap } from './double-tap';
+import { MetadataApiService } from '../metadata/metadata-api.service';
+import { hasSeriesContent } from '../metadata/series-info-labels';
 import { BookmarksPanelComponent, BookmarksPanelHost } from './bookmarks-panel.component';
 import { ManifestPageEntry, ItemManifest, ItemReadiness, ApiError, ReaderMode, BookmarkDto } from '../../core/api/api-types';
 import { targetMaxDim, withMaxDim, VariantFitMode } from './page-variant';
@@ -125,6 +127,20 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
  *     the duration of the Slide / Reveal transition, so the new page slides over
  *     or wipes across the OLD page instead of over the dark background (which made
  *     the 1.9.1 Reveal read as a dark curtain). See `outgoing`.
+ * 14. Grouped bar (1.41.0, owner decision 5): the desktop / tablet bar's right-hand
+ *     group is archive arrows, Series info, a Bookmark menu, Favorite, a Display
+ *     menu (layout, image fit or page width, direction, page transition or tap to
+ *     scroll) and a Quality menu (upscaling, enhance quality, page quality,
+ *     downscale filter), Help, Fullscreen - instead of a dozen single buttons. The
+ *     menus are their own small components on the phone sheet's option lists, and
+ *     the phone sheet is grouped the same way. Series info (owner decision 7) shows
+ *     only when the archive has series information (`seriesInfoAnchor`).
+ * 15. Double tap for fullscreen (1.41.0, owner decision 6): a double tap / double
+ *     click in the CENTRE zone (paged: `tap-toggle`; webtoon: the centre band, or
+ *     the whole strip with Tap to scroll off) toggles fullscreen; a single centre tap
+ *     still shows / hides the controls, after the double-tap window (`centerTaps`,
+ *     double-tap.ts). Edge zones, swipes, wheel paging and pinch-zoom are unchanged;
+ *     the browser's own double-tap zoom is kept off the centre (touch-action).
  */
 @Component({
   selector: 'app-reader',
@@ -134,12 +150,12 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     MatButtonModule,
     MatIconModule,
     MatToolbarModule,
-    MatMenuModule,
     MatTooltipModule,
-    MatSliderModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
-    ReaderSettingsMenuComponent,
+    ReaderQualityMenuComponent,
+    ReaderDisplayMenuComponent,
+    ReaderBookmarkMenuComponent,
     UpscaleDirective,
     WebtoonEnhanceHostDirective,
     WebtoonPageComponent,
@@ -191,7 +207,10 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
             <mat-icon>more_vert</mat-icon>
           </button>
         } @else if (phase() === 'ready') {
-          <!-- 1.7.0 reader-bar CHAPTER arrows: move between archives in the folder
+          <!-- DESKTOP / TABLET bar (1.41.0, owner decision 5): the right-hand group, in this order - archive arrows,
+               Series info, Bookmark menu, Favorite, Display menu, Quality menu, Help, Fullscreen. The menus are small
+               components of their own (reader-bar-menus / reader-settings-menu) built on the phone sheet's lists.
+               1.7.0 reader-bar CHAPTER arrows: move between archives in the folder
                (distinct from page turning); disabled at the ends of the folder.
                1.17.0: the glyph mirrors (CSS transform) and picks up an accent
                tint when the reading direction is RTL, so the arrows read with the
@@ -209,97 +228,28 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                   [attr.aria-label]="nextNeighbor() ? 'Next archive: ' + nextNeighbor()!.displayName : 'No next archive'">
             <mat-icon>skip_next</mat-icon>
           </button>
-          <button mat-icon-button [matMenuTriggerFor]="modeMenu" matTooltip="Reading mode" aria-label="Reading mode"
-                  (menuOpened)="menuOpen.set(true)" (menuClosed)="onMenuClosed()">
-            <mat-icon>{{ viewIcon() }}</mat-icon>
-          </button>
-          <!-- Reader menus (1.10.0, F4): the active option carries the accent
-               COLOR HIGHLIGHT (selected-option) and keeps its own glyph; no
-               checkmark. Items are menuitemradio + aria-checked for AT. The panel
-               class is the ::ng-deep styling hook (CDK overlay). -->
-          <mat-menu #modeMenu="matMenu" class="reader-options-menu">
-            <button mat-menu-item role="menuitemradio" (click)="chooseView('auto')"
-                    [class.selected-option]="viewPref() === 'auto' && view() !== 'webtoon'"
-                    [attr.aria-checked]="viewPref() === 'auto' && view() !== 'webtoon'">
-              <mat-icon>screen_rotation</mat-icon> Auto (orientation)</button>
-            <button mat-menu-item role="menuitemradio" (click)="chooseView('paged')"
-                    [class.selected-option]="viewPref() === 'paged' && view() !== 'webtoon'"
-                    [attr.aria-checked]="viewPref() === 'paged' && view() !== 'webtoon'">
-              <mat-icon>crop_portrait</mat-icon> Single page</button>
-            <!-- The two double-page entries reflect the CURRENT spread (1.23.0):
-                 "(shifted)" when its pairing runs on the other parity of its run
-                 of pages; picking the other one re-pairs from this spread on. -->
-            <button mat-menu-item role="menuitemradio" (click)="chooseSpread(false)"
-                    [class.selected-option]="viewPref() === 'spread' && !spreadShifted() && view() !== 'webtoon'"
-                    [attr.aria-checked]="viewPref() === 'spread' && !spreadShifted() && view() !== 'webtoon'">
-              <mat-icon>import_contacts</mat-icon> Double page</button>
-            <button mat-menu-item role="menuitemradio" (click)="chooseSpread(true)"
-                    [class.selected-option]="viewPref() === 'spread' && spreadShifted() && view() !== 'webtoon'"
-                    [attr.aria-checked]="viewPref() === 'spread' && spreadShifted() && view() !== 'webtoon'">
-              <mat-icon>auto_stories</mat-icon> Double page (shifted)</button>
-            <button mat-menu-item role="menuitemradio" (click)="chooseView('webtoon')"
-                    [class.selected-option]="view() === 'webtoon'"
-                    [attr.aria-checked]="view() === 'webtoon'">
-              <mat-icon>view_day</mat-icon> Vertical (webtoon)</button>
-          </mat-menu>
-
-          <!-- In-reader bookmarks (1.17.0): the toggle marks/unmarks the CURRENT
-               page (reflects its bookmarked state via isCurrentPageBookmarked),
-               the second button opens the panel listing every bookmark on this
-               item. Shown in every view (paged/spread/webtoon) — bookmarking a
-               page is meaningful regardless of how it turns. -->
-          <button mat-icon-button (click)="toggleBookmark()"
-                  [matTooltip]="isCurrentPageBookmarked() ? 'Remove bookmark' : 'Bookmark this page'"
-                  [attr.aria-label]="isCurrentPageBookmarked() ? 'Remove bookmark from this page' : 'Bookmark this page'"
-                  [attr.aria-pressed]="isCurrentPageBookmarked()">
-            <mat-icon>{{ isCurrentPageBookmarked() ? 'bookmark' : 'bookmark_border' }}</mat-icon>
-          </button>
-          <button mat-icon-button (click)="openBookmarks()" matTooltip="Bookmarks" aria-label="Bookmarks"
-                  aria-haspopup="dialog">
-            <mat-icon>bookmarks</mat-icon>
-          </button>
+          @if (seriesInfoAnchor()) {
+            <!-- Series info (1.41.0, owner decision 7): only when the archive resolves to series information
+                 (browse's rule); opens the series page. Same glyph as browse's Series info button. -->
+            <button mat-icon-button (click)="openSeriesInfo()" matTooltip="Series info" aria-label="Series info"
+                    data-testid="reader-series-info">
+              <mat-icon>info_outline</mat-icon>
+            </button>
+          }
+          <!-- In-reader bookmarks (1.17.0; one menu since 1.41.0): bookmark / unbookmark the CURRENT page, or open
+               the list of this archive's bookmarks. The trigger shows the page's state. -->
+          <app-reader-bookmark-menu [host]="this" (opened)="menuOpen.set(true)" (closed)="onMenuClosed()" />
           <!-- Favorite this archive (1.21.0): the reader star targets the currently open
                archive (itemId). Its own component styles keep the reader's near-budget
                inline CSS untouched. -->
           <app-star-toggle [nodeId]="itemId()" [favorite]="currentFavorite()" />
-
-          @if (view() === 'webtoon') {
-            <!-- Webtoon width slider replaces the inoperative fit menu. -->
-            <mat-icon class="slider-icon" aria-hidden="true">width_normal</mat-icon>
-            <mat-slider class="width-slider" min="15" max="100" step="5"
-                        matTooltip="Page width" aria-label="Webtoon page width">
-              <input matSliderThumb [value]="webtoonWidthPct()"
-                     (valueChange)="setWebtoonWidth($event)" aria-label="Webtoon page width">
-            </mat-slider>
-          } @else {
-            <button mat-icon-button [matMenuTriggerFor]="fitMenu" matTooltip="Image fit" aria-label="Image fit"
-                    (menuOpened)="menuOpen.set(true)" (menuClosed)="onMenuClosed()">
-              <mat-icon>aspect_ratio</mat-icon>
-            </button>
-            <mat-menu #fitMenu="matMenu" class="reader-options-menu">
-              @for (opt of fitOptions; track opt.value) {
-                <button mat-menu-item role="menuitemradio" (click)="setFitMode(opt.value)"
-                        [class.selected-option]="fitMode() === opt.value"
-                        [attr.aria-checked]="fitMode() === opt.value">
-                  <mat-icon>{{ opt.icon }}</mat-icon> {{ opt.label }}</button>
-              }
-            </mat-menu>
-          }
-
-          @if (view() !== 'webtoon') {
-            <button mat-icon-button (click)="toggleDirection()"
-                    [matTooltip]="direction() === 'rtl' ? 'Right-to-left (manga)' : 'Left-to-right'"
-                    [attr.aria-label]="direction() === 'rtl' ? 'Switch to left-to-right' : 'Switch to right-to-left'">
-              <mat-icon>{{ direction() === 'rtl' ? 'format_textdirection_r_to_l' : 'format_textdirection_l_to_r' }}</mat-icon>
-            </button>
-          }
-
-          <!-- 1.9.0 page-transition picker (Slide / Reveal / None); in webtoon the
-               same slot offers Tap to scroll (1.11.0). A separate component so the
-               reader only needs this one-line wiring point; it pins the chrome
-               while its menu is open, like the mode/fit menus. -->
-          <app-reader-settings-menu [view]="view()"
-            (opened)="menuOpen.set(true)" (closed)="onMenuClosed()"></app-reader-settings-menu>
+          <!-- Display: layout, image fit (page width in webtoon), direction, page transition (tap to scroll in
+               webtoon). Quality: upscaling, enhance quality, page quality, downscale filter. Both pin the chrome
+               while open. -->
+          <app-reader-display-menu [host]="this" [icon]="viewIcon()"
+            (opened)="menuOpen.set(true)" (closed)="onMenuClosed()" />
+          <app-reader-quality-menu [view]="view()"
+            (opened)="menuOpen.set(true)" (closed)="onMenuClosed()" />
 
           <button mat-icon-button (click)="toggleHelp()" matTooltip="Reading help" aria-label="Reading help">
             <mat-icon>help_outline</mat-icon>
@@ -504,7 +454,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                  the whole surface: swiping works ANYWHERE, not just in the side zones. -->
             <div class="help-zones" aria-hidden="true">
               <div class="help-zone side"><mat-icon>touch_app</mat-icon><span>Tap<br>{{ leftZoneLabel() }}</span></div>
-              <div class="help-zone center"><mat-icon>touch_app</mat-icon><span>Tap<br>Show / hide controls</span></div>
+              <div class="help-zone center"><mat-icon>touch_app</mat-icon><span>Tap<br>Show / hide controls<br><br>Double tap<br>Fullscreen</span></div>
               <div class="help-zone side"><mat-icon>touch_app</mat-icon><span>Tap<br>{{ rightZoneLabel() }}</span></div>
             </div>
             <div class="help-swipe" aria-hidden="true">
@@ -516,7 +466,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
             <!-- Webtoon tap-to-scroll (1.11.0): horizontal BANDS by thirds. -->
             <div class="help-zones vertical" aria-hidden="true">
               <div class="help-zone band"><mat-icon>touch_app</mat-icon><span>Tap<br>Back a screen</span></div>
-              <div class="help-zone band center"><mat-icon>touch_app</mat-icon><span>Tap<br>Show / hide controls</span></div>
+              <div class="help-zone band center"><mat-icon>touch_app</mat-icon><span>Tap: show / hide controls<br>Double tap: fullscreen</span></div>
               <div class="help-zone band"><mat-icon>touch_app</mat-icon><span>Tap<br>Forward a screen</span></div>
             </div>
           }
@@ -526,7 +476,8 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
               @if (view() !== 'webtoon') {
                 <li><b>Swipe</b> left / right anywhere to turn the page. Start inside the page: the very
                   edge of the screen belongs to the browser's back / forward gesture.</li>
-                <li><b>Tap</b> the sides to turn a page, the centre to show / hide the controls.</li>
+                <li><b>Tap</b> the sides to turn a page, the centre to show / hide the controls.
+                  <b>Double tap the centre</b> (or double click): fullscreen.</li>
                 <li><kbd>←</kbd> <kbd>→</kbd> previous / next page (follows reading direction) ·
                   <kbd>Home</kbd> <kbd>End</kbd> first / last</li>
                 <li><b>Mouse wheel</b> down / up: next / previous page, one page per scroll, when the page
@@ -542,10 +493,12 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
               } @else if (webtoonNav.tapZonesEnabled()) {
                 <li>Scroll freely, or <b>tap</b> the lower part of the page to move forward a screen
                   ({{ webtoonNav.tapStep() }}%), the upper part to go back, the centre to show / hide
-                  the controls. <b>Swipe</b> left / right does the same. At the very end (start), the
+                  the controls. <b>Double tap the centre</b> (or double click): fullscreen. <b>Swipe</b> left / right
+                  does the same as a tap on the lower / upper part. At the very end (start), the
                   same move <b>twice</b> opens the next (previous) archive.</li>
               } @else {
-                <li>Scroll to read; tap the page to show or hide the controls.</li>
+                <li>Scroll to read; tap the page to show or hide the controls. <b>Double tap</b> (or double
+                  click): fullscreen.</li>
               }
               <li><b>Page slider</b> (bottom bar): tap or drag to jump to any page; the bubble shows
                 where you land{{ direction() === 'rtl' ? '. It runs right to left, like the pages' : '' }}.
@@ -609,13 +562,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
        mismatch from the LTR default is visible at a glance. */
     .chapter-arrow.direction-mirrored mat-icon { transform: scaleX(-1); }
     .chapter-arrow.direction-mirrored { color: var(--mp-accent); }
-    /* Reader menus' selected-state (1.10.0, F4): accent highlight instead of a
-       checkmark, same values as the 1.8.1 browse View menu. The panels render in
-       a CDK overlay, so the rules are scoped via the reader-options-menu panel
-       class and reach the projected items with ::ng-deep. */
-    ::ng-deep .reader-options-menu .selected-option { background: rgb(var(--mp-accent-strong-rgb) / 0.16); }
-    ::ng-deep .reader-options-menu .selected-option,
-    ::ng-deep .reader-options-menu .selected-option .mat-icon { color: var(--mp-accent); }
+    /* Reader menus' selected-state (1.10.0, F4): READER_MENU_STYLES, with the menus (reader-settings-menu). */
     .status {
       flex: 1; display: flex; flex-direction: column;
       align-items: center; justify-content: center; gap: 16px;
@@ -699,18 +646,17 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
        each page's box before it lazy-loads; the faint background makes the reserved
        placeholder visible while the image streams in. */
     .webtoon-page { height: auto; display: block; max-width: 100%; background: rgb(var(--mp-ink-rgb) / 0.04); }
-    .width-slider { width: 140px; }
-    .slider-icon { opacity: 0.7; margin-right: 2px; }
     .edge {
       position: absolute; top: 0; bottom: 0; width: 30%;
       background: transparent; border: 0; cursor: pointer; padding: 0; z-index: 1;
     }
     .edge.prev { left: 0; }
     .edge.next { right: 0; }
-    /* Center tap zone: the ~40% between the 30%-wide edge nav zones. Toggles chrome. */
+    /* Center tap zone: the ~40% between the 30%-wide edge nav zones. Tap: chrome; double tap: fullscreen
+       (1.41.0) - so the browser's own double-tap zoom is kept off it (manipulation: pan + pinch stay native). */
     .tap-toggle {
       position: absolute; top: 0; bottom: 0; left: 30%; right: 30%;
-      background: transparent; border: 0; padding: 0; z-index: 1; cursor: default;
+      background: transparent; border: 0; padding: 0; z-index: 1; cursor: default; touch-action: manipulation;
     }
     /* Swipe feedback: the spread row tracks the finger while dragging (no transition)
        and springs back when a drag is released short of a page turn. The viewport
@@ -877,6 +823,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   private readonly favorites = inject(FavoritesStateService);
   private readonly bottomSheet = inject(MatBottomSheet);
   private readonly breakpoints = inject(BreakpointObserver);
+  private readonly metadataApi = inject(MetadataApiService);
   // Public so the template can read the persisted page-transition preference.
   readonly prefs = inject(ReaderPreferencesService);
   // Webtoon tap-to-scroll step / on-off (added 1.11.0); per-device.
@@ -886,7 +833,6 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   private readonly upscaleSupport = inject(UpscaleSupportService);
   private readonly installHint = inject(InstallHintService);
   private readonly injector = inject(Injector);
-  readonly fitOptions = FIT_OPTIONS;
 
   /**
    * Handset-width layout: CDK's XSmall breakpoint (< 600px CSS
@@ -922,6 +868,24 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   );
   /** True while the phone options sheet is open (drives the trigger's aria-expanded). */
   readonly optionsOpen = signal(false);
+
+  /**
+   * Series info in the bar (1.41.0, owner decision 7): the series page's node (the anchor the server resolved -
+   * `series-info` walks up from ANY node to the linked folder) when the open archive has series information under
+   * browse's rule (`hasSeriesContent`), else null and no control shows. Asked once per archive, after its manifest
+   * (never ahead of the first page); a failure hides the control silently, and a late answer for an archive the reader
+   * has moved on from is dropped (the request is cancelled, and the id is checked).
+   */
+  readonly seriesInfoAnchor = signal<string | null>(null);
+  private seriesInfoFor: string | null = null;
+  private seriesInfoSub: Subscription | null = null;
+
+  /**
+   * Centre zone taps (1.41.0, owner decision 6): a double tap / double click toggles fullscreen, a single tap the
+   * controls - once the double-tap window has passed without a second tap (`DoubleTapWindowMs`). Paged: the
+   * `tap-toggle` zone; webtoon: the centre band of `onWebtoonTap` (the whole strip with Tap to scroll off).
+   */
+  private readonly centerTaps = new DoubleTap(() => this.toggleChrome(), () => this.toggleFullscreen());
 
   private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
   private readonly viewport = viewChild<ElementRef<HTMLElement>>('viewport');
@@ -1143,9 +1107,11 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
    * The webtoon scroller's touch-action. Vertical panning and pinch-zoom stay
    * native always; horizontal drags are claimed (so the browser neither cancels
    * the pointer stream nor starts a history swipe) only while the swipe is on.
+   * Never the browser's double-tap zoom (1.41.0): a double tap where a tap shows the
+   * controls is fullscreen - 'manipulation' keeps every pan and the pinch native.
    */
-  readonly webtoonTouchAction = computed<string | null>(() =>
-    this.webtoonSwipeEnabled() ? 'pan-y pinch-zoom' : null);
+  readonly webtoonTouchAction = computed<string>(() =>
+    this.webtoonSwipeEnabled() ? 'pan-y pinch-zoom' : 'manipulation');
 
   // Fallback exit route (2026-09-11, 1.6.1 owner iPad fix): the item's parent-folder
   // browse view, resolved from the catalog node so goBack() can return there even
@@ -1463,6 +1429,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
       this.flushSpreadSave();
       this.spreadLayout.set(null);
       this.disarmEdge();
+      this.resetSeriesInfo();
       this.itemId.set(id);
       this.pollAttempts = 0;
       // Reset the page-prefetch cache for the new chapter (URLs are per-item).
@@ -1562,6 +1529,8 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     if (this.commitTimer) clearTimeout(this.commitTimer);
     if (this.outgoingTimer) clearTimeout(this.outgoingTimer);
     this.clearHideTimer();
+    this.centerTaps.cancel();
+    this.seriesInfoSub?.unsubscribe();
     this.flushSpreadSave();
     this.saveProgress();
     // 1.7.1: tell the retained browse view this item's read/progress state may
@@ -1643,7 +1612,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   onKeyDown(event: KeyboardEvent): void {
     const target = event.target as HTMLElement;
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
-    // A key an open overlay (Reading mode / Image fit / settings MatMenu, the phone
+    // A key an open overlay (the bar's Bookmark / Display / Quality MatMenus, the phone
     // options bottom sheet) already consumed must not ALSO act here: MatMenu and
     // MatBottomSheet preventDefault() Escape (and MatMenu Up/Down/Home/End) before
     // it bubbles to window, but menuOpen() is already reset by then, so without
@@ -1714,7 +1683,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
    * `ReaderPreferencesService` write it uses. Handled in onKeyDown ABOVE the
    * webtoon early-return (like 'm') because `pageUrlFor` applies the filter to
    * every page request regardless of view, not just paged/spread. No-op under
-   * Page quality: Full, mirroring `ReaderSettingsMenuComponent.filterDisabled` -
+   * Page quality: Full, mirroring `ReaderQualityMenuComponent.filterDisabled` -
    * the filter has nothing to act on there, so the shortcut must not "enable" it.
    */
   private cycleDownscaleFilter(): void {
@@ -1975,13 +1944,47 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
           : Math.min(Math.max(resume, 0), last);
         this.consumeLandIntent();
         this.showPage(start);
+        this.loadSeriesInfo();
       },
       error: () => {
         const start = this.landOnLastPage ? last : 0;
         this.consumeLandIntent();
         this.showPage(start);
+        this.loadSeriesInfo();
       },
     });
+  }
+
+  /** Ask once per archive whether it has series information (see `seriesInfoAnchor`). */
+  private loadSeriesInfo(): void {
+    const id = this.itemId();
+    if (!id || this.seriesInfoFor === id) return;
+    this.seriesInfoFor = id;
+    this.seriesInfoSub?.unsubscribe();
+    this.seriesInfoSub = this.metadataApi.getSeriesInfo(id, false).subscribe({
+      next: (info) => {
+        if (this.itemId() !== id) return;
+        this.seriesInfoAnchor.set(hasSeriesContent(info) && info.anchorNodeId ? info.anchorNodeId : null);
+      },
+      error: () => { /* no series information to offer - the control stays hidden */ },
+    });
+  }
+
+  /** A new archive opens: forget the previous one's answer (and drop it if still on its way). */
+  private resetSeriesInfo(): void {
+    this.seriesInfoSub?.unsubscribe();
+    this.seriesInfoSub = null;
+    this.seriesInfoFor = null;
+    this.seriesInfoAnchor.set(null);
+  }
+
+  /**
+   * Open the series page (1.41.0). The reader leaves the screen, so `ngOnDestroy` saves the reading position on the
+   * way out, as for any other way out of the reader.
+   */
+  openSeriesInfo(): void {
+    const anchor = this.seriesInfoAnchor();
+    if (anchor) void this.router.navigate(['/series', anchor]);
   }
 
   /**
@@ -2441,10 +2444,13 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     (forward !== (this.direction() === 'rtl')) ? this.nextPage() : this.prevPage();
   }
 
-  /** Center tap zone: toggle chrome, unless a swipe just ended here (ghost click). */
+  /**
+   * Center tap zone: toggle chrome - or, on a double tap / double click, fullscreen (1.41.0; see `centerTaps`) -
+   * unless a swipe just ended here (its ghost click is neither a tap nor the second half of a double tap).
+   */
   onCenterTap(): void {
     if (this.recentlySwiped()) return;
-    this.toggleChrome();
+    this.centerTaps.tap();
   }
 
   private recentlySwiped(): boolean {
@@ -3020,17 +3026,17 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
    * A tap on the webtoon scroller. With tap-to-scroll on, the tap resolves by
    * vertical thirds of the visible viewport: top = back a screen, bottom =
    * forward, centre = toggle chrome. Off, a tap anywhere toggles the chrome (the
-   * pre-1.11.0 behaviour). Taps on the end-of-chapter footer's buttons are theirs
+   * pre-1.11.0 behaviour). Since 1.41.0 a double tap where a tap toggles the chrome is fullscreen (`centerTaps`). Taps on the end-of-chapter footer's buttons are theirs
    * alone, and the ghost click after a swipe is swallowed like the paged zones.
    */
   onWebtoonTap(e: MouseEvent): void {
     if (this.recentlySwiped()) return;
     if ((e.target as HTMLElement | null)?.closest?.('button')) return;
     const el = this.scroller()?.nativeElement;
-    if (!el || !this.webtoonNav.tapZonesEnabled()) { this.toggleChrome(); return; }
+    if (!el || !this.webtoonNav.tapZonesEnabled()) { this.centerTaps.tap(); return; }
     const rect = el.getBoundingClientRect();
     const zone = webtoonTapZone(rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5);
-    if (zone === 'toggle') { this.toggleChrome(); return; }
+    if (zone === 'toggle') { this.centerTaps.tap(); return; }
     this.scrollWebtoonBy(zone === 'forward' ? 1 : -1);
   }
 
