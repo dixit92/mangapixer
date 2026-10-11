@@ -95,6 +95,7 @@ async function chips(page: Page): Promise<string[]> {
 }
 
 test('desktop: number ranges behind a common prefix land on their first chapter, ascending and descending', async ({ page }) => {
+  test.setTimeout(180_000); // the first test also waits for the library scan
   await page.setViewportSize({ width: 1280, height: 900 });
   await login(page);
   const [libraryId, folderId] = await ensureLibrary(page);
@@ -146,6 +147,7 @@ test('desktop: number ranges behind a common prefix land on their first chapter,
 });
 
 test('phone: the picker lists the ranges and a tap lands on the range', async ({ page }) => {
+  test.setTimeout(180_000);
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page);
   const [libraryId, folderId] = await ensureLibrary(page);

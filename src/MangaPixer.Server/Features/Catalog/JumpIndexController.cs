@@ -44,7 +44,6 @@ public sealed class JumpIndexController : ControllerBase
     /// </summary>
     [HttpGet("libraries/{libraryId}/jump-index")]
     [ProducesResponseType(typeof(JumpIndexDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetJumpIndex(
         string libraryId,
         [FromQuery] string? parentId,
