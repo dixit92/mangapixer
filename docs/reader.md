@@ -49,7 +49,7 @@ On screens narrower than 600 px, the toolbar keeps only **Next archive**, **Full
 
 Changing a setting, bookmarking the page or favoriting the archive keeps the sheet open.
 
-![The Reader options bottom sheet on a phone in vertical mode: the Bookmark page, Bookmarks, Favorite and Series info tiles, then the Display section with Layout, Page width and Tap to scroll, and the start of the Quality section](../assets/screenshots/docs-reader-phone-options.png)
+![The Reader options bottom sheet on a phone in vertical mode: the Bookmark page, Bookmarks, Favorite and Series info tiles, then the Display section with Layout, Page width, Tap to scroll and Edge taps, and the start of the Quality section](../assets/screenshots/docs-reader-phone-options.png)
 
 ## Page modes
 
