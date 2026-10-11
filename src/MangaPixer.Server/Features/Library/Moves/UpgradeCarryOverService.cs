@@ -14,10 +14,12 @@ using Microsoft.EntityFrameworkCore;
 /// <summary>
 /// Read state that follows a chapter-to-volume upgrade (1.40.0, owner finding of 2026-10-10): a volume archive that replaced its chapter
 /// archives in the same folder takes the users' read state of those chapters - READ when every chapter the stored volume list gives for it
-/// was read, IN PROGRESS at page 1 when only some were (<see cref="UpgradeCarryOver"/>). Runs inside the move-pairing pass, after the
-/// identical-content pairing (a real move wins), so after every scan, after analyses and at startup. Never destructive: a user with a read
-/// mark on the volume, or progress on it past page 1, keeps it; the tombstones' own rows stay. Idempotent without a ledger (the lane note,
-/// rule R7). Local only; logs ids and counts.
+/// was read, IN PROGRESS at page 1 when only some were (<see cref="UpgradeCarryOver"/>). 1.41.0 (owner, 2026-10-11): a RANGE volume file
+/// (<c>v01-03</c>) does the same for every volume of the range, and a volume file replacing a volume file of the same work and edition
+/// (a re-encode or re-release) takes its read state - also without a series link - keeping the page when both have the same page count.
+/// Runs inside the move-pairing pass, after the identical-content pairing (a real move wins), so after every scan, after analyses and at
+/// startup. Never destructive: a user with a read mark on the new file, or progress on it past page 1, keeps it; the tombstones' own rows
+/// stay (their read marks are re-tagged <see cref="CarriedEvidenceSource"/>). Local only; logs ids and counts.
 /// </summary>
 public sealed class UpgradeCarryOverService
 {
@@ -25,10 +27,11 @@ public sealed class UpgradeCarryOverService
     public const string MarkSource = "upgrade";
 
     /// <summary>
-    /// The <see cref="ReadMarkEntity.Source"/> a replaced chapter's read mark takes once its read state was carried onto the volume
-    /// (1.40.0). Marking the volume unread removes its mark and progress - the state of a volume nobody touched - so without this the
-    /// next pass would carry it again for as long as the chapters stay in the trash. A user with a carried mark among the evidence is
-    /// skipped; the mark itself stays, so a chapter restored from the trash is still read. Nothing else reads a read mark's source.
+    /// The <see cref="ReadMarkEntity.Source"/> a replaced file's read mark takes once its read state was carried onto the new file
+    /// (1.40.0). Marking the new file unread removes its mark and progress - the state of a file nobody touched - so without this the
+    /// next pass would carry it again for as long as the replaced files stay in the trash. A user whose marks on the evidence are all
+    /// carried is skipped (1.41.0: ALL - a mark not yet carried is later evidence, such as the middle file of a re-release of a
+    /// re-release); the mark itself stays, so a file restored from the trash is still read. Nothing else reads a read mark's source.
     /// </summary>
     public const string CarriedEvidenceSource = "carried";
 
@@ -49,17 +52,26 @@ public sealed class UpgradeCarryOverService
         _logger = logger;
     }
 
-    /// <summary>What one pass did: volumes marked read / set in progress (per user), distinct users, volumes waiting for analysis.</summary>
-    public sealed record PassResult(int MarkedRead, int SetInProgress, int Users, int Waiting)
+    /// <summary>
+    /// What one pass did: archives marked read / set in progress (per user), distinct users, archives waiting for analysis, and new archives
+    /// skipped because they hold a volume another new archive of their folder holds too (1.41.0).
+    /// </summary>
+    public sealed record PassResult(int MarkedRead, int SetInProgress, int Users, int Waiting, int Conflicts = 0)
     {
         public static PassResult None { get; } = new(0, 0, 0, 0);
     }
 
     private sealed record Tomb(long Id, long LibraryId, long ParentId, string Name, long LastSeenScanRevision, DateTimeOffset? TombstonedAt);
 
-    private sealed record Live(long Id, long LibraryId, long ParentId, string Name, DateTimeOffset CreatedAt, int AnalysisState, long ContentVersion, int? PageCount);
+    private sealed record Live(long Id, long LibraryId, long ParentId, string Name, DateTimeOffset CreatedAt, int AnalysisState, long ContentVersion,
+        int? PageCount, string? Signature, long ByteLength);
 
     private sealed record Folder(long Id, long? ParentId, string Name);
+
+    private sealed record Item(int? PageCount, string? Signature, long ByteLength);
+
+    /// <summary>What a folder's series gives: excluded (Don't match / Collection about / Artist folder on it or above), or its exact list.</summary>
+    private sealed record SeriesContext(bool Excluded, IReadOnlyDictionary<decimal, IReadOnlyList<decimal>>? List);
 
     public async Task<PassResult> RunAsync(CancellationToken ct = default)
     {
@@ -77,7 +89,7 @@ public sealed class UpgradeCarryOverService
         if (tombs.Count == 0)
             return PassResult.None;
 
-        // Live archives of the same folders that state one whole volume and no chapter.
+        // Live archives of the same folders that state one whole volume or a range of whole volumes, and no chapter.
         var parentIds = tombs.Select(t => t.ParentId).Distinct().ToList();
         var live = new List<Live>();
         foreach (var chunk in parentIds.Chunk(500))
@@ -85,7 +97,8 @@ public sealed class UpgradeCarryOverService
             live.AddRange(await _db.CatalogNodes.AsNoTracking()
                 .Where(n => n.Kind == 1 && n.Availability != tombstoned && n.ParentId != null && chunk.Contains(n.ParentId.Value))
                 .Join(_db.ArchiveItems, n => n.Id, a => a.NodeId,
-                    (n, a) => new Live(n.Id, n.LibraryId, n.ParentId!.Value, n.DisplayName, n.CreatedAt, a.AnalysisState, a.ContentVersion, a.PageCount))
+                    (n, a) => new Live(n.Id, n.LibraryId, n.ParentId!.Value, n.DisplayName, n.CreatedAt, a.AnalysisState, a.ContentVersion, a.PageCount,
+                        a.ContentSignature, a.ByteLength))
                 .ToListAsync(ct));
         }
         if (live.Count == 0)
@@ -99,24 +112,24 @@ public sealed class UpgradeCarryOverService
             UpgradeCarryOver.UnitsOfArchive(name, folders.GetValueOrDefault(parent)?.Name,
                 comicInfo.GetValueOrDefault(id).Volume, comicInfo.GetValueOrDefault(id).Number);
 
-        var volumes = live
-            .Select(l => (Archive: l, Volume: UpgradeCarryOver.VolumeOf(Units(l.Id, l.Name, l.ParentId))))
-            .Where(v => v.Volume is not null)
-            .Select(v => (v.Archive, Volume: v.Volume!.Value))
+        var targets = live
+            .Select(l => (Archive: l, Volumes: UpgradeCarryOver.VolumesOf(Units(l.Id, l.Name, l.ParentId))))
+            .Where(v => v.Volumes.Count > 0)
             .ToList();
-        if (volumes.Count == 0)
+        if (targets.Count == 0)
             return PassResult.None;
 
-        var tombsByFolder = tombs.Where(t => volumes.Any(v => v.Archive.ParentId == t.ParentId))
+        var tombsByFolder = tombs.Where(t => targets.Any(v => v.Archive.ParentId == t.ParentId))
             .GroupBy(t => t.ParentId).ToDictionary(g => g.Key, g => g.ToList());
         var candidateTombs = tombsByFolder.Values.SelectMany(t => t).ToList();
         var lastSeen = await MoveEvidence.LastSeenAtAsync(_db,
             candidateTombs.Select(t => new MoveEvidence.Sighting(t.Id, t.LibraryId, t.LastSeenScanRevision, t.TombstonedAt)).ToList(), ct);
+        var items = await ItemsAsync(candidateTombs.Select(t => t.Id).ToList(), ct);
         var running = (await MoveEvidence.RunningScanLibraryIds(_db, now).Distinct().ToListAsync(ct)).ToHashSet();
 
-        int read = 0, inProgress = 0, waiting = 0;
+        int read = 0, inProgress = 0, waiting = 0, conflicts = 0;
         var users = new HashSet<long>();
-        foreach (var folderGroup in volumes.GroupBy(v => v.Archive.ParentId))
+        foreach (var folderGroup in targets.GroupBy(v => v.Archive.ParentId))
         {
             if (!tombsByFolder.TryGetValue(folderGroup.Key, out var folderTombs))
                 continue;
@@ -125,31 +138,34 @@ public sealed class UpgradeCarryOverService
                 _logger.LogDebug(LogEvents.Scanning.UpgradeCarryOverSkipped, "Upgrade carry-over: folder {FolderId} left for a running scan", folderGroup.Key);
                 continue;
             }
-            var list = await VolumeListAsync(folderGroup.Key, folders, ct);
-            if (list is null)
+            var context = await SeriesContextAsync(folderGroup.Key, folders, ct);
+            if (context.Excluded)
             {
-                _logger.LogDebug(LogEvents.Scanning.UpgradeCarryOverSkipped, "Upgrade carry-over: folder {FolderId} has no linked series with a volume list", folderGroup.Key);
+                _logger.LogDebug(LogEvents.Scanning.UpgradeCarryOverSkipped, "Upgrade carry-over: folder {FolderId} is excluded from matching", folderGroup.Key);
                 continue;
             }
-            foreach (var byNumber in folderGroup.GroupBy(v => v.Volume))
+            var folderName = folders.GetValueOrDefault(folderGroup.Key)?.Name;
+            var group = folderGroup.ToList();
+            foreach (var (archive, volumes) in group)
             {
-                if (byNumber.Count() != 1)
+                // Evidence: replaced files last seen present BEFORE the new archive appeared (never two files the catalog saw side by side).
+                var present = folderTombs.Where(t => lastSeen.TryGetValue(t.Id, out var seen) && seen < archive.CreatedAt).ToList();
+                var files = present.Select(t => new UpgradeChapterFile(t.Id, Units(t.Id, t.Name, t.ParentId))).ToList();
+                var names = present.ToDictionary(t => t.Id, t => t.Name);
+                // A replaced file of the same volume is evidence when it names the same work and edition, and is not byte-identical
+                // (identical bytes are a move: the 1.31.0 pairing takes it or leaves it to an admin - never an upgrade).
+                bool IsVolumeEvidence(long id) =>
+                    UpgradeCarryOver.SameWork(names[id], archive.Name, folderName) && !Identical(items.GetValueOrDefault(id), archive);
+                var plans = UpgradeCarryOver.Plan(volumes, context.List, files, IsVolumeEvidence);
+                if (plans is null || !plans.SelectMany(p => p.Evidence).Any())
+                    continue;
+                // Two live archives holding a volume in common (v01-03 next to v03 or v03-05, or two v03): neither is an upgrade.
+                if (group.Any(o => o.Archive.Id != archive.Id && UpgradeCarryOver.Overlap(o.Volumes, volumes)))
                 {
-                    _logger.LogDebug(LogEvents.Scanning.UpgradeCarryOverSkipped, "Upgrade carry-over: folder {FolderId} holds {Count} files of one volume", folderGroup.Key, byNumber.Count());
+                    conflicts++;
+                    _logger.LogDebug(LogEvents.Scanning.UpgradeCarryOverSkipped, "Upgrade carry-over: node {NodeId} shares a volume with another file of its folder", archive.Id);
                     continue;
                 }
-                var (archive, number) = byNumber.Single();
-                if (!list.TryGetValue(number, out var listed))
-                    continue;
-                var units = UpgradeCarryOver.UnitsOf(number, listed);
-                // Evidence: replaced files last seen present BEFORE the volume appeared (never two files the catalog saw side by side).
-                var files = folderTombs
-                    .Where(t => lastSeen.TryGetValue(t.Id, out var seen) && seen < archive.CreatedAt)
-                    .Select(t => new UpgradeChapterFile(t.Id, Units(t.Id, t.Name, t.ParentId)))
-                    .ToList();
-                var coverage = UpgradeCarryOver.Cover(units, files);
-                if (coverage.Evidence.Count == 0)
-                    continue;
                 if (archive.AnalysisState == 1)
                 {
                     waiting++;
@@ -159,7 +175,7 @@ public sealed class UpgradeCarryOverService
                     continue;
                 try
                 {
-                    var done = await CarryAsync(archive, units, coverage, ct);
+                    var done = await CarryAsync(archive, plans, items, ct);
                     if (done is null)
                     {
                         waiting++;
@@ -180,19 +196,23 @@ public sealed class UpgradeCarryOverService
 
         if (read > 0 || inProgress > 0)
             _logger.LogInformation(LogEvents.Scanning.UpgradeCarryOverPass,
-                "Upgrade carry-over: {Read} volumes marked read, {InProgress} set in progress, for {Users} users; {Waiting} waiting for analysis, in {ElapsedMs} ms",
-                read, inProgress, users.Count, waiting, watch.ElapsedMilliseconds);
-        else if (waiting > 0)
-            _logger.LogDebug(LogEvents.Scanning.UpgradeCarryOverSkipped, "Upgrade carry-over: {Waiting} volumes waiting for analysis", waiting);
-        return new PassResult(read, inProgress, users.Count, waiting);
+                "Upgrade carry-over: {Read} volumes marked read, {InProgress} set in progress, for {Users} users; {Waiting} waiting for analysis, {Conflicts} skipped as overlapping, in {ElapsedMs} ms",
+                read, inProgress, users.Count, waiting, conflicts, watch.ElapsedMilliseconds);
+        else if (waiting > 0 || conflicts > 0)
+            _logger.LogDebug(LogEvents.Scanning.UpgradeCarryOverSkipped, "Upgrade carry-over: {Waiting} volumes waiting for analysis, {Conflicts} skipped as overlapping", waiting, conflicts);
+        return new PassResult(read, inProgress, users.Count, waiting, conflicts);
     }
 
+    private static bool Identical(Item? old, Live archive) =>
+        old is not null && MoveEvidence.IsUsable(old.Signature, old.ByteLength) && MoveEvidence.IsUsable(archive.Signature, archive.ByteLength)
+        && string.Equals(old.Signature, archive.Signature, StringComparison.Ordinal);
+
     /// <summary>
-    /// Writes one volume's outcomes per user in one transaction (rules R5 / R6 of the lane note). Null when the volume's manifest is not
-    /// stored yet (waiting).
+    /// Writes one new archive's outcomes per user in one transaction (rules R5 / R6, 1.41.0 R16 - R18 of the lane note). Null when the
+    /// archive's manifest is not stored yet (waiting).
     /// </summary>
     private async Task<(List<long> Read, List<long> InProgress)?> CarryAsync(
-        Live archive, UpgradeVolumeUnits units, UpgradeCarryOver.Coverage coverage, CancellationToken ct)
+        Live archive, IReadOnlyList<UpgradeVolumePlan> plans, IReadOnlyDictionary<long, Item> items, CancellationToken ct)
     {
         var pages = await _db.PageEntries.AsNoTracking()
             .Where(p => p.ItemId == archive.Id && p.ContentVersion == archive.ContentVersion)
@@ -206,11 +226,12 @@ public sealed class UpgradeCarryOverService
             ? pages.First(p => p.Ordinal == count - 1)
             : pages[^1];
 
-        var evidence = coverage.Evidence.ToList();
+        var evidence = plans.SelectMany(p => p.Evidence).Distinct().ToList();
+        var volumeFiles = plans.SelectMany(p => p.VolumeFiles).ToHashSet();
         var marks = await _db.ReadMarks.AsNoTracking().Where(m => evidence.Contains(m.ItemId))
             .Select(m => new { m.UserId, m.ItemId, m.MarkedAt, m.Source }).ToListAsync(ct);
         var progress = await _db.ReadingProgress.AsNoTracking().Where(p => evidence.Contains(p.ItemId))
-            .Select(p => new { p.UserId, p.ItemId, p.State, p.UpdatedAt, p.CompletedAt }).ToListAsync(ct);
+            .Select(p => new { p.UserId, p.ItemId, p.State, p.Ordinal, p.UpdatedAt, p.CompletedAt }).ToListAsync(ct);
         var userIds = marks.Select(m => m.UserId).Concat(progress.Select(p => p.UserId)).Distinct().ToList();
         if (userIds.Count == 0)
             return ([], []);
@@ -223,23 +244,38 @@ public sealed class UpgradeCarryOverService
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
         foreach (var userId in userIds.Order())
         {
-            if (marks.Any(m => m.UserId == userId && m.Source == CarriedEvidenceSource))
-                continue; // Carried before: what the user did with the volume since then stands.
-            var readFiles = marks.Where(m => m.UserId == userId).Select(m => m.ItemId)
-                .Concat(progress.Where(p => p.UserId == userId && p.State == (int)ReadingState.Completed).Select(p => p.ItemId))
+            var userMarks = marks.Where(m => m.UserId == userId).ToList();
+            // Carried before from this very evidence: what the user did with the new file since then stands. A mark not yet carried is
+            // evidence that came later (1.41.0: a re-release of a re-release - the middle file's "upgrade" mark - or a chapter replaced later).
+            if (userMarks.Count > 0 && userMarks.All(m => m.Source == CarriedEvidenceSource))
+                continue;
+            var userProgress = progress.Where(p => p.UserId == userId).ToList();
+            var readFiles = userMarks.Select(m => m.ItemId)
+                .Concat(userProgress.Where(p => p.State == (int)ReadingState.Completed).Select(p => p.ItemId))
                 .ToHashSet();
-            var outcome = UpgradeCarryOver.Decide(units, coverage, readFiles);
-            if (outcome == UpgradeOutcome.Nothing || markedNew.Contains(userId))
+            // A replaced volume file's state: read, else the in-progress page; its time is the user's latest on it.
+            var volumeStates = volumeFiles
+                .Where(id => readFiles.Contains(id) || userProgress.Any(p => p.ItemId == id))
+                .Select(id => new UpgradeVolumeFileState(id, readFiles.Contains(id),
+                    userProgress.Where(p => p.ItemId == id && p.State == (int)ReadingState.InProgress).Select(p => p.Ordinal).DefaultIfEmpty(0).Max(),
+                    userMarks.Where(m => m.ItemId == id).Select(m => m.MarkedAt)
+                        .Concat(userProgress.Where(p => p.ItemId == id).Select(p => p.CompletedAt ?? p.UpdatedAt))
+                        .Max()))
+                .ToList();
+            var carry = UpgradeCarryOver.DecideTarget(plans, readFiles, volumeStates);
+            if (carry.Outcome == UpgradeOutcome.Nothing || markedNew.Contains(userId))
                 continue;
             newProgress.TryGetValue(userId, out var row);
             // A row that says more than "opened at page 1" wins (completed, or past page 1).
             if (row is not null && (row.State == (int)ReadingState.Completed || row.Ordinal != 0))
                 continue;
-            var at = marks.Where(m => m.UserId == userId && readFiles.Contains(m.ItemId)).Select(m => m.MarkedAt)
-                .Concat(progress.Where(p => p.UserId == userId && readFiles.Contains(p.ItemId)).Select(p => p.CompletedAt ?? p.UpdatedAt))
+            // The time of the state carried: the user's latest on the files that gave it.
+            var used = carry.FromNode is { } source ? new HashSet<long> { source } : readFiles.Concat(volumeStates.Select(v => v.NodeId)).ToHashSet();
+            var at = userMarks.Where(m => used.Contains(m.ItemId)).Select(m => m.MarkedAt)
+                .Concat(userProgress.Where(p => used.Contains(p.ItemId)).Select(p => p.CompletedAt ?? p.UpdatedAt))
                 .DefaultIfEmpty(_time.GetUtcNow()).Max();
 
-            if (outcome == UpgradeOutcome.Read)
+            if (carry.Outcome == UpgradeOutcome.Read)
             {
                 _db.ReadMarks.Add(new ReadMarkEntity { UserId = userId, ItemId = archive.Id, MarkedAt = at, Source = MarkSource });
                 if (row is null)
@@ -258,16 +294,25 @@ public sealed class UpgradeCarryOverService
                     row.Revision++;
                 }
                 carriedRead.Add(userId);
+                continue;
             }
-            else if (row is null)
+
+            // In progress: at page 1, or - a volume replacing a volume with the same page count - at the old page.
+            var ordinal = carry.FromNode is { } old
+                ? UpgradeCarryOver.PageFor(carry.Ordinal, items.GetValueOrDefault(old)?.PageCount, archive.PageCount)
+                : 0;
+            var page = pages.FirstOrDefault(p => p.Ordinal == ordinal) ?? first;
+            if (row is null)
             {
-                _db.ReadingProgress.Add(NewRow(userId, archive, first.Ordinal, first.EntryKey, (int)ReadingState.InProgress, at, completedAt: null));
+                _db.ReadingProgress.Add(NewRow(userId, archive, page.Ordinal, page.EntryKey, (int)ReadingState.InProgress, at, completedAt: null));
                 carriedProgress.Add(userId);
             }
-            else if (row.State == (int)ReadingState.Unread)
+            else if (row.State == (int)ReadingState.Unread || page.Ordinal > 0)
             {
+                // An unread row, or one opened at page 1 while the old file was read further.
                 row.ContentVersion = archive.ContentVersion;
-                row.EntryKey = first.EntryKey;
+                row.Ordinal = page.Ordinal;
+                row.EntryKey = page.EntryKey;
                 row.State = (int)ReadingState.InProgress;
                 row.UpdatedAt = row.UpdatedAt > at ? row.UpdatedAt : at;
                 row.Revision++;
@@ -286,6 +331,20 @@ public sealed class UpgradeCarryOverService
         return (carriedRead, carriedProgress);
     }
 
+    /// <summary>Page count and content signature of the replaced archives (the page rule and the "identical bytes are a move" guard).</summary>
+    private async Task<Dictionary<long, Item>> ItemsAsync(List<long> ids, CancellationToken ct)
+    {
+        var result = new Dictionary<long, Item>(ids.Count);
+        foreach (var chunk in ids.Chunk(500))
+        {
+            var rows = await _db.ArchiveItems.AsNoTracking().Where(a => chunk.Contains(a.NodeId))
+                .Select(a => new { a.NodeId, a.PageCount, a.ContentSignature, a.ByteLength }).ToListAsync(ct);
+            foreach (var r in rows)
+                result[r.NodeId] = new Item(r.PageCount, r.ContentSignature, r.ByteLength);
+        }
+        return result;
+    }
+
     private static ReadingProgressEntity NewRow(long userId, Live archive, int ordinal, string entryKey, int state, DateTimeOffset at, DateTimeOffset? completedAt) => new()
     {
         UserId = userId,
@@ -302,11 +361,12 @@ public sealed class UpgradeCarryOverService
     };
 
     /// <summary>
-    /// The exact volume list (volume -> listed chapters) of the series a folder belongs to, by the Volumes view's rule: the folder's own
-    /// Confirmed / Auto link, else the nearest linked folder through unit subfolders; any other own row stops it. Null when there is none,
-    /// when the folder or an ancestor is Don't match / Collection about / an artist's folder, or when the series is in chapter mode.
+    /// The series context of a folder: excluded when the folder or an ancestor is Don't match / Collection about / an artist's folder;
+    /// otherwise the exact volume list (volume -> listed chapters) of the series it belongs to, by the Volumes view's rule: the folder's own
+    /// Confirmed / Auto link, else the nearest linked folder through unit subfolders; any other own row stops it. The list is null when there
+    /// is none or the series is in chapter mode (a volume replacing a volume needs no list, 1.41.0).
     /// </summary>
-    private async Task<IReadOnlyDictionary<decimal, IReadOnlyList<decimal>>?> VolumeListAsync(long folderId, Dictionary<long, Folder> known, CancellationToken ct)
+    private async Task<SeriesContext> SeriesContextAsync(long folderId, Dictionary<long, Folder> known, CancellationToken ct)
     {
         // The folder and its ancestors, nearest first, with their link rows.
         var chain = new List<Folder>();
@@ -320,7 +380,7 @@ public sealed class UpgradeCarryOverService
         var links = await _db.NodeSeriesLinks.AsNoTracking().Where(l => ids.Contains(l.NodeId))
             .Select(l => new { l.NodeId, l.State, l.RecordId }).ToDictionaryAsync(l => l.NodeId, ct);
         if (links.Values.Any(l => (SeriesLinkState)l.State is SeriesLinkState.DontMatch or SeriesLinkState.CollectionAbout or SeriesLinkState.ArtistFolder))
-            return null;
+            return new SeriesContext(true, null);
 
         long? recordId = null;
         for (var i = 0; i < chain.Count && i <= MaxUnitDepth; i++)
@@ -336,22 +396,22 @@ public sealed class UpgradeCarryOverService
                 break;
         }
         if (recordId is not { } id)
-            return null;
+            return new SeriesContext(false, null);
 
         var maps = await _db.SeriesVolumeMaps.AsNoTracking().Where(m => m.RecordId == id).ToListAsync(ct);
         if (maps.Count == 0)
-            return null;
+            return new SeriesContext(false, null);
         var record = await _db.MetadataRecords.AsNoTracking().Where(r => r.Id == id)
             .Select(r => new SeriesProgressLoader.RecordRow(r.Id, r.Origin, r.OriginStatus, r.OriginVolumes, r.StatusText, r.LatestChapter,
                 r.PublishersJson, r.LicensedEn, r.TranslationComplete, r.Webtoon))
             .FirstOrDefaultAsync(ct);
         var (map, _) = SeriesProgressLoader.MapAndFacts(maps, record, ReleasedInLanguage.DefaultLanguage);
         if (map.ChaptersOnly || map.Volumes.Count == 0)
-            return null;
+            return new SeriesContext(false, null);
         var result = new Dictionary<decimal, IReadOnlyList<decimal>>();
         foreach (var v in map.Volumes)
             result.TryAdd(v.Volume, v.Chapters);
-        return result;
+        return new SeriesContext(false, result);
     }
 
     private async Task<Folder?> FolderAsync(long id, CancellationToken ct) =>
