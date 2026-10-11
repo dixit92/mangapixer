@@ -1,4 +1,4 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, Locator, Page } from '@playwright/test';
 
 import { expectFitsScreen } from './layout';
 import { login, readerPrefs, routeFakeItem } from './reader-fixture';
@@ -62,8 +62,11 @@ const barLabels = (page: Page) => page.locator('.reader-toolbar button').evaluat
   (buttons) => buttons.map((b) => b.getAttribute('aria-label')));
 
 /** What a tap at the centre of `selector`'s box lands on: the element itself (or inside it)? */
-async function tapHits(page: Page, selector: string): Promise<boolean> {
-  return page.locator(selector).first().evaluate((el) => {
+async function tapHits(page: Page, target: string | Locator): Promise<boolean> {
+  // A Locator (e.g. by role) addresses the VISIBLE element; a CSS selector's first match can be a menu panel that is
+  // still fading out after Escape (seen under load on the shared daemon).
+  const locator = typeof target === 'string' ? page.locator(target).first() : target;
+  return locator.evaluate((el) => {
     const r = el.getBoundingClientRect();
     const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
     return !!hit && (hit === el || el.contains(hit));
@@ -115,8 +118,9 @@ test.describe('desktop and tablet bar', () => {
       await expect(page).toHaveURL(new RegExp(`/reader/${ID}$`)); // Escape closed the menu, not the reader
 
       await page.getByRole('button', { name: 'Bookmark menu', exact: true }).click();
-      await expect(page.getByRole('menuitem', { name: 'Bookmark this page' })).toBeVisible();
-      expect(await tapHits(page, '.reader-options-menu button[mat-menu-item]')).toBe(true);
+      const bookmarkItem = page.getByRole('menuitem', { name: 'Bookmark this page' });
+      await expect(bookmarkItem).toBeVisible();
+      expect(await tapHits(page, bookmarkItem)).toBe(true);
       await page.keyboard.press('Escape');
     });
   }
