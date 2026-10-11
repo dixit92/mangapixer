@@ -72,6 +72,7 @@ public sealed class SeriesLinkStateReaderSweepTests
         ["src/MangaPixer.Server/Features/Metadata/SeriesInfoFlagService.cs"] = "(i) on the artist folder itself only (no record needed); archives below: none",
         ["src/MangaPixer.Server/Features/Metadata/SeriesInfoResolver.cs"] = "own row: ArtistFolder info (folder name, no ComicInfo merge); below: stops",
         ["src/MangaPixer.Server/Features/Metadata/Volumes/VolumeCoverPass.cs"] = "Confirmed / Auto only: no companions, covers, lists or Wikipedia",
+        ["src/MangaPixer.Server/Features/Reading/Suggestions/ReadingModeSuggestionService.cs"] = "1.41.0: the record hint needs a series row (Confirmed / Auto); the walk stops at any stopping row - an artist folder gives no hint and no roll-up",
         ["src/MangaPixer.Server/Persistence/Entities.cs"] = "the column (no constraint; value 5, RecordId null)",
         ["src/MangaPixer.Server/Persistence/MangaPixerDbContext.cs"] = "index (LibraryId, State) - no migration",
         ["src/MangaPixer.Server/Scanning/LibraryScanCoordinator.cs"] = "rows of any state follow a cross-library move",
