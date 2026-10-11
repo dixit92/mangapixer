@@ -104,8 +104,15 @@ async function landed(page: Page, title: string): Promise<boolean> {
       .find((c) => c.querySelector('.node-title')?.textContent?.trim() === wanted);
     if (!card) return false;
     const r = card.getBoundingClientRect();
-    const bottom = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
-    return bottom && r.top >= 0 && r.bottom <= window.innerHeight;
+    // Near the end of the list the page cannot scroll the card up to the rail: it counts as landed when it is fully on screen and
+    // what is left to scroll could not bring it within the landing band under the rail (the list's footer can still grow a few px
+    // after the jump, so "exactly at the bottom" is too strict - seen: 12 px).
+    const rail = document.querySelector<HTMLElement>('nav.jump-rail');
+    const stack = rail && rail.getBoundingClientRect().height > 0 ? rail : document.querySelector<HTMLElement>('.browse-bar');
+    const edge = stack ? stack.getBoundingClientRect().bottom : 0;
+    const sc = document.scrollingElement ?? document.documentElement;
+    const remaining = sc.scrollHeight - sc.clientHeight - sc.scrollTop;
+    return r.top >= edge && r.bottom <= window.innerHeight && r.top - edge - remaining > 40;
   }, title);
   if (atBottom) return true;
   return (await page.locator('.node-wrap').first().locator('.node-title').textContent())?.trim() === title;
