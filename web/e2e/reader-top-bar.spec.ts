@@ -120,6 +120,9 @@ test.describe('desktop and tablet bar', () => {
       await page.getByRole('button', { name: 'Bookmark menu', exact: true }).click();
       const bookmarkItem = page.getByRole('menuitem', { name: 'Bookmark this page' });
       await expect(bookmarkItem).toBeVisible();
+      // Escape returned keyboard focus to the Quality button, whose tooltip ("Quality - GPU: ...", longer with WebGPU) fades out
+      // over the new menu for ~100 ms; measure the settled menu.
+      await expect(page.locator('.mat-mdc-tooltip-panel')).toHaveCount(0);
       expect(await tapHits(page, bookmarkItem)).toBe(true);
       await page.keyboard.press('Escape');
     });
