@@ -34,6 +34,23 @@ public sealed record JumpIndexDto
     /// omitted so the rail only shows letters/scripts that actually occur.
     /// </summary>
     public required IReadOnlyList<JumpIndexBucketDto> Buckets { get; init; }
+
+    /// <summary>
+    /// 1.41.0: opaque public id of the folder whose children this index covers; null for the library root.
+    /// </summary>
+    public string? ParentId { get; init; }
+
+    /// <summary>
+    /// 1.41.0: the name-sort direction the buckets and cursors are for: <c>asc</c> (default) or <c>desc</c>. Buckets are listed in
+    /// that display order and each cursor lands on its bucket's first row in that order.
+    /// </summary>
+    public string Direction { get; init; } = "asc";
+
+    /// <summary>
+    /// 1.41.0: what the chips stand for: <c>letters</c> (A-Z, <c>#</c>, script groups) or <c>numbers</c> (round number ranges of the
+    /// level's chapters / volumes / leading numbers, a common prefix such as <c>Ch. </c> ignored).
+    /// </summary>
+    public string Mode { get; init; } = "letters";
 }
 
 /// <summary>
@@ -60,4 +77,16 @@ public sealed record JumpIndexBucketDto
     /// name sort; other sorts ignore it (the rail is a name-sort navigation aid).
     /// </summary>
     public string? FirstCursor { get; init; }
+
+    /// <summary>
+    /// 1.41.0: opaque public id of the bucket's first row in display order (the row its cursor lands on). The client highlights the
+    /// bucket of the topmost visible card by position. Every bucket is one contiguous run of the listing.
+    /// </summary>
+    public string? FirstNodeId { get; init; }
+
+    /// <summary>
+    /// 1.41.0: in <c>numbers</c> mode, the bucket's round range (<c>50-99</c>, or <c>7</c> for a one-number range); the label is its
+    /// start. Null for a letter bucket and for the <c>Other</c> / <c>Folders</c> / <c>Files</c> chips.
+    /// </summary>
+    public string? Range { get; init; }
 }

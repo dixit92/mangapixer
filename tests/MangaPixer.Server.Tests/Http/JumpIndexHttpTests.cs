@@ -156,6 +156,24 @@ public sealed class JumpIndexHttpTests : IClassFixture<MangaPixerWebApplicationF
     }
 
     [Fact]
+    public async Task GetJumpIndex_ReportsModeDirectionAndEachBucketsFirstNode()
+    {
+        await SeedAsync();
+        var client = await GetAuthenticatedClientAsync();
+
+        var index = await client.GetFromJsonAsync<JumpIndexDto>("/api/v1/libraries/jumplib1/jump-index?direction=desc");
+
+        Assert.NotNull(index);
+        Assert.Equal("letters", index!.Mode);
+        Assert.Equal("desc", index.Direction);
+        Assert.Null(index.ParentId);
+        // Descending: the listing's last bucket first; each bucket names the row its cursor lands on.
+        Assert.Equal(new[] { "Kana", "B", "A" }, index.Buckets.Select(b => b.Label).ToArray());
+        Assert.Equal(new[] { "jumpKana1", "jumpB1", "jumpA1" }, index.Buckets.Select(b => b.FirstNodeId).ToArray());
+        Assert.All(index.Buckets, b => Assert.Null(b.Range));
+    }
+
+    [Fact]
     public async Task GetJumpIndex_UnknownLibraryId_Returns404()
     {
         var client = await GetAuthenticatedClientAsync();

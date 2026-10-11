@@ -35,13 +35,22 @@ public sealed class JumpIndexController : ControllerBase
     }
 
     /// <summary>
-    /// Returns the per-library jump index: a list of buckets (label, count,
-    /// firstCursor) computed server-side from the top-level children's SortKeys.
-    /// Each bucket's firstCursor is a valid keyset cursor for the name sort of
-    /// the browse endpoint. Authorization is enforced by the service.
+    /// Returns the jump index of one listed level: a list of buckets (label, count, firstCursor, firstNodeId, range) computed
+    /// server-side from the level's SortKeys and names. Without <paramref name="parentId"/> it covers the library root, with it that
+    /// folder's children (1.41.0; the folder must belong to the library, else 404, like a node of another library). Each bucket is one
+    /// contiguous run of the listing, and its firstCursor is a valid keyset cursor for the browse name sort in
+    /// <paramref name="direction"/> (<c>asc</c> default, <c>desc</c>). <paramref name="group"/> is the browse Volumes-view override
+    /// (<c>volumes</c> / <c>flat</c>): where the Volumes view is shown the index is empty. Authorization is enforced by the service.
     /// </summary>
     [HttpGet("libraries/{libraryId}/jump-index")]
-    public async Task<IActionResult> GetJumpIndex(string libraryId, CancellationToken ct)
+    [ProducesResponseType(typeof(JumpIndexDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetJumpIndex(
+        string libraryId,
+        [FromQuery] string? parentId,
+        [FromQuery] string? direction,
+        [FromQuery] string? group,
+        CancellationToken ct)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
@@ -49,11 +58,19 @@ public sealed class JumpIndexController : ControllerBase
         var library = await _idResolver.ResolveLibraryAsync(libraryId, ct);
         if (library is null) return NotFound();
 
-        var result = await _jumpIndexService.GetJumpIndexAsync(userId.Value, library.Id, ct);
+        long? parentIdLong = null;
+        if (parentId is not null)
+        {
+            var parent = await _idResolver.ResolveNodeAsync(parentId, ct);
+            if (parent is null || parent.LibraryId != library.Id) return NotFound();
+            parentIdLong = parent.Id;
+        }
+
+        var descending = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase);
+        var result = await _jumpIndexService.GetJumpIndexAsync(userId.Value, library.Id, parentIdLong, descending, group, ct);
 
         // Re-stamp the public id so the DTO carries the caller-facing id even
-        // when the library had no top-level children (the service resolves it
-        // separately in that case, but this guarantees correctness).
+        // when the level had no rows (or the Volumes view hid the rail).
         return Ok(result with { LibraryId = library.PublicId });
     }
 

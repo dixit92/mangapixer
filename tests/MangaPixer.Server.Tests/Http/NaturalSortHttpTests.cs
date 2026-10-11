@@ -300,12 +300,14 @@ public sealed class NaturalSortHttpTests : IClassFixture<MangaPixerWebApplicatio
 
     /// <summary>
     /// The jump rail's cursors are raw sort keys, so they only land correctly if the rail
-    /// and the listing agree on order. The "#" bucket's cursor must put browse on
-    /// "10-Anthology", the first digit-leading node - which now sits between "-Bonus" and
-    /// the letter-leading folders.
+    /// and the listing agree on order. 1.41.0: every bucket is one contiguous run of the
+    /// listing - "-Bonus" and "10-Anthology" (punctuation and digits sort before letters)
+    /// are the leading "#" bucket, the "S" cursor puts browse on "Series", right after the
+    /// digit-leading folder, and the two loose archives (fewer than the folders) are one
+    /// trailing "Files" chip that lands on "1 Loose.cbz".
     /// </summary>
     [Fact]
-    public async Task JumpIndex_HashBucketCursor_LandsOnFirstDigitLeadingNode()
+    public async Task JumpIndex_HashBucketLeads_AndTheNextCursorLandsAfterTheDigitLeadingNode()
     {
         var (libraryId, _, _) = await SeedAsync();
         var client = await GetAuthenticatedClientAsync();
@@ -314,12 +316,17 @@ public sealed class NaturalSortHttpTests : IClassFixture<MangaPixerWebApplicatio
             $"/api/v1/libraries/{libraryId}/jump-index", JsonOptions);
 
         Assert.NotNull(index);
-        var hash = index!.Buckets.Single(b => b.Label == "#");
-        Assert.NotNull(hash.FirstCursor);
+        Assert.Equal(["#", "S", "Files"], index!.Buckets.Select(b => b.Label).ToArray());
+        var hash = index.Buckets[0];
+        Assert.Equal(2, hash.Count);
+        Assert.Null(hash.FirstCursor);
 
-        var landed = await BrowseAsync(client, libraryId, parentId: null, cursor: hash.FirstCursor);
+        var landed = await BrowseAsync(client, libraryId, parentId: null, cursor: index.Buckets[1].FirstCursor);
         Assert.NotEmpty(landed.Items);
-        Assert.Equal("10-Anthology", landed.Items[0].DisplayName);
+        Assert.Equal("Series", landed.Items[0].DisplayName);
+
+        var files = await BrowseAsync(client, libraryId, parentId: null, cursor: index.Buckets[2].FirstCursor);
+        Assert.Equal("1 Loose.cbz", files.Items[0].DisplayName);
     }
 
     /// <summary>
