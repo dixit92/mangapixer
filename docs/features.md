@@ -7,7 +7,7 @@ Everything MangaPixer does today, by area. The [README](../README.md) has the sh
 - Browse the folder hierarchy in a card view (with a card-size slider) or a list view.
 - Sort by name (ascending or descending), recently added, recently read, or recently updated. Recently updated ranks a folder by its newest archive, like a new chapter.
 - Filter by read state (reading / read / unread) at any folder level. The filter also applies to series folders through their contents, and you can hide empty folders.
-- A-Z jump rail with multilingual collation, infinite scroll in both directions after a jump, and read/reading rollup badges on folders. This means you can tell at a glance whether a folder contains only comics you've read, some you haven't read yet, or nothing you've started at all.
+- A jump rail in every folder and both name orders - letters with multilingual collation, or round number ranges for numbered chapters and volumes (*new in 1.41.0*) - infinite scroll in both directions after a jump, and read/reading rollup badges on folders. This means you can tell at a glance whether a folder contains only comics you've read, some you haven't read yet, or nothing you've started at all.
 - Multi-select, including shift/ctrl ranges and touch long-press, to mark items read or unread in bulk.
 - Full-text search over titles and folder names (trigram search), with cover thumbnails and a folder-vs-archive badge. Series linked to MangaUpdates are also found by their alternative titles: a `Dungeon Meshi` folder turns up when you search for `Delicious in Dungeon`.
 

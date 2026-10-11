@@ -207,8 +207,21 @@ export class ApiService {
   }
 
   /** Per-library A–Z/script jump index. */
-  getJumpIndex(libraryId: string): Observable<JumpIndexDto> {
-    return this.get<JumpIndexDto>(`/libraries/${libraryId}/jump-index`);
+  /**
+   * The jump rail of one listed level (1.41.0): the library root, or `parentId`'s children; buckets and cursors for the name sort in
+   * `direction`; `group` is the browse Volumes-view override (the index is empty where the Volumes view is shown).
+   */
+  getJumpIndex(
+    libraryId: string,
+    parentId: string | null = null,
+    direction: LibrarySortDirection | null = null,
+    group: 'volumes' | 'flat' | null = null,
+  ): Observable<JumpIndexDto> {
+    let params = new HttpParams();
+    if (parentId) params = params.set('parentId', parentId);
+    if (direction) params = params.set('direction', direction);
+    if (group) params = params.set('group', group);
+    return this.get<JumpIndexDto>(`/libraries/${libraryId}/jump-index`, params);
   }
 
   getBreadcrumbs(nodeId: string): Observable<{ nodeId: string; trail: { id: string; displayName: string }[] }> {

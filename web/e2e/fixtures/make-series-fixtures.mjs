@@ -22,6 +22,9 @@
 // And <outDir>-reading-modes (1.41.0, the reading-mode suggestions e2e spec; offline, no ComicInfo):
 //   Tall Strip Tale/Tall Strip Tale c001..c003.cbz   8 pages of 40 x 160 each (webtoon-shaped tall strips: 24 measured, all tall)
 //   Paged Tale/Paged Tale v01..v03.cbz               8 pages of 60 x 90 each (ordinary pages)
+// And <outDir>-jump (1.41.0, the smart jump rail e2e spec; offline, no ComicInfo):
+//   Jump Saga/Jump Saga - Ch. 001.cbz .. Ch. 064.cbz   numbered chapters behind a common prefix -> number ranges 0, 10 ... 60
+//   Jump Saga/Jump Saga - Oneshot.cbz                  an extra without a number -> its own "Other" chip after the ranges
 // Register <outDir> as a library, scan, and let analysis run; the spec does that itself
 // when E2E_SERIES_FIXTURE_ROOT names the path as the SERVER sees it.
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -169,4 +172,10 @@ for (const c of [1, 2, 3]) {
   stripArchive('Tall Strip Tale', `Tall Strip Tale c00${c}.cbz`, [60 + c * 40, 120, 180], 40, 160, 8);
   stripArchive('Paged Tale', `Paged Tale v0${c}.cbz`, [180, 60 + c * 40, 90], 60, 90, 8);
 }
-console.log(`Series fixtures written to ${outDir} (and ${volumesDir}, ${readingModesDir})`);
+// 1.41.0: a folder of numbered chapters for the smart jump rail (names synthetic).
+const jumpDir = `${outDir}-jump`;
+for (let c = 1; c <= 64; c++) {
+  archive('Jump Saga', `Jump Saga - Ch. ${String(c).padStart(3, '0')}.cbz`, [40 + (c * 3) % 200, 120, 220 - (c * 2) % 200], null, jumpDir);
+}
+archive('Jump Saga', 'Jump Saga - Oneshot.cbz', [220, 180, 60], null, jumpDir);
+console.log(`Series fixtures written to ${outDir} (and ${volumesDir}, ${readingModesDir}, ${jumpDir})`);

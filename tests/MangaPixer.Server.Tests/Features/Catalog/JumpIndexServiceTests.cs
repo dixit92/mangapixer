@@ -75,13 +75,14 @@ public sealed class JumpIndexServiceTests : IDisposable
         long libraryId,
         CatalogNodeKind kind,
         string displayName,
-        string sortKey)
+        string sortKey,
+        long? parentId = null)
     {
         var node = new CatalogNodeEntity
         {
             PublicId = OpaqueId.Encode(Random.Shared.NextInt64(1, long.MaxValue)),
             LibraryId = libraryId,
-            ParentId = null,
+            ParentId = parentId,
             Kind = (int)kind,
             DisplayName = displayName,
             RelativePath = "/private/" + displayName,
@@ -96,42 +97,25 @@ public sealed class JumpIndexServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetJumpIndex_MixedScripts_BucketsByFirstCollationElement()
+    public async Task GetJumpIndex_MixedScripts_BucketsByFirstCharacterInListingOrder()
     {
         var (db, userId, libraryId) = await SetupAsync();
         try
         {
-            // Latin letters (folders sort before archives by SortKey prefix).
-            await AddNodeAsync(db, libraryId, CatalogNodeKind.Folder, "Apple", "0\u001f0Apple");
-            await AddNodeAsync(db, libraryId, CatalogNodeKind.Archive, "Avocado", "0\u001f1Avocado");
-            await AddNodeAsync(db, libraryId, CatalogNodeKind.Archive, "Banana", "0\u001f1Banana");
-            await AddNodeAsync(db, libraryId, CatalogNodeKind.Archive, "Cherry", "0\u001f1Cherry");
-            // Digits
-            await AddNodeAsync(db, libraryId, CatalogNodeKind.Archive, "12 Monkeys", "0\u001f1D12Z099Monkeys");
-            // Kana
-            await AddNodeAsync(db, libraryId, CatalogNodeKind.Archive, "あいうえお", "0\u001f1あいうえお");
-            // CJK
-            await AddNodeAsync(db, libraryId, CatalogNodeKind.Archive, "漫画", "0\u001f1漫画");
-            // Cyrillic
-            await AddNodeAsync(db, libraryId, CatalogNodeKind.Archive, "Книга", "0\u001f1Книга");
-            // Symbols (Other)
-            await AddNodeAsync(db, libraryId, CatalogNodeKind.Archive, "!!!", "0\u001f1!!!");
+            // One folder and eight archives: the folder is one leading "Folders" chip (1.41.0), the archives carry the letters.
+            await AddNodeAsync(db, libraryId, CatalogNodeKind.Folder, "Apple", SortKey.ForNode(CatalogNodeKind.Folder, "Apple"));
+            foreach (var name in new[] { "Avocado", "Banana", "Cherry", "12 Monkeys", "あいうえお", "漫画", "Книга", "!!!" })
+                await AddNodeAsync(db, libraryId, CatalogNodeKind.Archive, name, SortKey.ForNode(CatalogNodeKind.Archive, name));
 
             var service = new JumpIndexService(db);
             var result = await service.GetJumpIndexAsync(userId, libraryId);
 
-            var labels = result.Buckets.Select(b => b.Label).ToList();
-            // Rail order: #, A, B, C, Kana, CJK, Cyrillic, Other. "#" leads the
-            // rail as the numeric/symbol bucket (by convention, as in a typical
-            // A–Z index); its cursor still lands on the first numeric node in
-            // persisted SortKey order.
-            Assert.Equal(new[] { "#", "A", "B", "C", "Kana", "CJK", "Cyrillic", "Other" }, labels);
-
-            var a = result.Buckets.First(b => b.Label == "A");
-            Assert.Equal(2, a.Count); // Apple + Avocado
-
-            var hash = result.Buckets.First(b => b.Label == "#");
-            Assert.Equal(1, hash.Count);
+            // Listing order (1.41.0: chips follow the listing, each one contiguous run): the folder, then "!!!" and "12 Monkeys"
+            // (punctuation and digits sort before letters: "#"), the letters, then the scripts by code point.
+            Assert.Equal(new[] { "Folders", "#", "A", "B", "C", "Cyrillic", "Kana", "CJK" }, result.Buckets.Select(b => b.Label).ToArray());
+            Assert.Equal(2, result.Buckets.Single(b => b.Label == "#").Count);
+            Assert.Equal("letters", result.Mode);
+            Assert.Equal("asc", result.Direction);
         }
         finally
         {
@@ -228,16 +212,11 @@ public sealed class JumpIndexServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetJumpIndex_HashBucketLeadsRailAndCursorLandsOnFirstNumericNode()
+    public async Task GetJumpIndex_HashBucketLeadsRail_AndTheMinorityFilesChipLandsOnTheFirstArchive()
     {
-        // "#" must lead the rail, and its cursor must land on the first numeric
-        // node in browse name-sort order — even when another node sorts ahead of
-        // the numeric nodes. Since 1.15.0 the encoded SortKey puts digit-leading
-        // names ahead of letter-leading ones (as plain ordinal comparison does), so
-        // the node ahead of "#" here is "-Bonus": '-' (0x2D) precedes the digit
-        // range, and the rail buckets it under "B" because a leading '-' is skipped.
-        // Uses real SortKeys via SortKey.ForNode so the cursor contract is exercised
-        // against the actual browse ordering, not hand-crafted keys.
+        // "#" leads the rail because punctuation- and digit-leading names sort first (1.41.0: a leading "-" is no longer skipped,
+        // so "-Bonus" is in "#" where the listing shows it, not in a "B" bucket at the top of the list). Three folders and two
+        // archives: the folders carry the letters, the archives are one trailing "Files" chip.
         var (db, userId, libraryId) = await SetupAsync();
         try
         {
@@ -252,33 +231,19 @@ public sealed class JumpIndexServiceTests : IDisposable
 
             var index = await jumpService.GetJumpIndexAsync(userId, libraryId);
 
-            // "#" leads the rail.
-            Assert.Equal("#", index.Buckets[0].Label);
+            Assert.Equal(new[] { "#", "A", "Files" }, index.Buckets.Select(b => b.Label).ToArray());
+            Assert.Equal(new[] { 2, 1, 2 }, index.Buckets.Select(b => b.Count).ToArray());
+            Assert.Null(index.Buckets[0].FirstCursor);
+            Assert.Equal(SortKey.ForNode(CatalogNodeKind.Folder, "10-Title"), index.Buckets[1].FirstCursor);
 
-            var hash = index.Buckets.First(b => b.Label == "#");
-            // Folder order is "-Bonus", "10-Title", "Apple"; archives follow. The first
-            // numeric node is therefore the "10-Title" folder, preceded by "-Bonus", so
-            // the "#" cursor is the "-Bonus" SortKey — non-null, because "#" is NOT the
-            // global first node.
-            Assert.NotNull(hash.FirstCursor);
-            Assert.Equal(SortKey.ForNode(CatalogNodeKind.Folder, "-Bonus"), hash.FirstCursor);
-
-            // The "A" bucket's first node ("Apple") follows "10-Title".
-            var a = index.Buckets.First(b => b.Label == "A");
-            Assert.Equal(SortKey.ForNode(CatalogNodeKind.Folder, "10-Title"), a.FirstCursor);
-
-            // The "B" bucket's first node ("-Bonus") IS the global first node, so its
-            // cursor is null regardless of rail position.
-            var b = index.Buckets.First(x => x.Label == "B");
-            Assert.Null(b.FirstCursor);
-
-            // End-to-end: passing the "#" cursor to browse lands on "10-Title",
-            // the first numeric node — not the end of the listing.
-            var page = await browseService.BrowseAsync(
-                userId, libraryId, parentId: null, cursor: hash.FirstCursor,
-                pageSize: 50, sort: "name");
-            Assert.NotEmpty(page.Items);
-            Assert.Equal("10-Title", page.Items[0].DisplayName);
+            string[] expected = ["-Bonus", "Apple", "7-Title"];
+            for (var i = 0; i < expected.Length; i++)
+            {
+                var page = await browseService.BrowseAsync(
+                    userId, libraryId, parentId: null, cursor: index.Buckets[i].FirstCursor, pageSize: 50, sort: "name");
+                Assert.Equal(expected[i], page.Items[0].DisplayName);
+                Assert.Equal(page.Items[0].Id, index.Buckets[i].FirstNodeId);
+            }
         }
         finally
         {
@@ -361,23 +326,24 @@ public sealed class JumpIndexServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetJumpIndex_FoldersAndArchivesSameLetterMerged()
+    public async Task GetJumpIndex_FoldersAndArchives_TheSmallerKindIsOneChipAtItsPosition()
     {
         var (db, userId, libraryId) = await SetupAsync();
         try
         {
-            // Folder "Apple" sorts before archive "Apple Pie" by the prefix.
-            await AddNodeAsync(db, libraryId, CatalogNodeKind.Folder, "Apple", "0\u001f0Apple");
-            await AddNodeAsync(db, libraryId, CatalogNodeKind.Archive, "Apple Pie", "0\u001f1Apple Pie");
-            await AddNodeAsync(db, libraryId, CatalogNodeKind.Archive, "Apricot", "0\u001f1Apricot");
+            // Folder "Apple" sorts before the archives by the kind prefix. Before 1.41.0 one "A" bucket spanned both kinds
+            // (non-contiguous when other folders sat between them); now the folder is its own leading chip.
+            await AddNodeAsync(db, libraryId, CatalogNodeKind.Folder, "Apple", SortKey.ForNode(CatalogNodeKind.Folder, "Apple"));
+            await AddNodeAsync(db, libraryId, CatalogNodeKind.Archive, "Apple Pie", SortKey.ForNode(CatalogNodeKind.Archive, "Apple Pie"));
+            await AddNodeAsync(db, libraryId, CatalogNodeKind.Archive, "Apricot", SortKey.ForNode(CatalogNodeKind.Archive, "Apricot"));
 
             var service = new JumpIndexService(db);
             var result = await service.GetJumpIndexAsync(userId, libraryId);
 
-            var a = result.Buckets.First(b => b.Label == "A");
-            Assert.Equal(3, a.Count);
-            // The "A" bucket is the first bucket → null cursor (start of listing).
-            Assert.Null(a.FirstCursor);
+            Assert.Equal(new[] { "Folders", "A" }, result.Buckets.Select(b => b.Label).ToArray());
+            Assert.Equal(new[] { 1, 2 }, result.Buckets.Select(b => b.Count).ToArray());
+            Assert.Null(result.Buckets[0].FirstCursor);
+            Assert.Equal(SortKey.ForNode(CatalogNodeKind.Folder, "Apple"), result.Buckets[1].FirstCursor);
         }
         finally
         {
@@ -386,64 +352,84 @@ public sealed class JumpIndexServiceTests : IDisposable
     }
 
     [Fact]
-    public void BucketLabel_LatinLetters_MapToSingleLetter()
+    public async Task GetJumpIndex_NumberedFolder_EveryBucketLandsOnItsFirstRow_BothDirections()
     {
-        Assert.Equal("A", JumpIndexService.BucketLabelFor("Apple"));
-        Assert.Equal("A", JumpIndexService.BucketLabelFor("avocado"));
-        Assert.Equal("Z", JumpIndexService.BucketLabelFor("Zebra"));
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            var folder = await AddNodeAsync(db, libraryId, CatalogNodeKind.Folder, "Numbered Saga", SortKey.ForNode(CatalogNodeKind.Folder, "Numbered Saga"));
+            await AddNodeAsync(db, libraryId, CatalogNodeKind.Folder, "Other Saga", SortKey.ForNode(CatalogNodeKind.Folder, "Other Saga"));
+            var names = Enumerable.Range(1, 103).Select(n => $"Numbered Saga - Ch. {n:0000}.cbz").Append("Numbered Saga - Ch. 0050.5.cbz").ToList();
+            foreach (var name in names)
+                await AddNodeAsync(db, libraryId, CatalogNodeKind.Archive, name, SortKey.ForNode(CatalogNodeKind.Archive, name), folder.Id);
+
+            var jumpService = new JumpIndexService(db);
+            var browseService = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+
+            foreach (var descending in new[] { false, true })
+            {
+                var index = await jumpService.GetJumpIndexAsync(userId, libraryId, folder.Id, descending, group: null);
+                Assert.Equal("numbers", index.Mode);
+                Assert.Equal(descending ? "desc" : "asc", index.Direction);
+                Assert.Equal(folder.PublicId, index.ParentId);
+                var labels = new[] { "0", "10", "20", "30", "40", "50", "60", "70", "80", "90", "100" };
+                Assert.Equal(descending ? labels.Reverse().ToArray() : labels, index.Buckets.Select(b => b.Label).ToArray());
+                Assert.Equal(104, index.Buckets.Sum(b => b.Count));
+
+                // Walk the whole listing page by page from each bucket's cursor: the first Count rows are the bucket's rows.
+                var seen = 0;
+                foreach (var bucket in index.Buckets)
+                {
+                    var page = await browseService.BrowseAsync(userId, libraryId, folder.Id, bucket.FirstCursor, pageSize: bucket.Count,
+                        direction: descending ? SortDirection.Descending : SortDirection.Ascending, sort: "name");
+                    Assert.Equal(bucket.FirstNodeId, page.Items[0].Id);
+                    Assert.Equal(bucket.Count, page.Items.Count);
+                    var low = int.Parse(bucket.Label, System.Globalization.CultureInfo.InvariantCulture);
+                    Assert.Equal(low == 100 ? "100-109" : $"{low}-{low + 9}", bucket.Range);
+                    Assert.All(page.Items, item =>
+                    {
+                        var number = decimal.Parse(item.DisplayName["Numbered Saga - Ch. ".Length..].Replace(".cbz", ""), System.Globalization.CultureInfo.InvariantCulture);
+                        Assert.InRange(number, low, low + 9.99m);
+                    });
+                    seen += page.Items.Count;
+                }
+                Assert.Equal(104, seen);
+            }
+        }
+        finally
+        {
+            await db.DisposeAsync();
+        }
     }
 
     [Fact]
-    public void BucketLabel_Digits_MapToHash()
+    public async Task GetJumpIndex_VolumesView_HidesTheRail_UnlessTheViewerAsksForTheFlatList()
     {
-        Assert.Equal("#", JumpIndexService.BucketLabelFor("12 Monkeys"));
-        Assert.Equal("#", JumpIndexService.BucketLabelFor("007"));
-    }
+        var (db, userId, libraryId) = await SetupAsync();
+        try
+        {
+            // Chapters that state their volume: the folder has a Volumes view (on by default), which pages by volume.
+            var folder = await AddNodeAsync(db, libraryId, CatalogNodeKind.Folder, "Stacked Saga", SortKey.ForNode(CatalogNodeKind.Folder, "Stacked Saga"));
+            for (var c = 1; c <= 12; c++)
+            {
+                var name = $"Stacked Saga v{(c - 1) / 4 + 1:00} c{c:000}.cbz";
+                await AddNodeAsync(db, libraryId, CatalogNodeKind.Archive, name, SortKey.ForNode(CatalogNodeKind.Archive, name), folder.Id);
+            }
 
-    [Fact]
-    public void BucketLabel_ScriptGroups_MapToScriptName()
-    {
-        Assert.Equal("Kana", JumpIndexService.BucketLabelFor("あいうえお"));
-        Assert.Equal("Kana", JumpIndexService.BucketLabelFor("カタカナ"));
-        Assert.Equal("Hangul", JumpIndexService.BucketLabelFor("한국어"));
-        Assert.Equal("CJK", JumpIndexService.BucketLabelFor("漫画"));
-        Assert.Equal("Cyrillic", JumpIndexService.BucketLabelFor("Книга"));
-        Assert.Equal("Greek", JumpIndexService.BucketLabelFor("Βιβλίο"));
-        Assert.Equal("Arabic", JumpIndexService.BucketLabelFor("كتاب"));
-        Assert.Equal("Hebrew", JumpIndexService.BucketLabelFor("ספר"));
-        Assert.Equal("Thai", JumpIndexService.BucketLabelFor("หนังสือ"));
-    }
+            var service = new JumpIndexService(db);
 
-    [Fact]
-    public void BucketLabel_SymbolsAndEmpty_MapToOther()
-    {
-        Assert.Equal("Other", JumpIndexService.BucketLabelFor("!!!"));
-        Assert.Equal("Other", JumpIndexService.BucketLabelFor(""));
-        Assert.Equal("Other", JumpIndexService.BucketLabelFor("   "));
-    }
+            var shown = await service.GetJumpIndexAsync(userId, libraryId, folder.Id, descending: false, group: null);
+            Assert.Empty(shown.Buckets);
+            var asked = await service.GetJumpIndexAsync(userId, libraryId, folder.Id, descending: false, group: "volumes");
+            Assert.Empty(asked.Buckets);
 
-    [Fact]
-    public void BucketLabel_SkipsLeadingPunctuation()
-    {
-        Assert.Equal("A", JumpIndexService.BucketLabelFor("[Archive]"));
-        Assert.Equal("Q", JumpIndexService.BucketLabelFor("\"Quoted\""));
-        Assert.Equal("T", JumpIndexService.BucketLabelFor("The Apple"));
-    }
-
-    [Fact]
-    public void RailRank_HashThenLatinAZThenScriptsThenOther()
-    {
-        Assert.Equal(0, JumpIndexService.RailRank("#"));
-        Assert.Equal(1, JumpIndexService.RailRank("A"));
-        Assert.Equal(26, JumpIndexService.RailRank("Z"));
-        Assert.Equal(27, JumpIndexService.RailRank("Kana"));
-        Assert.Equal(28, JumpIndexService.RailRank("Hangul"));
-        Assert.Equal(29, JumpIndexService.RailRank("CJK"));
-        Assert.Equal(30, JumpIndexService.RailRank("Cyrillic"));
-        Assert.Equal(99, JumpIndexService.RailRank("Other"));
-        // # sorts before A, which sorts before scripts, which sort before Other.
-        Assert.True(JumpIndexService.RailRank("#") < JumpIndexService.RailRank("A"));
-        Assert.True(JumpIndexService.RailRank("A") < JumpIndexService.RailRank("Kana"));
-        Assert.True(JumpIndexService.RailRank("Thai") < JumpIndexService.RailRank("Other"));
+            var flat = await service.GetJumpIndexAsync(userId, libraryId, folder.Id, descending: false, group: "flat");
+            Assert.Equal("numbers", flat.Mode);
+            Assert.Equal(new[] { "0", "5", "10" }, flat.Buckets.Select(b => b.Label).ToArray());
+        }
+        finally
+        {
+            await db.DisposeAsync();
+        }
     }
 }
