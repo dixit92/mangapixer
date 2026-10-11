@@ -18,5 +18,10 @@ import { MatIconModule } from '@angular/material/icon';
       <mat-icon>auto_stories</mat-icon> Reading mode suggestions
     </a>
   `,
+  // Its own spacing: the admin bar it sits in is a plain block (next to "Scan all libraries").
+  styles: [`
+    :host { display: inline-block; margin: 4px 0 4px 8px; }
+    @media (max-width: 599.98px) { :host { display: block; margin: 8px 0 0; } }
+  `],
 })
 export class ReadingModeSuggestionsLinkComponent {}
