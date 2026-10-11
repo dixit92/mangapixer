@@ -90,6 +90,15 @@ async function landsUnderRail(page: Page, title: string): Promise<boolean> {
   }, title);
 }
 
+/**
+ * Whether a jump landed on `title`: scrolled in place to just under the rail (the card was loaded), or the list was reloaded from the
+ * range's cursor and starts with it (it was not - which depends on how far infinite scroll has loaded, so both count).
+ */
+async function landed(page: Page, title: string): Promise<boolean> {
+  if (await landsUnderRail(page, title)) return true;
+  return (await page.locator('.node-wrap').first().locator('.node-title').textContent())?.trim() === title;
+}
+
 async function chips(page: Page): Promise<string[]> {
   return (await page.locator('nav.jump-rail .jump-chip').allTextContents()).map((t) => t.trim());
 }
@@ -119,11 +128,9 @@ test('desktop: number ranges behind a common prefix land on their first chapter,
       [box.x + box.width / 2, box.y + box.height / 2]);
     expect(hit).toBe('60');
 
-    // 60 is past the first page (50 cards): the range cursor reloads the list from Ch. 060.
-    const landed = page.waitForResponse((r) => r.url().includes(`/libraries/${libraryId}/browse`) && r.url().includes('cursor='));
+    // 60 may be past what is loaded (50 cards a page): then the range cursor reloads the list from Ch. 060.
     await rail.locator('.jump-chip', { hasText: /^60$/ }).click();
-    await landed;
-    await expect(page.locator('.node-wrap').first().locator('.node-title')).toHaveText('Jump Saga - Ch. 060.cbz');
+    await expect.poll(() => landed(page, 'Jump Saga - Ch. 060.cbz')).toBe(true);
     await rail.locator('.jump-chip', { hasText: 'Other' }).click();
     await expect(page.locator('.node-wrap', { hasText: 'Jump Saga - Oneshot.cbz' })).toBeInViewport();
     await expectFitsScreen(page, 'the jump rail (desktop)');
@@ -136,10 +143,8 @@ test('desktop: number ranges behind a common prefix land on their first chapter,
     await expect(page.locator('.node-wrap').first().locator('.node-title')).toHaveText('Jump Saga - Oneshot.cbz');
     await rail.locator('.jump-chip', { hasText: /^50$/ }).click();
     await expect.poll(() => landsUnderRail(page, 'Jump Saga - Ch. 059.cbz')).toBe(true);
-    const back = page.waitForResponse((r) => r.url().includes(`/libraries/${libraryId}/browse`) && r.url().includes('cursor='));
     await rail.locator('.jump-chip', { hasText: /^0$/ }).click();
-    await back;
-    await expect(page.locator('.node-wrap').first().locator('.node-title')).toHaveText('Jump Saga - Ch. 009.cbz');
+    await expect.poll(() => landed(page, 'Jump Saga - Ch. 009.cbz')).toBe(true);
     await shot(page, 'jump-rail-desktop-desc');
   } finally {
     await setDirection(page, previous === 'desc' ? 'desc' : 'asc');
