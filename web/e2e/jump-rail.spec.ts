@@ -93,11 +93,21 @@ async function landsUnderRail(page: Page, title: string): Promise<boolean> {
 }
 
 /**
- * Whether a jump landed on `title`: scrolled in place to just under the rail (the card was loaded), or the list was reloaded from the
- * range's cursor and starts with it (it was not - which depends on how far infinite scroll has loaded, so both count).
+ * Whether a jump landed on `title`: scrolled in place to just under the rail (the card was loaded), or - near the end of the list,
+ * where the page cannot scroll that far - scrolled to the bottom with the card on screen, or the list was reloaded from the range's
+ * cursor and starts with it (the card was not loaded; that depends on how far infinite scroll has gone, so all three count).
  */
 async function landed(page: Page, title: string): Promise<boolean> {
   if (await landsUnderRail(page, title)) return true;
+  const atBottom = await page.evaluate((wanted) => {
+    const card = Array.from(document.querySelectorAll<HTMLElement>('.node-wrap'))
+      .find((c) => c.querySelector('.node-title')?.textContent?.trim() === wanted);
+    if (!card) return false;
+    const r = card.getBoundingClientRect();
+    const bottom = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
+    return bottom && r.top >= 0 && r.bottom <= window.innerHeight;
+  }, title);
+  if (atBottom) return true;
   return (await page.locator('.node-wrap').first().locator('.node-title').textContent())?.trim() === title;
 }
 
