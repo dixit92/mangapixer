@@ -2954,6 +2954,14 @@ export interface ExportPublisherDto {
 export interface ExportCompanionsDto {
   mangadex?: string | null;
   anilist?: ExportAniListDto | null;
+  mangadexReleased?: ExportMangaDexReleasedDto | null;
+}
+
+export interface ExportMangaDexReleasedDto {
+  language: string;
+  latestChapter?: string | null;
+  chapters: number;
+  fetchedAt: string;
 }
 
 export interface ExportAniListDto {

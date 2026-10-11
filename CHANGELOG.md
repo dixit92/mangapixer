@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **MangaDex's released chapters in the metadata export.** For a linked series whose MangaDex volume list was read in the preferred language, each export item now carries `companions.mangadexReleased`: the language, the highest chapter MangaDex lists as released in it, how many whole chapters that is, and when the list was read. It comes from the stored list - no extra request - and is left out when the list was not read, so older clients see no change. Useful for series whose MangaUpdates entry has no or an old latest chapter.
+
 ## [1.41.0] - 2026-10-11
 
 ### Added

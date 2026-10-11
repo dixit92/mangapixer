@@ -7,6 +7,7 @@ using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.Missing;
 using com.lifepixer.mangapixer.Server.Features.Metadata;
+using com.lifepixer.mangapixer.Server.Features.Metadata.Missing;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MangaUpdates;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Reach;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Volumes;
@@ -112,6 +113,7 @@ public sealed class ExportItemBuilder(MangaPixerDbContext db)
                     Anilist = aniList is not null && long.TryParse(aniList.ExternalId, NumberStyles.None, CultureInfo.InvariantCulture, out var alId)
                         ? new ExportAniListDto { Id = alId, Chapters = WholeOrNull(aniList.LatestChapter), Volumes = aniList.OriginVolumes }
                         : null,
+                    MangadexReleased = record is null || !isSeries ? null : MangaDexReleased(maps[record.Id]),
                 },
                 OfficialLinks = OfficialLinks(mangadex?.ExtraJson),
                 Volumes = record is null || !isSeries
@@ -234,6 +236,24 @@ public sealed class ExportItemBuilder(MangaPixerDbContext db)
             .Select(l => ExportVocabulary.OfficialLink(l.Key, l.Url))
             .OfType<ExportOfficialLinkDto>()
             .ToList();
+
+    /// <summary>
+    /// 1.42.0 (MangaList): the chapters the stored MangaDex volume list names as released in the language it was read for - stored
+    /// rows only, no request. Null when that list was not read (no MangaDex map, or no preferred-language read).
+    /// </summary>
+    private static ExportMangaDexReleasedDto? MangaDexReleased(IEnumerable<SeriesVolumeMapEntity> maps)
+    {
+        var map = maps.FirstOrDefault(m => m.Source == (int)VolumeMapSource.MangaDexAggregate && m.ReleasedLanguage is not null);
+        if (map is null || ReleasedInLanguage.ParseChapters(map.ReleasedChaptersJson) is not { } chapters)
+            return null;
+        return new ExportMangaDexReleasedDto
+        {
+            Language = ReleasedInLanguage.Normalize(map.ReleasedLanguage),
+            LatestChapter = chapters.Count == 0 ? null : chapters.Max().ToString("0.############", CultureInfo.InvariantCulture),
+            Chapters = chapters.Select(decimal.Floor).Distinct().Count(),
+            FetchedAt = ExportJson.Truncate(map.FetchedAt),
+        };
+    }
 
     private static int? WholeOrNull(double? value) =>
         value is { } v && double.IsFinite(v) && v >= 0 && v < int.MaxValue ? (int)Math.Floor(v) : null;

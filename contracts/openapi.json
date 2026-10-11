@@ -10944,6 +10944,16 @@
                 "$ref": "#/components/schemas/ExportAniListDto"
               }
             ]
+          },
+          "mangadexReleased": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ExportMangaDexReleasedDto"
+              }
+            ]
           }
         }
       },
@@ -11283,6 +11293,37 @@
             "format": "double"
           },
           "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ExportMangaDexReleasedDto": {
+        "required": [
+          "language",
+          "chapters",
+          "fetchedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "language": {
+            "type": "string"
+          },
+          "latestChapter": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "chapters": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "fetchedAt": {
             "type": "string",
             "format": "date-time"
           }

@@ -219,6 +219,28 @@ public sealed record ExportCompanionsDto
     public string? Mangadex { get; init; }
 
     public ExportAniListDto? Anilist { get; init; }
+
+    /// <summary>
+    /// 1.42.0: what MangaDex lists as released in the instance's preferred language (stored with the volume list), or left out when
+    /// that list was not read.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ExportMangaDexReleasedDto? MangadexReleased { get; init; }
+}
+
+/// <summary>The chapters MangaDex lists as released in one language (its volume list filtered by that language).</summary>
+public sealed record ExportMangaDexReleasedDto
+{
+    /// <summary>The language the list was read for (the preferred language when it was fetched, e.g. <c>en</c>).</summary>
+    public required string Language { get; init; }
+
+    /// <summary>The highest chapter listed, as an exact string (<c>18</c>, <c>12.5</c>), or null when none is listed.</summary>
+    public string? LatestChapter { get; init; }
+
+    /// <summary>How many whole chapters are listed (parts such as <c>4.1</c> and <c>4.2</c> count once).</summary>
+    public required int Chapters { get; init; }
+
+    public required DateTimeOffset FetchedAt { get; init; }
 }
 
 /// <summary>The AniList entry of the linked series and its totals.</summary>

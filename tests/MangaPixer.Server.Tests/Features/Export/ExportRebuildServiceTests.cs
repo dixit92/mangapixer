@@ -393,6 +393,57 @@ public sealed class ExportRebuildServiceTests
     }
 
     [Fact]
+    public async Task MangaDexReleased_ComesFromTheStoredPreferredLanguageList_AndIsLeftOutWithoutOne()
+    {
+        // 1.42.0 (MangaList): MangaDex's released chapters in the preferred language - the stored list only, no request.
+        await using var kit = await ExportTestKit.CreateAsync();
+        var read = await kit.Db.AddFolderAsync(null, "Read In English");
+        var readRecord = await kit.Db.AddRecordAsync("5151", "Read In English");
+        await kit.Db.AddLinkAsync(read, readRecord);
+        var unread = await kit.Db.AddFolderAsync(null, "Not Read In English");
+        var unreadRecord = await kit.Db.AddRecordAsync("5252", "Not Read In English");
+        await kit.Db.AddLinkAsync(unread, unreadRecord);
+        var about = await kit.Db.AddFolderAsync(null, "About Read In English");
+        await kit.Db.AddLinkAsync(about, readRecord, SeriesLinkState.CollectionAbout);
+        var fetched = ExportTestKit.Start.AddHours(-3);
+        kit.Db.Db.SeriesVolumeMaps.AddRange(
+            new SeriesVolumeMapEntity
+            {
+                RecordId = readRecord.Id,
+                Source = (int)VolumeMapSource.MangaDexAggregate,
+                State = (int)VolumeMapState.Empty,
+                ReleasedLanguage = "en",
+                ReleasedChaptersJson = "[\"1\",\"2\",\"4.1\",\"4.2\",\"18\"]",
+                ContentHash = "r",
+                FetchedAt = fetched,
+            },
+            new SeriesVolumeMapEntity
+            {
+                RecordId = unreadRecord.Id,
+                Source = (int)VolumeMapSource.MangaDexAggregate,
+                State = (int)VolumeMapState.Ok,
+                VolumesJson = "[{\"v\":\"1\",\"c\":[\"1\",\"2\"]}]",
+                ContentHash = "u",
+                FetchedAt = fetched,
+            });
+        await kit.Db.Db.SaveChangesAsync();
+
+        await kit.RebuildAsync();
+
+        var items = (await kit.PageAsync()).GetProperty("items").EnumerateArray()
+            .ToDictionary(i => i.GetProperty("nodeId").GetString()!);
+        Assert.True(items[read.PublicId].GetProperty("companions").TryGetProperty("mangadexReleased", out var released),
+            "the series with a stored English list exports it");
+        Assert.Equal("en", released.GetProperty("language").GetString());
+        Assert.Equal("18", released.GetProperty("latestChapter").GetString());
+        Assert.Equal(4, released.GetProperty("chapters").GetInt32());
+        Assert.Equal(ExportJson.Format(fetched), released.GetProperty("fetchedAt").GetString());
+        // Not read for a language, or a "Collection about" label: the field is left out (older MangaList builds see no change).
+        Assert.False(items[unread.PublicId].GetProperty("companions").TryGetProperty("mangadexReleased", out _));
+        Assert.False(items[about.PublicId].GetProperty("companions").TryGetProperty("mangadexReleased", out _));
+    }
+
+    [Fact]
     public async Task Duplicates_NameEachFileByItsNodeId_AndAreLeftOutWhenThereAreNone()
     {
         await using var kit = await ExportTestKit.CreateAsync();
