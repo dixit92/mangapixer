@@ -20,6 +20,7 @@ public sealed class UpgradeCarryOverVolumeServiceTests : IDisposable
     private readonly MoveTestHarness _h = new();
     private long _lib;
     private int _seed = 100;
+    private int _newSeed = 9000;
 
     public void Dispose() => _h.Dispose();
 
@@ -84,9 +85,8 @@ public sealed class UpgradeCarryOverVolumeServiceTests : IDisposable
     {
         foreach (var name in removed)
             File.Delete(_h.PathOf(_lib, $"{folder}/{name}"));
-        var seed = 9000;
         foreach (var name in added.Keys)
-            _h.WriteArchive(_lib, $"{folder}/{name}", seed++);
+            _h.WriteArchive(_lib, $"{folder}/{name}", _newSeed++);
         await _h.ScanAsync(_lib);
         var ids = new Dictionary<string, long>(StringComparer.Ordinal);
         foreach (var (name, pages) in added)
