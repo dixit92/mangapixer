@@ -120,20 +120,20 @@ test('desktop: number ranges behind a common prefix land on their first chapter,
     await expect(page.locator('.node-wrap').first().locator('.node-title')).toHaveText('Jump Saga - Ch. 001.cbz');
 
     // 30 is in the first loaded page: scrolls in place to Ch. 030.
-    await rail.locator('.jump-chip', { hasText: /^30$/ }).click();
+    await rail.getByRole('button', { name: '30', exact: true }).click();
     await expect.poll(() => landsUnderRail(page, 'Jump Saga - Ch. 030.cbz')).toBe(true);
     await expect(rail.locator('.jump-chip.active')).toHaveText('30');
 
     // The rail stays on top of the cards it overlays: a tap on a chip hits the chip, not a card.
-    const box = (await rail.locator('.jump-chip', { hasText: /^60$/ }).boundingBox())!;
+    const box = (await rail.getByRole('button', { name: '60', exact: true }).boundingBox())!;
     const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('.jump-chip')?.textContent?.trim() ?? null,
       [box.x + box.width / 2, box.y + box.height / 2]);
     expect(hit).toBe('60');
 
     // 60 may be past what is loaded (50 cards a page): then the range cursor reloads the list from Ch. 060.
-    await rail.locator('.jump-chip', { hasText: /^60$/ }).click();
+    await rail.getByRole('button', { name: '60', exact: true }).click();
     await expect.poll(() => landed(page, 'Jump Saga - Ch. 060.cbz')).toBe(true);
-    await rail.locator('.jump-chip', { hasText: 'Other' }).click();
+    await rail.getByRole('button', { name: 'Other', exact: true }).click();
     await expect(page.locator('.node-wrap', { hasText: 'Jump Saga - Oneshot.cbz' })).toBeInViewport();
     await expectFitsScreen(page, 'the jump rail (desktop)');
     await shot(page, 'jump-rail-desktop');
@@ -143,9 +143,9 @@ test('desktop: number ranges behind a common prefix land on their first chapter,
     await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
     await expect.poll(() => chips(page)).toEqual([...ASC].reverse());
     await expect(page.locator('.node-wrap').first().locator('.node-title')).toHaveText('Jump Saga - Oneshot.cbz');
-    await rail.locator('.jump-chip', { hasText: /^50$/ }).click();
+    await rail.getByRole('button', { name: '50', exact: true }).click();
     await expect.poll(() => landsUnderRail(page, 'Jump Saga - Ch. 059.cbz')).toBe(true);
-    await rail.locator('.jump-chip', { hasText: /^0$/ }).click();
+    await rail.getByRole('button', { name: '0', exact: true }).click();
     await expect.poll(() => landed(page, 'Jump Saga - Ch. 009.cbz')).toBe(true);
     await shot(page, 'jump-rail-desktop-desc');
   } finally {
@@ -172,7 +172,7 @@ test('phone: the picker lists the ranges and a tap lands on the range', async ({
     await expect.poll(async () => (await picker.allTextContents()).map((t) => t.trim()))
       .toEqual(['0-9', '10-19', '20-29', '30-39', '40-49', '50-59', '60-69', 'Other']);
     await shot(page, 'jump-rail-phone-menu');
-    await picker.filter({ hasText: '40-49' }).click();
+    await page.locator('.jump-picker-menu').getByRole('button', { name: '40-49', exact: true }).click();
     await expect(page.locator('.jump-picker-menu')).toHaveCount(0); // the picker closes on a pick
     await expect.poll(() => landsUnderRail(page, 'Jump Saga - Ch. 040.cbz')).toBe(true);
     await expect(trigger).toContainText('40-49');
