@@ -121,7 +121,7 @@ public sealed class UpgradeCarryOverRulesTests
     [InlineData("Synthetic Saga v01-200.cbz", "")]
     public void VolumesOf_OneWholeVolumeOrARangeOfWholeVolumes_WithoutAChapter(string name, string expected)
     {
-        var want = expected.Length == 0 ? [] : expected.Split(',').Select(decimal.Parse).ToArray();
+        decimal[] want = expected.Length == 0 ? [] : Units(expected.Split(','));
         Assert.Equal(want, VolumesOf(name));
     }
 
