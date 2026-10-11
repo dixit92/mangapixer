@@ -32,6 +32,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Identify's "tall strips" fact, automatic matching and the new suggestions share one tall-strip rule; results are unchanged.
 - **Upgrade note:** this version adds a database migration (`AddHomeStacksPerLibrary`: one column on the reader preferences; every existing user keeps 12 stacks). No new consent, no new kind of request, the matcher's rules are unchanged and the media worker protocol is unchanged.
 
+### Fixed
+
+- **A running series keeps its MangaDex volume list when the list is ahead of the series' total.** MangaPixer set aside a MangaDex volume list as "numbered differently" when it named more volumes than the series' volume total and than the volume covers MangaDex has - normal for a series that is still running, whose translated volumes run ahead of both. Such a series lost its whole list, so its Volumes view could place chapters only by the volume in their file names, and chapters without one stayed loose. The check now applies only to a series that has ended (complete or cancelled), whose total is final. Affected series get their list on their next refresh, or at once with **Refresh** in the series' **Admin** menu.
+
 ## [1.40.0] - 2026-10-10
 
 ### Added
