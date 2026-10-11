@@ -34,8 +34,11 @@ export type ViewPref = 'auto' | 'paged' | 'spread';
 export type FitMode = 'screen' | 'width' | 'height' | 'original';
 export type ReadingDirection = 'ltr' | 'rtl';
 
-/** A selectable option: its value, label and the glyph it keeps even when selected. */
-export interface ReaderOption<T> { value: T; label: string; icon: string }
+/**
+ * A selectable option: its value, label and the glyph it keeps even when selected. `menuLabel` is a longer label
+ * for the bar's menus, where a row has room for it (the phone sheet's chips use `label`).
+ */
+export interface ReaderOption<T> { value: T; label: string; icon: string; menuLabel?: string }
 
 /** Page-transition choices (1.9.0), shared by the desktop menu and the phone sheet. */
 export const PAGE_ANIMATION_OPTIONS: readonly ReaderOption<PageAnimation>[] = [
@@ -151,89 +154,94 @@ export const DIRECTION_OPTIONS: readonly ReaderOption<ReadingDirection>[] = [
  * Layout choices as ONE radio group. 'spread' / 'spread-shifted' are the two
  * double-page pairings (see `ReaderComponent.chooseSpread`; since 1.23.0 they
  * reflect and re-pair the CURRENT spread, saved per archive); 'webtoon' is a
- * per-item override, never a persisted device preference.
+ * per-item override, never a persisted device preference. Shared by the phone
+ * sheet's Layout chips and the bar's Display menu (1.41.0).
  */
 export type LayoutChoice = ViewPref | 'spread-shifted' | 'webtoon';
 export const LAYOUT_OPTIONS: readonly ReaderOption<LayoutChoice>[] = [
-  { value: 'auto', label: 'Auto', icon: 'screen_rotation' },
+  { value: 'auto', label: 'Auto', icon: 'screen_rotation', menuLabel: 'Auto (orientation)' },
   { value: 'paged', label: 'Single page', icon: 'crop_portrait' },
   { value: 'spread', label: 'Double page', icon: 'import_contacts' },
-  { value: 'spread-shifted', label: 'Double, shifted', icon: 'auto_stories' },
-  { value: 'webtoon', label: 'Vertical', icon: 'view_day' },
+  { value: 'spread-shifted', label: 'Double, shifted', icon: 'auto_stories', menuLabel: 'Double page (shifted)' },
+  { value: 'webtoon', label: 'Vertical', icon: 'view_day', menuLabel: 'Vertical (webtoon)' },
 ];
 
+/** What the layout radio group reads from, and dispatches to, the reader. */
+export type LayoutHost = Pick<ReaderOptionsHost, 'view' | 'viewPref' | 'spreadShifted' | 'chooseView' | 'chooseSpread'>;
+
 /**
- * Reader settings config surface (1.9.0). A small, self-contained toolbar button
- * that opens a menu for the page-navigation TRANSITION (Slide / Reveal / None),
- * kept out of the large `ReaderComponent` so the reader only needs a one-line
- * wiring point. The choice persists per-device via `ReaderPreferencesService`.
+ * The layout option to highlight: the EFFECTIVE layout on screen. Coincides with
+ * the stored device preference whenever one exists ('auto' wins over the
+ * paged/spread it resolved to), and with the server-resolved view when none
+ * does - so exactly one option is always checked, as a radio group should be.
+ */
+export function activeLayout(host: LayoutHost): LayoutChoice {
+  if (host.view() === 'webtoon') return 'webtoon';
+  if (host.viewPref() === 'auto') return 'auto';
+  if (host.view() === 'spread') return host.spreadShifted() ? 'spread-shifted' : 'spread';
+  return 'paged';
+}
+
+/** Apply a layout pick exactly as the reader's own entry points do. */
+export function pickLayout(host: LayoutHost, choice: LayoutChoice): void {
+  switch (choice) {
+    case 'spread': host.chooseSpread(false); break;
+    case 'spread-shifted': host.chooseSpread(true); break;
+    default: host.chooseView(choice);
+  }
+}
+
+/**
+ * The overlay styles every reader menu shares (the bar's Display, Quality and Bookmark menus). The panels render in a
+ * CDK overlay, so the rules are scoped via the `reader-options-menu` panel class and reach the projected items with
+ * ::ng-deep; each menu component lists this one constant, so the look cannot drift between them.
+ *  - Selected state (1.10.0, F4): the accent highlight instead of a checkmark, same values as the 1.8.1 View menu.
+ *  - Group captions + one-line hints (1.19.0), the engine / reason line under an Upscaling option (1.25.0).
+ *  - The Page width slider row of the Display menu in the vertical view (1.41.0).
+ */
+export const READER_MENU_STYLES = `
+  ::ng-deep .reader-options-menu .selected-option { background: rgb(var(--mp-accent-strong-rgb) / 0.16); }
+  ::ng-deep .reader-options-menu .selected-option,
+  ::ng-deep .reader-options-menu .selected-option .mat-icon { color: var(--mp-accent); }
+  ::ng-deep .reader-options-menu .menu-group-label {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 8px 16px 2px; font-size: 11px; font-weight: 600;
+    letter-spacing: 0.5px; text-transform: uppercase; opacity: 0.6;
+  }
+  ::ng-deep .reader-options-menu .menu-group-label .value { text-transform: none; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+  ::ng-deep .reader-options-menu .menu-hint { padding: 0 16px 6px; font-size: 11px; opacity: 0.6; max-width: 220px; }
+  ::ng-deep .reader-options-menu .hint-tap {
+    display: block; background: none; border: 0; color: inherit; font-family: inherit;
+    text-align: left; cursor: default;
+  }
+  ::ng-deep .reader-options-menu .option-text { display: flex; flex-direction: column; line-height: 18px; }
+  ::ng-deep .reader-options-menu .option-note { font-size: 11px; line-height: 14px; opacity: 0.7; white-space: normal; max-width: 200px; }
+  ::ng-deep .reader-options-menu .mat-mdc-slider.menu-slider { display: block; width: auto; min-width: 168px; margin: 0 16px 4px; }
+  ::ng-deep .reader-options-menu .menu-divider { height: 1px; margin: 4px 0; background: var(--mat-sys-outline-variant); }
+`;
+
+/**
+ * The bar's Quality menu (1.41.0, owner decision 5; the 1.19.0 "Upscaling" menu, moved): how an UPSCALED page is
+ * resampled (Upscaling, plus Enhance quality while Enhance runs), how many pixels are fetched per page (Page quality)
+ * and how the server shrinks them (Downscale filter). One trigger, present in every view. The trigger's tooltip
+ * doubles as the WebGPU status readout, which is the only way to confirm the GPU path on a real device (it cannot be
+ * exercised in jsdom or on a headless box). The phone sheet's Quality section shows the same choices.
  *
- * It mirrors the reader's other menus: the active option is marked with the
- * accent COLOR HIGHLIGHT (1.10.0, matching the browse View menu shipped in 1.8.1)
- * rather than a checkmark, so every option keeps its own glyph; each item is a
- * `menuitemradio` carrying `aria-checked`. `opened`/`closed` are surfaced so the
- * reader can pin its auto-hiding chrome visible while the menu is open (same
- * treatment as the mode/fit menus). Desktop / tablet only: on a phone the same
- * choices live in the `ReaderOptionsSheetComponent` below.
- *
- * 1.11.0: the same toolbar slot is contextual. In the webtoon (vertical) view a
- * page transition is meaningless (page changes are scroll-driven), so the button
- * offers the webtoon "Tap to scroll" step instead (Off / 80% / 90% / 100%) -
- * one settings button per view, never two.
+ * Like the reader's other menus, the active option is marked with the accent COLOR HIGHLIGHT (1.10.0, F4) rather
+ * than a checkmark, so every option keeps its own glyph; each item is a `menuitemradio` carrying `aria-checked`.
+ * `opened` / `closed` are surfaced so the reader can pin its auto-hiding chrome while the menu is open.
  */
 @Component({
-  selector: 'app-reader-settings-menu',
+  selector: 'app-reader-quality-menu',
   standalone: true,
   imports: [MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule],
   template: `
-    @if (view() === 'webtoon') {
-      <button mat-icon-button [matMenuTriggerFor]="tapMenu"
-              matTooltip="Tap to scroll" aria-label="Tap to scroll"
-              (menuOpened)="opened.emit()" (menuClosed)="closed.emit()">
-        <mat-icon>touch_app</mat-icon>
-      </button>
-      <mat-menu #tapMenu="matMenu" class="reader-options-menu">
-        @for (opt of tapStepOptions; track opt.value) {
-          <button mat-menu-item role="menuitemradio"
-                  [class.selected-option]="webtoonNav.tapStep() === opt.value"
-                  [attr.aria-checked]="webtoonNav.tapStep() === opt.value"
-                  (click)="chooseTapStep(opt.value)" [attr.aria-label]="'Tap to scroll: ' + opt.label">
-            @if (opt.icon) { <mat-icon>{{ opt.icon }}</mat-icon> }
-            {{ opt.label }}
-          </button>
-        }
-      </mat-menu>
-    } @else {
-      <button mat-icon-button [matMenuTriggerFor]="animMenu"
-              matTooltip="Page transition" aria-label="Page transition"
-              (menuOpened)="opened.emit()" (menuClosed)="closed.emit()">
-        <mat-icon>animation</mat-icon>
-      </button>
-      <mat-menu #animMenu="matMenu" class="reader-options-menu">
-        @for (opt of options; track opt.value) {
-          <button mat-menu-item role="menuitemradio"
-                  [class.selected-option]="prefs.pageAnimation() === opt.value"
-                  [attr.aria-checked]="prefs.pageAnimation() === opt.value"
-                  (click)="choose(opt.value)" [attr.aria-label]="'Page transition: ' + opt.label">
-            <mat-icon>{{ opt.icon }}</mat-icon>
-            {{ opt.label }}
-          </button>
-        }
-      </mat-menu>
-    }
-
-    <!-- 1.19.0 image scaling. One extra trigger, present in every view, holding the
-         two picture-quality decisions: how an UPSCALED page is resampled
-         (Upscaling) and how many pixels are fetched per page (Page quality). The
-         trigger's tooltip doubles as the WebGPU status readout, which is the only
-         way to confirm the GPU path on a real device (it cannot be exercised in
-         jsdom or on a headless box). -->
-    <button mat-icon-button [matMenuTriggerFor]="renderMenu"
-            [matTooltip]="'Upscaling - ' + support.statusText()" aria-label="Upscaling"
+    <button mat-icon-button [matMenuTriggerFor]="qualityMenu"
+            [matTooltip]="'Quality - ' + support.statusText()" aria-label="Quality"
             (menuOpened)="opened.emit()" (menuClosed)="closed.emit()">
       <mat-icon>auto_fix_high</mat-icon>
     </button>
-    <mat-menu #renderMenu="matMenu" class="reader-options-menu">
+    <mat-menu #qualityMenu="matMenu" class="reader-options-menu">
       <div role="group" aria-label="Upscaling">
         <div class="menu-group-label">Upscaling</div>
         <!-- 1.25.0: a small second line names the engine under the selected
@@ -304,45 +312,21 @@ export const LAYOUT_OPTIONS: readonly ReaderOption<LayoutChoice>[] = [
       </div>
     </mat-menu>
   `,
-  styles: [`
-    /* Selected-state highlight (1.10.0): the panel renders in a CDK overlay, so
-       the rule is scoped via the reader-options-menu panel class and reaches the
-       projected items with ::ng-deep. Same values as the 1.8.1 View menu. */
-    ::ng-deep .reader-options-menu .selected-option { background: rgb(var(--mp-accent-strong-rgb) / 0.16); }
-    ::ng-deep .reader-options-menu .selected-option,
-    ::ng-deep .reader-options-menu .selected-option .mat-icon { color: var(--mp-accent); }
-    /* 1.19.0: the Upscaling menu carries two radio groups, so each needs a small
-       caption, plus a one-line hint for why Enhance may be unavailable. */
-    ::ng-deep .reader-options-menu .menu-group-label {
-      padding: 8px 16px 2px; font-size: 11px; font-weight: 600;
-      letter-spacing: 0.5px; text-transform: uppercase; opacity: 0.6;
-    }
-    ::ng-deep .reader-options-menu .menu-hint { padding: 0 16px 6px; font-size: 11px; opacity: 0.6; max-width: 220px; }
-    ::ng-deep .reader-options-menu .hint-tap {
-      display: block; background: none; border: 0; color: inherit; font-family: inherit;
-      text-align: left; cursor: default;
-    }
-    /* 1.25.0: the engine / reason line under a Upscaling option. */
-    ::ng-deep .reader-options-menu .option-text { display: flex; flex-direction: column; line-height: 18px; }
-    ::ng-deep .reader-options-menu .option-note { font-size: 11px; line-height: 14px; opacity: 0.7; white-space: normal; max-width: 200px; }
-  `],
+  styles: [READER_MENU_STYLES],
 })
-export class ReaderSettingsMenuComponent {
+export class ReaderQualityMenuComponent {
   readonly prefs = inject(ReaderPreferencesService);
-  readonly webtoonNav = inject(WebtoonNavPreferencesService);
   readonly support = inject(UpscaleSupportService);
-  readonly options = PAGE_ANIMATION_OPTIONS;
-  readonly tapStepOptions = WEBTOON_TAP_STEP_OPTIONS;
   readonly upscalerOptions = UPSCALER_OPTIONS;
   readonly enhanceQualityOptions = ENHANCE_QUALITY_OPTIONS;
   readonly pageQualityOptions = PAGE_QUALITY_OPTIONS;
   readonly downscaleFilterOptions = DOWNSCALE_FILTER_OPTIONS;
   readonly filterOptionHint = filterOptionHint;
 
-  /** The reader's current view: webtoon swaps the transition menu for tap-to-scroll. */
+  /** The reader's current view: Enhance quality is a paged-view choice. */
   readonly view = input<ReaderView>('paged');
 
-  /** Emitted when the transition menu opens / closes, so the reader can pin chrome. */
+  /** Emitted when the menu opens / closes, so the reader can pin chrome. */
   readonly opened = output<void>();
   readonly closed = output<void>();
 
@@ -390,10 +374,6 @@ export class ReaderSettingsMenuComponent {
     return this.filterOptionHint(this.prefs.downscaleFilter());
   });
 
-  choose(mode: PageAnimation): void {
-    this.prefs.setPageAnimation(mode);
-  }
-
   chooseUpscaler(upscaler: Upscaler): void {
     if (availabilityFor(upscaler, this.support.caps()).state !== 'ready') return;
     this.prefs.setUpscaler(upscaler);
@@ -411,10 +391,6 @@ export class ReaderSettingsMenuComponent {
   chooseDownscaleFilter(filter: DownscaleFilter): void {
     if (this.filterDisabled()) return;
     this.prefs.setDownscaleFilter(filter);
-  }
-
-  chooseTapStep(step: WebtoonTapStep): void {
-    this.webtoonNav.setTapStep(step);
   }
 }
 
@@ -445,6 +421,11 @@ export interface ReaderOptionsHost {
   readonly isCurrentPageBookmarked: Signal<boolean>;
   /** Is the open archive a favorite? */
   readonly currentFavorite: Signal<boolean>;
+  /**
+   * The series page the open archive belongs to (1.41.0): the anchor node id when the archive resolves to series
+   * information (the rule of browse's Series info button), otherwise null - and then no Series info control shows.
+   */
+  readonly seriesInfoAnchor: Signal<string | null>;
   chooseView(pref: ViewPref | 'webtoon'): void;
   chooseSpread(shifted: boolean): void;
   setFitMode(mode: FitMode): void;
@@ -457,6 +438,8 @@ export interface ReaderOptionsHost {
   toggleBookmark(): void;
   openBookmarks(): void;
   toggleFavorite(): void;
+  /** Leave the reader for the series page (1.41.0); the reader saves the page on the way out. */
+  openSeriesInfo(): void;
 }
 
 /**
@@ -469,6 +452,10 @@ export interface ReaderOptionsHost {
  * the thumb can reach.
  *
  * Design:
+ *  - 1.41.0: the sheet follows the bar's grouping - the action tiles (Bookmark page / Bookmarks / Favorite / Series
+ *    info, the last only when the archive has series information), then a Display section (Layout, Image fit or
+ *    Page width, Reading direction, Page transition or Tap to scroll) and a Quality section (Upscaling, Enhance
+ *    quality, Page quality, Downscale filter), then the archive buttons and help.
  *  - Progressive disclosure: settings are GROUPED (Layout / Image fit /
  *    Direction / Page transition) as labelled radio-groups of chips, not a flat
  *    15-item menu. Each group is a single row (or two) of large, labelled,
@@ -524,10 +511,20 @@ export interface ReaderOptionsHost {
           <mat-icon aria-hidden="true">{{ host.currentFavorite() ? 'star' : 'star_border' }}</mat-icon>
           Favorite
         </button>
+        @if (host.seriesInfoAnchor()) {
+          <!-- 1.41.0: the bar's Series info, when the archive resolves to series information. -->
+          <button type="button" class="chip action" (click)="seriesInfo()" aria-label="Series info">
+            <mat-icon aria-hidden="true">info_outline</mat-icon>
+            Series info
+          </button>
+        }
       </div>
 
+      <!-- 1.41.0: the same two sections as the bar's Display and Quality menus. -->
+      <h3 class="section-label" id="reader-options-display">Display</h3>
+
       <section class="group">
-        <h3 class="group-label" id="reader-options-layout">Layout</h3>
+        <h4 class="group-label" id="reader-options-layout">Layout</h4>
         <div class="chips" role="radiogroup" aria-labelledby="reader-options-layout">
           @for (opt of layoutOptions; track opt.value) {
             <button type="button" class="chip" role="radio"
@@ -548,16 +545,16 @@ export interface ReaderOptionsHost {
 
       @if (host.view() === 'webtoon') {
         <section class="group">
-          <h3 class="group-label" id="reader-options-width">
+          <h4 class="group-label" id="reader-options-width">
             Page width <span class="value">{{ host.webtoonWidthPct() }}%</span>
-          </h3>
+          </h4>
           <mat-slider class="width-slider" min="15" max="100" step="5">
             <input matSliderThumb [value]="host.webtoonWidthPct()"
                    (valueChange)="host.setWebtoonWidth($event)" aria-labelledby="reader-options-width">
           </mat-slider>
         </section>
         <section class="group">
-          <h3 class="group-label" id="reader-options-tap">Tap to scroll</h3>
+          <h4 class="group-label" id="reader-options-tap">Tap to scroll</h4>
           <div class="chips" role="radiogroup" aria-labelledby="reader-options-tap">
             @for (opt of tapStepOptions; track opt.value) {
               <button type="button" class="chip" role="radio"
@@ -571,7 +568,7 @@ export interface ReaderOptionsHost {
         </section>
       } @else {
         <section class="group">
-          <h3 class="group-label" id="reader-options-fit">Image fit</h3>
+          <h4 class="group-label" id="reader-options-fit">Image fit</h4>
           <div class="chips" role="radiogroup" aria-labelledby="reader-options-fit">
             @for (opt of fitOptions; track opt.value) {
               <button type="button" class="chip" role="radio"
@@ -584,7 +581,7 @@ export interface ReaderOptionsHost {
           </div>
         </section>
         <section class="group">
-          <h3 class="group-label" id="reader-options-direction">Reading direction</h3>
+          <h4 class="group-label" id="reader-options-direction">Reading direction</h4>
           <div class="chips" role="radiogroup" aria-labelledby="reader-options-direction">
             @for (opt of directionOptions; track opt.value) {
               <button type="button" class="chip" role="radio"
@@ -597,7 +594,7 @@ export interface ReaderOptionsHost {
           </div>
         </section>
         <section class="group">
-          <h3 class="group-label" id="reader-options-transition">Page transition</h3>
+          <h4 class="group-label" id="reader-options-transition">Page transition</h4>
           <div class="chips" role="radiogroup" aria-labelledby="reader-options-transition">
             @for (opt of transitionOptions; track opt.value) {
               <button type="button" class="chip" role="radio"
@@ -611,13 +608,14 @@ export interface ReaderOptionsHost {
         </section>
       }
 
+      <h3 class="section-label" id="reader-options-quality-section">Quality</h3>
       <!-- 1.19.0 image scaling, shown in every view: Upscaling is how an UPSCALED
            page is resampled, Page quality is how many pixels are fetched. Since
            1.25.0 Upscaling is Smooth / Crisp / Enhance; a choice that cannot run
            here is disabled, and the line under the chips names the engine in use
            and each reason. Since 1.24.0 it covers the vertical view too. -->
       <section class="group">
-        <h3 class="group-label" id="reader-options-rendering">Upscaling</h3>
+        <h4 class="group-label" id="reader-options-rendering">Upscaling</h4>
         <div class="chips" role="radiogroup" aria-labelledby="reader-options-rendering">
           @for (row of renderingRows(); track row.value) {
             <button type="button" class="chip" role="radio"
@@ -636,7 +634,7 @@ export interface ReaderOptionsHost {
       <!-- Paged views only, as in the desktop menu. -->
       @if (showEnhanceQuality()) {
         <section class="group">
-          <h3 class="group-label" id="reader-options-enhance-quality">Enhance quality</h3>
+          <h4 class="group-label" id="reader-options-enhance-quality">Enhance quality</h4>
           <div class="chips" role="radiogroup" aria-labelledby="reader-options-enhance-quality">
             @for (opt of enhanceQualityOptions; track opt.value) {
               <button type="button" class="chip" role="radio"
@@ -652,7 +650,7 @@ export interface ReaderOptionsHost {
         </section>
       }
       <section class="group">
-        <h3 class="group-label" id="reader-options-quality">Page quality</h3>
+        <h4 class="group-label" id="reader-options-quality">Page quality</h4>
         <div class="chips" role="radiogroup" aria-labelledby="reader-options-quality">
           @for (opt of pageQualityOptions; track opt.value) {
             <button type="button" class="chip" role="radio"
@@ -668,7 +666,7 @@ export interface ReaderOptionsHost {
            so it is offered disabled with a reason under Full - same treatment
            as Enhance above. -->
       <section class="group">
-        <h3 class="group-label" id="reader-options-filter">Downscale filter</h3>
+        <h4 class="group-label" id="reader-options-filter">Downscale filter</h4>
         <div class="chips" role="radiogroup" aria-labelledby="reader-options-filter">
           @for (opt of downscaleFilterOptions; track opt.value) {
             <button type="button" class="chip" role="radio"
@@ -724,6 +722,11 @@ export interface ReaderOptionsHost {
     .sheet-head h2 { margin: 0; font-size: 17px; font-weight: 500; line-height: 24px; }
     .sheet-head .close { margin-right: -8px; }
     .group { display: flex; flex-direction: column; gap: 8px; }
+    /* Section headings (1.41.0): Display / Quality, the names of the bar's two menus. */
+    .section-label {
+      margin: 6px 0 -4px; padding-top: 10px; border-top: 1px solid var(--mat-sys-outline-variant);
+      font-size: 14px; font-weight: 600; line-height: 20px; color: var(--mat-sys-on-surface);
+    }
     .group-label {
       display: flex; align-items: baseline; justify-content: space-between; margin: 0;
       font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;
@@ -756,7 +759,7 @@ export interface ReaderOptionsHost {
     }
     .width-slider { width: 100%; margin: 0; }
     /* Three equal icon-over-label tiles: fits a 320px screen without wrapping. */
-    .action-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .action-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 8px; }
     .chip.action { flex-direction: column; justify-content: center; gap: 2px; min-height: 56px; padding: 6px 4px; font-size: 13px; line-height: 16px; text-align: center; }
     .chapter-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 2px; }
     .chapter { min-height: 44px; }
@@ -833,25 +836,13 @@ export class ReaderOptionsSheetComponent {
     this.prefs.setDownscaleFilter(filter);
   }
 
-  /**
-   * The layout chip to highlight: the EFFECTIVE layout on screen. Coincides with
-   * the stored device preference whenever one exists ('auto' wins over the
-   * paged/spread it resolved to), and with the server-resolved view when none
-   * does - so exactly one chip is always checked, as a radio group should be.
-   */
+  /** The layout chip to highlight (the shared rule, see `activeLayout`). */
   activeLayout(): LayoutChoice {
-    if (this.host.view() === 'webtoon') return 'webtoon';
-    if (this.host.viewPref() === 'auto') return 'auto';
-    if (this.host.view() === 'spread') return this.host.spreadShifted() ? 'spread-shifted' : 'spread';
-    return 'paged';
+    return activeLayout(this.host);
   }
 
   pickLayout(choice: LayoutChoice): void {
-    switch (choice) {
-      case 'spread': this.host.chooseSpread(false); break;
-      case 'spread-shifted': this.host.chooseSpread(true); break;
-      default: this.host.chooseView(choice);
-    }
+    pickLayout(this.host, choice);
   }
 
   /** Chapter navigation replaces the page, so the sheet closes first. */
@@ -863,6 +854,12 @@ export class ReaderOptionsSheetComponent {
   help(): void {
     this.ref.dismiss();
     this.host.toggleHelp();
+  }
+
+  /** The series page replaces the reader, so the sheet closes first. */
+  seriesInfo(): void {
+    this.ref.dismiss();
+    this.host.openSeriesInfo();
   }
 
   /**

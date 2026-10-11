@@ -4,28 +4,31 @@ Select any archive in a library to open it in the reader. This page covers the r
 
 ![The reader on desktop: a single page centered on a dark background, the toolbar above and the page slider below](../assets/screenshots/docs-reader-desktop.png)
 
-![The reader toolbar on desktop: back arrow and page counter on the left; previous and next archive, reading mode, image fit, direction, page transition, help and fullscreen on the right](../assets/screenshots/docs-reader-toolbar-desktop.png)
+![The reader toolbar on desktop: back arrow, page counter and the archive's name on the left; previous and next archive, Series info, the bookmark menu, the favorite star, the Display and Quality menus, help and fullscreen on the right](../assets/screenshots/docs-reader-toolbar-desktop.png)
 
 ## Toolbar
 
-On desktop and tablet, the toolbar at the top holds:
+On desktop and tablet, the toolbar at the top holds, on the left:
 
 - **Back to folder**.
 - The page counter (`12 / 40`, or `12-13 / 40` while a double page is showing).
+
+and on the right:
+
 - **Previous archive** / **Next archive**. Their tooltips name the neighboring archive. They are disabled at either end of the folder.
-- **Reading mode**.
-- **Bookmark this page** (**Remove bookmark** on a bookmarked page) and **Bookmarks**, which lists this archive's bookmarks so you can jump to or delete one.
+- **Series info** (the (i) icon), when the archive belongs to a series with series information: opens the [series page](series-information.md). It shows whenever the folder view's **Series info** button would show for this archive, so not when series information is turned off. Your place in the archive is saved when you leave for the series page.
+- **Bookmarks** (the bookmark icon, filled when the page on screen is bookmarked): **Bookmark this page** (**Remove bookmark** on a bookmarked page), and **Bookmarks…**, which lists this archive's bookmarks so you can jump to or delete one.
 - **Favorite** (the star): adds the open archive to your [favorites](library-layout.md#favorites).
-- **Image fit**, or the **Page width** slider in vertical mode.
-- The reading-direction toggle (not in vertical mode).
-- **Page transition**, or **Tap to scroll** in vertical mode.
-- **Upscaling** (the magic-wand icon): the picture-quality options described in [Image quality](#image-quality).
+- **Display** (its icon shows the page mode on screen): how pages are laid out - **Layout** (see [Page modes](#page-modes)), **Image fit** (in vertical mode the **Page width** slider instead), **Reading direction** (not in vertical mode) and **Page transition** (in vertical mode **Tap to scroll** instead).
+- **Quality** (the magic-wand icon): **Upscaling**, **Enhance quality**, **Page quality** and **Downscale filter**, described in [Image quality](#image-quality).
 - **Reading help** (`?`).
-- **Fullscreen**.
+- **Fullscreen**. A double tap or double click in the center of the page does the same.
+
+Picking an option in **Display** or **Quality** applies it at once and closes the menu; the selected option in each group is highlighted.
 
 The name of the open archive shows with the controls, in fullscreen as well: in the middle of the toolbar on wide screens (about 1000 px and up), otherwise in a small row just below it. A long name is cut with an ellipsis; hover it with a mouse to see the whole name.
 
-In a normal window the controls stay visible. In fullscreen they hide after 3 seconds without input. Tap the center of the page, press `m`, or (with a mouse) move to the top of the screen to bring them back.
+In a normal window the controls stay visible. In fullscreen they hide after 3 seconds without input. Tap the center of the page, press `m`, or (with a mouse) move to the top of the screen to bring them back. **Double tap the center** (or double click it) to enter or leave fullscreen.
 
 The bottom bar has a **page slider**: tap to jump, or drag to scrub, with a bubble showing where you will land. When the controls are hidden, a thin progress line shows how far through the archive you are.
 
@@ -37,24 +40,20 @@ For a reader with no Safari bars at all, add MangaPixer to the Home Screen (**Sh
 
 ### On phones
 
-On screens narrower than 600 px, the toolbar keeps only **Next archive**, **Fullscreen** and **Reader options** (⋮). **Reader options** opens a bottom sheet with everything else:
+On screens narrower than 600 px, the toolbar keeps only **Next archive**, **Fullscreen** and **Reader options** (⋮). **Reader options** opens a bottom sheet with everything else, grouped like the desktop toolbar:
 
-- **Bookmark page**, **Bookmarks** and **Favorite**, the same actions as the desktop toolbar's bookmark buttons and star. A bookmarked page or a favorite archive shows the filled icon, highlighted. **Bookmarks** closes the sheet and opens the list of this archive's bookmarks.
-- **Layout**
-- **Image fit**
-- **Reading direction**
-- **Page transition**
-- **Upscaling** (plus **Enhance quality** while Enhance is selected), **Page quality** and **Downscale filter** (see [Image quality](#image-quality))
-- In vertical mode, **Page width** and **Tap to scroll** replace the paged-only groups.
+- **Bookmark page**, **Bookmarks**, **Favorite** and, when the archive has series information, **Series info**: the same actions as the desktop toolbar's bookmark menu, star and Series info button. A bookmarked page or a favorite archive shows the filled icon, highlighted. **Bookmarks** closes the sheet and opens the list of this archive's bookmarks; **Series info** closes the sheet and opens the series page.
+- **Display**: **Layout**, **Image fit**, **Reading direction** and **Page transition**. In vertical mode, **Page width** and **Tap to scroll** replace the paged-only groups.
+- **Quality**: **Upscaling** (plus **Enhance quality** while Enhance is selected), **Page quality** and **Downscale filter** (see [Image quality](#image-quality)).
 - **Previous archive**, **Next archive** and **Reading help**.
 
 Changing a setting, bookmarking the page or favoriting the archive keeps the sheet open.
 
-![The Reader options bottom sheet on a phone in vertical mode: Layout, Page width, Tap to scroll, Upscaling with Crisp selected (AMD FSR 1), and Page quality](../assets/screenshots/docs-reader-phone-options.png)
+![The Reader options bottom sheet on a phone in vertical mode: the Bookmark page, Bookmarks, Favorite and Series info tiles, then the Display section with Layout, Page width and Tap to scroll, and the start of the Quality section](../assets/screenshots/docs-reader-phone-options.png)
 
 ## Page modes
 
-Choose a mode from **Reading mode** (on phones: **Layout**):
+Choose a mode from **Display** > **Layout** (on phones: **Reader options** > **Layout**):
 
 | Mode | Phone label | What it does |
 |---|---|---|
@@ -88,7 +87,7 @@ Things to know:
 
 ## Image fit
 
-**Image fit** has four options:
+**Image fit** (in the **Display** menu) has four options:
 
 - **Fit screen** (default): the whole page fits on screen.
 - **Fit width**
@@ -101,7 +100,7 @@ In vertical mode, **Image fit** is replaced by a **Page width** slider from 15% 
 
 ## Image quality
 
-Scanned pages rarely match your screen pixel for pixel, so every page is either shrunk or enlarged before you see it. Manga and comics are mostly line art and screentones (fine dot patterns), and both suffer when a browser resizes them with its default method: lines go soft and screentones can shimmer into moire patterns. The **Upscaling** menu (magic-wand icon; on phones, in **Reader options**) holds three settings that control this. All three are remembered by this browser, not your account.
+Scanned pages rarely match your screen pixel for pixel, so every page is either shrunk or enlarged before you see it. Manga and comics are mostly line art and screentones (fine dot patterns), and both suffer when a browser resizes them with its default method: lines go soft and screentones can shimmer into moire patterns. The **Quality** menu (magic-wand icon; on phones, the **Quality** section of **Reader options**) holds three settings that control this. All three are remembered by this browser, not your account.
 
 **Page quality**
 
@@ -142,7 +141,7 @@ Which graphics engine runs what:
 
 Browsers only offer WebGPU to secure pages, so on a phone or tablet that opens MangaPixer as `http://192.168.x.x:…` (a LAN install, Docker or Unraid without a reverse proxy, or the Windows app with **Allow LAN access**), Enhance runs on WebGL2 instead. It gives practically the same picture as WebGPU Enhance with Efficient quality; only **Max quality** needs WebGPU. For WebGPU, open MangaPixer over HTTPS (see [Reverse proxy and HTTPS](reverse-proxy-and-https.md)).
 
-The Upscaling menu always tells you what is running: the selected choice has a small second line naming the upscaler that runs (for example "AMD FSR 1" for Crisp, "Anime4K" for Enhance, or "Anime4K (WebGL2)" when Enhance runs without WebGPU - then **Max quality** says what it needs), and a choice that cannot run on this device is greyed out with the reason ("Needs a secure connection (HTTPS)", "Graphics chip unavailable", ...). On phones, the reasons are listed under the Upscaling chips. If a choice you picked earlier (for example on HTTPS) cannot run on this connection, the reader says so once ("Enhance isn't available here - showing Smooth.") and shows the page with Smooth; your choice is kept for the next time it can run. The status line under Upscaling (also the Upscaling button's tooltip) sums up what this device offers (for example "GPU: WebGPU needs HTTPS, WebGL2 ready"); on a phone, where the choices are chips without a second line, it names the engine in use instead. If the browser can only draw WebGL in software (its graphics chip is blocked, often an old or unusual driver), Enhance is greyed out as "Graphics chip unavailable", because it would take seconds per page; Crisp still works there.
+The **Quality** menu always tells you what is running: the selected choice has a small second line naming the upscaler that runs (for example "AMD FSR 1" for Crisp, "Anime4K" for Enhance, or "Anime4K (WebGL2)" when Enhance runs without WebGPU - then **Max quality** says what it needs), and a choice that cannot run on this device is greyed out with the reason ("Needs a secure connection (HTTPS)", "Graphics chip unavailable", ...). On phones, the reasons are listed under the Upscaling chips. If a choice you picked earlier (for example on HTTPS) cannot run on this connection, the reader says so once ("Enhance isn't available here - showing Smooth.") and shows the page with Smooth; your choice is kept for the next time it can run. The status line under Upscaling (also the **Quality** button's tooltip) sums up what this device offers (for example "GPU: WebGPU needs HTTPS, WebGL2 ready"); on a phone, where the choices are chips without a second line, it names the engine in use instead. If the browser can only draw WebGL in software (its graphics chip is blocked, often an old or unusual driver), Enhance is greyed out as "Graphics chip unavailable", because it would take seconds per page; Crisp still works there.
 
 Crisp is the default until you pick something else on a device; where it cannot run, that device quietly shows Smooth (the menu says why). Enhance has the edge on some pages, but it costs several times the graphics work and battery of Crisp. Crisp and Enhance work in single page, double page and vertical modes. Press `e` to cycle Smooth, Crisp and Enhance (choices this device cannot run are skipped). Both use the graphics chip, so they can use more battery on phones and tablets; Crisp much less than Enhance.
 
@@ -177,11 +176,11 @@ Admins set these (readers cannot):
 - **Per library:** **MangaPixer Administration** > **Libraries**, the **Direction** menu on each row: **Inherit**, **Left-to-right**, **Right-to-left** or **Vertical**.
 - **Per folder:** in the library view, choose **Select**, pick one or more folders, then **Direction**. The same options appear there, with **Inherit (clear)** removing the folder's own setting. Admins see a small `LTR` / `RTL` / `Vertical` chip on folders that have their own direction.
 
-The toolbar toggle (tooltip **Right-to-left (manga)** / **Left-to-right**) flips the direction for the archive you are reading. It is not saved. The library sidebar and home cards show a small icon with each library's direction.
+**Display** > **Reading direction** (**Left to right** / **Right to left**; on phones the same group in **Reader options**) sets the direction for the archive you are reading. It is not saved. The library sidebar and home cards show a small icon with each library's direction.
 
 ## Page transition
 
-**Page transition** controls the animation when you turn a page in single or double mode:
+**Page transition** (in the **Display** menu) controls the animation when you turn a page in single or double mode:
 
 - **Slide** (default): the new page slides in.
 - **Reveal**: the new page is wiped in over the old one.
@@ -213,7 +212,7 @@ The choice is remembered by this browser. Animations are skipped in vertical mod
 **Single and double page:**
 
 - **Tap the left or right 30% of the screen** to turn the page. In right-to-left mode the sides swap.
-- **Tap the center** to show or hide the controls.
+- **Tap the center** to show or hide the controls. **Double tap the center** (or double click it) to enter or leave fullscreen; a single tap then waits a moment (about a quarter of a second) to tell the two apart.
 - **Swipe left or right anywhere on the page** to turn the page. Start the swipe inside the page: the very edge of the screen belongs to the browser's back/forward gesture. Swipes are ignored while the page is zoomed.
 - **Scroll the mouse wheel** (or two fingers on a trackpad) down for the next page and up for the previous one, in reading order (also in right-to-left mode, and a whole spread in double page). One scroll turns one page: the rest of the same scroll, including a trackpad's glide, is ignored until the wheel stops for a moment.
   - This works only while the page fits the screen. When it does not (a tall page in **Fit width**, any page larger than the screen in **Fit height** or **Original size**, or a zoomed page), the wheel scrolls the page as usual and never turns it, also at the end of the page.
@@ -225,9 +224,9 @@ The choice is remembered by this browser. Animations are skipped in vertical mod
 - **Tap to scroll** adds tap zones. Options: **Off**, **80%**, **90%** (default) or **100%** of a screen per step. The setting is remembered by this browser.
   - Tap the **bottom third** to move forward one step.
   - Tap the **top third** to move back one step.
-  - Tap the **middle** to show or hide the controls.
-  - A horizontal swipe does the same (swipe left to go forward).
-- With **Tap to scroll** off, a tap anywhere shows or hides the controls.
+  - Tap the **middle** to show or hide the controls; **double tap** it (or double click) for fullscreen.
+  - A horizontal swipe moves a step too (swipe left to go forward).
+- With **Tap to scroll** off, a tap anywhere shows or hides the controls, and a double tap anywhere enters or leaves fullscreen.
 - At the bottom of the strip, **Previous archive** and **Next archive** buttons appear. Vertical mode never moves to another archive on its own.
 
 ## Help overlay
