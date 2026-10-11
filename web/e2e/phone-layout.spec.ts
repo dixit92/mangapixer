@@ -110,6 +110,7 @@ test('every main page fits a phone and a tablet screen', async ({ page }) => {
     ['metadata completion', '/admin/metadata?tab=completion'],
     ['debug log', '/admin/logging'],
     ['move conflicts', '/admin/move-conflicts'],
+    ['reading mode suggestions', '/admin/reading-modes'],
     ['reader', `/reader/${archiveId}`],
   ];
 

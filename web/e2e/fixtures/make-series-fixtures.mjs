@@ -18,6 +18,10 @@
 //                                                  (`... c001 [part 2].cbz`): duplicate numbers (1.31.0)
 //   Story Artist/Story Artist - Alpha Tale.cbz, - Beta Tale.cbz, - Gamma Tale.cbz   an artist's folder of stories (1.37.0, tankoubon
 //                                                  stacks: the links to one collected volume are served in the browser by the spec)
+//
+// And <outDir>-reading-modes (1.41.0, the reading-mode suggestions e2e spec; offline, no ComicInfo):
+//   Tall Strip Tale/Tall Strip Tale c001..c003.cbz   8 pages of 40 x 160 each (webtoon-shaped tall strips: 24 measured, all tall)
+//   Paged Tale/Paged Tale v01..v03.cbz               8 pages of 60 x 90 each (ordinary pages)
 // Register <outDir> as a library, scan, and let analysis run; the spec does that itself
 // when E2E_SERIES_FIXTURE_ROOT names the path as the SERVER sees it.
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -153,4 +157,16 @@ for (let c = 1; c <= 8; c++) {
 for (const [i, story] of ['Alpha Tale', 'Beta Tale', 'Gamma Tale'].entries()) {
   archive('Story Artist', `Story Artist - ${story}.cbz`, [180 - i * 50, 60 + i * 60, 120], null, volumesDir);
 }
-console.log(`Series fixtures written to ${outDir} (and ${volumesDir})`);
+// 1.41.0: reading-mode suggestions (offline, no ComicInfo): one folder of webtoon-shaped tall strips, one of ordinary pages.
+const readingModesDir = `${outDir}-reading-modes`;
+function stripArchive(dir, file, colour, width, height, pages) {
+  mkdirSync(join(readingModesDir, dir), { recursive: true });
+  const entries = Array.from({ length: pages }, (_, i) =>
+    ({ name: `page${String(i + 1).padStart(3, '0')}.png`, data: png(width, height, colour.map((c) => (c + i * 9) % 256)) }));
+  writeFileSync(join(readingModesDir, dir, file), zip(entries));
+}
+for (const c of [1, 2, 3]) {
+  stripArchive('Tall Strip Tale', `Tall Strip Tale c00${c}.cbz`, [60 + c * 40, 120, 180], 40, 160, 8);
+  stripArchive('Paged Tale', `Paged Tale v0${c}.cbz`, [180, 60 + c * 40, 90], 60, 90, 8);
+}
+console.log(`Series fixtures written to ${outDir} (and ${volumesDir}, ${readingModesDir})`);

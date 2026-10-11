@@ -82,6 +82,13 @@ export const routes: Routes = [
           import('./features/admin/move-conflicts/move-conflicts.component').then((m) => m.MoveConflictsComponent),
       },
       {
+        // Reading mode suggestions (1.41.0): folders whose pages / ComicInfo / linked series suggest another reading mode.
+        path: 'admin/reading-modes',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('./features/admin/reading-modes/reading-mode-suggestions.component').then((m) => m.ReadingModeSuggestionsComponent),
+      },
+      {
         // Series metadata admin page (stage 2): Settings / Review / Flags / Runs.
         path: 'admin/metadata',
         canActivate: [adminGuard],

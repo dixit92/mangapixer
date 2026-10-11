@@ -3081,3 +3081,67 @@ export interface AuthorAliasStatusDto {
   running?: AuthorAliasRunDto | null;
   lastRun?: AuthorAliasRunDto | null;
 }
+
+// --- Reading-mode suggestions (1.41.0, admin): local evidence only (page shapes, ComicInfo, the linked record as a hint) ---
+
+/** Where a folder's current reader mode comes from (users' own overrides left out). */
+export type ReaderModeSource = 'None' | 'Library' | 'ThisFolder' | 'FolderAbove';
+
+export type ReadingModeConfidence = 'Low' | 'Medium' | 'High';
+
+/** The signal a suggestion rests on. */
+export type ReadingModeSignal = 'TallPages' | 'ComicInfo' | 'LinkedRecord';
+
+/** One folder (or one linked series with its subfolders) and the reader mode its local evidence points to. */
+export interface ReadingModeSuggestionDto {
+  nodeId: string;
+  libraryId: string;
+  libraryName: string;
+  folderName: string;
+  parentName?: string | null;
+  suggestedMode: ReaderMode;
+  /** The mode it resolves to today without users' own overrides; null when nothing is set. */
+  currentMode?: ReaderMode | null;
+  currentSource: ReaderModeSource;
+  confidence: ReadingModeConfidence;
+  signal: ReadingModeSignal;
+  measuredPages: number;
+  tallPages: number;
+  comicInfoRightToLeft: number;
+  comicInfoStated: number;
+  linkedOrigin?: MetadataOrigin | null;
+  linkedWebtoon?: boolean | null;
+  /** Subfolders counted with it (a linked series' volume or chapter folders); 0 = itself only. */
+  subfolders: number;
+}
+
+/** GET /admin/reading-mode-suggestions. */
+export interface ReadingModeSuggestionsDto {
+  items: ReadingModeSuggestionDto[];
+  /** Folders whose evidence disagrees with a folder default an admin set: shown, never suggested. */
+  setByAdmin: ReadingModeSuggestionDto[];
+  foldersChecked: number;
+  total: number;
+  limit: number;
+}
+
+export interface ReadingModeApplyItem {
+  nodeId: string;
+  readerMode: ReaderMode;
+}
+
+/** POST /admin/reading-mode-suggestions/apply: writes the folders' reader defaults. */
+export interface ReadingModeApplyRequest {
+  items: ReadingModeApplyItem[];
+}
+
+/** `reason`: not_found or not_a_folder. */
+export interface ReadingModeApplySkipDto {
+  nodeId: string;
+  reason: string;
+}
+
+export interface ReadingModeApplyResultDto {
+  applied: number;
+  skipped: ReadingModeApplySkipDto[];
+}
