@@ -19,6 +19,8 @@ const ASC = ['0', '10', '20', '30', '40', '50', '60', 'Other'];
 
 test.skip(!JUMP_ROOT, 'E2E_SERIES_FIXTURE_ROOT not set: no synthetic jump-rail library available');
 test.describe.configure({ mode: 'serial' });
+// A step that cannot happen fails on its own line instead of running into the test timeout.
+test.beforeEach(({ page }) => { page.setDefaultTimeout(20_000); });
 
 interface Node { id: string; displayName: string }
 
