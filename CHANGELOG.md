@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.41.0] - 2026-10-11
+
 ### Added
 
 - **A jump rail in every folder, in both name orders.** Sorted by Name with no filter, the jump rail (on phones, the picker button) now appears inside folders too, not only at the library root, and also in descending order, where it is reversed. A chip lands on the first entry of its group in that order. It stays hidden in the Volumes view. See [Jump navigation](docs/library-layout.md#jump-navigation).
