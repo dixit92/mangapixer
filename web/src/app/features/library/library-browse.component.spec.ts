@@ -44,6 +44,8 @@ describe('LibraryBrowseComponent breadcrumbs', () => {
       browseLibrary: vi.fn().mockReturnValue(of(emptyPage)),
       getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: parentId ?? 'x', trail })),
       getNode: vi.fn().mockReturnValue(of(currentNode)),
+      // 1.41.0: a folder asks for its own jump index too.
+      getJumpIndex: vi.fn().mockReturnValue(of({ libraryId, buckets: [] })),
     };
     const authSpy = { isAdmin: () => false };
 
