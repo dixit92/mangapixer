@@ -12599,6 +12599,14 @@
             ],
             "format": "int32"
           },
+          "homeStacksPerLibrary": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
           "listColumns": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
@@ -16121,6 +16129,25 @@
           }
         }
       },
+      "SeriesInfoCompanionDto": {
+        "required": [
+          "provider",
+          "providerName",
+          "siteUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "providerName": {
+            "type": "string"
+          },
+          "siteUrl": {
+            "type": "string"
+          }
+        }
+      },
       "SeriesInfoDto": {
         "required": [
           "nodeId",
@@ -16304,6 +16331,12 @@
                 "$ref": "#/components/schemas/SeriesInfoWebDto"
               }
             ]
+          },
+          "companions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SeriesInfoCompanionDto"
+            }
           },
           "comicInfo": {
             "oneOf": [
