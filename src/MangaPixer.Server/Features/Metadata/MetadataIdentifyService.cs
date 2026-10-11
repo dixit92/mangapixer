@@ -11,6 +11,7 @@ using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.Gcd;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MangaUpdates;
+using com.lifepixer.mangapixer.Server.Features.Reading;
 using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
@@ -43,8 +44,6 @@ public sealed class MetadataIdentifyService
     public const string ComicsProvider = GcdMapping.ProviderId;
 
     private const int MaxLocalItems = 500;
-    private const int MaxMeasuredPages = 400;
-    private const double TallRatio = 2.0;
 
     private readonly MangaPixerDbContext _db;
     private readonly MetadataGateway _gateway;
@@ -713,13 +712,8 @@ public sealed class MetadataIdentifyService
             .Select(g => g.Key)
             .FirstOrDefault();
 
-        var dims = await _db.PageEntries.AsNoTracking()
-            .Where(p => archiveIds.Contains(p.ItemId) && p.Width != null && p.Height != null && p.Width > 0)
-            .OrderBy(p => p.ItemId).ThenBy(p => p.Ordinal)
-            .Select(p => new { p.Width, p.Height })
-            .Take(MaxMeasuredPages)
-            .ToListAsync(ct);
-        bool? tall = dims.Count < 20 ? null : dims.Count(d => d.Height >= d.Width * TallRatio) * 2 >= dims.Count;
+        // The shared tall-strip rule (1.41.0, TallStripRule): >= 2:1 pages, at least 20 of up to 400 measured, half tall.
+        var tall = await TallStripSampler.TallStripsAsync(_db, archiveIds, ct);
 
         return new IdentifyLocalDto
         {

@@ -178,6 +178,21 @@ Admins set these (readers cannot):
 
 **Display** > **Reading direction** (**Left to right** / **Right to left**; on phones the same group in **Reader options**) sets the direction for the archive you are reading. It is not saved. The library sidebar and home cards show a small icon with each library's direction.
 
+### Reading mode suggestions
+
+Admins can let MangaPixer point out folders that would read better in another mode: **MangaPixer Administration** > **Libraries** > **Reading mode suggestions**. The list uses only what MangaPixer already knows about your files - nothing is looked up on the web:
+
+- **Tall-strip pages** (the strongest sign): when at least half of a folder's pages are at least twice as tall as they are wide, it suggests **Vertical (webtoon)**. MangaPixer looks at up to 400 measured pages per folder, and needs at least 20.
+- **ComicInfo**: when most of a folder's archives that state a reading direction in their `ComicInfo.xml` say `Manga = YesAndRightToLeft`, it suggests **Right-to-left**.
+- **The linked series** (a hint - on its own, low confidence): a series marked as a webtoon, or from Korea or China / Taiwan, suggests **Vertical**; a Japanese series suggests **Right-to-left**. A hint that the folder's own pages or ComicInfo contradict is dropped - for example a Korean series whose pages are ordinary book pages.
+
+Each row shows the folder, what MangaPixer found, the mode the folder opens in now and the suggested one, and a confidence: **High**, **Medium** or **Low**. Signals that agree raise the confidence, signals that disagree lower it.
+
+- **Apply** sets the folder's reading direction - the same setting as **Direction** in the library view - for everyone. Tick several rows and choose **Apply selected** to set them together. Nothing is ever applied on its own, and readers can still switch the mode for the archive they are reading.
+- A folder is listed only when the suggestion differs from what it opens in today (its folder's or a folder above's direction, otherwise the library's). Right-to-left is not suggested for a library set to double pages.
+- A folder that has its own direction, or sits below a folder that has one, is never suggested: an admin already chose. Where its pages or ComicInfo disagree with that choice, it is listed under **Set by an admin**, without an Apply button; change it from **Direction** in the library view if you want to.
+- A series linked to series information that keeps its volumes or chapters in subfolders is listed once, as the series folder, with the pages of all its subfolders counted together. Without a series link each subfolder is listed on its own.
+
 ## Page transition
 
 **Page transition** (in the **Display** menu) controls the animation when you turn a page in single or double mode:

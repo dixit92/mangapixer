@@ -263,6 +263,7 @@ public sealed partial class Program
             builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.Declared.IDeclaredFactsReader, com.lifepixer.mangapixer.Server.Features.Metadata.Declared.DeclaredFactsReader>();
             AddMetadataNetwork(builder.Services, dataRoot);
             AddMetadataExport(builder.Services);
+            Features.Reading.Suggestions.ReadingModeSuggestionServices.AddReadingModeSuggestions(builder.Services); // 1.41.0 lane R
 
             // Operations services
             builder.Services.AddScoped<BackupService>();

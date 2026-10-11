@@ -276,6 +276,9 @@ public static class AuditActions
     // (`ids_<n>`); never a name.
     public const string MetadataAuthorsFetch = "metadata.authors_fetch";
     public const string MetadataAuthorsFetchCancel = "metadata.authors_fetch_cancel";
+
+    // 1.41.0 Reading-mode suggestions: one row per apply; result `applied_<n>`, the library / node when there is only one.
+    public const string ReadingModeSuggestionsApply = "reader_mode.suggestions.apply";
 }
 
 /// <summary>Canonical audit result verbs (kept short — the column is 32 chars).</summary>

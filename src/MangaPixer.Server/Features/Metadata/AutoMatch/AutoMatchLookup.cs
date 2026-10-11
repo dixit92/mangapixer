@@ -5,6 +5,7 @@ using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.Gcd;
+using com.lifepixer.mangapixer.Server.Features.Reading;
 using com.lifepixer.mangapixer.Server.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -77,9 +78,6 @@ public sealed class AutoMatchLookup
     /// <summary>How long a comics work waits when GCD refused without saying until when (one token period).</summary>
     public static readonly TimeSpan DefaultDeferral = TimeSpan.FromSeconds(144);
 
-    private const double TallRatio = 2.0;
-    private const int MaxMeasuredPages = 400;
-
     private readonly MangaPixerDbContext _db;
     private readonly MetadataGateway _gateway;
     private readonly IMatchQueryPlanner _planner;
@@ -117,7 +115,8 @@ public sealed class AutoMatchLookup
         {
             query = _planner.PlanFolder(shape, classification, comicInfoSeries);
         }
-        if (await TallStripsAsync(archiveIds, ct) is { } tall && tall != query.Context.TallStrips)
+        // Tall strips (the shared TallStripRule, 1.41.0): webtoon-shaped pages; unknown below 20 measured.
+        if (await TallStripSampler.TallStripsAsync(_db, archiveIds, ct) is { } tall && tall != query.Context.TallStrips)
             query = query with { Context = query.Context with { TallStrips = tall } };
         // What an admin declared for the work's folder (1.28.0; the type a strong hint since 1.30.0): scoring evidence, never sent.
         query = DeclaredHints.Apply(query, declared);
@@ -565,19 +564,5 @@ public sealed class AutoMatchLookup
                     return comics;
             }
         return null;
-    }
-
-    /// <summary>Tall strips (webtoon-shaped pages) over up to 400 measured pages; null when fewer than 20 are measured.</summary>
-    private async Task<bool?> TallStripsAsync(IReadOnlyList<long> archiveIds, CancellationToken ct)
-    {
-        if (archiveIds.Count == 0)
-            return null;
-        var dims = await _db.PageEntries.AsNoTracking()
-            .Where(p => archiveIds.Contains(p.ItemId) && p.Width != null && p.Height != null && p.Width > 0)
-            .OrderBy(p => p.ItemId).ThenBy(p => p.Ordinal)
-            .Select(p => new { p.Width, p.Height })
-            .Take(MaxMeasuredPages)
-            .ToListAsync(ct);
-        return dims.Count < 20 ? null : dims.Count(d => d.Height >= d.Width * TallRatio) * 2 >= dims.Count;
     }
 }
