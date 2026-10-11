@@ -1289,10 +1289,13 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     return null;
   }
 
-  /** Viewport-y of the bottom edge of the sticky stack (rail if shown, else the bar). */
+  /**
+   * Viewport-y of the bottom edge of the sticky stack (rail if shown, else the bar). 1.41.0: a rail hidden by the phone breakpoint
+   * (`display: none`, the picker button stands in for it) does not count - its zero box put a jumped-to card under the top bar.
+   */
   private stickyBottom(): number {
     const rail = this.host.nativeElement.querySelector<HTMLElement>('.jump-rail');
-    if (rail) return rail.getBoundingClientRect().bottom;
+    if (rail && (typeof getComputedStyle === 'undefined' || getComputedStyle(rail).display !== 'none')) return rail.getBoundingClientRect().bottom;
     return this.browseBar()?.nativeElement.getBoundingClientRect().bottom ?? 0;
   }
 

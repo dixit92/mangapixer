@@ -34,12 +34,14 @@ import { JumpIndexBucketDto, JumpIndexMode } from '../../core/api/api-types';
         }
       </nav>
       <!-- Phone-only (1.10.1): one button that opens a compact picker; numbers show their whole range there. -->
-      <button mat-stroked-button class="jump-menu-trigger" [matMenuTriggerFor]="jumpMenu" [attr.aria-label]="ariaLabel()">
+      <!-- No focus restore on close: the trigger scrolls with the list, so focusing it would undo the jump just made. -->
+      <button mat-stroked-button class="jump-menu-trigger" [matMenuTriggerFor]="jumpMenu" [matMenuTriggerRestoreFocus]="false"
+              [attr.aria-label]="ariaLabel()">
         <mat-icon>{{ numbers() ? 'format_list_numbered' : 'sort_by_alpha' }}</mat-icon> {{ triggerText() }}
       </button>
       <mat-menu #jumpMenu="matMenu" class="jump-picker-menu">
-        <!-- role="presentation": only stops menu-close-on-click; each chip carries its own click / keyboard semantics. -->
-        <div class="jump-picker" role="presentation" (click)="$event.stopPropagation()">
+        <!-- A pick closes the menu (1.41.0; it used to stay open over the list it had just moved). -->
+        <div class="jump-picker">
           @for (bucket of buckets(); track $index) {
             <button class="jump-chip" type="button"
                     (click)="jump.emit(bucket)"

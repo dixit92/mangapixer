@@ -106,7 +106,7 @@ Page files inside an archive sort by these rules on their full path inside the a
 
 ### Folders and archives
 
-In the library view, **Name** sort applies the same rules. This affects browsing, next/previous archive, folder covers, the pinned Continue row and the A–Z jump rail:
+In the library view, **Name** sort applies the same rules. This affects browsing, next/previous archive, folder covers, the pinned Continue row and the jump rail:
 
 | On disk | Shown in Name order |
 |---|---|
@@ -144,14 +144,20 @@ Choose **Select** to pick several items for a bulk action, such as marking them 
 
 ### Jump navigation
 
-At the library root, sorted by Name ascending with no filter active, a **jump rail** appears (on phones, an **A-Z** button that opens a letter picker). It groups the top-level entries by their first character:
+Sorted by Name with no filter active, a **jump rail** appears above the list (on phones, a button that opens a picker) - at the library root and inside folders (*new in 1.41.0*), in ascending and in descending order (descending reverses the rail). Each chip shows how many entries it holds; selecting it scrolls to the first one, or reloads the list from there when it is further down. The chips follow the list from top to bottom, and each one covers one unbroken stretch of it.
 
-- `#` for names starting with a digit.
-- `A`–`Z` for Latin letters. Accented letters such as `É` go to **Other**.
-- Script groups for other writing systems: **Kana**, **Hangul**, **CJK**, **Cyrillic**, **Greek**, **Arabic**, **Hebrew**, **Thai**.
-- **Other** for everything else.
+The rail adapts to what the folder holds (*new in 1.41.0*):
 
-Leading punctuation, brackets and spaces are skipped, so `(Title)` and `-Title-` file under `T`. Each chip shows how many entries it holds. Selecting it scrolls to the first one.
+- **Numbers.** When most names in a folder number their chapters or volumes - `Ch. 0012`, `Vol. 003`, `Series - 045`, or just `0000` to `0321` - the rail shows round number ranges, for example `0`, `50`, `100` ... `300` for a folder of chapters 0 to 321. The step is 1, 2 or 5 times a power of ten, chosen so the rail has at most 12 ranges (fewer in a small folder); ranges with nothing in them are left out. A chip shows where its range starts, its tooltip and the phone picker show the whole range (`50-99`). A part such as `10.5` is in the range of `10`. A chapter number is used when the names state chapters, else the volume number, else the number the name starts with. A few entries without a number (a one-shot, an artbook) get an **Other** chip where they appear in the list; when the numbers do not follow the list (mixed numbering), the rail shows letters instead.
+- **Letters.** Otherwise the rail shows the first character of each name, as the list sorts it:
+    - `#` for names starting with a digit, a space or punctuation (brackets, quotes, dashes) - they sort before the letters.
+    - `A`-`Z` for Latin letters. Accented letters such as `É` go to **Other**.
+    - Script groups for other writing systems: **Kana**, **Hangul**, **CJK**, **Cyrillic**, **Greek**, **Arabic**, **Hebrew**, **Thai**.
+    - **Other** for everything else.
+- **A common start is ignored.** When most names start the same way - `Ch. `, `Vol. `, `<Series> - `, `[Group] <Series> v` - the rail looks at what follows, so `<Series> - Alpha` and `<Series> - Beta` give `A` and `B` instead of one chip.
+- **Folders and files.** When a folder holds both subfolders and archives (folders are listed first), the kind with more entries gets the rail and the other one a single **Folders** or **Files** chip at its place in the list.
+
+The rail is not shown in the [Volumes view](volumes.md), which lists volumes instead of files, or when it would have a single chip.
 
 ## Favorites
 

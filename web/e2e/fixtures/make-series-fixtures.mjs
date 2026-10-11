@@ -18,6 +18,9 @@
 //                                                  (`... c001 [part 2].cbz`): duplicate numbers (1.31.0)
 //   Story Artist/Story Artist - Alpha Tale.cbz, - Beta Tale.cbz, - Gamma Tale.cbz   an artist's folder of stories (1.37.0, tankoubon
 //                                                  stacks: the links to one collected volume are served in the browser by the spec)
+// And <outDir>-jump (1.41.0, the smart jump rail e2e spec; offline, no ComicInfo):
+//   Jump Saga/Jump Saga - Ch. 001.cbz .. Ch. 064.cbz   numbered chapters behind a common prefix -> number ranges 0, 10 ... 60
+//   Jump Saga/Jump Saga - Oneshot.cbz                  an extra without a number -> its own "Other" chip after the ranges
 // Register <outDir> as a library, scan, and let analysis run; the spec does that itself
 // when E2E_SERIES_FIXTURE_ROOT names the path as the SERVER sees it.
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -153,4 +156,10 @@ for (let c = 1; c <= 8; c++) {
 for (const [i, story] of ['Alpha Tale', 'Beta Tale', 'Gamma Tale'].entries()) {
   archive('Story Artist', `Story Artist - ${story}.cbz`, [180 - i * 50, 60 + i * 60, 120], null, volumesDir);
 }
-console.log(`Series fixtures written to ${outDir} (and ${volumesDir})`);
+// 1.41.0: a folder of numbered chapters for the smart jump rail (names synthetic).
+const jumpDir = `${outDir}-jump`;
+for (let c = 1; c <= 64; c++) {
+  archive('Jump Saga', `Jump Saga - Ch. ${String(c).padStart(3, '0')}.cbz`, [40 + (c * 3) % 200, 120, 220 - (c * 2) % 200], null, jumpDir);
+}
+archive('Jump Saga', 'Jump Saga - Oneshot.cbz', [220, 180, 60], null, jumpDir);
+console.log(`Series fixtures written to ${outDir} (and ${volumesDir}, ${jumpDir})`);
