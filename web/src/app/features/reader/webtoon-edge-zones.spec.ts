@@ -200,10 +200,10 @@ describe('Webtoon edge tap zones (1.41.0)', () => {
   });
 
   describe('help overlay', () => {
-    /** The text under each edge's icon ("Tap" + line break + the meaning). */
+    /** The meaning under each edge's icon (the line after "Tap"). */
     const labels = (root: HTMLElement) => ({
-      left: root.querySelector('.help-zones.vertical .edge-left span')?.innerHTML.replace(/\s+/g, ' ').trim(),
-      right: root.querySelector('.help-zones.vertical .edge-right span')?.innerHTML.replace(/\s+/g, ' ').trim(),
+      left: root.querySelector('.help-zones.vertical .edge-left span')?.lastChild?.textContent?.trim(),
+      right: root.querySelector('.help-zones.vertical .edge-right span')?.lastChild?.textContent?.trim(),
     });
 
     it('the vertical diagram shows both edges with the meaning the setting gives them', () => {
@@ -211,12 +211,12 @@ describe('Webtoon edge tap zones (1.41.0)', () => {
       c.toggleHelp();
       fixture.detectChanges();
       const root = fixture.nativeElement as HTMLElement;
-      expect(labels(root)).toEqual({ left: 'Tap<br>Back a screen', right: 'Tap<br>Forward a screen' });
+      expect(labels(root)).toEqual({ left: 'Back a screen', right: 'Forward a screen' });
       expect(root.querySelector('.help-panel')?.textContent?.replace(/\s+/g, ' '))
         .toContain('the right edge moves forward and the left edge back');
       nav.setForwardEdge('left');
       fixture.detectChanges();
-      expect(labels(root)).toEqual({ left: 'Tap<br>Forward a screen', right: 'Tap<br>Back a screen' });
+      expect(labels(root)).toEqual({ left: 'Forward a screen', right: 'Back a screen' });
       expect(root.querySelector('.help-panel')?.textContent?.replace(/\s+/g, ' '))
         .toContain('Swipe right to move forward, left to go back');
     });
