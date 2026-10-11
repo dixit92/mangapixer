@@ -74,18 +74,18 @@ public sealed class ReadingModeSuggestionService
     public async Task<ReadingModeSuggestionsDto> ListAsync(CancellationToken ct)
     {
         var watch = Stopwatch.StartNew();
-        var live = (int)CatalogNodeAvailability.Tombstoned;
+        var tombstoned = (int)CatalogNodeAvailability.Tombstoned;
         var folderKind = (int)CatalogNodeKind.Folder;
         var archiveKind = (int)CatalogNodeKind.Archive;
 
         var folders = await _db.CatalogNodes.AsNoTracking()
-            .Where(n => n.Kind == folderKind && n.Availability != live)
+            .Where(n => n.Kind == folderKind && n.Availability != tombstoned)
             .Select(n => new FolderRow(n.Id, n.ParentId, n.LibraryId))
             .ToDictionaryAsync(f => f.Id, ct);
 
         // Work folders: folders that directly hold live archives.
         var workFolders = await _db.CatalogNodes.AsNoTracking()
-            .Where(n => n.Kind == archiveKind && n.Availability != live && n.ParentId != null)
+            .Where(n => n.Kind == archiveKind && n.Availability != tombstoned && n.ParentId != null)
             .Select(n => n.ParentId!.Value)
             .Distinct()
             .ToListAsync(ct);
@@ -96,7 +96,7 @@ public sealed class ReadingModeSuggestionService
                 from e in _db.EmbeddedMetadata.AsNoTracking()
                 where e.State == 1 && e.MangaDirection != null
                 join n in _db.CatalogNodes.AsNoTracking() on e.NodeId equals n.Id
-                where n.Kind == archiveKind && n.Availability != live && n.ParentId != null
+                where n.Kind == archiveKind && n.Availability != tombstoned && n.ParentId != null
                 group e.MangaDirection by n.ParentId!.Value into g
                 select new
                 {
