@@ -216,7 +216,9 @@ export const READER_MENU_STYLES = `
   }
   ::ng-deep .reader-options-menu .option-text { display: flex; flex-direction: column; line-height: 18px; }
   ::ng-deep .reader-options-menu .option-note { font-size: 11px; line-height: 14px; opacity: 0.7; white-space: normal; max-width: 200px; }
-  ::ng-deep .reader-options-menu .mat-mdc-slider.menu-slider { display: block; width: auto; min-width: 168px; margin: 0 16px 4px; }
+  /* The slider's native range input reaches 21 px past the track on each side (it centres the thumb on the track ends), so the
+     side margin must be at least that or the panel scrolls sideways (1.41.0 owner review). */
+  ::ng-deep .reader-options-menu .mat-mdc-slider.menu-slider { display: block; width: auto; min-width: 168px; margin: 0 24px 4px; }
   ::ng-deep .reader-options-menu .menu-divider { height: 1px; margin: 4px 0; background: var(--mat-sys-outline-variant); }
 `;
 

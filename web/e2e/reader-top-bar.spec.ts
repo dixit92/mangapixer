@@ -148,6 +148,8 @@ test.describe('desktop and tablet bar', () => {
     await page.getByRole('button', { name: 'Display', exact: true }).click();
     await expect(page.getByRole('group', { name: 'Page width', exact: true })).toBeVisible();
     await expect(page.getByRole('group', { name: 'Image fit', exact: true })).toHaveCount(0);
+    // No sideways scroll in the panel: the slider's (invisible) range input must fit inside it too (owner review, 1.41.0).
+    expect(await page.locator('.mat-mdc-menu-panel.reader-options-menu').evaluate((p) => p.scrollWidth - p.clientWidth)).toBe(0);
     const slider = page.getByRole('slider', { name: 'Webtoon page width' });
     await page.keyboard.press('Tab');
     await expect(slider).toBeFocused();
