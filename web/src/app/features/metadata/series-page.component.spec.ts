@@ -84,6 +84,28 @@ describe('SeriesPageComponent', () => {
     expect(browse.getAttribute('href')).toBe('/libraries/lib1/browse/series-1');
   });
 
+  it('lists a linked MangaDex record under Sources as an outbound link (1.41.0)', () => {
+    const { el } = create('series-1', seriesInfo({
+      nodeId: 'series-1', anchorNodeId: 'series-1', state: 'Web',
+      web: { provider: 'mangaupdates', providerName: 'MangaUpdates', fetchedAt: '2026-09-25T00:00:00Z' },
+      companions: [{ provider: 'mangadex', providerName: 'MangaDex', siteUrl: 'https://mangadex.org/title/synthetic' }],
+    }));
+    const row = el.querySelector('[data-testid="series-companion"]') as HTMLElement;
+    expect(row.textContent).toContain('MangaDex');
+    const link = row.querySelector('a') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('https://mangadex.org/title/synthetic');
+    expect(link.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(link.getAttribute('referrerpolicy')).toBe('no-referrer');
+  });
+
+  it('shows no companion row when the series has none', () => {
+    const { el } = create('series-1', seriesInfo({
+      nodeId: 'series-1', anchorNodeId: 'series-1', state: 'Web',
+      web: { provider: 'mangaupdates', providerName: 'MangaUpdates', fetchedAt: '2026-09-25T00:00:00Z' },
+    }));
+    expect(el.querySelector('[data-testid="series-companion"]')).toBeNull();
+  });
+
   it('shows no precedence line unless both web data and ComicInfo exist', () => {
     const { el } = create('series-1', seriesInfo({
       nodeId: 'series-1', anchorNodeId: 'series-1', state: 'ComicInfo', comicInfo: { itemsWithComicInfo: 1, itemsTotal: 1 },

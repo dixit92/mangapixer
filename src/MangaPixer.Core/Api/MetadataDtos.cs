@@ -69,6 +69,13 @@ public sealed record SeriesInfoDto
     /// <summary>The linked web record's attribution block, when a web link applies.</summary>
     public SeriesInfoWebDto? Web { get; init; }
 
+    /// <summary>
+    /// Further sources of the linked series (1.41.0): its MangaDex companion record (found by the cross-link rule or chosen
+    /// by an admin), listed under Sources with a link to its public page. Empty when the series has none, for a
+    /// collection, and without a web link. Display only: nothing is fetched to fill it.
+    /// </summary>
+    public IReadOnlyList<SeriesInfoCompanionDto> Companions { get; init; } = [];
+
     /// <summary>ComicInfo coverage, when any item carries ComicInfo.</summary>
     public SeriesInfoComicInfoDto? ComicInfo { get; init; }
 
@@ -145,6 +152,14 @@ public sealed record SeriesInfoWebDto
     /// GCD-linked series (shown with a link to <see cref="SiteUrl"/>); null for MangaUpdates.
     /// </summary>
     public string? Credit { get; init; }
+}
+
+/// <summary>A companion source of a linked series (1.41.0): provider id, display name and its public page (https).</summary>
+public sealed record SeriesInfoCompanionDto
+{
+    public required string Provider { get; init; }
+    public required string ProviderName { get; init; }
+    public required string SiteUrl { get; init; }
 }
 
 public sealed record SeriesInfoComicInfoDto

@@ -126,6 +126,11 @@ public sealed class SeriesInfoResolver
         if (ownArtistFolder)
             state = SeriesInfoState.ArtistFolder;
 
+        // 1.41.0: the series' MangaDex companion under Sources (a series link only - never a collection).
+        IReadOnlyList<SeriesInfoCompanionDto> companions = record is not null && !ownCollection
+            ? await CompanionsAsync(record.Id, ct)
+            : [];
+
         // A collection's items are other works: their ComicInfo never fills the series' fields.
         var dto = Merge(record, mixed || ownCollection || ownArtistFolder ? null : ci, ownCollection ? MetadataPrecedence.WebFirst : precedence);
         var title = dto.Title;
@@ -182,6 +187,7 @@ public sealed class SeriesInfoResolver
                 ImageUrl = record.ImageState == 1 ? ImageUrlFor(node.PublicId, record) : null,
                 Credit = record.Provider == Providers.Gcd.GcdMapping.ProviderId ? Providers.Gcd.GcdMapping.Credit : null,
             },
+            Companions = companions,
             ComicInfo = ci is null ? null : new SeriesInfoComicInfoDto
             {
                 ItemsWithComicInfo = ci.ItemsWithComicInfo,
@@ -201,6 +207,38 @@ public sealed class SeriesInfoResolver
             Items = includeItems && ci is not null ? ci.Items : [],
         };
     }
+
+    /// <summary>
+    /// The MangaDex companion of a linked series record (1.41.0) for the Sources list: only an Auto / Confirmed companion
+    /// with a stored record whose page is an https URL on mangadex.org (the URL MangaPixer built when it stored the record).
+    /// Reads stored rows only; nothing is fetched.
+    /// </summary>
+    private async Task<IReadOnlyList<SeriesInfoCompanionDto>> CompanionsAsync(long seriesRecordId, CancellationToken ct)
+    {
+        var rows = await (
+            from c in _db.MetadataCompanions.AsNoTracking()
+            where c.RecordId == seriesRecordId
+                && c.Provider == MetadataProviderAllowlist.MangaDex
+                && (c.State == (int)CompanionState.Auto || c.State == (int)CompanionState.Confirmed)
+            join r in _db.MetadataRecords.AsNoTracking() on c.CompanionRecordId equals r.Id
+            select new { c.Provider, r.SiteUrl })
+            .ToListAsync(ct);
+        return rows
+            .Where(r => IsMangaDexPage(r.SiteUrl))
+            .Select(r => new SeriesInfoCompanionDto
+            {
+                Provider = r.Provider,
+                ProviderName = MetadataHttp.Transport(r.Provider)?.DisplayName ?? "MangaDex",
+                SiteUrl = r.SiteUrl!,
+            })
+            .Take(1)
+            .ToList();
+    }
+
+    private static bool IsMangaDexPage(string? url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri)
+        && uri.Scheme == Uri.UriSchemeHttps
+        && string.Equals(uri.Host, "mangadex.org", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// The web record that applies to <paramref name="node"/> (lane B2: poster

@@ -1124,6 +1124,13 @@ export interface SeriesLinkInfoDto {
 }
 
 /** GET /nodes/{nodeId}/series-info - one DTO for the overlay and the series page. */
+/** A companion source of a linked series (1.41.0): today its MangaDex record, listed under Sources. */
+export interface SeriesInfoCompanionDto {
+  provider: string;
+  providerName: string;
+  siteUrl: string;
+}
+
 export interface SeriesInfoDto {
   nodeId: string;
   nodeKind: CatalogNodeKind;
@@ -1153,6 +1160,7 @@ export interface SeriesInfoDto {
   item?: SeriesInfoItemDto | null;
   mixedSeries?: SeriesMixedEntryDto[];
   web?: SeriesInfoWebDto | null;
+  companions?: SeriesInfoCompanionDto[];
   comicInfo?: SeriesInfoComicInfoDto | null;
   link?: SeriesLinkInfoDto | null;
   precedence: MetadataPrecedence;

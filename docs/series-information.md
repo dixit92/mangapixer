@@ -18,7 +18,7 @@ With a mouse or trackpad, rest the pointer for a moment on the cover, the title 
 - Touch screens (phones, tablets) are not affected, and keyboard focus does not open it: use the (i) there.
 - Turn it off in **Settings** > **Series information** > **Show series information on hover**. It is on by default and saved to your account.
 
-On the series page the description appears once, under **About**. Genres are shown as text. The precedence line under **Sources** appears only when both MangaUpdates data and ComicInfo exist. A series page for a single archive offers **Read** (or **Continue reading**) and **Show in folder**.
+On the series page the description appears once, under **About**. Genres are shown as text. The precedence line under **Sources** appears only when both MangaUpdates data and ComicInfo exist. *New in 1.41.0:* when the series also has a MangaDex title (see [Volume covers and volume lists](#volume-covers-and-volume-lists-mangadex)), **Sources** links to it ("Also on: MangaDex"); the link only opens MangaDex in your browser when you click it - nothing is fetched to show it. A series page for a single archive offers **Read** (or **Continue reading**) and **Show in folder**.
 
 ## Where the information applies
 

@@ -1,4 +1,4 @@
-﻿namespace com.lifepixer.mangapixer.Server.Tests.Persistence;
+namespace com.lifepixer.mangapixer.Server.Tests.Persistence;
 
 using com.lifepixer.mangapixer.Server.Features.Auth;
 using com.lifepixer.mangapixer.Server.Features.Reading;
