@@ -34,7 +34,7 @@ import { isNearEnd } from './near-end';
 import { WebtoonEnhanceHostDirective, WebtoonUpscaleDirective } from './webtoon-upscale.directive';
 import { PageLoadIndicatorComponent, WebtoonPageComponent } from './page-load-state.component';
 import {
-  WebtoonNavPreferencesService, webtoonTapZone, webtoonScrollTarget, prefersReducedMotion,
+  WebtoonNavPreferencesService, webtoonTapZone, webtoonScrollTarget, webtoonSwipeStep, prefersReducedMotion,
 } from './webtoon-nav.service';
 import { isApplePlatformTouch, isStandaloneDisplay } from './platform';
 import { EdgeAdvance, EdgeAdvanceWindowMs, EdgeDirection } from './edge-advance';
@@ -118,6 +118,12 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
  *     overlap slightly and no panel is skipped) and the Off switch are one
  *     per-device preference (`WebtoonNavPreferencesService`). Never auto-advances
  *     chapters (the 1.7.1 revert stands); the end-of-chapter footer does that.
+ *     Edge taps (1.41.0, owner 2026-10-11): the middle third has a left and a
+ *     right edge (20 % of the width each) that step a screen too; which edge goes
+ *     forward is a second per-device setting ("Right goes forward", default /
+ *     "Left goes forward"), never the series' reading direction, and the swipe
+ *     follows it (the finger moves away from the forward edge). The top and bottom
+ *     bands keep the full width, corners included. Off turns all of it off.
  * 12. Adaptive double page (1.11.0): a synthetic two-up spread on a narrow portrait
  *     screen (CDK HandsetPortrait, < 600px wide) makes every page tiny, so the
  *     reader renders SINGLE pages there while the chosen mode stays "Double page"
@@ -280,8 +286,9 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
         </div>
       } @else if (view() === 'webtoon') {
         <!-- Vertical continuous scroll; progress tracked by scroll position.
-             Tap-to-scroll (added 1.11.0): a tap resolves by vertical
-             thirds (onWebtoonTap) and a horizontal swipe steps a screen (the shared
+             Tap-to-scroll (added 1.11.0): a tap resolves by vertical thirds, the
+             middle third with 20 % side edges since 1.41.0 (onWebtoonTap), and a
+             horizontal swipe steps a screen (the shared
              pointer tracking, see onReaderPointerDown). touch-action keeps the
              vertical pan + pinch native and claims only horizontal drags, and only
              while the feature is on and the page is not pinch-zoomed.
@@ -463,10 +470,15 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                 <b>←</b> {{ swipeLeftLabel() }} &nbsp;·&nbsp; <b>→</b> {{ swipeRightLabel() }}</span>
             </div>
           } @else if (webtoonNav.tapZonesEnabled()) {
-            <!-- Webtoon tap-to-scroll (1.11.0): horizontal BANDS by thirds. -->
+            <!-- Webtoon tap-to-scroll (1.11.0): horizontal BANDS by thirds; the middle
+                 one with a left and a right edge (1.41.0) labelled by the setting. -->
             <div class="help-zones vertical" aria-hidden="true">
               <div class="help-zone band"><mat-icon>touch_app</mat-icon><span>Tap<br>Back a screen</span></div>
-              <div class="help-zone band center"><mat-icon>touch_app</mat-icon><span>Tap: show / hide controls<br>Double tap: fullscreen</span></div>
+              <div class="help-mid">
+                <div class="help-zone side edge-left"><mat-icon>touch_app</mat-icon><span>Tap<br>{{ webtoonLeftEdgeLabel() }}</span></div>
+                <div class="help-zone band center"><mat-icon>touch_app</mat-icon><span>Tap: show / hide controls<br>Double tap: fullscreen</span></div>
+                <div class="help-zone side edge-right"><mat-icon>touch_app</mat-icon><span>Tap<br>{{ webtoonRightEdgeLabel() }}</span></div>
+              </div>
               <div class="help-zone band"><mat-icon>touch_app</mat-icon><span>Tap<br>Forward a screen</span></div>
             </div>
           }
@@ -493,8 +505,10 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
               } @else if (webtoonNav.tapZonesEnabled()) {
                 <li>Scroll freely, or <b>tap</b> the lower part of the page to move forward a screen
                   ({{ webtoonNav.tapStep() }}%), the upper part to go back, the centre to show / hide
-                  the controls. <b>Double tap the centre</b> (or double click): fullscreen. <b>Swipe</b> left / right
-                  does the same as a tap on the lower / upper part. At the very end (start), the
+                  the controls. In the middle, the <b>{{ webtoonNav.forwardEdge() }} edge</b> moves forward
+                  and the {{ webtoonBackEdge() }} edge back (Display: Edge taps). <b>Double tap the centre</b>
+                  (or double click): fullscreen. <b>Swipe</b> {{ webtoonBackEdge() }} to move forward,
+                  {{ webtoonNav.forwardEdge() }} to go back. At the very end (start), the
                   same move <b>twice</b> opens the next (previous) archive.</li>
               } @else {
                 <li>Scroll to read; tap the page to show or hide the controls. <b>Double tap</b> (or double
@@ -746,6 +760,9 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
       background: rgb(var(--mp-accent-strong-rgb) / 0.22);
     }
     .help-zone.band.center { background: color-mix(in srgb, var(--mp-on-scrim) 10%, transparent); }
+    /* 1.41.0: the middle band's 20 % side edges. */
+    .help-mid { flex: 1 1 0; display: flex; }
+    .help-mid .help-zone.side { flex: 0 0 20%; justify-content: center; padding: 0 4px; font-size: 13px; border-block: 1px dashed color-mix(in srgb, var(--mp-on-scrim) 35%, transparent); }
     /* Full-width swipe legend across the middle of the surface. */
     .help-swipe {
       position: absolute; left: 6%; right: 6%; top: 38%; z-index: 1; pointer-events: none;
@@ -979,6 +996,11 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   readonly helpVisible = signal(false);
   readonly leftZoneLabel = computed(() => this.direction() === 'rtl' ? 'Next page' : 'Previous page');
   readonly rightZoneLabel = computed(() => this.direction() === 'rtl' ? 'Previous page' : 'Next page');
+  // Webtoon edge taps (1.41.0): the side that steps back, and the help legend's edge labels, follow the per-device
+  // "goes forward" setting - never the reading direction.
+  readonly webtoonBackEdge = computed(() => this.webtoonNav.forwardEdge() === 'right' ? 'left' : 'right');
+  readonly webtoonLeftEdgeLabel = computed(() => this.webtoonNav.forwardEdge() === 'left' ? 'Forward a screen' : 'Back a screen');
+  readonly webtoonRightEdgeLabel = computed(() => this.webtoonNav.forwardEdge() === 'right' ? 'Forward a screen' : 'Back a screen');
 
   // --- Page-turn transition (1.9.0) ---
   // `navEnter` is the PHYSICAL edge the incoming page eases in from, resolved from
@@ -2475,14 +2497,15 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   }
 
   /**
-   * Webtoon variant: the same gesture thresholds, but the result
-   * is a SCREEN STEP, not a page. Fixed mapping - a vertical strip has no reading
-   * direction - swipe left (finger moves left) = forward, right = back, matching
-   * the LTR paged reader most webtoon readers already know.
+   * Webtoon variant: the same gesture thresholds, but the result is a SCREEN STEP,
+   * not a page. A vertical strip ignores the series' reading direction; the swipe
+   * follows the edge-tap setting instead (1.41.0, `webtoonSwipeStep`): with "Right
+   * goes forward" (the default, the 1.11.0 rule) swipe left = forward, with "Left
+   * goes forward" swipe right = forward.
    */
   resolveWebtoonSwipe(dx: number, dy: number, dtMs: number): 1 | -1 | null {
     const side = this.horizontalSwipe(dx, dy, dtMs);
-    return side ? (side === 'leftward' ? 1 : -1) : null;
+    return side ? webtoonSwipeStep(side, this.webtoonNav.forwardEdge()) : null;
   }
 
   /** The shared thresholds: which way a deliberate horizontal drag or flick went, or null. */
@@ -3024,9 +3047,13 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
 
   /**
    * A tap on the webtoon scroller. With tap-to-scroll on, the tap resolves by
-   * vertical thirds of the visible viewport: top = back a screen, bottom =
-   * forward, centre = toggle chrome. Off, a tap anywhere toggles the chrome (the
-   * pre-1.11.0 behaviour). Since 1.41.0 a double tap where a tap toggles the chrome is fullscreen (`centerTaps`). Taps on the end-of-chapter footer's buttons are theirs
+   * the visible viewport (`webtoonTapZone`): the top third = back a screen, the
+   * bottom third = forward (full width, corners included), the middle third's
+   * 20 % side edges = back / forward by the "goes forward" setting (1.41.0), its
+   * centre = toggle chrome. Off, a tap anywhere toggles the chrome (the pre-1.11.0
+   * behaviour). Since 1.41.0 a double tap where a tap toggles the chrome is
+   * fullscreen (`centerTaps`); a step (band or edge) is taken at once, never after
+   * the double-tap window. Taps on the end-of-chapter footer's buttons are theirs
    * alone, and the ghost click after a swipe is swallowed like the paged zones.
    */
   onWebtoonTap(e: MouseEvent): void {
@@ -3035,7 +3062,10 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     const el = this.scroller()?.nativeElement;
     if (!el || !this.webtoonNav.tapZonesEnabled()) { this.centerTaps.tap(); return; }
     const rect = el.getBoundingClientRect();
-    const zone = webtoonTapZone(rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5);
+    const zone = webtoonTapZone(
+      rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0.5,
+      rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5,
+      this.webtoonNav.forwardEdge());
     if (zone === 'toggle') { this.centerTaps.tap(); return; }
     this.scrollWebtoonBy(zone === 'forward' ? 1 : -1);
   }

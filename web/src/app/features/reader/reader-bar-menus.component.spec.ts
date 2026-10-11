@@ -131,6 +131,40 @@ describe('ReaderDisplayMenuComponent (1.41.0)', () => {
     fixture.detectChanges();
     expect(document.querySelector('.reader-options-menu')).toBeTruthy(); // still open
   });
+
+  it('webtoon: "Edge taps" follows Tap to scroll - Right goes forward (default) / Left goes forward, stored per device (1.41.0)', () => {
+    const { fixture, open } = create('webtoon');
+    const panel = open();
+    const groups = Array.from(panel.querySelectorAll('[role="group"]')).map((g) => g.getAttribute('aria-label'));
+    expect(groups).toEqual(['Layout', 'Page width', 'Tap to scroll', 'Edge taps']);
+    const items = panelItems(panel, 'Edge taps');
+    expect(items.map((i) => i.getAttribute('aria-label'))).toEqual(['Edge taps: Right goes forward', 'Edge taps: Left goes forward']);
+    expect(items.map((i) => i.getAttribute('role'))).toEqual(['menuitemradio', 'menuitemradio']);
+    expect(items.map((i) => i.getAttribute('aria-checked'))).toEqual(['true', 'false']);
+    expect(items[0].classList.contains('selected-option')).toBe(true);
+    expect(items.map((i) => i.disabled)).toEqual([false, false]);
+    expect(panel.querySelector('[aria-label="Edge taps"] .menu-hint')).toBeNull();
+    items[1].click();
+    fixture.detectChanges();
+    expect(TestBed.inject(WebtoonNavPreferencesService).forwardEdge()).toBe('left');
+    expect(localStorage.getItem(WebtoonNavPreferencesService.ForwardEdgeKey)).toBe('left');
+  });
+
+  it('webtoon: with Tap to scroll Off, Edge taps stays visible but reads as inactive (disabled, with a reason)', () => {
+    const { fixture, open } = create('webtoon');
+    TestBed.inject(WebtoonNavPreferencesService).setTapStep(0);
+    fixture.detectChanges();
+    const panel = open();
+    const items = panelItems(panel, 'Edge taps');
+    expect(items.map((i) => i.disabled)).toEqual([true, true]);
+    expect(items[0].getAttribute('aria-checked')).toBe('true'); // the stored choice stays shown
+    expect(panel.querySelector('[aria-label="Edge taps"] .menu-hint')?.textContent).toContain('Off while Tap to scroll is Off');
+  });
+
+  it('paged: no Edge taps (vertical mode only)', () => {
+    const { open } = create('paged');
+    expect(open().querySelector('[role="group"][aria-label="Edge taps"]')).toBeNull();
+  });
 });
 
 describe('ReaderBookmarkMenuComponent (1.41.0)', () => {

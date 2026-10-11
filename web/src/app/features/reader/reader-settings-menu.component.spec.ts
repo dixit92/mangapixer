@@ -561,6 +561,38 @@ describe('ReaderOptionsSheetComponent', () => {
     expect(localStorage.getItem(WebtoonNavPreferencesService.TapStepKey)).toBe('0');
   });
 
+  it('webtoon: Edge taps right after Tap to scroll - Right goes forward (default) / Left goes forward (1.41.0)', () => {
+    const { el, chips, checked, chip } = create(makeHost({ view: 'webtoon' }));
+    const labels = Array.from(el.querySelectorAll('h4.group-label')).map((h) => h.id);
+    expect(labels.indexOf('reader-options-edges')).toBe(labels.indexOf('reader-options-tap') + 1);
+    expect(el.querySelector('#reader-options-edges')?.textContent?.trim()).toBe('Edge taps');
+    expect(chips('reader-options-edges').map((c) => (c.textContent ?? '').trim()))
+      .toEqual(['eastRight goes forward', 'westLeft goes forward']);
+    expect(checked('reader-options-edges').map((c) => c.classList.contains('selected'))).toEqual([true]);
+    expect(checked('reader-options-edges')[0].textContent).toContain('Right goes forward');
+    chip('reader-options-edges', 'Left goes forward').click();
+    expect(TestBed.inject(WebtoonNavPreferencesService).forwardEdge()).toBe('left');
+    expect(localStorage.getItem(WebtoonNavPreferencesService.ForwardEdgeKey)).toBe('left');
+  });
+
+  it('webtoon: Edge taps reads as inactive while Tap to scroll is Off, and comes back with it', () => {
+    const { fixture, group, chips, chip } = create(makeHost({ view: 'webtoon' }));
+    chip('reader-options-tap', 'Off').click();
+    fixture.detectChanges();
+    expect(chips('reader-options-edges').map((c) => (c as HTMLButtonElement).disabled)).toEqual([true, true]);
+    const section = group('reader-options-edges').parentElement as HTMLElement;
+    expect(section.querySelector('.group-hint')?.textContent).toContain('Off while Tap to scroll is Off');
+    chip('reader-options-tap', '90%').click();
+    fixture.detectChanges();
+    expect(chips('reader-options-edges').map((c) => (c as HTMLButtonElement).disabled)).toEqual([false, false]);
+    expect(section.querySelector('.group-hint')).toBeNull();
+  });
+
+  it('paged: no Edge taps group', () => {
+    const { el } = create();
+    expect(el.querySelector('#reader-options-edges')).toBeNull();
+  });
+
   it('double page on a narrow portrait screen keeps the chip checked and explains the single-page render inline (1.11.0)', () => {
     const { el, checked } = create(makeHost({ view: 'spread', viewPref: 'spread', shifted: true, narrow: true }));
     expect(checked('reader-options-layout')[0].textContent).toContain('Double, shifted');

@@ -19,7 +19,7 @@ and on the right:
 - **Series info** (the (i) icon), when the archive belongs to a series with series information: opens the [series page](series-information.md). It shows whenever the folder view's **Series info** button would show for this archive, so not when series information is turned off. Your place in the archive is saved when you leave for the series page.
 - **Bookmarks** (the bookmark icon, filled when the page on screen is bookmarked): **Bookmark this page** (**Remove bookmark** on a bookmarked page), and **Bookmarks…**, which lists this archive's bookmarks so you can jump to or delete one.
 - **Favorite** (the star): adds the open archive to your [favorites](library-layout.md#favorites).
-- **Display** (its icon shows the page mode on screen): how pages are laid out - **Layout** (see [Page modes](#page-modes)), **Image fit** (in vertical mode the **Page width** slider instead), **Reading direction** (not in vertical mode) and **Page transition** (in vertical mode **Tap to scroll** instead).
+- **Display** (its icon shows the page mode on screen): how pages are laid out - **Layout** (see [Page modes](#page-modes)), **Image fit** (in vertical mode the **Page width** slider instead), **Reading direction** (not in vertical mode) and **Page transition** (in vertical mode **Tap to scroll** and **Edge taps** instead).
 - **Quality** (the magic-wand icon): **Upscaling**, **Enhance quality**, **Page quality** and **Downscale filter**, described in [Image quality](#image-quality).
 - **Reading help** (`?`).
 - **Fullscreen**. A double tap or double click in the center of the page does the same.
@@ -43,7 +43,7 @@ For a reader with no Safari bars at all, add MangaPixer to the Home Screen (**Sh
 On screens narrower than 600 px, the toolbar keeps only **Next archive**, **Fullscreen** and **Reader options** (⋮). **Reader options** opens a bottom sheet with everything else, grouped like the desktop toolbar:
 
 - **Bookmark page**, **Bookmarks**, **Favorite** and, when the archive has series information, **Series info**: the same actions as the desktop toolbar's bookmark menu, star and Series info button. A bookmarked page or a favorite archive shows the filled icon, highlighted. **Bookmarks** closes the sheet and opens the list of this archive's bookmarks; **Series info** closes the sheet and opens the series page.
-- **Display**: **Layout**, **Image fit**, **Reading direction** and **Page transition**. In vertical mode, **Page width** and **Tap to scroll** replace the paged-only groups.
+- **Display**: **Layout**, **Image fit**, **Reading direction** and **Page transition**. In vertical mode, **Page width**, **Tap to scroll** and **Edge taps** replace the paged-only groups.
 - **Quality**: **Upscaling** (plus **Enhance quality** while Enhance is selected), **Page quality** and **Downscale filter** (see [Image quality](#image-quality)).
 - **Previous archive**, **Next archive** and **Reading help**.
 
@@ -237,11 +237,12 @@ The choice is remembered by this browser. Animations are skipped in vertical mod
 
 - **Scroll** freely. This is always available.
 - **Tap to scroll** adds tap zones. Options: **Off**, **80%**, **90%** (default) or **100%** of a screen per step. The setting is remembered by this browser.
-  - Tap the **bottom third** to move forward one step.
-  - Tap the **top third** to move back one step.
-  - Tap the **middle** to show or hide the controls; **double tap** it (or double click) for fullscreen.
-  - A horizontal swipe moves a step too (swipe left to go forward).
-- With **Tap to scroll** off, a tap anywhere shows or hides the controls, and a double tap anywhere enters or leaves fullscreen.
+  - Tap the **bottom third** to move forward one step, across the full width (the corners too).
+  - Tap the **top third** to move back one step, across the full width (the corners too).
+  - In the **middle third**, the **left and right edges** (20% of the width each) move a step too: with **Right goes forward** (the default) the right edge moves forward and the left edge back; with **Left goes forward** it is the other way round. Choose it under **Edge taps** in the **Display** menu (on phones, in **Reader options**). The setting is remembered by this browser and does not follow the series' reading direction.
+  - Tap the **center of the middle third** to show or hide the controls; **double tap** it (or double click) for fullscreen. A tap on an edge or a band moves at once; only the center waits a moment to tell a single tap from a double tap.
+  - A horizontal swipe moves a step too, following **Edge taps**: with **Right goes forward** swipe left to go forward and right to go back; with **Left goes forward** swipe right to go forward.
+- With **Tap to scroll** off, a tap anywhere shows or hides the controls, and a double tap anywhere enters or leaves fullscreen. The edges and the swipe are off too; **Edge taps** stays in the menu, greyed out, until you turn **Tap to scroll** back on.
 - At the bottom of the strip, **Previous archive** and **Next archive** buttons appear. Vertical mode never moves to another archive on its own.
 
 ## Help overlay
