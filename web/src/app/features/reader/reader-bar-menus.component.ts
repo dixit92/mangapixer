@@ -38,7 +38,7 @@ const SliderKeys = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', '
       <mat-icon>{{ icon() }}</mat-icon>
     </button>
     <mat-menu #displayMenu="matMenu" class="reader-options-menu">
-      <div (keydown)="onPanelKey($event)">
+      <div tabindex="-1" (keydown)="onPanelKey($event)">
         <div role="group" aria-label="Layout">
           <div class="menu-group-label">Layout</div>
           @for (opt of layoutOptions; track opt.value) {

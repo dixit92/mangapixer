@@ -1853,7 +1853,13 @@ describe('ReaderComponent phone controls + menu highlight (1.10.0)', () => {
     };
     TestBed.configureTestingModule({
       imports: [ReaderComponent],
-      providers: [...baseProviders(), { provide: BreakpointObserver, useValue: breakpoints }],
+      providers: [
+        ...baseProviders(),
+        { provide: BreakpointObserver, useValue: breakpoints },
+        // A complete route stub: ngOnInit then runs to the end instead of leaving a deferred error behind, which a test
+        // that waits a task (a menu leaving the overlay) would otherwise collect.
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: () => 'item-1' }), snapshot: { queryParamMap: { get: () => null } } } },
+      ],
     });
     const fixture = TestBed.createComponent(ReaderComponent);
     fixture.detectChanges(); // ngOnInit
