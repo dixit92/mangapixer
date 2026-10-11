@@ -1,6 +1,7 @@
 namespace com.lifepixer.mangapixer.Server.Features.Library.Moves;
 
 using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Core.Metadata.Missing;
 
@@ -28,6 +29,26 @@ public sealed record UpgradeVolumeUnits(decimal Volume, IReadOnlyList<decimal> R
 
 /// <summary>A replaced (tombstoned) archive of the folder, with the unit numbers its name states.</summary>
 public sealed record UpgradeChapterFile(long NodeId, UnitNumbers Units);
+
+/// <summary>
+/// How one volume of a new archive is covered (1.41.0): by the replaced files of that same volume (<see cref="VolumeFiles"/>, a volume
+/// replacing a volume) or, without such files, by the listed chapters (<see cref="Units"/> + <see cref="Coverage"/>, 1.40.0).
+/// </summary>
+public sealed record UpgradeVolumePlan(
+    decimal Volume, IReadOnlyList<long> VolumeFiles, UpgradeVolumeUnits? Units, UpgradeCarryOver.Coverage? Coverage)
+{
+    /// <summary>The replaced files that are evidence for this volume.</summary>
+    public IEnumerable<long> Evidence => Coverage is { } c ? VolumeFiles.Concat(c.Evidence) : VolumeFiles;
+}
+
+/// <summary>One user's state on one replaced volume file: read (a read mark or completed progress), else the in-progress page.</summary>
+public readonly record struct UpgradeVolumeFileState(long NodeId, bool Read, int Ordinal, DateTimeOffset At);
+
+/// <summary>One user's outcome on a new archive, with the page to resume at (0 = the first page) for an in-progress one.</summary>
+public readonly record struct UpgradeCarry(UpgradeOutcome Outcome, int Ordinal, long? FromNode)
+{
+    public static UpgradeCarry Nothing { get; } = new(UpgradeOutcome.Nothing, 0, null);
+}
 
 /// <summary>
 /// The pure rules of read state that follows a chapter-to-volume upgrade (1.40.0): a volume archive that replaced its chapter archives in
@@ -158,4 +179,141 @@ public static class UpgradeCarryOver
     /// <summary>The unit numbers of an archive as the Volumes view reads them (its name in its folder, then its ComicInfo).</summary>
     public static UnitNumbers UnitsOfArchive(string name, string? folderName, int? comicInfoVolume, string? comicInfoNumber) =>
         VolumeGrouping.UnitsOf(new GroupingRow(string.Empty, GroupingRowKind.Archive, name, string.Empty, folderName, comicInfoVolume, comicInfoNumber));
+
+    /// <summary>A range file covers at most this many volumes (a corrupt name cannot run away).</summary>
+    public const int MaxRangeVolumes = 100;
+
+    /// <summary>
+    /// The volumes a new archive holds (1.41.0): one whole volume (<see cref="VolumeOf"/>), or every whole volume of a stated RANGE of whole
+    /// volumes and no chapter (<c>v01-03</c>, <c>Vol. 1-3</c>, <c>Volume 01-05</c> -> 1..5; at most <see cref="MaxRangeVolumes"/>). Empty
+    /// otherwise (a chapter, a fractional volume or range end, no volume).
+    /// </summary>
+    public static IReadOnlyList<decimal> VolumesOf(UnitNumbers units)
+    {
+        if (VolumeOf(units) is { } single)
+            return [single];
+        if (units is { Chapter: null, ChapterEnd: null, Volume: { } from, VolumeEnd: { } to } && !units.IsExtra && from >= 1 && to > from
+            && decimal.Truncate(from) == from && decimal.Truncate(to) == to && to - from < MaxRangeVolumes)
+        {
+            var volumes = new List<decimal>();
+            for (var v = from; v <= to; v++)
+                volumes.Add(v);
+            return volumes;
+        }
+        return [];
+    }
+
+    /// <summary>Two new archives of one folder conflict when they hold a volume in common (<c>v01-03</c> next to <c>v03</c> or <c>v03-05</c>).</summary>
+    public static bool Overlap(IReadOnlyList<decimal> a, IReadOnlyList<decimal> b) => a.Intersect(b).Any();
+
+    /// <summary>
+    /// The edition guard of a volume replacing a volume (1.41.0): the work a file name names, for comparison only. The title part is
+    /// <see cref="TitleNormalizer.Normalize"/>'s primary title in <see cref="TitleNormalizer.ScoringForm"/> - extension, every bracket /
+    /// parenthesis / brace group (scan groups, resolution, bracketed years, an English title), volume / chapter / <c>#</c> tokens removed -
+    /// without the tokens <see cref="ArchiveNameAnatomy.IsReleaseTag"/> calls release tags (bare years, <c>1080p</c>, <c>hq</c>, <c>raw</c>,
+    /// <c>colored</c>, ...; a bare number stays: <c>Title 2</c> is a sequel); a unit-only name (<c>Vol. 03</c>) takes its folder's title part.
+    /// Then the edition words the title held (Omnibus, Deluxe, Complete, Kanzenban, "Master Edition", ...; not Digital, a source, not a cut):
+    /// a kanzenban <c>v03</c> holds other chapters than a regular one.
+    /// </summary>
+    public static string EditionKey(string name, string? folderName)
+    {
+        var title = TitlePart(name, out var editions);
+        if (title.Length == 0 && folderName is not null)
+            title = TitlePart(folderName, out _);
+        var cut = editions
+            .Select(TitleNormalizer.ScoringForm)
+            .Where(e => e.Length > 0 && e != "digital")
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal);
+        return title + "|" + string.Join(",", cut);
+    }
+
+    /// <summary>Two names of one folder name the same work and edition (<see cref="EditionKey"/>).</summary>
+    public static bool SameWork(string a, string b, string? folderName) =>
+        string.Equals(EditionKey(a, folderName), EditionKey(b, folderName), StringComparison.Ordinal);
+
+    private static string TitlePart(string name, out IReadOnlyList<string> editions)
+    {
+        var normalized = TitleNormalizer.Normalize(name);
+        editions = normalized.EditionHints;
+        var tokens = TitleNormalizer.ScoringForm(normalized.Primary)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(t => !IsYear(t) && !(t.Any(char.IsLetter) && ArchiveNameAnatomy.IsReleaseTag(t)));
+        return string.Join(' ', tokens);
+    }
+
+    private static bool IsYear(string token) =>
+        token.Length == 4 && token.All(char.IsAsciiDigit) && (token.StartsWith("19", StringComparison.Ordinal) || token.StartsWith("20", StringComparison.Ordinal));
+
+    /// <summary>
+    /// How each volume of a new archive is covered by the replaced files of its folder (1.41.0). A volume with replaced files of that same
+    /// single volume (<paramref name="isVolumeEvidence"/>: the edition guard and "not byte-identical", checked by the caller) uses them;
+    /// otherwise its listed chapters by the stored list's exact entry (1.40.0). Null - the archive gives nothing - when a volume has neither
+    /// such files nor an exact list entry (no link, no list, chapter mode, an estimate): a range is never partly guessed (owner, 2026-10-11).
+    /// </summary>
+    public static IReadOnlyList<UpgradeVolumePlan>? Plan(
+        IReadOnlyList<decimal> volumes, IReadOnlyDictionary<decimal, IReadOnlyList<decimal>>? list, IReadOnlyList<UpgradeChapterFile> files,
+        Func<long, bool> isVolumeEvidence)
+    {
+        ArgumentNullException.ThrowIfNull(volumes);
+        ArgumentNullException.ThrowIfNull(files);
+        ArgumentNullException.ThrowIfNull(isVolumeEvidence);
+        var plans = new List<UpgradeVolumePlan>(volumes.Count);
+        foreach (var volume in volumes)
+        {
+            var same = files.Where(f => VolumeOf(f.Units) == volume && isVolumeEvidence(f.NodeId)).Select(f => f.NodeId).ToList();
+            if (same.Count > 0)
+            {
+                plans.Add(new UpgradeVolumePlan(volume, same, null, null));
+                continue;
+            }
+            if (list is null || !list.TryGetValue(volume, out var listed))
+                return null;
+            var units = UnitsOf(volume, listed);
+            plans.Add(new UpgradeVolumePlan(volume, [], units, Cover(units, files)));
+        }
+        return plans.Count == 0 ? null : plans;
+    }
+
+    /// <summary>
+    /// One user's outcome on a replaced volume's files (1.41.0): the MOST RECENTLY READ file decides (the latest of its read mark / progress
+    /// times; a file opened at page 1 and nothing more says nothing) - read -> READ; in progress past page 1 -> IN PROGRESS at that page.
+    /// </summary>
+    public static UpgradeCarry DecideVolume(IReadOnlyList<UpgradeVolumeFileState> states)
+    {
+        ArgumentNullException.ThrowIfNull(states);
+        var latest = states.Where(s => s.Read || s.Ordinal > 0).OrderByDescending(s => s.At).ThenByDescending(s => s.NodeId).ToList();
+        if (latest.Count == 0)
+            return UpgradeCarry.Nothing;
+        var top = latest[0];
+        return new UpgradeCarry(top.Read ? UpgradeOutcome.Read : UpgradeOutcome.InProgress, top.Read ? 0 : top.Ordinal, top.NodeId);
+    }
+
+    /// <summary>
+    /// One user's outcome on a new archive from its volume plans. One volume: that volume's outcome (an in-progress volume replacing a
+    /// volume keeps its page). A range: READ when every volume is read; IN PROGRESS at page 1 when any volume is read or in progress.
+    /// </summary>
+    public static UpgradeCarry DecideTarget(
+        IReadOnlyList<UpgradeVolumePlan> plans, IReadOnlySet<long> readFiles, IReadOnlyList<UpgradeVolumeFileState> volumeFileStates)
+    {
+        ArgumentNullException.ThrowIfNull(plans);
+        ArgumentNullException.ThrowIfNull(readFiles);
+        ArgumentNullException.ThrowIfNull(volumeFileStates);
+        var outcomes = plans.Select(p => p.Coverage is { } coverage
+                ? new UpgradeCarry(Decide(p.Units!, coverage, readFiles), 0, null)
+                : DecideVolume(volumeFileStates.Where(s => p.VolumeFiles.Contains(s.NodeId)).ToList()))
+            .ToList();
+        if (outcomes.Count == 1)
+            return outcomes[0];
+        if (outcomes.Count > 0 && outcomes.All(o => o.Outcome == UpgradeOutcome.Read))
+            return new UpgradeCarry(UpgradeOutcome.Read, 0, null);
+        return outcomes.Any(o => o.Outcome != UpgradeOutcome.Nothing) ? new UpgradeCarry(UpgradeOutcome.InProgress, 0, null) : UpgradeCarry.Nothing;
+    }
+
+    /// <summary>
+    /// The page an in-progress volume replacing a volume resumes at: the old page when both files have the same page count, else the first
+    /// page (owner decision 2 of 1.40.0: no estimate).
+    /// </summary>
+    public static int PageFor(int oldOrdinal, int? oldPageCount, int? newPageCount) =>
+        oldOrdinal > 0 && oldPageCount is { } a && newPageCount is { } b && a == b && oldOrdinal < b ? oldOrdinal : 0;
 }
