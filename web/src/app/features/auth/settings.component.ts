@@ -144,6 +144,20 @@ import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series
           @if (homeWindowError()) {
             <div class="error">{{ homeWindowError() }}</div>
           }
+          <mat-form-field appearance="outline">
+            <mat-label>Stacks per library</mat-label>
+            <mat-select [value]="homeStacks()" [disabled]="homeStacksSaving()"
+                        aria-describedby="home-stacks-hint"
+                        (selectionChange)="setHomeStacks($event)">
+              @for (n of homeStacksOptions; track n) {
+                <mat-option [value]="n">{{ n }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <p class="hint" id="home-stacks-hint">How many series stacks each library shows in the row.</p>
+          @if (homeStacksError()) {
+            <div class="error">{{ homeStacksError() }}</div>
+          }
         } @else {
           <p class="muted">Loading…</p>
         }
@@ -332,6 +346,14 @@ export class SettingsComponent implements OnInit {
   readonly homeWindowSaving = signal(false);
   readonly homeWindowError = signal<string | null>(null);
 
+  // Home "New chapters" stacks per library (1.41.0): a per-user preset on the same blob
+  // (homeStacksPerLibrary). 0 / unset = the server default (12), shown as 12 here.
+  readonly homeStacksOptions = [6, 12, 24, 50];
+  readonly defaultHomeStacks = 12;
+  readonly homeStacks = signal<number>(this.defaultHomeStacks);
+  readonly homeStacksSaving = signal(false);
+  readonly homeStacksError = signal<string | null>(null);
+
   // Home "New chapters" library visibility: the per-user, server-persisted EXCLUDED
   // set (GET/PUT /reading/home-libraries). A library is SHOWN on the home New-chapters
   // row when it is NOT in this set. This picker moved here from the home page so all
@@ -379,6 +401,7 @@ export class SettingsComponent implements OnInit {
         this.pageSize.set(this.resolvePageSize(p.libraryPageSize));
         this.pageSizeLoaded.set(true);
         this.homeWindowDays.set(this.resolveHomeWindowDays(p.homeRecentWindowDays));
+        this.homeStacks.set(this.resolveHomeStacks(p.homeStacksPerLibrary));
         this.homeWindowLoaded.set(true);
         this.showFavoritesHomeRow.set(p.showFavoritesHomeRow ?? false);
         this.favoritesSearchProminence.set(p.favoritesSearchProminence ?? false);
@@ -535,6 +558,39 @@ export class SettingsComponent implements OnInit {
         this.homeWindowDays.set(previous);
         this.homeWindowSaving.set(false);
         this.homeWindowError.set(err.message || 'Failed to save the new chapters window');
+      },
+    });
+  }
+
+  /** A stored homeStacksPerLibrary that is one of the presets, else the default (12). */
+  private resolveHomeStacks(value: number | undefined): number {
+    const n = Number(value);
+    return this.homeStacksOptions.includes(n) ? n : this.defaultHomeStacks;
+  }
+
+  /**
+   * Persist the chosen number of stacks per library for the home "New chapters" row (1.41.0).
+   * Echoes the whole last-loaded blob back with only homeStacksPerLibrary changed (like
+   * setPageSize), and reverts the control on failure.
+   */
+  setHomeStacks(change: MatSelectChange): void {
+    const next = Number(change.value);
+    if (!this.homeStacksOptions.includes(next) || next === this.homeStacks()) return;
+    const previous = this.homeStacks();
+    this.homeStacks.set(next);
+    this.homeStacksSaving.set(true);
+    this.homeStacksError.set(null);
+
+    const body: LibraryViewPreferencesDto = {
+      ...(this.libraryPrefs ?? { viewMode: 'card', density: 'comfortable', sort: 'name' }),
+      homeStacksPerLibrary: next,
+    };
+    this.api.setLibraryPreferences(body).subscribe({
+      next: () => { this.libraryPrefs = body; this.homeStacksSaving.set(false); },
+      error: (err: ApiError) => {
+        this.homeStacks.set(previous);
+        this.homeStacksSaving.set(false);
+        this.homeStacksError.set(err.message || 'Failed to save the stacks per library setting');
       },
     });
   }

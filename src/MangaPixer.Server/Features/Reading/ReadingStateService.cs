@@ -976,6 +976,7 @@ public sealed class ReadingStateService
             CardSize = prefs.LibraryCardSize,
             LibraryPageSize = prefs.LibraryPageSize,
             HomeRecentWindowDays = prefs.HomeRecentWindowDays,
+            HomeStacksPerLibrary = prefs.HomeStacksPerLibrary,
             ListColumns = prefs.ListColumns,
             ShowFavoritesHomeRow = prefs.ShowFavoritesHomeRow,
             FavoritesSearchProminence = prefs.FavoritesSearchProminence,
@@ -1010,6 +1011,7 @@ public sealed class ReadingStateService
         prefs.LibraryCardSize = preferences.CardSize;
         prefs.LibraryPageSize = preferences.LibraryPageSize;
         prefs.HomeRecentWindowDays = preferences.HomeRecentWindowDays;
+        prefs.HomeStacksPerLibrary = preferences.HomeStacksPerLibrary;
         prefs.ListColumns = preferences.ListColumns;
         prefs.ShowFavoritesHomeRow = preferences.ShowFavoritesHomeRow;
         prefs.FavoritesSearchProminence = preferences.FavoritesSearchProminence;

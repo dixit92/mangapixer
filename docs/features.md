@@ -7,24 +7,24 @@ Everything MangaPixer does today, by area. The [README](../README.md) has the sh
 - Browse the folder hierarchy in a card view (with a card-size slider) or a list view.
 - Sort by name (ascending or descending), recently added, recently read, or recently updated. Recently updated ranks a folder by its newest archive, like a new chapter.
 - Filter by read state (reading / read / unread) at any folder level. The filter also applies to series folders through their contents, and you can hide empty folders.
-- A-Z jump rail with multilingual collation, infinite scroll in both directions after a jump, and read/reading rollup badges on folders. This means you can tell at a glance whether a folder contains only comics you've read, some you haven't read yet, or nothing you've started at all.
+- A jump rail in every folder and both name orders - letters with multilingual collation, or round number ranges for numbered chapters and volumes (*new in 1.41.0*) - infinite scroll in both directions after a jump, and read/reading rollup badges on folders. This means you can tell at a glance whether a folder contains only comics you've read, some you haven't read yet, or nothing you've started at all.
 - Multi-select, including shift/ctrl ranges and touch long-press, to mark items read or unread in bulk.
 - Full-text search over titles and folder names (trigram search), with cover thumbnails and a folder-vs-archive badge. Series linked to MangaUpdates are also found by their alternative titles: a `Dungeon Meshi` folder turns up when you search for `Delicious in Dungeon`.
 
 ## Reader
 
-- Four modes: paged left-to-right, paged right-to-left (manga), double-page spreads, and vertical webtoon scrolling. Admins set a default mode per library and per folder, and each user can override it per item or set a personal default.
+- Four modes: paged left-to-right, paged right-to-left (manga), double-page spreads, and vertical webtoon scrolling. Admins set a default mode per library and per folder, and each user can override it per item or set a personal default. *New in 1.41.0:* **Reading mode suggestions** (Administration) lists folders whose pages are long webtoon strips or whose ComicInfo says right-to-left, for a one-click folder default - never applied on its own, nothing looked up on the web.
 - Double-page mode adapts: it shows a single page in narrow portrait, keeps wide spreads whole, and shows both page numbers. When extra pages split a spread across the wrong pair, you can shift the pairing anywhere in an archive, and it is saved for everyone who reads it.
 - Image quality: pages are sent at the size your screen shows them (or full size, your choice), downscaled on the server with a choice of filter to keep screentones clean. Pages shown larger than their resolution can be redrawn on your device's graphics chip: **Crisp** (AMD FSR 1, light; the default) or **Enhance** (the Anime4K line-art upscaler, **Efficient** or **Max quality**), in paged and vertical mode. Enhance uses WebGPU over HTTPS and WebGL2 elsewhere, so both also work over plain `http://` on your LAN, and the reader always shows which engine is running.
-- Touch and keyboard navigation: direction-aware swipe zones, arrow keys, a draggable page scrubber, a help overlay (`?`), and immersive fullscreen.
-- Webtoon tap zones and swipe move by a configurable step (90% of the screen by default). Turn them off for free scrolling only.
+- Touch and keyboard navigation: direction-aware swipe zones, arrow keys, a draggable page scrubber, a help overlay (`?`), and immersive fullscreen (*new in 1.41.0:* double tap or double click the center to enter or leave it). The toolbar groups its options into **Display** and **Quality** menus (*new in 1.41.0*).
+- Webtoon tap zones and swipe move by a configurable step (90% of the screen by default). Turn them off for free scrolling only. *New in 1.41.0:* the left and right edges step too, and you choose which edge goes forward (the swipe follows).
 - Configurable page-turn animation (Slide / Reveal / None).
 - Auto-advance to the next or previous archive, plus page prefetch around the current position.
 
 ## Series information
 
 - Reads the `ComicInfo.xml` inside your archives (series, number, summary, credits, genres, publisher). Nothing leaves your server for this.
-- A card with series information shows an **(i)**: it opens a side panel with the summary, and a full series page lists the items.
+- A card with series information shows an **(i)**: it opens a side panel with the summary, and a full series page lists the items. *New in 1.41.0:* the reader's **Series info** button opens it while you read, and a linked series lists its MangaDex title under **Sources**.
 - Admins can link a folder or archive to a [MangaUpdates](https://www.mangaupdates.com) series with **Identify** (search, or paste a MangaUpdates address). Optional and off by default; see [What leaves your server](privacy-and-security.md#what-leaves-your-server).
 - **Automatic matching** (a separate switch with its own consent, also off by default) matches new folders in the background. It tells series, one-shots, artist folders and collections apart by their names and contents, so category folders are never linked themselves. Confident matches go live at once; close calls wait for an admin on the **Metadata Manager** page (account menu), where each can be accepted, identified by hand or marked **Don't match**. Linked series are refreshed in the background.
 - In **Needs review**, **Later** sets a hard case aside (kept on the server, for every admin) so the easy matches can be accepted first. A row also says when other waiting works are by the same circle or artist (read from names like `[Circle (Artist)] Title`, also without the opening bracket) or sit in the same folder; one tap lists them together for a bulk action, and **Authors** lists the largest groups first.
@@ -45,7 +45,7 @@ Everything MangaPixer does today, by area. The [README](../README.md) has the sh
 ## Home
 
 - "Continue reading": one row across all your libraries.
-- "New chapters": recently added archives, grouped by library and stacked per series folder (latest chapter plus a "+N" badge): the folder with its own series link, or else the folder that holds the new archives, so a library whose top level is categories such as Manga and Manhwa shows one card per series, not per category. Each user chooses the time window in days (30 by default) and which libraries contribute.
+- "New chapters": recently added archives, grouped by library and stacked per series folder (latest chapter plus a "+N" badge): the folder with its own series link, or else the folder that holds the new archives, so a library whose top level is categories such as Manga and Manhwa shows one card per series, not per category. Each user chooses the time window in days (30 by default), how many stacks each library shows (6, 12, 24 or 50; 12 by default - *new in 1.41.0*) and which libraries contribute.
 - Continue reading and New chapters cards carry the same controls as the library view: the favorites star and, where there is series information, the (i) and the summary on hover.
 - A New chapters card of a linked series, and a Continue reading card of one of its chapters, show the series cover (for example your volume 1's cover) rather than a chapter's first page - see [Covers](covers.md#on-the-home-page). *New in 1.39.0:* **Choose cover…** on a folder linked to a series also offers the series poster (see [The series poster](covers.md#the-series-poster)).
 - Tapping a New chapters card of a linked series opens it in the Volumes view (by name, the Continue row on top); other folders open sorted by Recently updated.

@@ -1677,6 +1677,104 @@
         }
       }
     },
+    "/api/v1/admin/reading-mode-suggestions": {
+      "get": {
+        "tags": [
+          "ReadingModeSuggestions"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadingModeSuggestionsDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadingModeSuggestionsDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadingModeSuggestionsDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reading-mode-suggestions/apply": {
+      "post": {
+        "tags": [
+          "ReadingModeSuggestions"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadingModeApplyRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadingModeApplyRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadingModeApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadingModeApplyResultDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadingModeApplyResultDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadingModeApplyResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/metadata/settings": {
       "get": {
         "tags": [
@@ -8380,11 +8478,49 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "parentId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "group",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/JumpIndexDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JumpIndexDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JumpIndexDto"
+                }
+              }
+            }
           }
         }
       }
@@ -12565,6 +12701,74 @@
         "type": "string",
         "format": "binary"
       },
+      "JumpIndexBucketDto": {
+        "required": [
+          "label",
+          "count"
+        ],
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "firstCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "firstNodeId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "range": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "JumpIndexDto": {
+        "required": [
+          "libraryId",
+          "buckets"
+        ],
+        "type": "object",
+        "properties": {
+          "libraryId": {
+            "type": "string"
+          },
+          "buckets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JumpIndexBucketDto"
+            }
+          },
+          "parentId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "direction": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          }
+        }
+      },
       "LibraryViewPreferencesDto": {
         "type": "object",
         "properties": {
@@ -12592,6 +12796,14 @@
             "format": "int32"
           },
           "homeRecentWindowDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "homeStacksPerLibrary": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "integer",
@@ -15648,6 +15860,246 @@
       "ReaderMode": {
         "type": "integer"
       },
+      "ReaderModeSource": {
+        "type": "integer"
+      },
+      "ReadingModeApplyItem": {
+        "required": [
+          "nodeId",
+          "readerMode"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "readerMode": {
+            "$ref": "#/components/schemas/ReaderMode"
+          }
+        }
+      },
+      "ReadingModeApplyRequest": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReadingModeApplyItem"
+            }
+          }
+        }
+      },
+      "ReadingModeApplyResultDto": {
+        "required": [
+          "applied",
+          "skipped"
+        ],
+        "type": "object",
+        "properties": {
+          "applied": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReadingModeApplySkipDto"
+            }
+          }
+        }
+      },
+      "ReadingModeApplySkipDto": {
+        "required": [
+          "nodeId",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "ReadingModeConfidence": {
+        "type": "integer"
+      },
+      "ReadingModeSignal": {
+        "type": "integer"
+      },
+      "ReadingModeSuggestionDto": {
+        "required": [
+          "nodeId",
+          "libraryId",
+          "libraryName",
+          "folderName",
+          "suggestedMode",
+          "currentSource",
+          "confidence",
+          "signal",
+          "measuredPages",
+          "tallPages",
+          "comicInfoRightToLeft",
+          "comicInfoStated",
+          "subfolders"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "libraryId": {
+            "type": "string"
+          },
+          "libraryName": {
+            "type": "string"
+          },
+          "folderName": {
+            "type": "string"
+          },
+          "parentName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "suggestedMode": {
+            "$ref": "#/components/schemas/ReaderMode"
+          },
+          "currentMode": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReaderMode"
+              }
+            ]
+          },
+          "currentSource": {
+            "$ref": "#/components/schemas/ReaderModeSource"
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/ReadingModeConfidence"
+          },
+          "signal": {
+            "$ref": "#/components/schemas/ReadingModeSignal"
+          },
+          "measuredPages": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "tallPages": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "comicInfoRightToLeft": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "comicInfoStated": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "linkedOrigin": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MetadataOrigin"
+              }
+            ]
+          },
+          "linkedWebtoon": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "subfolders": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "ReadingModeSuggestionsDto": {
+        "required": [
+          "items",
+          "setByAdmin",
+          "foldersChecked",
+          "total",
+          "limit"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReadingModeSuggestionDto"
+            }
+          },
+          "setByAdmin": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReadingModeSuggestionDto"
+            }
+          },
+          "foldersChecked": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "limit": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "ReadingState": {
         "type": "integer"
       },
@@ -16121,6 +16573,25 @@
           }
         }
       },
+      "SeriesInfoCompanionDto": {
+        "required": [
+          "provider",
+          "providerName",
+          "siteUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "providerName": {
+            "type": "string"
+          },
+          "siteUrl": {
+            "type": "string"
+          }
+        }
+      },
       "SeriesInfoDto": {
         "required": [
           "nodeId",
@@ -16304,6 +16775,12 @@
                 "$ref": "#/components/schemas/SeriesInfoWebDto"
               }
             ]
+          },
+          "companions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SeriesInfoCompanionDto"
+            }
           },
           "comicInfo": {
             "oneOf": [
@@ -18559,6 +19036,9 @@
     },
     {
       "name": "SpreadLayout"
+    },
+    {
+      "name": "ReadingModeSuggestions"
     },
     {
       "name": "MetadataAdmin"

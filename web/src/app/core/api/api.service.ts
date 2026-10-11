@@ -207,8 +207,21 @@ export class ApiService {
   }
 
   /** Per-library A–Z/script jump index. */
-  getJumpIndex(libraryId: string): Observable<JumpIndexDto> {
-    return this.get<JumpIndexDto>(`/libraries/${libraryId}/jump-index`);
+  /**
+   * The jump rail of one listed level (1.41.0): the library root, or `parentId`'s children; buckets and cursors for the name sort in
+   * `direction`; `group` is the browse Volumes-view override (the index is empty where the Volumes view is shown).
+   */
+  getJumpIndex(
+    libraryId: string,
+    parentId: string | null = null,
+    direction: LibrarySortDirection | null = null,
+    group: 'volumes' | 'flat' | null = null,
+  ): Observable<JumpIndexDto> {
+    let params = new HttpParams();
+    if (parentId) params = params.set('parentId', parentId);
+    if (direction) params = params.set('direction', direction);
+    if (group) params = params.set('group', group);
+    return this.get<JumpIndexDto>(`/libraries/${libraryId}/jump-index`, params);
   }
 
   getBreadcrumbs(nodeId: string): Observable<{ nodeId: string; trail: { id: string; displayName: string }[] }> {
@@ -236,9 +249,13 @@ export class ApiService {
    * `LibraryReadStateFilter` (same wire values) rather than a separate type — a
    * transient toolbar control, not a persisted preference; 'all' sends no param
    * (server default = unfiltered).
+   *
+   * `perLibrary` (1.41.0): omitted -> the server uses the caller's stored
+   * "stacks per library" preference (default 12); pass a number to override it.
    */
-  getRecentChapters(perLibrary = 12, readState: LibraryReadStateFilter = 'all'): Observable<RecentChaptersDto> {
-    let params = new HttpParams().set('perLibrary', perLibrary.toString());
+  getRecentChapters(perLibrary?: number, readState: LibraryReadStateFilter = 'all'): Observable<RecentChaptersDto> {
+    let params = new HttpParams();
+    if (perLibrary !== undefined) params = params.set('perLibrary', perLibrary.toString());
     if (readState !== 'all') params = params.set('readState', readState);
     return this.get<RecentChaptersDto>('/home/recent-chapters', params);
   }

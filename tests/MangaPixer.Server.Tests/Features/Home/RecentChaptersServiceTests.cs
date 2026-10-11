@@ -367,6 +367,35 @@ public sealed class RecentChaptersServiceTests : IDisposable
         finally { await db.DisposeAsync(); }
     }
 
+    [Theory]
+    [InlineData(0, null, 12)]   // unset -> the default 12
+    [InlineData(6, null, 6)]    // the user's preset
+    [InlineData(24, null, 14)]  // more than there are: every stack
+    [InlineData(-3, null, 1)]   // a stray negative clamps to the floor
+    [InlineData(99, null, 14)]  // above the max clamps to 50 (all 14 here)
+    [InlineData(6, 2, 2)]       // an explicit count from the caller wins over the preference
+    public async Task PerLibrary_Default_ComesFromTheStoredStacksPreference(int stored, int? explicitCount, int expectedStacks)
+    {
+        var (db, userId, libAId, _) = await SetupAsync();
+        try
+        {
+            // 14 top-level folders with one recent archive each = 14 stacks (more than the old fixed 12).
+            for (var s = 0; s < 14; s++)
+            {
+                var folder = await AddFolderAsync(db, libAId, "p" + s, "Pile " + s);
+                await AddArchiveAsync(db, libAId, $"p{s}c0", "Ch0.cbz", Now.AddHours(-(s + 1)), parentId: folder.Id);
+            }
+            db.ReaderPreferences.Add(new ReaderPreferencesEntity { UserId = userId, HomeStacksPerLibrary = stored });
+            await db.SaveChangesAsync();
+
+            var service = new RecentChaptersService(db, new LibraryAuthorizationService(db));
+            var result = await service.GetRecentChaptersAsync(userId, perLibrary: explicitCount);
+
+            Assert.Equal(expectedStacks, result.Libraries.First(g => g.LibraryId == "recLibA").Stacks.Count);
+        }
+        finally { await db.DisposeAsync(); }
+    }
+
     [Fact]
     public async Task ExcludesTombstoned_And_OutsideWindow()
     {

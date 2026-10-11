@@ -41,6 +41,7 @@ import { LibraryDeclaredFactsComponent } from '../metadata/declared/library-decl
 import { ConsentRenewalBannerComponent } from '../metadata/consent-renewal-banner.component';
 import { AnalyticsCardComponent } from './analytics-card/analytics-card.component';
 import { MoveConflictsLinkComponent } from './move-conflicts/move-conflicts-link.component';
+import { ReadingModeSuggestionsLinkComponent } from './reading-modes/reading-mode-suggestions-link.component';
 import { ScheduledJobsComponent } from './scheduled-jobs/scheduled-jobs.component';
 import { TrashCardComponent } from './trash-card/trash-card.component';
 import { ApiTokensCardComponent } from './api-tokens/api-tokens-card.component';
@@ -62,6 +63,7 @@ import { ApiTokensCardComponent } from './api-tokens/api-tokens-card.component';
     AuditTrailCardComponent,
     UpdateCheckCardComponent,
     MoveConflictsLinkComponent,
+    ReadingModeSuggestionsLinkComponent,
     TrashCardComponent, ScheduledJobsComponent,
     AnalyticsCardComponent,
     BackupSettingsCardComponent,
@@ -108,6 +110,7 @@ import { ApiTokensCardComponent } from './api-tokens/api-tokens-card.component';
               {{ scanAllBusy() ? 'Starting…' : 'Scan all libraries' }}
             </button>
             <app-move-conflicts-link />
+            <app-reading-mode-suggestions-link />
           </div>
         }
         @if (loadingLibs()) {

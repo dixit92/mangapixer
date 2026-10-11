@@ -104,7 +104,7 @@ public sealed class VolumeMapService
         var coverMax = await _db.VolumeCovers.AsNoTracking()
             .Where(c => c.ProviderRecordId == mangaDexRecord.Id && c.Kind == (int)VolumeCoverKind.Volume && c.Volume != null)
             .MaxAsync(c => c.Volume, ct);
-        var foreign = IsForeignNumbering(built.HighestVolume, series.OriginVolumes, coverMax);
+        var foreign = IsForeignNumbering(built.HighestVolume, series.OriginVolumes, coverMax, HasFinalTotal(series));
         var state = foreign || built.Volumes.Count == 0 ? VolumeMapState.Empty : VolumeMapState.Ok;
         var known = coverMax ?? mangaDexRecord.OriginVolumes ?? series.OriginVolumes;
         return await StoreAsync(series, VolumeMapSource.MangaDexAggregate, state,
@@ -119,9 +119,16 @@ public sealed class VolumeMapService
     /// <summary>
     /// The foreign-numbering guard (P2.3): the list's highest volume exceeds both the series' volume total and the
     /// highest <c>/cover</c> volume by more than 1. Both bounds must be known - one alone is not evidence enough.
+    /// 1.41.0 (owner): only when the series' total is final (<paramref name="totalIsFinal"/>: complete or cancelled where it
+    /// comes from). For a running series the scanlated volumes routinely run ahead of the record's total and of the covers
+    /// MangaDex has (a live series with volumes 13-14 in the list, total and covers at 12, lost its whole list).
     /// </summary>
-    public static bool IsForeignNumbering(int? listHighest, int? seriesTotal, int? coverHighest) =>
-        listHighest is { } h && seriesTotal is { } t && coverHighest is { } c && h > t + 1 && h > c + 1;
+    public static bool IsForeignNumbering(int? listHighest, int? seriesTotal, int? coverHighest, bool totalIsFinal) =>
+        totalIsFinal && listHighest is { } h && seriesTotal is { } t && coverHighest is { } c && h > t + 1 && h > c + 1;
+
+    /// <summary>True when the series has ended where it comes from (complete or cancelled), so its volume total is final.</summary>
+    internal static bool HasFinalTotal(MetadataRecordEntity series) =>
+        series.OriginStatus is (int)MetadataOriginStatus.Complete or (int)MetadataOriginStatus.Cancelled;
 
     /// <summary>True when a stored MangaDex map gives a usable volume list (at least <see cref="MinExactVolumes"/> volumes).</summary>
     public static bool HasVolumeList(SeriesVolumeMapEntity? map) =>

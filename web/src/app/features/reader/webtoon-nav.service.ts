@@ -5,7 +5,8 @@ import { Injectable, computed, signal } from '@angular/core';
  * (1.11.0). `0` means OFF: the vertical reader progresses by free scroll only and
  * a tap anywhere toggles the chrome (the pre-1.11.0 behaviour). Any other value
  * turns on the tap zones (top third = back a screen, bottom third = forward,
- * centre = toggle chrome) and the horizontal swipe, both moving by this step.
+ * the middle third's side edges = back / forward since 1.41.0, its centre = toggle
+ * chrome) and the horizontal swipe, all moving by this step.
  *
  * Under 100% the step leaves a small overlap between consecutive screens so a
  * panel straddling the fold is never skipped - the established webtoon reader
@@ -14,8 +15,19 @@ import { Injectable, computed, signal } from '@angular/core';
 export type WebtoonTapStep = 0 | 80 | 90 | 100;
 export const WEBTOON_TAP_STEPS: readonly WebtoonTapStep[] = [0, 80, 90, 100];
 
-/** The tap zone a vertical fraction (0 = top of the viewport, 1 = bottom) falls in. */
+/** What a tap on the webtoon viewport does: step back a screen, step forward, or show / hide the controls. */
 export type WebtoonTapZone = 'back' | 'toggle' | 'forward';
+
+/**
+ * Which side edge of the middle band steps FORWARD (1.41.0, owner 2026-10-11): `right` (the default, like the paged
+ * reader read left to right) or `left`. The other edge steps back. Per device, like the step; the vertical view
+ * keeps ignoring the series' reading direction. The horizontal swipe follows it too.
+ */
+export type WebtoonForwardEdge = 'right' | 'left';
+export const WEBTOON_FORWARD_EDGES: readonly WebtoonForwardEdge[] = ['right', 'left'];
+
+/** Width of each side edge of the middle band, as a fraction of the viewport width (owner: 20 %). */
+export const WebtoonEdgeFraction = 0.2;
 
 /**
  * Per-DEVICE webtoon navigation preference kept in `localStorage`, like the
@@ -28,16 +40,29 @@ export type WebtoonTapZone = 'back' | 'toggle' | 'forward';
 export class WebtoonNavPreferencesService {
   static readonly TapStepKey = 'mangapixer-webtoon-tap-step';
   static readonly DefaultTapStep: WebtoonTapStep = 90;
+  static readonly ForwardEdgeKey = 'mangapixer-webtoon-forward-edge';
+  static readonly DefaultForwardEdge: WebtoonForwardEdge = 'right';
 
   /** Current tap/swipe step (0 = off); reactive so the reader re-evaluates live. */
   readonly tapStep = signal<WebtoonTapStep>(this.loadTapStep());
-  /** Tap zones + swipe are on whenever a non-zero step is chosen. */
+  /** Tap zones (edges included) + swipe are on whenever a non-zero step is chosen. */
   readonly tapZonesEnabled = computed(() => this.tapStep() > 0);
+  /** The middle band's edge that steps forward, and the swipe that does (1.41.0). */
+  readonly forwardEdge = signal<WebtoonForwardEdge>(this.loadForwardEdge());
 
   setTapStep(step: WebtoonTapStep): void {
     this.tapStep.set(step);
+    this.store(WebtoonNavPreferencesService.TapStepKey, String(step));
+  }
+
+  setForwardEdge(edge: WebtoonForwardEdge): void {
+    this.forwardEdge.set(edge);
+    this.store(WebtoonNavPreferencesService.ForwardEdgeKey, edge);
+  }
+
+  private store(key: string, value: string): void {
     try {
-      localStorage.setItem(WebtoonNavPreferencesService.TapStepKey, String(step));
+      localStorage.setItem(key, value);
     } catch {
       /* storage unavailable (private mode) - keep the in-memory value */
     }
@@ -53,17 +78,41 @@ export class WebtoonNavPreferencesService {
     }
     return WebtoonNavPreferencesService.DefaultTapStep;
   }
+
+  private loadForwardEdge(): WebtoonForwardEdge {
+    try {
+      const raw = localStorage.getItem(WebtoonNavPreferencesService.ForwardEdgeKey);
+      if ((WEBTOON_FORWARD_EDGES as readonly (string | null)[]).includes(raw)) return raw as WebtoonForwardEdge;
+    } catch {
+      /* storage unavailable - fall through to the default */
+    }
+    return WebtoonNavPreferencesService.DefaultForwardEdge;
+  }
 }
 
 /**
- * Resolve a tap's vertical position within the webtoon viewport into a zone,
- * by thirds: top third goes back a screen, bottom third forward, the middle
- * toggles the chrome. Pure, so it is unit-testable without the DOM.
+ * Resolve a tap's position within the webtoon viewport (fractions: x 0 = left edge, 1 = right; y 0 = top, 1 =
+ * bottom) into a zone. By vertical thirds: the top band goes back a screen and the bottom band forward, each across
+ * the full width, corners included. The middle band (1.41.0, owner 2026-10-11) has a left and a right edge, each
+ * `WebtoonEdgeFraction` (20 %) of the width, stepping forward on `forwardEdge` and back on the other; the centre
+ * between them shows / hides the controls. Each zone holds its lower boundary: y = 1/3 is the middle band, y = 2/3
+ * the bottom band, x = 0.2 the centre, x = 0.8 the right edge. Pure, so it is unit-testable without the DOM.
  */
-export function webtoonTapZone(fraction: number): WebtoonTapZone {
-  if (fraction < 1 / 3) return 'back';
-  if (fraction >= 2 / 3) return 'forward';
+export function webtoonTapZone(xFraction: number, yFraction: number, forwardEdge: WebtoonForwardEdge): WebtoonTapZone {
+  if (yFraction < 1 / 3) return 'back';
+  if (yFraction >= 2 / 3) return 'forward';
+  if (xFraction < WebtoonEdgeFraction) return forwardEdge === 'left' ? 'forward' : 'back';
+  if (xFraction >= 1 - WebtoonEdgeFraction) return forwardEdge === 'right' ? 'forward' : 'back';
   return 'toggle';
+}
+
+/**
+ * The screen step a horizontal swipe asks for (1.41.0): the finger moves AWAY from the forward edge, like turning a
+ * page - with "Right goes forward" a leftward swipe steps forward (the 1.11.0 rule), with "Left goes forward" a
+ * rightward one. The other direction steps back.
+ */
+export function webtoonSwipeStep(side: 'leftward' | 'rightward', forwardEdge: WebtoonForwardEdge): 1 | -1 {
+  return (side === 'leftward') === (forwardEdge === 'right') ? 1 : -1;
 }
 
 /**

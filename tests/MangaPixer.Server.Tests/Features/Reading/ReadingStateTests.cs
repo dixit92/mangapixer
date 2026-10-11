@@ -881,6 +881,7 @@ public sealed class ReadingStateTests : IDisposable
             Assert.Equal("", def.CardSize); // unset (1.6.0) — frontend derives from legacy ViewMode/Density
             Assert.Equal(0, def.LibraryPageSize); // unset (1.8.0) — frontend applies its default (50)
             Assert.Equal(0, def.HomeRecentWindowDays); // unset (1.12.0) — RecentChaptersService falls back to 30
+            Assert.Equal(0, def.HomeStacksPerLibrary); // unset (1.41.0) — RecentChaptersService falls back to 12
             Assert.Equal(0, def.ListColumns); // unset (1.18.0) — frontend applies its default (2)
 
             await service.SetLibraryPreferencesAsync(userId, new LibraryViewPreferencesDto
@@ -892,6 +893,7 @@ public sealed class ReadingStateTests : IDisposable
                 CardSize = "168",
                 LibraryPageSize = 100,
                 HomeRecentWindowDays = 14,
+                HomeStacksPerLibrary = 24,
                 ListColumns = 3,
             });
 
@@ -903,6 +905,7 @@ public sealed class ReadingStateTests : IDisposable
             Assert.Equal("168", lib.CardSize); // 1.6.0 card size round-trips
             Assert.Equal(100, lib.LibraryPageSize); // 1.8.0 page size round-trips
             Assert.Equal(14, lib.HomeRecentWindowDays); // 1.12.0 home window round-trips
+            Assert.Equal(24, lib.HomeStacksPerLibrary); // 1.41.0 home stacks per library round-trips
             Assert.Equal(3, lib.ListColumns); // 1.18.0 list columns round-trips
 
             // Reader prefs survived the library-prefs write.

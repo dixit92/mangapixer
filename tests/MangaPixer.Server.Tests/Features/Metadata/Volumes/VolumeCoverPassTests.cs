@@ -466,6 +466,8 @@ public sealed class VolumeCoverPassTests : IAsyncLifetime
     {
         await _h.Auto.EnableAutomaticAsync();
         var (_, record) = await SeriesAsync(MdFixtures.MuJojoPart3, "JoJo no Kimyou na Bouken Part 3: Stardust Crusaders", 16, "Synthetic Shelf c001.cbz");
+        record.OriginStatus = (int)MetadataOriginStatus.Complete; // the guard needs a final total (1.41.0)
+        await _t.Db.SaveChangesAsync();
 
         await _h.TickAsync();
 
@@ -475,6 +477,34 @@ public sealed class VolumeCoverPassTests : IAsyncLifetime
         Assert.Equal(16, map.KnownVolumeCount);
         Assert.Equal(MdFixtures.JojoPart3Id, (await _t.Db.MetadataRecords.SingleAsync(r => r.Provider == "mangadex")).ExternalId);
     }
+
+    [Theory]
+    [InlineData((int)MetadataOriginStatus.Ongoing)]
+    [InlineData((int)MetadataOriginStatus.Hiatus)]
+    [InlineData((int)MetadataOriginStatus.Unknown)]
+    public async Task ListRunningAheadOfTheTotal_IsKept_WhileTheSeriesRuns(int status)
+    {
+        // 1.41.0 (owner finding): the same list that is "foreign" for a finished series is kept while the series runs - its
+        // scanlated volumes run ahead of the record's total and of MangaDex's covers.
+        await _h.Auto.EnableAutomaticAsync();
+        var (_, record) = await SeriesAsync(MdFixtures.MuJojoPart3, "JoJo no Kimyou na Bouken Part 3: Stardust Crusaders", 16, "Synthetic Shelf c001.cbz");
+        record.OriginStatus = status;
+        await _t.Db.SaveChangesAsync();
+
+        await _h.TickAsync();
+
+        var map = await _t.Db.SeriesVolumeMaps.SingleAsync(m => m.RecordId == record.Id && m.Source == (int)VolumeMapSource.MangaDexAggregate);
+        Assert.Equal((int)VolumeMapState.Ok, map.State);
+        Assert.NotNull(map.VolumesJson);
+    }
+
+    [Theory]
+    [InlineData(14, 12, 12, true, true)]    // finished series, list two ahead of both bounds: foreign
+    [InlineData(14, 12, 12, false, false)]  // the same while it runs: kept (the live case)
+    [InlineData(13, 12, 12, true, false)]   // one ahead is within the margin
+    [InlineData(14, null, 12, true, false)] // a bound unknown: not evidence enough
+    public void ForeignNumbering_NeedsAFinalTotal(int? highest, int? total, int? covers, bool final, bool expected) =>
+        Assert.Equal(expected, VolumeMapService.IsForeignNumbering(highest, total, covers, final));
 
     [Fact]
     public async Task NoVolumeList_AsksAniListByTheIdMangaDexLinks_AndStoresARatio()

@@ -29,7 +29,7 @@ public sealed class RecentChaptersController : ControllerBase
 
     /// <summary>
     /// Returns the caller's per-library "New chapters" rows for the home page.
-    /// <paramref name="perLibrary"/> caps each library group (1-50, default 12);
+    /// <paramref name="perLibrary"/> caps each library group (1-50; omitted -> the caller's stored "stacks per library", default 12);
     /// out-of-range values are clamped by the service. <paramref name="readState"/>
     /// (1.17.0) optionally restricts stacks to Reading/Read/Unread, mirroring the
     /// browse view's filter; omitted or unrecognized → no filter (unchanged behavior).

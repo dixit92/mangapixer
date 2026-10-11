@@ -395,4 +395,35 @@ public sealed class RecentChaptersHttpTests : IClassFixture<MangaPixerWebApplica
         await client.PutAsJsonAsync("/api/v1/reading/private-libraries",
             new SetPrivateLibrariesRequest { LibraryIds = [] });
     }
+
+    [Fact]
+    public async Task GetRecentChapters_WithoutACount_UsesTheStoredStacksPerLibrary()
+    {
+        await SeedAsync();
+        var client = await GetAuthenticatedClientAsync();
+        client.DefaultRequestHeaders.Remove("X-Incognito");
+
+        // Library Alpha has two stacks (Series A + the loose archive). Store "1 stack per library" through the public
+        // preferences endpoint (the whole blob, as the Settings screen sends it), then ask without perLibrary.
+        var original = await client.GetFromJsonAsync<LibraryViewPreferencesDto>("/api/v1/reading/library-preferences");
+        try
+        {
+            var put = await client.PutAsJsonAsync("/api/v1/reading/library-preferences", original! with { HomeStacksPerLibrary = 1 });
+            put.EnsureSuccessStatusCode();
+            var stored = await client.GetFromJsonAsync<LibraryViewPreferencesDto>("/api/v1/reading/library-preferences");
+            Assert.Equal(1, stored!.HomeStacksPerLibrary);
+
+            var dto = await client.GetFromJsonAsync<RecentChaptersDto>("/api/v1/home/recent-chapters");
+            var alpha = dto!.Libraries.First(g => g.LibraryId == "reclibA");
+            Assert.Equal(new[] { "recseriesA" }, alpha.Stacks.Select(s => s.Id).ToArray());
+
+            // An explicit count from the caller still wins.
+            var explicitDto = await client.GetFromJsonAsync<RecentChaptersDto>("/api/v1/home/recent-chapters?perLibrary=2");
+            Assert.Equal(2, explicitDto!.Libraries.First(g => g.LibraryId == "reclibA").Stacks.Count);
+        }
+        finally
+        {
+            await client.PutAsJsonAsync("/api/v1/reading/library-preferences", original);
+        }
+    }
 }

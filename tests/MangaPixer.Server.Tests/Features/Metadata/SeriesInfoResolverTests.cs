@@ -178,6 +178,81 @@ public sealed class SeriesInfoResolverTests
         Assert.Equal(MetadataFieldSource.Web, info.FieldSources["origin"]);
     }
 
+    private static async Task AddMangaDexCompanionAsync(
+        MetadataTestDb t, MetadataRecordEntity series, string siteUrl, CompanionState state = CompanionState.Auto)
+    {
+        var md = new MetadataRecordEntity
+        {
+            PublicId = "md" + series.ExternalId,
+            Provider = "mangadex",
+            ExternalId = "00000000-0000-4000-8000-0000000000" + series.ExternalId,
+            Title = "Companion Title",
+            SiteUrl = siteUrl,
+            FetchedAt = DateTimeOffset.UtcNow,
+        };
+        t.Db.MetadataRecords.Add(md);
+        await t.Db.SaveChangesAsync();
+        t.Db.MetadataCompanions.Add(new MetadataCompanionEntity
+        {
+            RecordId = series.Id,
+            Provider = "mangadex",
+            CompanionRecordId = md.Id,
+            State = (int)state,
+        });
+        await t.Db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task LinkedSeries_ListsItsMangaDexCompanion_UnderSources_AlsoForAnArchiveBelowIt()
+    {
+        await using var t = await MetadataTestDb.CreateAsync();
+        var series = await t.AddFolderAsync(null, "Series");
+        var archive = await t.AddArchiveAsync(series, "v1");
+        var record = await t.AddRecordAsync("310", "Linked Title");
+        await t.AddLinkAsync(series, record);
+        await AddMangaDexCompanionAsync(t, record, "https://mangadex.org/title/00000000-0000-4000-8000-000000000310");
+
+        foreach (var node in new[] { series, archive })
+        {
+            var info = await t.ResolveAsync(node);
+            var companion = Assert.Single(info.Companions);
+            Assert.Equal("mangadex", companion.Provider);
+            Assert.Equal("MangaDex", companion.ProviderName);
+            Assert.Equal("https://mangadex.org/title/00000000-0000-4000-8000-000000000310", companion.SiteUrl);
+            Assert.Equal("mangaupdates", info.Web!.Provider); // the series' own record stays the Web source
+        }
+    }
+
+    [Theory]
+    [InlineData(CompanionState.NotFound, "https://mangadex.org/title/x")] // looked up, nothing found
+    [InlineData(CompanionState.None, "https://mangadex.org/title/x")]     // an admin said "not on MangaDex"
+    [InlineData(CompanionState.Confirmed, "http://mangadex.org/title/x")]  // not https
+    [InlineData(CompanionState.Auto, "https://example.org/title/x")]       // not a MangaDex page
+    public async Task Companion_IsListedOnlyWhenLinked_AndAMangaDexPage(CompanionState state, string siteUrl)
+    {
+        await using var t = await MetadataTestDb.CreateAsync();
+        var series = await t.AddFolderAsync(null, "Series");
+        var record = await t.AddRecordAsync("320", "Linked Title");
+        await t.AddLinkAsync(series, record);
+        await AddMangaDexCompanionAsync(t, record, siteUrl, state);
+
+        Assert.Empty((await t.ResolveAsync(series)).Companions);
+    }
+
+    [Fact]
+    public async Task CollectionAbout_ListsNoCompanion()
+    {
+        await using var t = await MetadataTestDb.CreateAsync();
+        var folder = await t.AddFolderAsync(null, "Collection");
+        var record = await t.AddRecordAsync("330", "About Title");
+        await t.AddLinkAsync(folder, record, SeriesLinkState.CollectionAbout);
+        await AddMangaDexCompanionAsync(t, record, "https://mangadex.org/title/00000000-0000-4000-8000-000000000330");
+
+        var info = await t.ResolveAsync(folder);
+        Assert.Equal(SeriesInfoState.CollectionAbout, info.State);
+        Assert.Empty(info.Companions);
+    }
+
     [Fact]
     public async Task AncestorLink_IsInherited_AndAnchoredOnTheHolder()
     {

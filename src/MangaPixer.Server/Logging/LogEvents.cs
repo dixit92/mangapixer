@@ -375,6 +375,11 @@ public static class LogEvents
         public const int JobScheduleChanged = 7040;
         public const int JobRunRecordFailed = 7041;
         public const int CacheEvictionPass = 7042;
+
+        // 1.41.0 Reading-mode suggestions (lane R, 7050-7059): counts and timings only.
+        public const int ReadingModeSuggestionsListed = 7050;
+        public const int ReadingModeSuggestionsApplied = 7051;
+        public const int ReadingModeSuggestionsRefused = 7052;
     }
 
     /// <summary>App-level request pipeline errors (unhandled 500s).</summary>

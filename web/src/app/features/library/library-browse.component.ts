@@ -39,7 +39,8 @@ import { FolderCoverPreferenceActionComponent } from './folder-cover-preference-
 import { NodeRowComponent, directionShort as directionChip } from '../../shared/node-row/node-row.component';
 import { SelectionBarComponent } from '../../shared/selection/selection-bar.component';
 import { NodeSelection } from '../../shared/selection/node-selection';
-import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, LibraryReadStateFilter, LibraryViewPreferencesDto, FolderReadRollup, JumpIndexBucketDto, ReadMarkDto, ReadingProgressDto } from '../../core/api/api-types';
+import { JumpRailComponent, bucketOwners } from './jump-rail.component';
+import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, LibraryReadStateFilter, LibraryViewPreferencesDto, FolderReadRollup, JumpIndexBucketDto, JumpIndexMode, ReadMarkDto, ReadingProgressDto } from '../../core/api/api-types';
 
 /**
  * Library browse component. Shows the actual folder/archive tree with keyset
@@ -92,6 +93,7 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     FolderRollupBadgeComponent,
     StarToggleComponent,
     ContinueRowComponent,
+    JumpRailComponent,
     InfoToggleComponent,
     SeriesInfoHoverDirective,
     SeriesInfoButtonComponent,
@@ -352,43 +354,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
       }
     </div>
 
-    @if (jumpBuckets().length > 0) {
-      <!-- Sticky (1.8.0): stacked directly under the sticky top bar, whose measured
-           height is the rail's sticky offset, so both follow the user down the page.
-           1.10.1: hidden on the phone breakpoint (it wrapped into an unusable band);
-           replaced there by the A-Z letter-picker button below. -->
-      <nav class="jump-rail" aria-label="Jump to letter" [style.top.px]="barHeight()">
-        @for (bucket of jumpBuckets(); track bucket.label) {
-          <button class="jump-chip" type="button"
-                  (click)="jumpToBucket(bucket)"
-                  [class.active]="activeJump() === bucket.label"
-                  [matTooltip]="bucket.label + ' (' + bucket.count + ')'">
-            {{ bucket.label }}
-          </button>
-        }
-      </nav>
-      <!-- Phone-only (1.10.1): the rail collapses to a single A-Z button that opens a
-           compact letter-picker menu, reclaiming the cramped top area. Hidden on
-           desktop/iPad, where the full rail above is used instead. -->
-      <button mat-stroked-button class="jump-menu-trigger" [matMenuTriggerFor]="jumpMenu"
-              aria-label="Jump to letter">
-        <mat-icon>sort_by_alpha</mat-icon> {{ activeJump() || 'A-Z' }}
-      </button>
-      <mat-menu #jumpMenu="matMenu" class="jump-picker-menu">
-        <!-- role="presentation": same non-control stopPropagation pattern as the
-             size sections above - only stops menu-close-on-click; each chip button
-             below carries its own click/keyboard semantics. -->
-        <div class="jump-picker" role="presentation" (click)="$event.stopPropagation()">
-          @for (bucket of jumpBuckets(); track bucket.label) {
-            <button class="jump-chip" type="button"
-                    (click)="jumpToBucket(bucket)"
-                    [class.active]="activeJump() === bucket.label">
-              {{ bucket.label }}
-            </button>
-          }
-        </div>
-      </mat-menu>
-    }
+    <!-- Jump rail (1.8.0 root, 1.41.0 folders + descending + number ranges): its own component; the server hides it in the Volumes view. -->
+    <app-jump-rail [buckets]="jumpBuckets()" [mode]="jumpMode()" [active]="activeJump()" [top]="barHeight()" (jump)="jumpToBucket($event)" />
 
     <!-- Series status (1.29.0 RC): "Complete (Japan) · English: 12 of 14 volumes · 2 volumes missing" while a linked series'
          Volumes view is shown. -->
@@ -697,55 +664,19 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     .node-sub { font-size: 12px; color: var(--mp-text-muted); }
     .empty { color: var(--mp-text-muted); padding: 32px; text-align: center; }
     .scroll-sentinel { min-height: 40px; text-align: center; color: var(--mp-text-muted); font-size: 12px; }
-    /* A–Z/script jump rail, root level only. Sticky under the
-       top bar (1.8.0): top = measured bar height, z-index below the bar's 20;
-       opaque so cards don't show through while stuck. */
-    .jump-rail {
-      position: sticky; z-index: 10;
-      display: flex; flex-wrap: wrap; gap: 4px;
-      margin-bottom: 12px; padding: 6px 8px;
-      background: var(--mp-surface); border-radius: 8px;
-    }
-    /* Base chip look shared by the sticky rail (.jump-chip) and the phone
-       letter-picker menu (::ng-deep .jump-picker-menu .jump-chip, a CDK overlay
-       outside this component); each keeps its own size/spacing override below. */
-    .jump-chip,
-    ::ng-deep .jump-picker-menu .jump-chip {
-      border: none; cursor: pointer; background: transparent; color: var(--mp-accent);
-      border-radius: 6px; font-weight: 600; line-height: 1;
-    }
-    .jump-chip { min-width: 28px; padding: 4px 8px; font-size: 12px; transition: background 0.1s; }
-    .jump-chip:hover { background: rgb(var(--mp-accent-strong-rgb) / 0.18); }
-    /* Declared after :hover (same specificity) so an active chip stays solid purple
-       even while hovered, instead of the hover tint winning the tie. */
-    .jump-chip.active,
-    ::ng-deep .jump-picker-menu .jump-chip.active { background: var(--mp-accent-strong); color: var(--mp-on-accent); }
-    /* Phone A-Z letter-picker (1.10.1): the trigger is hidden on desktop/iPad (the
-       full rail is used there); shown on the phone breakpoint. The picker grid + its
-       chips render in a CDK overlay outside this component, so they are styled via
-       ::ng-deep like the other menus. */
-    .jump-menu-trigger { display: none; margin-bottom: 12px; }
-    ::ng-deep .jump-picker-menu .jump-picker {
-      display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; max-width: 300px;
-    }
-    ::ng-deep .jump-picker-menu .jump-chip { min-width: 34px; padding: 8px 10px; font-size: 14px; }
-
     /* --- PHONE breakpoint only (1.10.0, F3; folded into one media query - was three
        separate @media blocks). Desktop + iPad (>=561px) are untouched: every rule
        that changes layout lives inside this media query. It covers:
         - dropping toolbar button labels to keep the action bar compact (icons remain);
         - the card-size/list-columns slider is relocated OFF the cramped toolbar into
           a submenu (the inline control is hidden; the icon-button trigger is shown);
-        - the jump rail collapses to the single A-Z letter-picker button (1.10.1);
+        - (the jump rail's own phone picker lives in JumpRailComponent since 1.41.0);
         - the breadcrumb is redesigned for legibility: it was too small to read/tap.
           The trail is allowed to wrap, the type is larger, and the current folder is
           the prominent, high-contrast element so "where am I" reads at a glance. --- */
     @media (max-width: 599.98px) {
       ::ng-deep .view-options-menu .view-size-section { display: block; }
       .size-control-inline { display: none; }
-
-      .jump-rail { display: none; }
-      .jump-menu-trigger { display: inline-flex; }
 
       .breadcrumbs {
         white-space: normal;         /* let the trail wrap instead of ellipsing away */
@@ -823,13 +754,6 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   readonly loadingPrevious = signal(false);
   /** Monotonic request generation: a response from a superseded load is dropped. */
   private loadGen = 0;
-  /**
-   * Whether the loaded window starts at the listing's first item (cursor null).
-   * A jump-rail click for a letter that is already loaded scrolls to it in place
-   * only in that case; after a mid-list cursor jump the true first item of a
-   * bucket may lie before the window, so the cursor reload is used instead.
-   */
-  private loadedFromStart = true;
   /** IntersectionObserver is absent in some engines (and jsdom); then the fallback button shows. */
   readonly autoLoadSupported = typeof IntersectionObserver !== 'undefined';
   private readonly sentinel = viewChild<ElementRef<HTMLElement>>('sentinel');
@@ -917,11 +841,13 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   private scrollSpyFrame: number | null = null;
   private readonly onScroll = (): void => this.scheduleScrollSpy();
 
-  // Jump-index rail. Only loaded at the library root (no parentId);
-  // subfolders don't have a per-folder jump index. The rail is a name-sort
-  // navigation aid, so it is hidden when the sort is not "name".
+  // Jump-index rail (1.41.0: any level, both name-sort directions; the server hides it in the Volumes view). The rail is a
+  // name-sort navigation aid, so it is hidden when the sort is not "name". `activeJump` is the bucket of the topmost visible card.
   readonly jumpBuckets = signal<JumpIndexBucketDto[]>([]);
-  readonly activeJump = signal<string | null>(null);
+  readonly jumpMode = signal<JumpIndexMode>('letters');
+  readonly activeJump = signal<JumpIndexBucketDto | null>(null);
+  /** The bucket index of each loaded card (scroll-spy by position, from each bucket's first node). */
+  private readonly jumpOwners = computed(() => bucketOwners(this.nodes(), this.jumpBuckets()));
 
   // Selection mode (1.2.0 read-marks + merged card actions). The state and its gestures (tap, shift-click range, touch
   // long-press "Select to here", the list row checkbox, Select all) live in the shared `NodeSelection` (1.30.0), which the
@@ -1220,9 +1146,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
       // `group` (1.30.0 soak test - a category folder's "flat" made its series open without the missing-volume cards).
       this.volumeView.set(null);
       this.loadNodes();
-      // The jump rail is a library-root navigation aid. It is
-      // only meaningful for the name sort in ascending order — its bucket
-      // cursors assume A→Z order — and only over the UNFILTERED listing (1.10.0).
+      // The jump rail is a name-sort navigation aid over the UNFILTERED listing (1.10.0); since 1.41.0 in folders and both
+      // directions too (the index is built for this folder and direction).
       if (this.shouldShowJumpRail()) this.loadJumpIndex(libId);
       else this.jumpBuckets.set([]);
       if (parentId) {
@@ -1237,28 +1162,33 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** Load the per-library A–Z/script jump index. */
+  /** Load the jump index of the listed level (root or folder) for the current name-sort direction and Volumes-view choice. */
   private loadJumpIndex(libId: string): void {
-    this.api.getJumpIndex(libId).subscribe({
-      next: (res) => this.jumpBuckets.set(res.buckets),
+    const parentId = this.parentId();
+    const direction = this.sortDirection();
+    this.jumpBuckets.set([]);
+    this.activeJump.set(null);
+    this.api.getJumpIndex(libId, parentId, direction, this.groupParam()).subscribe({
+      next: (res) => {
+        // A response for a level / direction the user has already left is dropped.
+        if (this.libraryId() !== libId || this.parentId() !== parentId || this.sortDirection() !== direction) return;
+        this.jumpMode.set(res.mode ?? 'letters');
+        this.jumpBuckets.set(res.buckets);
+      },
       error: () => this.jumpBuckets.set([]),
     });
   }
 
   /**
-   * Jump to a bucket. If the window was loaded from the listing start and the
-   * bucket's first item is already loaded, just scroll to it (1.8.0 - no reload,
-   * nothing lost). Otherwise set the cursor to the bucket's firstCursor and
-   * reload from the top (a null cursor means the start of the listing).
+   * Jump to a bucket. If the bucket's first row is already loaded, just scroll to it (1.8.0 - no reload, nothing lost; 1.41.0: by
+   * its node id, so also after a mid-list jump). Otherwise set the cursor to the bucket's firstCursor and reload from the top (a null
+   * cursor means the start of the listing).
    */
   jumpToBucket(bucket: JumpIndexBucketDto): void {
-    this.activeJump.set(bucket.label);
-    if (this.loadedFromStart) {
-      const index = this.nodes().findIndex((n) => jumpLabelFor(n.displayName) === bucket.label);
-      if (index !== -1 && this.scrollToCard(index)) return;
-    }
+    this.activeJump.set(bucket);
+    const index = bucket.firstNodeId ? this.nodes().findIndex((n) => n.id === bucket.firstNodeId) : -1;
+    if (index !== -1 && this.scrollToCard(index)) return;
     this.cursor = bucket.firstCursor;
-    this.loadedFromStart = bucket.firstCursor === null;
     this.nodes.set([]);
     this.hasMore.set(false);
     this.clearSelection();
@@ -1270,10 +1200,13 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
    * Scroll-spy (1.8.0): set `activeJump` to the bucket of the topmost visible
    * card - the first card whose bottom edge clears the sticky bar + rail stack.
    * Cards in a grid row share that edge, so within the first visible row the
-   * current label is kept if any card in the row carries it: the indicator
-   * doesn't flip on a row that merely ends the previous letter, and a click
-   * that scrolled to a letter's first card shows that letter even when an
-   * earlier card shares its row. Public so tests can drive it synchronously.
+   * current bucket is kept if any card in the row belongs to it: the indicator
+   * doesn't flip on a row that merely ends the previous bucket, and a click
+   * that scrolled to a bucket's first card shows that bucket even when an
+   * earlier card shares its row. 1.41.0: a card's bucket comes from its position
+   * (each bucket's first node id, `bucketOwners`), not from re-deriving a label
+   * from its name - the server may ignore a common prefix or use number ranges.
+   * Public so tests can drive it synchronously.
    */
   updateActiveJump(): void {
     if (this.jumpBuckets().length === 0) return;
@@ -1293,12 +1226,15 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
       else lo = mid + 1;
     }
     const rowBottom = cards[first].getBoundingClientRect().bottom;
+    const owners = this.jumpOwners();
+    if (owners[first] === -1) return; // no bucket starts in this window: keep the jumped-to chip
+    const buckets = this.jumpBuckets();
     const current = this.activeJump();
-    let label = jumpLabelFor(nodes[first].displayName);
+    let active = buckets[owners[first]];
     for (let i = first; i < cards.length && Math.abs(cards[i].getBoundingClientRect().bottom - rowBottom) < 1; i++) {
-      if (jumpLabelFor(nodes[i].displayName) === current) { label = current; break; }
+      if (current && buckets[owners[i]] === current) { active = current; break; }
     }
-    this.activeJump.set(label);
+    this.activeJump.set(active);
   }
 
   /**
@@ -1353,10 +1289,13 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     return null;
   }
 
-  /** Viewport-y of the bottom edge of the sticky stack (rail if shown, else the bar). */
+  /**
+   * Viewport-y of the bottom edge of the sticky stack (rail if shown, else the bar). 1.41.0: a rail hidden by the phone breakpoint
+   * (`display: none`, the picker button stands in for it) does not count - its zero box put a jumped-to card under the top bar.
+   */
   private stickyBottom(): number {
     const rail = this.host.nativeElement.querySelector<HTMLElement>('.jump-rail');
-    if (rail) return rail.getBoundingClientRect().bottom;
+    if (rail && (typeof getComputedStyle === 'undefined' || getComputedStyle(rail).display !== 'none')) return rail.getBoundingClientRect().bottom;
     return this.browseBar()?.nativeElement.getBoundingClientRect().bottom ?? 0;
   }
 
@@ -1426,7 +1365,6 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   private resetList(): void {
     this.cursor = null;
     this.prevCursor = null;
-    this.loadedFromStart = true;
     this.nodes.set([]);
     this.hasMore.set(false);
     this.hasPrevious.set(false);
@@ -1514,15 +1452,13 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Whether the A-Z jump rail applies: it is a library-root name-sort (ascending)
-   * navigation aid whose bucket cursors assume the full, unfiltered A->Z listing, so it
-   * is meaningless in a subfolder, under another sort/direction, or while a read-state,
-   * hide-empty, or favorites filter is narrowing the listing.
+   * Whether the jump rail applies: it is a name-sort navigation aid whose bucket cursors
+   * assume the full, unfiltered listing, so it is meaningless under another sort or while a
+   * read-state, hide-empty, or favorites filter is narrowing the listing. 1.41.0: folders
+   * and the descending direction have their own index (the Volumes view gets none).
    */
   private shouldShowJumpRail(): boolean {
-    return !this.parentId()
-      && this.sort() === 'name'
-      && this.sortDirection() === 'asc'
+    return this.sort() === 'name'
       && this.readStateFilter() === 'all'
       && !this.hideEmptyFolders()
       && !this.favoritesOnly();
@@ -1759,8 +1695,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     this.persistView();
     this.resetList();
     this.loadNodes();
-    // The jump rail is only valid for the name sort in ascending order (the
-    // cursor is a raw SortKey that assumes A→Z order; other sorts ignore it).
+    // The jump rail is only valid for the name sort (the cursor is a raw SortKey;
+    // other sorts ignore it).
     if (this.shouldShowJumpRail()) this.loadJumpIndex(this.libraryId());
     else this.jumpBuckets.set([]);
   }
@@ -2099,7 +2035,6 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
         }
         this.prevCursor = response.prevCursor ?? null;
         this.hasPrevious.set(response.hasPrevious ?? false);
-        this.loadedFromStart = !this.hasPrevious();
         this.loadingPrevious.set(false);
         this.anchorAfterPrepend(container, prevHeight);
         if (this.hasPrevious()) this.rearmTopSentinel();
@@ -2225,43 +2160,4 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
       error: () => this.currentFolderName.set(''),
     });
   }
-}
-
-/**
- * Client-side port of the server's `JumpIndexService.BucketLabelFor` (1.8.0
- * scroll-spy). The browse DTO carries no bucket, so the rail's active letter is
- * derived from the visible card's display name with the same rules the server
- * used to build the buckets: skip a small set of leading punctuation, Latin
- * letters -> A-Z, digits -> "#", recognised script blocks -> their group label,
- * anything else -> "Other". Keep in sync with the server when the rules change.
- */
-export function jumpLabelFor(displayName: string): string {
-  if (!displayName) return 'Other';
-  const skippable = ' \t"\'()[]{}-_.,!?*#@~';
-  let i = 0;
-  while (i < displayName.length) {
-    const ch = displayName[i];
-    if (/[\p{L}\p{Nd}]/u.test(ch)) break;
-    if (skippable.includes(ch)) { i++; continue; }
-    break;
-  }
-  if (i >= displayName.length) return 'Other';
-
-  const cp = displayName.codePointAt(i)!;
-  if ((cp >= 0x41 && cp <= 0x5a) || (cp >= 0x61 && cp <= 0x7a)) {
-    return String.fromCodePoint(cp).toUpperCase();
-  }
-  if (/\p{Nd}/u.test(displayName[i])) return '#';
-
-  const c = cp;
-  if ((c >= 0x3040 && c <= 0x30ff) || (c >= 0xff65 && c <= 0xff9f)) return 'Kana';
-  if ((c >= 0x1100 && c <= 0x11ff) || (c >= 0xac00 && c <= 0xd7af) || (c >= 0x3130 && c <= 0x318f)) return 'Hangul';
-  if ((c >= 0x4e00 && c <= 0x9fff) || (c >= 0x3400 && c <= 0x4dbf) ||
-      (c >= 0x20000 && c <= 0x2ffff) || (c >= 0x2e80 && c <= 0x2eff) || (c >= 0x2f00 && c <= 0x2fdf)) return 'CJK';
-  if (c >= 0x0400 && c <= 0x052f) return 'Cyrillic';
-  if ((c >= 0x0370 && c <= 0x03ff) || (c >= 0x1f00 && c <= 0x1fff)) return 'Greek';
-  if ((c >= 0x0600 && c <= 0x06ff) || (c >= 0x0750 && c <= 0x077f)) return 'Arabic';
-  if (c >= 0x0590 && c <= 0x05ff) return 'Hebrew';
-  if (c >= 0x0e00 && c <= 0x0e7f) return 'Thai';
-  return 'Other';
 }

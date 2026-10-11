@@ -6,37 +6,36 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { MatBottomSheetRef, MAT_BOTTOM_SHEET_DATA } from '@angular/material/bottom-sheet';
 
 import {
-  ReaderSettingsMenuComponent, ReaderOptionsSheetComponent, ReaderOptionsHost,
+  ReaderQualityMenuComponent, ReaderOptionsSheetComponent, ReaderOptionsHost,
   ReaderView, ViewPref, FitMode, ReadingDirection,
 } from './reader-settings-menu.component';
 import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
 import { WebtoonNavPreferencesService } from './webtoon-nav.service';
 
-describe('ReaderSettingsMenuComponent', () => {
+/**
+ * The bar's Quality menu (1.41.0; the 1.19.0 Upscaling menu, moved): Upscaling, Enhance quality, Page quality and
+ * Downscale filter behind one trigger. The page transition / tap-to-scroll choices moved to the Display menu
+ * (reader-bar-menus.component.spec.ts).
+ */
+describe('ReaderQualityMenuComponent', () => {
   function create() {
     TestBed.configureTestingModule({
-      imports: [ReaderSettingsMenuComponent],
+      imports: [ReaderQualityMenuComponent],
       providers: [provideNoopAnimations()],
     });
     localStorage.clear();
     localStorage.setItem('mangapixer-reader-upscaler', 'smooth'); // pre-1.25.0 flows: a device that chose Smooth (the default is Crisp since 1.25.0)
-    const fixture = TestBed.createComponent(ReaderSettingsMenuComponent);
+    const fixture = TestBed.createComponent(ReaderQualityMenuComponent);
     fixture.detectChanges();
     return { fixture, c: fixture.componentInstance, prefs: TestBed.inject(ReaderPreferencesService) };
   }
 
-  it('renders a page-transition trigger button', () => {
-    const { fixture } = create();
-    const btn = (fixture.nativeElement as HTMLElement).querySelector('button[aria-label="Page transition"]');
-    expect(btn).toBeTruthy();
-  });
-
-  it('choose() writes the preference through the shared service', () => {
-    const { c, prefs } = create();
-    c.choose('reveal');
-    expect(prefs.pageAnimation()).toBe('reveal');
-    c.choose('none');
-    expect(prefs.pageAnimation()).toBe('none');
+  it('renders one trigger, "Quality", whose tooltip carries the GPU status', () => {
+    const { fixture, c } = create();
+    const buttons = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button'));
+    expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(['Quality']);
+    expect(buttons[0].textContent?.trim()).toBe('auto_fix_high');
+    expect(c.support.statusText()).toMatch(/^GPU: /); // the tooltip is 'Quality - ' + this line
   });
 
   /**
@@ -48,20 +47,20 @@ describe('ReaderSettingsMenuComponent', () => {
   describe('Upscaling menu (1.19.0)', () => {
     function openRendering(fixture: ReturnType<typeof create>['fixture']) {
       const trigger = (fixture.nativeElement as HTMLElement)
-        .querySelector('button[aria-label="Upscaling"]') as HTMLElement;
+        .querySelector('button[aria-label="Quality"]') as HTMLElement;
       expect(trigger).toBeTruthy();
       trigger.click();
       fixture.detectChanges();
       return { trigger, panel: document.querySelector('.reader-options-menu') as HTMLElement };
     }
 
-    it('renders a Upscaling trigger in the paged AND webtoon views', () => {
+    it('renders the Quality trigger in the paged AND webtoon views', () => {
       const { fixture } = create();
       const host = fixture.nativeElement as HTMLElement;
-      expect(host.querySelector('button[aria-label="Upscaling"]')).toBeTruthy();
+      expect(host.querySelector('button[aria-label="Quality"]')).toBeTruthy();
       fixture.componentRef.setInput('view', 'webtoon');
       fixture.detectChanges();
-      expect(host.querySelector('button[aria-label="Upscaling"]')).toBeTruthy();
+      expect(host.querySelector('button[aria-label="Quality"]')).toBeTruthy();
     });
 
     /** Upscaling items by their option label (the aria-label may carry an engine / reason line). */
@@ -341,7 +340,7 @@ describe('ReaderSettingsMenuComponent', () => {
   describe('Downscale filter menu (1.20.0)', () => {
     function openRendering(fixture: ReturnType<typeof create>['fixture']) {
       const trigger = (fixture.nativeElement as HTMLElement)
-        .querySelector('button[aria-label="Upscaling"]') as HTMLElement;
+        .querySelector('button[aria-label="Quality"]') as HTMLElement;
       trigger.click();
       fixture.detectChanges();
       return { panel: document.querySelector('.reader-options-menu') as HTMLElement };
@@ -410,58 +409,6 @@ describe('ReaderSettingsMenuComponent', () => {
     expect(opened).toBe(1);
     expect(closed).toBe(1);
   });
-
-  /**
-   * 1.10.0 (F4): the active transition is marked with the accent highlight
-   * (`selected-option` + aria-checked on a menuitemradio) and keeps its own
-   * glyph; the checkmark is gone. The panel renders in a CDK overlay, so open it
-   * and query `document`.
-   */
-  it('marks the active transition with the colour highlight, not a tick', () => {
-    const { fixture, c } = create();
-    c.choose('reveal');
-    fixture.detectChanges();
-    ((fixture.nativeElement as HTMLElement).querySelector('button[aria-label="Page transition"]') as HTMLElement).click();
-    fixture.detectChanges();
-    const panel = document.querySelector('.reader-options-menu') as HTMLElement;
-    expect(panel).not.toBeNull();
-    const items = Array.from(panel.querySelectorAll<HTMLElement>('button[mat-menu-item]'));
-    expect(items.map((i) => i.getAttribute('role'))).toEqual(['menuitemradio', 'menuitemradio', 'menuitemradio']);
-    const byLabel = (l: string) => items.find((i) => (i.textContent ?? '').trim().endsWith(l))!;
-    expect(byLabel('Reveal').classList.contains('selected-option')).toBe(true);
-    expect(byLabel('Reveal').getAttribute('aria-checked')).toBe('true');
-    expect(byLabel('Reveal').querySelector('mat-icon')?.textContent?.trim()).toBe('gradient');
-    expect(byLabel('Slide').classList.contains('selected-option')).toBe(false);
-    expect(byLabel('Slide').getAttribute('aria-checked')).toBe('false');
-    for (const i of items) expect(i.querySelector('mat-icon')?.textContent?.trim()).not.toBe('check');
-  });
-
-  /**
-   * 1.11.0: in the webtoon view the same toolbar slot offers the tap-to-scroll
-   * step instead of a page transition (which is meaningless while scrolling).
-   * One trigger per view, never two; the active step carries the same highlight.
-   */
-  it('webtoon view: the slot becomes Tap to scroll (Off / 80 / 90 / 100), highlighted like the transition menu', () => {
-    const { fixture, c } = create();
-    fixture.componentRef.setInput('view', 'webtoon');
-    fixture.detectChanges();
-    const host = fixture.nativeElement as HTMLElement;
-    expect(host.querySelector('button[aria-label="Page transition"]')).toBeNull();
-    const trigger = host.querySelector('button[aria-label="Tap to scroll"]') as HTMLElement;
-    expect(trigger).toBeTruthy();
-    trigger.click();
-    fixture.detectChanges();
-    const panel = Array.from(document.querySelectorAll<HTMLElement>('.reader-options-menu')).at(-1)!;
-    const items = Array.from(panel.querySelectorAll<HTMLElement>('button[mat-menu-item]'));
-    expect(items.map((i) => i.getAttribute('aria-label')))
-      .toEqual(['Tap to scroll: Off', 'Tap to scroll: 80%', 'Tap to scroll: 90%', 'Tap to scroll: 100%']);
-    expect(items.map((i) => i.getAttribute('aria-checked'))).toEqual(['false', 'false', 'true', 'false']); // default 90
-    expect(items[2].classList.contains('selected-option')).toBe(true);
-    c.chooseTapStep(100);
-    fixture.detectChanges();
-    expect(TestBed.inject(WebtoonNavPreferencesService).tapStep()).toBe(100);
-    expect(items[3].getAttribute('aria-checked')).toBe('true');
-  });
 });
 
 /**
@@ -474,10 +421,11 @@ describe('ReaderSettingsMenuComponent', () => {
 describe('ReaderOptionsSheetComponent', () => {
   function makeHost(overrides: Partial<{
     view: ReaderView; viewPref: ViewPref | null; shifted: boolean; fit: FitMode; dir: ReadingDirection;
-    prev: boolean; next: boolean; narrow: boolean; bookmarked: boolean; favorite: boolean;
+    prev: boolean; next: boolean; narrow: boolean; bookmarked: boolean; favorite: boolean; series: string | null;
   }> = {}) {
     const o = { view: 'paged' as ReaderView, viewPref: null as ViewPref | null, shifted: true, fit: 'screen' as FitMode,
-      dir: 'ltr' as ReadingDirection, prev: false, next: true, narrow: false, bookmarked: false, favorite: false, ...overrides };
+      dir: 'ltr' as ReadingDirection, prev: false, next: true, narrow: false, bookmarked: false, favorite: false,
+      series: null as string | null, ...overrides };
     const host: ReaderOptionsHost = {
       view: signal(o.view),
       viewPref: signal(o.viewPref),
@@ -492,6 +440,7 @@ describe('ReaderOptionsSheetComponent', () => {
       nextNeighbor: signal(o.next ? { displayName: 'Ch 2' } : null),
       isCurrentPageBookmarked: signal(o.bookmarked),
       currentFavorite: signal(o.favorite),
+      seriesInfoAnchor: signal(o.series),
       chooseView: vi.fn(),
       chooseSpread: vi.fn(),
       setFitMode: vi.fn(),
@@ -503,6 +452,7 @@ describe('ReaderOptionsSheetComponent', () => {
       toggleBookmark: vi.fn(),
       openBookmarks: vi.fn(),
       toggleFavorite: vi.fn(),
+      openSeriesInfo: vi.fn(),
     };
     return host;
   }
@@ -609,6 +559,38 @@ describe('ReaderOptionsSheetComponent', () => {
     chip('reader-options-tap', 'Off').click();
     expect(TestBed.inject(WebtoonNavPreferencesService).tapStep()).toBe(0);
     expect(localStorage.getItem(WebtoonNavPreferencesService.TapStepKey)).toBe('0');
+  });
+
+  it('webtoon: Edge taps right after Tap to scroll - Right goes forward (default) / Left goes forward (1.41.0)', () => {
+    const { el, chips, checked, chip } = create(makeHost({ view: 'webtoon' }));
+    const labels = Array.from(el.querySelectorAll('h4.group-label')).map((h) => h.id);
+    expect(labels.indexOf('reader-options-edges')).toBe(labels.indexOf('reader-options-tap') + 1);
+    expect(el.querySelector('#reader-options-edges')?.textContent?.trim()).toBe('Edge taps');
+    expect(chips('reader-options-edges').map((c) => (c.textContent ?? '').trim()))
+      .toEqual(['eastRight goes forward', 'westLeft goes forward']);
+    expect(checked('reader-options-edges').map((c) => c.classList.contains('selected'))).toEqual([true]);
+    expect(checked('reader-options-edges')[0].textContent).toContain('Right goes forward');
+    chip('reader-options-edges', 'Left goes forward').click();
+    expect(TestBed.inject(WebtoonNavPreferencesService).forwardEdge()).toBe('left');
+    expect(localStorage.getItem(WebtoonNavPreferencesService.ForwardEdgeKey)).toBe('left');
+  });
+
+  it('webtoon: Edge taps reads as inactive while Tap to scroll is Off, and comes back with it', () => {
+    const { fixture, group, chips, chip } = create(makeHost({ view: 'webtoon' }));
+    chip('reader-options-tap', 'Off').click();
+    fixture.detectChanges();
+    expect(chips('reader-options-edges').map((c) => (c as HTMLButtonElement).disabled)).toEqual([true, true]);
+    const section = group('reader-options-edges').parentElement as HTMLElement;
+    expect(section.querySelector('.group-hint')?.textContent).toContain('Off while Tap to scroll is Off');
+    chip('reader-options-tap', '90%').click();
+    fixture.detectChanges();
+    expect(chips('reader-options-edges').map((c) => (c as HTMLButtonElement).disabled)).toEqual([false, false]);
+    expect(section.querySelector('.group-hint')).toBeNull();
+  });
+
+  it('paged: no Edge taps group', () => {
+    const { el } = create();
+    expect(el.querySelector('#reader-options-edges')).toBeNull();
   });
 
   it('double page on a narrow portrait screen keeps the chip checked and explains the single-page render inline (1.11.0)', () => {
@@ -857,6 +839,22 @@ describe('ReaderOptionsSheetComponent', () => {
       expect(ref.dismiss).not.toHaveBeenCalled();
     });
 
+    it('Series info (1.41.0): a fourth tile only when the archive has series information; it closes the sheet, then opens the page', () => {
+      expect(Array.from(create().el.querySelectorAll('.action-row button')).map((b) => b.getAttribute('aria-label')))
+        .not.toContain('Series info');
+      const { el, host, ref } = create(makeHost({ series: 'anchor-9' }));
+      const buttons = Array.from(el.querySelectorAll<HTMLButtonElement>('.action-row button'));
+      expect(buttons.map((b) => b.getAttribute('aria-label')))
+        .toEqual(['Bookmark this page', 'Bookmarks', 'Add to favorites', 'Series info']);
+      const tile = action(el, 'Series info');
+      expect(tile.querySelector('mat-icon')?.textContent?.trim()).toBe('info_outline');
+      tile.click();
+      expect(ref.dismiss).toHaveBeenCalledTimes(1);
+      expect(host.openSeriesInfo).toHaveBeenCalledTimes(1);
+      expect(ref.dismiss.mock.invocationCallOrder[0])
+        .toBeLessThan((host.openSeriesInfo as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]);
+    });
+
     it('Bookmarks closes this sheet first, then opens the bookmarks list once it has gone', () => {
       const { el, host, ref } = create();
       action(el, 'Bookmarks').click();
@@ -865,6 +863,24 @@ describe('ReaderOptionsSheetComponent', () => {
       const opened = (host.openBookmarks as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
       expect(ref.dismiss.mock.invocationCallOrder[0]).toBeLessThan(opened);
     });
+  });
+
+  it('is grouped like the bar (1.41.0): actions, a Display section, a Quality section, archives, help', () => {
+    const { el } = create();
+    const order = Array.from(el.querySelectorAll<HTMLElement>('.action-row, .section-label, .group-label, .chapter-row, .help-row'))
+      .map((e) => e.classList.contains('action-row') ? 'actions'
+        : e.classList.contains('chapter-row') ? 'archives'
+          : e.classList.contains('help-row') ? 'help'
+            : e.classList.contains('section-label') ? `## ${e.textContent?.trim()}` : (e.firstChild?.textContent ?? '').trim());
+    expect(order).toEqual([
+      'actions',
+      '## Display', 'Layout', 'Image fit', 'Reading direction', 'Page transition',
+      '## Quality', 'Upscaling', 'Page quality', 'Downscale filter',
+      'archives', 'help',
+    ]);
+    // Headings: the sheet (h2) > its sections (h3) > their groups (h4).
+    expect(Array.from(el.querySelectorAll('h3')).map((h) => h.textContent?.trim())).toEqual(['Display', 'Quality']);
+    expect(el.querySelectorAll('h4.group-label').length).toBe(7);
   });
 
   it('Reading help and Close dismiss the sheet (help then opens the overlay)', () => {

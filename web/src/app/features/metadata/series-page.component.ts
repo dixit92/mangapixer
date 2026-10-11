@@ -129,6 +129,13 @@ import { SeriesRefreshCadenceComponent } from './series-refresh-cadence/series-r
               </p>
             }
           }
+          @for (c of i.companions ?? []; track c.provider) {
+            <!-- 1.41.0: the linked series' MangaDex record, as a link to its public page (nothing is fetched to show it). -->
+            <p data-testid="series-companion">
+              Also on:
+              <a [href]="c.siteUrl" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">{{ c.providerName }}</a>
+            </p>
+          }
           @if (i.comicInfo) {
             <p>ComicInfo: {{ i.comicInfo.itemsWithComicInfo }} of {{ i.comicInfo.itemsTotal }} items</p>
             @for (url of i.comicInfo.webLinks ?? []; track url) {

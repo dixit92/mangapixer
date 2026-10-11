@@ -149,7 +149,7 @@ async function openReader(page: Page): Promise<void> {
 }
 
 async function openRenderingMenu(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Upscaling', exact: true }).click();
+  await page.getByRole('button', { name: 'Quality', exact: true }).click(); // 1.41.0: the Quality menu (was Upscaling)
   await expect(page.getByRole('menuitemradio', { name: /^Upscaling: Smooth/ })).toBeVisible();
 }
 

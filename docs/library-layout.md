@@ -106,7 +106,7 @@ Page files inside an archive sort by these rules on their full path inside the a
 
 ### Folders and archives
 
-In the library view, **Name** sort applies the same rules. This affects browsing, next/previous archive, folder covers, the pinned Continue row and the A–Z jump rail:
+In the library view, **Name** sort applies the same rules. This affects browsing, next/previous archive, folder covers, the pinned Continue row and the jump rail:
 
 | On disk | Shown in Name order |
 |---|---|
@@ -144,14 +144,20 @@ Choose **Select** to pick several items for a bulk action, such as marking them 
 
 ### Jump navigation
 
-At the library root, sorted by Name ascending with no filter active, a **jump rail** appears (on phones, an **A-Z** button that opens a letter picker). It groups the top-level entries by their first character:
+Sorted by Name with no filter active, a **jump rail** appears above the list (on phones, a button that opens a picker) - at the library root and inside folders (*new in 1.41.0*), in ascending and in descending order (descending reverses the rail). Each chip shows how many entries it holds; selecting it scrolls to the first one, or reloads the list from there when it is further down. The chips follow the list from top to bottom, and each one covers one unbroken stretch of it.
 
-- `#` for names starting with a digit.
-- `A`–`Z` for Latin letters. Accented letters such as `É` go to **Other**.
-- Script groups for other writing systems: **Kana**, **Hangul**, **CJK**, **Cyrillic**, **Greek**, **Arabic**, **Hebrew**, **Thai**.
-- **Other** for everything else.
+The rail adapts to what the folder holds (*new in 1.41.0*):
 
-Leading punctuation, brackets and spaces are skipped, so `(Title)` and `-Title-` file under `T`. Each chip shows how many entries it holds. Selecting it scrolls to the first one.
+- **Numbers.** When most names in a folder number their chapters or volumes - `Ch. 0012`, `Vol. 003`, `Series - 045`, or just `0000` to `0321` - the rail shows round number ranges, for example `0`, `50`, `100` ... `300` for a folder of chapters 0 to 321. The step is 1, 2 or 5 times a power of ten, chosen so the rail has at most 12 ranges (fewer in a small folder); ranges with nothing in them are left out. A chip shows where its range starts, its tooltip and the phone picker show the whole range (`50-99`). A part such as `10.5` is in the range of `10`. A chapter number is used when the names state chapters, else the volume number, else the number the name starts with. A few entries without a number (a one-shot, an artbook) get an **Other** chip where they appear in the list; when the numbers do not follow the list (mixed numbering), the rail shows letters instead.
+- **Letters.** Otherwise the rail shows the first character of each name, as the list sorts it:
+    - `#` for names starting with a digit, a space or punctuation (brackets, quotes, dashes) - they sort before the letters.
+    - `A`-`Z` for Latin letters. Accented letters such as `É` go to **Other**.
+    - Script groups for other writing systems: **Kana**, **Hangul**, **CJK**, **Cyrillic**, **Greek**, **Arabic**, **Hebrew**, **Thai**.
+    - **Other** for everything else.
+- **A common start is ignored.** When most names start the same way - `Ch. `, `Vol. `, `<Series> - `, `[Group] <Series> v` - the rail looks at what follows, so `<Series> - Alpha` and `<Series> - Beta` give `A` and `B` instead of one chip.
+- **Folders and files.** When a folder holds both subfolders and archives (folders are listed first), the kind with more entries gets the rail and the other one a single **Folders** or **Files** chip at its place in the list.
+
+The rail is not shown in the [Volumes view](volumes.md), which lists volumes instead of files, or when it would have a single chip.
 
 ## Favorites
 
@@ -197,6 +203,7 @@ After a scan, new archives are analyzed in the background. Their page counts and
 
   Otherwise the moved file is treated as a new item. A file that was removed and comes back later at another path is recognized the same way while it is inside the move window (below).
 - **Chapters replaced by their volume** (*new in 1.40.0*): when the chapter files of a series are replaced, in the same folder, by the volume file that collects them (as some download and library tools do), the volume keeps what you had read. It counts as **read** when you had read every chapter the series' volume list gives for that volume - extras such as a chapter 9.5 are optional - and as **in progress** at its first page when you had read only some of them. This needs a folder linked to its series (Confirmed or automatic) with a stored volume list (see [Volumes](volumes.md#how-chapters-are-placed-in-a-volume)); the volume file must be named as a volume (`v01`, `Vol. 1`). It happens once the volume file has been analyzed - on the next scan, or when the server starts - while the removed chapters are still in the [trash](trash.md) (the move window, below). A volume someone has already marked read or read past its first page is left as it is, a volume you mark unread afterwards stays unread, and a volume file that was in the folder at the same time as the chapters is not a replacement.
+- **Volume ranges and re-released volumes** (*new in 1.41.0*): the same works for a file that holds several volumes, named as a volume range (`v01-03`, `Vol. 1-3`, `Volume 01-05`) - it counts as **read** when you had read every chapter of every volume in the range, and as **in progress** at its first page when you had read some of them. Each volume of the range can also be covered by the volume file it replaced (`v01`, `v02` and `v03` replaced by `v01-03`). If the series' volume list does not give one of the range's volumes exactly (and no volume file of it was replaced), the range is left as it is. A volume file that replaces the same volume (a re-encoded or re-released `v03` replacing `v03`) takes what you had done with the old one, even in a folder that is not linked to a series: **read** stays read, and a volume you were reading continues at the same page when both files have the same number of pages (otherwise at the first page). Of two replaced copies of a volume, the one you read most recently counts. The two file names must name the same work and edition once volume numbers, bracketed tags (such as the scan group or `(Digital)`), years and the extension are left out - so another series' `v03` in the same folder, or a kanzenban `v03` replacing a regular one, is not a replacement. Two files in the folder that hold the same volume (`v01-03` next to `v03`) are left as they are, a file with exactly the same content is a move (above), not a replacement, and nothing is carried in a folder marked **Don't match**, **Collection about** or an artist's folder.
 - **Moved or renamed folders** keep the settings an admin gave them (reading direction, series link or **Don't match**, source precedence, **Content**, the Volumes view setting, the cover choice and the folder's [cover preference](covers.md#choose-what-a-folder-shows-admins)) and every user's star when at least 80% of their archives moved to the same new folder. Otherwise the settings wait under **Missing folders** on the Metadata Manager page. See [Renamed and moved folders](series-information.md#renamed-and-moved-folders).
 - **Safety net:** if a scan finds that almost everything has vanished (for example an unmounted share), it deletes nothing. The same applies if the library folder itself is unreachable; the scan fails with "Library root is not accessible."
 
