@@ -13,10 +13,10 @@ Everything MangaPixer does today, by area. The [README](../README.md) has the sh
 
 ## Reader
 
-- Four modes: paged left-to-right, paged right-to-left (manga), double-page spreads, and vertical webtoon scrolling. Admins set a default mode per library and per folder, and each user can override it per item or set a personal default.
+- Four modes: paged left-to-right, paged right-to-left (manga), double-page spreads, and vertical webtoon scrolling. Admins set a default mode per library and per folder, and each user can override it per item or set a personal default. *New in 1.41.0:* **Reading mode suggestions** (Administration) lists folders whose pages are long webtoon strips or whose ComicInfo says right-to-left, for a one-click folder default - never applied on its own, nothing looked up on the web.
 - Double-page mode adapts: it shows a single page in narrow portrait, keeps wide spreads whole, and shows both page numbers. When extra pages split a spread across the wrong pair, you can shift the pairing anywhere in an archive, and it is saved for everyone who reads it.
 - Image quality: pages are sent at the size your screen shows them (or full size, your choice), downscaled on the server with a choice of filter to keep screentones clean. Pages shown larger than their resolution can be redrawn on your device's graphics chip: **Crisp** (AMD FSR 1, light; the default) or **Enhance** (the Anime4K line-art upscaler, **Efficient** or **Max quality**), in paged and vertical mode. Enhance uses WebGPU over HTTPS and WebGL2 elsewhere, so both also work over plain `http://` on your LAN, and the reader always shows which engine is running.
-- Touch and keyboard navigation: direction-aware swipe zones, arrow keys, a draggable page scrubber, a help overlay (`?`), and immersive fullscreen.
+- Touch and keyboard navigation: direction-aware swipe zones, arrow keys, a draggable page scrubber, a help overlay (`?`), and immersive fullscreen (*new in 1.41.0:* double tap or double click the center to enter or leave it). The toolbar groups its options into **Display** and **Quality** menus (*new in 1.41.0*).
 - Webtoon tap zones and swipe move by a configurable step (90% of the screen by default). Turn them off for free scrolling only.
 - Configurable page-turn animation (Slide / Reveal / None).
 - Auto-advance to the next or previous archive, plus page prefetch around the current position.
@@ -24,7 +24,7 @@ Everything MangaPixer does today, by area. The [README](../README.md) has the sh
 ## Series information
 
 - Reads the `ComicInfo.xml` inside your archives (series, number, summary, credits, genres, publisher). Nothing leaves your server for this.
-- A card with series information shows an **(i)**: it opens a side panel with the summary, and a full series page lists the items.
+- A card with series information shows an **(i)**: it opens a side panel with the summary, and a full series page lists the items. *New in 1.41.0:* the reader's **Series info** button opens it while you read, and a linked series lists its MangaDex title under **Sources**.
 - Admins can link a folder or archive to a [MangaUpdates](https://www.mangaupdates.com) series with **Identify** (search, or paste a MangaUpdates address). Optional and off by default; see [What leaves your server](privacy-and-security.md#what-leaves-your-server).
 - **Automatic matching** (a separate switch with its own consent, also off by default) matches new folders in the background. It tells series, one-shots, artist folders and collections apart by their names and contents, so category folders are never linked themselves. Confident matches go live at once; close calls wait for an admin on the **Metadata Manager** page (account menu), where each can be accepted, identified by hand or marked **Don't match**. Linked series are refreshed in the background.
 - In **Needs review**, **Later** sets a hard case aside (kept on the server, for every admin) so the easy matches can be accepted first. A row also says when other waiting works are by the same circle or artist (read from names like `[Circle (Artist)] Title`, also without the opening bracket) or sit in the same folder; one tap lists them together for a bulk action, and **Authors** lists the largest groups first.
