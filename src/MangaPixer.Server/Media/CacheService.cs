@@ -33,8 +33,9 @@ public sealed class CacheService
     private readonly ConcurrentDictionary<string, int> _pinnedFiles = new();
     private readonly object _evictionLock = new();
     private readonly ILogger<CacheService>? _logger;
+    private readonly MediaMetrics? _metrics;
 
-    public CacheService(string cacheRoot, long budgetBytes, ILogger<CacheService>? logger = null)
+    public CacheService(string cacheRoot, long budgetBytes, ILogger<CacheService>? logger = null, MediaMetrics? metrics = null)
     {
         _cacheRoot = Path.GetFullPath(cacheRoot)
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
@@ -43,6 +44,8 @@ public sealed class CacheService
             + "-" + Guid.NewGuid().ToString("N")[..6]);
         _budgetBytes = budgetBytes;
         _logger = logger;
+        _metrics = metrics;
+        _metrics?.ObserveCache(() => new MediaCacheGauges(_budgetBytes, GetCurrentUsageBytes(), ActiveCount, _entries.Count));
     }
 
     /// <summary>This process's run folder; every cache file and temp file lives under it.</summary>
@@ -187,6 +190,14 @@ public sealed class CacheService
     /// </summary>
     public bool TryGet(string cacheKey, out CacheEntry? entry)
     {
+        var found = TryGetCore(cacheKey, out entry);
+        // 1.42.0 profiling: one lookup per caller question (OpenRead's own re-check below is not counted).
+        _metrics?.Count(MediaMetrics.CacheLookup, found ? "hit" : "miss");
+        return found;
+    }
+
+    private bool TryGetCore(string cacheKey, out CacheEntry? entry)
+    {
         if (_entries.TryGetValue(cacheKey, out var e) && e.State == CacheEntryState.Active)
         {
             var filePath = GetCacheFilePath(cacheKey);
@@ -213,7 +224,7 @@ public sealed class CacheService
     /// </summary>
     public Stream? OpenRead(string cacheKey)
     {
-        if (!TryGet(cacheKey, out var entry) || entry is null)
+        if (!TryGetCore(cacheKey, out var entry) || entry is null)
             return null;
 
         var filePath = GetCacheFilePath(cacheKey);
@@ -235,6 +246,7 @@ public sealed class CacheService
     /// </summary>
     public async Task PublishAsync(string cacheKey, string sourceFilePath, string mediaType, CancellationToken ct = default)
     {
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
         var cacheFilePath = GetCacheFilePath(cacheKey);
         var cacheDir = Path.GetDirectoryName(cacheFilePath)!;
 
@@ -280,6 +292,8 @@ public sealed class CacheService
 
         // Check if we need to evict
         TryEvict();
+        _metrics?.Count(MediaMetrics.CachePublished, "file");
+        _metrics?.RecordMs(MediaMetrics.CachePublish, "file", System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
     }
 
     /// <summary>
@@ -385,6 +399,7 @@ public sealed class CacheService
                 .ToList();
 
             var evictedCount = 0;
+            long evictedBytes = 0;
             foreach (var entry in candidates)
             {
                 if (usage <= _budgetBytes)
@@ -397,6 +412,7 @@ public sealed class CacheService
 
                     entry.State = CacheEntryState.Evicted;
                     usage -= entry.ByteSize;
+                    evictedBytes += entry.ByteSize;
                     evictedCount++;
                 }
                 catch
@@ -409,6 +425,8 @@ public sealed class CacheService
 
             if (evictedCount > 0)
             {
+                _metrics?.Count(MediaMetrics.CacheEvicted, "lru", evictedCount);
+                _metrics?.Count(MediaMetrics.CacheEvictedBytes, "lru", evictedBytes);
                 _logger?.LogDebug(LogEvents.Cache.CacheEvictedBatch, "Cache evicted {Count} entries; usage now {Usage} bytes", evictedCount, usage);
             }
         }

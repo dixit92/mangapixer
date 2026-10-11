@@ -591,7 +591,11 @@ public sealed class WorkerLoop
 
         try
         {
+            // 1.42.0 profiling: where an extract spends its time (open / read / encode), returned with the result.
+            var phase = Stopwatch.StartNew();
             using var reader = await ArchiveReader.OpenAsync(request.ArchivePath, _shutdownToken);
+            var openMs = (int)phase.ElapsedMilliseconds;
+            phase.Restart();
 
             // Solid archives need sequential decompression to reach entry N; that is
             // a later package. Fail gracefully rather than hang or read the wrong page.
@@ -623,6 +627,9 @@ public sealed class WorkerLoop
                 return;
             }
 
+            var readMs = (int)phase.ElapsedMilliseconds;
+            phase.Restart();
+
             var outDir = Path.GetDirectoryName(request.OutputPath);
             if (!string.IsNullOrEmpty(outDir)) Directory.CreateDirectory(outDir);
 
@@ -640,6 +647,7 @@ public sealed class WorkerLoop
                     SanitizeErrorString(ex.Message), recoverable: false);
                 return;
             }
+            var encodeMs = (int)phase.ElapsedMilliseconds;
 
             // Post-validate: if the source changed mid-extract, discard the output.
             var postStamp = GetSourceStamp(request.ArchivePath);
@@ -660,6 +668,9 @@ public sealed class WorkerLoop
                 Width = encoded.Width,
                 Height = encoded.Height,
                 ByteSize = encoded.ByteSize,
+                OpenMs = openMs,
+                ReadMs = readMs,
+                EncodeMs = encodeMs,
             };
             var envelope = WorkerProtocolFraming.CreateEnvelope("extract_result", correlationId, result);
             await WorkerProtocolFraming.WriteEnvelopeAsync(_stdout, envelope, _shutdownToken);

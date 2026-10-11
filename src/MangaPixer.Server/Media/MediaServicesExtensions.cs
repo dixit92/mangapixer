@@ -71,9 +71,13 @@ public static class MediaServicesExtensions
                 sp.GetService<ILogger<ScratchWorkspaceManager>>()));
         services.AddSingleton<JobScheduler>(sp =>
             new JobScheduler(options, sp.GetService<ILogger<JobScheduler>>()));
+        // In-process media metrics (1.42.0 profiling): one Meter, no exporter; read by the admin diagnostics endpoint.
+        services.AddSingleton<MediaMetrics>();
+        services.AddHostedService<MediaMetricsSummaryService>();
+
         services.AddSingleton<CacheService>(sp =>
             new CacheService(options.CacheRoot, options.CacheBudgetBytes,
-                sp.GetService<ILogger<CacheService>>()));
+                sp.GetService<ILogger<CacheService>>(), sp.GetService<MediaMetrics>()));
         services.AddSingleton<AnalysisResultPersister>();
 
         // Durable thumbnail store under DataRoot/thumbnails (1.2.0). Lives in
@@ -114,7 +118,8 @@ public static class MediaServicesExtensions
             var scratch = sp.GetRequiredService<ScratchWorkspaceManager>();
             var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
             var persister = sp.GetRequiredService<AnalysisResultPersister>();
-            return new MediaWorkerPool(options, scheduler, scratch, logger, loggerFactory, scopeFactory, persister);
+            return new MediaWorkerPool(options, scheduler, scratch, logger, loggerFactory, scopeFactory, persister,
+                sp.GetService<MediaMetrics>());
         });
 
         return services;

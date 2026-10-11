@@ -29,6 +29,8 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     private readonly ILoggerFactory? _loggerFactory;
     private readonly IServiceScopeFactory? _scopeFactory;
     private readonly AnalysisResultPersister? _persister;
+    private readonly MediaMetrics _metrics;
+    private readonly bool _ownsMetrics;
     private readonly List<WorkerSlot> _workers = [];
     private readonly object _poolLock = new();
     private readonly CancellationTokenSource _readCts = new();
@@ -72,7 +74,8 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         ILogger<MediaWorkerPool> logger,
         ILoggerFactory? loggerFactory = null,
         IServiceScopeFactory? scopeFactory = null,
-        AnalysisResultPersister? persister = null)
+        AnalysisResultPersister? persister = null,
+        MediaMetrics? metrics = null)
     {
         _options = options;
         _scheduler = scheduler;
@@ -81,7 +84,15 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         _loggerFactory = loggerFactory;
         _scopeFactory = scopeFactory;
         _persister = persister;
+        _ownsMetrics = metrics is null;
+        _metrics = metrics ?? new MediaMetrics();
+        _metrics.ObservePool(() => new MediaPoolGauges(
+            _options.MaxConcurrentJobs, WorkerCount, BusyWorkerCount, Volatile.Read(ref _waitingReaders),
+            _scheduler.PendingCount, _scheduler.InFlightCount));
     }
+
+    /// <summary>The media metrics this pool records into (1.42.0 profiling).</summary>
+    public MediaMetrics Metrics => _metrics;
 
     /// <summary>
     /// Starts the worker pool. Initializes scratch root, pre-starts workers and,
@@ -424,6 +435,9 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         // One Debug line per dispatched job: operation, correlation IDs, and the
         // queue depths needed to diagnose saturation. Completion is logged by the
         // scheduler with the duration; per-protocol messages stay at Trace.
+        _metrics.RecordMs(MediaMetrics.AnalysisQueueWait, job.Priority.ToString().ToLowerInvariant(),
+            (DateTimeOffset.UtcNow - job.EnqueuedAt).TotalMilliseconds);
+
         _logger.LogDebug(LogEvents.Worker.JobDispatched,
             "Dispatching {Operation} job {JobId} (item {ItemId}, priority {Priority}) to worker {Slot}; pending {Pending}, in-flight {InFlight}",
             job.Operation, job.JobId, job.ItemId, job.Priority, slot.Id, _scheduler.PendingCount, _scheduler.InFlightCount);
@@ -490,13 +504,39 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         int webpQuality,
         CancellationToken ct = default,
         int maxDimension = 0,
-        string? resizeFilter = null)
+        string? resizeFilter = null,
+        MediaSlotKind slotKind = MediaSlotKind.Page)
     {
+        var slotWait = new double[1];
+        var outcome = await ExtractPageCoreAsync(archivePath, sourceEntryKey, variant, expectedLastWriteTicks, expectedByteLength,
+            outputPath, thumbnailMaxDimension, webpQuality, ct, maxDimension, resizeFilter, slotKind, slotWait);
+        // The slot wait of this request (1.42.0 profiling; null when it never asked for a slot).
+        return outcome with { SlotWaitMs = slotWait[0] >= 0 ? slotWait[0] : null };
+    }
+
+    private async Task<PageExtractionOutcome> ExtractPageCoreAsync(
+        string archivePath,
+        string sourceEntryKey,
+        string variant,
+        long expectedLastWriteTicks,
+        long expectedByteLength,
+        string outputPath,
+        int thumbnailMaxDimension,
+        int webpQuality,
+        CancellationToken ct,
+        int maxDimension,
+        string? resizeFilter,
+        MediaSlotKind slotKind,
+        double[] slotWait)
+    {
+        slotWait[0] = -1;
         if (_isShuttingDown)
             return PageExtractionOutcome.Failed("unavailable", "Server is shutting down.");
 
         // Acquire a worker slot, briefly waiting if all are busy (e.g. mid-scan).
-        var slot = await AcquireSlotAsync(ct);
+        var waitStarted = Stopwatch.GetTimestamp();
+        var slot = await AcquireSlotAsync(slotKind, ct);
+        slotWait[0] = Stopwatch.GetElapsedTime(waitStarted).TotalMilliseconds;
         if (slot is null)
             return ct.IsCancellationRequested
                 ? PageExtractionOutcome.Failed("cancelled", "Request cancelled.")
@@ -533,7 +573,12 @@ public sealed class MediaWorkerPool : IAsyncDisposable
                         {
                             var r = WorkerProtocolFraming.GetPayload<ExtractResult>(envelope);
                             tcs.TrySetResult(r is not null
-                                ? PageExtractionOutcome.Ok(r.OutputPath, r.MediaType, r.Width, r.Height, r.ByteSize)
+                                ? PageExtractionOutcome.Ok(r.OutputPath, r.MediaType, r.Width, r.Height, r.ByteSize) with
+                                {
+                                    OpenMs = r.OpenMs,
+                                    ReadMs = r.ReadMs,
+                                    EncodeMs = r.EncodeMs,
+                                }
                                 : PageExtractionOutcome.Failed("extraction_failed", "Empty extract result."));
                             break;
                         }
@@ -552,17 +597,21 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             try
             {
                 var envelope = WorkerProtocolFraming.CreateEnvelope("extract", jobId, request);
+                var sent = Stopwatch.GetTimestamp();
                 await slot.Supervisor.SendMessageAsync(envelope, ct);
 
                 var timeout = Task.Delay(_options.AnalysisTimeout + _options.SourceOpenTimeout, ct);
                 var done = await Task.WhenAny(tcs.Task, timeout);
+                RecordWorkerCall(slot, slotKind, sent, completed: done == tcs.Task, ct);
                 if (done != tcs.Task)
                 {
                     // The delay also completes (cancelled) when the CLIENT gives up; that is not a timeout.
                     ct.ThrowIfCancellationRequested();
                     return PageExtractionOutcome.Failed("timeout", "Extraction timed out.");
                 }
-                return await tcs.Task;
+                var extracted = await tcs.Task;
+                RecordExtractPhases(slotKind, extracted);
+                return extracted;
             }
             finally
             {
@@ -580,8 +629,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         }
         finally
         {
-            ReleaseSlot(slot);
-            SignalDispatch();
+            ReleaseDirectSlot(slot, slotKind);
         }
     }
 
@@ -602,7 +650,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         if (_isShuttingDown)
             return ComicInfoReadOutcome.Failed("unavailable");
 
-        var slot = await AcquireSlotAsync(ct);
+        var slot = await AcquireSlotAsync(MediaSlotKind.ComicInfo, ct);
         if (slot is null)
             return ComicInfoReadOutcome.Failed(ct.IsCancellationRequested ? "cancelled" : "busy");
 
@@ -660,10 +708,12 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             try
             {
                 var envelope = WorkerProtocolFraming.CreateEnvelope("comicinfo", jobId, request);
+                var sent = Stopwatch.GetTimestamp();
                 await slot.Supervisor.SendMessageAsync(envelope, ct);
 
                 var timeout = Task.Delay(ComicInfoReadTimeout + _options.SourceOpenTimeout, ct);
                 var done = await Task.WhenAny(tcs.Task, timeout);
+                RecordWorkerCall(slot, MediaSlotKind.ComicInfo, sent, completed: done == tcs.Task, ct);
                 if (done != tcs.Task)
                 {
                     ct.ThrowIfCancellationRequested();
@@ -687,8 +737,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         }
         finally
         {
-            ReleaseSlot(slot);
-            SignalDispatch();
+            ReleaseDirectSlot(slot, MediaSlotKind.ComicInfo);
         }
     }
 
@@ -706,7 +755,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         if (_isShuttingDown)
             return ImageHashOutcome.Failed("unavailable");
 
-        var slot = await AcquireSlotAsync(ct);
+        var slot = await AcquireSlotAsync(MediaSlotKind.ImageHash, ct);
         if (slot is null)
             return ImageHashOutcome.Failed(ct.IsCancellationRequested ? "cancelled" : "busy");
 
@@ -747,9 +796,11 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             slot.Supervisor.OnMessageReceived += HandleMessage;
             try
             {
+                var sent = Stopwatch.GetTimestamp();
                 await slot.Supervisor.SendMessageAsync(WorkerProtocolFraming.CreateEnvelope("image_hash", jobId, request), ct);
                 var timeout = Task.Delay(ImageHashTimeout, ct);
                 var done = await Task.WhenAny(tcs.Task, timeout);
+                RecordWorkerCall(slot, MediaSlotKind.ImageHash, sent, completed: done == tcs.Task, ct);
                 if (done == tcs.Task)
                     return await tcs.Task;
                 ct.ThrowIfCancellationRequested();
@@ -771,8 +822,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         }
         finally
         {
-            ReleaseSlot(slot);
-            SignalDispatch();
+            ReleaseDirectSlot(slot, MediaSlotKind.ImageHash);
         }
     }
 
@@ -791,7 +841,9 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         if (_isShuttingDown)
             return CoverRenderOutcome.Failed("unavailable");
 
-        var slot = await AcquireSlotAsync(ct);
+        // Provider bytes in scratch (MangaDex volume covers, posters) vs an archive page (a cover crop).
+        var slotKind = request.ImagePath is not null ? MediaSlotKind.CoverRenderImage : MediaSlotKind.CoverRenderArchive;
+        var slot = await AcquireSlotAsync(slotKind, ct);
         if (slot is null)
             return CoverRenderOutcome.Failed(ct.IsCancellationRequested ? "cancelled" : "busy");
 
@@ -831,10 +883,12 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             slot.Supervisor.OnMessageReceived += HandleMessage;
             try
             {
+                var sent = Stopwatch.GetTimestamp();
                 await slot.Supervisor.SendMessageAsync(
                     WorkerProtocolFraming.CreateEnvelope("cover_render", jobId, request with { JobId = jobId }), ct);
                 var timeout = Task.Delay(CoverRenderTimeout, ct);
                 var done = await Task.WhenAny(tcs.Task, timeout);
+                RecordWorkerCall(slot, slotKind, sent, completed: done == tcs.Task, ct);
                 if (done == tcs.Task)
                     return await tcs.Task;
                 ct.ThrowIfCancellationRequested();
@@ -856,8 +910,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         }
         finally
         {
-            ReleaseSlot(slot);
-            SignalDispatch();
+            ReleaseDirectSlot(slot, slotKind);
         }
     }
 
@@ -872,7 +925,62 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     /// see reader demand exists and leave it a slot — see
     /// <see cref="EffectiveBackgroundCap"/>.
     /// </summary>
-    private async Task<WorkerSlot?> AcquireSlotAsync(CancellationToken ct)
+    private async Task<WorkerSlot?> AcquireSlotAsync(MediaSlotKind kind, CancellationToken ct)
+    {
+        var started = Stopwatch.GetTimestamp();
+        var slot = await AcquireSlotCoreAsync(ct);
+        var tag = MediaMetrics.KindTag(kind);
+        _metrics.RecordMs(MediaMetrics.SlotWait, tag, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        _metrics.Count(MediaMetrics.SlotOutcome, tag + ":" + (slot is not null ? "acquired" : ct.IsCancellationRequested ? "cancelled" : "timeout"));
+        if (slot is not null)
+            _metrics.SlotTaken(kind);
+        return slot;
+    }
+
+    /// <summary>Returns a slot taken by <see cref="AcquireSlotAsync"/> and wakes background dispatch.</summary>
+    private void ReleaseDirectSlot(WorkerSlot slot, MediaSlotKind kind)
+    {
+        _metrics.SlotReleased(kind);
+        ReleaseSlot(slot);
+        SignalDispatch();
+    }
+
+    /// <summary>
+    /// Records how long the worker took to answer a direct request, or - when the caller stopped waiting (timeout or
+    /// the client left) - that the slot is being freed while the worker process is still busy with that request. The
+    /// next request sent to that worker queues behind it (the worker is serial), so its time is recorded under
+    /// <c>&lt;kind&gt;_after_abandon</c>.
+    /// </summary>
+    private void RecordWorkerCall(WorkerSlot slot, MediaSlotKind kind, long sentTimestamp, bool completed, CancellationToken ct)
+    {
+        var tag = MediaMetrics.KindTag(kind);
+        if (completed)
+        {
+            _metrics.RecordMs(MediaMetrics.WorkerCall, slot.AbandonedRequestPending ? tag + "_after_abandon" : tag,
+                Stopwatch.GetElapsedTime(sentTimestamp).TotalMilliseconds);
+            slot.AbandonedRequestPending = false;
+        }
+        else
+        {
+            _metrics.Count(MediaMetrics.SlotReleasedWhileWorkerBusy, tag + ":" + (ct.IsCancellationRequested ? "cancelled" : "timeout"));
+            slot.AbandonedRequestPending = true;
+        }
+    }
+
+    private void RecordExtractPhases(MediaSlotKind kind, PageExtractionOutcome outcome)
+    {
+        if (!outcome.Success)
+            return;
+        var tag = MediaMetrics.KindTag(kind);
+        if (outcome.OpenMs is { } open)
+            _metrics.RecordMs(MediaMetrics.ExtractOpen, tag, open);
+        if (outcome.ReadMs is { } read)
+            _metrics.RecordMs(MediaMetrics.ExtractRead, tag, read);
+        if (outcome.EncodeMs is { } encode)
+            _metrics.RecordMs(MediaMetrics.ExtractEncode, tag, encode);
+    }
+
+    private async Task<WorkerSlot?> AcquireSlotCoreAsync(CancellationToken ct)
     {
         var deadline = DateTime.UtcNow.Add(_options.SourceOpenTimeout);
         _logger.LogDebug(LogEvents.Worker.ExtractSlotAcquire, "Acquiring worker slot for extract (timeout {TimeoutMs}ms, current {Count}/{Max})",
@@ -1176,6 +1284,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     {
         slot.IsBusy = true;
         _scheduler.MarkInFlight(job);
+        var runStarted = Stopwatch.GetTimestamp();
 
         // Allocate scratch workspace
         using var workspace = _scratchManager.AllocateWorkspace();
@@ -1317,6 +1426,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         }
         finally
         {
+            _metrics.RecordMs(MediaMetrics.AnalysisRun, job.Operation.ToString().ToLowerInvariant(), Stopwatch.GetElapsedTime(runStarted).TotalMilliseconds);
             ReleaseSlot(slot);
             // Scratch workspace is cleaned up by the using statement
         }
@@ -1453,6 +1563,8 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     {
         await StopAsync();
         _dispatchSignal.Dispose();
+        if (_ownsMetrics)
+            _metrics.Dispose();
     }
 
     private sealed class WorkerSlot
@@ -1467,6 +1579,12 @@ public sealed class MediaWorkerPool : IAsyncDisposable
 
         /// <summary>Set once, under the pool lock, when the slot is removed for idle retirement.</summary>
         public bool IsRetiring { get; set; }
+
+        /// <summary>
+        /// The last direct request on this worker was given up (timeout / client left) while the worker still ran it;
+        /// cleared by the next answered request (1.42.0 profiling).
+        /// </summary>
+        public bool AbandonedRequestPending { get; set; }
     }
 }
 
@@ -1539,6 +1657,15 @@ public sealed record PageExtractionOutcome
     public long ByteSize { get; init; }
     public string? ErrorType { get; init; }
     public string? ErrorMessage { get; init; }
+
+    /// <summary>The worker's open / read / encode milliseconds (1.42.0; null from a worker that does not report them).</summary>
+    public int? OpenMs { get; init; }
+
+    public int? ReadMs { get; init; }
+    public int? EncodeMs { get; init; }
+
+    /// <summary>How long this request waited for a worker slot, in ms (1.42.0; null when it never asked for one).</summary>
+    public double? SlotWaitMs { get; init; }
 
     public static PageExtractionOutcome Ok(string outputPath, string mediaType, int width, int height, long byteSize) =>
         new() { Success = true, OutputPath = outputPath, MediaType = mediaType, Width = width, Height = height, ByteSize = byteSize };
