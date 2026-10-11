@@ -66,8 +66,9 @@ public static partial class JumpIndexBuilder
     private readonly record struct Span(int Start, int Count, string Label, string? Range);
 
     /// <summary>
-    /// Builds the rail of one level. <paramref name="rows"/> must be in ascending ordinal <c>SortKey</c> order (the browse name sort);
-    /// <paramref name="containerName"/> is the listed folder's own name (its <c>No. N</c> is a title, not an issue), null at a root.
+    /// Builds the rail of one level. <paramref name="rows"/> must be in the listing's ascending <c>SortKey</c> order (as the database
+    /// orders the browse name sort); <paramref name="containerName"/> is the listed folder's own name (its <c>No. N</c> is a title, not
+    /// an issue), null at a root.
     /// </summary>
     public static JumpRail Build(IReadOnlyList<JumpRow> rows, bool descending, string? containerName = null)
     {

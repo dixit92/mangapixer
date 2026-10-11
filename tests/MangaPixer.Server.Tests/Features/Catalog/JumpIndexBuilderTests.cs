@@ -77,7 +77,7 @@ public sealed class JumpIndexBuilderTests
 
         Assert.Equal(JumpIndexBuilder.Numbers, rail.Mode);
         Assert.Equal(["0", "50", "100", "150", "200", "250", "300"], rail.Buckets.Select(b => b.Label).ToArray());
-        Assert.Equal(["0-49", "50-99", "100-149", "150-199", "200-249", "250-299", "300-349"], rail.Buckets.Select(b => b.Range).ToArray());
+        Assert.Equal(["0-49", "50-99", "100-149", "150-199", "200-249", "250-299", "300-349"], rail.Buckets.Select(b => b.Range ?? "").ToArray());
         Assert.Equal([50, 50, 50, 50, 50, 50, 22], rail.Buckets.Select(b => b.Count).ToArray());
     }
 
