@@ -200,6 +200,25 @@ public sealed class JumpIndexLevelsHttpTests : IClassFixture<MangaPixerWebApplic
     }
 
     [Fact]
+    public async Task VolumesView_HidesTheRail_AndTheFlatListGetsOne()
+    {
+        // Chapters that state their volume: the folder opens in the Volumes view (on by default), which pages by volume.
+        string folder = "";
+        var libraryId = await SeedLibraryAsync(async s =>
+        {
+            folder = await s.AddAsync(CatalogNodeKind.Folder, "Stacked Saga");
+            for (var c = 1; c <= 12; c++)
+                await s.AddAsync(CatalogNodeKind.Archive, $"Stacked Saga v{(c - 1) / 4 + 1:00} c{c:000}.cbz", folder);
+        });
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+
+        Assert.Empty((await GetIndexAsync(client, libraryId, $"?parentId={folder}")).Buckets);
+        var flat = await GetIndexAsync(client, libraryId, $"?parentId={folder}&group=flat");
+        Assert.Equal(["0", "5", "10"], flat.Buckets.Select(b => b.Label).ToArray());
+        Assert.Equal("Stacked Saga v03 c010.cbz", await FirstLandedAsync(client, libraryId, folder, flat.Buckets[2].FirstCursor, "asc&group=flat"));
+    }
+
+    [Fact]
     public async Task UnknownParent_Returns404()
     {
         var libraryId = await SeedLibraryAsync(s => s.AddAsync(CatalogNodeKind.Archive, "Alpha"));
