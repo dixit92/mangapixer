@@ -265,6 +265,43 @@ public sealed class ReadingModeSuggestionServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task TheSample_CutsTheLastArchive_AtItsFirstPages()
+    {
+        // 190 paged pages, then an archive of 30 paged + 370 tall pages: the sample takes its FIRST 210 (30 paged + 180 tall) -> 180 of
+        // 400 tall, not tall strips. Counting the cut archive's tall pages anywhere in it (210) would say tall.
+        var folder = await _t.AddFolderAsync(null, "Cut Sample");
+        var first = await PagedAsync(folder, "a", 190);
+        var second = await _t.AddArchiveAsync(folder, "b");
+        for (var i = 0; i < 400; i++)
+            _t.Db.PageEntries.Add(new PageEntryEntity
+            {
+                ItemId = second.Id,
+                ContentVersion = 1,
+                Ordinal = i,
+                EntryKey = new PageEntryKey(i).ToOpaque(),
+                SourceEntryLocator = $"p{i}.png",
+                MediaType = "image/png",
+                Width = 100,
+                Height = i < 30 ? 120 : 400,
+                ByteSize = 100,
+            });
+        await _t.Db.SaveChangesAsync();
+        // A second folder where the cut keeps the verdict tall: 190 paged, then 400 tall (210 of them in the sample).
+        var other = await _t.AddFolderAsync(null, "Cut Sample Tall");
+        await PagedAsync(other, "a", 190);
+        await TallAsync(other, "b", 400);
+
+        var list = await ListAsync();
+
+        Assert.False(await TallStripSampler.TallStripsAsync(_t.Db, [first.Id, second.Id], CancellationToken.None));
+        Assert.DoesNotContain(list.Items, r => r.NodeId == folder.PublicId);
+        var row = Assert.Single(list.Items);
+        Assert.Equal(other.PublicId, row.NodeId);
+        Assert.Equal((400, 210), (row.MeasuredPages, row.TallPages));
+        Assert.Equal(ReadingModeConfidence.Medium, row.Confidence);
+    }
+
+    [Fact]
     public async Task TombstonedArchivesAndFolders_AreIgnored()
     {
         var folder = await _t.AddFolderAsync(null, "Gone Strips");

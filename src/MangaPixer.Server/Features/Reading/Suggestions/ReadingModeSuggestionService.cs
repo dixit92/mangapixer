@@ -53,6 +53,10 @@ public sealed class ReadingModeSuggestionService
 
     private sealed record PageSampleRow(long FolderId, int Measured, int Tall);
 
+    private sealed record ArchivePagesRow(long ItemId, long FolderId, int Measured, int Tall);
+
+    private sealed record PartialTallRow(long ItemId, int Tall);
+
     private sealed record LinkRow(long NodeId, int State, int? Origin, bool? Webtoon);
 
     private sealed class Unit(long id)
@@ -265,31 +269,81 @@ public sealed class ReadingModeSuggestionService
     }
 
     /// <summary>
-    /// The tall-strip sample of every folder's direct live archives in ONE query: the first <see cref="TallStripRule.SamplePages"/>
-    /// measured pages per folder (archive id, then page order - the order <see cref="TallStripSampler"/> uses), counted and tall-counted.
+    /// The tall-strip sample of every folder's direct live archives: the first <see cref="TallStripRule.SamplePages"/> measured pages
+    /// per folder in archive-id, then page order - exactly the sample <see cref="TallStripSampler"/> takes - counted and tall-counted.
+    /// Two queries for the whole catalog (no per-folder round trip): a per-archive aggregate, then, for the one archive per folder that
+    /// the cap cuts, the tall count of its first pages. (A single window query over every page took about 3.5 s on 1.76 M synthetic
+    /// pages; this takes about 1 s.)
     /// </summary>
     private async Task<List<PageSampleRow>> PageSamplesAsync(CancellationToken ct)
     {
         // Constants only (no request input) are formatted into the SQL.
         var ratio = TallStripRule.Ratio.ToString("0.0###", CultureInfo.InvariantCulture);
-        var cap = TallStripRule.SamplePages.ToString(CultureInfo.InvariantCulture);
         var tombstoned = ((int)CatalogNodeAvailability.Tombstoned).ToString(CultureInfo.InvariantCulture);
         var archive = ((int)CatalogNodeKind.Archive).ToString(CultureInfo.InvariantCulture);
 #pragma warning disable EF1002
-        return await _db.Database.SqlQueryRaw<PageSampleRow>($"""
-            SELECT s."FolderId" AS "FolderId", COUNT(*) AS "Measured",
-                   SUM(CASE WHEN s."Height" >= s."Width" * {ratio} THEN 1 ELSE 0 END) AS "Tall"
-            FROM (
-                SELECT n."ParentId" AS "FolderId", p."Width" AS "Width", p."Height" AS "Height",
-                       ROW_NUMBER() OVER (PARTITION BY n."ParentId" ORDER BY p."ItemId", p."Ordinal") AS rn
-                FROM page_entries p JOIN catalog_nodes n ON n."Id" = p."ItemId"
-                WHERE n."Kind" = {archive} AND n."Availability" != {tombstoned} AND n."ParentId" IS NOT NULL
-                  AND p."Width" IS NOT NULL AND p."Height" IS NOT NULL AND p."Width" > 0
-            ) s
-            WHERE s.rn <= {cap}
-            GROUP BY s."FolderId"
+        var perArchive = await _db.Database.SqlQueryRaw<ArchivePagesRow>($"""
+            SELECT p."ItemId" AS "ItemId", n."ParentId" AS "FolderId", COUNT(*) AS "Measured",
+                   SUM(CASE WHEN p."Height" >= p."Width" * {ratio} THEN 1 ELSE 0 END) AS "Tall"
+            FROM page_entries p JOIN catalog_nodes n ON n."Id" = p."ItemId"
+            WHERE n."Kind" = {archive} AND n."Availability" != {tombstoned} AND n."ParentId" IS NOT NULL
+              AND p."Width" IS NOT NULL AND p."Height" IS NOT NULL AND p."Width" > 0
+            GROUP BY p."ItemId"
             """).ToListAsync(ct);
 #pragma warning restore EF1002
+
+        var samples = new List<PageSampleRow>();
+        var partial = new Dictionary<long, (long FolderId, int Need)>();
+        foreach (var folder in perArchive.GroupBy(a => a.FolderId))
+        {
+            int measured = 0, tall = 0;
+            foreach (var a in folder.OrderBy(a => a.ItemId))
+            {
+                var room = TallStripRule.SamplePages - measured;
+                if (room <= 0)
+                    break;
+                if (a.Measured <= room)
+                {
+                    measured += a.Measured;
+                    tall += a.Tall;
+                }
+                else
+                {
+                    measured += room;
+                    partial[a.ItemId] = (folder.Key, room);
+                }
+            }
+            samples.Add(new PageSampleRow(folder.Key, measured, tall));
+        }
+        if (partial.Count == 0)
+            return samples;
+
+        var extraTall = new Dictionary<long, int>();
+        foreach (var chunk in partial.Chunk(500))
+        {
+            var values = string.Join(',', chunk.Select(p =>
+                string.Create(CultureInfo.InvariantCulture, $"({p.Key}, {p.Value.Need})")));
+#pragma warning disable EF1002
+            var rows = await _db.Database.SqlQueryRaw<PartialTallRow>($"""
+                WITH need(item, k) AS (VALUES {values})
+                SELECT s."ItemId" AS "ItemId", SUM(CASE WHEN s."Height" >= s."Width" * {ratio} THEN 1 ELSE 0 END) AS "Tall"
+                FROM (
+                    SELECT p."ItemId" AS "ItemId", p."Width" AS "Width", p."Height" AS "Height",
+                           ROW_NUMBER() OVER (PARTITION BY p."ItemId" ORDER BY p."Ordinal") AS rn
+                    FROM page_entries p
+                    WHERE p."ItemId" IN (SELECT item FROM need)
+                      AND p."Width" IS NOT NULL AND p."Height" IS NOT NULL AND p."Width" > 0
+                ) s JOIN need ON need.item = s."ItemId"
+                WHERE s.rn <= need.k
+                GROUP BY s."ItemId"
+                """).ToListAsync(ct);
+#pragma warning restore EF1002
+            foreach (var r in rows)
+                extraTall[partial[r.ItemId].FolderId] = extraTall.GetValueOrDefault(partial[r.ItemId].FolderId) + r.Tall;
+        }
+        return samples
+            .Select(s => extraTall.TryGetValue(s.FolderId, out var t) ? s with { Tall = s.Tall + t } : s)
+            .ToList();
     }
 
     /// <summary>
