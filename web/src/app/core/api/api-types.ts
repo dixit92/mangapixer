@@ -121,18 +121,30 @@ export interface BreadcrumbsDto {
   trail: BreadcrumbEntry[];
 }
 
-/** One bucket of the per-library jump index. */
+/** One bucket of a level's jump index: one contiguous run of the listing (1.41.0). */
 export interface JumpIndexBucketDto {
   label: string;
   count: number;
   firstCursor: string | null;
+  /** 1.41.0: id of the bucket's first row in display order (the row its cursor lands on); drives the scroll-spy by position. */
+  firstNodeId?: string | null;
+  /** 1.41.0: in `numbers` mode the bucket's round range (`50-99`, `7`); null for letters and the Other / Folders / Files chips. */
+  range?: string | null;
 }
 
-/** Per-library A–Z/script rail. */
+/** The jump rail of one listed level - a library root or (1.41.0) a folder, name sort ascending or descending. */
 export interface JumpIndexDto {
   libraryId: string;
   buckets: JumpIndexBucketDto[];
+  /** 1.41.0: the folder this index covers; null at the library root. */
+  parentId?: string | null;
+  /** 1.41.0: the name-sort direction the buckets (display order) and cursors are for. */
+  direction?: 'asc' | 'desc';
+  /** 1.41.0: `letters` (A-Z, #, scripts) or `numbers` (round ranges, a common prefix such as `Ch. ` ignored). */
+  mode?: JumpIndexMode;
 }
+
+export type JumpIndexMode = 'letters' | 'numbers';
 
 export interface SearchResultsDto {
   query: string;
