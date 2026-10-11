@@ -27,10 +27,11 @@ public sealed class UpgradeCarryOverService
     public const string MarkSource = "upgrade";
 
     /// <summary>
-    /// The <see cref="ReadMarkEntity.Source"/> a replaced chapter's read mark takes once its read state was carried onto the volume
-    /// (1.40.0). Marking the volume unread removes its mark and progress - the state of a volume nobody touched - so without this the
-    /// next pass would carry it again for as long as the chapters stay in the trash. A user with a carried mark among the evidence is
-    /// skipped; the mark itself stays, so a chapter restored from the trash is still read. Nothing else reads a read mark's source.
+    /// The <see cref="ReadMarkEntity.Source"/> a replaced file's read mark takes once its read state was carried onto the new file
+    /// (1.40.0). Marking the new file unread removes its mark and progress - the state of a file nobody touched - so without this the
+    /// next pass would carry it again for as long as the replaced files stay in the trash. A user whose marks on the evidence are all
+    /// carried is skipped (1.41.0: ALL - a mark not yet carried is later evidence, such as the middle file of a re-release of a
+    /// re-release); the mark itself stays, so a file restored from the trash is still read. Nothing else reads a read mark's source.
     /// </summary>
     public const string CarriedEvidenceSource = "carried";
 
@@ -243,9 +244,11 @@ public sealed class UpgradeCarryOverService
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
         foreach (var userId in userIds.Order())
         {
-            if (marks.Any(m => m.UserId == userId && m.Source == CarriedEvidenceSource))
-                continue; // Carried before: what the user did with the volume since then stands.
             var userMarks = marks.Where(m => m.UserId == userId).ToList();
+            // Carried before from this very evidence: what the user did with the new file since then stands. A mark not yet carried is
+            // evidence that came later (1.41.0: a re-release of a re-release - the middle file's "upgrade" mark - or a chapter replaced later).
+            if (userMarks.Count > 0 && userMarks.All(m => m.Source == CarriedEvidenceSource))
+                continue;
             var userProgress = progress.Where(p => p.UserId == userId).ToList();
             var readFiles = userMarks.Select(m => m.ItemId)
                 .Concat(userProgress.Where(p => p.State == (int)ReadingState.Completed).Select(p => p.ItemId))

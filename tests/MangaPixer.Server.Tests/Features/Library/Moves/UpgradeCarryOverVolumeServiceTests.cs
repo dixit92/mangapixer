@@ -455,6 +455,25 @@ public sealed class UpgradeCarryOverVolumeServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task AReReleaseOfAReRelease_CarriesThroughTheMiddleFile()
+    {
+        var ids = await SeedAsync([Volume(2)], listJson: null, link: false);
+        var reader = await _h.AddUserAsync("reader");
+        await _h.MarkReadAsync(reader, ids[Volume(2)]);
+        var second = Volume(2, " (Re-encode)");
+        var middle = (await ReplaceAsync([Volume(2)], new Dictionary<string, int> { [second] = Pages }))[second];
+        await _h.PairAsync();
+        await AssertReadAsync(reader, middle);
+
+        // The middle file is replaced too: both replaced files are evidence; the first one's mark is already carried, the middle one's not.
+        var third = Volume(2, " [Re-release]");
+        var last = (await ReplaceAsync([second], new Dictionary<string, int> { [third] = Pages }))[third];
+        await _h.PairAsync();
+
+        await AssertReadAsync(reader, last);
+    }
+
+    [Fact]
     public async Task AVolumeFileTheCatalogSawNextToTheOldOne_IsNotAReplacement()
     {
         var ids = await SeedAsync([Volume(2)], listJson: null, link: false);
