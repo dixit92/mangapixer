@@ -104,4 +104,106 @@ public sealed class UpgradeCarryOverRulesTests
         var coverage = UpgradeCarryOver.Cover(units, files);
         Assert.Equal(UpgradeOutcome.Read, UpgradeCarryOver.Decide(units, coverage, new HashSet<long> { 2, 3 }));
     }
+
+    // 1.41.0 follow-ups: range volume files, a volume replacing a volume.
+
+    private static IReadOnlyList<decimal> VolumesOf(string name) =>
+        UpgradeCarryOver.VolumesOf(UpgradeCarryOver.UnitsOfArchive(name, "Synthetic Saga", null, null));
+
+    [Theory]
+    [InlineData("Synthetic Saga v01-03.cbz", "1,2,3")]
+    [InlineData("Synthetic Saga Vol. 1-3 (2026).cbz", "1,2,3")]
+    [InlineData("Synthetic Saga Volume 01-05 [Group].cbz", "1,2,3,4,5")]
+    [InlineData("Synthetic Saga v02 (Digital).cbz", "2")]
+    [InlineData("Synthetic Saga v01-03 c012.cbz", "")]
+    [InlineData("Synthetic Saga v02.5.cbz", "")]
+    [InlineData("Synthetic Saga c001-010.cbz", "")]
+    [InlineData("Synthetic Saga v01-200.cbz", "")]
+    public void VolumesOf_OneWholeVolumeOrARangeOfWholeVolumes_WithoutAChapter(string name, string expected)
+    {
+        var want = expected.Length == 0 ? [] : expected.Split(',').Select(decimal.Parse).ToArray();
+        Assert.Equal(want, VolumesOf(name));
+    }
+
+    [Theory]
+    [InlineData("Synthetic Saga v03.cbz", "Synthetic Saga v03 (Re-encode) [HQ] (2026).cbz", true)]
+    [InlineData("Synthetic Saga v03 [GroupA].cbz", "Synthetic_Saga_v03.cbz", true)]
+    [InlineData("Synthetic Saga v03.cbz", "Synthetic Saga v03 Digital 1080p.cbz", true)]
+    [InlineData("Synthetic Saga v03.cbz", "Synthetic Saga 2019 v03.cbz", true)]
+    [InlineData("Vol. 03.cbz", "Synthetic Saga v03.cbz", true)]
+    [InlineData("Synthetic Saga v03.cbz", "Other Tale v03.cbz", false)]
+    [InlineData("Synthetic Saga v03.cbz", "Synthetic Saga 2 v03.cbz", false)]
+    [InlineData("Synthetic Saga v03.cbz", "Synthetic Saga Kanzenban v03.cbz", false)]
+    [InlineData("Synthetic Saga v03.cbz", "Synthetic Saga Omnibus v03.cbz", false)]
+    public void SameWork_TheNamesAgreeWithoutUnitsTagsYearsAndExtension_AndOnTheEdition(string a, string b, bool expected)
+    {
+        Assert.Equal(expected, UpgradeCarryOver.SameWork(a, b, "Synthetic Saga"));
+        Assert.Equal(expected, UpgradeCarryOver.SameWork(b, a, "Synthetic Saga"));
+    }
+
+    private static readonly IReadOnlyDictionary<decimal, IReadOnlyList<decimal>> ThreeVolumes = new Dictionary<decimal, IReadOnlyList<decimal>>
+    {
+        [1] = Units("1", "2", "3"),
+        [2] = Units("4", "5", "6"),
+        [3] = Units("7", "8", "9"),
+    };
+
+    [Fact]
+    public void Plan_AVolumeWithItsOwnReplacedFile_UsesIt_TheOthersUseTheirListedChapters()
+    {
+        var files = new[] { File(1, "Synthetic Saga v01.cbz"), File(2, "Synthetic Saga c004.cbz"), File(3, "Synthetic Saga c007-009.cbz") };
+        var plans = UpgradeCarryOver.Plan([1, 2, 3], ThreeVolumes, files, _ => true)!;
+        Assert.Equal([1L], plans[0].VolumeFiles);
+        Assert.Null(plans[0].Coverage);
+        Assert.Equal([2L], plans[1].Evidence);
+        Assert.Equal([3L], plans[2].Evidence);
+    }
+
+    [Fact]
+    public void Plan_AVolumeWithoutItsOwnFileAndWithoutAnExactListEntry_GivesNothingForTheWholeRange()
+    {
+        var files = new[] { File(1, "Synthetic Saga v01.cbz"), File(2, "Synthetic Saga v02.cbz") };
+        Assert.Null(UpgradeCarryOver.Plan([1, 2, 3], null, files, _ => true));
+        var twoListed = new Dictionary<decimal, IReadOnlyList<decimal>> { [1] = Units("1", "2", "3"), [2] = Units("4", "5", "6") };
+        Assert.Null(UpgradeCarryOver.Plan([1, 2, 3], twoListed, files, _ => true));
+        // Every volume with its own file: no list needed.
+        Assert.NotNull(UpgradeCarryOver.Plan([1, 2], null, files, _ => true));
+        // A file the caller rejects (another work, identical bytes) is no evidence.
+        Assert.Null(UpgradeCarryOver.Plan([1, 2], null, files, id => id != 2));
+    }
+
+    private static readonly DateTimeOffset T0 = new(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public void DecideVolume_TheMostRecentlyReadFileDecides_AFileOpenedAtPage1SaysNothing()
+    {
+        Assert.Equal(UpgradeOutcome.Nothing, UpgradeCarryOver.DecideVolume([new(1, false, 0, T0)]).Outcome);
+        var rereading = UpgradeCarryOver.DecideVolume([new(1, true, 0, T0), new(2, false, 12, T0.AddDays(1)), new(3, false, 0, T0.AddDays(2))]);
+        Assert.Equal((UpgradeOutcome.InProgress, 12, (long?)2), (rereading.Outcome, rereading.Ordinal, rereading.FromNode));
+        var finishedLater = UpgradeCarryOver.DecideVolume([new(1, true, 0, T0.AddDays(2)), new(2, false, 12, T0.AddDays(1))]);
+        Assert.Equal((UpgradeOutcome.Read, 0, (long?)1), (finishedLater.Outcome, finishedLater.Ordinal, finishedLater.FromNode));
+    }
+
+    [Fact]
+    public void DecideTarget_ARangeIsReadWhenEveryVolumeIsRead_InProgressAtPage1WhenAnyIs()
+    {
+        var files = new[] { File(1, "Synthetic Saga v01.cbz"), File(2, "Synthetic Saga c004-006.cbz"), File(3, "Synthetic Saga c007-009.cbz") };
+        var plans = UpgradeCarryOver.Plan([1, 2, 3], ThreeVolumes, files, _ => true)!;
+        UpgradeCarry Decide(long[] read, params UpgradeVolumeFileState[] states) =>
+            UpgradeCarryOver.DecideTarget(plans, read.ToHashSet(), states);
+
+        Assert.Equal(UpgradeOutcome.Read, Decide([1, 2, 3], new UpgradeVolumeFileState(1, true, 0, T0)).Outcome);
+        var partly = Decide([2, 3], new UpgradeVolumeFileState(1, false, 30, T0));
+        Assert.Equal((UpgradeOutcome.InProgress, 0), (partly.Outcome, partly.Ordinal));
+        Assert.Equal(UpgradeOutcome.InProgress, Decide([], new UpgradeVolumeFileState(1, false, 30, T0)).Outcome);
+        Assert.Equal(UpgradeOutcome.Nothing, Decide([]).Outcome);
+    }
+
+    [Theory]
+    [InlineData(30, 180, 180, 30)]
+    [InlineData(30, 180, 175, 0)]
+    [InlineData(30, null, 180, 0)]
+    [InlineData(0, 180, 180, 0)]
+    public void PageFor_TheOldPageOnlyWithEqualPageCounts(int ordinal, int? oldPages, int? newPages, int expected) =>
+        Assert.Equal(expected, UpgradeCarryOver.PageFor(ordinal, oldPages, newPages));
 }
