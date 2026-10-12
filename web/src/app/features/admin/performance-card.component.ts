@@ -46,7 +46,7 @@ const BACKGROUND_OPTIONS: BackgroundOption[] = [
   imports: [MatCardModule, MatFormFieldModule, MatSelectModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <mat-card class="performance-card">
+    <mat-card class="performance-card" data-testid="performance-card">
       <mat-card-header>
         <mat-card-title>Performance</mat-card-title>
         <mat-card-subtitle>Workers, page cache and background work</mat-card-subtitle>
