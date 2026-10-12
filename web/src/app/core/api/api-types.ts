@@ -3157,3 +3157,37 @@ export interface ReadingModeApplyResultDto {
   applied: number;
   skipped: ReadingModeApplySkipDto[];
 }
+
+// --- Performance settings (1.42.0, admin) ---
+
+/**
+ * Admin Performance settings (`GET/PUT /api/v1/admin/performance`). Every field carries its source
+ * (`default` | `settings` | `configuration`); a configuration value is pinned (read-only in the UI). Changes apply live.
+ */
+export interface PerformanceSettingsDto {
+  mediaWorkers: number;
+  mediaWorkersSource: string;
+  mediaWorkersDefault: number;
+  mediaWorkersMin: number;
+  mediaWorkersMax: number;
+  /** Processors the server sees (the default worker number is a quarter of them, 2-4). */
+  processorCount: number;
+  pageCacheBytes: number;
+  pageCacheSource: string;
+  pageCacheDefaultBytes: number;
+  pageCacheMinBytes: number;
+  pageCacheMaxBytes: number;
+  pageCacheUsageBytes: number;
+  /** `pause` | `slow` | `normal`. */
+  backgroundWhileReading: string;
+  backgroundWhileReadingSource: string;
+  backgroundWhileReadingDefault: string;
+}
+
+/** Partial update; a field named in `reset` returns to its default (`mediaWorkers`, `pageCacheBytes`, `backgroundWhileReading`). */
+export interface UpdatePerformanceSettingsRequest {
+  mediaWorkers?: number | null;
+  pageCacheBytes?: number | null;
+  backgroundWhileReading?: string | null;
+  reset?: string[] | null;
+}
