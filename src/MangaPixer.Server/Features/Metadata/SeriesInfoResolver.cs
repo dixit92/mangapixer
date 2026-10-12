@@ -186,6 +186,10 @@ public sealed class SeriesInfoResolver
                 HasImage = record.ImageState == 1,
                 ImageUrl = record.ImageState == 1 ? ImageUrlFor(node.PublicId, record) : null,
                 Credit = record.Provider == Providers.Gcd.GcdMapping.ProviderId ? Providers.Gcd.GcdMapping.Credit : null,
+                // 1.42.0: MangaUpdates now lists a series linked to MangaDex (its MangaDex record links it) - "Switch to MangaUpdates...".
+                MangaUpdatesId = record.Provider == MetadataProviderAllowlist.MangaDex && !ownCollection
+                    ? MetadataIdentifyService.MangaUpdatesIdOf(record)
+                    : null,
             },
             Companions = companions,
             ComicInfo = ci is null ? null : new SeriesInfoComicInfoDto
@@ -220,6 +224,8 @@ public sealed class SeriesInfoResolver
             where c.RecordId == seriesRecordId
                 && c.Provider == MetadataProviderAllowlist.MangaDex
                 && (c.State == (int)CompanionState.Auto || c.State == (int)CompanionState.Confirmed)
+                // 1.42.0: a series linked to MangaDex is its own companion - its source line already names MangaDex.
+                && c.CompanionRecordId != seriesRecordId
             join r in _db.MetadataRecords.AsNoTracking() on c.CompanionRecordId equals r.Id
             select new { c.Provider, r.SiteUrl })
             .ToListAsync(ct);

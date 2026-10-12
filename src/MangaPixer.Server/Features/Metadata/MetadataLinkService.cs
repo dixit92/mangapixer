@@ -440,10 +440,22 @@ public sealed class MetadataLinkService
         if (recordIds.Count == 0)
             return 0;
 
-        var orphanIds = await _db.MetadataRecords
+        var unlinked = await _db.MetadataRecords
             .Where(r => recordIds.Contains(r.Id) && !_db.NodeSeriesLinks.Any(l => l.RecordId == r.Id))
             .Select(r => r.Id)
             .ToListAsync(ct);
+        if (unlinked.Count == 0)
+            return 0;
+        // 1.42.0: a MangaDex record linked from a folder may ALSO be another series' MangaDex companion - it stays (that series keeps its
+        // volume lists and covers); only its own "self" companion row goes with its last link.
+        var companions = await _db.MetadataCompanions.AsNoTracking()
+            .Where(c => c.CompanionRecordId != null && unlinked.Contains(c.CompanionRecordId.Value) && c.RecordId != c.CompanionRecordId)
+            .Select(c => c.CompanionRecordId!.Value)
+            .Distinct()
+            .ToListAsync(ct);
+        if (companions.Count > 0)
+            await _db.MetadataCompanions.Where(c => companions.Contains(c.RecordId) && c.CompanionRecordId == c.RecordId).ExecuteDeleteAsync(ct);
+        var orphanIds = unlinked.Except(companions).ToList();
         if (orphanIds.Count == 0)
             return 0;
 

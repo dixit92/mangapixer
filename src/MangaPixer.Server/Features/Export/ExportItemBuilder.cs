@@ -8,6 +8,7 @@ using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.Missing;
 using com.lifepixer.mangapixer.Server.Features.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Missing;
+using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MangaDex;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MangaUpdates;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Reach;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Volumes;
@@ -163,7 +164,14 @@ public sealed class ExportItemBuilder(MangaPixerDbContext db)
             LatestChapter = r.LatestChapter is { } latest && double.IsFinite(latest) && latest >= 0
                 ? latest.ToString(CultureInfo.InvariantCulture)
                 : null,
-            TotalChapters = r.Provider == MetadataProviderAllowlist.MangaUpdates ? MangaUpdatesStatusParser.Parse(r.StatusText).Chapters : null,
+            TotalChapters = r.Provider switch
+            {
+                MetadataProviderAllowlist.MangaUpdates => MangaUpdatesStatusParser.Parse(r.StatusText).Chapters,
+                // 1.42.0: a MangaDex record's lastChapter is its FINAL chapter - a total only once the series is complete.
+                MetadataProviderAllowlist.MangaDex when status == MetadataOriginStatus.Complete =>
+                    MangaDexMapping.ChaptersOf(CompanionLinkService.MangaDexExtra.Read(r.ExtraJson).LastChapter),
+                _ => null,
+            },
             StatusText = r.StatusText,
             LicensedEn = r.LicensedEn,
             TranslationComplete = r.TranslationComplete,

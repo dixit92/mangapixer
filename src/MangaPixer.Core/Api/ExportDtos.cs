@@ -169,7 +169,7 @@ public sealed record ExportLinkDto
 /// <summary>The linked provider record.</summary>
 public sealed record ExportRecordDto
 {
-    /// <summary><c>mangaupdates</c> or <c>gcd</c>.</summary>
+    /// <summary><c>mangaupdates</c>, <c>gcd</c> or (1.42.0) <c>mangadex</c> - a series MangaUpdates does not list, linked by an admin.</summary>
     public required string Provider { get; init; }
 
     public required string ExternalId { get; init; }

@@ -680,10 +680,12 @@ public sealed partial class Program
         // IMetadataProvider, so Identify / auto-match / refresh never see it.
         services.AddSingleton<Features.Metadata.Providers.AniList.IUnitConversionProvider, Features.Metadata.Providers.AniList.AniListProvider>();
         services.AddScoped<Features.Metadata.Missing.MissingConversionService>();
-        // MangaDex (1.29.0): ONLY the companion of an already-linked MangaUpdates record - volume lists and volume
-        // covers; not an IMetadataProvider, so Identify / auto-match / refresh never see it. The background pass runs in
+        // MangaDex (1.29.0): the companion of an already-linked MangaUpdates record - volume lists and volume
+        // covers. The background pass runs in
         // the automatic-matching hosted service; stored covers live in the data root.
         services.AddSingleton<Features.Metadata.Providers.MangaDex.IMangaDexProvider, Features.Metadata.Providers.MangaDex.MangaDexProvider>();
+        // 1.42.0: MangaDex as the series record of a work MangaUpdates does not list (Identify's third site, the automatic MangaDex step).
+        services.AddSingleton<Features.Metadata.Providers.IMetadataProvider, Features.Metadata.Providers.MangaDex.MangaDexSeriesProvider>();
         services.AddSingleton(new Features.Metadata.Volumes.VolumeCoverStore(Path.Combine(dataRoot, Features.Metadata.Volumes.VolumeCoverStore.FolderName)));
         services.AddSingleton<Features.Metadata.Volumes.VolumeCoverPassState>();
         services.AddScoped<Features.Metadata.Volumes.CompanionLinkService>();
@@ -691,6 +693,7 @@ public sealed partial class Program
         services.AddScoped<Features.Metadata.Volumes.VolumeCoverFetcher>();
         services.AddScoped<Features.Metadata.Volumes.VolumeCoverPass>();
         services.AddScoped<Features.Metadata.Volumes.VolumeCoverAdminService>();
+        services.AddScoped<Features.Metadata.Volumes.MangaDexUpgradeService>();
         // Wikipedia (1.32.0, lane C): ONLY the volume -> chapter list of an already-linked series (a companion step of the volume-cover pass).
         Features.Metadata.Volumes.Wikipedia.WikipediaVolumeListsExtensions.AddWikipediaVolumeLists(services);
         services.AddScoped<Features.Metadata.IMetadataRecordRemovedHandler, Features.Metadata.Volumes.VolumeCoverRecordCleanup>();

@@ -303,7 +303,7 @@ test('the API tokens card with long names, a new secret and a confirm step fits 
 });
 
 test('the identify dialog with its site switch fits a phone and a tablet screen', async ({ page }) => {
-  // 1.32.0: "Search on: MangaUpdates | Grand Comics Database", the GCD pace note and the start-year option. Contract-shaped
+  // 1.32.0: "Search on: MangaUpdates | Grand Comics Database" (1.42.0: | MangaDex), the GCD pace note and the start-year option. Contract-shaped
   // context (a comics folder with both sites allowed); nothing is searched, so nothing is sent.
   test.setTimeout(120_000);
   const failures: string[] = [];
@@ -316,6 +316,8 @@ test('the identify dialog with its site switch fits a phone and a tablet screen'
       sites: [
         { id: 'mangaupdates', name: 'MangaUpdates', available: true },
         { id: 'gcd', name: 'Grand Comics Database', available: true, note: 'Comics and graphic novels. Answers about 25 requests an hour.' },
+        // 1.42.0: MangaDex is the third site (the series record of a series MangaUpdates does not list).
+        { id: 'mangadex', name: 'MangaDex', available: true, note: 'For a series MangaUpdates does not list yet. Its record has no English release totals.' },
       ],
       suggestions: ['Stacked Saga', 'A synthetic comics title that is long enough to wrap on a phone'],
       budgetUsedToday: 0, dailyBudget: 5000,

@@ -1,6 +1,5 @@
 namespace com.lifepixer.mangapixer.Server.Features.Metadata.Volumes;
 
-using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using com.lifepixer.mangapixer.Core.Metadata;
@@ -48,7 +47,47 @@ public sealed class CompanionLinkService
     /// <summary>True when the MangaDex companion of the series should be looked at (none yet, or due).</summary>
     public static bool IsDue(MetadataCompanionEntity? companion, DateTimeOffset now) =>
         companion is null
-        || (companion.State != (int)CompanionState.None && (companion.NextCheckAt is not { } next || next <= now));
+        || (companion.State != (int)CompanionState.None && companion.Method != (int)CompanionMethod.Self
+            && (companion.NextCheckAt is not { } next || next <= now));
+
+    /// <summary>True when <paramref name="record"/> is a MangaDex record used as a SERIES record (1.42.0) - its own MangaDex companion.</summary>
+    public static bool IsMangaDexSeries(MetadataRecordEntity record) => record.Provider == MangaDex;
+
+    /// <summary>
+    /// 1.42.0: a series linked to a MangaDex record is its own MangaDex companion - one <c>metadata_companions</c> row pointing at itself
+    /// (Confirmed, <see cref="CompanionMethod.Self"/>), so every reader of "the MangaDex record of a series" (Volumes view, covers, export)
+    /// works unchanged and no cleanup ever deletes the record. No request. Returns the row (null for a record of another provider).
+    /// </summary>
+    public async Task<MetadataCompanionEntity?> EnsureSelfAsync(MetadataRecordEntity record, CancellationToken ct = default)
+    {
+        var (companion, created) = await EnsureSelfAsync(_db, record, _time.GetUtcNow(), ct);
+        if (created)
+            _logger.LogInformation(LogEvents.Metadata.MangaDexSelfCompanion, "MangaDex record {RecordId} is its own companion", record.Id);
+        return companion;
+    }
+
+    /// <summary>The self row of <see cref="EnsureSelfAsync(MetadataRecordEntity, CancellationToken)"/> over a context (Identify's link path); <c>Created</c> when it was written now.</summary>
+    public static async Task<(MetadataCompanionEntity? Companion, bool Created)> EnsureSelfAsync(
+        MangaPixerDbContext db, MetadataRecordEntity record, DateTimeOffset now, CancellationToken ct = default)
+    {
+        if (!IsMangaDexSeries(record))
+            return (null, false);
+        var companion = await db.MetadataCompanions.FirstOrDefaultAsync(c => c.RecordId == record.Id && c.Provider == MangaDex, ct);
+        if (companion is { State: (int)CompanionState.Confirmed, Method: (int)CompanionMethod.Self } && companion.CompanionRecordId == record.Id)
+            return (companion, false);
+        if (companion is null)
+        {
+            companion = NewCompanion(record.Id, MangaDex);
+            db.MetadataCompanions.Add(companion);
+        }
+        companion.CompanionRecordId = record.Id;
+        companion.State = (int)CompanionState.Confirmed;
+        companion.Method = (int)CompanionMethod.Self;
+        companion.CheckedAt = now;
+        companion.NextCheckAt = null;
+        await db.SaveChangesAsync(ct);
+        return (companion, true);
+    }
 
     /// <summary>
     /// Finds or refreshes the MangaDex companion of <paramref name="series"/> (a MangaUpdates record): a known record is
@@ -59,6 +98,9 @@ public sealed class CompanionLinkService
     public async Task<MetadataCompanionEntity> EnsureMangaDexAsync(
         MetadataRecordEntity series, long libraryId, MetadataCallContext? call, CancellationToken ct = default)
     {
+        // 1.42.0: a series linked to MangaDex is never looked up as a companion: it IS its MangaDex record.
+        if (IsMangaDexSeries(series))
+            return (await EnsureSelfAsync(series, ct))!;
         var companion = await FindAsync(series.Id, MangaDex, ct);
         if (companion is { State: (int)CompanionState.None })
             return companion;
@@ -202,20 +244,16 @@ public sealed class CompanionLinkService
             record = new MetadataRecordEntity { PublicId = await NewRecordPublicIdAsync(ct), Provider = MangaDex, ExternalId = manga.Id };
             _db.MetadataRecords.Add(record);
         }
-        var cross = new Dictionary<string, string> { [MetadataProviderAllowlist.MangaUpdates] = muExternalId };
-        if (manga.AniListId is { } al)
-            cross[MetadataProviderAllowlist.AniList] = al;
+        // 1.42.0: the one MangaDex mapping (MangaDexMapping) - the fields a companion answer carries; a series record's own fields
+        // (description, status, creators ...) are never touched here.
         record.Title = manga.Title;
         record.AltTitlesJson = MetadataJson.WriteList(manga.AltTitles.ToList());
-        record.Origin = (int?)OriginOf(manga.OriginalLanguage);
+        record.Origin = (int?)MangaDexMapping.OriginOf(manga.OriginalLanguage);
         record.StartYear = manga.Year;
-        record.OriginVolumes = int.TryParse(manga.LastVolume, NumberStyles.None, CultureInfo.InvariantCulture, out var last) && last is > 0 and < 10_000 ? last : null;
-        record.CrossIdsJson = JsonSerializer.Serialize(cross);
+        record.OriginVolumes = MangaDexMapping.VolumesOf(manga.LastVolume);
+        record.CrossIdsJson = JsonSerializer.Serialize(MangaDexMapping.CrossIdsOf(manga, muExternalId));
         record.SiteUrl = MangaDexProvider.SiteUrl(manga.Id);
-        record.ExtraJson = JsonSerializer.Serialize(new MangaDexExtra(manga.OriginalLanguage, manga.MainCoverId, manga.MainCoverFile)
-        {
-            Links = manga.OfficialLinks.Select(l => new MangaDexExtraLink(l.Key, l.Url)).ToList(),
-        });
+        record.ExtraJson = MangaDexMapping.ExtraOf(manga);
         record.FetchedAt = _time.GetUtcNow();
         record.FetchState = 0;
         await _db.SaveChangesAsync(ct);
@@ -230,6 +268,12 @@ public sealed class CompanionLinkService
     {
         /// <summary>The official sources (<c>links</c> key and URL), or null when the row predates 1.33.0.</summary>
         public IReadOnlyList<MangaDexExtraLink>? Links { get; init; }
+
+        /// <summary>1.42.0: MangaDex's <c>lastVolume</c> (set for a finished series), or null.</summary>
+        public string? LastVolume { get; init; }
+
+        /// <summary>1.42.0: MangaDex's <c>lastChapter</c> - the FINAL chapter of a finished series (never the latest released), or null.</summary>
+        public string? LastChapter { get; init; }
 
         public static MangaDexExtra Read(string? json)
         {
@@ -248,21 +292,6 @@ public sealed class CompanionLinkService
 
     /// <summary>One stored official source of a MangaDex record (<see cref="MangaDexExtra.Links"/>).</summary>
     public sealed record MangaDexExtraLink(string Key, string Url);
-
-    private static MetadataOrigin? OriginOf(string? language) => language switch
-    {
-        null => null,
-        "ja" => MetadataOrigin.Japan,
-        "ko" => MetadataOrigin.Korea,
-        "zh" or "zh-hk" or "zh-ro" => MetadataOrigin.ChinaTaiwan,
-        "en" => MetadataOrigin.EnglishOriginal,
-        "fr" => MetadataOrigin.French,
-        "es" or "es-la" => MetadataOrigin.Spanish,
-        "de" => MetadataOrigin.German,
-        "it" => MetadataOrigin.Italian,
-        "nl" => MetadataOrigin.Dutch,
-        _ => MetadataOrigin.Other,
-    };
 
     /// <summary>Points the companion at another MangaDex record; the previous record's covers and map are dropped.</summary>
     private async Task SwitchRecordAsync(MetadataCompanionEntity companion, long recordId, CancellationToken ct)
@@ -284,7 +313,8 @@ public sealed class CompanionLinkService
             return;
         companion.CompanionRecordId = null;
         await SaveAsync(companion, ct);
-        if (await _db.MetadataCompanions.AnyAsync(c => c.CompanionRecordId == old, ct))
+        // Still used by another series, or (1.42.0) linked from a folder as a series record itself: kept.
+        if (await _db.MetadataCompanions.AnyAsync(c => c.CompanionRecordId == old, ct) || await _db.NodeSeriesLinks.AnyAsync(l => l.RecordId == old, ct))
             return;
         foreach (var cover in await _db.VolumeCovers.AsNoTracking().Where(c => c.ProviderRecordId == old && c.StoredVersion > 0)
                      .Select(c => new { c.PublicId, c.StoredVersion }).ToListAsync(ct))

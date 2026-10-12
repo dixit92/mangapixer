@@ -46,6 +46,18 @@ describe('ReviewRowComponent', () => {
     expect(el.textContent).toContain('24 items');
   });
 
+  it('1.42.0: a candidate found on MangaDex carries a "MangaDex" tag; MangaUpdates candidates do not', () => {
+    const base = reviewItem();
+    const [first, second] = base.candidates!;
+    const { all } = create(reviewItem({ candidates: [{ ...first, provider: 'mangadex', externalId: '5e1a7c00-0000-4000-8000-00000000d001' }, second] }));
+    const tags = all('[data-testid="review-site-mangadex"]');
+    expect(tags).toHaveLength(1);
+    expect(tags[0].textContent!.trim()).toBe('MangaDex');
+    expect(all('[data-testid="review-candidate"]')[0].contains(tags[0])).toBe(true);
+    TestBed.resetTestingModule();
+    expect(create().all('[data-testid="review-site-mangadex"]')).toHaveLength(0);
+  });
+
   it('shows your cover next to the SELECTED candidate\'s cover, and follows the radio choice (1.28.0, owner)', () => {
     const first = create(reviewItem({ coverUrl: '/api/v1/items/a9/cover' }), 'NeedsReview', { rank: 1 });
     const src = (f: typeof first, id: string) => f.el.querySelector(`[data-testid="${id}"]`)!.getAttribute('src');

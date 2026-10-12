@@ -169,6 +169,9 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("MetadataMangaDexStepEnabled")
+                        .HasColumnType("INTEGER");
+
                     b.Property<double?>("MetadataMarginThreshold")
                         .HasColumnType("REAL");
 

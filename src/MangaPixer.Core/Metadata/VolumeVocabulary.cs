@@ -36,6 +36,12 @@ public enum CompanionMethod
 
     /// <summary>An AniList ratio record written before 1.29.0 (keyed by <c>CrossIdsJson</c>), adopted.</summary>
     Legacy = 3,
+
+    /// <summary>
+    /// 1.42.0: the series record IS this provider's record (a series linked to MangaDex is its own MangaDex companion - same record,
+    /// never looked up as a companion, never detached by the companion checks).
+    /// </summary>
+    Self = 4,
 }
 
 /// <summary>Where a stored volume -> chapters map came from.</summary>

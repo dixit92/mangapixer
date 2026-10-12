@@ -69,6 +69,21 @@ public sealed class MissingConversionService
         _logger = logger;
     }
 
+    /// <summary>1.42.0: the MangaDex id a stored AniList row was found for (a series linked to MangaDex), or null.</summary>
+    public static string? LinkedMangaDexId(string? crossIdsJson)
+    {
+        if (string.IsNullOrWhiteSpace(crossIdsJson))
+            return null;
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(crossIdsJson)?.GetValueOrDefault(MetadataProviderAllowlist.MangaDex);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>The MangaUpdates id a stored AniList row points at, or null.</summary>
     public static string? LinkedMangaUpdatesId(string? crossIdsJson)
     {
@@ -223,6 +238,9 @@ public sealed class MissingConversionService
             ?? (int.TryParse(companionAniListId, NumberStyles.None, CultureInfo.InvariantCulture, out var al) && al > 0 ? companionAniListId : null);
 
         ConversionCandidate? match;
+        // 1.42.0 (owner): a series linked to MangaDex asks AniList only by the AniList id MangaDex links - never by its title.
+        if (knownId is null && mu.Provider != MetadataProviderAllowlist.MangaUpdates)
+            return (Miss(mu), existing, false);
         if (knownId is not null)
         {
             match = await _gateway.ConversionCallAsync(_provider, "get", libraryId, c => _provider.GetAsync(knownId, c), ct, call);
@@ -254,7 +272,8 @@ public sealed class MissingConversionService
         record.OriginVolumes = match.Volumes;
         record.LatestChapter = match.Chapters;
         record.SiteUrl = match.SiteUrl;
-        record.CrossIdsJson = JsonSerializer.Serialize(new Dictionary<string, string> { [MetadataProviderAllowlist.MangaUpdates] = mu.ExternalId });
+        // The series the row was found for (1.42.0: a series linked to MangaDex is keyed by its MangaDex id, never as a MangaUpdates id).
+        record.CrossIdsJson = JsonSerializer.Serialize(new Dictionary<string, string> { [mu.Provider] = mu.ExternalId });
         record.FetchedAt = now;
         record.FetchState = 0;
         await _db.SaveChangesAsync(ct);

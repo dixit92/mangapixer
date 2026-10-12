@@ -3077,6 +3077,85 @@
         }
       }
     },
+    "/api/v1/admin/metadata/nodes/{nodeId}/switch-to-mangaupdates": {
+      "post": {
+        "tags": [
+          "VolumeCovers"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeSeriesLinkChangeDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeSeriesLinkChangeDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeSeriesLinkChangeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/metadata/nodes/{nodeId}/companions": {
       "get": {
         "tags": [
@@ -12574,6 +12653,12 @@
               "null",
               "string"
             ]
+          },
+          "mangaUpdatesId": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -14782,6 +14867,12 @@
             "type": "boolean"
           },
           "compareCoversDisabledByConfig": {
+            "type": "boolean"
+          },
+          "mangaDexStepEnabled": {
+            "type": "boolean"
+          },
+          "mangaDexStepDisabledByConfig": {
             "type": "boolean"
           },
           "preferredCoverLanguage": {
@@ -16999,6 +17090,12 @@
               "null",
               "string"
             ]
+          },
+          "mangaUpdatesId": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -18203,6 +18300,12 @@
             "type": "boolean"
           },
           "compareCoversEnabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "mangaDexStepEnabled": {
             "type": [
               "null",
               "boolean"

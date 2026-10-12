@@ -29,14 +29,15 @@ public sealed class MetadataConsentFiveTests : IAsyncLifetime
     }
 
     [Fact]
-    public void TheMainConsentIsVersion5_AndTheAutomaticConsentStays4()
+    public void TheMainConsentIsVersion6_AndTheAutomaticConsentIs5()
     {
-        Assert.Equal(5, MetadataConsent.CurrentVersion);
-        Assert.Equal(4, MetadataAutoConsent.CurrentVersion);
+        // 1.42.0 (lane D): MangaDex as the series record moves both (main 5 -> 6, automatic 4 -> 5).
+        Assert.Equal(6, MetadataConsent.CurrentVersion);
+        Assert.Equal(5, MetadataAutoConsent.CurrentVersion);
     }
 
     [Fact]
-    public async Task AnInstanceThatAcceptedVersion4_SendsNothing_UntilAnAdminAccepts5()
+    public async Task AnInstanceThatAcceptedVersion4_SendsNothing_UntilAnAdminAcceptsTheCurrentVersion()
     {
         await _h.EnableAsync(consentVersion: 4);
 
@@ -51,11 +52,13 @@ public sealed class MetadataConsentFiveTests : IAsyncLifetime
         Assert.True(before.ConsentRenewalNeeded);
         Assert.Equal(4, before.AcceptedConsentVersion);
 
-        // Re-sending the old version is not enough; accepting 5 turns fetching back on.
+        // Re-sending an old version is not enough; accepting the current one turns fetching back on.
         Assert.Equal("consent_required", await _h.Settings().UpdateAsync(
             new UpdateMetadataSettingsRequest { FetchEnabled = true, AcceptedConsentVersion = 4 }, "admin"));
+        Assert.Equal("consent_required", await _h.Settings().UpdateAsync(
+            new UpdateMetadataSettingsRequest { FetchEnabled = true, AcceptedConsentVersion = MetadataConsent.CurrentVersion - 1 }, "admin"));
         Assert.Null(await _h.Settings().UpdateAsync(
-            new UpdateMetadataSettingsRequest { FetchEnabled = true, AcceptedConsentVersion = 5 }, "admin"));
+            new UpdateMetadataSettingsRequest { FetchEnabled = true, AcceptedConsentVersion = MetadataConsent.CurrentVersion }, "admin"));
         Assert.False((await _h.Settings().GetAsync()).ConsentRenewalNeeded);
 
         var record = await _h.Gateway().GetSeriesAsync("mangaupdates", _t.LibraryId, MuFixtures.BerserkId.ToString(System.Globalization.CultureInfo.InvariantCulture));

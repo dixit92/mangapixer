@@ -19,7 +19,17 @@ public sealed record WorkLookupResult(
     IReadOnlyDictionary<string, ProviderSeriesRecord> Fetched,
     IReadOnlyDictionary<string, string?> HitImages,
     int CoversCompared = 0,
-    string CoverCheck = AutoMatch.CoverCheck.NotConfigured);
+    string CoverCheck = AutoMatch.CoverCheck.NotConfigured)
+{
+    /// <summary>
+    /// 1.42.0: the candidates found through the MangaDex step - MangaDex records, and MangaUpdates records a MangaDex record's own link
+    /// named (the bridge). Never linked automatically: the outcome writer holds them in Needs review.
+    /// </summary>
+    public IReadOnlySet<string> FoundThroughMangaDex { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+
+    /// <summary>1.42.0: MangaDex requests the step sent (searches + a ComicInfo id GET) and MangaUpdates records it bridged to.</summary>
+    public (int MangaDexRequests, int Bridged) MangaDexStep { get; init; }
+}
 
 /// <summary>
 /// A comics work that must wait for the Grand Comics Database (1.32.0): its bucket has no token to spare for automatic work (25 an
@@ -67,6 +77,16 @@ public sealed class AutoMatchLookup
 {
     private const string Provider = MetadataIdentifyService.DefaultProvider;
     private const string ComicsProvider = GcdMapping.ProviderId;
+    private const string MangaDex = MetadataIdentifyService.MangaDexProvider;
+
+    /// <summary>
+    /// MangaDex searches per work in the MangaDex step (1.42.0, owner-approved): the planner's first name variant, the second only while
+    /// nothing reached the review floor. A search answers with whole records (no GET).
+    /// </summary>
+    public const int MaxMangaDexSearchesPerWork = 2;
+
+    /// <summary>MangaUpdates records read by id per work because a MangaDex record's own link names them (the bridge, 1.42.0).</summary>
+    public const int MaxBridgeGetsPerWork = 2;
 
     /// <summary>
     /// GCD searches per comics work (1.32.0): the name with its start year, the longest part of a name with a title separator
@@ -98,7 +118,7 @@ public sealed class AutoMatchLookup
 
     public async Task<WorkLookupResult> LookupAsync(
         LibraryTreeSnapshot tree, DetectedWork work, WorkClassification classification, MatchThresholds thresholds,
-        bool allowDoujinshi, MetadataCallContext call, CancellationToken ct, DeclaredFacts? declared = null)
+        bool allowDoujinshi, MetadataCallContext call, CancellationToken ct, DeclaredFacts? declared = null, bool mangaDexStep = false)
     {
         var shape = tree.ShapeOf(work.FolderId);
         var archiveIds = ArchivesOf(tree, work);
@@ -156,8 +176,118 @@ public sealed class AutoMatchLookup
                 outcome = null; // Nothing close on GCD: MangaUpdates, as for any work (its candidates join GCD's on one scale).
         }
         outcome ??= await RetrieveAsync(query, tree.LibraryId, thresholds, allowDoujinshi, call, found, ct, coverArchive);
+
+        // 1.42.0 (owner-approved): the MangaDex step - only when no site found a candidate close enough to review, never for a comics work
+        // or inside a "Collection about" folder, with the setting on and MangaDex on the allowlist.
+        if (mangaDexStep && NothingAtTheFloor(outcome, thresholds) && query.Context.Comics?.RoutesToComics != true
+            && shape.CollectionSeries is null && !shape.IsCollection && _gateway.IsRegistered(MangaDex)
+            && await _gateway.CheckSwitchesAsync(tree.LibraryId, MetadataCallOrigin.Automatic, MangaDex, ct) is null)
+        {
+            outcome = await RetrieveMangaDexAsync(query, tree.LibraryId, thresholds, allowDoujinshi, call, found, archiveIds, ct);
+        }
         outcome = await WithComicsDetailsAsync(outcome, found, tree.LibraryId, call, ct);
-        return new WorkLookupResult(outcome, classification, found.Fetched, found.Images, found.CoversCompared, found.CoverCheck);
+        return new WorkLookupResult(outcome, classification, found.Fetched, found.Images, found.CoversCompared, found.CoverCheck)
+        {
+            FoundThroughMangaDex = found.ThroughMangaDex,
+            MangaDexStep = (found.MangaDexRequests, found.Bridged),
+        };
+    }
+
+    /// <summary>No candidate of any site reached the review floor (the outcome would be Unmatched).</summary>
+    internal static bool NothingAtTheFloor(MatchOutcome outcome, MatchThresholds thresholds) =>
+        outcome.Ranked.Count == 0 || outcome.Ranked[0].TitleScore < thresholds.ReviewFloor;
+
+    /// <summary>
+    /// The MangaDex step (1.42.0): a MangaDex id in the work's ComicInfo first (then only the id is sent), otherwise at most
+    /// <see cref="MaxMangaDexSearchesPerWork"/> searches with the work's cleaned name (the automatic search - doujinshi are dropped on the
+    /// server unless the folder's Content allows them). Then the bridge: the best MangaDex hits at the review floor whose own MangaUpdates
+    /// link names a series make MangaPixer read THAT MangaUpdates record by id (MangaUpdates stays first) and propose it instead, scored on
+    /// its own titles plus the MangaDex titles (MangaDex's link vouches they are one series). Everything found here is marked
+    /// <see cref="Retrieval.ThroughMangaDex"/>: never an automatic link.
+    /// </summary>
+    private async Task<MatchOutcome> RetrieveMangaDexAsync(MatchQuery query, long libraryId, MatchThresholds thresholds, bool allowDoujinshi,
+        MetadataCallContext call, Retrieval found, IReadOnlyList<long> archiveIds, CancellationToken ct)
+    {
+        var before = call.RequestsSent;
+        if (await ComicInfoMangaDexReferenceAsync(archiveIds, ct) is { } reference
+            && await _gateway.GetSeriesAsync(MangaDex, libraryId, reference.ExternalId, ct, call) is { } hinted)
+        {
+            AddMangaDex(hinted, null);
+        }
+        else
+        {
+            var texts = query.Variants
+                .Select(v => MetadataGateway.NormalizeQuery(v.Text))
+                .Where(t => t.Length is > 0 and <= MetadataGateway.MaxQueryLength)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(MaxMangaDexSearchesPerWork)
+                .ToList();
+            foreach (var text in texts)
+            {
+                var page = await _gateway.SearchAutomaticAsync(MangaDex, libraryId, text, allowDoujinshi, call, ct);
+                foreach (var hit in page.Hits)
+                {
+                    if (hit.Record is { } record)
+                        AddMangaDex(record, hit.ImageRemoteUrl);
+                }
+                if (!NothingAtTheFloor(_scorer.Score(query, found.Candidates.Values.ToList(), thresholds), thresholds))
+                    break;
+            }
+        }
+        found.MangaDexRequests += call.RequestsSent - before;
+
+        // The bridge: MangaUpdates first.
+        var ranked = _scorer.Score(query, found.Candidates.Values.ToList(), thresholds).Ranked;
+        foreach (var top in ranked.Where(r => r.Candidate.Provider == MangaDex && r.TitleScore >= thresholds.ReviewFloor).Take(MaxBridgeGetsPerWork).ToList())
+        {
+            if (!found.Fetched.TryGetValue(top.Candidate.ExternalId, out var mangaDex)
+                || !mangaDex.CrossIds.TryGetValue(MetadataProviderAllowlist.MangaUpdates, out var muId)
+                || found.Candidates.ContainsKey(muId)
+                || await _gateway.GetSeriesAsync(Provider, libraryId, muId, ct, call) is not { } mu)
+                continue;
+            found.Candidates.Remove(mangaDex.ExternalId);
+            found.Fetched.Remove(mangaDex.ExternalId);
+            found.Fetched[mu.ExternalId] = mu;
+            var candidate = ToCandidate(mu);
+            found.Candidates[mu.ExternalId] = candidate with
+            {
+                AltTitles = (candidate.AltTitles ?? []).Concat(mangaDex.AltTitles.Prepend(mangaDex.Title)).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            };
+            found.Images.TryAdd(mu.ExternalId, mu.ImageRemoteUrl);
+            found.ThroughMangaDex.Add(mu.ExternalId);
+            found.Bridged++;
+        }
+        return _scorer.Score(query, found.Candidates.Values.ToList(), thresholds);
+
+        void AddMangaDex(ProviderSeriesRecord record, string? image)
+        {
+            if (found.Candidates.ContainsKey(record.ExternalId))
+                return;
+            found.Fetched[record.ExternalId] = record;
+            found.Candidates[record.ExternalId] = ToCandidate(record);
+            found.Images.TryAdd(record.ExternalId, image);
+            found.ThroughMangaDex.Add(record.ExternalId);
+        }
+    }
+
+    /// <summary>A MangaDex title address in the work's ComicInfo <c>Web</c> URLs (1.42.0, the MangaDex step's tier 0), or null.</summary>
+    private async Task<ProviderRef?> ComicInfoMangaDexReferenceAsync(IReadOnlyList<long> archiveIds, CancellationToken ct)
+    {
+        if (archiveIds.Count == 0)
+            return null;
+        var webJson = await _db.EmbeddedMetadata.AsNoTracking()
+            .Where(e => archiveIds.Contains(e.NodeId) && e.State == 1 && e.WebUrlsJson != null)
+            .OrderBy(e => e.NodeId)
+            .Select(e => e.WebUrlsJson)
+            .Take(50)
+            .ToListAsync(ct);
+        foreach (var json in webJson)
+            foreach (var url in MetadataJson.ReadList<string>(json))
+            {
+                if (_gateway.ParseReference(MangaDex, url) is { } reference)
+                    return reference;
+            }
+        return null;
     }
 
     /// <summary>The tier-0 GET; a GCD one may defer the work (its slow bucket).</summary>
@@ -298,6 +428,12 @@ public sealed class AutoMatchLookup
         /// <summary>The one extra GET of a work (1.30.0) was spent on a hit whose matched title carries an author tag.</summary>
         public bool TagFetchUsed { get; set; }
         public string CoverCheck { get; set; } = AutoMatch.CoverCheck.NotConfigured;
+
+        /// <summary>1.42.0: candidates found through the MangaDex step (never linked automatically).</summary>
+        public HashSet<string> ThroughMangaDex { get; } = new(StringComparer.Ordinal);
+
+        public int MangaDexRequests { get; set; }
+        public int Bridged { get; set; }
     }
 
     private async Task<MatchOutcome> RetrieveAsync(
@@ -499,7 +635,8 @@ public sealed class AutoMatchLookup
         r.AltTitles,
         r.Format,
         // A comics record's provider type is free text in the edition's language ("série continue en cours"): its origin is the name.
-        r.Provider == ComicsProvider ? r.Origin?.ToString() : r.ProviderType,
+        // 1.42.0: a MangaDex record has no type word - its origin (from the original language) stands in the same way.
+        r.Provider is ComicsProvider or MangaDex ? r.Origin?.ToString() : r.ProviderType,
         r.StartYear,
         r.OriginVolumes,
         r.LatestChapter is { } chapter ? (int)Math.Floor(chapter) : null,

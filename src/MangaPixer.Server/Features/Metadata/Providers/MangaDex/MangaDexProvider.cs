@@ -29,6 +29,15 @@ public interface IMangaDexProvider
 
     /// <summary>One page (up to 100) of the record's covers, filtered to <paramref name="locales"/> when given.</summary>
     Task<MangaDexCoverPage> CoversAsync(string mangaId, IReadOnlyList<string>? locales, int offset, CancellationToken ct);
+
+    /// <summary>
+    /// 1.42.0 (series records): one page of up to 10 records for a search text - the text an admin confirmed in Identify, or (automatic
+    /// matching) the cleaned name of a work MangaUpdates found nothing for - with the authors and artists (<see cref="MangaDexProvider.RecordIncludes"/>).
+    /// </summary>
+    Task<IReadOnlyList<MangaDexManga>> SearchRecordsAsync(string title, int offset, CancellationToken ct);
+
+    /// <summary>1.42.0: the record with this id, with its authors and artists; null when MangaDex says it does not exist.</summary>
+    Task<MangaDexManga?> GetRecordAsync(string mangaId, CancellationToken ct);
 }
 
 /// <summary>A MangaDex record, as much of it as the companion needs. Titles are data: bounded, never logged.</summary>
@@ -68,7 +77,34 @@ public sealed record MangaDexManga
     /// http(s) URLs, in that fixed key order. Read from the same answer as <see cref="MangaUpdatesLink"/> - no extra request.
     /// </summary>
     public IReadOnlyList<MangaDexOfficialLink> OfficialLinks { get; init; } = [];
+
+    /// <summary>1.42.0: <c>description</c> (English, else the first language), flattened and bounded; null when there is none.</summary>
+    public string? Description { get; init; }
+
+    /// <summary>1.42.0: the English names of the record's tags of group <c>genre</c>.</summary>
+    public IReadOnlyList<string> Genres { get; init; } = [];
+
+    /// <summary>1.42.0: authors and artists, by name - only when the answer included them (<see cref="MangaDexProvider.RecordIncludes"/>).</summary>
+    public IReadOnlyList<MangaDexCreator> Creators { get; init; } = [];
+
+    /// <summary>1.42.0: the record's related MangaDex records (<c>relationships</c> of type <c>manga</c>), from the same answer.</summary>
+    public IReadOnlyList<MangaDexRelation> Relations { get; init; } = [];
+
+    /// <summary>1.42.0: tagged "Doujinshi" (a fan work; dropped from automatic and filtered searches on the server).</summary>
+    public bool Doujinshi { get; init; }
+
+    /// <summary>1.42.0: tagged "Long Strip" (a vertical-scroll webtoon).</summary>
+    public bool LongStrip { get; init; }
+
+    /// <summary>1.42.0: tagged "Oneshot".</summary>
+    public bool Oneshot { get; init; }
 }
+
+/// <summary>An author or artist of a MangaDex record (1.42.0): the name and <c>author</c> / <c>artist</c>.</summary>
+public sealed record MangaDexCreator(string Name, string Role);
+
+/// <summary>A related MangaDex record (1.42.0): its id and MangaDex's relation word (<c>sequel</c>, <c>spin_off</c>, <c>colored</c> ...).</summary>
+public sealed record MangaDexRelation(string MangaId, string Relation);
 
 /// <summary>One official source of a MangaDex record: its <c>links</c> key (<c>raw</c>, <c>engtl</c>, <c>bw</c>, ...) and the URL.</summary>
 public sealed record MangaDexOfficialLink(string Key, string Url);
@@ -102,6 +138,17 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
 
     /// <summary>The content ratings sent with every search (all four: acceptance is by the exact MangaUpdates id).</summary>
     public static readonly IReadOnlyList<string> ContentRatings = ["safe", "suggestive", "erotica", "pornographic"];
+
+    /// <summary>
+    /// 1.42.0: the fixed <c>includes[]</c> of a series-record request - the main cover, the authors and the artists (names for the author
+    /// check and the info panel). The companion's requests keep only the cover art.
+    /// </summary>
+    public static readonly IReadOnlyList<string> RecordIncludes = ["cover_art", "author", "artist"];
+
+    private static readonly IReadOnlyList<string> CompanionIncludes = ["cover_art"];
+
+    /// <summary>The highest search offset MangaDex accepts with a page of 10 (offset + limit &lt;= 10000; Identify pages 1-100).</summary>
+    public const int MaxSearchOffset = 990;
 
     private const string ApiBase = "https://" + MetadataHttp.MangaDexApiHost;
     private const string ImageBase = "https://" + MetadataHttp.MangaDexImageHost + "/covers/";
@@ -174,6 +221,10 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
     public static string? CoverImageUrl(string mangaId, string fileName) =>
         IsValidId(mangaId) && IsValidFileName(fileName) ? ImageBase + mangaId + "/" + fileName + ".512.jpg" : null;
 
+    /// <summary>1.42.0: the 256-pixel version of a main cover - a candidate's picture while an admin chooses (kept in memory only).</summary>
+    public static string? ThumbnailUrl(string mangaId, string fileName) =>
+        IsValidId(mangaId) && IsValidFileName(fileName) ? ImageBase + mangaId + "/" + fileName + ".256.jpg" : null;
+
     /// <summary>The public title page of a record (the admin's "Change MangaDex match..." link).</summary>
     public static string SiteUrl(string mangaId) => "https://mangadex.org/title/" + mangaId;
 
@@ -205,15 +256,35 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
         return false;
     }
 
-    /// <summary>The search address (exposed for the tests that pin what is sent).</summary>
-    public static string SearchUrl(string title)
+    /// <summary>
+    /// The search address (exposed for the tests that pin what is sent). The companion's search sends page 1 with the cover art only;
+    /// a series-record search (1.42.0, <paramref name="record"/>) adds the page offset and the authors and artists.
+    /// </summary>
+    public static string SearchUrl(string title, int offset = 0, bool record = false)
     {
         var sb = new StringBuilder(ApiBase).Append("/manga?title=").Append(Uri.EscapeDataString(title))
-            .Append("&limit=").Append(SearchLimit.ToString(CultureInfo.InvariantCulture))
-            .Append("&order%5Brelevance%5D=desc");
+            .Append("&limit=").Append(SearchLimit.ToString(CultureInfo.InvariantCulture));
+        if (record)
+            sb.Append("&offset=").Append(Math.Clamp(offset, 0, MaxSearchOffset).ToString(CultureInfo.InvariantCulture));
+        sb.Append("&order%5Brelevance%5D=desc");
         foreach (var rating in ContentRatings)
             sb.Append("&contentRating%5B%5D=").Append(rating);
-        return sb.Append("&includes%5B%5D=cover_art").ToString();
+        foreach (var include in record ? RecordIncludes : CompanionIncludes)
+            sb.Append("&includes%5B%5D=").Append(include);
+        return sb.ToString();
+    }
+
+    /// <summary>1.42.0: the address of a series-record GET by id (with the authors and artists).</summary>
+    public static string RecordUrl(string mangaId)
+    {
+        var sb = new StringBuilder(ApiBase).Append("/manga/").Append(mangaId);
+        var first = true;
+        foreach (var include in RecordIncludes)
+        {
+            sb.Append(first ? '?' : '&').Append("includes%5B%5D=").Append(include);
+            first = false;
+        }
+        return sb.ToString();
     }
 
     public async Task<IReadOnlyList<MangaDexManga>> SearchAsync(string title, CancellationToken ct)
@@ -229,6 +300,24 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
         if (!IsValidId(mangaId))
             return null;
         using var doc = await GetJsonAsync($"{ApiBase}/manga/{mangaId}?includes%5B%5D=cover_art", ct);
+        return doc is not null && doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object
+            ? ReadManga(data)
+            : null;
+    }
+
+    public async Task<IReadOnlyList<MangaDexManga>> SearchRecordsAsync(string title, int offset, CancellationToken ct)
+    {
+        using var doc = await GetJsonAsync(SearchUrl(title, offset, record: true), ct);
+        if (doc is null || !doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
+            return [];
+        return data.EnumerateArray().Select(ReadManga).OfType<MangaDexManga>().Take(SearchLimit).ToList();
+    }
+
+    public async Task<MangaDexManga?> GetRecordAsync(string mangaId, CancellationToken ct)
+    {
+        if (!IsValidId(mangaId))
+            return null;
+        using var doc = await GetJsonAsync(RecordUrl(mangaId), ct);
         return doc is not null && doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object
             ? ReadManga(data)
             : null;
@@ -308,32 +397,61 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
             }
         }
 
-        var fanColored = false;
+        bool fanColored = false, doujinshi = false, longStrip = false, oneshot = false;
+        var genres = new List<string>();
         if (attributes.TryGetProperty("tags", out var tags) && tags.ValueKind == JsonValueKind.Array)
         {
             foreach (var tag in tags.EnumerateArray())
             {
-                if (tag.TryGetProperty("attributes", out var tagAttributes) && tagAttributes.TryGetProperty("name", out var name)
-                    && name.ValueKind == JsonValueKind.Object && Str(name, "en") is { } en
-                    && en.Equals("Fan Colored", StringComparison.OrdinalIgnoreCase))
+                if (!tag.TryGetProperty("attributes", out var tagAttributes) || !tagAttributes.TryGetProperty("name", out var name)
+                    || name.ValueKind != JsonValueKind.Object || Str(name, "en") is not { } en)
+                    continue;
+                if (en.Equals("Fan Colored", StringComparison.OrdinalIgnoreCase))
                     fanColored = true;
+                else if (en.Equals("Doujinshi", StringComparison.OrdinalIgnoreCase))
+                    doujinshi = true;
+                else if (en.Equals("Long Strip", StringComparison.OrdinalIgnoreCase))
+                    longStrip = true;
+                else if (en.Equals("Oneshot", StringComparison.OrdinalIgnoreCase))
+                    oneshot = true;
+                if (Str(tagAttributes, "group") == "genre" && MetadataText.Line(en, 64) is { } genre && genres.Count < 30
+                    && !genres.Contains(genre, StringComparer.OrdinalIgnoreCase))
+                    genres.Add(genre);
             }
         }
 
         string? coverFile = null, coverId = null;
+        var creators = new List<MangaDexCreator>();
+        var relations = new List<MangaDexRelation>();
         if (item.TryGetProperty("relationships", out var relationships) && relationships.ValueKind == JsonValueKind.Array)
         {
             foreach (var rel in relationships.EnumerateArray())
             {
-                if (Str(rel, "type") == "cover_art" && rel.TryGetProperty("attributes", out var coverAttributes)
+                var type = Str(rel, "type");
+                if (type == "cover_art" && coverFile is null && rel.TryGetProperty("attributes", out var coverAttributes)
                     && coverAttributes.ValueKind == JsonValueKind.Object && Str(coverAttributes, "fileName") is { } file && IsValidFileName(file))
                 {
                     coverFile = file;
                     coverId = Str(rel, "id") is { } relId && IsValidId(relId) ? relId : null;
-                    break;
+                }
+                else if (type is "author" or "artist" && creators.Count < 50 && rel.TryGetProperty("attributes", out var person)
+                    && MetadataText.Line(Str(person, "name"), 256) is { } personName
+                    && !creators.Any(c => c.Role == type && c.Name.Equals(personName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    creators.Add(new MangaDexCreator(personName, type));
+                }
+                else if (type == "manga" && relations.Count < 50 && Str(rel, "id") is { } relatedId && IsValidId(relatedId)
+                    && Str(rel, "related") is { Length: > 0 and <= 32 } related)
+                {
+                    relations.Add(new MangaDexRelation(relatedId, related));
                 }
             }
         }
+
+        string? description = null;
+        if (attributes.TryGetProperty("description", out var descriptions))
+            description = MetadataText.Description(LocalizedValues(descriptions, preferEnglish: true).FirstOrDefault(d => !string.IsNullOrWhiteSpace(d)),
+                16_000);
 
         var language = Str(attributes, "originalLanguage")?.Trim().ToLowerInvariant();
         return new MangaDexManga
@@ -355,6 +473,13 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
             MainCoverFile = coverId is null ? null : coverFile,
             MainCoverId = coverFile is null ? null : coverId,
             OfficialLinks = official,
+            Description = description,
+            Genres = genres,
+            Creators = creators,
+            Relations = relations,
+            Doujinshi = doujinshi,
+            LongStrip = longStrip,
+            Oneshot = oneshot,
         };
     }
 

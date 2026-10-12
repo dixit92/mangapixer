@@ -42,10 +42,11 @@ public static class MetadataProviderAllowlist
             + "count); cover thumbnails to help you choose in Identify.",
             "The search text you confirm (usually a folder or file name), a start year when the name has one, and GCD record "
             + "numbers; with Automatic matching on, also the cleaned names of new comics folders."),
+        // 1.42.0 (owner-approved wording): also the series information of a series MangaUpdates does not list.
         new(MangaDex, "MangaDex", [MetadataHttp.MangaDexApiHost, MetadataHttp.MangaDexImageHost],
-            "Volume covers, and which chapters make up each volume, for series already linked to MangaUpdates.",
-            "The MangaUpdates title of a linked series (never a folder or file name), MangaDex record numbers and your cover "
-            + "languages; downloads cover images."),
+            "Volume covers and which chapters make up each volume; the series information of a series MangaUpdates does not list.",
+            "The search text you confirm or, with Automatic matching on, the cleaned name of a work MangaUpdates found nothing for; "
+            + "the MangaUpdates title of a linked series; MangaDex record numbers and your cover languages; downloads cover images."),
         new(AniList, "AniList", [MetadataHttp.AniListHost],
             "Chapters per volume, for the Missing report and virtual volumes - when an admin asks, or automatically when "
             + "MangaDex has no volume list.",

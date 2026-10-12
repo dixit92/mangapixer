@@ -93,12 +93,12 @@ type Step = 'search' | 'preview';
             </div>
           </div>
         } @else if (step() === 'search') {
-          @if ((ctx.sites?.length ?? 0) > 1) {
+          @if (visibleSites().length > 1) {
             <div class="sites">
               <span class="muted">Search on:</span>
               <mat-button-toggle-group [value]="site()" (change)="chooseSite($event.value)" hideSingleSelectionIndicator
                                        aria-label="Search on" data-testid="identify-site">
-                @for (s of ctx.sites; track s.id) {
+                @for (s of visibleSites(); track s.id) {
                   <mat-button-toggle [value]="s.id" [disabled]="!s.available" [attr.data-site]="s.id"
                                      [matTooltip]="s.available ? '' : siteUnavailable(s)">{{ s.name }}</mat-button-toggle>
                 }
@@ -129,7 +129,7 @@ type Step = 'search' | 'preview';
             }
           } @else {
             <mat-checkbox class="hide-types" [checked]="hideDoujinshi()" (change)="hideDoujinshi.set($event.checked)"
-                          data-testid="identify-hide-doujinshi">Hide doujinshi &amp; novels</mat-checkbox>
+                          data-testid="identify-hide-doujinshi">{{ site() === 'mangadex' ? 'Hide doujinshi' : 'Hide doujinshi & novels' }}</mat-checkbox>
           }
           <p class="note"><mat-icon inline>info_outline</mat-icon>
             The search text{{ site() === 'gcd' && ctx.local.yearHint && useStartYear() ? ' and the start year' : '' }} is sent to
@@ -229,6 +229,11 @@ type Step = 'search' | 'preview';
           @for (w of p.warnings ?? []; track w.code) {
             <p class="warn" [attr.data-warning]="w.code"><mat-icon inline>warning_amber</mat-icon> {{ w.message }}</p>
           }
+          @if (p.provider === 'mangadex' && p.mangaUpdatesId) {
+            <!-- 1.42.0: MangaDex links this title to a MangaUpdates series - one MangaUpdates request by its number. -->
+            <p class="small"><button mat-stroked-button type="button" [disabled]="busy()" data-testid="identify-preview-mu"
+                    (click)="usePreview('mangaupdates', p.mangaUpdatesId!, 'Reference')">Preview on MangaUpdates</button></p>
+          }
           <p class="muted small" matTooltip="Title similarity only - not adjusted for item count, year, type or origin">
             Title match: {{ STRENGTH[match().strength] }} {{ percent(match().score) }}% · Applies to
             {{ ctx.nodeKind === 'Folder' ? 'this folder and everything inside' : 'this item only' }}.
@@ -262,12 +267,12 @@ type Step = 'search' | 'preview';
           <button mat-button type="button" [disabled]="busy()" (click)="skip()" data-testid="identify-skip">{{ isLast() ? 'Skip and finish' : 'Skip' }}</button>
           <button mat-button type="button" [disabled]="busy()" (click)="stop()" data-testid="identify-stop">Stop</button>
         }
-        @if (!stepping && context()?.nodeKind === 'Folder') {
+        @if (!stepping && context()?.nodeKind === 'Folder' && preview()?.provider !== 'mangadex') {
           <!-- 1.34.1: change your mind after searching - link the folder, or mark it a collection about the previewed series. -->
           <button mat-button type="button" [disabled]="busy()" (click)="toggleCollection()" data-testid="identify-mode-switch">
             {{ collectionMode() ? 'Link instead' : 'Set as collection instead' }}</button>
         }
-        @if (collectionMode()) {
+        @if (collectionMode() && preview()?.provider !== 'mangadex') {
           <button mat-flat-button type="button" [disabled]="busy()" (click)="setCollection()" data-testid="identify-set-collection">Set as collection</button>
         } @else {
           <button mat-flat-button type="button" [disabled]="busy()" (click)="link()" data-testid="identify-link">Link</button>
@@ -295,7 +300,7 @@ type Step = 'search' | 'preview';
     .chip-text { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .hide-types { display: block; margin: 0 0 0 -8px; }
     .sites { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0; }
-    .sites mat-button-toggle-group { max-width: 100%; }
+    .sites mat-button-toggle-group { max-width: 100%; flex-wrap: wrap; }
     .note { color: var(--mp-text-muted); font-size: 12px; margin: 4px 0 8px; }
     .muted { color: var(--mp-text-muted); }
     .small { font-size: 12px; }
@@ -410,11 +415,19 @@ export class IdentifyDialogComponent implements OnInit {
 
   readonly siteName = computed(() => this.nameOf(this.site()));
 
+  /** 1.42.0: the sites to search on - a "Collection about" label never names a MangaDex record, so MangaDex is left out there. */
+  readonly visibleSites = computed(() =>
+    (this.context()?.sites ?? []).filter((x) => !(this.collectionMode() && x.id === 'mangadex')));
+
   readonly siteNote = computed(() => this.context()?.sites?.find((x) => x.id === this.site())?.note ?? null);
 
   readonly pasteLabel = computed(() => {
     const sites = this.context()?.sites ?? [];
-    return sites.some((x) => x.id === 'gcd')
+    const gcd = sites.some((x) => x.id === 'gcd');
+    const mangaDex = sites.some((x) => x.id === 'mangadex');
+    if (gcd && mangaDex) return 'or paste a MangaUpdates, comics.org or MangaDex address, or mu:12345';
+    if (mangaDex) return 'or paste a MangaUpdates or MangaDex address, or mu:12345';
+    return gcd
       ? 'or paste a MangaUpdates or comics.org series URL, or mu:12345'
       : `or paste a ${this.context()?.providerName ?? 'MangaUpdates'} URL, or mu:12345`;
   });
@@ -651,9 +664,12 @@ export class IdentifyDialogComponent implements OnInit {
     this.error.set(null);
     const site = append ? this.resultsSite() : this.site();
     const year = site === 'gcd' && this.useStartYear() ? this.context()?.local.yearHint ?? null : null;
+    // 1.42.0: MangaDex drops doujinshi on the server when asked (nothing extra is sent to it).
     const call = site === 'mangaupdates'
       ? this.api.search(this.nodeId(), query, page, this.lastSubmittedHide())
-      : this.api.search(this.nodeId(), query, page, false, site, year);
+      : site === 'mangadex'
+        ? this.api.search(this.nodeId(), query, page, this.lastSubmittedHide(), site)
+        : this.api.search(this.nodeId(), query, page, false, site, year);
     call.subscribe({
       next: (result) => {
         this.resultsSite.set(result.provider || site);

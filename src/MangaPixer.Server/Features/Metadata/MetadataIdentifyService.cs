@@ -43,6 +43,9 @@ public sealed class MetadataIdentifyService
     /// <summary>The Grand Comics Database (1.32.0): Identify's second site, the default for comics-signalled nodes.</summary>
     public const string ComicsProvider = GcdMapping.ProviderId;
 
+    /// <summary>MangaDex (1.42.0): Identify's third site - the series record of a work MangaUpdates does not list. Never the default.</summary>
+    public const string MangaDexProvider = Providers.MangaDex.MangaDexProvider.ProviderId;
+
     private const int MaxLocalItems = 500;
 
     private readonly MangaPixerDbContext _db;
@@ -100,6 +103,9 @@ public sealed class MetadataIdentifyService
 
     /// <summary>Whether the comics site is registered (it is in the app; a test host may leave it out).</summary>
     private bool ComicsAvailable => _gcd is not null && _providers.Find(ComicsProvider) is not null;
+
+    /// <summary>Whether MangaDex is registered as a series-record site (1.42.0; it is in the app; a test host may leave it out).</summary>
+    private bool MangaDexAvailable => _providers.Find(MangaDexProvider) is not null;
 
     private sealed record CandidateImage(string Provider, long LibraryId, string Url);
 
@@ -191,7 +197,7 @@ public sealed class MetadataIdentifyService
                 var score = Rank(queries, [hit.Title, hit.HitTitle], name.YearHint, hit.Year);
                 if (hit.Record is { } record)
                     RememberSearched(record);
-                var extra = GcdExtra.Read(hit.Record?.ExtraJson);
+                var extra = provider == ComicsProvider ? GcdExtra.Read(hit.Record?.ExtraJson) : null;
                 return (Index: index, Dto: new IdentifyCandidateDto
                 {
                     ExternalId = hit.ExternalId,
@@ -245,11 +251,14 @@ public sealed class MetadataIdentifyService
                     "This is a Grand Comics Database issue address. Open its series on comics.org and paste the series address (…/series/<number>/).");
             reference = _gateway.ParseReference(ComicsProvider, request.Reference ?? string.Empty);
         }
+        // 1.42.0: a MangaDex title address (mangadex.org/title/<uuid>) - only the id is sent, on the GET.
+        if (reference is null && MangaDexAvailable)
+            reference = _gateway.ParseReference(MangaDexProvider, request.Reference ?? string.Empty);
         if (reference is null)
             throw new MetadataGatewayException(StatusCodes.Status400BadRequest, "invalid_reference",
-                ComicsAvailable
-                    ? "Paste a MangaUpdates series address or a shortcode like mu:12345, or a Grand Comics Database series address (comics.org/series/<number>/)."
-                    : "Paste a MangaUpdates series address or a shortcode like mu:12345.");
+                "Paste a MangaUpdates series address or a shortcode like mu:12345"
+                + (ComicsAvailable ? ", a Grand Comics Database series address (comics.org/series/<number>/)" : string.Empty)
+                + (MangaDexAvailable ? ", or a MangaDex title address (mangadex.org/title/...)" : string.Empty) + ".");
         return await PreviewAsync(nodePublicId, new IdentifyPreviewRequest { Provider = reference.Provider, ExternalId = reference.ExternalId }, ct);
     }
 
@@ -303,12 +312,40 @@ public sealed class MetadataIdentifyService
             FetchedAt = record.FetchedAt,
             Local = local,
             Warnings = Warnings(record, local, name.YearHint, await LocalUnitsAsync(node, ct), node.Kind == (int)CatalogNodeKind.Folder,
-                await DeclaredTypeAsync(node, ct), providerName),
+                    await DeclaredTypeAsync(node, ct), providerName)
+                .Concat(record.Provider == MangaDexProvider && MangaUpdatesIdOf(record) is not null
+                    ? new[]
+                    {
+                        new IdentifyWarningDto
+                        {
+                            Code = "mangaupdates_lists",
+                            Message = "MangaDex links this title to a MangaUpdates series. Linking that one also gives English release totals.",
+                        },
+                    }
+                    : Array.Empty<IdentifyWarningDto>())
+                .ToList(),
             Country = extra?.Country,
             Language = extra?.Language,
             Publishers = MetadataJson.ReadList<MetadataJson.Publisher>(record.PublishersJson).Select(p => p.Name).ToList(),
             Credit = record.Provider == ComicsProvider ? GcdMapping.Credit : null,
+            MangaUpdatesId = record.Provider == MangaDexProvider ? MangaUpdatesIdOf(record) : null,
         };
+    }
+
+    /// <summary>1.42.0: the MangaUpdates series a stored MangaDex record's own link names (its cross ids), or null.</summary>
+    internal static string? MangaUpdatesIdOf(MetadataRecordEntity record)
+    {
+        if (string.IsNullOrWhiteSpace(record.CrossIdsJson))
+            return null;
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(record.CrossIdsJson)
+                ?.GetValueOrDefault(MetadataProviderAllowlist.MangaUpdates) is { } id && MetadataIdentifiers.IsValidExternalId(id) ? id : null;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
     }
 
     // --- Link with fetch ---
@@ -340,6 +377,9 @@ public sealed class MetadataIdentifyService
         if (result.Code == MetadataLinkResultCode.Ok)
         {
             var record = await _db.MetadataRecords.FirstAsync(r => r.Provider == request.Provider && r.ExternalId == request.ExternalId, ct);
+            // 1.42.0: a series linked to MangaDex is its own MangaDex companion (volume lists, covers, export) - no request.
+            if ((await Volumes.CompanionLinkService.EnsureSelfAsync(_db, record, _time.GetUtcNow(), ct)).Created)
+                _logger.LogInformation(LogEvents.Metadata.MangaDexSelfCompanion, "MangaDex record {RecordId} is its own companion", record.Id);
             if (record.ImageState != 1)
                 await TryStoreImageAsync(record, node.LibraryId, ct);
         }
@@ -362,6 +402,10 @@ public sealed class MetadataIdentifyService
             return (MetadataLinkResultCode.NodeNotFound, null);
         if (node.Kind != (int)CatalogNodeKind.Folder)
             return (MetadataLinkResultCode.NotAFolder, null);
+        // 1.42.0 (owner): a "Collection about" label names a MangaUpdates or GCD series - never a MangaDex record (the automatic
+        // `<series> dj - <title>` query is built from a MangaUpdates title).
+        if (request.Provider == MangaDexProvider)
+            return (MetadataLinkResultCode.InvalidRequest, null);
 
         var stored = await _db.MetadataRecords.AnyAsync(r => r.Provider == request.Provider && r.ExternalId == request.ExternalId, ct);
         if (!stored)
@@ -477,6 +521,10 @@ public sealed class MetadataIdentifyService
         return node is null || node.Availability == (int)CatalogNodeAvailability.Tombstoned ? null : node;
     }
 
+    /// <summary>1.42.0: the stored record, fetched (gated, an admin action) when it is not stored yet - Switch to MangaUpdates.</summary>
+    internal Task<MetadataRecordEntity> EnsureStoredRecordAsync(string provider, string externalId, long libraryId, CancellationToken ct) =>
+        EnsureRecordAsync(provider, externalId, libraryId, requireFresh: false, ct);
+
     /// <summary>The stored record, fetching (gated) when missing or - with <paramref name="requireFresh"/> - older than the reuse window.</summary>
     private async Task<MetadataRecordEntity> EnsureRecordAsync(string provider, string externalId, long libraryId, bool requireFresh, CancellationToken ct)
     {
@@ -485,11 +533,13 @@ public sealed class MetadataIdentifyService
 
         var record = await _db.MetadataRecords.FirstOrDefaultAsync(r => r.Provider == provider && r.ExternalId == externalId, ct);
         var now = _time.GetUtcNow();
-        if (record is not null && (!requireFresh || now - record.FetchedAt < RecordReuseWindow))
+        if (record is not null && (!requireFresh || now - record.FetchedAt < RecordReuseWindow) && !IsCompanionOnly(record))
             return record;
 
-        // 1.32.0: a GCD series the admin just found in a search is that search's answer (no second request for it).
-        var fetched = provider == ComicsProvider && _cache.TryGetValue<ProviderSeriesRecord>(SearchedKey(externalId), out var searched) && searched is not null
+        // 1.32.0: a GCD series the admin just found in a search is that search's answer (no second request for it); 1.42.0: so is a
+        // MangaDex record.
+        var fetched = provider is ComicsProvider or MangaDexProvider
+            && _cache.TryGetValue<ProviderSeriesRecord>(SearchedKey(externalId), out var searched) && searched is not null
             ? searched
             : await _gateway.GetSeriesAsync(provider, libraryId, externalId, ct);
         if (fetched is not null && provider == ComicsProvider && _gcd is not null)
@@ -535,6 +585,12 @@ public sealed class MetadataIdentifyService
         return GcdDetails.WithIssue(fetched, issue);
     }
 
+    /// <summary>
+    /// 1.42.0: a MangaDex row written only as another series' companion (no format, description or authors): it is read again as a
+    /// series record before it is shown or linked.
+    /// </summary>
+    internal static bool IsCompanionOnly(MetadataRecordEntity record) => record.Provider == MangaDexProvider && record.Format is null;
+
     private void RememberSearched(ProviderSeriesRecord record) => _cache.Set(SearchedKey(record.ExternalId), record, CandidateTtl);
 
     private static string SearchedKey(string externalId) => "metadata-gcd-searched:" + externalId;
@@ -543,6 +599,7 @@ public sealed class MetadataIdentifyService
     /// <summary>The site a request names: the comics site when asked for and registered, else MangaUpdates.</summary>
     private string SiteOf(string? provider) =>
         provider == ComicsProvider && ComicsAvailable ? ComicsProvider
+        : provider == MangaDexProvider && MangaDexAvailable ? MangaDexProvider
         : provider is null or DefaultProvider ? DefaultProvider
         : throw new MetadataGatewayException(StatusCodes.Status400BadRequest, "unknown_provider", "No such metadata provider.");
 
@@ -550,7 +607,12 @@ public sealed class MetadataIdentifyService
     private async Task<List<IdentifySiteDto>> SitesAsync(long libraryId, CancellationToken ct)
     {
         var sites = new List<IdentifySiteDto>();
-        foreach (var id in ComicsAvailable ? new[] { DefaultProvider, ComicsProvider } : [DefaultProvider])
+        var ids = new List<string> { DefaultProvider };
+        if (ComicsAvailable)
+            ids.Add(ComicsProvider);
+        if (MangaDexAvailable)
+            ids.Add(MangaDexProvider);
+        foreach (var id in ids)
         {
             var refusal = await _gateway.CheckSwitchesAsync(libraryId, MetadataCallOrigin.Interactive, id, ct);
             sites.Add(new IdentifySiteDto
@@ -559,7 +621,12 @@ public sealed class MetadataIdentifyService
                 Name = _providers.DisplayNameFor(id),
                 Available = refusal is null,
                 UnavailableCode = refusal?.Code,
-                Note = id == ComicsProvider ? "Comics and graphic novels. Answers about 25 requests an hour." : null,
+                Note = id switch
+                {
+                    ComicsProvider => "Comics and graphic novels. Answers about 25 requests an hour.",
+                    MangaDexProvider => "For a series MangaUpdates does not list yet. Its record has no English release totals.",
+                    _ => null,
+                },
             });
         }
         return sites;
@@ -596,6 +663,9 @@ public sealed class MetadataIdentifyService
         // 1.32.0: a Grand Comics Database series payload names its publisher by id only and carries no credits; what a chosen
         // candidate's details added (publisher name, first-issue credits) is kept while the publisher is the same.
         fetched = Providers.Gcd.GcdMapping.KeepDetails(record, fetched);
+        // 1.42.0: a MangaDex record's latest chapter comes from its stored released-in-language list (VolumeMapService), never a GET.
+        if (fetched.Provider == MangaDexProvider && fetched.LatestChapter is null)
+            fetched = fetched with { LatestChapter = record.LatestChapter };
         if (fetched.ExtraJson is { } extra)
             record.ExtraJson = extra;
         record.SourceKind = (int)fetched.SourceKind;
