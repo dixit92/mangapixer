@@ -4265,7 +4265,7 @@ describe('ReaderComponent mouse-wheel page turns (1.36.0)', () => {
  */
 describe('ReaderComponent prefetch concurrency', () => {
   let started: string[];
-  let fetchCalls: Array<{ url: string; init: RequestInit | undefined }>;
+  let fetchCalls: { url: string; init: RequestInit | undefined }[];
 
   beforeEach(() => {
     started = [];
