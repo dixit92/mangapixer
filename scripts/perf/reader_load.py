@@ -174,12 +174,16 @@ def list_items(session: Session, library_name: str | None, min_pages: int) -> li
                 if n.get("kind") == "Folder":
                     folders.append((lib, n["id"]))
                 elif (n.get("pageCount") or 0) >= min_pages:
-                    items.append({"id": n["id"], "pages": n["pageCount"]})
+                    # The name is used only to order the list (never printed or written): ids are random per instance,
+                    # names are not, so two instances of the same library read the same items in the same order.
+                    items.append({"id": n["id"], "pages": n["pageCount"], "key": (n.get("displayName") or "").casefold()})
             cursor = page.get("nextCursor")
             if not page.get("hasMore") or not cursor:
                 break
     c.close()
-    items.sort(key=lambda i: i["id"])
+    items.sort(key=lambda i: (i["key"], i["pages"], i["id"]))
+    for i in items:
+        del i["key"]
     return items
 
 
