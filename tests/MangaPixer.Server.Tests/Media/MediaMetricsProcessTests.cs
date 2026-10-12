@@ -45,12 +45,20 @@ public sealed class MediaMetricsProcessTests : IClassFixture<WorkerProcessFixtur
         return (pool, metrics);
     }
 
-    private Task<PageExtractionOutcome> ExtractAsync(
+    private async Task<PageExtractionOutcome> ExtractAsync(
         MediaWorkerPool pool, string zip, string entry, string output, CancellationToken ct, MediaSlotKind kind = MediaSlotKind.Page)
     {
         var fi = new FileInfo(zip);
-        return pool.ExtractPageAsync(zip, entry, "webp", fi.LastWriteTimeUtc.Ticks, fi.Length,
-            Path.Combine(_fixture.ScratchRoot, output), 200, 80, ct, slotKind: kind);
+        var path = Path.Combine(_fixture.ScratchRoot, output);
+        try
+        {
+            return await pool.ExtractPageAsync(zip, entry, "webp", fi.LastWriteTimeUtc.Ticks, fi.Length, path, 200, 80, ct, slotKind: kind);
+        }
+        finally
+        {
+            // The suite's temp folder is a memory-backed tmpfs in the verify container: do not leave encoded pages behind.
+            try { File.Delete(path); } catch { /* best effort */ }
+        }
     }
 
     private static MediaTimingDiagnostics? Timing(MediaDiagnostics s, string name, string kind) =>
@@ -105,7 +113,7 @@ public sealed class MediaMetricsProcessTests : IClassFixture<WorkerProcessFixtur
     {
         var (pool, metrics) = CreatePool(maxConcurrentJobs: 1);
         await pool.StartAsync();
-        var slow = _fixture.CreateSlowImageZip("metrics-busy.zip", size: 4000);
+        var slow = _fixture.CreateSlowImageZip("metrics-busy.zip", size: 2400);
 
         var holder = ExtractAsync(pool, slow, "page001.jpg", "metrics-busy-holder.webp", CancellationToken.None, MediaSlotKind.Thumbnail);
         Assert.True(await WaitForAsync(() => pool.BusyWorkerCount == 1, TimeSpan.FromSeconds(10)), "The slow extract never took the slot");
@@ -130,7 +138,7 @@ public sealed class MediaMetricsProcessTests : IClassFixture<WorkerProcessFixtur
     {
         var (pool, metrics) = CreatePool(maxConcurrentJobs: 1);
         await pool.StartAsync();
-        var slow = _fixture.CreateSlowImageZip("metrics-abandon.zip", size: 4000);
+        var slow = _fixture.CreateSlowImageZip("metrics-abandon.zip", size: 2400);
 
         using var cts = new CancellationTokenSource();
         var running = ExtractAsync(pool, slow, "page001.jpg", "metrics-abandon.webp", cts.Token);

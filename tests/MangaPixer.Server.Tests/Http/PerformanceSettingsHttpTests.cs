@@ -81,19 +81,27 @@ public sealed class PerformanceSettingsHttpTests : IDisposable
         Assert.Null(row.PerformanceBackgroundWhileReading);
     }
 
-    [Theory]
-    [InlineData("{\"mediaWorkers\":0}")]
-    [InlineData("{\"mediaWorkers\":9}")]
-    [InlineData("{\"pageCacheBytes\":1048576}")]
-    [InlineData("{\"pageCacheBytes\":137438953472}")]
-    [InlineData("{\"backgroundWhileReading\":\"sometimes\"}")]
-    [InlineData("{\"reset\":[\"everything\"]}")]
-    public async Task Put_RefusesValuesOutOfRange(string body)
+    [Fact]
+    public async Task Put_RefusesValuesOutOfRange()
     {
+        // One host for every case (each test host costs memory in the suite's container).
         var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
-        var response = await client.PutAsync(Route, new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Equal("invalid_request", (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+        foreach (var body in new[]
+        {
+            "{\"mediaWorkers\":0}",
+            "{\"mediaWorkers\":9}",
+            "{\"pageCacheBytes\":1048576}",
+            "{\"pageCacheBytes\":137438953472}",
+            "{\"backgroundWhileReading\":\"sometimes\"}",
+            "{\"reset\":[\"everything\"]}",
+        })
+        {
+            var response = await client.PutAsync(Route, new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
+            Assert.True(response.StatusCode == HttpStatusCode.BadRequest, $"{body}: {response.StatusCode}");
+            Assert.Equal("invalid_request", (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+        }
+        // Nothing was stored.
+        Assert.Equal("default", (await client.GetFromJsonAsync<JsonElement>(Route)).GetProperty("mediaWorkersSource").GetString());
     }
 
     [Fact]

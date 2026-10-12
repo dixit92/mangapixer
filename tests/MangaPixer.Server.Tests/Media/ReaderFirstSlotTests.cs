@@ -40,12 +40,20 @@ public sealed class ReaderFirstSlotTests : IClassFixture<WorkerProcessFixture>, 
         return pool;
     }
 
-    private Task<PageExtractionOutcome> ExtractAsync(
+    private async Task<PageExtractionOutcome> ExtractAsync(
         MediaWorkerPool pool, string zip, string entry, MediaSlotKind kind, CancellationToken ct = default)
     {
         var fi = new FileInfo(zip);
-        return pool.ExtractPageAsync(zip, entry, "webp", fi.LastWriteTimeUtc.Ticks, fi.Length,
-            Path.Combine(_fixture.ScratchRoot, "rf-" + Guid.NewGuid().ToString("N")[..8] + ".webp"), 200, 80, ct, slotKind: kind);
+        var output = Path.Combine(_fixture.ScratchRoot, "rf-" + Guid.NewGuid().ToString("N")[..8] + ".webp");
+        try
+        {
+            return await pool.ExtractPageAsync(zip, entry, "webp", fi.LastWriteTimeUtc.Ticks, fi.Length, output, 200, 80, ct, slotKind: kind);
+        }
+        finally
+        {
+            // The suite's temp folder is a memory-backed tmpfs in the verify container: do not leave encoded pages behind.
+            try { File.Delete(output); } catch { /* best effort */ }
+        }
     }
 
     private static async Task<bool> WaitForAsync(Func<bool> condition, TimeSpan within)
@@ -65,7 +73,7 @@ public sealed class ReaderFirstSlotTests : IClassFixture<WorkerProcessFixture>, 
     {
         var pool = CreatePool(maxConcurrentJobs: 1);
         await pool.StartAsync();
-        var slow = _fixture.CreateSlowImageZip("rf-starve.zip", size: 3000);
+        var slow = _fixture.CreateSlowImageZip("rf-starve.zip", size: 1600);
 
         // Background work that asks for the slot again the moment it lets go - what an analysis job followed by its
         // cover thumbnail does. Under the old 100 ms polling the reader never won that race.
@@ -145,7 +153,7 @@ public sealed class ReaderFirstSlotTests : IClassFixture<WorkerProcessFixture>, 
     {
         var pool = CreatePool(maxConcurrentJobs: 1);
         await pool.StartAsync();
-        var slow = _fixture.CreateSlowImageZip("rf-resize.zip", size: 4000);
+        var slow = _fixture.CreateSlowImageZip("rf-resize.zip", size: 2400);
 
         var first = ExtractAsync(pool, slow, "page001.jpg", MediaSlotKind.Page);
         Assert.True(await WaitForAsync(() => pool.BusyWorkerCount == 1, TimeSpan.FromSeconds(10)), "The first extract never took the slot");
