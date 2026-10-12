@@ -264,7 +264,11 @@ public sealed class MangaDexSeriesRecordHttpTests
             await db.SaveChangesAsync();
             db.MetadataCompanions.Add(new MetadataCompanionEntity
             {
-                RecordId = mu.Id, Provider = "mangadex", CompanionRecordId = md.Id, State = (int)CompanionState.Auto, Method = (int)CompanionMethod.CrossLink,
+                RecordId = mu.Id,
+                Provider = "mangadex",
+                CompanionRecordId = md.Id,
+                State = (int)CompanionState.Auto,
+                Method = (int)CompanionMethod.CrossLink,
             });
             await db.SaveChangesAsync();
         }

@@ -54,7 +54,9 @@ public static class MdJson
             new { id = "c0000000-0000-4000-8000-" + m.Id[^12..], type = "cover_art", attributes = new { fileName = "cover-" + m.Id[..8] + ".jpg" } },
         }.Concat((m.Authors ?? ["Synthetic Mangaka"]).Select((a, i) => (object)new
         {
-            id = "a0000000-0000-4000-8000-00000000000" + i, type = "author", attributes = new { name = a },
+            id = "a0000000-0000-4000-8000-00000000000" + i,
+            type = "author",
+            attributes = new { name = a },
         })).ToArray(),
     };
 
