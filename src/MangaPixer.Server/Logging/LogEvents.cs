@@ -277,6 +277,13 @@ public static class LogEvents
         public const int ThumbnailBackfillEnqueued = 4106;
         public const int ThumbnailBackfillBatch = 4107;
         public const int ThumbnailStaleInvalidated = 4108;
+
+        // 1.42.0 media metrics (4200-4299 reserved for the performance lane)
+        public const int MediaMetricsSummary = 4200;
+        public const int MediaMetricsSummaryFailed = 4201;
+        public const int PerformanceSettingsApplied = 4202;
+        public const int PerformanceSettingsLoadFailed = 4203;
+        public const int PerformanceConfigInvalid = 4204;
     }
 
     /// <summary>Derived-cache lifecycle: hits, publishes, eviction, budget pressure.</summary>
@@ -486,5 +493,10 @@ public static class LogEvents
 
         // Edition override and stop tracking (1.39.0, 9420-9429). Ids and flags only - never folder names or titles.
         public const int DeclaredEditionChanged = 9420;
+
+        // MangaDex as the series record (1.42.0, lane D, 9500-9599). Ids, counts and codes only - never titles or search text.
+        public const int MangaDexSelfCompanion = 9500;
+        public const int MangaDexStep = 9501;
+        public const int MangaDexSwitched = 9502;
     }
 }

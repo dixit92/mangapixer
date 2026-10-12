@@ -287,6 +287,9 @@ public sealed class VolumeCoverPass
         try
         {
             var series = await _db.MetadataRecords.FirstAsync(r => r.Id == s.RecordId, ct);
+            // 1.42.0 (owner): no Wikipedia for a series linked to MangaDex (it would need a Wikidata lookup by the MangaDex id).
+            if (CompanionLinkService.IsMangaDexSeries(series))
+                return;
             await _wikipedia.StepAsync(series, s.LibraryId, call, force, adminAsked: false, ct);
         }
         catch (MetadataGatewayException ex) when (MetadataAutoMatchService.IsRefusal(ex))
@@ -312,6 +315,9 @@ public sealed class VolumeCoverPass
             map = await _maps.RefreshListsAsync(series, mangaDex, s.LibraryId, preferredLanguage, call, ct: ct);
 
         if (!allowAniList || VolumeMapService.HasVolumeList(mangaDex is null ? null : map) || series.OriginVolumes == 1)
+            return null;
+        // 1.42.0 (owner): a series linked to MangaDex asks AniList only by the AniList id MangaDex itself links - never by a title.
+        if (CompanionLinkService.IsMangaDexSeries(series) && !VolumeMapService.LinksAniList(series))
             return null;
         var aniList = await _companions.FindAsync(series.Id, MetadataProviderAllowlist.AniList, ct);
         if (!force && aniList is { NextCheckAt: { } next } && next > now)
@@ -458,9 +464,12 @@ public sealed class VolumeCoverPass
 
         // volume -> the archives that ARE that volume (an empty list = held as all of its chapters, or an estimated stack)
         var held = new SortedDictionary<int, List<HeldArchive>>();
-        foreach (var archive in archives)
+        // 1.42.0 (lane T): units as the Volumes view reads them - a number after the folder's series head is a chapter.
+        var headed = VolumeGrouping.WithSeriesHeads(archives.Select(a => a.Row).ToList());
+        for (var i = 0; i < archives.Count; i++)
         {
-            var units = VolumeGrouping.UnitsOf(archive.Row);
+            var archive = archives[i];
+            var units = VolumeGrouping.UnitsOf(headed[i]);
             if (units.Chapter is null && units.Volume is { } v)
                 Add(held, (int)decimal.Truncate(v)).Add(archive);
         }
@@ -657,7 +666,8 @@ public sealed class VolumeCoverPass
             from l in _db.NodeSeriesLinks.AsNoTracking()
             where (l.State == confirmed || l.State == auto) && l.RecordId != null
             join r in _db.MetadataRecords.AsNoTracking() on l.RecordId equals r.Id
-            where r.Provider == MetadataProviderAllowlist.MangaUpdates
+            // 1.42.0: also a series linked to MangaDex itself (its own companion: lists and covers, no companion search).
+            where r.Provider == MetadataProviderAllowlist.MangaUpdates || r.Provider == MetadataProviderAllowlist.MangaDex
             join lib in _db.Libraries.AsNoTracking() on l.LibraryId equals lib.Id
             where lib.MetadataEnabled
             join n in _db.CatalogNodes.AsNoTracking() on l.NodeId equals n.Id

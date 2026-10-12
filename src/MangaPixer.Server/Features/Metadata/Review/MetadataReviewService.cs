@@ -652,8 +652,9 @@ public sealed class MetadataReviewService
             var volumes = 0;
             foreach (var directory in byRoot.GroupBy(r => r.ParentId))
             {
-                var found = DuplicateUnits.Find(directory.Select(r =>
-                    new GroupingRow(r.Name, GroupingRowKind.Archive, r.Name, string.Empty, r.ParentName)));
+                // 1.42.0: units read with the series head, as the Volumes view reads them.
+                var found = DuplicateUnits.Find(VolumeGrouping.WithSeriesHeads(directory.Select(r =>
+                    new GroupingRow(r.Name, GroupingRowKind.Archive, r.Name, string.Empty, r.ParentName)).ToList()));
                 chapters += found.Count(d => d.Kind == MissingUnitKind.Chapter);
                 volumes += found.Count(d => d.Kind == MissingUnitKind.Volume);
             }

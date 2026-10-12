@@ -20,6 +20,9 @@ public static class ExportVocabulary
     public const string Wikipedia = "wikipedia";
     public const string Merged = "merged";
 
+    /// <summary>1.42.0: a volume row the Volumes view estimates from the folder's files (<c>chaptersEstimated</c>), not from a list.</summary>
+    public const string Estimate = "estimate";
+
     public const string Released = "released";
     public const string Announced = "announced";
 

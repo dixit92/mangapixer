@@ -49,14 +49,16 @@ public sealed class VolumeCoverAdminService
     private sealed record Target(CatalogNodeEntity Node, MetadataRecordEntity Series);
 
     /// <summary>The node and the MangaUpdates record that applies to it (own or inherited link); null when none.</summary>
-    private async Task<Target?> TargetAsync(string nodePublicId, CancellationToken ct)
+    private async Task<Target?> TargetAsync(string nodePublicId, CancellationToken ct, bool mangaDexSeries = false)
     {
         var node = await _db.CatalogNodes.AsNoTracking()
             .FirstOrDefaultAsync(n => n.PublicId == nodePublicId && n.Availability != (int)CatalogNodeAvailability.Tombstoned, ct);
         if (node is null)
             return null;
         var record = await _resolver.ResolveWebRecordAsync(node, ct);
-        if (record is null || record.Provider != MetadataProviderAllowlist.MangaUpdates)
+        // The companion endpoints serve a MangaUpdates series; (1.42.0) a Refresh also reads the lists of a series linked to MangaDex itself.
+        if (record is null || !(record.Provider == MetadataProviderAllowlist.MangaUpdates
+                || (mangaDexSeries && record.Provider == MetadataProviderAllowlist.MangaDex)))
             return null;
         var tracked = await _db.MetadataRecords.FirstAsync(r => r.Id == record.Id, ct);
         return new Target(node, tracked);
@@ -172,7 +174,7 @@ public sealed class VolumeCoverAdminService
     {
         try
         {
-            var target = await TargetAsync(nodePublicId, ct);
+            var target = await TargetAsync(nodePublicId, ct, mangaDexSeries: true);
             if (target is null)
                 return;
             await ThrowIfOffAsync(ct);
@@ -250,10 +252,39 @@ public sealed class VolumeCoversController : ControllerBase
     private readonly VolumeCoverAdminService _admin;
     private readonly VolumeCoverPass _pass;
 
-    public VolumeCoversController(VolumeCoverAdminService admin, VolumeCoverPass pass)
+    private readonly MangaDexUpgradeService _upgrade;
+
+    public VolumeCoversController(VolumeCoverAdminService admin, VolumeCoverPass pass, MangaDexUpgradeService upgrade)
     {
         _admin = admin;
         _pass = pass;
+        _upgrade = upgrade;
+    }
+
+    /// <summary>
+    /// 1.42.0 "Switch to MangaUpdates...": a series linked to MangaDex whose MangaDex record now links a MangaUpdates series moves to that
+    /// record, keeping every link's confirmation (one GET by id when the MangaUpdates record is not stored yet).
+    /// </summary>
+    [HttpPost("nodes/{nodeId}/switch-to-mangaupdates")]
+    [ProducesResponseType<NodeSeriesLinkChangeDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> SwitchToMangaUpdates(string nodeId, CancellationToken ct)
+    {
+        try
+        {
+            var (error, change) = await _upgrade.SwitchAsync(nodeId, Actor, ct);
+            return error switch
+            {
+                null => Ok(change),
+                "not_listed" => Conflict(new ApiError { Error = error, Message = "MangaDex does not link this series to a MangaUpdates series." }),
+                _ => NotFound(new ApiError { Error = error, Message = "This item is not linked to a MangaDex series." }),
+            };
+        }
+        catch (MetadataGatewayException ex)
+        {
+            return MetadataIdentifyController.Error(this, ex);
+        }
     }
 
     private string? Actor => User.Identity?.Name;

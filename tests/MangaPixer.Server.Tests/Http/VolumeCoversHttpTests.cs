@@ -134,8 +134,9 @@ public sealed class VolumeCoversHttpTests
         var card = Assert.Single(settings.Providers, p => p.Id == "mangadex");
         Assert.Equal("MangaDex", card.Name);
         Assert.Equal(new[] { "api.mangadex.org", "uploads.mangadex.org" }, card.Hosts);
-        Assert.Contains("already linked to MangaUpdates", card.UsedFor, StringComparison.Ordinal);
-        Assert.Contains("never a folder or file name", card.Sends, StringComparison.Ordinal);
+        // 1.42.0 (owner-approved wording): also the series record of a series MangaUpdates does not list.
+        Assert.Contains("the series information of a series MangaUpdates does not list", card.UsedFor, StringComparison.Ordinal);
+        Assert.Contains("the cleaned name of a work MangaUpdates found nothing for", card.Sends, StringComparison.Ordinal);
         Assert.True(card.Allowed);
         Assert.Equal(0, factory.Handler.CallCount);
     }

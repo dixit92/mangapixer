@@ -97,6 +97,18 @@ If a share was unmounted during a scan, don't worry about losing progress: a sca
 
 `.cb7`/`.7z` archives and other *solid* archives are listed in the library, but they are marked as unreadable when they are analyzed: they have no page count and no cover, and opening one shows "Solid archives are not yet supported for reading." Repack them as `.cbz`.
 
+## Pages open slowly while the server is busy
+
+New archives are analyzed, and their cover thumbnails made, in the background; the same helper processes prepare the pages you read.
+Since 1.42.0 pages someone is reading always go first. If reading still feels slow while a large library is being scanned:
+
+- In **MangaPixer Administration**, **Performance** card, set **Background work while someone reads** to **Pause** until the scan is
+  done, or give the server more **Media workers** if it has processors and memory to spare. See [Performance](configuration.md#performance).
+- A larger **Page cache size** keeps more prepared pages for re-reading (a page from the cache opens almost at once). The cache is
+  empty after every restart, so the first read of each page after a restart is always prepared afresh.
+- For a closer look, an admin can read `GET /api/v1/operations/diagnostics` (counts and timings only: workers, waiting requests, cache
+  hits and misses, how long pages waited), and the browser's developer tools show a `Server-Timing` entry on every page image.
+
 ## Thumbnails are missing
 
 Covers are generated in the background, so give them time after a large scan. The server always serves pages to readers before it works on covers. Then:

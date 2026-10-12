@@ -11,11 +11,13 @@ using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 /// (<see cref="AutoMatchCoverComparer"/>); a v1 consent is not carried over (owner, 2026-09-28). v3 (1.29.0): volume
 /// covers and volume lists from MangaDex, AniList totals as the fallback (owner-approved text, 2026-09-29). v4 (1.32.0):
 /// comics go to the Grand Comics Database first (cleaned names + a start year, the transient cover comparison of its two
-/// closest series) and Wikipedia volume -> chapter lists for linked series (owner-approved text, 2026-10-02).
+/// closest series) and Wikipedia volume -> chapter lists for linked series (owner-approved text, 2026-10-02). v5 (1.42.0): a work no site
+/// found a candidate close enough to review for is searched on MangaDex by the same cleaned name - only ever proposed in Needs review
+/// (owner-approved text, 2026-10-12).
 /// </summary>
 public static class MetadataAutoConsent
 {
-    public const int CurrentVersion = 4;
+    public const int CurrentVersion = 5;
 }
 
 /// <summary>Threshold DTO mapping and validation (bounds from <see cref="MatchThresholds"/>).</summary>

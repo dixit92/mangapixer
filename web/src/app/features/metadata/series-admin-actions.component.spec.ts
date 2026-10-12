@@ -54,6 +54,7 @@ describe('SeriesAdminActionsComponent', () => {
       getFolderContent: vi.fn(() => (content ? of(content) : throwError(() => ({ status: 501 })))),
       setFolderContent: vi.fn((id: string, value: string) => of({ nodeId: id, content: value, effective: value })),
       clearFolderContent: vi.fn((id: string) => of({ nodeId: id, content: null, effective: 'Auto' })),
+      switchToMangaUpdates: vi.fn((id: string) => of({ nodeId: id })),
     };
     const state = { announce: vi.fn(), refresh: vi.fn() };
     const mangaDex = { open: vi.fn(() => Promise.resolve(true)) };
@@ -135,6 +136,26 @@ describe('SeriesAdminActionsComponent', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(fixture.componentInstance.changes).toBe(1);
+  });
+
+  it('1.42.0: a series linked to MangaDex offers "Switch to MangaUpdates" once MangaDex links a MangaUpdates series - not the MangaDex match', () => {
+    const link = { state: 'Confirmed' as const, nodeId: 'a1', inherited: false, linkedAt: '2026-10-01T00:00:00Z' };
+    const web = { provider: 'mangadex', providerName: 'MangaDex', fetchedAt: '2026-10-01T00:00:00Z', hasImage: false, mangaUpdatesId: '51239621230' };
+    const { fixture, api, state } = create(seriesInfo({ nodeId: 'a1', state: 'Web', web, link }), true);
+    fixture.detectChanges();
+    expect(item('[data-testid="mangadex-match"]')).toBeNull();
+    expect(document.querySelector('[data-testid="refresh"]')!.textContent).toContain('Refresh from MangaDex');
+    item('[data-testid="switch-to-mangaupdates"]')!.click();
+    expect(api.switchToMangaUpdates).toHaveBeenCalledWith('a1');
+    expect(state.refresh).toHaveBeenCalledWith('a1');
+    expect(fixture.componentInstance.changes).toBe(1);
+  });
+
+  it('1.42.0: no "Switch to MangaUpdates" while MangaDex names no MangaUpdates series', () => {
+    const link = { state: 'Confirmed' as const, nodeId: 'a1', inherited: false, linkedAt: '2026-10-01T00:00:00Z' };
+    const web = { provider: 'mangadex', providerName: 'MangaDex', fetchedAt: '2026-10-01T00:00:00Z', hasImage: false, mangaUpdatesId: null };
+    create(seriesInfo({ nodeId: 'a1', state: 'Web', web, link }), true);
+    expect(item('[data-testid="switch-to-mangaupdates"]')).toBeNull();
   });
 
   it('marks a node Don\'t match and reports the change', () => {

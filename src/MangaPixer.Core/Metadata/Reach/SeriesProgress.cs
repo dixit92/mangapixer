@@ -49,6 +49,9 @@ public sealed record ProgressFacts(
     public bool IsEnglish => string.Equals(Language, "en", StringComparison.OrdinalIgnoreCase);
 }
 
+/// <summary>A volume the Volumes view estimates (1.42.0): its number and the first / last chapter the estimate places in it (exact strings).</summary>
+public sealed record EstimatedVolume(decimal Volume, string FirstChapter, string LastChapter, bool HasVolumeFile);
+
 /// <summary>What <see cref="SeriesProgress.Evaluate"/> found.</summary>
 public sealed record ProgressResult
 {
@@ -61,6 +64,12 @@ public sealed record ProgressResult
     public bool Restarts { get; init; }
 
     public IReadOnlyList<int> MissingVolumes { get; init; } = [];
+
+    /// <summary>
+    /// 1.42.0 (MangaList): the Volumes view's estimated stacks (<c>~ Volume N</c>) that hold chapter files - the volume and the first and
+    /// last chapter the estimate places in it. Empty when nothing is estimated or no grouping was made.
+    /// </summary>
+    public IReadOnlyList<EstimatedVolume> EstimatedVolumes { get; init; } = [];
 
     /// <summary>Missing volumes above the highest volume here (released after it).</summary>
     public int VolumesBehind { get; init; }
@@ -233,6 +242,7 @@ public static class SeriesProgress
             Facts = facts,
             Reach = reach,
             MissingVolumes = missingVolumes,
+            EstimatedVolumes = EstimatedOf(grouping),
             VolumesBehind = volumesBehind,
             ChapterHoles = holes,
             ChaptersBehind = behind,
@@ -252,6 +262,15 @@ public static class SeriesProgress
         r with { Answer = SeriesAnswer.CantTell, AnswerReason = SeriesAnswerReason.NotTracked };
 
     // The released volume total: the official volumes, else the official chapters converted by a chapters-per-volume ratio (an estimate).
+    /// <summary>The estimated stacks (<c>~ Volume N</c>) that hold at least one chapter file, in volume order.</summary>
+    private static List<EstimatedVolume> EstimatedOf(VolumeGroupingResult grouping) =>
+        grouping.Entries
+            .Select(e => e.Stack)
+            .Where(s => s is { Confidence: VolumeStackConfidence.Estimated, FirstChapter: not null, LastChapter: not null })
+            .Select(s => new EstimatedVolume(s!.Volume, s.FirstChapter!, s.LastChapter!, s.HasVolumeArchive))
+            .OrderBy(e => e.Volume)
+            .ToList();
+
     private static (int? Total, MissingTotalSource? Source) VolumeTotal(ProgressFacts facts)
     {
         if (facts.VolumeOverride is { } declared)

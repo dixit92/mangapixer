@@ -53,7 +53,7 @@ Leave `ASPNETCORE_URLS` alone in Docker. The image's health check calls `http://
 | `MangaPixer:Storage:CacheRoot` (`MangaPixer__Storage__CacheRoot`) | `/cache` in the image; otherwise `cache` next to the binary | Cached page images. Disposable: emptied on every start (each run writes into its own `run-…` folder and deletes the earlier ones in the background). |
 | `MangaPixer:Storage:ScratchRoot` (`MangaPixer__Storage__ScratchRoot`) | `/scratch` in the image; otherwise `scratch` next to the binary | Temporary work folders for opening archives and for the YACReader import. Disposable. |
 | `MangaPixer:Storage:MediaRoot` (`MangaPixer__Storage__MediaRoot`) | `/media` | The only folder tree the admin **Browse…** picker can show when you register a library. It does not restrict what you can type into **Root Path** by hand. |
-| `MangaPixer:Storage:CacheBudgetBytes` (`MangaPixer__Storage__CacheBudgetBytes`) | `1073741824` (1 GiB) | Maximum size of the page cache, in bytes. The least recently used pages are evicted after a write pushes the cache over budget, and a full pass also runs once a day. The cache starts empty on every start, so the budget covers everything in the folder. |
+| `MangaPixer:Storage:CacheBudgetBytes` (`MangaPixer__Storage__CacheBudgetBytes`) | `1073741824` (1 GiB) | Maximum size of the page cache, in bytes. The least recently used pages are evicted after a write pushes the cache over budget, and a full pass also runs once a day. The cache starts empty on every start, so the budget covers everything in the folder. Admins can also set it on the **Performance** card ([below](#performance)); a value set here wins and the card shows it as set by the server configuration. |
 | `MangaPixer:Storage:ScratchBudgetBytes` (`MangaPixer__Storage__ScratchBudgetBytes`) | `1073741824` (1 GiB) | Size limit for temporary work folders, in bytes. Pages are written here briefly while they are extracted, and the YACReader import unpacks its upload here. |
 
 Budgets are plain byte counts: `268435456` is 256 MiB, `4294967296` is 4 GiB. Relative paths are resolved against the server's working directory. You cannot register a library whose folder is inside a storage root or contains one.
@@ -64,7 +64,8 @@ The Unraid Compose file sets the three roots to `/config/data`, `/config/cache` 
 
 | Key (environment variable) | Default | Meaning |
 |---|---|---|
-| `MangaPixer:Media:MaxConcurrentJobs` (`MangaPixer__Media__MaxConcurrentJobs`) | `2` | How many archive jobs (analysis, page extraction, thumbnails) run at once. When it is more than 1 and someone is waiting for a page, one slot is held back for them. Use `1` on a low-memory NAS. |
+| `MangaPixer:Media:MaxConcurrentJobs` (`MangaPixer__Media__MaxConcurrentJobs`) | a quarter of the processors, at least `2` and at most `4` | How many helper processes prepare pages, thumbnails and covers and analyze archives at once. Pages someone is reading are always served first. Use `1` on a low-memory NAS. Admins can also set it (1-8) on the **Performance** card ([below](#performance)); a value set here wins. Before version 1.42.0 the default was always `2`. |
+| `MangaPixer:Media:BackgroundWhileReading` (`MangaPixer__Media__BackgroundWhileReading`) | `slow` | What background work (analyzing new archives, cover thumbnails, cover look-ups) may do while someone reads: `pause` (none until 30 seconds after the last page someone opened), `slow` (one helper process) or `normal` (every helper process but one). Also on the **Performance** card; a value set here wins. |
 | `MangaPixer:Media:WorkerIdleTimeoutSeconds` (`MangaPixer__Media__WorkerIdleTimeoutSeconds`) | `180` | How many seconds a helper process that opens archives may sit unused before the server shuts it down. Each one holds roughly 100-200 MB of memory, so a quiet server gives that back. The next page or scan starts a fresh one, which adds about a fifth of a second to that first request. `0` keeps helpers running until the server stops, as before version 1.22.0. |
 | `MangaPixer:Media:MinWarmWorkers` (`MangaPixer__Media__MinWarmWorkers`) | `0` | How many helper processes stay running however long the server is idle. `0` lets a quiet server run with none. Set `1` if you prefer the first page after a quiet spell to open without the start-up delay and can spare the memory. It never goes above `MaxConcurrentJobs`. |
 | `MangaPixer:Media:ThumbnailBackfill:BatchSize` (`MangaPixer__Media__ThumbnailBackfill__BatchSize`) | `200` | How many items the background thumbnail pass loads at a time. |
@@ -137,7 +138,30 @@ A few server-wide settings are changed by an admin in **MangaPixer Administratio
 - **Update Checker**: off by default. When an admin ticks **Check for updates**, the server asks the GitHub Releases API for MangaPixer's latest release at most once a day (or when you select **Check now**) and shows **Update available** or **Up to date** in the admin page. The request carries no instance identifier, user data, paths or telemetry; apart from web series information (below), it is the only call MangaPixer makes to the internet, and only while this setting is on.
 - **Metadata Manager** (its own page, `/admin/metadata`, opened from the account menu, **Settings** tab): **Show series information**, **Fetch from the web** (off by default; turning it on needs the consent tick), **Automatic matching** (off by default, with its own consent tick), the **Daily request budget** (5000 by default) and the per-library switches. See [Series information](series-information.md#admin-settings). `Metadata__NetworkDisabled=true` (config key `Metadata:NetworkDisabled`) turns web lookups off regardless of the admin setting, for operators who want certainty; the Metadata Manager page then says so.
 - **Library icons and reading directions**, set per library on the **Libraries** card, and **automatic scan schedules**, set per library in **Scheduled jobs**.
+- **Performance** (*1.42.0*): media workers, page cache size and background work while someone reads - see [Performance](#performance).
 - **Scheduled jobs** (*1.32.0*): the hours of the daily jobs (series information refresh, backups, trash, cache clean-up), each library's scan time and how often series information is refreshed. See [Scheduled jobs](scheduled-jobs.md).
+
+## Performance
+
+*1.42.0.* The **Performance** card in **MangaPixer Administration** sets three things. Every change applies at once, without a
+restart. For each one the order is: the server configuration (the keys above) first, then the card, then the built-in default. A value
+set in the configuration is shown on the card as **Set by the server configuration** and cannot be changed there; choosing the
+**(default)** option on the card clears the stored value, so the setting follows the default again.
+
+| Setting | Default | Range | Configuration key |
+|---|---|---|---|
+| **Media workers** - helper processes that prepare pages and covers and analyze archives at once | a quarter of the processors, 2-4 | 1-8 | `MangaPixer:Media:MaxConcurrentJobs` |
+| **Page cache size** - prepared pages kept for quick re-reading | 1 GB | 256 MB - 64 GB | `MangaPixer:Storage:CacheBudgetBytes` |
+| **Background work while someone reads** | Slow | Pause / Slow / Normal | `MangaPixer:Media:BackgroundWhileReading` |
+
+- **Who goes first.** When every helper process is busy, a page someone is looking at goes first, then the pages the reader is
+  loading ahead and the reader's page strip, then background work. The reader loads at most two pages ahead at a time, and only once
+  the page on screen is there.
+- **Someone reads** means a page was opened in the last 30 seconds. While nobody reads, background work may use every helper process.
+  With **Slow**, background work that has waited 10 seconds goes before pages loaded ahead, so it never stops completely.
+- **More workers** open pages faster when several people read and finish a library scan sooner, but each helper process takes some
+  memory (about 150-250 MB while busy) and the processor time of the others on the same machine.
+- **A smaller cache** frees its space at once (the least recently read pages go first). The cache always starts empty after a restart.
 
 ## Fixed behavior
 

@@ -152,6 +152,12 @@ public sealed record SeriesInfoWebDto
     /// GCD-linked series (shown with a link to <see cref="SiteUrl"/>); null for MangaUpdates.
     /// </summary>
     public string? Credit { get; init; }
+
+    /// <summary>
+    /// 1.42.0: for a series linked to MangaDex whose MangaDex record now links a MangaUpdates series - that series' MangaUpdates id
+    /// (admins are offered "Switch to MangaUpdates..."); null otherwise.
+    /// </summary>
+    public string? MangaUpdatesId { get; init; }
 }
 
 /// <summary>A companion source of a linked series (1.41.0): provider id, display name and its public page (https).</summary>
@@ -243,6 +249,15 @@ public sealed record MetadataSettingsDto
 
     /// <summary>True when <c>Metadata:AutoMatch:CompareCovers=false</c> switches cover comparison off regardless of the setting.</summary>
     public bool CompareCoversDisabledByConfig { get; init; }
+
+    /// <summary>
+    /// 1.42.0: "Search MangaDex when MangaUpdates finds nothing" under Automatic matching (on by default): a work no site found a
+    /// candidate close enough to review for is searched on MangaDex - what it finds always waits in Needs review.
+    /// </summary>
+    public bool MangaDexStepEnabled { get; init; } = true;
+
+    /// <summary>True when <c>Metadata:AutoMatch:MangaDexFallback=false</c> switches the MangaDex step off regardless of the setting.</summary>
+    public bool MangaDexStepDisabledByConfig { get; init; }
 
     // 1.29.0: volume covers and virtual volumes.
 
@@ -340,6 +355,9 @@ public sealed record UpdateMetadataSettingsRequest
 
     /// <summary>"Compare covers" under Automatic matching (1.28.0); null leaves it unchanged. Needs no consent of its own.</summary>
     public bool? CompareCoversEnabled { get; init; }
+
+    /// <summary>1.42.0: "Search MangaDex when MangaUpdates finds nothing"; null leaves it unchanged. Covered by the automatic consent.</summary>
+    public bool? MangaDexStepEnabled { get; init; }
 
     /// <summary>
     /// 1.28.0: the full set of approved provider ids to keep OFF the allowlist (empty = every approved site in);

@@ -48,8 +48,8 @@ describe('MetadataSettingsComponent', () => {
   });
 
   it('consent 5 (1.38.0): the MangaUpdates bullet names the approved author numbers; the automatic consent stays 4', () => {
-    expect(CONSENT_TEXT_VERSION).toBe(5);
-    expect(AUTO_CONSENT_TEXT_VERSION).toBe(4);
+    expect(CONSENT_TEXT_VERSION).toBe(6);
+    expect(AUTO_CONSENT_TEXT_VERSION).toBe(5);
     const { q } = create();
     const text = (q('[data-testid="md-consent-text"]')!.textContent ?? '').replace(/\s+/g, ' ');
     expect(text).toContain(
@@ -334,6 +334,40 @@ describe('MetadataSettingsComponent', () => {
       acceptedAutoConsentVersion: AUTO_CONSENT_TEXT_VERSION, compareCoversDisabledByConfig: true }));
     expect((held.q('[data-testid="md-compare-covers"] input[type="checkbox"]') as HTMLInputElement).disabled).toBe(true);
     expect(held.q('[data-testid="md-compare-covers-config"]')).not.toBeNull();
+  });
+
+  it('1.42.0: "Search MangaDex when MangaUpdates finds nothing" is ONE settings PUT, only while Automatic matching is on, and honours the config switch', () => {
+    const { q, c } = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1, autoMatchEnabled: true,
+      acceptedAutoConsentVersion: AUTO_CONSENT_TEXT_VERSION, mangaDexStepEnabled: true }));
+    const box = q('[data-testid="md-mangadex-step"] input[type="checkbox"]') as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    expect(box.disabled).toBe(false);
+    c.setMangaDexStep(false);
+    const put = http.expectOne({ method: 'PUT', url: SETTINGS });
+    expect(put.request.body).toEqual({ mangaDexStepEnabled: false });
+    put.flush(settings({ fetchEnabled: true, acceptedConsentVersion: 1, autoMatchEnabled: true, acceptedAutoConsentVersion: AUTO_CONSENT_TEXT_VERSION,
+      mangaDexStepEnabled: false }));
+    http.expectNone(() => true);
+    expect(c.message()).toBe('MangaDex will not be searched');
+    TestBed.resetTestingModule();
+
+    const off = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1 }));
+    expect((off.q('[data-testid="md-mangadex-step"] input[type="checkbox"]') as HTMLInputElement).disabled).toBe(true);
+    TestBed.resetTestingModule();
+
+    const held = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1, autoMatchEnabled: true,
+      acceptedAutoConsentVersion: AUTO_CONSENT_TEXT_VERSION, mangaDexStepDisabledByConfig: true }));
+    expect((held.q('[data-testid="md-mangadex-step"] input[type="checkbox"]') as HTMLInputElement).disabled).toBe(true);
+    expect(held.q('[data-testid="md-mangadex-step-config"]')).not.toBeNull();
+  });
+
+  it('1.42.0: the consent texts say what MangaDex now receives (Identify text; automatic: only when nothing is close, Needs review)', () => {
+    const { q } = create(settings({ fetchEnabled: true, acceptedConsentVersion: 1 }));
+    const main = q('[data-testid="md-consent-text"]')!.textContent!.replace(/\s+/g, ' ');
+    expect(main).toContain('when you choose MangaDex in the Identify dialog');
+    const auto = q('[data-testid="md-auto-consent-text"]')!.textContent!.replace(/\s+/g, ' ');
+    expect(auto).toContain('to MangaDex, up to two searches with the same cleaned name');
+    expect(auto).toContain('it is never linked automatically');
   });
 
   it('shows which libraries automatic matching covers (every library with Fetch on)', () => {

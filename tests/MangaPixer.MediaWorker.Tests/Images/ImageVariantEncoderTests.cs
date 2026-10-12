@@ -188,6 +188,52 @@ public sealed class ImageVariantEncoderTests : IDisposable
         Assert.InRange(result.Height, 212, 214);
     }
 
+    // --- Single decode for frame counting (1.42.0, win 4a) ---
+
+    [Theory]
+    [InlineData("png")]
+    [InlineData("webp")]
+    [InlineData("gif")]
+    public void Encode_StillPngWebpOrGif_DecodesThePixelsOnlyOnce(string format)
+    {
+        // PNG / WebP / GIF can be animated, so the encoder counts their frames first. That count must come from the
+        // headers: before 1.42.0 it read a full MagickImageCollection, decoding every such page twice.
+        var source = Recode(CreatePng(1200, 1800), format);
+        ImageVariantEncoder.FullDecodes = 0;
+
+        var result = _encoder.Encode(source, "webp@1440", OutputPath(), thumbnailMaxDimension: 320, webpQuality: 82, pageMaxDimension: 1440);
+
+        Assert.Equal("image/webp", result.MediaType);
+        Assert.Equal(1, ImageVariantEncoder.FullDecodes);
+    }
+
+    [Fact]
+    public void Encode_AnimatedGif_IsStillPassedThrough_WithoutAPixelDecode()
+    {
+        // The header-only frame count must still see every frame: an animation is passed through untouched.
+        using var frames = new MagickImageCollection();
+        for (var i = 0; i < 3; i++)
+        {
+            var frame = new MagickImage(i % 2 == 0 ? MagickColors.Red : MagickColors.Blue, 40, 60) { AnimationDelay = 10 };
+            frames.Add(frame);
+        }
+        var source = frames.ToByteArray(MagickFormat.Gif);
+        ImageVariantEncoder.FullDecodes = 0;
+
+        var result = _encoder.Encode(source, "webp", OutputPath(), thumbnailMaxDimension: 320, webpQuality: 82);
+
+        Assert.Equal("image/gif", result.MediaType);
+        Assert.Equal(source.Length, result.ByteSize);
+        Assert.Equal(0, ImageVariantEncoder.FullDecodes);
+    }
+
+    private static byte[] Recode(byte[] png, string format)
+    {
+        using var image = new MagickImage(png);
+        image.Format = format switch { "webp" => MagickFormat.WebP, "gif" => MagickFormat.Gif, _ => MagickFormat.Png };
+        return image.ToByteArray();
+    }
+
     // --- Helpers ---
 
     private string OutputPath() =>

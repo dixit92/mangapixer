@@ -19,4 +19,8 @@
     <PackageReference Include="Serilog.Extensions.Hosting" />
     <PackageReference Include="Serilog.Sinks.Console" />
   </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MangaPixer.MediaWorker.Tests" />
+  </ItemGroup>
 </Project>

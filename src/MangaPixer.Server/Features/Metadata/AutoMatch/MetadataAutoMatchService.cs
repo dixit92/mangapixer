@@ -788,7 +788,7 @@ public sealed class MetadataAutoMatchService
                 : (await _declared.EffectiveForLibraryAsync(row.LibraryId, ct)).GetValueOrDefault(work.Work.FolderId);
             var lookupEngine = new AutoMatchLookup(_db, _gateway, _planner, _scorer, _covers, _gcd);
             lookup = await lookupEngine.LookupAsync(tree, work.Work, work.Classification, await ThresholdsAsync(ct), allowDoujinshi, call, ct,
-                declared);
+                declared, mangaDexStep: await MangaDexStepOnAsync(ct));
         }
         catch (AutoMatchDeferredException deferred)
         {
@@ -814,6 +814,10 @@ public sealed class MetadataAutoMatchService
             return;
         }
 
+        if (lookup.MangaDexStep.MangaDexRequests > 0 || lookup.MangaDexStep.Bridged > 0)
+            _logger.LogInformation(LogEvents.Metadata.MangaDexStep,
+                "Automatic matching asked MangaDex for node {NodeId}: {Requests} requests, {Found} candidates, {Bridged} MangaUpdates records by MangaDex's link",
+                row.NodeId, lookup.MangaDexStep.MangaDexRequests, lookup.FoundThroughMangaDex.Count, lookup.MangaDexStep.Bridged);
         var written = await WriteOutcomeAsync(row, work, lookup, call, ct);
         // A decided folder-level work speaks for its subtree: archive results inside it are retired.
         if (work.Work.Level is MatchLevel.Folder or MatchLevel.ReviewOnly)
@@ -948,6 +952,15 @@ public sealed class MetadataAutoMatchService
         }
     }
 
+    /// <summary>
+    /// 1.42.0: "Search MangaDex when MangaUpdates finds nothing" is on (the setting, default on, and no
+    /// <c>Metadata:AutoMatch:MangaDexFallback=false</c>). The automatic gate (consent, allowlist, switches) is checked per call.
+    /// </summary>
+    public async Task<bool> MangaDexStepOnAsync(CancellationToken ct = default) =>
+        !_settings.MangaDexStepDisabledByConfig
+        && await _db.AppSettings.AsNoTracking().Where(s => s.Id == AppSettingsEntity.SingletonId)
+            .Select(s => (bool?)s.MetadataMangaDexStepEnabled).FirstOrDefaultAsync(ct) != false;
+
     /// <summary>The effective folder Content (nearest folder with a row wins; default Auto).</summary>
     public async Task<MetadataFolderContent> EffectiveContentAsync(long folderId, CancellationToken ct)
     {
@@ -975,6 +988,10 @@ public sealed class MetadataAutoMatchService
         var top = outcome.Ranked.FirstOrDefault();
         if (band == MatchBand.Auto && (top is null || !lookup.Fetched.ContainsKey(top.Candidate.ExternalId)))
             band = MatchBand.NeedsReview; // Never link to a record we could not read.
+        // 1.42.0 (owner): what the MangaDex step found - a MangaDex record, or a MangaUpdates record named by MangaDex's own link - always
+        // waits in Needs review; it is never linked automatically.
+        if (band == MatchBand.Auto && top is not null && lookup.FoundThroughMangaDex.Contains(top.Candidate.ExternalId))
+            band = MatchBand.NeedsReview;
 
         var now = _time.GetUtcNow();
         MetadataRecordEntity? record = null;

@@ -90,8 +90,8 @@ folder's declared creator in MangaPixer (not part of the export).
 | `trail` | The on-disk names from below the library root down to the node itself (`["Shonen", "Series"]`; an archive's trail ends with its file name). Names only, never a path. |
 | `updatedAt` | When the export last saw this item change. |
 | `link` | `state` (`Confirmed`, `Auto`, `NeedsReview`, `DontMatch`, `CollectionAbout`, `ArtistFolder`), `method` (`search`, `reference`, `comicInfo`, `auto`, or `null`), `score` (0-1 or `null`), `updatedAt`. |
-| `record` | The linked record, or `null` - always `null` for Needs review, Don't match and Artist folder. For `CollectionAbout` it is the series the folder is about (a label only). `provider` is `mangaupdates` (or `gcd` for comics; ignore providers you do not know). Unit numbers such as `latestChapter` are exact strings (`"12.5"`). `englishPublishers` lists the English publishers with their volume / chapter totals and status. |
-| `companions` | `mangadex`: the MangaDex record id, or `null`; `anilist`: `{ id, chapters, volumes }`, or `null`. Both `null` for `CollectionAbout`. |
+| `record` | The linked record, or `null` - always `null` for Needs review, Don't match and Artist folder. For `CollectionAbout` it is the series the folder is about (a label only). `provider` is `mangaupdates` (or `gcd` for comics; *1.42.0:* or `mangadex` for a series MangaUpdates does not list - then `externalId` is the MangaDex id, `type`, `statusText`, `licensedEn` and `translationComplete` are `null`, `englishPublishers` is empty, `latestChapter` is the highest chapter released in the preferred language (the same as `companions.mangadexReleased.latestChapter`), `totalChapters` is set only for a finished series, and `companions.mangadex` is the same id - the record is its own MangaDex companion; ignore providers you do not know). After **Switch to MangaUpdates** the same item carries the MangaUpdates record instead. Unit numbers such as `latestChapter` are exact strings (`"12.5"`). `englishPublishers` lists the English publishers with their volume / chapter totals and status. |
+| `companions` | `mangadex`: the MangaDex record id, or `null`; `anilist`: `{ id, chapters, volumes }`, or `null`; `mangadexReleased` (1.42.0, left out when unknown): what MangaDex lists as released in the instance's preferred language - `{ language, latestChapter, chapters, fetchedAt }`, where `language` is the language the list was read for (`en` unless an admin chose another preferred language), `latestChapter` the highest chapter listed as an exact string (or `null`), `chapters` how many whole chapters are listed (parts such as `4.1` and `4.2` count once) and `fetchedAt` when the list was last read. It comes from the stored volume list, never from an extra request. All `null` or left out for `CollectionAbout`. |
 | `officialLinks` | Official sources from the linked MangaDex record: `{ kind, label, url, source: "mangadex" }`, `kind` being `publisher` or `store`. `[]` until MangaPixer next reads that record (they fill in on each series' refresh schedule). |
 | `volumes` | The per-volume list (below), or `null` when none is stored. |
 | `completion` | The Completion answer (below), or `null` - only folders with a Confirmed or Auto link have one, and (1.39.0) not a folder whose completion tracking is off. |
@@ -111,6 +111,13 @@ The same list MangaPixer's own Volumes view uses: MangaDex's volume list, comple
 chapters, with Wikipedia's English release dates and ISBNs. `source` is `mangadex`, `wikipedia` or `merged`. Numbers are exact strings.
 `chapters` is `null` when the volume's chapters are not known. `englishDate` may be partial (`2025-07`, `2025`); `englishDateKind` is
 `released` when the whole date is not after today, else `announced`.
+
+**Estimated volumes (1.42.0).** When the Volumes view of a linked folder shows an estimated volume (`~ Volume 7`: a volume the list does
+not map, its chapters placed by MangaDex's average chapters per volume), that volume is added to the folder's `items` with
+`"chaptersEstimated": true` and `"sources": ["estimate"]`. Its `chapters` are the first and last chapter **file of this folder** the estimate
+places in that volume - for a held volume file, the chapter files it most likely contains - so a client can offer "replace these chapters
+with the volume" for a person to confirm; never act on it automatically. A volume the list maps never gets an estimated row, and the key
+`chaptersEstimated` is left out on every other row. When there is no list at all but estimated volumes exist, `source` is `estimate`.
 
 ### Completion
 

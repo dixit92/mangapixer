@@ -38,8 +38,10 @@ import { AuthorAliasesCardComponent } from '../../authors/author-aliases-card.co
  * 4 (1.32.0): the Grand Comics Database (comics) and Wikipedia (volume lists) join; the fixed User-Agent is described.
  * 5 (1.38.0): MangaUpdates author numbers (artists' other names, when an admin asks) and the search text confirmed in Match folders
  * by name; the automatic consent stays 4.
+ * 6 (1.42.0): MangaDex can be the series record of a series MangaUpdates does not list - the search text confirmed in Identify is
+ * sent to MangaDex when the admin picks it; the automatic consent moves to 5 with it.
  */
-export const CONSENT_TEXT_VERSION = 5;
+export const CONSENT_TEXT_VERSION = 6;
 
 /**
  * Automatic-lookups consent text version (stage 2, owner decisions 2 + 3); must equal the
@@ -47,8 +49,9 @@ export const CONSENT_TEXT_VERSION = 5;
  * v2 (1.28.0): the cover comparison downloads; an earlier consent is not carried over (owner).
  * v3 (1.29.0): volume covers and volume lists from MangaDex (AniList totals as the fallback).
  * v4 (1.32.0): comics go to the Grand Comics Database first; volume lists from Wikipedia for linked series.
+ * v5 (1.42.0): a work neither site found anything close for is searched on MangaDex - only ever proposed under Needs review.
  */
-export const AUTO_CONSENT_TEXT_VERSION = 4;
+export const AUTO_CONSENT_TEXT_VERSION = 5;
 
 /** Integer-only daily budget in 1..1,000,000 (the server validates the same range). */
 export function parseDailyBudget(raw: string | number | null | undefined): number | null {
@@ -163,10 +166,11 @@ export function validateThresholds(
                   format, number of issues or volumes; cover thumbnails shown only while you choose): the search text you confirm
                   in the Identify dialog (usually a folder or file name), a start year when the name has one, and GCD record
                   numbers. Nothing is sent to it for folders that are not comics unless you choose it in Identify.</li>
-                <li><strong>MangaDex</strong> (volume covers, and which chapters make up each volume, for series already linked
-                  to MangaUpdates): the MangaUpdates title of the linked series - never a folder or file name - MangaDex record
-                  numbers and your cover languages. Cover images are downloaded from MangaDex's image server
-                  (uploads.mangadex.org).</li>
+                <li><strong>MangaDex</strong> (volume covers, and which chapters make up each volume, for linked series; and the
+                  series information - title, status, latest chapter, description, authors, cover - of a series MangaUpdates does not
+                  list, when you choose MangaDex in the Identify dialog): the search text you confirm there (usually a folder or file
+                  name), the MangaUpdates title of a series linked to MangaUpdates, MangaDex record numbers and your cover languages.
+                  Cover images are downloaded from MangaDex's image server (uploads.mangadex.org).</li>
                 <li><strong>AniList</strong> (volume and chapter totals, to convert chapters to volumes): the AniList record
                   number when it is known, otherwise the MangaUpdates title of a series that is already linked - never a folder
                   or file name.</li>
@@ -254,7 +258,11 @@ export function validateThresholds(
                 searched below a folder whose Content is "Doujinshi &amp; adult one-shots") - or, for comics (a folder declared
                 Comic or Graphic novel, below a Comics / BD folder, or whose files are numbered like comic issues or albums),
                 first to the Grand Comics Database, with the start year when the name has one, and to MangaUpdates only if GCD
-                finds nothing close - and record numbers to refresh linked series. Each site also sees your server's IP address. The same names may be sent again for folders that are
+                finds nothing close - and, for a work neither site found anything close for (not comics, not inside a "Collection
+                about" folder), to MangaDex, up to two searches with the same cleaned name (or the MangaDex number in the work's
+                ComicInfo). What MangaDex finds always waits for you under Needs review - it is never linked automatically. You can
+                switch this off below ("Search MangaDex when MangaUpdates finds nothing"). Record numbers are sent to refresh linked
+                series. Each site also sees your server's IP address. The same names may be sent again for folders that are
                 still waiting: a folder left unmatched is tried again after 30, 90 and 180 days, and when a MangaPixer update
                 changes how matches are scored, folders waiting under Needs review are checked once more under the new rules.</p>
               <p><strong>Cover comparison:</strong> when two series tie on the title for a folder of volumes or a one-shot,
@@ -264,7 +272,8 @@ export function validateThresholds(
                 deleted right after. For comics, the cover thumbnails of the two closest GCD series may be downloaded from
                 files1.comics.org in the same way; they carry nothing from your library and are deleted right after.</p>
               <p><strong>Volume covers and volume lists:</strong> for every series that gets linked - by Automatic matching or
-                by you - MangaPixer also finds the series on MangaDex by its MangaUpdates title (never a folder or file name),
+                by you - MangaPixer also finds the series on MangaDex by its MangaUpdates title (never a folder or file name; for a
+                series linked to MangaDex: from its own MangaDex record),
                 reads which chapters make up each volume and which of them are released in your preferred language, and which
                 volume covers exist in your preferred cover language and the original language, and downloads the covers of
                 volume 1 and of the volumes you have (or, when there is no volume 1 cover, the series' main cover) from
@@ -315,6 +324,19 @@ export function validateThresholds(
                 in another language, the folder goes to Needs review.</p>
               @if (s.compareCoversDisabledByConfig) {
                 <p class="note" data-testid="md-compare-covers-config">Switched off in the server configuration.</p>
+              }
+            </div>
+            <div class="sub-toggle" data-testid="md-mangadex-step-row">
+              <mat-checkbox [checked]="s.mangaDexStepEnabled !== false"
+                            [disabled]="saving() || !s.autoMatchEnabled || !!s.mangaDexStepDisabledByConfig"
+                            (change)="setMangaDexStep($event.checked)" data-testid="md-mangadex-step">
+                Search MangaDex when MangaUpdates finds nothing
+              </mat-checkbox>
+              <p class="muted small">For a folder MangaUpdates (and, for comics, the Grand Comics Database) finds nothing close
+                for, search MangaDex with the same cleaned name. What it finds waits for you under Needs review; it is never linked
+                on its own. Never for comics or inside a "Collection about" folder.</p>
+              @if (s.mangaDexStepDisabledByConfig) {
+                <p class="note" data-testid="md-mangadex-step-config">Switched off in the server configuration.</p>
               }
             </div>
             @if (!s.fetchEnabled) {
@@ -713,6 +735,13 @@ export class MetadataSettingsComponent implements OnInit {
   setCompareCovers(on: boolean): void {
     if (!this.settings()) return;
     this.save(this.api.updateSettings({ compareCoversEnabled: on }), on ? 'Covers will be compared' : 'Covers will not be compared');
+  }
+
+  /** "Search MangaDex when MangaUpdates finds nothing" (1.42.0): one settings PUT; the automatic consent covers it. */
+  setMangaDexStep(on: boolean): void {
+    if (!this.settings()) return;
+    this.save(this.api.updateSettings({ mangaDexStepEnabled: on }),
+      on ? 'MangaDex will be searched when MangaUpdates finds nothing' : 'MangaDex will not be searched');
   }
 
   /** "Volume covers from the web" (1.29.0): one settings PUT; no consent of its own (both consents cover it). */

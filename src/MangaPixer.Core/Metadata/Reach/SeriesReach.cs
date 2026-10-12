@@ -78,6 +78,7 @@ public static class SeriesReach
     public static ReachResult Of(IReadOnlyList<GroupingRow> rows, VolumeMapInput? map)
     {
         ArgumentNullException.ThrowIfNull(rows);
+        rows = VolumeGrouping.WithSeriesHeads(rows); // 1.42.0: units as the Volumes view reads them
         map ??= VolumeMapInput.Empty;
         var resolver = new VolumeResolver(map);
 

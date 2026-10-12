@@ -49,6 +49,14 @@ public static partial class TitleNormalizer
     [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?i:tpb|ogn|(?:l')?int[eé]grale|gesamtausgabe|integraal)|HC|GN)(?![\p{L}\p{N}])", RegexOptions.CultureInvariant)]
     private static partial Regex FormatWord();
 
+    // 1.42.0 (MangaList parity, owner 2026-10-11): a site's watermark at the END of a name - the page title of an online-reading site
+    // ("<Title> 001 Read Online", "... - Read Manga Online Free", "... Online Free", "... Free Online") - is not part of the name. A class,
+    // not a list of sites: "read" + online / free, or online + free; one of those words alone never is ("Sword Art Online", "Free!"),
+    // and some text must come before it.
+    [GeneratedRegex(@"(?<=\S)[\s_\-\u2013\u2014|:]+(?:read(?:[\s_]+(?:manga|manhwa|manhua|webtoons?|comics?))?(?:[\s_]+(?:online|free|for[\s_]+free)){1,2}|(?:(?:manga|manhwa|manhua|webtoons?|comics?)[\s_]+)?online[\s_]+(?:for[\s_]+)?free|free[\s_]+online)[\s_]*$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex SiteWatermark();
+
     [GeneratedRegex(@"\[([^\[\]]*)\]", RegexOptions.CultureInvariant)]
     private static partial Regex SquareGroup();
 
@@ -129,7 +137,7 @@ public static partial class TitleNormalizer
             return new NormalizedTitle(string.Empty, [], null, []);
 
         var s = displayName.Normalize(NormalizationForm.FormKC).Trim();
-        s = DatedTitleOr(StripArchiveExtension(s));
+        s = DatedTitleOr(WithoutSiteWatermark(StripArchiveExtension(s)));
 
         if (!s.Contains(' ', StringComparison.Ordinal))
             s = s.Replace('_', ' ').Replace('.', ' ');
@@ -339,7 +347,7 @@ public static partial class TitleNormalizer
             return string.Empty;
 
         var s = archiveName.Normalize(NormalizationForm.FormKC).Trim();
-        s = DatedTitleOr(StripArchiveExtension(s));
+        s = DatedTitleOr(WithoutSiteWatermark(StripArchiveExtension(s)));
         if (!s.Contains(' ', StringComparison.Ordinal))
             s = s.Replace('_', ' ').Replace('.', ' ');
         s = Whitespace().Replace(RemoveBracketGroups(s), " ").Trim();
@@ -570,6 +578,17 @@ public static partial class TitleNormalizer
         return decimal.TryParse(lower, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var d)
             ? d.ToString("0.##", CultureInfo.InvariantCulture)
             : null;
+    }
+
+    /// <summary>
+    /// The name without a site's watermark at its end (1.42.0: <c>Title 001 Read Online</c> -> <c>Title 001</c>; see <see cref="SiteWatermark"/>);
+    /// unchanged when it has none. Call after the extension is removed.
+    /// </summary>
+    public static string WithoutSiteWatermark(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        var cut = SiteWatermark().Replace(name, string.Empty);
+        return cut.Length > 0 ? cut : name;
     }
 
     /// <summary>The name without a known archive extension (<c>.cbz</c>, <c>.zip</c>, ...).</summary>

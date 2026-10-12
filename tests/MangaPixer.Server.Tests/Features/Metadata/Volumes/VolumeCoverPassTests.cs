@@ -375,6 +375,28 @@ public sealed class VolumeCoverPassTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ChaptersAfterTheSeriesHead_AreNotPlannedAsHeldVolumes()
+    {
+        // 1.42.0 (lane T's series head, applied at lane D's merge): `<Series> 100 Vol 11 <title>` is chapter 100 of volume 11, as the
+        // Volumes view reads it - not a file that IS volume 11, so the pass plans no volume cover for it.
+        var folder = await _t.AddFolderAsync(null, "Synthetic Saga Head");
+        foreach (var name in new[] { "Synthetic Saga 100 Vol 11 Alpha.cbz", "Synthetic Saga 101 Vol 11 Beta.cbz",
+                     "Synthetic Saga 102 Vol 12 Gamma.cbz", "Synthetic Saga 103 Vol 12 Delta.cbz" })
+            await _t.AddArchiveAsync(folder, name);
+        var record = await _t.AddRecordAsync("head1", "Synthetic Saga Head");
+        await _t.AddLinkAsync(folder, record, SeriesLinkState.Auto);
+        var md = new MetadataRecordEntity { PublicId = "mdhead1", Provider = "mangadex", ExternalId = "00000000-0000-0000-0000-0000000e5702", Title = "Synthetic Saga Head", FetchedAt = DateTimeOffset.UtcNow };
+        _t.Db.MetadataRecords.Add(md);
+        await _t.Db.SaveChangesAsync();
+        _t.Db.MetadataCompanions.Add(new MetadataCompanionEntity { RecordId = record.Id, Provider = "mangadex", CompanionRecordId = md.Id, State = (int)CompanionState.Auto, CheckedAt = DateTimeOffset.UtcNow });
+        // No volume list and no ratio: only the file names could make a held volume.
+        _t.Db.SeriesVolumeMaps.Add(new SeriesVolumeMapEntity { RecordId = record.Id, Source = (int)VolumeMapSource.MangaDexAggregate, State = (int)VolumeMapState.Ok, ContentHash = "h", Version = 1, FetchedAt = DateTimeOffset.UtcNow });
+        await _t.Db.SaveChangesAsync();
+
+        Assert.Empty(await _h.Pass().PlannedHeldVolumesAsync(record.Id, [folder.Id]));
+    }
+
+    [Fact]
     public async Task EstimatedStacks_ArePlanned_LikeTheVolumesTheFolderHolds()
     {
         // 1.31.0 (owner 2026-10-01): an estimated "~ Volume 2" stack shows its volume's web cover; the pass plans it (stored rows only).

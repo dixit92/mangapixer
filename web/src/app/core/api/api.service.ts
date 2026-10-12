@@ -88,6 +88,8 @@ import {
   SetupStatusDto,
   SystemInfoDto,
   UpdateCheckSettingsRequest,
+  PerformanceSettingsDto,
+  UpdatePerformanceSettingsRequest,
   UpdateCheckStatusDto,
   BackupSettingsDto,
   BackupSettingsUpdateResultDto,
@@ -635,6 +637,16 @@ export class ApiService {
     return this.put<UpdateCheckStatusDto>(
       '/operations/update-check/settings',
       { enabled } as UpdateCheckSettingsRequest);
+  }
+
+  /** Performance settings (1.42.0, admin): media workers, page cache size, background work while someone reads. */
+  getPerformanceSettings(): Observable<PerformanceSettingsDto> {
+    return this.get<PerformanceSettingsDto>('/admin/performance');
+  }
+
+  /** Changes the performance settings (partial; `reset` returns fields to their default). Applies live. */
+  updatePerformanceSettings(request: UpdatePerformanceSettingsRequest): Observable<PerformanceSettingsDto> {
+    return this.put<PerformanceSettingsDto>('/admin/performance', request);
   }
 
   /** Admin analytics overview: library/content/processing/engagement counts. */

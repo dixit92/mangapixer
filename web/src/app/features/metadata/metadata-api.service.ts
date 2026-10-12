@@ -181,6 +181,14 @@ export class MetadataApiService {
     return this.post<MetadataRefreshResultDto>(`/admin/metadata/nodes/${encodeURIComponent(nodeId)}/refresh`, {});
   }
 
+  /**
+   * 1.42.0 "Switch to MangaUpdates": a series linked to MangaDex whose MangaDex record now links a MangaUpdates series moves to that
+   * record (links keep their confirmation; MangaDex stays its companion). The SERVER reads the MangaUpdates record by its number.
+   */
+  switchToMangaUpdates(nodeId: string): Observable<NodeSeriesLinkChangeDto> {
+    return this.post<NodeSeriesLinkChangeDto>(`/admin/metadata/nodes/${encodeURIComponent(nodeId)}/switch-to-mangaupdates`, {});
+  }
+
   /** Same-origin URL of a candidate image (served by MangaPixer; the browser never contacts a provider). */
   candidateImageUrl(token: string): string {
     return `${this.baseUrl}/admin/metadata/candidates/${encodeURIComponent(token)}/image`;

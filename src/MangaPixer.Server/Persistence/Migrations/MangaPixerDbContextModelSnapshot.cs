@@ -169,6 +169,9 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("MetadataMangaDexStepEnabled")
+                        .HasColumnType("INTEGER");
+
                     b.Property<double?>("MetadataMarginThreshold")
                         .HasColumnType("REAL");
 
@@ -204,6 +207,15 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("MetadataVolumeCoversEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("PerformanceBackgroundWhileReading")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("PerformanceMediaWorkers")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("PerformancePageCacheBytes")
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("TrashAutoCleanEnabled")

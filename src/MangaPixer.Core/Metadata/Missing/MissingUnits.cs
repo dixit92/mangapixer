@@ -168,7 +168,8 @@ public static class MissingUnits
         foreach (var folder in folders)
         {
             var volumeFolder = AutoMatchText.IsVolumeFolderName(folder.Name);
-            var units = folder.ArchiveNames.Select(n => UnitsIn(n, volumeFolder)).Where(u => !u.IsEmpty).ToList();
+            var head = AutoMatchText.SeriesHeadOf(folder.ArchiveNames); // 1.42.0: the number after the series head (as the Volumes view)
+            var units = folder.ArchiveNames.Select(n => UnitsIn(n, volumeFolder, head)).Where(u => !u.IsEmpty).ToList();
             var v = units.Where(u => u.Chapter is null).ToList();
             var c = units.Where(u => u.Chapter is not null).ToList();
             if (v.Count > 0 && c.Count > 0)
@@ -338,11 +339,13 @@ public static class MissingUnits
             .Where(e => !have.Contains(e)).ToList();
     }
 
-    // In a Volumes folder a bare "01.cbz" is volume 1; elsewhere UnitsOf reads a bare number as a chapter.
-    private static UnitNumbers UnitsIn(string name, bool volumeFolder)
+    // In a Volumes folder a bare "01.cbz" (1.42.0: or a bare number after the series head) is volume 1; elsewhere it is a chapter.
+    private static UnitNumbers UnitsIn(string name, bool volumeFolder, string? head)
     {
-        var u = AutoMatchText.UnitsOf(name);
-        return volumeFolder && u.Volume is null && u.Chapter is not null && AutoMatchText.BareNumberOf(name) is not null
+        var named = AutoMatchText.UnitsOf(name);
+        var u = AutoMatchText.UnitsOf(name, head);
+        var afterHead = u != named && u.Volume is null;
+        return volumeFolder && u.Volume is null && u.Chapter is not null && (afterHead || AutoMatchText.BareNumberOf(name) is not null)
             ? new UnitNumbers(u.Chapter, u.ChapterEnd, null, null, u.IsExtra)
             : u;
     }

@@ -101,6 +101,11 @@ public sealed class VolumeMapService
             releasedJson = VolumeMapJson.WriteChapters(VolumeListBuilder.ChaptersOf(Raw(released)));
         }
 
+        // 1.42.0: a series linked to MangaDex itself takes its latest chapter from this list - the highest chapter released in the
+        // preferred language (MangaDex's own lastChapter is the FINAL chapter of a finished series, never the latest).
+        if (CompanionLinkService.IsMangaDexSeries(series) && releasedJson is not null)
+            series.LatestChapter = Missing.ReleasedInLanguage.ParseChapters(releasedJson) is { Count: > 0 } chapters ? (double)chapters.Max() : null;
+
         var coverMax = await _db.VolumeCovers.AsNoTracking()
             .Where(c => c.ProviderRecordId == mangaDexRecord.Id && c.Kind == (int)VolumeCoverKind.Volume && c.Volume != null)
             .MaxAsync(c => c.Volume, ct);
@@ -166,6 +171,9 @@ public sealed class VolumeMapService
         return await StoreAsync(series, VolumeMapSource.AniListRatio, ratio is null ? VolumeMapState.Empty : VolumeMapState.Ok,
             null, null, ratio, found.OriginVolumes, ct);
     }
+
+    /// <summary>1.42.0: the MangaDex record links an AniList entry (its <c>links.al</c>, kept in the cross ids).</summary>
+    public static bool LinksAniList(MetadataRecordEntity mangaDexRecord) => AniListIdOf(mangaDexRecord.CrossIdsJson) is not null;
 
     private static string? AniListIdOf(string? crossIdsJson)
     {

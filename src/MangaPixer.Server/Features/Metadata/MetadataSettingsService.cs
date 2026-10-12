@@ -59,6 +59,13 @@ public sealed class MetadataSettingsService
     public bool CompareCoversDisabledByConfig =>
         bool.TryParse(_configuration["Metadata:AutoMatch:CompareCovers"], out var compare) && !compare;
 
+    /// <summary>The MangaDex step's kill switch (<c>Metadata:AutoMatch:MangaDexFallback=false</c>, 1.42.0).</summary>
+    public bool MangaDexStepDisabledByConfig =>
+        bool.TryParse(_configuration[MangaDexStepConfigKey], out var step) && !step;
+
+    /// <summary>Configuration key of the MangaDex step's kill switch (1.42.0).</summary>
+    public const string MangaDexStepConfigKey = "Metadata:AutoMatch:MangaDexFallback";
+
     /// <summary>The volume-cover kill switch (<c>Metadata:AutoMatch:VolumeCovers=false</c>, 1.29.0).</summary>
     public bool VolumeCoversDisabledByConfig =>
         bool.TryParse(_configuration[VolumeCoversConfigKey], out var covers) && !covers;
@@ -161,6 +168,8 @@ public sealed class MetadataSettingsService
                 || (row.MetadataAutoTitleThreshold is null && row.MetadataMarginThreshold is null && row.MetadataReviewFloorThreshold is null),
             CompareCoversEnabled = row?.MetadataCoverCompareEnabled ?? true,
             CompareCoversDisabledByConfig = CompareCoversDisabledByConfig,
+            MangaDexStepEnabled = row?.MetadataMangaDexStepEnabled ?? true,
+            MangaDexStepDisabledByConfig = MangaDexStepDisabledByConfig,
             PreferredCoverLanguage = row?.MetadataCoverLanguage ?? "en",
             VolumeCoversEnabled = row?.MetadataVolumeCoversEnabled ?? true,
             VolumeCoversDisabledByConfig = VolumeCoversDisabledByConfig,
@@ -271,6 +280,11 @@ public sealed class MetadataSettingsService
         if (request.CompareCoversEnabled is { } compare && compare != row.MetadataCoverCompareEnabled)
         {
             row.MetadataCoverCompareEnabled = compare;
+            audits.Add(AuditActions.MetadataSettingsChange);
+        }
+        if (request.MangaDexStepEnabled is { } step && step != row.MetadataMangaDexStepEnabled)
+        {
+            row.MetadataMangaDexStepEnabled = step;
             audits.Add(AuditActions.MetadataSettingsChange);
         }
         if (request.ResetThresholds)

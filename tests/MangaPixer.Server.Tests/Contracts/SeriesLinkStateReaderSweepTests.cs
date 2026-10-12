@@ -71,6 +71,8 @@ public sealed class SeriesLinkStateReaderSweepTests
         ["src/MangaPixer.Server/Features/Metadata/Review/MetadataReviewService.cs"] = "Collections tab lists it (+ count), accept-artist, MarkArtistFolder bulk",
         ["src/MangaPixer.Server/Features/Metadata/SeriesInfoFlagService.cs"] = "(i) on the artist folder itself only (no record needed); archives below: none",
         ["src/MangaPixer.Server/Features/Metadata/SeriesInfoResolver.cs"] = "own row: ArtistFolder info (folder name, no ComicInfo merge); below: stops",
+        ["src/MangaPixer.Server/Features/Metadata/Volumes/CompanionLinkService.cs"] = "1.42.0: a detached MangaDex record that any link row points at (a series linked to MangaDex) is kept; no state is read",
+        ["src/MangaPixer.Server/Features/Metadata/Volumes/MangaDexUpgradeService.cs"] = "1.42.0: Switch to MangaUpdates - the node's own Confirmed / Auto row only; moves every row of the MangaDex record keeping its state (an artist folder has no record)",
         ["src/MangaPixer.Server/Features/Metadata/Volumes/VolumeCoverPass.cs"] = "Confirmed / Auto only: no companions, covers, lists or Wikipedia",
         ["src/MangaPixer.Server/Features/Reading/Suggestions/ReadingModeSuggestionService.cs"] = "1.41.0: the record hint needs a series row (Confirmed / Auto); the walk stops at any stopping row - an artist folder gives no hint and no roll-up",
         ["src/MangaPixer.Server/Persistence/Entities.cs"] = "the column (no constraint; value 5, RecordId null)",

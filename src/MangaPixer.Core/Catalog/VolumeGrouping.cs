@@ -19,7 +19,9 @@ public enum GroupingRowKind
 /// <summary>
 /// One child of the browsed folder (or of a unit subfolder merged into it). <see cref="ContainerName"/> is the display name
 /// of the unit subfolder the row came from (null = the browsed folder itself): in a <c>Volumes</c> folder a bare
-/// <c>01.cbz</c> is volume 1, elsewhere a bare number is a chapter (as the Missing report reads it).
+/// <c>01.cbz</c> is volume 1, elsewhere a bare number is a chapter (as the Missing report reads it). <see cref="SeriesHead"/>
+/// (1.42.0): the series head its container's archives share in front of a varying number (<see cref="AutoMatchText.SeriesHeadOf"/>),
+/// set by <see cref="VolumeGrouping.WithSeriesHeads"/> only on a row whose reading it changes.
 /// </summary>
 public sealed record GroupingRow(
     string Id,
@@ -28,7 +30,8 @@ public sealed record GroupingRow(
     string SortKey,
     string? ContainerName = null,
     int? ComicInfoVolume = null,
-    string? ComicInfoNumber = null);
+    string? ComicInfoNumber = null,
+    string? SeriesHead = null);
 
 /// <summary>One volume of a stored map: its number and the chapters the provider places in it (ascending, extras included).</summary>
 public sealed record VolumeMapVolume(decimal Volume, IReadOnlyList<decimal> Chapters);
@@ -228,15 +231,23 @@ public static class VolumeGrouping
     {
         ArgumentNullException.ThrowIfNull(row);
         // The containing folder's own "No. N" is part of the title (1.32.0): "Robot No. 9.cbz" in "Robot No. 9" is not issue 9.
-        var u = AutoMatchText.UnitsOf(AutoMatchText.MaskFolderTitleNumber(row.Name, row.ContainerName));
-        // In a Volumes folder a bare "01.cbz" is volume 1 (as the Missing report reads it).
+        var masked = AutoMatchText.MaskFolderTitleNumber(row.Name, row.ContainerName);
+        var u = AutoMatchText.UnitsOf(masked);
+        // 1.42.0: the number right after the series head the folder's siblings vary ("<head> 100 Vol 11 <title>", "<head> 002 <title>").
+        var afterHead = false;
+        if (row.SeriesHead is not null && AutoMatchText.UnitsOf(masked, row.SeriesHead) is var headed && headed != u)
+            (u, afterHead) = (headed, headed.Volume is null);
+        // In a Volumes folder a bare "01.cbz" (or a bare number after the series head) is volume 1 (as the Missing report reads it).
         if (AutoMatchText.IsVolumeFolderName(row.ContainerName) && u.Volume is null && u.Chapter is not null
-            && AutoMatchText.BareNumberOf(row.Name) is not null)
+            && (afterHead || AutoMatchText.BareNumberOf(row.Name) is not null))
         {
             u = new UnitNumbers(u.Chapter, u.ChapterEnd, null, null, u.IsExtra);
         }
         if (u.Volume is null && row.ComicInfoVolume is { } cv and >= 1 && cv < YearFloor)
         {
+            // A bare number after the series head that IS the file's ComicInfo volume names that volume, not a chapter.
+            if (afterHead && u.Chapter == cv && u.ChapterEnd is null)
+                return new UnitNumbers(cv, null, null, null, false);
             if (u.Chapter is not null)
                 return u with { Volume = cv, VolumeEnd = null };
             var number = ParseNumber(row.ComicInfoNumber);
@@ -245,6 +256,35 @@ public static class VolumeGrouping
                 : new UnitNumbers(cv, null, null, null, false);
         }
         return u;
+    }
+
+    /// <summary>
+    /// The rows with the series head of their container folder (1.42.0, <see cref="AutoMatchText.SeriesHeadOf"/> over the archive names
+    /// of each <see cref="GroupingRow.ContainerName"/>, the folder's own <c>No. N</c> masked): set only on an archive row whose reading it
+    /// changes, so every other row is returned as it came. A row that already carries a head keeps it. Every reader of a folder's rows
+    /// (the Volumes view, progress and Missing, duplicates, reach) calls this first, so they all read the same units.
+    /// </summary>
+    public static IReadOnlyList<GroupingRow> WithSeriesHeads(IReadOnlyList<GroupingRow> rows)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        List<GroupingRow>? result = null;
+        var byContainer = rows.Select((row, index) => (Row: row, Index: index))
+            .Where(r => r.Row.Kind == GroupingRowKind.Archive && r.Row.SeriesHead is null)
+            .GroupBy(r => r.Row.ContainerName ?? string.Empty, StringComparer.Ordinal);
+        foreach (var container in byContainer)
+        {
+            var masked = container.Select(r => (r.Row, r.Index, Name: AutoMatchText.MaskFolderTitleNumber(r.Row.Name, r.Row.ContainerName))).ToList();
+            if (AutoMatchText.SeriesHeadOf(masked.Select(m => m.Name)) is not { } head)
+                continue;
+            foreach (var (row, index, name) in masked)
+            {
+                if (AutoMatchText.UnitsOf(name, head) == AutoMatchText.UnitsOf(name))
+                    continue;
+                result ??= [.. rows];
+                result[index] = row with { SeriesHead = head };
+            }
+        }
+        return result ?? rows;
     }
 
     private static decimal? ParseNumber(string? text) =>
@@ -269,6 +309,7 @@ public static class VolumeGrouping
     public static VolumeGroupingResult Group(IReadOnlyList<GroupingRow> rows, VolumeMapInput? map, bool markMissingVolumes = false)
     {
         ArgumentNullException.ThrowIfNull(rows);
+        rows = WithSeriesHeads(rows);
         map ??= VolumeMapInput.Empty;
         var resolver = new VolumeResolver(map);
         var entries = new List<VolumeEntry>();

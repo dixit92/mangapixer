@@ -1117,6 +1117,8 @@ export interface SeriesInfoWebDto {
   imageUrl?: string | null;
   /** Licence credit shown with the source link, e.g. "Data: Grand Comics Database, CC BY-SA 4.0" (1.32.0). */
   credit?: string | null;
+  /** 1.42.0: a series linked to MangaDex whose MangaDex record now links a MangaUpdates series - that series' id ("Switch to MangaUpdates..."). */
+  mangaUpdatesId?: string | null;
 }
 
 export interface SeriesInfoComicInfoDto {
@@ -1231,6 +1233,10 @@ export interface MetadataSettingsDto {
   compareCoversEnabled?: boolean;
   /** True when Metadata:AutoMatch:CompareCovers=false switches it off regardless of the setting. */
   compareCoversDisabledByConfig?: boolean;
+  /** 1.42.0: "Search MangaDex when MangaUpdates finds nothing" under Automatic matching (on by default). */
+  mangaDexStepEnabled?: boolean;
+  /** True when Metadata:AutoMatch:MangaDexFallback=false switches it off regardless of the setting. */
+  mangaDexStepDisabledByConfig?: boolean;
   /** 1.29.0: "Preferred language (covers and releases)" (a MangaDex locale code, default "en"). */
   preferredCoverLanguage?: string;
   /** 1.29.0: "Volume covers from the web" (on by default). */
@@ -1272,6 +1278,8 @@ export interface UpdateMetadataSettingsRequest {
   resetThresholds?: boolean;
   /** 1.28.0: "Compare covers"; null leaves it unchanged (no consent of its own). */
   compareCoversEnabled?: boolean | null;
+  /** 1.42.0: "Search MangaDex when MangaUpdates finds nothing"; null leaves it unchanged. */
+  mangaDexStepEnabled?: boolean | null;
   /** 1.28.0: the full set of provider ids to keep off the allowlist ([] = all in); null/absent = unchanged. */
   removedProviders?: string[] | null;
   /** 1.29.0: a MangaDex locale code (en, ja, pt-br, es-la); anything else is invalid_cover_language. */
@@ -1473,6 +1481,8 @@ export interface IdentifyPreviewDto {
   publishers?: string[];
   /** Licence credit, e.g. "Data: Grand Comics Database, CC BY-SA 4.0" (1.32.0). */
   credit?: string | null;
+  /** 1.42.0: a MangaDex record whose own link names a MangaUpdates series - that series' id ("Preview on MangaUpdates"). */
+  mangaUpdatesId?: string | null;
 }
 
 export interface MetadataRefreshResultDto {
@@ -2954,6 +2964,14 @@ export interface ExportPublisherDto {
 export interface ExportCompanionsDto {
   mangadex?: string | null;
   anilist?: ExportAniListDto | null;
+  mangadexReleased?: ExportMangaDexReleasedDto | null;
+}
+
+export interface ExportMangaDexReleasedDto {
+  language: string;
+  latestChapter?: string | null;
+  chapters: number;
+  fetchedAt: string;
 }
 
 export interface ExportAniListDto {
@@ -2983,6 +3001,7 @@ export interface ExportVolumeDto {
   englishDateKind?: 'released' | 'announced' | null;
   isbn?: string | null;
   sources: string[];
+  chaptersEstimated?: boolean | null;
 }
 
 export interface ExportChapterRangeDto {
@@ -3156,4 +3175,38 @@ export interface ReadingModeApplySkipDto {
 export interface ReadingModeApplyResultDto {
   applied: number;
   skipped: ReadingModeApplySkipDto[];
+}
+
+// --- Performance settings (1.42.0, admin) ---
+
+/**
+ * Admin Performance settings (`GET/PUT /api/v1/admin/performance`). Every field carries its source
+ * (`default` | `settings` | `configuration`); a configuration value is pinned (read-only in the UI). Changes apply live.
+ */
+export interface PerformanceSettingsDto {
+  mediaWorkers: number;
+  mediaWorkersSource: string;
+  mediaWorkersDefault: number;
+  mediaWorkersMin: number;
+  mediaWorkersMax: number;
+  /** Processors the server sees (the default worker number is a quarter of them, 2-4). */
+  processorCount: number;
+  pageCacheBytes: number;
+  pageCacheSource: string;
+  pageCacheDefaultBytes: number;
+  pageCacheMinBytes: number;
+  pageCacheMaxBytes: number;
+  pageCacheUsageBytes: number;
+  /** `pause` | `slow` | `normal`. */
+  backgroundWhileReading: string;
+  backgroundWhileReadingSource: string;
+  backgroundWhileReadingDefault: string;
+}
+
+/** Partial update; a field named in `reset` returns to its default (`mediaWorkers`, `pageCacheBytes`, `backgroundWhileReading`). */
+export interface UpdatePerformanceSettingsRequest {
+  mediaWorkers?: number | null;
+  pageCacheBytes?: number | null;
+  backgroundWhileReading?: string | null;
+  reset?: string[] | null;
 }

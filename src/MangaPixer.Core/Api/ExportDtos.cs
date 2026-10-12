@@ -169,7 +169,7 @@ public sealed record ExportLinkDto
 /// <summary>The linked provider record.</summary>
 public sealed record ExportRecordDto
 {
-    /// <summary><c>mangaupdates</c> or <c>gcd</c>.</summary>
+    /// <summary><c>mangaupdates</c>, <c>gcd</c> or (1.42.0) <c>mangadex</c> - a series MangaUpdates does not list, linked by an admin.</summary>
     public required string Provider { get; init; }
 
     public required string ExternalId { get; init; }
@@ -219,6 +219,28 @@ public sealed record ExportCompanionsDto
     public string? Mangadex { get; init; }
 
     public ExportAniListDto? Anilist { get; init; }
+
+    /// <summary>
+    /// 1.42.0: what MangaDex lists as released in the instance's preferred language (stored with the volume list), or left out when
+    /// that list was not read.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ExportMangaDexReleasedDto? MangadexReleased { get; init; }
+}
+
+/// <summary>The chapters MangaDex lists as released in one language (its volume list filtered by that language).</summary>
+public sealed record ExportMangaDexReleasedDto
+{
+    /// <summary>The language the list was read for (the preferred language when it was fetched, e.g. <c>en</c>).</summary>
+    public required string Language { get; init; }
+
+    /// <summary>The highest chapter listed, as an exact string (<c>18</c>, <c>12.5</c>), or null when none is listed.</summary>
+    public string? LatestChapter { get; init; }
+
+    /// <summary>How many whole chapters are listed (parts such as <c>4.1</c> and <c>4.2</c> count once).</summary>
+    public required int Chapters { get; init; }
+
+    public required DateTimeOffset FetchedAt { get; init; }
 }
 
 /// <summary>The AniList entry of the linked series and its totals.</summary>
@@ -245,7 +267,10 @@ public sealed record ExportOfficialLinkDto
 /// <summary>The per-volume list of the series.</summary>
 public sealed record ExportVolumesDto
 {
-    /// <summary><c>mangadex</c>, <c>wikipedia</c> or <c>merged</c>.</summary>
+    /// <summary>
+    /// <c>mangadex</c>, <c>wikipedia</c> or <c>merged</c>; 1.42.0: <c>estimate</c> when only estimated rows exist (no list, yet the
+    /// Volumes view estimates volumes from the folder's files).
+    /// </summary>
     public required string Source { get; init; }
 
     public DateTimeOffset? FetchedAt { get; init; }
@@ -271,8 +296,15 @@ public sealed record ExportVolumeDto
 
     public string? Isbn { get; init; }
 
-    /// <summary>Where this volume's data came from: <c>mangadex</c>, <c>wikipedia</c>.</summary>
+    /// <summary>Where this volume's data came from: <c>mangadex</c>, <c>wikipedia</c>; 1.42.0: <c>estimate</c>.</summary>
     public required IReadOnlyList<string> Sources { get; init; }
+
+    /// <summary>
+    /// 1.42.0: true when <see cref="Chapters"/> is the Volumes view's estimate for this folder (<c>~ Volume N</c>: the first and last chapter
+    /// file the estimate places in the volume), not a list's range; left out otherwise.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? ChaptersEstimated { get; init; }
 }
 
 /// <summary>A chapter range; numbers are exact strings.</summary>

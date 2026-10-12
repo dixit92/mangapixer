@@ -143,7 +143,7 @@ public sealed class MissingReportService
     private async Task<Dictionary<string, MissingConversionDto>> ConversionsAsync(IReadOnlyList<LinkedRow> rows, CancellationToken ct)
     {
         var result = new Dictionary<string, MissingConversionDto>(StringComparer.Ordinal);
-        if (!rows.Any(r => r.Provider == MetadataProviderAllowlist.MangaUpdates))
+        if (!rows.Any(r => r.Provider is MetadataProviderAllowlist.MangaUpdates or MetadataProviderAllowlist.MangaDex))
             return result;
         var stored = await _db.MetadataRecords.AsNoTracking()
             .Where(r => r.Provider == MetadataProviderAllowlist.AniList && r.CrossIdsJson != null)
@@ -151,7 +151,9 @@ public sealed class MissingReportService
             .ToListAsync(ct);
         foreach (var r in stored.OrderBy(r => r.FetchedAt))
         {
-            if (MissingConversionService.LinkedMangaUpdatesId(r.CrossIdsJson) is not { } muId)
+            // Keyed by the series the row was found for: a MangaUpdates id, or (1.42.0) "mangadex:" + a MangaDex id.
+            if ((MissingConversionService.LinkedMangaUpdatesId(r.CrossIdsJson)
+                    ?? (MissingConversionService.LinkedMangaDexId(r.CrossIdsJson) is { } mdId ? MangaDexKey(mdId) : null)) is not { } muId)
                 continue;
             var chapters = r.LatestChapter is { } c ? (int)Math.Floor(c) : (int?)null;
             result[muId] = new MissingConversionDto
@@ -171,7 +173,14 @@ public sealed class MissingReportService
     }
 
     private static MissingConversionDto? ConversionOf(LinkedRow row, IReadOnlyDictionary<string, MissingConversionDto> conversions) =>
-        row.Provider == MetadataProviderAllowlist.MangaUpdates ? conversions.GetValueOrDefault(row.ExternalId) : null;
+        row.Provider switch
+        {
+            MetadataProviderAllowlist.MangaUpdates => conversions.GetValueOrDefault(row.ExternalId),
+            MetadataProviderAllowlist.MangaDex => conversions.GetValueOrDefault(MangaDexKey(row.ExternalId)),
+            _ => null,
+        };
+
+    private static string MangaDexKey(string mangaDexId) => "mangadex:" + mangaDexId;
 
     /// <summary>Unit subfolders are followed this many levels below the linked folder (<c>Season 1/Volumes</c>).</summary>
     public const int MaxUnitDepth = SeriesProgressLoader.MaxUnitDepth;

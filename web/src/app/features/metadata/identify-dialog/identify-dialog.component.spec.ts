@@ -347,6 +347,40 @@ describe('IdentifyDialogComponent', () => {
     expect(c.siteUnavailable({ ...sites[1], available: false, unavailableCode: 'provider_not_allowed' })).toContain('allowlist');
   });
 
+  // --- 1.42.0: MangaDex as the third site (the series record of a series MangaUpdates does not list) ---
+
+  const mdSites = [...sites, { id: 'mangadex', name: 'MangaDex', available: true, note: 'For a series MangaUpdates does not list yet.' }];
+
+  it('offers MangaDex as a third site; its search keeps "Hide doujinshi" (dropped on the server) and names MangaDex', () => {
+    const { c, api, q, render } = create(ctx({ sites: mdSites }));
+    expect(q('[data-site="mangadex"]')).not.toBeNull();
+    c.chooseSite('mangadex');
+    render();
+    expect(q('[data-testid="identify-hide-doujinshi"]')!.textContent).toContain('Hide doujinshi');
+    expect(q('[data-testid="identify-hide-doujinshi"]')!.textContent).not.toContain('novels');
+    expect(q('mat-label')!.textContent).toContain('Search MangaDex');
+    c.runSearch();
+    expect(api.search).toHaveBeenLastCalledWith('n1', 'Berserk', 1, true, 'mangadex');
+    expect(c.pasteLabel()).toContain('MangaDex');
+  });
+
+  it('a MangaDex preview that MangaDex links to MangaUpdates offers "Preview on MangaUpdates"; it offers no collection', () => {
+    const { c, api, q, render } = create(ctx({ sites: mdSites }));
+    api.preview.mockReturnValueOnce(of({ ...preview, provider: 'mangadex', providerName: 'MangaDex', externalId: 'md-1', mangaUpdatesId: '51239621230',
+      warnings: [{ code: 'mangaupdates_lists', message: 'MangaDex links this title to a MangaUpdates series.' }] }));
+    c.usePreview('mangadex', 'md-1', 'Search');
+    render();
+    expect(q('[data-warning="mangaupdates_lists"]')).not.toBeNull();
+    expect(q('[data-testid="identify-mode-switch"]')).toBeNull();
+    (q('[data-testid="identify-preview-mu"]') as HTMLButtonElement).click();
+    expect(api.preview).toHaveBeenLastCalledWith('n1', { provider: 'mangaupdates', externalId: '51239621230' });
+  });
+
+  it('the collection mode leaves MangaDex out of the sites (a collection label never names a MangaDex record)', () => {
+    const { c } = create(ctx({ sites: mdSites }), 'collection');
+    expect(c.visibleSites().map((s) => s.id)).toEqual(['mangaupdates', 'gcd']);
+  });
+
   it('shows the CC BY-SA credit of a comics preview', () => {
     const { c, api, q, render } = create(comicsCtx());
     api.preview.mockReturnValueOnce(of({ ...preview, provider: 'gcd', providerName: 'Grand Comics Database',

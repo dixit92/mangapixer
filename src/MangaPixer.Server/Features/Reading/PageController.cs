@@ -11,7 +11,10 @@ using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using System.Diagnostics;
+using System.Globalization;
 
 /// <summary>
 /// Page and cover delivery endpoints.
@@ -44,6 +47,7 @@ public sealed class PageController : ControllerBase
     private readonly MediaWorkerPool _workerPool;
     private readonly ThumbnailStore _thumbnailStore;
     private readonly PageVariantOptions _pageVariants;
+    private readonly MediaMetrics? _metrics;
     private readonly ILogger<PageController> _logger;
 
     // WebP transcode defaults for on-demand page delivery; not yet user-configurable.
@@ -56,6 +60,22 @@ public sealed class PageController : ControllerBase
     /// </summary>
     internal const string VariantHeaderName = "X-MangaPixer-Variant";
 
+    /// <summary>
+    /// Standard <c>Server-Timing</c> response header (1.42.0 profiling) on page and page-thumbnail responses: durations
+    /// in ms of the catalog lookups (<c>db</c>), the miss path's source checks (<c>prep</c>), the wait for a worker slot
+    /// (<c>slot</c>), the worker's answer (<c>worker</c>, and its <c>open</c> / <c>read</c> / <c>encode</c> parts), the
+    /// cache publish (<c>publish</c>) and the whole handler (<c>total</c>), plus <c>cache;desc=hit|miss</c>. Timings
+    /// only - no ids, names or paths.
+    /// </summary>
+    internal const string ServerTimingHeaderName = "Server-Timing";
+
+    /// <summary>
+    /// Request header the web reader sets (value <c>1</c>) on its page PREFETCHES (1.42.0): a prefetch is served after
+    /// any reader's current page when workers are busy. Absent = a page someone is looking at. It changes only the
+    /// order of waiting work, never the response, so the URL and the browser cache entry stay the same.
+    /// </summary>
+    internal const string PrefetchHeaderName = "X-MangaPixer-Prefetch";
+
     public PageController(
         MangaPixerDbContext db,
         CacheService cache,
@@ -63,7 +83,8 @@ public sealed class PageController : ControllerBase
         MediaWorkerPool workerPool,
         ThumbnailStore thumbnailStore,
         PageVariantOptions pageVariants,
-        ILogger<PageController> logger)
+        ILogger<PageController> logger,
+        MediaMetrics? metrics = null)
     {
         _db = db;
         _cache = cache;
@@ -72,6 +93,7 @@ public sealed class PageController : ControllerBase
         _thumbnailStore = thumbnailStore;
         _pageVariants = pageVariants;
         _logger = logger;
+        _metrics = metrics;
     }
 
     /// <summary>
@@ -161,6 +183,67 @@ public sealed class PageController : ControllerBase
         string itemId, string entryKey, string variant, CancellationToken ct,
         int requestedMaxDim = 0, string? resizeFilter = null)
     {
+        var timing = new PageTiming(Stopwatch.GetTimestamp());
+        var kind = variant == "thumbnail" ? MediaSlotKind.PageThumbnail
+            : string.Equals(Request.Headers[PrefetchHeaderName], "1", StringComparison.Ordinal) ? MediaSlotKind.PagePrefetch
+            : MediaSlotKind.Page;
+        var result = await GetPageCoreAsync(itemId, entryKey, variant, kind, timing, ct, requestedMaxDim, resizeFilter);
+
+        var totalMs = Stopwatch.GetElapsedTime(timing.Started).TotalMilliseconds;
+        var status = result is IStatusCodeActionResult { StatusCode: { } code } ? code : StatusCodes.Status200OK;
+        if (_metrics is not null)
+        {
+            var tag = MediaMetrics.KindTag(kind);
+            _metrics.Count(MediaMetrics.PageStatus, status.ToString(CultureInfo.InvariantCulture));
+            _metrics.RecordMs(MediaMetrics.PageTotal, tag + ":" + (timing.Cache ?? "none"), totalMs);
+            if (timing.DbMs is { } dbMs)
+                _metrics.RecordMs(MediaMetrics.PageDb, tag, dbMs);
+        }
+        Response.Headers[ServerTimingHeaderName] = timing.ToHeader(totalMs);
+        return result;
+    }
+
+    /// <summary>What one page request spent where (the <see cref="ServerTimingHeaderName"/> header).</summary>
+    private sealed class PageTiming(long started)
+    {
+        public long Started { get; } = started;
+        public double? DbMs { get; set; }
+        public string? Cache { get; set; }
+        public double? PrepMs { get; set; }
+        public double? SlotMs { get; set; }
+        public double? WorkerMs { get; set; }
+        public int? OpenMs { get; set; }
+        public int? ReadMs { get; set; }
+        public int? EncodeMs { get; set; }
+        public double? PublishMs { get; set; }
+
+        public string ToHeader(double totalMs)
+        {
+            var parts = new List<string>(10);
+            void Add(string name, double? ms)
+            {
+                if (ms is { } v)
+                    parts.Add(string.Create(CultureInfo.InvariantCulture, $"{name};dur={v:0.#}"));
+            }
+            Add("db", DbMs);
+            if (Cache is not null)
+                parts.Add("cache;desc=" + Cache);
+            Add("prep", PrepMs);
+            Add("slot", SlotMs);
+            Add("worker", WorkerMs);
+            Add("open", OpenMs);
+            Add("read", ReadMs);
+            Add("encode", EncodeMs);
+            Add("publish", PublishMs);
+            Add("total", totalMs);
+            return string.Join(", ", parts);
+        }
+    }
+
+    private async Task<IActionResult> GetPageCoreAsync(
+        string itemId, string entryKey, string variant, MediaSlotKind kind, PageTiming timing, CancellationToken ct,
+        int requestedMaxDim, string? resizeFilter)
+    {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
@@ -186,6 +269,7 @@ public sealed class PageController : ControllerBase
             .FirstOrDefaultAsync(ct);
         if (pageEntry is null)
             return NotFound(new ApiError { Error = "page_not_found", Message = "Page entry key not found." });
+        timing.DbMs = Stopwatch.GetElapsedTime(timing.Started).TotalMilliseconds;
 
         // Map the requested variant to a worker variant. Pages and covers are
         // served as WebP; the thumbnail endpoint gets a downscaled WebP; a page
@@ -220,10 +304,13 @@ public sealed class PageController : ControllerBase
             var cachedStream = _cache.OpenRead(cacheKey);
             if (cachedStream is not null)
             {
+                timing.Cache = "hit";
                 SetCacheHeaders(cacheKey, workerVariant);
                 return File(cachedStream, hit.MediaType);
             }
         }
+        timing.Cache = "miss";
+        var prepStarted = Stopwatch.GetTimestamp();
 
         // Cache miss — extract + encode in the WORKER (the server never opens the
         // archive itself; image decoding stays inside the worker fault boundary).
@@ -237,7 +324,9 @@ public sealed class PageController : ControllerBase
 
         Directory.CreateDirectory(_cache.ScratchDirectory);
         var outputPath = Path.Combine(_cache.ScratchDirectory, "page-" + Guid.NewGuid().ToString("N")[..12] + ".bin");
+        timing.PrepMs = Stopwatch.GetElapsedTime(prepStarted).TotalMilliseconds;
 
+        var extractStarted = Stopwatch.GetTimestamp();
         var outcome = await _workerPool.ExtractPageAsync(
             sourcePath, pageEntry.SourceEntryLocator, workerVariant,
             archiveItem.ModificationTicks, archiveItem.ByteLength,
@@ -245,7 +334,13 @@ public sealed class PageController : ControllerBase
             // Sized variants get their own configurable quality; the full-size
             // and thumbnail paths keep the existing constant.
             pageMaxDimension > 0 ? _pageVariants.WebpQuality : WebpQuality,
-            ct, pageMaxDimension, pageResizeFilter);
+            ct, pageMaxDimension, pageResizeFilter, kind);
+        var extractMs = Stopwatch.GetElapsedTime(extractStarted).TotalMilliseconds;
+        timing.SlotMs = outcome.SlotWaitMs;
+        timing.WorkerMs = outcome.SlotWaitMs is { } waited ? Math.Max(0, extractMs - waited) : extractMs;
+        timing.OpenMs = outcome.OpenMs;
+        timing.ReadMs = outcome.ReadMs;
+        timing.EncodeMs = outcome.EncodeMs;
 
         if (!outcome.Success)
         {
@@ -253,6 +348,7 @@ public sealed class PageController : ControllerBase
             return MapExtractionFailure(outcome, node.Id, entryKey);
         }
 
+        var publishStarted = Stopwatch.GetTimestamp();
         try
         {
             await _cache.PublishAsync(cacheKey, outcome.OutputPath!, outcome.MediaType!, ct);
@@ -264,6 +360,7 @@ public sealed class PageController : ControllerBase
         finally
         {
             try { System.IO.File.Delete(outputPath); } catch { /* best effort */ }
+            timing.PublishMs = Stopwatch.GetElapsedTime(publishStarted).TotalMilliseconds;
         }
 
         var published = _cache.OpenRead(cacheKey);

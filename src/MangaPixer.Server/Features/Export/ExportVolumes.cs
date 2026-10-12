@@ -3,7 +3,9 @@ namespace com.lifepixer.mangapixer.Server.Features.Export;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
+using com.lifepixer.mangapixer.Core.Metadata.Reach;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Reach;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Volumes.Wikipedia;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
@@ -84,6 +86,34 @@ public static partial class ExportVolumes
             FetchedAt = fetchedAt,
             Items = rows.Values.ToList(),
         };
+    }
+
+    /// <summary>
+    /// 1.42.0 (MangaList): <paramref name="volumes"/> plus one row per volume the Volumes view estimates for this folder and no list row
+    /// covers - its chapters are the first and last chapter file the estimate places in it, flagged <c>chaptersEstimated</c>. A block made
+    /// only of estimates says <c>estimate</c>. Unchanged (the same instance) when there is no estimate to add.
+    /// </summary>
+    public static ExportVolumesDto? WithEstimates(ExportVolumesDto? volumes, IReadOnlyList<EstimatedVolume> estimates)
+    {
+        ArgumentNullException.ThrowIfNull(estimates);
+        var listed = (volumes?.Items ?? []).Select(v => VolumeMapJson.Parse(v.Volume)).OfType<decimal>().ToHashSet();
+        var added = estimates.Where(e => !listed.Contains(e.Volume)).ToList();
+        if (added.Count == 0)
+            return volumes;
+        var rows = (volumes?.Items ?? []).Select(v => (Number: VolumeMapJson.Parse(v.Volume) ?? decimal.MaxValue, Row: v))
+            .Concat(added.Select(e => (Number: e.Volume, Row: new ExportVolumeDto
+            {
+                Volume = VolumeGrouping.Canonical(e.Volume),
+                Chapters = new ExportChapterRangeDto { From = e.FirstChapter, To = e.LastChapter },
+                Sources = [ExportVocabulary.Estimate],
+                ChaptersEstimated = true,
+            })))
+            .OrderBy(r => r.Number)
+            .Select(r => r.Row)
+            .ToList();
+        return volumes is null
+            ? new ExportVolumesDto { Source = ExportVocabulary.Estimate, FetchedAt = null, Items = rows }
+            : volumes with { Items = rows };
     }
 
     private static ExportVolumeDto Row(
