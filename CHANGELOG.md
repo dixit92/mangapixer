@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Performance settings for administrators.** A new **Performance** card in Administration sets the number of media workers (by default a quarter of the server's processors, 2 to 4), the page cache size (1 GB by default) and what background work - analysing new archives, cover thumbnails, cover look-ups - may do while someone reads: **Pause**, **Slow** (default, one worker) or **Normal**. Changes apply at once, without a restart. A value set in the server configuration wins and is shown as such; the new key `MangaPixer:Media:BackgroundWhileReading` sets the background setting there.
+- Administration diagnostics (`GET /api/v1/operations/diagnostics`, admin-only) report the media workers, the page cache and how long pages wait; page images carry a `Server-Timing` header (durations only).
+- `scripts/perf/`: a synthetic reader load harness for measuring a test instance.
 - **MangaDex's released chapters in the metadata export.** For a linked series whose MangaDex volume list was read in the preferred language, each export item now carries `companions.mangadexReleased`: the language, the highest chapter MangaDex lists as released in it, how many whole chapters that is, and when the list was read. It comes from the stored list - no extra request - and is left out when the list was not read, so older clients see no change. Useful for series whose MangaUpdates entry has no or an old latest chapter.
 - **Series only on MangaDex.** A series MangaUpdates does not list yet can now be linked to its MangaDex title: choose **MangaDex** in Identify (search, or paste a `mangadex.org/title/...` address). The series then shows MangaDex's title, status, description, authors and cover, its latest chapter in your preferred language, and gets its volume list and volume covers from the same record. With Automatic matching on, a folder MangaUpdates finds nothing close for is also searched on MangaDex - what it finds waits for you under **Needs review** with a **MangaDex** tag; it is never linked on its own. Folders left unmatched earlier get this when you run **Match this library now** with **Also retry unmatched**. **Search MangaDex when MangaUpdates finds nothing** (Metadata Manager > Settings > Automatic matching, on by default) switches it off; `Metadata__AutoMatch__MangaDexFallback=false` switches it off regardless of the setting.
 - **Switch to MangaUpdates** in the Admin menu of a series linked to MangaDex, once MangaDex links it to a MangaUpdates series: the links move to the MangaUpdates record and keep their confirmation; MangaDex stays its companion for volume covers and volume lists.
@@ -16,6 +19,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **Pages someone is reading always come first.** When every worker is busy, a page on screen is served before the pages the reader loads ahead, which come before background work. On a test library being analysed while two people read, opening an archive went from about 1.8 s to about 0.4 s with the new default of four workers on a 16-core server (about 1.0 s with two), and pauses on page turns disappeared.
+- **The reader loads at most two pages ahead at a time**, and only once the page on screen is there, so that page no longer waits behind its own pre-loading.
+- The default number of media workers now follows the processor count (2 to 4) instead of always 2.
+- PNG, WebP and GIF pages are no longer decoded twice when they are prepared.
 - Fetching from the web and Automatic matching ask for consent again: MangaDex can now receive the search text you confirm in Identify and, with Automatic matching, the cleaned name of a folder MangaUpdates found nothing close for.
 - When MangaDex links a title found by automatic matching to a MangaUpdates series, that MangaUpdates series is proposed instead (read by its number).
 - **More file names are read in the Volumes view and the Missing report.** When the files of a folder start with the same series title followed by a number that changes from file to file, that number is the chapter: `Series 100 Vol 11 Title` is chapter 100 of volume 11 (before, the whole file counted as volume 11), and `Series 002 Title`, `Series 014.5  Title, Part 2` or `Series 120 (2023) (Digital)` are chapters 2, 14.5 and 120. The number needs three digits (before a volume also `01` or `12.5`) and is never a year; a number every file shares is part of the title, so the files of a series like `Mob Psycho 100` or `Cyborg 009` stay volumes. In a `Volumes` folder such a number is a volume.
@@ -24,6 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- The page cache no longer keeps a record of every page it ever removed for as long as the server runs.
 - A chapter number with three decimals (`Ch.014.125`) was read as the whole chapter (14), so it looked like a second copy of chapter 14; it is now chapter 14.125. A three-digit part padded like the chapter number is that part: `Ch.014.005` is chapter 14.5.
 
 ## [1.41.0] - 2026-10-11
