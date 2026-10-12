@@ -281,6 +281,9 @@ public static class LogEvents
         // 1.42.0 media metrics (4200-4299 reserved for the performance lane)
         public const int MediaMetricsSummary = 4200;
         public const int MediaMetricsSummaryFailed = 4201;
+        public const int PerformanceSettingsApplied = 4202;
+        public const int PerformanceSettingsLoadFailed = 4203;
+        public const int PerformanceConfigInvalid = 4204;
     }
 
     /// <summary>Derived-cache lifecycle: hits, publishes, eviction, budget pressure.</summary>

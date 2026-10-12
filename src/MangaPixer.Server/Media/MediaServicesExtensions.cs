@@ -110,6 +110,18 @@ public static class MediaServicesExtensions
                 sp.GetService<Features.Covers.CoverDecisionQueue>());
         });
 
+        // Performance settings (1.42.0): configuration > admin setting > default, applied live to the pool and the cache.
+        services.AddSingleton(sp => PerformanceConfiguration.FromConfiguration(
+            sp.GetService<Microsoft.Extensions.Configuration.IConfiguration>() ?? new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build()));
+        services.AddSingleton(sp => new PerformanceSettingsResolver(
+            sp.GetRequiredService<PerformanceConfiguration>(),
+            sp.GetRequiredService<MediaWorkerPool>(),
+            sp.GetRequiredService<CacheService>(),
+            sp.GetRequiredService<IServiceScopeFactory>(),
+            sp.GetService<ILogger<PerformanceSettingsResolver>>()));
+        services.AddScoped<PerformanceSettingsService>();
+        services.AddHostedService<PerformanceSettingsStartup>();
+
         services.AddSingleton<MediaWorkerPool>(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<MediaWorkerPool>>();
