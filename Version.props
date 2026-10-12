@@ -451,7 +451,14 @@
          fullscreen and edge tap zones in vertical mode; stacks per library on Home; MangaDex under Sources; admin reading-mode suggestions;
          range and re-released volume files keep read state. Migration AddHomeStacksPerLibrary (additive); no new consent, no new kind of
          request; matcher rules revision unchanged (4); worker protocol unchanged (5). -->
-    <MangaPixerVersionMinor>41</MangaPixerVersionMinor>
+    <!-- 1.42.0 - MINOR (2026-10-12, cycle "Performance, MangaDex Records and Parity"): reader-first worker slots, the reader loads at
+         most two pages ahead, admin Performance settings (media workers, page cache size, background work while someone reads: Pause /
+         Slow / Normal), single decode of PNG / WebP / GIF frame counts; MangaDex as the series record of a series MangaUpdates does not
+         list (Identify site, automatic MangaDex step - always Needs review, Switch to MangaUpdates); parser parity with MangaList
+         (series head, site watermarks, placeholder groups, three-decimal chapters); export: MangaDex's released chapters, estimated
+         volumes. Migrations AddMangaDexSeriesRecords, AddPerformanceSettings (additive); consent main 6 / automatic 5 (new kind of
+         request: MangaDex search); matcher rules revision unchanged (4); worker protocol unchanged (5; three optional timing fields). -->
+    <MangaPixerVersionMinor>42</MangaPixerVersionMinor>
     <!-- 1.31.1 - PATCH (2026-10-01, integrator-direct, owner live check of 1.31.0): content signatures backfilled for archives
          analysed before 1.5.0 (their moves were never recognised); Re-attach to a folder in another library; "Episode N" next
          to a volume is a part label, not a chapter; the review list shows the file's own page 1, never the cover layer's;

@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.42.0] - 2026-10-12
+
 ### Added
 
 - **Performance settings for administrators.** A new **Performance** card in Administration sets the number of media workers (by default a quarter of the server's processors, 2 to 4), the page cache size (1 GB by default) and what background work - analysing new archives, cover thumbnails, cover look-ups - may do while someone reads: **Pause**, **Slow** (default, one worker) or **Normal**. Changes apply at once, without a restart. A value set in the server configuration wins and is shown as such; the new key `MangaPixer:Media:BackgroundWhileReading` sets the background setting there.
