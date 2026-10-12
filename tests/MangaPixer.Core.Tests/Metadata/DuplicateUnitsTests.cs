@@ -165,7 +165,7 @@ public sealed class DuplicateUnitsTests
     [Fact]
     public void ChaptersNamedBeforeTheirVolume_AreNotCopiesOfTheVolume()
     {
-        // "009 Vol 01 Title": the parser reads volume 1 only - nine chapters must not become nine copies of volume 1.
+        // "009 Vol 01 Title": nine chapters must not become nine copies of volume 1 (1.42.0: with the series head they read as chapters 1-3).
         var rows = new[] { Row("Sea Series 001 Vol 01 First.cbz"), Row("Sea Series 002 Vol 01 Second.cbz"), Row("Sea Series 003 Vol 01 Third.cbz") };
 
         Assert.Empty(DuplicateUnits.FindIn(rows));

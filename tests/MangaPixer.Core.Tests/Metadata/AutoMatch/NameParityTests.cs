@@ -23,6 +23,8 @@ public sealed class NameParityTests
     private static GroupingRow Archive(string name, string? container = null, int? ciVolume = null) =>
         new("id:" + name, GroupingRowKind.Archive, name, name.ToLowerInvariant(), container, ciVolume);
 
+    private static GroupingRow Folder(string name) => new("id:" + name, GroupingRowKind.Folder, name, name.ToLowerInvariant());
+
     private static List<UnitNumbers> Read(params string[] names) => ReadIn(null, names);
 
     private static List<UnitNumbers> ReadIn(string? container, params string[] names) =>
@@ -204,6 +206,30 @@ public sealed class NameParityTests
         Assert.Equal(["10", "11"], stacks.Select(s => s.Key));
         Assert.Equal(["id:Some Series 099 Vol 10 A", "id:Some Series 100 Vol 11 B", "id:Some Series 101 Vol 11 C"],
             r.Entries.SelectMany(e => e.Stack?.Members.Select(m => m.Row.Id) ?? []).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void Duplicates_AreFoundAmongTheChaptersReadAfterTheSeriesHead()
+    {
+        var rows = new[] { "Sea Series 008 Vol 01 Other", "Sea Series 009 Vol 01 Title", "Sea Series 009 Vol 01 Title (1)", "Sea Series 010 Vol 02 Third", "Sea Series 011 Vol 02 Fourth" }
+            .Select(n => Archive(n)).ToList();
+        var only = Assert.Single(DuplicateUnits.GroupsIn(rows));
+        Assert.Equal((MissingUnitKind.Chapter, 9m, 2), (only.Unit.Kind, only.Unit.Number, only.Unit.Files));
+    }
+
+    [Fact]
+    public void WithSeriesHeads_ChangesOnlyTheRowsItReadsDifferently()
+    {
+        var rows = new List<GroupingRow> { Archive("Some Series 001 A"), Archive("Some Series 002 B"), Archive("Some Series c003"), Folder("Extras") };
+        var headed = VolumeGrouping.WithSeriesHeads(rows);
+        Assert.Equal("some series", headed[0].SeriesHead);
+        Assert.Equal("some series", headed[1].SeriesHead);
+        Assert.Same(rows[2], headed[2]); // a chapter token: read as before
+        Assert.Same(rows[3], headed[3]);
+        var kept = new List<GroupingRow> { Archive("Some Series 001 A") with { SeriesHead = "other head" }, Archive("Some Series 002 B") };
+        Assert.Equal("other head", VolumeGrouping.WithSeriesHeads(kept)[0].SeriesHead);
+        var none = new List<GroupingRow> { Archive("Some Series v01"), Archive("Some Series v02") };
+        Assert.Same(none, VolumeGrouping.WithSeriesHeads(none));
     }
 
     [Fact]
