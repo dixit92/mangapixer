@@ -28,13 +28,14 @@ public sealed class CacheService
 
     private readonly string _cacheRoot;
     private readonly string _runRoot;
-    private readonly long _budgetBytes;
+    private long _budgetBytes;
     private readonly ConcurrentDictionary<string, CacheEntry> _entries = new();
     private readonly ConcurrentDictionary<string, int> _pinnedFiles = new();
     private readonly object _evictionLock = new();
     private readonly ILogger<CacheService>? _logger;
+    private readonly MediaMetrics? _metrics;
 
-    public CacheService(string cacheRoot, long budgetBytes, ILogger<CacheService>? logger = null)
+    public CacheService(string cacheRoot, long budgetBytes, ILogger<CacheService>? logger = null, MediaMetrics? metrics = null)
     {
         _cacheRoot = Path.GetFullPath(cacheRoot)
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
@@ -43,6 +44,23 @@ public sealed class CacheService
             + "-" + Guid.NewGuid().ToString("N")[..6]);
         _budgetBytes = budgetBytes;
         _logger = logger;
+        _metrics = metrics;
+        _metrics?.ObserveCache(() => new MediaCacheGauges(BudgetBytes, GetCurrentUsageBytes(), ActiveCount, _entries.Count));
+    }
+
+    /// <summary>The page cache budget in bytes now in effect (live; <see cref="SetBudget"/>).</summary>
+    public long BudgetBytes => Interlocked.Read(ref _budgetBytes);
+
+    /// <summary>
+    /// Changes the budget while running (1.42.0 admin setting). A lower budget evicts least-recently-used entries at
+    /// once (pinned files excepted); a higher one simply lets the cache grow.
+    /// </summary>
+    public void SetBudget(long budgetBytes)
+    {
+        if (budgetBytes <= 0)
+            throw new ArgumentOutOfRangeException(nameof(budgetBytes));
+        Interlocked.Exchange(ref _budgetBytes, budgetBytes);
+        TryEvict();
     }
 
     /// <summary>This process's run folder; every cache file and temp file lives under it.</summary>
@@ -187,6 +205,14 @@ public sealed class CacheService
     /// </summary>
     public bool TryGet(string cacheKey, out CacheEntry? entry)
     {
+        var found = TryGetCore(cacheKey, out entry);
+        // 1.42.0 profiling: one lookup per caller question (OpenRead's own re-check below is not counted).
+        _metrics?.Count(MediaMetrics.CacheLookup, found ? "hit" : "miss");
+        return found;
+    }
+
+    private bool TryGetCore(string cacheKey, out CacheEntry? entry)
+    {
         if (_entries.TryGetValue(cacheKey, out var e) && e.State == CacheEntryState.Active)
         {
             var filePath = GetCacheFilePath(cacheKey);
@@ -198,9 +224,10 @@ public sealed class CacheService
                 return true;
             }
 
-            // File missing — mark as evicted
+            // File missing — mark as evicted and drop it from the index (1.42.0: evicted entries do not pile up)
             _logger?.LogDebug(LogEvents.Cache.CacheEntryFileMissing, "Cache entry present but file missing (key {CacheKey}); marking evicted", cacheKey);
             e.State = CacheEntryState.Evicted;
+            _entries.TryRemove(new KeyValuePair<string, CacheEntry>(cacheKey, e));
         }
 
         entry = null;
@@ -213,7 +240,7 @@ public sealed class CacheService
     /// </summary>
     public Stream? OpenRead(string cacheKey)
     {
-        if (!TryGet(cacheKey, out var entry) || entry is null)
+        if (!TryGetCore(cacheKey, out var entry) || entry is null)
             return null;
 
         var filePath = GetCacheFilePath(cacheKey);
@@ -235,6 +262,7 @@ public sealed class CacheService
     /// </summary>
     public async Task PublishAsync(string cacheKey, string sourceFilePath, string mediaType, CancellationToken ct = default)
     {
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
         var cacheFilePath = GetCacheFilePath(cacheKey);
         var cacheDir = Path.GetDirectoryName(cacheFilePath)!;
 
@@ -280,6 +308,8 @@ public sealed class CacheService
 
         // Check if we need to evict
         TryEvict();
+        _metrics?.Count(MediaMetrics.CachePublished, "file");
+        _metrics?.RecordMs(MediaMetrics.CachePublish, "file", System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
     }
 
     /// <summary>
@@ -372,11 +402,12 @@ public sealed class CacheService
         lock (_evictionLock)
         {
             var usage = GetCurrentUsageBytes();
-            if (usage <= _budgetBytes)
+            var budget = BudgetBytes;
+            if (usage <= budget)
                 return;
 
             _logger?.LogDebug(LogEvents.Cache.CacheOverBudget, "Cache over budget: {Usage} bytes > {Budget} bytes; evicting LRU entries",
-                usage, _budgetBytes);
+                usage, budget);
 
             // Sort by last accessed (oldest first), exclude pinned
             var candidates = _entries.Values
@@ -385,9 +416,10 @@ public sealed class CacheService
                 .ToList();
 
             var evictedCount = 0;
+            long evictedBytes = 0;
             foreach (var entry in candidates)
             {
-                if (usage <= _budgetBytes)
+                if (usage <= budget)
                     break;
 
                 try
@@ -396,7 +428,10 @@ public sealed class CacheService
                         File.Delete(entry.CacheFilePath);
 
                     entry.State = CacheEntryState.Evicted;
+                    // 1.42.0: an evicted entry leaves the in-memory index (it used to stay there for the process lifetime).
+                    _entries.TryRemove(new KeyValuePair<string, CacheEntry>(entry.CacheKey, entry));
                     usage -= entry.ByteSize;
+                    evictedBytes += entry.ByteSize;
                     evictedCount++;
                 }
                 catch
@@ -409,6 +444,8 @@ public sealed class CacheService
 
             if (evictedCount > 0)
             {
+                _metrics?.Count(MediaMetrics.CacheEvicted, "lru", evictedCount);
+                _metrics?.Count(MediaMetrics.CacheEvictedBytes, "lru", evictedBytes);
                 _logger?.LogDebug(LogEvents.Cache.CacheEvictedBatch, "Cache evicted {Count} entries; usage now {Usage} bytes", evictedCount, usage);
             }
         }
@@ -435,7 +472,7 @@ public sealed class CacheService
     public long EvictOverBudget()
     {
         var usageBefore = GetCurrentUsageBytes();
-        if (usageBefore <= _budgetBytes)
+        if (usageBefore <= BudgetBytes)
             return 0;
 
         TryEvict();

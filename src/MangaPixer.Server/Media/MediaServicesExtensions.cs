@@ -71,9 +71,13 @@ public static class MediaServicesExtensions
                 sp.GetService<ILogger<ScratchWorkspaceManager>>()));
         services.AddSingleton<JobScheduler>(sp =>
             new JobScheduler(options, sp.GetService<ILogger<JobScheduler>>()));
+        // In-process media metrics (1.42.0 profiling): one Meter, no exporter; read by the admin diagnostics endpoint.
+        services.AddSingleton<MediaMetrics>();
+        services.AddHostedService<MediaMetricsSummaryService>();
+
         services.AddSingleton<CacheService>(sp =>
             new CacheService(options.CacheRoot, options.CacheBudgetBytes,
-                sp.GetService<ILogger<CacheService>>()));
+                sp.GetService<ILogger<CacheService>>(), sp.GetService<MediaMetrics>()));
         services.AddSingleton<AnalysisResultPersister>();
 
         // Durable thumbnail store under DataRoot/thumbnails (1.2.0). Lives in
@@ -106,6 +110,18 @@ public static class MediaServicesExtensions
                 sp.GetService<Features.Covers.CoverDecisionQueue>());
         });
 
+        // Performance settings (1.42.0): configuration > admin setting > default, applied live to the pool and the cache.
+        services.AddSingleton(sp => PerformanceConfiguration.FromConfiguration(
+            sp.GetService<Microsoft.Extensions.Configuration.IConfiguration>() ?? new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build()));
+        services.AddSingleton(sp => new PerformanceSettingsResolver(
+            sp.GetRequiredService<PerformanceConfiguration>(),
+            sp.GetRequiredService<MediaWorkerPool>(),
+            sp.GetRequiredService<CacheService>(),
+            sp.GetRequiredService<IServiceScopeFactory>(),
+            sp.GetService<ILogger<PerformanceSettingsResolver>>()));
+        services.AddScoped<PerformanceSettingsService>();
+        services.AddHostedService<PerformanceSettingsStartup>();
+
         services.AddSingleton<MediaWorkerPool>(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<MediaWorkerPool>>();
@@ -114,7 +130,8 @@ public static class MediaServicesExtensions
             var scratch = sp.GetRequiredService<ScratchWorkspaceManager>();
             var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
             var persister = sp.GetRequiredService<AnalysisResultPersister>();
-            return new MediaWorkerPool(options, scheduler, scratch, logger, loggerFactory, scopeFactory, persister);
+            return new MediaWorkerPool(options, scheduler, scratch, logger, loggerFactory, scopeFactory, persister,
+                sp.GetService<MediaMetrics>());
         });
 
         return services;

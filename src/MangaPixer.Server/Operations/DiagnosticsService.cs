@@ -1,6 +1,7 @@
 namespace com.lifepixer.mangapixer.Server.Operations;
 
 using com.lifepixer.mangapixer.Server.Logging;
+using com.lifepixer.mangapixer.Server.Media;
 using com.lifepixer.mangapixer.Server.Persistence;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
@@ -19,11 +20,13 @@ public sealed class DiagnosticsService
 {
     private readonly MangaPixerDbContext _db;
     private readonly ILogger<DiagnosticsService>? _logger;
+    private readonly MediaMetrics? _media;
 
-    public DiagnosticsService(MangaPixerDbContext db, ILogger<DiagnosticsService>? logger = null)
+    public DiagnosticsService(MangaPixerDbContext db, ILogger<DiagnosticsService>? logger = null, MediaMetrics? media = null)
     {
         _db = db;
         _logger = logger;
+        _media = media;
     }
 
     /// <summary>
@@ -77,6 +80,7 @@ public sealed class DiagnosticsService
                 UptimeSeconds = (long)(DateTimeOffset.UtcNow - process.StartTime.ToUniversalTime()).TotalSeconds,
                 ThreadCount = process.Threads.Count,
             },
+            Media = _media?.Snapshot(),
         };
     }
 
@@ -106,6 +110,12 @@ public sealed record DiagnosticsSnapshot
     public required DateTimeOffset Timestamp { get; init; }
     public required DatabaseDiagnostics Database { get; init; }
     public required ProcessDiagnostics Process { get; init; }
+
+    /// <summary>
+    /// Media worker pool, page cache and timing metrics (1.42.0): kinds, counts and durations only. Null where no
+    /// metrics are registered.
+    /// </summary>
+    public MediaDiagnostics? Media { get; init; }
 }
 
 /// <summary>

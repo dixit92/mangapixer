@@ -131,7 +131,7 @@ public sealed class ThumbnailGenerationService
             var outcome = await _workerPool.ExtractPageAsync(
                 sourcePath, firstPage.SourceEntryLocator, "thumbnail",
                 archiveItem.ModificationTicks, archiveItem.ByteLength,
-                outputPath, ThumbnailMaxDimension, WebpQuality, ct);
+                outputPath, ThumbnailMaxDimension, WebpQuality, ct, slotKind: MediaSlotKind.Thumbnail);
 
             if (!outcome.Success)
             {

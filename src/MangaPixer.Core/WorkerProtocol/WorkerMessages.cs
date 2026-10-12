@@ -303,6 +303,16 @@ public sealed record ExtractResult
     public int Width { get; init; }
     public int Height { get; init; }
     public long ByteSize { get; init; }
+
+    /// <summary>
+    /// Milliseconds the worker spent opening the archive, reading the page entry and encoding the variant (1.42.0
+    /// performance profiling; timings only). Additive optional fields like <see cref="ExtractRequest.MaxDimension"/>:
+    /// they do NOT bump <see cref="WorkerProtocolVersion.Current"/>, and a worker that sends none leaves them null.
+    /// </summary>
+    public int? OpenMs { get; init; }
+
+    public int? ReadMs { get; init; }
+    public int? EncodeMs { get; init; }
 }
 
 /// <summary>

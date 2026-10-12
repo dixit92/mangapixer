@@ -1073,6 +1073,18 @@ public sealed class AppSettingsEntity
     /// default; the migration gives the existing row true.
     /// </summary>
     public bool MetadataMangaDexStepEnabled { get; set; } = true;
+
+    // 1.42.0 performance settings (migration AddPerformanceSettings). Null = not set in the admin UI: configuration
+    // (MangaPixer:Media:* / MangaPixer:Storage:CacheBudgetBytes) wins, then the built-in default (PerformanceSettingsResolver).
+
+    /// <summary>Media worker processes (1-8), or null.</summary>
+    public int? PerformanceMediaWorkers { get; set; }
+
+    /// <summary>Page cache budget in bytes, or null.</summary>
+    public long? PerformancePageCacheBytes { get; set; }
+
+    /// <summary>Background work while someone reads (<c>BackgroundWhileReading</c>: 0 pause, 1 slow, 2 normal), or null.</summary>
+    public int? PerformanceBackgroundWhileReading { get; set; }
 }
 
 /// <summary>

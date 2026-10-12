@@ -65,6 +65,13 @@ public sealed class ImageVariantEncoder
     /// screentone beating at that size, and changing them would invalidate every
     /// cached thumbnail for no reader-visible gain.
     /// </param>
+    /// <summary>
+    /// Full pixel decodes of a source image done on this thread (1.42.0, test seam): one per encoded page; header
+    /// reads (probe, frame count) do not count.
+    /// </summary>
+    [ThreadStatic]
+    internal static int FullDecodes;
+
     public EncodedVariant Encode(byte[] source, string variant, string outputPath, int thumbnailMaxDimension, int webpQuality, int pageMaxDimension = 0, string? resizeFilter = null)
     {
         if (variant == "original")
@@ -88,6 +95,7 @@ public sealed class ImageVariantEncoder
             return new EncodedVariant { MediaType = GuessAnimatedMediaType(source), Width = w, Height = h, ByteSize = source.Length };
         }
 
+        FullDecodes++;
         using var image = new MagickImage(source);
         // Flatten to the first frame for statics/thumbnails (defensive for odd inputs).
         image.Format = MagickFormat.WebP;
@@ -154,14 +162,12 @@ public sealed class ImageVariantEncoder
         {
             using var stream = new MemoryStream(source, writable: false);
             var info = new MagickImageInfo(stream);
-            // MagickImageInfo doesn't report frame count; a collection read does, but
-            // that fully decodes. Keep it cheap: only GIF/WebP/PNG can be animated.
+            // Only GIF/WebP/PNG can be animated. 1.42.0: count their frames from the headers (a "ping" read of every
+            // frame, no pixel decode) - a MagickImageCollection read decoded the whole page a second time, before
+            // the real decode in Encode, for every PNG / WebP / GIF page.
             var fmt = info.Format;
             if (fmt is MagickFormat.Gif or MagickFormat.WebP or MagickFormat.Png or MagickFormat.APng)
-            {
-                using var coll = new MagickImageCollection(source);
-                return coll.Count;
-            }
+                return MagickImageInfo.ReadCollection(source).Count();
             return 1;
         }
         catch

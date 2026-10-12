@@ -40,6 +40,7 @@ import { isApplePlatformTouch, isStandaloneDisplay } from './platform';
 import { EdgeAdvance, EdgeAdvanceWindowMs, EdgeDirection } from './edge-advance';
 import { WheelPager } from './wheel-paging';
 import { archiveTitle } from './archive-title';
+import { PagePrefetchQueue } from './page-prefetch-queue';
 import { InstallHintService } from '../../shared/install-hint/install-hint.service';
 import {
   groupSpreads, fallbackSpreadStarts, normalizeSpreadStarts, isShiftedSpread, shiftSpreadAt, ensureSpreadStart,
@@ -1456,7 +1457,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
       this.pollAttempts = 0;
       // Reset the page-prefetch cache for the new chapter (URLs are per-item).
       this.prefetchedUrls.clear();
-      this.prefetchImgs = [];
+      this.prefetchQueue.abortAll();
       // Page URLs are pinned per chapter (see pageUrlFor): a new chapter re-targets.
       this.pageUrlCache.clear();
       // "at=end" (set when arriving via previous-chapter back-navigation) asks to
@@ -1545,6 +1546,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
 
   ngOnDestroy(): void {
     this.destroyed = true;
+    this.prefetchQueue.abortAll();
     window.visualViewport?.removeEventListener('resize', this.onVisualViewportChange);
     this.clearPoll();
     if (this.webtoonSaveTimer) clearTimeout(this.webtoonSaveTimer);
@@ -2021,7 +2023,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
 
   private showPage(index: number): void {
     this.currentPage.set(index);
-    this.pageLoading.set(true);
+    this.startPageLoad();
     this.phase.set('ready');
     // Show the chrome briefly on entry, then let it auto-hide for immersion.
     this.revealChrome();
@@ -2059,13 +2061,30 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   /** Pages to warm ahead of the webtoon scroll position (N≈3–4; tunable). */
   private static readonly WebtoonPrefetchAhead = 4;
   private readonly prefetchedUrls = new Set<string>();
-  private prefetchImgs: HTMLImageElement[] = [];
+  /**
+   * 1.42.0: prefetches go through a small queue - at most 2 in flight, none while the current page is still loading,
+   * marked so the server serves them after any reader's current page (page-prefetch-queue.ts).
+   */
+  private readonly prefetchQueue = new PagePrefetchQueue();
+
+  /**
+   * A new page is on its way to the screen: show the loading state and - in the paged views, where the page has its
+   * own load event - hold the prefetches until it is there (1.42.0: the current page first).
+   */
+  private startPageLoad(): void {
+    this.pageLoading.set(true);
+    if (this.view() !== 'webtoon') this.prefetchQueue.hold();
+  }
 
   private prefetchAround(index: number): void {
     if (this.view() === 'webtoon') return;
     const all = this.pages();
     const n = all.length;
     if (n === 0) return;
+
+    // The page(s) on screen load through their own <img>: never as a (lower-priority) prefetch.
+    for (const entry of this.currentSpreadEntries()) this.prefetchQueue.drop(this.pageUrlFor(entry));
+    this.prefetchQueue.drop(this.pageUrlFor(all[index]));
 
     const targets: number[] = [];
     for (let d = 1; d <= ReaderComponent.PrefetchAhead; d++) {
@@ -2108,11 +2127,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
       const url = this.pageUrlFor(all[i]);
       if (!url || this.prefetchedUrls.has(url)) continue;
       this.prefetchedUrls.add(url);
-      const img = new Image();
-      img.decoding = 'async';
-      img.src = url; // browser fetches + caches; the reader <img> reuses it
-      this.prefetchImgs.push(img);
-      if (this.prefetchImgs.length > 24) this.prefetchImgs.shift();
+      this.prefetchQueue.enqueue(url); // browser fetches + caches; the reader <img> reuses it
     }
   }
 
@@ -2172,9 +2187,10 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
 
   // --- Page image lifecycle ---
 
-  onPageLoaded(): void { this.pageLoading.set(false); this.scheduleMeasure(); }
+  onPageLoaded(): void { this.pageLoading.set(false); this.prefetchQueue.release(); this.scheduleMeasure(); }
   onPageError(): void {
     this.pageLoading.set(false);
+    this.prefetchQueue.release();
     this.snackBar.open('This page could not be loaded.', 'Dismiss', { duration: 4000 });
   }
 
@@ -2315,7 +2331,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     this.navEnter.set(this.enterSideForNav(clamped > this.currentPage()));
     this.holdOutgoing();
     this.currentPage.set(clamped);
-    this.pageLoading.set(true);
+    this.startPageLoad();
     this.prefetchAround(clamped);
     this.saveProgress();
   }
@@ -2418,7 +2434,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     }
     if (clamped === this.currentPage()) return;
     this.currentPage.set(clamped);
-    this.pageLoading.set(true);
+    this.startPageLoad();
     this.prefetchAround(clamped);
   }
 

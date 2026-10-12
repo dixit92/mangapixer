@@ -209,6 +209,15 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Property<bool>("MetadataVolumeCoversEnabled")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("PerformanceBackgroundWhileReading")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("PerformanceMediaWorkers")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("PerformancePageCacheBytes")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("TrashAutoCleanEnabled")
                         .HasColumnType("INTEGER");
 
