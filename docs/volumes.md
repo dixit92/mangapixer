@@ -31,6 +31,12 @@ A folder that has no list and no linked series groups by names alone, and only w
 
 *New in 1.34.0:* files numbered with a running index in front of the chapter - `0003 [0001 - Chapter Title].cbz`, `0002 [0000.5].cbz` - are read by the number **in the brackets**: chapter 1, and chapter 0.5 (an extra). The title inside the brackets is just a title: `0168 [0166 - Chapter Title (Part 2)]` is chapter 166. A name whose brackets hold only a title (`001 [Chapter Title]`) is still chapter 1, and a year in the brackets (`001 [2019]`) is not a chapter.
 
+*New in 1.42.0:* more names are read.
+
+- **A chapter number right after the series title.** When the files of a folder start with the same series title followed by a number that changes from file to file, that number is the chapter: `Series 100 Vol 11 Chapter Title` is chapter 100 of volume 11 (before, the whole file counted as volume 11), and `Series 002 Chapter Title`, `Series 014.5  Chapter Title, Part 2` and `Series 120 (2023) (Digital)` are chapters 2, 14.5 and 120 - whatever the chapter title ends in. The number needs three digits (`002`, `120`; before a volume also `01`, `12.5`), and never a year. A number that every file shares is part of the title: the files of `Mob Psycho 100`, `Cyborg 009` or `Mobile Suit Gundam 0079` stay volumes. Two digits (`Series 07`) still say nothing - volume or chapter? In a `Volumes` folder such a number is a volume, and so is a file whose ComicInfo *Volume* is that number. A file alone in its folder is not read this way.
+- **Three decimals.** `Ch.014.125` is chapter 14.125, no longer chapter 14 (which made it a copy of chapter 14). A three-digit part padded like the chapter number is that part: `Ch.014.005` is chapter 14.5 and `Ch.021.010` chapter 21.1.
+- **A site's watermark at the end of a name** - `Series 001 Read Online`, `... Read Manga Online Free`, `... Online Free` - is left out before the name is read, and from the name automatic matching searches for. One such word alone is part of the title (`Sword Art Online`).
+
 ## What the list shows
 
 Entries are ordered **by volume**, not by file name: a chapter named `Series c019` no longer sorts before `Series v01`. The order is:

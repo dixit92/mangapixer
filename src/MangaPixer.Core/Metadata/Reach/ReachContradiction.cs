@@ -76,6 +76,7 @@ public static class ReachContradiction
     {
         ArgumentNullException.ThrowIfNull(rows);
         ArgumentNullException.ThrowIfNull(evidence);
+        rows = VolumeGrouping.WithSeriesHeads(rows); // 1.42.0: units as the Volumes view reads them
         map ??= VolumeMapInput.Empty;
         var reach = SeriesReach.Of(rows, map);
 

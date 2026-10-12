@@ -214,7 +214,9 @@ public sealed class CoverCheckService(
     private async Task<(CoverCheckResult? Result, bool Incomplete)> CheckAsync(LinkRow link, CancellationToken ct, bool force = false)
     {
         var archives = await VolumeCoverPass.ArchivesBelowAsync(db, [link.NodeId], ct);
-        var shaped = archives.Select(a => (Archive: a, Units: VolumeGrouping.UnitsOf(a.Row))).ToList();
+        // 1.42.0: read with the series head, as the Volumes view reads them ("<head> 010 Vol 02 <title>" is a chapter, not volume 2).
+        var headed = VolumeGrouping.WithSeriesHeads(archives.Select(a => a.Row).ToList());
+        var shaped = archives.Select((a, i) => (Archive: a, Units: VolumeGrouping.UnitsOf(headed[i]))).ToList();
         // A one-shot is a single archive that states no number at all; a single "v01" is one volume of a series (it needs a second).
         var oneShot = shaped.Count == 1 && shaped[0].Units is { Chapter: null, Volume: null };
         var byVolume = new SortedDictionary<int, List<VolumeCoverPass.HeldArchive>>();

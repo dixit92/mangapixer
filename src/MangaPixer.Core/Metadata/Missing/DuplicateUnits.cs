@@ -64,7 +64,8 @@ public static partial class DuplicateUnits
     {
         ArgumentNullException.ThrowIfNull(rows);
         var groups = new List<DuplicateGroup>();
-        foreach (var container in rows.Where(r => r.Kind == GroupingRowKind.Archive)
+        // 1.42.0: units read with the series head, as the Volumes view reads them.
+        foreach (var container in VolumeGrouping.WithSeriesHeads(rows.ToList()).Where(r => r.Kind == GroupingRowKind.Archive)
                      .GroupBy(r => r.ContainerName ?? string.Empty, StringComparer.Ordinal))
             groups.AddRange(GroupsOf(container));
         return Sorted(groups);
