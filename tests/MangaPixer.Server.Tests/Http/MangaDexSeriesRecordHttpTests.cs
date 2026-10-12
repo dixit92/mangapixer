@@ -93,6 +93,13 @@ public sealed class MangaDexSeriesRecordHttpTests
         return ScriptedHandler.Json("{}", HttpStatusCode.NotFound);
     }
 
+    /// <summary>Forgets the requests seen so far, keeping this test's routing (<see cref="ScriptedHandler.Reset"/> drops it).</summary>
+    private static void Forget(MetadataNetworkWebApplicationFactory factory, MdJson.Manga manga)
+    {
+        factory.Handler.Reset();
+        factory.Handler.Respond = r => Route(r, manga);
+    }
+
     private static async Task<HttpClient> StartAsync(MetadataNetworkWebApplicationFactory factory, MdJson.Manga manga)
     {
         await SeedAsync(factory);
@@ -132,7 +139,7 @@ public sealed class MangaDexSeriesRecordHttpTests
             + "&includes%5B%5D=cover_art&includes%5B%5D=author&includes%5B%5D=artist", sent.Uri.AbsoluteUri);
 
         // A pasted title address: only the id is sent (the search's answer is reused - no second request).
-        factory.Handler.Reset();
+        Forget(factory, Lantern);
         var lookup = await admin.PostAsJsonAsync("/api/v1/admin/metadata/nodes/mdxSeries/lookup",
             new IdentifyLookupRequest { Reference = $"https://mangadex.org/title/{LanternId}/silver-lantern-tales" });
         lookup.EnsureSuccessStatusCode();
@@ -148,7 +155,7 @@ public sealed class MangaDexSeriesRecordHttpTests
         Assert.All(factory.Handler.Seen, s => Assert.DoesNotContain("title=", s.Uri.Query, StringComparison.Ordinal));
 
         // Link: the record, its poster (the main cover, 512 px) and the self companion.
-        factory.Handler.Reset();
+        Forget(factory, Lantern);
         (await admin.PutAsJsonAsync("/api/v1/admin/metadata/nodes/mdxSeries/link", new LinkSeriesRequest { Provider = "mangadex", ExternalId = LanternId }))
             .EnsureSuccessStatusCode();
         Assert.Contains(factory.Handler.Seen, s => s.Uri.Host == "uploads.mangadex.org" && s.Uri.AbsolutePath.EndsWith(".512.jpg", StringComparison.Ordinal));
@@ -172,7 +179,7 @@ public sealed class MangaDexSeriesRecordHttpTests
         Assert.Empty(info.Companions);
 
         // Refresh: the record by id, then its lists by id - never a title search.
-        factory.Handler.Reset();
+        Forget(factory, Lantern);
         (await admin.PostAsync("/api/v1/admin/metadata/nodes/mdxSeries/refresh", null)).EnsureSuccessStatusCode();
         Assert.Contains(factory.Handler.Seen, s => s.Uri.AbsolutePath == "/manga/" + LanternId);
         Assert.Contains(factory.Handler.Seen, s => s.Uri.AbsolutePath == $"/manga/{LanternId}/aggregate");
@@ -199,7 +206,8 @@ public sealed class MangaDexSeriesRecordHttpTests
     public async Task SwitchToMangaUpdates_MovesTheLink_KeepsTheConfirmation_AndKeepsMangaDexAsTheCompanion()
     {
         using var factory = new MetadataNetworkWebApplicationFactory();
-        var admin = await StartAsync(factory, Lantern with { Mu = MangaUpdatesReference.ToBase36(LanternMu) });
+        var linked = Lantern with { Mu = MangaUpdatesReference.ToBase36(LanternMu) };
+        var admin = await StartAsync(factory, linked);
         (await admin.PutAsJsonAsync("/api/v1/admin/metadata/nodes/mdxSeries/link", new LinkSeriesRequest { Provider = "mangadex", ExternalId = LanternId }))
             .EnsureSuccessStatusCode();
 
@@ -207,7 +215,7 @@ public sealed class MangaDexSeriesRecordHttpTests
         var info = (await admin.GetFromJsonAsync<SeriesInfoDto>("/api/v1/nodes/mdxSeries/series-info", TestJson.Web))!;
         Assert.Equal(LanternMu.ToString(System.Globalization.CultureInfo.InvariantCulture), info.Web!.MangaUpdatesId);
 
-        factory.Handler.Reset();
+        Forget(factory, linked);
         var switched = await admin.PostAsync("/api/v1/admin/metadata/nodes/mdxSeries/switch-to-mangaupdates", null);
         switched.EnsureSuccessStatusCode();
         var change = (await switched.Content.ReadFromJsonAsync<NodeSeriesLinkChangeDto>(TestJson.Web))!;

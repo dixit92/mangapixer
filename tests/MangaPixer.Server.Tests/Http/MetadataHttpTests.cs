@@ -428,8 +428,10 @@ public sealed class MetadataHttpTests : IClassFixture<MangaPixerWebApplicationFa
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<MetadataGateway>());
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<MetadataIdentifyService>());
         // 1.32.0: the Grand Comics Database joins MangaUpdates (AddGcdProvider), with its detail reader.
-        Assert.Equal(["mangaupdates", "gcd"], _factory.Services.GetRequiredService<MetadataProviderRegistry>().All.Select(p => p.Id).ToArray());
-        Assert.Equal(2, _factory.Services.GetServices<IMetadataProvider>().Count());
+        // 1.42.0: MangaDex as the series record of a series MangaUpdates does not list (the third site).
+        Assert.Equal(["mangaupdates", "gcd", "mangadex"], _factory.Services.GetRequiredService<MetadataProviderRegistry>().All.Select(p => p.Id).ToArray());
+        Assert.Equal(3, _factory.Services.GetServices<IMetadataProvider>().Count());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<com.lifepixer.mangapixer.Server.Features.Metadata.Volumes.MangaDexUpgradeService>());
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<com.lifepixer.mangapixer.Server.Features.Metadata.Providers.Gcd.GcdDetails>());
         Assert.Contains(_factory.Services.GetServices<IMetadataRecordRemovedHandler>(), h => h is MetadataImageStore);
     }

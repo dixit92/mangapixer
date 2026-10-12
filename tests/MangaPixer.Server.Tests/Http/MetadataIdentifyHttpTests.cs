@@ -113,7 +113,7 @@ public sealed class MetadataIdentifyHttpTests
 
         // The provider is registered now, but only the gateway ever resolves it.
         var registry = factory.Services.GetRequiredService<com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MetadataProviderRegistry>();
-        Assert.Equal(["mangaupdates", "gcd"], registry.All.Select(p => p.Id).ToArray());
+        Assert.Equal(["mangaupdates", "gcd", "mangadex"], registry.All.Select(p => p.Id).ToArray()); // 1.42.0: MangaDex as a series record
     }
 
     // --- Authorization ---
