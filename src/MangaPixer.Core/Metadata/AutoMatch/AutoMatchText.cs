@@ -684,9 +684,9 @@ public static partial class AutoMatchText
                 var key = TitleNormalizer.ScoringForm(s[..m.Index]);
                 if (key.Length == 0 || !key.Any(char.IsLetter) || HeadEndsInUnitWord().IsMatch(key) || !seen.Add(key))
                     continue;
-                var entry = heads.TryGetValue(key, out var found) ? found : (0, new HashSet<decimal>());
-                entry.Numbers.Add(UnitNumber(m.Groups["n"].Value));
-                heads[key] = (entry.Count + 1, entry.Numbers);
+                var (count, numbers) = heads.TryGetValue(key, out var found) ? found : (0, new HashSet<decimal>());
+                numbers.Add(UnitNumber(m.Groups["n"].Value));
+                heads[key] = (count + 1, numbers);
             }
         }
         var best = heads
