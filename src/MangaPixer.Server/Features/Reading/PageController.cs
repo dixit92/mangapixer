@@ -69,6 +69,13 @@ public sealed class PageController : ControllerBase
     /// </summary>
     internal const string ServerTimingHeaderName = "Server-Timing";
 
+    /// <summary>
+    /// Request header the web reader sets (value <c>1</c>) on its page PREFETCHES (1.42.0): a prefetch is served after
+    /// any reader's current page when workers are busy. Absent = a page someone is looking at. It changes only the
+    /// order of waiting work, never the response, so the URL and the browser cache entry stay the same.
+    /// </summary>
+    internal const string PrefetchHeaderName = "X-MangaPixer-Prefetch";
+
     public PageController(
         MangaPixerDbContext db,
         CacheService cache,
@@ -177,7 +184,9 @@ public sealed class PageController : ControllerBase
         int requestedMaxDim = 0, string? resizeFilter = null)
     {
         var timing = new PageTiming(Stopwatch.GetTimestamp());
-        var kind = variant == "thumbnail" ? MediaSlotKind.PageThumbnail : MediaSlotKind.Page;
+        var kind = variant == "thumbnail" ? MediaSlotKind.PageThumbnail
+            : string.Equals(Request.Headers[PrefetchHeaderName], "1", StringComparison.Ordinal) ? MediaSlotKind.PagePrefetch
+            : MediaSlotKind.Page;
         var result = await GetPageCoreAsync(itemId, entryKey, variant, kind, timing, ct, requestedMaxDim, resizeFilter);
 
         var totalMs = Stopwatch.GetElapsedTime(timing.Started).TotalMilliseconds;

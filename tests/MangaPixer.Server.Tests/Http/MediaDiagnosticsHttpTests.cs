@@ -68,6 +68,32 @@ public sealed class MediaDiagnosticsHttpTests : IDisposable
     }
 
     [Fact]
+    public async Task PrefetchHeader_MarksThePageAsAPrefetch_WithoutChangingTheResponse()
+    {
+        var (client, itemId) = await SetupLibraryAndScanAsync();
+        var entryKey = await PersistAnalysisResultAsync(itemId);
+        await SeedCacheAsync(itemId, variant: "webp");
+
+        var plain = await client.GetAsync($"/api/v1/items/{itemId}/pages/{entryKey}");
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/items/{itemId}/pages/{entryKey}");
+        request.Headers.Add("X-MangaPixer-Prefetch", "1");
+        var prefetch = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, prefetch.StatusCode);
+        Assert.Equal(await plain.Content.ReadAsByteArrayAsync(), await prefetch.Content.ReadAsByteArrayAsync());
+        Assert.Equal(plain.Headers.ETag, prefetch.Headers.ETag);
+        Assert.False(prefetch.Headers.Contains("Vary") && prefetch.Headers.GetValues("Vary").Any(v => v.Contains("Prefetch", StringComparison.OrdinalIgnoreCase)));
+
+        var media = (await client.GetFromJsonAsync<JsonElement>("/api/v1/operations/diagnostics")).GetProperty("media");
+        var kinds = media.GetProperty("timings").EnumerateArray()
+            .Where(t => t.GetProperty("name").GetString() == "page_total")
+            .Select(t => t.GetProperty("kind").GetString())
+            .ToList();
+        Assert.Contains("page:hit", kinds);
+        Assert.Contains("page_prefetch:hit", kinds);
+    }
+
+    [Fact]
     public async Task MissingPage_IsCountedByStatus_AndStillTimed()
     {
         var (client, itemId) = await SetupLibraryAndScanAsync();
