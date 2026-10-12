@@ -486,5 +486,10 @@ public static class LogEvents
 
         // Edition override and stop tracking (1.39.0, 9420-9429). Ids and flags only - never folder names or titles.
         public const int DeclaredEditionChanged = 9420;
+
+        // MangaDex as the series record (1.42.0, lane D, 9500-9599). Ids, counts and codes only - never titles or search text.
+        public const int MangaDexSelfCompanion = 9500;
+        public const int MangaDexStep = 9501;
+        public const int MangaDexSwitched = 9502;
     }
 }

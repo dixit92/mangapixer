@@ -304,11 +304,20 @@ public sealed class MetadataGateway
         string providerId, string operation, long libraryId, Func<CancellationToken, Task<T>> call, MetadataCallContext? context,
         CancellationToken ct = default)
     {
-        if (MetadataHttp.Transport(providerId) is null || _providers.Find(providerId) is not null)
+        if (MetadataHttp.Transport(providerId) is null || !CompanionProviders.Contains(providerId))
             throw new MetadataGatewayException(StatusCodes.Status400BadRequest, "unknown_provider", "No such metadata provider.");
         await ThrowIfSwitchedOffAsync(libraryId, context?.Origin ?? MetadataCallOrigin.Interactive, providerId, ct);
         return await CallAsync(providerId, operation, libraryId, _state.ApiLimiterOf(providerId), call, context, ct);
     }
+
+    /// <summary>
+    /// The providers <see cref="CompanionCallAsync{T}"/> serves (1.42.0: an explicit list - MangaDex is also a registered series-record
+    /// provider now, so "not registered" no longer tells a companion apart). Its companion calls send what the companion classes send.
+    /// </summary>
+    public static readonly IReadOnlySet<string> CompanionProviders = new HashSet<string>(StringComparer.Ordinal)
+    {
+        MetadataProviderAllowlist.MangaDex, MetadataProviderAllowlist.AniList, MetadataProviderAllowlist.Wikipedia,
+    };
 
     /// <summary>
     /// One gated detail call of a registered provider beyond search / get (1.32.0: the Grand Comics Database's publisher name and

@@ -1067,6 +1067,12 @@ public sealed class AppSettingsEntity
     public int? BackupHour { get; set; }
     /// <summary>Server-local hour (0-23) of the daily cache clean-up. Null = 05:00.</summary>
     public int? CacheEvictionHour { get; set; }
+
+    /// <summary>
+    /// 1.42.0 (migration AddMangaDexSeriesRecords): "Search MangaDex when MangaUpdates finds nothing" under Automatic matching. ON by
+    /// default; the migration gives the existing row true.
+    /// </summary>
+    public bool MetadataMangaDexStepEnabled { get; set; } = true;
 }
 
 /// <summary>

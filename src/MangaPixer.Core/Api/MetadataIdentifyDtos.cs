@@ -229,6 +229,12 @@ public sealed record IdentifyPreviewDto
 
     /// <summary>The licence credit the data needs, e.g. "Data: Grand Comics Database, CC BY-SA 4.0" (1.32.0); null for MangaUpdates.</summary>
     public string? Credit { get; init; }
+
+    /// <summary>
+    /// 1.42.0: a MangaDex record whose own MangaUpdates link names a MangaUpdates series - that series' MangaUpdates id (for
+    /// "Preview on MangaUpdates"); null otherwise.
+    /// </summary>
+    public string? MangaUpdatesId { get; init; }
 }
 
 /// <summary>Result of Refresh: the record state after one GET.</summary>

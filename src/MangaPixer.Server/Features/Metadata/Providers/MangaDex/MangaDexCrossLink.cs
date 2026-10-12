@@ -62,6 +62,28 @@ public static partial class MangaDexCrossLink
         return MangaUpdatesReference.TryDecodeBase36(value, out var decoded) && decoded == id;
     }
 
+    /// <summary>
+    /// 1.42.0: the decimal MangaUpdates id a <c>links.mu</c> value names (base36 today; an all-digit value only with at least 8 digits, as
+    /// <see cref="LinksTo"/> reads it), or null.
+    /// </summary>
+    public static string? MangaUpdatesIdOf(string? muLink)
+    {
+        if (string.IsNullOrWhiteSpace(muLink))
+            return null;
+        var value = muLink.Trim();
+        long id;
+        if (value.All(char.IsAsciiDigit))
+        {
+            if (value.Length < 8 || !long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out id))
+                return null;
+        }
+        else if (!MangaUpdatesReference.TryDecodeBase36(value, out id))
+        {
+            return null;
+        }
+        return id > 0 ? id.ToString(CultureInfo.InvariantCulture) : null;
+    }
+
     /// <summary>The companion among <paramref name="results"/> (relevance order), or null when no result links to the record.</summary>
     public static MangaDexManga? Pick(IReadOnlyList<MangaDexManga> results, string recordExternalId, string? storedAniListId = null)
     {
