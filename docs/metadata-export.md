@@ -112,6 +112,13 @@ chapters, with Wikipedia's English release dates and ISBNs. `source` is `mangade
 `chapters` is `null` when the volume's chapters are not known. `englishDate` may be partial (`2025-07`, `2025`); `englishDateKind` is
 `released` when the whole date is not after today, else `announced`.
 
+**Estimated volumes (1.42.0).** When the Volumes view of a linked folder shows an estimated volume (`~ Volume 7`: a volume the list does
+not map, its chapters placed by MangaDex's average chapters per volume), that volume is added to the folder's `items` with
+`"chaptersEstimated": true` and `"sources": ["estimate"]`. Its `chapters` are the first and last chapter **file of this folder** the estimate
+places in that volume - for a held volume file, the chapter files it most likely contains - so a client can offer "replace these chapters
+with the volume" for a person to confirm; never act on it automatically. A volume the list maps never gets an estimated row, and the key
+`chaptersEstimated` is left out on every other row. When there is no list at all but estimated volumes exist, `source` is `estimate`.
+
 ### Completion
 
 `{ "answer", "reason", "upgradeAvailable", "upgradeVolumes", "computedAt", "basedOnScanAt" }` - the answer of the

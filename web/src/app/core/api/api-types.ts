@@ -2991,6 +2991,7 @@ export interface ExportVolumeDto {
   englishDateKind?: 'released' | 'announced' | null;
   isbn?: string | null;
   sources: string[];
+  chaptersEstimated?: boolean | null;
 }
 
 export interface ExportChapterRangeDto {

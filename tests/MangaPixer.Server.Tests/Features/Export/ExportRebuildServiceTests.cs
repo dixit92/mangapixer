@@ -444,6 +444,61 @@ public sealed class ExportRebuildServiceTests
     }
 
     [Fact]
+    public async Task EstimatedVolumes_AreExportedWithTheirChapterFiles_AndFlagged()
+    {
+        // 1.42.0 (MangaList): the Volumes view's "~ Volume N" stacks - a held volume whose chapters the list does not map - with the
+        // chapter files the estimate places in it, so MangaList can offer "replace these chapters with the volume".
+        await using var kit = await ExportTestKit.CreateAsync();
+        var series = await kit.Db.AddFolderAsync(null, "Synthetic Saga");
+        foreach (var name in new[] { "Synthetic Saga v01.cbz", "Synthetic Saga v02.cbz", "Synthetic Saga v03.cbz",
+                     "Synthetic Saga c011.cbz", "Synthetic Saga c012.cbz", "Synthetic Saga c013.cbz", "Synthetic Saga c016.cbz" })
+            await kit.Db.AddArchiveAsync(series, name);
+        var record = await kit.Db.AddRecordAsync("9301", "Synthetic Saga");
+        await kit.Db.AddLinkAsync(series, record);
+        var listed = await kit.Db.AddFolderAsync(null, "Synthetic Listed");
+        await kit.Db.AddArchiveAsync(listed, "Synthetic Listed v01.cbz");
+        await kit.Db.AddArchiveAsync(listed, "Synthetic Listed v02.cbz");
+        var listedRecord = await kit.Db.AddRecordAsync("9302", "Synthetic Listed");
+        await kit.Db.AddLinkAsync(listed, listedRecord);
+        foreach (var r in new[] { record, listedRecord })
+        {
+            kit.Db.Db.SeriesVolumeMaps.Add(new SeriesVolumeMapEntity
+            {
+                RecordId = r.Id,
+                Source = (int)VolumeMapSource.MangaDexAggregate,
+                State = (int)VolumeMapState.Ok,
+                // The list maps volumes 1-2; MangaDex knows 4 volumes at 5 chapters each, so 3 and 4 are estimated (11-15, 16-20).
+                VolumesJson = "[{\"v\":\"1\",\"c\":[\"1\",\"2\",\"3\",\"4\",\"5\"]},{\"v\":\"2\",\"c\":[\"6\",\"7\",\"8\",\"9\",\"10\"]}]",
+                ChaptersPerVolume = 5,
+                KnownVolumeCount = 4,
+                ContentHash = "h" + r.Id,
+                FetchedAt = ExportTestKit.Start,
+            });
+        }
+        await kit.Db.Db.SaveChangesAsync();
+
+        await kit.RebuildAsync();
+
+        var items = (await kit.PageAsync()).GetProperty("items").EnumerateArray()
+            .ToDictionary(i => i.GetProperty("nodeId").GetString()!);
+        var rows = items[series.PublicId].GetProperty("volumes").GetProperty("items").EnumerateArray().ToList();
+        Assert.Equal(["1", "2", "3", "4"], rows.Select(r => r.GetProperty("volume").GetString()));
+        // The list's own rows are unchanged and carry no flag.
+        Assert.False(rows[0].TryGetProperty("chaptersEstimated", out _));
+        Assert.Equal(("1", "5"), (rows[0].GetProperty("chapters").GetProperty("from").GetString(), rows[0].GetProperty("chapters").GetProperty("to").GetString()));
+        // Volume 3: the volume file + chapters 11-13 here; volume 4: chapter 16 only - the chapter FILES the estimate places in each.
+        Assert.True(rows[2].GetProperty("chaptersEstimated").GetBoolean());
+        Assert.Equal(("11", "13"), (rows[2].GetProperty("chapters").GetProperty("from").GetString(), rows[2].GetProperty("chapters").GetProperty("to").GetString()));
+        Assert.Equal(["estimate"], rows[2].GetProperty("sources").EnumerateArray().Select(s => s.GetString()));
+        Assert.True(rows[3].GetProperty("chaptersEstimated").GetBoolean());
+        Assert.Equal(("16", "16"), (rows[3].GetProperty("chapters").GetProperty("from").GetString(), rows[3].GetProperty("chapters").GetProperty("to").GetString()));
+        // A folder that holds only listed volumes gets no estimated rows (its item keeps its form).
+        var listedRows = items[listed.PublicId].GetProperty("volumes").GetProperty("items").EnumerateArray().ToList();
+        Assert.Equal(["1", "2"], listedRows.Select(r => r.GetProperty("volume").GetString()));
+        Assert.All(listedRows, r => Assert.False(r.TryGetProperty("chaptersEstimated", out _)));
+    }
+
+    [Fact]
     public async Task Duplicates_NameEachFileByItsNodeId_AndAreLeftOutWhenThereAreNone()
     {
         await using var kit = await ExportTestKit.CreateAsync();

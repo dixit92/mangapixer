@@ -116,9 +116,12 @@ public sealed class ExportItemBuilder(MangaPixerDbContext db)
                     MangadexReleased = record is null || !isSeries ? null : MangaDexReleased(maps[record.Id]),
                 },
                 OfficialLinks = OfficialLinks(mangadex?.ExtraJson),
+                // 1.42.0: plus the volumes the Volumes view estimates for this folder (its own progress grouping), flagged as estimated.
                 Volumes = record is null || !isSeries
                     ? null
-                    : ExportVolumes.Project(maps[record.Id].ToList(), WikipediaVolumeService.ReadDetails(details?.DetailsJson), details?.CheckedAt, today),
+                    : ExportVolumes.WithEstimates(
+                        ExportVolumes.Project(maps[record.Id].ToList(), WikipediaVolumeService.ReadDetails(details?.DetailsJson), details?.CheckedAt, today),
+                        progress.TryGetValue(link.NodeId, out var estimated) ? estimated.Result.EstimatedVolumes : []),
                 // 1.39.0: tracking off - no Completion block (null, as for any item without an answer) and the item says tracking "off".
                 Completion = progress.TryGetValue(link.NodeId, out var entry) && !entry.Result.Facts.TrackingOff ? Completion(entry) : null,
                 Tracking = progress.TryGetValue(link.NodeId, out var tracked) && tracked.Result.Facts.TrackingOff ? ExportVocabulary.TrackingOff : null,

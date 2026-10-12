@@ -11655,6 +11655,12 @@
             "items": {
               "type": "string"
             }
+          },
+          "chaptersEstimated": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         }
       },

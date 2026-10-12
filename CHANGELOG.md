@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - **MangaDex's released chapters in the metadata export.** For a linked series whose MangaDex volume list was read in the preferred language, each export item now carries `companions.mangadexReleased`: the language, the highest chapter MangaDex lists as released in it, how many whole chapters that is, and when the list was read. It comes from the stored list - no extra request - and is left out when the list was not read, so older clients see no change. Useful for series whose MangaUpdates entry has no or an old latest chapter.
+- **Estimated volumes in the metadata export.** When the Volumes view of a linked folder estimates a volume (`~ Volume 7` - a volume the list does not map), the export now adds it to the folder's volume list with `chaptersEstimated: true`: its chapters are the first and last chapter file of the folder the estimate places in that volume. A client such as MangaList can offer to replace those chapters with the volume file - for you to confirm, never on its own.
 
 ### Changed
 

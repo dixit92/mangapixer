@@ -267,7 +267,10 @@ public sealed record ExportOfficialLinkDto
 /// <summary>The per-volume list of the series.</summary>
 public sealed record ExportVolumesDto
 {
-    /// <summary><c>mangadex</c>, <c>wikipedia</c> or <c>merged</c>.</summary>
+    /// <summary>
+    /// <c>mangadex</c>, <c>wikipedia</c> or <c>merged</c>; 1.42.0: <c>estimate</c> when only estimated rows exist (no list, yet the
+    /// Volumes view estimates volumes from the folder's files).
+    /// </summary>
     public required string Source { get; init; }
 
     public DateTimeOffset? FetchedAt { get; init; }
@@ -293,8 +296,15 @@ public sealed record ExportVolumeDto
 
     public string? Isbn { get; init; }
 
-    /// <summary>Where this volume's data came from: <c>mangadex</c>, <c>wikipedia</c>.</summary>
+    /// <summary>Where this volume's data came from: <c>mangadex</c>, <c>wikipedia</c>; 1.42.0: <c>estimate</c>.</summary>
     public required IReadOnlyList<string> Sources { get; init; }
+
+    /// <summary>
+    /// 1.42.0: true when <see cref="Chapters"/> is the Volumes view's estimate for this folder (<c>~ Volume N</c>: the first and last chapter
+    /// file the estimate places in the volume), not a list's range; left out otherwise.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? ChaptersEstimated { get; init; }
 }
 
 /// <summary>A chapter range; numbers are exact strings.</summary>
