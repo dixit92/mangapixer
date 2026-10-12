@@ -470,7 +470,13 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             ReleaseWorkerStartReservation();
             if (!_isShuttingDown)
                 _logger.LogWarning(LogEvents.Worker.ExtractWorkerStartFailed, ex, "Failed to start worker for a waiting request: {Error}", ex.GetType().Name);
-            // Put the waiter back; a later release or pump serves it (or its own deadline ends the wait).
+            // A reader waits on (a later release or pump serves it, or its own deadline ends the wait); background work,
+            // which has no deadline, gives up now instead of retrying a broken worker start every second.
+            if (waiter.Class == SlotClass.Background)
+            {
+                waiter.Tcs.TrySetResult(null);
+                return;
+            }
             lock (_poolLock)
             {
                 if (!waiter.Tcs.Task.IsCompleted)
@@ -1272,6 +1278,8 @@ public sealed class MediaWorkerPool : IAsyncDisposable
                     if (_isShuttingDown)
                         return null;
                     _logger.LogWarning(LogEvents.Worker.ExtractWorkerStartFailed, ex, "Failed to start worker for extract: {Error}", ex.GetType().Name);
+                    if (cls == SlotClass.Background)
+                        return null; // no deadline to retry against (see StartWorkerForWaiterAsync)
                     lock (_poolLock)
                     {
                         waiter = new SlotWaiter(kind, cls, ++_waiterSeq, Environment.TickCount64);
