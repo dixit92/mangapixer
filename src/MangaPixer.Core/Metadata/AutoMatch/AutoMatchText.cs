@@ -594,6 +594,12 @@ public static partial class AutoMatchText
         return new UnitNumbers(volume?.Start, volume?.End, chapter?.Start, chapter?.End, extra);
     }
 
+    /// <summary>The units of a name read with its folder's series head (<see cref="SeriesHeadOf"/>). WIP stub.</summary>
+    public static UnitNumbers UnitsOf(string? archiveName, string? seriesHead) => UnitsOf(archiveName);
+
+    /// <summary>The series head of a folder's archive names. WIP stub.</summary>
+    public static string? SeriesHeadOf(IEnumerable<string?> archiveNames) => null;
+
     /// <summary>
     /// The chapter tokens of a name (1.31.1): "Episode N" / "Ep N" next to a VOLUME token names a part or arc of the series, not a
     /// chapter (<c>Title - Episode 1 - Arc Title v01 (2-in-1 Edition)</c>: each arc's volumes restart at 1, like Season / Part

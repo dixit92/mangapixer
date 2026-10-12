@@ -247,6 +247,9 @@ public static class VolumeGrouping
         return u;
     }
 
+    /// <summary>The rows with their folder's series head. WIP stub.</summary>
+    public static IReadOnlyList<GroupingRow> WithSeriesHeads(IReadOnlyList<GroupingRow> rows) => rows;
+
     private static decimal? ParseNumber(string? text) =>
         decimal.TryParse(text?.Trim(), NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var n) ? n : null;
 
