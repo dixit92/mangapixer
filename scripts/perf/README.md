@@ -16,9 +16,12 @@ Simulates N readers. Each logs in, opens items of one library one after another 
 
 - Page URLs carry the reader's `?maxDim=<bucket>&filter=` for that viewport (the 1080 / 1440 / 2160 ladder of
   `page-variant.ts`; above the top rung the full-size transcode is asked for).
-- Paged: on each turn the current page is needed and the next 6 and previous 2 pages are prefetched at once; webtoon:
+- Paged: on each turn the current page is needed and the next 6 and previous 2 pages are prefetch targets; webtoon:
   the visible page plus the next 4. Each page URL is requested once per item, as the reader's dedup set does: a
   prefetched page is a browser-cache hit when it becomes current, or the reader waits for that same request.
+- `--prefetch-mode capped` (default; the 1.42.0 reader): at most 2 prefetches in flight, started only once the current
+  page is there (paged views), sent with `X-MangaPixer-Prefetch: 1`. `--prefetch-mode legacy`: the earlier reader, all
+  targets at once and unmarked - use it to compare against an older server build.
 - Each reader has 6 connections (a browser's HTTP/1.1 limit per host); the current page is queued ahead of prefetches.
 - After every turn the reader saves its progress (`PUT /api/v1/reading/progress/{id}` with `If-Match`).
 - Think time varies +-30 % around the profile's mean.

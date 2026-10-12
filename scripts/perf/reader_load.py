@@ -42,6 +42,7 @@ from dataclasses import dataclass, field
 
 LADDER = (1080, 1440, 2160)
 PREFETCH_AHEAD, PREFETCH_BEHIND, WEBTOON_AHEAD = 6, 2, 4
+PREFETCH_CAP = 2  # 1.42.0 reader: prefetches in flight at once (--prefetch-mode capped)
 BROWSER_CONNECTIONS = 6
 
 PROFILES = {
@@ -191,6 +192,8 @@ class Job:
     kind: str = field(compare=False)
     done: threading.Event = field(compare=False, default_factory=threading.Event)
     finished_at: float = field(compare=False, default=0.0)
+    headers: dict | None = field(compare=False, default=None)
+    on_done: object = field(compare=False, default=None)
 
 
 class Reader(threading.Thread):
@@ -206,6 +209,7 @@ class Reader(threading.Thread):
         self.session = Session(args.base)
         self.jobs: queue.PriorityQueue = queue.PriorityQueue()
         self.seq = 0
+        self.lock = threading.Lock()
         self.stop_at = 0.0
         self.error: str | None = None
 
@@ -222,7 +226,7 @@ class Reader(threading.Thread):
                 break
             started = time.perf_counter()
             try:
-                resp, payload, ttfb, total = self.session.request(conn, "GET", job.url)
+                resp, payload, ttfb, total = self.session.request(conn, "GET", job.url, headers=job.headers)
                 st = parse_server_timing(resp.headers.get("Server-Timing"))
                 status, size = resp.status, len(payload)
             except Exception as ex:  # a dropped connection: record and reconnect
@@ -233,6 +237,8 @@ class Reader(threading.Thread):
                 self.error = type(ex).__name__
             job.finished_at = time.perf_counter()
             job.done.set()
+            if callable(job.on_done):
+                job.on_done()
             self.emit(event="request", kind=job.kind, page=job.page, t_s=round(started - self.t_zero, 3),
                       ttfb_ms=round(ttfb, 1), total_ms=round(total, 1), status=status, bytes=size,
                       cache=st.get("cache", ""), st_db=st.get("db", ""), st_slot=st.get("slot", ""),
@@ -240,9 +246,11 @@ class Reader(threading.Thread):
                       st_encode=st.get("encode", ""), st_total=st.get("total", ""))
         conn.close()
 
-    def submit(self, url: str, page: int, kind: str) -> Job:
-        self.seq += 1
-        job = Job(0 if kind == "current" else 1, self.seq, url, page, kind)
+    def submit(self, url: str, page: int, kind: str, headers: dict | None = None, on_done=None) -> Job:
+        with self.lock:
+            self.seq += 1
+            seq = self.seq
+        job = Job(0 if kind == "current" else 1, seq, url, page, kind, headers=headers, on_done=on_done)
         self.jobs.put(job)
         return job
 
@@ -293,9 +301,38 @@ class Reader(threading.Thread):
             base = f"/api/v1/items/{item['id']}/pages/{urllib.parse.quote(p['entryKey'], safe='')}"
             return f"{base}?maxDim={md}&filter={self.args.filter}" if md > 0 else base
 
+        capped = self.args.prefetch_mode == "capped"
+        pending: list[int] = []      # capped mode: prefetches waiting to start, in order
+        state = {"inflight": 0, "held": False}
+
+        def pump() -> None:
+            # 1.42.0 web reader: at most PREFETCH_CAP prefetches in flight, none while the current page loads.
+            while True:
+                with self.lock:
+                    if state["held"] or state["inflight"] >= PREFETCH_CAP or not pending:
+                        return
+                    i = pending.pop(0)
+                    state["inflight"] += 1
+                jobs[i] = self.submit(url_for(i), i, "prefetch", headers={"X-MangaPixer-Prefetch": "1"}, on_done=prefetch_done)
+
+        def prefetch_done() -> None:
+            with self.lock:
+                state["inflight"] -= 1
+            pump()
+
         def need(i: int, kind: str) -> None:
-            if 0 <= i < len(pages) and i not in jobs:
-                jobs[i] = self.submit(url_for(i), i, kind)
+            if not (0 <= i < len(pages)) or i in jobs:
+                return
+            if kind == "prefetch" and capped:
+                with self.lock:
+                    if i not in pending:
+                        pending.append(i)
+                return
+            if kind == "current" and capped:
+                with self.lock:
+                    if i in pending:
+                        pending.remove(i)
+            jobs[i] = self.submit(url_for(i), i, kind)
 
         turns = 0
         for i in range(len(pages)):
@@ -305,6 +342,9 @@ class Reader(threading.Thread):
             prefetched = i in jobs
             already_there = prefetched and jobs[i].done.is_set()
             need(i, "current")
+            if capped and self.view != "webtoon" and not jobs[i].done.is_set():
+                with self.lock:
+                    state["held"] = True
             if self.view == "webtoon":
                 for d in range(1, WEBTOON_AHEAD + 1):
                     need(i + d, "prefetch")
@@ -313,7 +353,13 @@ class Reader(threading.Thread):
                     need(i + d, "prefetch")
                 for d in range(1, PREFETCH_BEHIND + 1):
                     need(i - d, "prefetch")
+            if capped:
+                pump()
             jobs[i].done.wait(timeout=600)
+            if capped:
+                with self.lock:
+                    state["held"] = False
+                pump()
             ready = 0.0 if already_there else max(0.0, (jobs[i].finished_at - turned) * 1000)
             self.emit(event="turn", kind="first" if i == 0 else "turn", page=i, t_s=round(turned - self.t_zero, 3),
                       ready_ms=round(ready, 1), prefetched=int(prefetched))
@@ -415,6 +461,9 @@ def main() -> int:
     ap.add_argument("--item-offset", type=int, default=0, help="rotate the item list (pick other items per run)")
     ap.add_argument("--items-per-reader", type=int, default=6)
     ap.add_argument("--filter", default="balanced")
+    ap.add_argument("--prefetch-mode", choices=["legacy", "capped"], default="capped",
+                    help="legacy = the pre-1.42.0 reader (all prefetches at once, unmarked); capped = 1.42.0 (2 at a time, "
+                         "after the current page, marked X-MangaPixer-Prefetch)")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--run-id", default="run")
     ap.add_argument("--scenario", default="x")
