@@ -132,7 +132,10 @@ public sealed class MangaDexSeriesRecordHttpTests
         search.EnsureSuccessStatusCode();
         var found = (await search.Content.ReadFromJsonAsync<IdentifySearchResultDto>(TestJson.Web))!;
         Assert.Equal("mangadex", found.Provider);
-        Assert.Equal(LanternId, Assert.Single(found.Candidates).ExternalId);
+        var hit = Assert.Single(found.Candidates);
+        Assert.Equal(LanternId, hit.ExternalId);
+        Assert.Null(hit.UnitKind); // no comics edition fields on a MangaDex hit
+        Assert.Equal(MetadataOrigin.Japan, hit.Origin);
         var sent = Assert.Single(factory.Handler.Seen);
         Assert.Equal("https://api.mangadex.org/manga?title=Silver%20Lantern%20Tales&limit=10&offset=0&order%5Brelevance%5D=desc"
             + "&contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&contentRating%5B%5D=erotica&contentRating%5B%5D=pornographic"

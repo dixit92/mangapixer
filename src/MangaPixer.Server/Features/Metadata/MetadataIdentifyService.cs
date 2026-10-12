@@ -197,7 +197,7 @@ public sealed class MetadataIdentifyService
                 var score = Rank(queries, [hit.Title, hit.HitTitle], name.YearHint, hit.Year);
                 if (hit.Record is { } record)
                     RememberSearched(record);
-                var extra = GcdExtra.Read(hit.Record?.ExtraJson);
+                var extra = provider == ComicsProvider ? GcdExtra.Read(hit.Record?.ExtraJson) : null;
                 return (Index: index, Dto: new IdentifyCandidateDto
                 {
                     ExternalId = hit.ExternalId,
