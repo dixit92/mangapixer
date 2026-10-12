@@ -91,7 +91,7 @@ public sealed class GcdIdentifyHttpTests
         Assert.Equal("Grand Comics Database", comics.ProviderName);
         Assert.True(comics.ComicsSignalled);
         Assert.True(comics.FetchAvailable);
-        Assert.Equal(["mangaupdates", "gcd"], comics.Sites.Select(s => s.Id));
+        Assert.Equal(["mangaupdates", "gcd", "mangadex"], comics.Sites.Select(s => s.Id)); // 1.42.0: MangaDex is the third site
         Assert.All(comics.Sites, s => Assert.True(s.Available));
         Assert.Contains("25 requests an hour", comics.Sites[1].Note, StringComparison.Ordinal);
         Assert.Equal(1991, comics.Local.YearHint);
