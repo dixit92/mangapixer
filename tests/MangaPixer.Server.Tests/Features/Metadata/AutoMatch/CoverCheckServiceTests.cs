@@ -281,6 +281,24 @@ public sealed class CoverCheckServiceTests : IAsyncLifetime
         Assert.Equal(0, _kit.Hasher.Calls);
     }
 
+    [Fact]
+    public async Task ChaptersNamedBeforeTheirVolume_AreChapters_NeverChecked()
+    {
+        // 1.42.0: "<head> 010 Vol 02 <title>" is chapter 10 of volume 2 (the series head the folder's files vary), so page 1 is a chapter's.
+        var record = await _kit.Db.AddRecordAsync("cchd", "Synthetic Heads");
+        var folder = await _kit.Db.AddFolderAsync(null, "Synthetic Heads");
+        foreach (var (chapter, volume) in new[] { (1, 1), (2, 1), (10, 2), (11, 2) })
+            await _kit.AddBookAsync(folder, $"Synthetic Heads {chapter:000} Vol {volume:00} A Title", 800, 1200, chapter % 2 == 0 ? L1 : L2);
+        await LinkAsync(folder, record, SeriesLinkState.Auto);
+        var md = await _kit.AddCompanionAsync(record);
+        await _kit.AddStoredCoverAsync(md, 1, "en", W1);
+        await _kit.AddStoredCoverAsync(md, 2, "en", W2);
+
+        Assert.Equal(new CoverCheckSweepResult(0, 0), await Service().SweepAsync());
+        Assert.Equal(0, _kit.Hasher.Calls);
+        Assert.Equal((int)SeriesLinkState.Auto, (await LinkOfAsync(folder.Id)).State);
+    }
+
     private async Task WriteCropAsync(long nodeId, CoverCropSide side, ulong hash)
     {
         var path = _kit.Files.CropPath(nodeId, 1, side);

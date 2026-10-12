@@ -26,6 +26,7 @@ public sealed class DuplicateNumbersHttpTests : IClassFixture<MangaPixerWebAppli
     private const string SeriesPubId = "dnSeries";
     private const string CleanPubId = "dnClean";
     private const string ReviewPubId = "dnReview";
+    private const string HeadPubId = "dnHead";
     private readonly MangaPixerWebApplicationFactory _factory;
 
     public DuplicateNumbersHttpTests(MangaPixerWebApplicationFactory factory)
@@ -69,20 +70,31 @@ public sealed class DuplicateNumbersHttpTests : IClassFixture<MangaPixerWebAppli
         await VolumeTestData.AddArchiveAsync(db, lib.Id, chapters.Id, "DN Review - Chapter 001", "dnr1a");
         await VolumeTestData.AddArchiveAsync(db, lib.Id, chapters.Id, "DN Review - Chapter 001 [copy]", "dnr1b");
         await VolumeTestData.AddArchiveAsync(db, lib.Id, chapters.Id, "DN Review - Chapter 002", "dnr2");
-        var now = DateTimeOffset.UtcNow;
-        db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity { NodeId = review.Id, LibraryId = lib.Id, State = (int)SeriesLinkState.NeedsReview, MatchMethod = 3, CreatedAt = now, UpdatedAt = now });
-        db.MetadataMatchQueue.Add(new MetadataMatchQueueEntity
+        // dnHead (in review, 1.42.0): chapters written before their volume - the series head makes them chapters 8-11, chapter 9 twice.
+        var head = await VolumeTestData.AddFolderAsync(db, lib.Id, null, "DN Head", HeadPubId);
+        foreach (var (name, id) in new[]
         {
-            NodeId = review.Id,
-            LibraryId = lib.Id,
-            State = QueueState.Done,
-            Level = (int)MatchLevel.Folder,
-            WorkClass = (int)WorkClass.Series,
-            Outcome = (int)MatchBand.NeedsReview,
-            RulesRevision = MatcherRules.Revision,
-            EnqueuedAt = now,
-            CompletedAt = now,
-        });
+            ("DN Head 008 Vol 01 Other", "dnh8"), ("DN Head 009 Vol 01 Title", "dnh9a"), ("DN Head 009 Vol 01 Title (1)", "dnh9b"),
+            ("DN Head 010 Vol 02 Third", "dnh10"), ("DN Head 011 Vol 02 Fourth", "dnh11"),
+        })
+            await VolumeTestData.AddArchiveAsync(db, lib.Id, head.Id, name, id);
+        var now = DateTimeOffset.UtcNow;
+        foreach (var node in new[] { review, head })
+        {
+            db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity { NodeId = node.Id, LibraryId = lib.Id, State = (int)SeriesLinkState.NeedsReview, MatchMethod = 3, CreatedAt = now, UpdatedAt = now });
+            db.MetadataMatchQueue.Add(new MetadataMatchQueueEntity
+            {
+                NodeId = node.Id,
+                LibraryId = lib.Id,
+                State = QueueState.Done,
+                Level = (int)MatchLevel.Folder,
+                WorkClass = (int)WorkClass.Series,
+                Outcome = (int)MatchBand.NeedsReview,
+                RulesRevision = MatcherRules.Revision,
+                EnqueuedAt = now,
+                CompletedAt = now,
+            });
+        }
         await db.SaveChangesAsync();
     }
 
@@ -156,5 +168,17 @@ public sealed class DuplicateNumbersHttpTests : IClassFixture<MangaPixerWebAppli
         var item = Assert.Single(page.Items, i => i.NodeId == ReviewPubId);
         // Volume 1 twice in Volumes, chapter 1 twice in Chapters: one duplicate of each kind (each directory on its own).
         Assert.Equal((1, 1), (item.DuplicateChapters, item.DuplicateVolumes));
+    }
+
+    [Fact]
+    public async Task ReviewRow_ReadsChaptersAfterTheSeriesHead_AsTheVolumesViewDoes()
+    {
+        var admin = await AdminAsync();
+
+        var page = await OkAsync<MetadataReviewPageDto>(await admin.GetAsync("/api/v1/admin/metadata/review?tab=NeedsReview"));
+
+        var item = Assert.Single(page.Items, i => i.NodeId == HeadPubId);
+        // 1.42.0: "DN Head 009 Vol 01 Title" twice is chapter 9 twice - not a second copy of volume 1.
+        Assert.Equal((1, 0), (item.DuplicateChapters, item.DuplicateVolumes));
     }
 }
