@@ -4257,3 +4257,78 @@ describe('ReaderComponent mouse-wheel page turns (1.36.0)', () => {
     expect(event.defaultPrevented).toBe(true);
   });
 });
+
+/**
+ * Current page before its own prefetch (1.42.0). The reader used to start every prefetch target at once (6 ahead +
+ * 2 behind as `new Image()`), so on a busy server the page the reader waits for queued behind its own prefetches.
+ * Now at most 2 prefetches run at a time; they are marked for the server and never include the page on screen.
+ */
+describe('ReaderComponent prefetch concurrency', () => {
+  let started: string[];
+  let fetchCalls: Array<{ url: string; init: RequestInit | undefined }>;
+
+  beforeEach(() => {
+    started = [];
+    fetchCalls = [];
+    // Count every way a prefetch could start: an Image whose src is set, or a fetch.
+    class CountingImage {
+      decoding = '';
+      set src(value: string) { started.push(value); }
+    }
+    vi.stubGlobal('Image', CountingImage);
+    vi.stubGlobal('fetch', vi.fn((url: string, init?: RequestInit) => {
+      started.push(url);
+      fetchCalls.push({ url, init });
+      return new Promise<Response>(() => { /* never settles: the prefetch stays in flight */ });
+    }));
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  function create() {
+    TestBed.configureTestingModule({
+      imports: [ReaderComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: () => 'item-1' }) } },
+      ],
+    });
+    const c = TestBed.createComponent(ReaderComponent).componentInstance;
+    c.itemId.set('item-1');
+    c.pages.set(makePages(12));
+    c.view.set('paged');
+    return c;
+  }
+
+  it('starts at most two page prefetches at once, nearest first, never the page on screen', () => {
+    const c = create();
+    (c as unknown as { prefetchAround: (i: number) => void }).prefetchAround(0);
+
+    expect(started.length).toBeLessThanOrEqual(2);
+    expect(started).toEqual(['/api/v1/items/item-1/pages/p1', '/api/v1/items/item-1/pages/p2']);
+    expect(started).not.toContain('/api/v1/items/item-1/pages/p0');
+  });
+
+  it('marks prefetches for the server with the same URL the <img> uses', () => {
+    const c = create();
+    (c as unknown as { prefetchAround: (i: number) => void }).prefetchAround(0);
+
+    expect(fetchCalls.length).toBe(2);
+    const headers = fetchCalls[0].init?.headers as Record<string, string>;
+    expect(headers['X-MangaPixer-Prefetch']).toBe('1');
+    expect(fetchCalls[0].url).toBe(c.pageUrlFor(c.pages()[1]));
+  });
+
+  it('holds prefetches while the current page loads, then starts them', () => {
+    const c = create();
+    (c as unknown as { startPageLoad: () => void }).startPageLoad();
+    (c as unknown as { prefetchAround: (i: number) => void }).prefetchAround(0);
+    expect(started).toEqual([]);
+
+    c.onPageLoaded();
+    expect(started.length).toBe(2);
+  });
+});
