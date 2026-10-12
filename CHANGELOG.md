@@ -10,6 +10,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **MangaDex's released chapters in the metadata export.** For a linked series whose MangaDex volume list was read in the preferred language, each export item now carries `companions.mangadexReleased`: the language, the highest chapter MangaDex lists as released in it, how many whole chapters that is, and when the list was read. It comes from the stored list - no extra request - and is left out when the list was not read, so older clients see no change. Useful for series whose MangaUpdates entry has no or an old latest chapter.
 
+### Changed
+
+- **More file names are read in the Volumes view and the Missing report.** When the files of a folder start with the same series title followed by a number that changes from file to file, that number is the chapter: `Series 100 Vol 11 Title` is chapter 100 of volume 11 (before, the whole file counted as volume 11), and `Series 002 Title`, `Series 014.5  Title, Part 2` or `Series 120 (2023) (Digital)` are chapters 2, 14.5 and 120. The number needs three digits (before a volume also `01` or `12.5`) and is never a year; a number every file shares is part of the title, so the files of a series like `Mob Psycho 100` or `Cyborg 009` stay volumes. In a `Volumes` folder such a number is a volume.
+- **A site's watermark at the end of a file or folder name** - `Read Online`, `Read Manga Online Free`, `Online Free` - is left out when the name is read and from the name automatic matching and Identify search for. One such word alone stays part of the title (`Sword Art Online`).
+- Placeholder group tags such as `[no group]`, `(Unknown)` or `(Unofficial)` are no longer taken for a creator or a doujin's parody.
+
+### Fixed
+
+- A chapter number with three decimals (`Ch.014.125`) was read as the whole chapter (14), so it looked like a second copy of chapter 14; it is now chapter 14.125. A three-digit part padded like the chapter number is that part: `Ch.014.005` is chapter 14.5.
+
 ## [1.41.0] - 2026-10-11
 
 ### Added
