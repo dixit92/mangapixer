@@ -48,8 +48,8 @@ describe('MetadataSettingsComponent', () => {
   });
 
   it('consent 5 (1.38.0): the MangaUpdates bullet names the approved author numbers; the automatic consent stays 4', () => {
-    expect(CONSENT_TEXT_VERSION).toBe(5);
-    expect(AUTO_CONSENT_TEXT_VERSION).toBe(4);
+    expect(CONSENT_TEXT_VERSION).toBe(6);
+    expect(AUTO_CONSENT_TEXT_VERSION).toBe(5);
     const { q } = create();
     const text = (q('[data-testid="md-consent-text"]')!.textContent ?? '').replace(/\s+/g, ' ');
     expect(text).toContain(

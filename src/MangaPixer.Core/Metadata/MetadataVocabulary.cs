@@ -218,6 +218,8 @@ public static class MetadataConsent
     /// requests carry a fixed User-Agent naming MangaPixer, its version and its project URL.
     /// 5 (1.38.0): a new kind of MangaUpdates request - the author records of creators of stored series (artists' other names),
     /// only when an admin asks - and the search text an admin confirms in Match folders by name. The automatic consent stays 4.
+    /// 6 (1.42.0): MangaDex can be the series record of a work MangaUpdates does not list - the search text an admin confirms in Identify
+    /// (MangaDex as a site) is sent to MangaDex. The automatic consent moves to 5 with it.
     /// </summary>
-    public const int CurrentVersion = 5;
+    public const int CurrentVersion = 6;
 }

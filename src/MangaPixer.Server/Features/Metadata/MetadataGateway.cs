@@ -333,6 +333,9 @@ public sealed class MetadataGateway
         return await CallAsync(provider.Id, operation, libraryId, _state.ApiLimiterOf(provider.Id), call, context, ct);
     }
 
+    /// <summary>True when <paramref name="providerId"/> is a registered series-record provider (1.42.0: a test host may leave MangaDex out).</summary>
+    public bool IsRegistered(string providerId) => _providers.Find(providerId) is not null;
+
     private IMetadataProvider Provider(string providerId) =>
         _providers.Find(providerId)
         ?? throw new MetadataGatewayException(StatusCodes.Status400BadRequest, "unknown_provider", "No such metadata provider.");

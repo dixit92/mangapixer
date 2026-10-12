@@ -521,6 +521,10 @@ public sealed class MetadataIdentifyService
         return node is null || node.Availability == (int)CatalogNodeAvailability.Tombstoned ? null : node;
     }
 
+    /// <summary>1.42.0: the stored record, fetched (gated, an admin action) when it is not stored yet - Switch to MangaUpdates.</summary>
+    internal Task<MetadataRecordEntity> EnsureStoredRecordAsync(string provider, string externalId, long libraryId, CancellationToken ct) =>
+        EnsureRecordAsync(provider, externalId, libraryId, requireFresh: false, ct);
+
     /// <summary>The stored record, fetching (gated) when missing or - with <paramref name="requireFresh"/> - older than the reuse window.</summary>
     private async Task<MetadataRecordEntity> EnsureRecordAsync(string provider, string externalId, long libraryId, bool requireFresh, CancellationToken ct)
     {
