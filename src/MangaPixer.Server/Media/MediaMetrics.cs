@@ -29,6 +29,31 @@ public enum MediaSlotKind
 
     /// <summary>A cover render from provider image bytes (MangaDex volume covers, posters).</summary>
     CoverRenderImage = 6,
+
+    /// <summary>A reader page the web reader marked as a prefetch (1.42.0): served after current pages.</summary>
+    PagePrefetch = 7,
+}
+
+/// <summary>
+/// Who gets a freed worker slot first (1.42.0 reader-first hand-off): a reader's current page, then reader prefetches
+/// and page thumbnails, then background work; analysis dispatch only when nobody waits.
+/// </summary>
+internal enum SlotClass
+{
+    Reader = 0,
+    ReaderPrefetch = 1,
+    Background = 2,
+}
+
+/// <summary>
+/// What background media work may do while someone reads (1.42.0 admin setting "Background work while someone
+/// reads"): <see cref="Pause"/> none, <see cref="Slow"/> one worker (default), <see cref="Normal"/> all workers but one.
+/// </summary>
+public enum BackgroundWhileReading
+{
+    Pause = 0,
+    Slow = 1,
+    Normal = 2,
 }
 
 /// <summary>
@@ -103,6 +128,7 @@ public sealed class MediaMetrics : IDisposable
         MediaSlotKind.ImageHash => "image_hash",
         MediaSlotKind.CoverRenderArchive => "cover_render_archive",
         MediaSlotKind.CoverRenderImage => "cover_render_image",
+        MediaSlotKind.PagePrefetch => "page_prefetch",
         _ => "other",
     };
 

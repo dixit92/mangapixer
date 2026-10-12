@@ -28,7 +28,7 @@ public sealed class CacheService
 
     private readonly string _cacheRoot;
     private readonly string _runRoot;
-    private readonly long _budgetBytes;
+    private long _budgetBytes;
     private readonly ConcurrentDictionary<string, CacheEntry> _entries = new();
     private readonly ConcurrentDictionary<string, int> _pinnedFiles = new();
     private readonly object _evictionLock = new();
@@ -45,7 +45,22 @@ public sealed class CacheService
         _budgetBytes = budgetBytes;
         _logger = logger;
         _metrics = metrics;
-        _metrics?.ObserveCache(() => new MediaCacheGauges(_budgetBytes, GetCurrentUsageBytes(), ActiveCount, _entries.Count));
+        _metrics?.ObserveCache(() => new MediaCacheGauges(BudgetBytes, GetCurrentUsageBytes(), ActiveCount, _entries.Count));
+    }
+
+    /// <summary>The page cache budget in bytes now in effect (live; <see cref="SetBudget"/>).</summary>
+    public long BudgetBytes => Interlocked.Read(ref _budgetBytes);
+
+    /// <summary>
+    /// Changes the budget while running (1.42.0 admin setting). A lower budget evicts least-recently-used entries at
+    /// once (pinned files excepted); a higher one simply lets the cache grow.
+    /// </summary>
+    public void SetBudget(long budgetBytes)
+    {
+        if (budgetBytes <= 0)
+            throw new ArgumentOutOfRangeException(nameof(budgetBytes));
+        Interlocked.Exchange(ref _budgetBytes, budgetBytes);
+        TryEvict();
     }
 
     /// <summary>This process's run folder; every cache file and temp file lives under it.</summary>
@@ -209,9 +224,10 @@ public sealed class CacheService
                 return true;
             }
 
-            // File missing — mark as evicted
+            // File missing — mark as evicted and drop it from the index (1.42.0: evicted entries do not pile up)
             _logger?.LogDebug(LogEvents.Cache.CacheEntryFileMissing, "Cache entry present but file missing (key {CacheKey}); marking evicted", cacheKey);
             e.State = CacheEntryState.Evicted;
+            _entries.TryRemove(new KeyValuePair<string, CacheEntry>(cacheKey, e));
         }
 
         entry = null;
@@ -386,11 +402,12 @@ public sealed class CacheService
         lock (_evictionLock)
         {
             var usage = GetCurrentUsageBytes();
-            if (usage <= _budgetBytes)
+            var budget = BudgetBytes;
+            if (usage <= budget)
                 return;
 
             _logger?.LogDebug(LogEvents.Cache.CacheOverBudget, "Cache over budget: {Usage} bytes > {Budget} bytes; evicting LRU entries",
-                usage, _budgetBytes);
+                usage, budget);
 
             // Sort by last accessed (oldest first), exclude pinned
             var candidates = _entries.Values
@@ -402,7 +419,7 @@ public sealed class CacheService
             long evictedBytes = 0;
             foreach (var entry in candidates)
             {
-                if (usage <= _budgetBytes)
+                if (usage <= budget)
                     break;
 
                 try
@@ -411,6 +428,8 @@ public sealed class CacheService
                         File.Delete(entry.CacheFilePath);
 
                     entry.State = CacheEntryState.Evicted;
+                    // 1.42.0: an evicted entry leaves the in-memory index (it used to stay there for the process lifetime).
+                    _entries.TryRemove(new KeyValuePair<string, CacheEntry>(entry.CacheKey, entry));
                     usage -= entry.ByteSize;
                     evictedBytes += entry.ByteSize;
                     evictedCount++;
@@ -453,7 +472,7 @@ public sealed class CacheService
     public long EvictOverBudget()
     {
         var usageBefore = GetCurrentUsageBytes();
-        if (usageBefore <= _budgetBytes)
+        if (usageBefore <= BudgetBytes)
             return 0;
 
         TryEvict();

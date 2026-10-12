@@ -44,10 +44,9 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     private Task? _retirementLoop;
 
     /// <summary>
-    /// Count of <see cref="AcquireSlotAsync"/> calls (reader demand: on-demand
-    /// page/thumbnail extraction) currently in flight, including ones that got
-    /// a slot immediately. Read by background dispatch to decide whether to
-    /// leave one slot free — see <see cref="EffectiveBackgroundCap"/>.
+    /// Count of <see cref="AcquireSlotAsync"/> calls currently in flight (any kind), including ones that got a slot
+    /// immediately - the "waiting slot callers" gauge. Priority and the background limit use the waiter queue
+    /// (1.42.0), not this count.
     /// </summary>
     private int _waitingReaders;
 
@@ -206,18 +205,70 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     }
 
     /// <summary>
-    /// Marks a claimed slot free again under <see cref="_poolLock"/>. When
-    /// <paramref name="didWork"/> is true the slot's idle clock restarts; a
-    /// slot claimed and released without running anything (empty queue race)
-    /// keeps its original idle time so polling can never keep a worker alive.
+    /// Frees a claimed slot (1.42.0: hands it over). Under <see cref="_poolLock"/> the slot goes straight to the
+    /// waiter that should run next (<see cref="TakeNextWaiterLocked"/>: reader pages first, background last), so a
+    /// reader never has to win a race against background work for a freed slot. With no eligible waiter the slot
+    /// becomes free and background dispatch is woken. A worker above a lowered <see cref="WorkerPoolOptions.MaxConcurrentJobs"/>
+    /// is retired instead. When <paramref name="didWork"/> is true the slot's idle clock restarts; a slot claimed and
+    /// released without running anything (empty queue race) keeps its original idle time so polling can never keep a
+    /// worker alive.
     /// </summary>
     private void ReleaseSlot(WorkerSlot slot, bool didWork = true)
     {
+        SlotWaiter? next = null;
+        var retire = false;
         lock (_poolLock)
         {
             slot.IsBusy = false;
+            slot.HeldByBackground = false;
             if (didWork)
                 slot.IdleSinceMs = Environment.TickCount64;
+            if (!_workers.Contains(slot))
+                return; // retired or exited meanwhile
+            if (_workers.Count > _options.MaxConcurrentJobs && !_isShuttingDown)
+            {
+                retire = true;
+                slot.IsRetiring = true;
+                _workers.Remove(slot);
+            }
+            else
+            {
+                next = TakeNextWaiterLocked(Environment.TickCount64);
+                if (next is not null)
+                {
+                    slot.IsBusy = true;
+                    slot.HeldByBackground = next.Class == SlotClass.Background;
+                }
+            }
+        }
+
+        if (retire)
+        {
+            _ = StopRetiredWorkerAsync(slot, "pool_resized");
+            PumpWaiters();
+            return;
+        }
+        if (next is null)
+        {
+            SignalDispatch();
+            return;
+        }
+        if (!next.Tcs.TrySetResult(slot))
+            ReleaseSlot(slot, didWork: false); // the waiter left at the same instant: offer the slot to the next one
+    }
+
+    private async Task StopRetiredWorkerAsync(WorkerSlot slot, string reason)
+    {
+        try
+        {
+            _logger.LogInformation(LogEvents.Worker.WorkerRetiredIdle, "Retiring worker {Id} ({Reason}); pool now {Count}/{Max}",
+                slot.Id, reason, WorkerCount, _options.MaxConcurrentJobs);
+            await slot.Supervisor.StopAsync(reason);
+            await slot.Supervisor.DisposeAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(LogEvents.Worker.WorkerRetireFailed, ex, "Error retiring worker {Id}: {Error}", slot.Id, ex.GetType().Name);
         }
     }
 
@@ -228,7 +279,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     /// up to <see cref="WorkerPoolOptions.MaxConcurrentJobs"/> workers; this
     /// method returns once no further slot/job pair is available, not once all
     /// dispatched jobs finish. See <see cref="TryDispatchOneAsync"/> for the
-    /// per-slot reservation and the reader-demand reservation rule.
+    /// per-slot reservation and the reader-first rule.
     /// </summary>
     public async Task DispatchAsync(CancellationToken ct = default)
     {
@@ -240,75 +291,254 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         }
     }
 
+    // --- Reader-first slot hand-off (1.42.0) -------------------------------------------------------------------
+
+    /// <summary>How long after the last reader request the pool still counts as "someone is reading".</summary>
+    internal static readonly TimeSpan ReaderActivityWindow = TimeSpan.FromSeconds(30);
+
     /// <summary>
-    /// Background dispatch's concurrency ceiling. Normally equal to
-    /// <see cref="WorkerPoolOptions.MaxConcurrentJobs"/>, so a pure background
-    /// burst (the common unattended-scan case) can use every configured
-    /// worker. While at least one <see cref="AcquireSlotAsync"/> caller
-    /// (reader demand — <see cref="ExtractPageAsync"/>) is actually waiting
-    /// for a slot, this drops by one so background dispatch always leaves a
-    /// slot for it rather than racing it for every freed slot (background
-    /// reacts to a freed slot immediately via <see cref="_dispatchSignal"/>,
-    /// while a reader only polls every 100ms, so an unthrottled race would
-    /// systematically starve the reader under a sustained burst). With
-    /// MaxConcurrentJobs == 1 there is nothing to reserve.
+    /// The minimum background share: a background request that has waited this long is served before reader
+    /// prefetches (never before a reader's current page, and never above the background limit), so background work
+    /// cannot starve while people read - except with <see cref="BackgroundWhileReading.Pause"/>, which means pause.
     /// </summary>
-    private int EffectiveBackgroundCap()
+    internal static readonly TimeSpan BackgroundAging = TimeSpan.FromSeconds(10);
+
+    private readonly List<SlotWaiter> _waiters = [];
+    private long _waiterSeq;
+    private long _lastReaderActivityMs = long.MinValue / 2;
+    private BackgroundWhileReading _backgroundWhileReading = BackgroundWhileReading.Slow;
+
+    /// <summary>
+    /// What background work (analysis, cover thumbnails, backfills, cover renders, hashes, ComicInfo) may do while
+    /// someone reads (a reader page request within <see cref="ReaderActivityWindow"/>). Live: a change re-evaluates
+    /// waiting requests at once.
+    /// </summary>
+    public BackgroundWhileReading BackgroundWhileReading
     {
-        var max = _options.MaxConcurrentJobs;
-        if (max <= 1)
-            return max;
-        return Volatile.Read(ref _waitingReaders) > 0 ? max - 1 : max;
+        get { lock (_poolLock) return _backgroundWhileReading; }
+        set
+        {
+            lock (_poolLock) _backgroundWhileReading = value;
+            PumpWaiters();
+            SignalDispatch();
+        }
+    }
+
+    /// <summary>The worker cap in effect (live; <see cref="SetMaxConcurrentJobs"/>).</summary>
+    public int MaxConcurrentJobs
+    {
+        get { lock (_poolLock) return _options.MaxConcurrentJobs; }
     }
 
     /// <summary>
-    /// Atomically checks the reservation rule and claims a free existing
-    /// worker slot, or returns null if none may be claimed right now (either
-    /// every worker is busy, or claiming the last idle one would exceed
-    /// <see cref="EffectiveBackgroundCap"/>). Never starts a new worker.
+    /// Changes the worker cap while running (1.42.0 admin setting). A higher cap lets waiting requests start
+    /// workers at once; a lower one retires idle workers above it now and busy ones when they finish.
+    /// </summary>
+    public void SetMaxConcurrentJobs(int value)
+    {
+        if (value < 1)
+            throw new ArgumentOutOfRangeException(nameof(value));
+        List<WorkerSlot> retiring;
+        lock (_poolLock)
+        {
+            _options.MaxConcurrentJobs = value;
+            retiring = _workers.Where(w => !w.IsBusy).Take(Math.Max(0, _workers.Count - value)).ToList();
+            foreach (var slot in retiring)
+            {
+                slot.IsRetiring = true;
+                _workers.Remove(slot);
+            }
+        }
+        foreach (var slot in retiring)
+            _ = StopRetiredWorkerAsync(slot, "pool_resized");
+        PumpWaiters();
+        SignalDispatch();
+    }
+
+    /// <summary>Who runs first when a slot frees: lower is earlier. Analysis dispatch comes after all of them.</summary>
+    internal static SlotClass ClassOf(MediaSlotKind kind) => kind switch
+    {
+        MediaSlotKind.Page => SlotClass.Reader,
+        MediaSlotKind.PagePrefetch or MediaSlotKind.PageThumbnail => SlotClass.ReaderPrefetch,
+        _ => SlotClass.Background,
+    };
+
+    private bool ReaderActiveLocked(long nowMs) =>
+        nowMs - _lastReaderActivityMs < (long)ReaderActivityWindow.TotalMilliseconds || _waiters.Any(w => w.Class != SlotClass.Background);
+
+    /// <summary>How many slots background work (analysis included) may hold right now.</summary>
+    private int BackgroundLimitLocked(long nowMs)
+    {
+        var max = _options.MaxConcurrentJobs;
+        if (!ReaderActiveLocked(nowMs))
+            return max;
+        return _backgroundWhileReading switch
+        {
+            BackgroundWhileReading.Pause => 0,
+            BackgroundWhileReading.Normal => max <= 1 ? max : max - 1,
+            _ => Math.Min(1, max),
+        };
+    }
+
+    private int BackgroundBusyLocked() => _workers.Count(w => w.IsBusy && w.HeldByBackground);
+
+    private int OrderOf(SlotWaiter w, long nowMs) => w.Class switch
+    {
+        SlotClass.Reader => 0,
+        SlotClass.ReaderPrefetch => 2,
+        _ => _backgroundWhileReading != BackgroundWhileReading.Pause && nowMs - w.EnqueuedMs >= (long)BackgroundAging.TotalMilliseconds ? 1 : 3,
+    };
+
+    /// <summary>Removes and returns the waiter that should get a free slot now, or null (none, or background over its limit).</summary>
+    private SlotWaiter? TakeNextWaiterLocked(long nowMs)
+    {
+        if (_waiters.Count == 0)
+            return null;
+        var backgroundAllowed = BackgroundBusyLocked() < BackgroundLimitLocked(nowMs);
+        SlotWaiter? best = null;
+        var bestOrder = int.MaxValue;
+        foreach (var w in _waiters)
+        {
+            if (w.Class == SlotClass.Background && !backgroundAllowed)
+                continue;
+            var order = OrderOf(w, nowMs);
+            if (order < bestOrder || (order == bestOrder && w.Seq < best!.Seq))
+            {
+                best = w;
+                bestOrder = order;
+            }
+        }
+        if (best is not null)
+            _waiters.Remove(best);
+        return best;
+    }
+
+    /// <summary>
+    /// Re-evaluates the waiters when something other than a freed slot changed (policy, cap, the reader window
+    /// expiring, a worker exiting): hands free slots over and starts workers for waiters while under the cap.
+    /// </summary>
+    private void PumpWaiters()
+    {
+        while (true)
+        {
+            SlotWaiter? next;
+            WorkerSlot? free;
+            var start = false;
+            lock (_poolLock)
+            {
+                if (_isShuttingDown || _waiters.Count == 0)
+                    return;
+                var now = Environment.TickCount64;
+                free = _workers.FirstOrDefault(w => !w.IsBusy);
+                if (free is null && _workers.Count + _startingWorkers >= _options.MaxConcurrentJobs)
+                    return;
+                next = TakeNextWaiterLocked(now);
+                if (next is null)
+                    return;
+                if (free is not null)
+                {
+                    free.IsBusy = true;
+                    free.HeldByBackground = next.Class == SlotClass.Background;
+                }
+                else
+                {
+                    _startingWorkers++;
+                    start = true;
+                }
+            }
+
+            if (start)
+            {
+                _ = StartWorkerForWaiterAsync(next);
+                continue;
+            }
+            if (!next.Tcs.TrySetResult(free!))
+                ReleaseSlot(free!, didWork: false);
+        }
+    }
+
+    /// <summary>Starts a worker (already reserved in <see cref="_startingWorkers"/>) and hands it to <paramref name="waiter"/>.</summary>
+    private async Task StartWorkerForWaiterAsync(SlotWaiter waiter)
+    {
+        WorkerSlot slot;
+        try
+        {
+            slot = await StartWorkerAsync(_readCts.Token, claim: true, heldByBackground: waiter.Class == SlotClass.Background).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            ReleaseWorkerStartReservation();
+            if (!_isShuttingDown)
+                _logger.LogWarning(LogEvents.Worker.ExtractWorkerStartFailed, ex, "Failed to start worker for a waiting request: {Error}", ex.GetType().Name);
+            // Put the waiter back; a later release or pump serves it (or its own deadline ends the wait).
+            lock (_poolLock)
+            {
+                if (!waiter.Tcs.Task.IsCompleted)
+                    _waiters.Add(waiter);
+            }
+            return;
+        }
+        ReleaseWorkerStartReservation();
+        if (_isShuttingDown)
+        {
+            lock (_poolLock) { _workers.Remove(slot); }
+            waiter.Tcs.TrySetResult(null);
+            await slot.Supervisor.StopAsync(CancellationToken.None).ConfigureAwait(false);
+            return;
+        }
+        if (!waiter.Tcs.TrySetResult(slot))
+            ReleaseSlot(slot, didWork: false);
+    }
+
+    /// <summary>
+    /// Background dispatch's claim on a slot for one analysis job: only when no request waits (every waiting request
+    /// runs before analysis) and background work is under its limit (<see cref="BackgroundWhileReading"/>). Never
+    /// starts a worker.
     /// </summary>
     private WorkerSlot? TryClaimBackgroundSlot()
     {
         lock (_poolLock)
         {
-            if (_workers.Count(w => w.IsBusy) >= EffectiveBackgroundCap())
+            if (_waiters.Count > 0 || BackgroundBusyLocked() >= BackgroundLimitLocked(Environment.TickCount64))
                 return null;
             var slot = _workers.FirstOrDefault(w => !w.IsBusy);
             if (slot is not null)
+            {
                 slot.IsBusy = true;
+                slot.HeldByBackground = true;
+            }
             return slot;
         }
     }
 
     /// <summary>
-    /// Re-checks the reservation rule for a slot that was claimed at creation
-    /// by background dispatch. Releases it (without restarting its idle clock)
-    /// and returns false when keeping it would exceed
-    /// <see cref="EffectiveBackgroundCap"/>.
+    /// Re-checks the rule for a slot that background dispatch claimed at creation (a request may have started
+    /// waiting while the worker spawned). Hands it on (without restarting its idle clock) and returns false when
+    /// analysis may not keep it.
     /// </summary>
     private bool KeepBackgroundClaim(WorkerSlot slot)
     {
         lock (_poolLock)
         {
-            if (_workers.Count(w => w.IsBusy) <= EffectiveBackgroundCap())
+            if (_waiters.Count == 0 && BackgroundBusyLocked() <= BackgroundLimitLocked(Environment.TickCount64))
                 return true;
-            slot.IsBusy = false;
-            return false;
         }
+        ReleaseSlot(slot, didWork: false);
+        return false;
     }
 
     /// <summary>
-    /// Reserves the right to start one more worker toward <paramref name="cap"/>,
-    /// counting both existing workers and other starts already in flight
-    /// (<see cref="_startingWorkers"/>), so two concurrent callers deciding
-    /// "there's room" at the same instant cannot both start a worker and
-    /// overshoot the cap. Pair with <see cref="ReleaseWorkerStartReservation"/>.
+    /// Reserves the right to start one more worker for background dispatch, counting existing workers and starts in
+    /// flight (<see cref="_startingWorkers"/>) against the cap, and only while no request waits and background work is
+    /// under its limit. Pair with <see cref="ReleaseWorkerStartReservation"/>.
     /// </summary>
-    private bool TryReserveWorkerStart(int cap)
+    private bool TryReserveBackgroundWorkerStart()
     {
         lock (_poolLock)
         {
-            if (_workers.Count + _startingWorkers >= cap)
+            if (_waiters.Count > 0 || BackgroundBusyLocked() >= BackgroundLimitLocked(Environment.TickCount64))
+                return false;
+            if (_workers.Count + _startingWorkers >= _options.MaxConcurrentJobs)
                 return false;
             _startingWorkers++;
             return true;
@@ -381,16 +611,15 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         var slot = TryClaimBackgroundSlot();
         if (slot is null)
         {
-            var cap = EffectiveBackgroundCap();
-            if (TryReserveWorkerStart(cap))
+            if (TryReserveBackgroundWorkerStart())
             {
                 _logger.LogDebug(LogEvents.Worker.PoolScaleUp, "No free worker slot; starting additional worker (current {Count}/{Max})",
                     WorkerCount, _options.MaxConcurrentJobs);
                 try
                 {
                     // Claimed at creation: the reservation above already
-                    // proved busy workers stay under the background cap.
-                    slot = await StartWorkerAsync(ct, claim: true);
+                    // proved busy workers stay under the background limit.
+                    slot = await StartWorkerAsync(ct, claim: true, heldByBackground: true);
                 }
                 catch (Exception ex)
                 {
@@ -402,13 +631,10 @@ public sealed class MediaWorkerPool : IAsyncDisposable
                     ReleaseWorkerStartReservation();
                 }
 
-                // A reader may have started waiting while the worker spawned;
-                // if so, hand the new worker to it (reservation rule) instead.
+                // A request may have started waiting while the worker spawned;
+                // if so, the new worker goes to it instead (reader-first rule).
                 if (!KeepBackgroundClaim(slot))
-                {
-                    SignalDispatch();
                     return false;
-                }
             }
         }
 
@@ -918,17 +1144,17 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     internal static readonly TimeSpan CoverRenderTimeout = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// Finds a free worker slot, starting one if under the concurrency cap, and
-    /// otherwise waiting briefly for one to free up. Marks the returned slot busy.
-    /// Marks itself as a waiting reader for the duration of the call (even the
-    /// fast path where a slot is free immediately) so background dispatch can
-    /// see reader demand exists and leave it a slot — see
-    /// <see cref="EffectiveBackgroundCap"/>.
+    /// Gets a worker slot for a direct request of <paramref name="kind"/> (1.42.0: reader-first hand-off). A free slot
+    /// is taken at once when no request of the same or a higher priority waits and - for background work - the
+    /// background limit allows it; under the cap a worker is started for it; otherwise the request queues and is handed
+    /// the next freed slot in priority order (<see cref="ClassOf"/>), with no polling. Reader requests give up after
+    /// <see cref="WorkerPoolOptions.SourceOpenTimeout"/> (503); background requests wait until served or cancelled, so a
+    /// paused cover thumbnail is never recorded as failed. Returns null when cancelled, timed out or shutting down.
     /// </summary>
     private async Task<WorkerSlot?> AcquireSlotAsync(MediaSlotKind kind, CancellationToken ct)
     {
         var started = Stopwatch.GetTimestamp();
-        var slot = await AcquireSlotCoreAsync(ct);
+        var slot = await AcquireSlotCoreAsync(kind, ct);
         var tag = MediaMetrics.KindTag(kind);
         _metrics.RecordMs(MediaMetrics.SlotWait, tag, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         _metrics.Count(MediaMetrics.SlotOutcome, tag + ":" + (slot is not null ? "acquired" : ct.IsCancellationRequested ? "cancelled" : "timeout"));
@@ -980,65 +1206,81 @@ public sealed class MediaWorkerPool : IAsyncDisposable
             _metrics.RecordMs(MediaMetrics.ExtractEncode, tag, encode);
     }
 
-    private async Task<WorkerSlot?> AcquireSlotCoreAsync(CancellationToken ct)
+    private async Task<WorkerSlot?> AcquireSlotCoreAsync(MediaSlotKind kind, CancellationToken ct)
     {
-        var deadline = DateTime.UtcNow.Add(_options.SourceOpenTimeout);
-        _logger.LogDebug(LogEvents.Worker.ExtractSlotAcquire, "Acquiring worker slot for extract (timeout {TimeoutMs}ms, current {Count}/{Max})",
-            _options.SourceOpenTimeout.TotalMilliseconds, WorkerCount, _options.MaxConcurrentJobs);
+        var cls = ClassOf(kind);
+        _logger.LogDebug(LogEvents.Worker.ExtractSlotAcquire, "Acquiring worker slot for {Kind} (current {Count}/{Max})",
+            MediaMetrics.KindTag(kind), WorkerCount, _options.MaxConcurrentJobs);
         Interlocked.Increment(ref _waitingReaders);
         try
         {
-            while (!_isShuttingDown)
+            SlotWaiter? waiter = null;
+            var start = false;
+            lock (_poolLock)
             {
-                WorkerSlot? slot;
-                lock (_poolLock)
+                if (_isShuttingDown)
+                    return null;
+                var now = Environment.TickCount64;
+                if (cls != SlotClass.Background)
+                    _lastReaderActivityMs = now;
+                var order = cls switch { SlotClass.Reader => 0, SlotClass.ReaderPrefetch => 2, _ => 3 };
+                var ahead = _waiters.Any(w => OrderOf(w, now) <= order);
+                var allowed = cls != SlotClass.Background || BackgroundBusyLocked() < BackgroundLimitLocked(now);
+                if (!ahead && allowed)
                 {
-                    slot = _workers.FirstOrDefault(w => !w.IsBusy);
-                    if (slot is not null) { slot.IsBusy = true; return slot; }
-                }
-
-                if (TryReserveWorkerStart(_options.MaxConcurrentJobs))
-                {
-                    // The started worker joins the pool already claimed for this
-                    // reader, so neither background dispatch nor idle retirement
-                    // can take it first.
-                    //
-                    // The spawn is NOT tied to this reader's token: a reader that
-                    // scrolls on (the page prefetch is aborted within seconds)
-                    // must not kill a worker mid-handshake - that logged an error
-                    // per aborted request and left the pool cold for the next one.
-                    // The start is bounded by the handshake timeout and the pool's
-                    // own lifetime instead; when the reader leaves early, the
-                    // worker finishes starting and joins the pool idle.
-                    var start = StartWorkerAsync(_readCts.Token, claim: true);
-                    try
+                    var free = _workers.FirstOrDefault(w => !w.IsBusy);
+                    if (free is not null)
                     {
-                        var started = await start.WaitAsync(ct);
-                        ReleaseWorkerStartReservation();
-                        return started;
+                        free.IsBusy = true;
+                        free.HeldByBackground = cls == SlotClass.Background;
+                        return free;
                     }
-                    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                    if (_workers.Count + _startingWorkers < _options.MaxConcurrentJobs)
                     {
-                        _ = HandOverAbandonedStartAsync(start);
-                        return null;
-                    }
-                    catch (Exception ex)
-                    {
-                        ReleaseWorkerStartReservation();
-                        if (!_isShuttingDown)
-                            _logger.LogWarning(LogEvents.Worker.ExtractWorkerStartFailed, ex, "Failed to start worker for extract: {Error}", ex.GetType().Name);
+                        _startingWorkers++;
+                        start = true;
                     }
                 }
-
-                if (DateTime.UtcNow >= deadline)
+                if (!start)
                 {
-                    _logger.LogDebug(LogEvents.Worker.ExtractSlotAcquireTimeout, "Extract slot acquisition timed out after {TimeoutMs}ms (saturated at {Count}/{Max})",
-                        _options.SourceOpenTimeout.TotalMilliseconds, WorkerCount, _options.MaxConcurrentJobs);
+                    waiter = new SlotWaiter(kind, cls, ++_waiterSeq, now);
+                    _waiters.Add(waiter);
+                }
+            }
+
+            if (start)
+            {
+                // The started worker joins the pool already claimed for this caller, so neither background dispatch
+                // nor idle retirement can take it first. The spawn is NOT tied to this caller's token: a reader that
+                // leaves must not kill a worker mid-handshake; the worker then joins the pool idle (or goes to the
+                // next waiter).
+                var startTask = StartWorkerAsync(_readCts.Token, claim: true, heldByBackground: cls == SlotClass.Background);
+                try
+                {
+                    var started = await startTask.WaitAsync(ct);
+                    ReleaseWorkerStartReservation();
+                    return started;
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    _ = HandOverAbandonedStartAsync(startTask);
                     return null;
                 }
-                try { await Task.Delay(100, ct); } catch (OperationCanceledException) { return null; }
+                catch (Exception ex)
+                {
+                    ReleaseWorkerStartReservation();
+                    if (_isShuttingDown)
+                        return null;
+                    _logger.LogWarning(LogEvents.Worker.ExtractWorkerStartFailed, ex, "Failed to start worker for extract: {Error}", ex.GetType().Name);
+                    lock (_poolLock)
+                    {
+                        waiter = new SlotWaiter(kind, cls, ++_waiterSeq, Environment.TickCount64);
+                        _waiters.Add(waiter);
+                    }
+                }
             }
-            return null;
+
+            return await WaitForHandOffAsync(waiter!, ct);
         }
         finally
         {
@@ -1047,9 +1289,54 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     }
 
     /// <summary>
+    /// Waits for a queued request's hand-off. Background requests re-check the queue once a second (the reader
+    /// window may have expired, which lifts the background limit); reader requests end at their deadline.
+    /// </summary>
+    private async Task<WorkerSlot?> WaitForHandOffAsync(SlotWaiter waiter, CancellationToken ct)
+    {
+        var deadline = waiter.Class == SlotClass.Background ? (long?)null : Environment.TickCount64 + (long)_options.SourceOpenTimeout.TotalMilliseconds;
+        try
+        {
+            while (true)
+            {
+                var wait = waiter.Class == SlotClass.Background
+                    ? TimeSpan.FromSeconds(1)
+                    : TimeSpan.FromMilliseconds(Math.Max(0, deadline!.Value - Environment.TickCount64));
+                try
+                {
+                    return await waiter.Tcs.Task.WaitAsync(wait, ct);
+                }
+                catch (TimeoutException)
+                {
+                    if (deadline is not null)
+                        break;
+                    PumpWaiters();
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        lock (_poolLock)
+        {
+            if (_waiters.Remove(waiter))
+            {
+                _logger.LogDebug(LogEvents.Worker.ExtractSlotAcquireTimeout, "Slot wait for {Kind} ended without a slot (cancelled or timed out)",
+                    MediaMetrics.KindTag(waiter.Kind));
+                return null;
+            }
+        }
+        // Handed a slot at the same instant it gave up: pass the slot on.
+        if (waiter.Tcs.Task.IsCompletedSuccessfully && waiter.Tcs.Task.Result is { } handed)
+            ReleaseSlot(handed, didWork: false);
+        return null;
+    }
+
+    /// <summary>
     /// A reader gave up while its worker was still starting. Lets the start finish, then returns the
-    /// (claimed) worker to the pool idle so the next request finds it warm; the start reservation is
-    /// released only now, so the pool cap holds meanwhile. A failed start was already logged by
+    /// (claimed) worker to the pool (or to the next waiter) so the next request finds it warm; the start
+    /// reservation is released only now, so the pool cap holds meanwhile. A failed start was already logged by
     /// <see cref="StartWorkerAsync"/>.
     /// </summary>
     private async Task HandOverAbandonedStartAsync(Task<WorkerSlot> start)
@@ -1065,7 +1352,6 @@ public sealed class MediaWorkerPool : IAsyncDisposable
                 return;
             }
             ReleaseSlot(slot);
-            SignalDispatch();
         }
         catch (Exception)
         {
@@ -1097,11 +1383,16 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         }
 
         List<WorkerSlot> workers;
+        List<SlotWaiter> waiters;
         lock (_poolLock)
         {
             workers = _workers.ToList();
             _workers.Clear();
+            waiters = _waiters.ToList();
+            _waiters.Clear();
         }
+        foreach (var waiter in waiters)
+            waiter.Tcs.TrySetResult(null);
 
         foreach (var slot in workers)
         {
@@ -1174,7 +1465,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     /// <paramref name="claim"/> the slot is added already busy (atomically, under
     /// the pool lock) and owned by the caller, who must release it.
     /// </summary>
-    private async Task<WorkerSlot> StartWorkerAsync(CancellationToken ct, bool claim = false)
+    private async Task<WorkerSlot> StartWorkerAsync(CancellationToken ct, bool claim = false, bool heldByBackground = false)
     {
         var supervisor = CreateSupervisor();
         _logger.LogDebug(LogEvents.Worker.WorkerProcessStartAttempt, "Starting worker process (attempt {Count}/{Max})", _workers.Count + 1, _options.MaxConcurrentJobs);
@@ -1189,6 +1480,7 @@ public sealed class MediaWorkerPool : IAsyncDisposable
                 Supervisor = supervisor,
                 IdleSinceMs = Environment.TickCount64,
                 IsBusy = claim,
+                HeldByBackground = claim && heldByBackground,
             };
 
             // Set up crash handler. A retired worker is already out of the
@@ -1203,6 +1495,8 @@ public sealed class MediaWorkerPool : IAsyncDisposable
                     _workers.Remove(slot);
                 }
                 _logger.LogDebug(LogEvents.Worker.WorkerRemovedFromPool, "Worker {Id} removed from pool; remaining workers {Count}", slot.Id, _workers.Count);
+                // Requests waiting for a slot may now start a replacement worker.
+                PumpWaiters();
             };
 
             lock (_poolLock)
@@ -1585,6 +1879,19 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         /// cleared by the next answered request (1.42.0 profiling).
         /// </summary>
         public bool AbandonedRequestPending { get; set; }
+
+        /// <summary>The holder is background work (analysis or a background request); guarded by the pool lock.</summary>
+        public bool HeldByBackground { get; set; }
+    }
+
+    /// <summary>A direct request queued for a slot (1.42.0); guarded by the pool lock.</summary>
+    private sealed class SlotWaiter(MediaSlotKind kind, SlotClass cls, long seq, long enqueuedMs)
+    {
+        public MediaSlotKind Kind { get; } = kind;
+        public SlotClass Class { get; } = cls;
+        public long Seq { get; } = seq;
+        public long EnqueuedMs { get; } = enqueuedMs;
+        public TaskCompletionSource<WorkerSlot?> Tcs { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 }
 
