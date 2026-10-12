@@ -315,6 +315,11 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
                   <span class="cand-title">{{ c.title }}</span>
                   <span class="muted">{{ line(c) }}</span>
                 </span>
+                @if (c.provider === 'mangadex') {
+                  <!-- 1.42.0: found on MangaDex (MangaUpdates found nothing close) - never linked on its own. -->
+                  <span class="tag site" data-testid="review-site-mangadex" matTooltip="Found on MangaDex: MangaUpdates found nothing close"
+                        matTooltipPosition="above" [matTooltipShowDelay]="TOOLTIP_SHOW_DELAY" [matTooltipHideDelay]="0">MangaDex</span>
+                }
                 @if (c.familyRole && familyOf(c)) {
                   <span class="tag role" data-testid="review-family-role">{{ roleLabel(c.familyRole) }}</span>
                 }
@@ -403,6 +408,7 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
     .tag.dup { background: rgb(var(--mp-caution-rgb) / 0.16); color: var(--mp-warn); }
     .tag.checking { background: rgb(var(--mp-info-rgb) / 0.18); color: var(--mp-info); }
     .tag.later { background: rgb(var(--mp-accent-rgb) / 0.16); color: var(--mp-accent-soft); }
+    .tag.site { background: rgb(var(--mp-info-rgb) / 0.18); color: var(--mp-info); font-size: 11px; line-height: 18px; white-space: nowrap; }
     .tag.role { background: rgb(var(--mp-teal-rgb) / 0.16); color: var(--mp-teal); font-size: 11px; line-height: 18px; white-space: nowrap; }
     .family { margin: 4px 0 4px 8px; padding: 2px 8px 4px 0; border-left: 3px solid rgb(var(--mp-teal-rgb) / 0.55); border-radius: 0 8px 8px 0;
       background: rgb(var(--mp-teal-rgb) / 0.06); min-width: 0; }

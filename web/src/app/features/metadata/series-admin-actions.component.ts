@@ -65,6 +65,12 @@ import { ARTIST_FOLDER_TIP, artistFolderLabel, artistFolderResultMessage } from 
         <button mat-menu-item [disabled]="!identifyAvailable()" (click)="refresh()" data-testid="refresh">
           <mat-icon>refresh</mat-icon> Refresh from {{ info().web!.providerName }}
         </button>
+        @if (info().web!.provider === 'mangadex' && info().web!.mangaUpdatesId && ownLink()) {
+          <!-- 1.42.0: MangaUpdates now lists this series (its MangaDex record links it) - suggested, never done on its own. -->
+          <button mat-menu-item [disabled]="!identifyAvailable() || busy()" (click)="switchToMangaUpdates()" data-testid="switch-to-mangaupdates">
+            <mat-icon>swap_horiz</mat-icon> Switch to MangaUpdates
+          </button>
+        }
         @if (info().web!.provider === 'mangaupdates' && !ownCollection()) {
           <button mat-menu-item (click)="changeMangaDex()" data-testid="mangadex-match">
             <mat-icon>photo_library</mat-icon> Change MangaDex match…
@@ -269,6 +275,11 @@ export class SeriesAdminActionsComponent {
 
   refresh(): void {
     this.run(this.api.refresh(this.info().nodeId), 'Series information refreshed');
+  }
+
+  /** 1.42.0: moves a series linked to MangaDex to the MangaUpdates series its MangaDex record now links (keeps the confirmation). */
+  switchToMangaUpdates(): void {
+    this.run(this.api.switchToMangaUpdates(this.info().nodeId), 'Switched to MangaUpdates', true);
   }
 
   /** The node's OWN row (not inherited) is a Don't match. */
