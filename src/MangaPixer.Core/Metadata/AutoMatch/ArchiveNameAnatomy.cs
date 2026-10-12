@@ -40,8 +40,9 @@ public sealed partial record ArchiveNameAnatomy(
 
     // Parenthesized release tags that are never a parody: years, languages, quality, edition and
     // unit markers, scan notes; 1.32.0 comics scan tags: (c2c) cover-to-cover, (Zone-Empire) / (<Group>-Empire) scanners,
-    // (Webrip), and collected-format words (TPB, HC, GN, OGN).
-    [GeneratedRegex(@"^(?:(?:19|20)\d{2}.*|\d+(?:\s*-\s*\d+)?|c2c|[\p{L}\p{N} ]{1,40}-empire|tpb|hc|gn|ogn|digital|english|eng|en|japanese|jp|raw|decensored|uncensored|censored|colou?r(?:ed|ized)?|full\s*colou?r|hd|hq|lq|web|webrip|scan(?:ned)?|translated|complete|ongoing|one-?shot|x\d+|\d{3,4}p|v\d+|(?:ch|vol)\.?\s*\d+.*)$",
+    // (Webrip), and collected-format words (TPB, HC, GN, OGN). 1.42.0 (MangaList parity): placeholder groups - "no group" (MangaDex's word for
+    // a chapter without one), "no scanlator", "unknown", "N/A", "none", "unofficial" (a site's label where others name the group) - name nobody.
+    [GeneratedRegex(@"^(?:(?:19|20)\d{2}.*|\d+(?:\s*-\s*\d+)?|c2c|[\p{L}\p{N} ]{1,40}-empire|tpb|hc|gn|ogn|digital|english|eng|en|japanese|jp|raw|decensored|uncensored|censored|colou?r(?:ed|ized)?|full\s*colou?r|hd|hq|lq|web|webrip|scan(?:ned)?|translated|complete|ongoing|one-?shot|x\d+|\d{3,4}p|v\d+|(?:ch|vol)\.?\s*\d+.*|no[\s_-]*groups?|no[\s_-]*scanlat(?:or|ion)(?:\s+group)?|unknown(?:\s+group)?|n/?a|none|null|nil|tbd|unofficial)$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ReleaseTag();
 

@@ -37,7 +37,7 @@ public static partial class AutoMatchText
     private static partial Regex ChapterToken();
 
     // "No. 12" / "N°12" after some title text ("No. 6" alone is a title) - an issue number only per IssueNumberOf.
-    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?<=[\p{L}\p{N}][\s\-_.,]*)(?:no\.|n°)\s*(?<n>\d{1,4}(?:\.\d{1,2})?)(?![\p{N}])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?<=[\p{L}\p{N}][\s\-_.,]*)(?:no\.|n°)\s*(?<n>\d{1,4}(?:\.\d{1,3})?)(?![\p{N}])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex IssueNo();
 
     // "No. N" anywhere in a name (the folder rule: a folder's own "No. N" is part of its title).
@@ -516,25 +516,25 @@ public static partial class AutoMatchText
 
     // Unit numbers v2 (1.29.0): decimals kept, a range as start / end (the end may repeat the token: "v01-v05").
     // <t> is the token, so a bracketed single-letter token ("[v2]", a release revision) can be told apart.
-    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?<t>volumes|volume|vols|vol|v|tome|tomo|band|deel|album|livre)\.?\s*|(?<t>(?-i:T))(?=\d{1,3}(?![\p{N}])))(?<n>\d{1,4}(?:\.\d{1,2})?)(?:\s*-\s*(?:(?:volumes|volume|vols|vol|v|tome|tomo|band|deel|album|livre)\.?\s*|(?-i:T))?(?<m>\d{1,4}(?:\.\d{1,2})?))?(?![\p{N}])",
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?<t>volumes|volume|vols|vol|v|tome|tomo|band|deel|album|livre)\.?\s*|(?<t>(?-i:T))(?=\d{1,3}(?![\p{N}])))(?<n>\d{1,4}(?:\.\d{1,3})?)(?:\s*-\s*(?:(?:volumes|volume|vols|vol|v|tome|tomo|band|deel|album|livre)\.?\s*|(?-i:T))?(?<m>\d{1,4}(?:\.\d{1,3})?))?(?![\p{N}])",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex VolumeUnit();
 
-    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?<t>chapters|chapter|chap|ch|episode|ep)\.?\s*|(?<t>c)|(?<t>#)\s*|(?<t>issue)\s*#?\s*)(?<n>\d{1,4}(?:\.\d{1,2})?)(?:\s*-\s*(?:(?:chapters|chapter|chap|ch|episode|ep)\.?\s*|c|#\s*)?(?<m>\d{1,4}(?:\.\d{1,2})?))?(?![\p{N}])",
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?<t>chapters|chapter|chap|ch|episode|ep)\.?\s*|(?<t>c)|(?<t>#)\s*|(?<t>issue)\s*#?\s*)(?<n>\d{1,4}(?:\.\d{1,3})?)(?:\s*-\s*(?:(?:chapters|chapter|chap|ch|episode|ep)\.?\s*|c|#\s*)?(?<m>\d{1,4}(?:\.\d{1,3})?))?(?![\p{N}])",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ChapterUnit();
 
-    [GeneratedRegex(@"^\s*(?<n>\d{1,4}(?:\.\d{1,2})?)(?:\s*-\s*(?<m>\d{1,4}(?:\.\d{1,2})?))?(?![\p{N}])", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^\s*(?<n>\d{1,4}(?:\.\d{1,3})?)(?:\s*-\s*(?<m>\d{1,4}(?:\.\d{1,3})?))?(?![\p{N}])", RegexOptions.CultureInvariant)]
     private static partial Regex LeadingUnit();
 
     // 1.34.0: "<running index> [<chapter>]" / "<running index> [<chapter> - <title>]" - a bare leading number, then a FIRST bracket group
     // that is a number, alone or followed by " - " and a title.
-    [GeneratedRegex(@"^\s*\d{1,4}\s*\[\s*(?<n>\d{1,4}(?:\.\d{1,2})?)(?:\s+[-\u2013\u2014]\s+[^\]]*)?\s*\]", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^\s*\d{1,4}\s*\[\s*(?<n>\d{1,4}(?:\.\d{1,3})?)(?:\s+[-\u2013\u2014]\s+[^\]]*)?\s*\]", RegexOptions.CultureInvariant)]
     private static partial Regex IndexedChapter();
 
     // Comics extras (1.32.0): Annual / FCBD (Free Comic Book Day) with or without a number, Special / One-Shot only with their
     // own number ("Special #1"; "Special Edition" is an edition, a bare "Special" a title word).
-    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:annual|fcbd|free\s+comic\s+book\s+day)(?:\s*#?\s*(?<n>\d{1,4}(?:\.\d{1,2})?))?|(?:specials?|one-?shots?)\s*#?\s*(?<n>\d{1,4}(?:\.\d{1,2})?))(?![\p{L}\p{N}])",
+    [GeneratedRegex(@"(?<![\p{L}\p{N}])(?:(?:annual|fcbd|free\s+comic\s+book\s+day)(?:\s*#?\s*(?<n>\d{1,4}(?:\.\d{1,3})?))?|(?:specials?|one-?shots?)\s*#?\s*(?<n>\d{1,4}(?:\.\d{1,3})?))(?![\p{L}\p{N}])",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ExtraMarker();
 
@@ -554,13 +554,14 @@ public static partial class AutoMatchText
     {
         if (string.IsNullOrWhiteSpace(archiveName))
             return default;
-        var name = ArchiveExtension().Replace(archiveName.Normalize(NormalizationForm.FormKC).Trim(), string.Empty);
+        // 1.42.0: a site's watermark at the end ("<Title> 001 Read Online") is not part of the name.
+        var name = TitleNormalizer.WithoutSiteWatermark(ArchiveExtension().Replace(archiveName.Normalize(NormalizationForm.FormKC).Trim(), string.Empty));
         // 1.34.0 (owner): "0003 [0001 - Title]" numbers its files with a running index; the bracketed number is the chapter
         // ("0002 [0000.5]" -> 0.5, an extra). The title in the bracket is free text: nothing is read from it ("(Part 2)" is an arc
         // title - that file has its own chapter number). A bracketed year ("001 [2019]") is not a chapter.
         if (IndexedChapter().Match(name) is { Success: true } indexed && !YearOnly().IsMatch(indexed.Groups["n"].Value))
         {
-            var n = decimal.Parse(indexed.Groups["n"].Value, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture);
+            var n = UnitNumber(indexed.Groups["n"].Value);
             return new UnitNumbers(null, null, n, null, decimal.Truncate(n) != n);
         }
         var outside = Bare(name);
@@ -588,17 +589,127 @@ public static partial class AutoMatchText
         if (ExtraMarker().Match(outside) is { Success: true } marker)
         {
             if (chapter is null && marker.Groups["n"] is { Success: true } own && !YearOnly().IsMatch(own.Value))
-                chapter = (decimal.Parse(own.Value, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture), null);
+                chapter = (UnitNumber(own.Value), null);
             extra |= chapter is not null;
         }
         return new UnitNumbers(volume?.Start, volume?.End, chapter?.Start, chapter?.End, extra);
     }
 
-    /// <summary>The units of a name read with its folder's series head (<see cref="SeriesHeadOf"/>). WIP stub.</summary>
-    public static UnitNumbers UnitsOf(string? archiveName, string? seriesHead) => UnitsOf(archiveName);
+    /// <summary>
+    /// A unit number as written (1.42.0: up to three decimals): <c>014.5</c> -> 14.5, <c>014.125</c> -> 14.125. A three-digit fraction with a
+    /// leading zero is a sub-number padded like the number before it (MangaList, owner 2026-10-11: "It is .5"): <c>014.005</c> -> 14.5,
+    /// <c>021.010</c> -> 21.10 (= 21.1). No literal chapter number has such a fraction; <c>014.000</c> stays 14.
+    /// </summary>
+    private static decimal UnitNumber(string text)
+    {
+        var dot = text.IndexOf('.', StringComparison.Ordinal);
+        if (dot >= 0 && text.Length - dot - 1 == 3 && text[dot + 1] == '0' && (text[dot + 2] != '0' || text[dot + 3] != '0'))
+            text = text[..dot] + "." + int.Parse(text[(dot + 1)..], CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
+        return decimal.Parse(text, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture);
+    }
 
-    /// <summary>The series head of a folder's archive names. WIP stub.</summary>
-    public static string? SeriesHeadOf(IEnumerable<string?> archiveNames) => null;
+    // A standalone number outside brackets (1.42.0): the candidate unit after a series head, with an unspaced range ("001-003").
+    [GeneratedRegex(@"(?<![\p{L}\p{N}.])(?<n>\d{1,4}(?:\.\d{1,3})?)(?:-(?<m>\d{1,4}(?:\.\d{1,3})?))?(?![\p{L}\p{N}])", RegexOptions.CultureInvariant)]
+    private static partial Regex HeadNumber();
+
+    // A volume token right after the number ("<head> 100 Vol 11", "<head> 012.5 v02").
+    [GeneratedRegex(@"^[\s_\-\u2013\u2014]*(?:volumes|volume|vols|vol|v|tome|tomo|band|deel|album|livre)\.?\s*\d", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex VolumeAfter();
+
+    // A chapter number before its volume (MangaList's guard): zero-padded, fractional, three digits, or four that are not a year.
+    [GeneratedRegex(@"^(?:0\d+(?:\.\d+)?|[1-9]\d{2}(?:\.\d+)?|(?!19|20)[1-9]\d{3}(?:\.\d+)?|\d+\.\d+)$", RegexOptions.CultureInvariant)]
+    private static partial Regex ChapterBeforeVolume();
+
+    // A bare chapter number with nothing but a chapter title (or nothing) after it: at least three digits - the chapter convention
+    // (volumes are numbered v01) - and never a year.
+    [GeneratedRegex(@"^(?:0\d{2,3}|[1-9]\d{2}|(?!19|20)[1-9]\d{3})(?:\.\d{1,3})?$", RegexOptions.CultureInvariant)]
+    private static partial Regex BareChapterAfterHead();
+
+    /// <summary>
+    /// The units of an archive name read with its folder's series head (1.42.0, <see cref="SeriesHeadOf"/>; null = the name alone,
+    /// <see cref="UnitsOf(string?)"/>). In a name without a chapter token, the number right after the head is the chapter:
+    /// <c>&lt;head&gt; 100 Vol 11 &lt;title&gt;</c> -> chapter 100 of volume 11 (zero-padded, fractional, three digits or four that are not
+    /// a year), <c>&lt;head&gt; 014.5  &lt;title&gt;, Part 2</c> / <c>&lt;head&gt; 002 &lt;title&gt;</c> / <c>&lt;head&gt; 120 (2023) (Digital)</c>
+    /// -> chapter 14.5 / 2 / 120 (at least three digits and not a year; nothing after the number is read). <c>&lt;head&gt; 07</c> stays
+    /// unread: two digits do not say volume or chapter.
+    /// </summary>
+    public static UnitNumbers UnitsOf(string? archiveName, string? seriesHead)
+    {
+        var u = UnitsOf(archiveName);
+        if (string.IsNullOrEmpty(seriesHead) || string.IsNullOrWhiteSpace(archiveName) || u.Chapter is not null
+            || HeadChapterOf(archiveName, seriesHead) is not { } hc || hc.BeforeVolume != (u.Volume is not null))
+            return u;
+        return u with { Chapter = hc.Start, ChapterEnd = hc.End, IsExtra = decimal.Truncate(hc.Start) != hc.Start };
+    }
+
+    private static (decimal Start, decimal? End, bool BeforeVolume)? HeadChapterOf(string archiveName, string seriesHead)
+    {
+        var s = HeadText(archiveName);
+        foreach (Match m in HeadNumber().Matches(s))
+        {
+            if (!string.Equals(TitleNormalizer.ScoringForm(s[..m.Index]), seriesHead, StringComparison.Ordinal))
+                continue;
+            var n = m.Groups["n"].Value;
+            var beforeVolume = VolumeAfter().IsMatch(s[(m.Index + m.Length)..]);
+            if (!(beforeVolume ? ChapterBeforeVolume() : BareChapterAfterHead()).IsMatch(n))
+                return null;
+            var start = UnitNumber(n);
+            decimal? end = m.Groups["m"].Success && UnitNumber(m.Groups["m"].Value) is var e && e > start ? e : null;
+            return (start, end, beforeVolume);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The series head of one folder's archive names (1.42.0), in scoring form: the text that at least half of the names carry in front of
+    /// a standalone number, where that number VARIES - distinct in at least three of every four names that carry the head. A number every
+    /// sibling shares is part of the title (Mihon's rule: <c>Cyborg 009 v01</c>, <c>Mob Psycho 100 Vol 2</c>), and so is one that repeats
+    /// across a franchise's volumes (<c>Title 2 v01</c>, <c>Title 2 v02</c>, <c>Title 3 v01</c>). Null for fewer than two names or no such
+    /// head. Bracket groups, the extension and a site's watermark are ignored.
+    /// </summary>
+    public static string? SeriesHeadOf(IEnumerable<string?> archiveNames)
+    {
+        ArgumentNullException.ThrowIfNull(archiveNames);
+        var total = 0;
+        var heads = new Dictionary<string, (int Count, HashSet<decimal> Numbers)>(StringComparer.Ordinal);
+        foreach (var name in archiveNames)
+        {
+            total++;
+            if (string.IsNullOrWhiteSpace(name))
+                continue;
+            var s = HeadText(name);
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (Match m in HeadNumber().Matches(s))
+            {
+                var key = TitleNormalizer.ScoringForm(s[..m.Index]);
+                if (key.Length == 0 || !key.Any(char.IsLetter) || HeadEndsInUnitWord().IsMatch(key) || !seen.Add(key))
+                    continue;
+                var entry = heads.TryGetValue(key, out var found) ? found : (0, new HashSet<decimal>());
+                entry.Numbers.Add(UnitNumber(m.Groups["n"].Value));
+                heads[key] = (entry.Count + 1, entry.Numbers);
+            }
+        }
+        var best = heads
+            .Where(h => h.Value.Count >= 2 && h.Value.Count * 2 >= total && h.Value.Numbers.Count >= 2 && h.Value.Numbers.Count * 4 >= h.Value.Count * 3)
+            .OrderByDescending(h => h.Value.Count)
+            .ThenByDescending(h => h.Key.Length)
+            .ThenBy(h => h.Key, StringComparer.Ordinal)
+            .FirstOrDefault();
+        return best.Key;
+    }
+
+    // A head that ends in a unit word owns the number after it ("Vol 01", "Season 2", "No 8"): never a series head. Scoring form.
+    [GeneratedRegex(@"(?:^|\s)(?:v|vol|vols|volume|volumes|ch|chap|chapter|chapters|c|ep|episode|episodes|issue|no|tome|tomo|band|deel|album|livre|part|season|book|arc)$", RegexOptions.CultureInvariant)]
+    private static partial Regex HeadEndsInUnitWord();
+
+    /// <summary>A name for the series-head rules: NFKC, no extension or site watermark, <c>_</c> as spaces in a name without any, no brackets.</summary>
+    private static string HeadText(string name)
+    {
+        var s = TitleNormalizer.WithoutSiteWatermark(ArchiveExtension().Replace(name.Normalize(NormalizationForm.FormKC).Trim(), string.Empty));
+        if (!s.Contains(' ', StringComparison.Ordinal))
+            s = s.Replace('_', ' ');
+        return Bare(s);
+    }
 
     /// <summary>
     /// The chapter tokens of a name (1.31.1): "Episode N" / "Ep N" next to a VOLUME token names a part or arc of the series, not a
@@ -616,11 +727,11 @@ public static partial class AutoMatchText
         {
             if (!allowShortToken && m.Groups["t"] is { Success: true } t && t.Value.Length == 1)
                 continue;
-            var n = decimal.Parse(m.Groups["n"].Value, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture);
+            var n = UnitNumber(m.Groups["n"].Value);
             var high = n;
             if (m.Groups["m"].Success)
             {
-                var e = decimal.Parse(m.Groups["m"].Value, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture);
+                var e = UnitNumber(m.Groups["m"].Value);
                 // "Title v03 - 2019": a year, not the end of a range.
                 if (e > n && !(n < 1900 && YearOnly().IsMatch(m.Groups["m"].Value)))
                     high = e;
@@ -646,7 +757,7 @@ public static partial class AutoMatchText
         var m = IssueNo().Match(outside);
         if (!m.Success || UnitLikeAfter().IsMatch(outside[(m.Index + m.Length)..]))
             return null;
-        return decimal.Parse(m.Groups["n"].Value, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture);
+        return UnitNumber(m.Groups["n"].Value);
     }
 
     /// <summary>
