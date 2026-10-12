@@ -464,9 +464,12 @@ public sealed class VolumeCoverPass
 
         // volume -> the archives that ARE that volume (an empty list = held as all of its chapters, or an estimated stack)
         var held = new SortedDictionary<int, List<HeldArchive>>();
-        foreach (var archive in archives)
+        // 1.42.0 (lane T): units as the Volumes view reads them - a number after the folder's series head is a chapter.
+        var headed = VolumeGrouping.WithSeriesHeads(archives.Select(a => a.Row).ToList());
+        for (var i = 0; i < archives.Count; i++)
         {
-            var units = VolumeGrouping.UnitsOf(archive.Row);
+            var archive = archives[i];
+            var units = VolumeGrouping.UnitsOf(headed[i]);
             if (units.Chapter is null && units.Volume is { } v)
                 Add(held, (int)decimal.Truncate(v)).Add(archive);
         }
