@@ -519,5 +519,9 @@ public static class LogEvents
 
         // Reserved, 1.43.0: 10010-10399 engine + API (lane E); 10400-10599 MyAnimeList adapter, 10600-10799 MangaUpdates adapter
         // (lane A); 10800-10999 free.
+
+        // Lane A (1.43.0): one line per tracker request - tracker, operation, status, elapsed ms; never an id, a URL or a token.
+        public const int MyAnimeListCall = 10401;
+        public const int MangaUpdatesCall = 10601;
     }
 }
