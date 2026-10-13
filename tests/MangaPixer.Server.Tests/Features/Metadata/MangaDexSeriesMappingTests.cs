@@ -58,6 +58,40 @@ public sealed class MangaDexSeriesMappingTests
         Assert.Equal("41.5", CompanionLinkService.MangaDexExtra.Read(r.ExtraJson).LastChapter);
     }
 
+    [Theory]
+    [InlineData("12345", "12345")]
+    [InlineData(" 12345 ", "12345")]
+    [InlineData("abc", null)]
+    [InlineData("0", null)]
+    [InlineData("-3", null)]
+    [InlineData("+5", null)]
+    [InlineData("1.5", null)]
+    [InlineData("99999999999", null)] // not an id MAL can have
+    [InlineData("", null)]
+    public void LinksMal_IsStoredAsTheTrackerCrossId_OnlyWhenAPositiveInteger(string mal, string? expected)
+    {
+        var m = Read(new MdJson.Manga(Id, "Silver Lantern Tales", Mu: MangaUpdatesReference.ToBase36(61508275290), Al: "777", Mal: mal));
+        Assert.Equal(expected, m.MyAnimeListId);
+
+        // Both writers of a MangaDex record row: the series record and the companion (CompanionLinkService.UpsertRecordAsync).
+        foreach (var cross in new[] { MangaDexMapping.ToRecord(m).CrossIds, MangaDexMapping.CrossIdsOf(m, "61508275290") })
+        {
+            Assert.Equal(expected, cross.GetValueOrDefault(com.lifepixer.mangapixer.Core.Trackers.TrackerCrossIdKeys.MyAnimeList));
+            Assert.Equal("61508275290", cross[MetadataProviderAllowlist.MangaUpdates]); // the other cross ids are unchanged
+            Assert.Equal("777", cross[MetadataProviderAllowlist.AniList]);
+            Assert.Equal(expected is null ? 2 : 3, cross.Count);
+        }
+        Assert.DoesNotContain(m.OfficialLinks, l => l.Key == "mal"); // a database link, never an official source
+        Assert.DoesNotContain("\"mal\"", MangaDexMapping.ExtraOf(m), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ARecordWithoutLinksMal_StoresNoTrackerCrossId()
+    {
+        var cross = MangaDexMapping.ToRecord(Read(new MdJson.Manga(Id, "Silver Lantern Tales", Al: "777"))).CrossIds;
+        Assert.False(cross.ContainsKey(com.lifepixer.mangapixer.Core.Trackers.TrackerCrossIdKeys.MyAnimeList));
+    }
+
     [Fact]
     public void ARunningSeries_HasNoChapterTotal_AndADoujinshiTag_IsTheDoujinshiFormat()
     {

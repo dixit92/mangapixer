@@ -111,7 +111,8 @@ public static class MangaDexMapping
 
     /// <summary>
     /// The cross ids: the MangaUpdates series MangaDex itself links (<c>links.mu</c>, decoded as the cross-link rule does) - or, for a
-    /// companion, the series it is the companion of - and the AniList id.
+    /// companion, the series it is the companion of - and the AniList id; 1.43.0 also the MyAnimeList id (<c>links.mal</c>) under
+    /// <see cref="Core.Trackers.TrackerCrossIdKeys.MyAnimeList"/>, the id tracker sync uses (never sent anywhere by the metadata fetcher).
     /// </summary>
     public static IReadOnlyDictionary<string, string> CrossIdsOf(MangaDexManga m, string? companionOfMangaUpdatesId = null)
     {
@@ -120,6 +121,8 @@ public static class MangaDexMapping
             cross[MetadataProviderAllowlist.MangaUpdates] = mu;
         if (m.AniListId is { } al)
             cross[MetadataProviderAllowlist.AniList] = al;
+        if (m.MyAnimeListId is { } mal)
+            cross[Core.Trackers.TrackerCrossIdKeys.MyAnimeList] = mal;
         return cross;
     }
 
