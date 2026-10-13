@@ -185,7 +185,7 @@ public sealed class TrackerRelayProcessor(
                 continue;
             var changes = work.Changes.Where(c => c.UserId == userId).ToList();
             // An upgrade mark is a carry-over to a volume file (no new reading): it triggers nothing on its own.
-            var added = changes.Where(c => c.Kind == ReadMarkChangeKind.Added && c.Source != "upgrade").Select(c => c.ItemId).Distinct().ToList();
+            var added = changes.Where(c => c.Kind == ReadMarkChangeKind.Added && c.Source != Library.Moves.UpgradeCarryOverService.MarkSource).Select(c => c.ItemId).Distinct().ToList();
             var removed = changes.Where(c => c.Kind == ReadMarkChangeKind.Removed).Select(c => c.ItemId).Distinct().ToList();
             var addedRecords = added.Count == 0 ? new List<long>() : (await resolver.RecordsOfAsync(userId, added, ct)).Values.Distinct().ToList();
             var removedRecords = removed.Count == 0 ? new List<long>() : (await resolver.RecordsOfAsync(userId, removed, ct)).Values.Distinct()

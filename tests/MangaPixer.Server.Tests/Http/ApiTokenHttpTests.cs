@@ -280,6 +280,77 @@ public sealed class ApiTokenHttpTests
         Assert.True(mismatches.Count == 0, string.Join("\n", mismatches));
     }
 
+    /// <summary>
+    /// 1.43.0 tracker sync (lane E): every tracker route - the user's own <c>/api/v1/trackers</c> and the admin's
+    /// <c>/api/v1/admin/trackers</c> - is cookie + CSRF only. The expected set is listed here so a new tracker route is added on purpose;
+    /// none names an export policy, the token-write marker or an antiforgery opt-out; a valid token holding EVERY scope gets 401 on each
+    /// (with a real tracker slug, so an accepting route would answer otherwise).
+    /// </summary>
+    private static readonly string[] TrackerRoutes =
+    [
+        "GET api/v1/admin/trackers",
+        "GET api/v1/admin/trackers/accounts",
+        "GET api/v1/admin/trackers/nodes/{nodeId}/ids",
+        "GET api/v1/admin/trackers/{slug}",
+        "GET api/v1/trackers",
+        "GET api/v1/trackers/sync-overrides",
+        "GET api/v1/trackers/{slug}/entries",
+        "POST api/v1/admin/trackers/{slug}/accounts/{userId}/disconnect",
+        "POST api/v1/trackers/{slug}/connect",
+        "POST api/v1/trackers/{slug}/connect/password",
+        "POST api/v1/trackers/{slug}/connect/start",
+        "POST api/v1/trackers/{slug}/disconnect",
+        "POST api/v1/trackers/{slug}/entries/send-all",
+        "POST api/v1/trackers/{slug}/entries/{seriesId}/send",
+        "POST api/v1/trackers/{slug}/entries/{seriesId}/set",
+        "POST api/v1/trackers/{slug}/entries/{seriesId}/sync",
+        "POST api/v1/trackers/{slug}/preview",
+        "PUT api/v1/admin/trackers/nodes/{nodeId}/ids/{slug}",
+        "PUT api/v1/admin/trackers/{slug}",
+        "PUT api/v1/trackers/sync-overrides",
+        "PUT api/v1/trackers/{slug}/entries/{seriesId}/dont-sync",
+        "PUT api/v1/trackers/{slug}/settings",
+    ];
+
+    [Fact]
+    public async Task Sweep_TrackerRoutes_AreCookieOnly_AndRefuseEveryToken()
+    {
+        await using var factory = new ApiTokenTestFactory();
+        var created = await factory.CreateTokenAsync(scopes: ExportApi.KnownScopes);
+        var bearer = factory.BearerClient(created.Secret);
+
+        var endpoints = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>()
+            .Where(e => (e.RoutePattern.RawText?.TrimStart('/') ?? string.Empty) is var raw
+                && (raw.StartsWith("api/v1/trackers", StringComparison.OrdinalIgnoreCase) || raw.StartsWith("api/v1/admin/trackers", StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+        static IEnumerable<string> MethodsOf(RouteEndpoint e) => e.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods ?? ["GET"];
+        var keys = endpoints.SelectMany(e => MethodsOf(e).Select(m => m + " " + e.RoutePattern.RawText?.TrimStart('/'))).Order(StringComparer.Ordinal).ToList();
+        Assert.Equal(TrackerRoutes.Order(StringComparer.Ordinal), keys);
+
+        foreach (var endpoint in endpoints)
+        {
+            var policies = endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Select(a => a.Policy).ToList();
+            Assert.DoesNotContain(ExportApi.Policy, policies);
+            Assert.DoesNotContain(ExportApi.ScanPolicy, policies);
+            Assert.All(endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>(), a => Assert.True(string.IsNullOrEmpty(a.AuthenticationSchemes)));
+            Assert.Null(endpoint.Metadata.GetMetadata<TokenWriteAllowedAttribute>());
+            Assert.Null(endpoint.Metadata.GetMetadata<IgnoreAntiforgeryTokenAttribute>());
+            Assert.Null(endpoint.Metadata.GetMetadata<IAllowAnonymous>());
+            var url = "/" + string.Join("/", endpoint.RoutePattern.PathSegments.Select(segment => string.Concat(segment.Parts.Select(part => part switch
+            {
+                RoutePatternLiteralPart literal => literal.Content,
+                RoutePatternParameterPart { Name: "slug" } => "mal",
+                RoutePatternParameterPart => "1",
+                _ => string.Empty,
+            }))));
+            foreach (var method in MethodsOf(endpoint))
+            {
+                var response = await bearer.SendAsync(Request(method, url));
+                Assert.True(response.StatusCode == HttpStatusCode.Unauthorized, $"{method} {url}: {(int)response.StatusCode} with a token");
+            }
+        }
+    }
+
     [Fact]
     public async Task AdminApi_GrantsOnlyTheScopesTickedAtCreation_AndRefusesUnknownOrEmptyScopes()
     {
