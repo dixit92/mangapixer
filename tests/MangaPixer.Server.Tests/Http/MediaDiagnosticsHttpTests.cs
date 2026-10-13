@@ -49,9 +49,10 @@ public sealed class MediaDiagnosticsHttpTests : IDisposable
         Assert.Contains("cache;desc=hit", timing);
         Assert.Matches(@"(^|, )db;dur=[0-9.]+", timing);
         Assert.Matches(@"(^|, )total;dur=[0-9.]+", timing);
-        // Timings only: nothing that names the item, the entry or a path.
-        Assert.DoesNotContain(itemId, timing);
-        Assert.DoesNotContain(entryKey, timing);
+        // Timings only: nothing that names the item, the entry or a path. Every part must be a known metric with a number (or the
+        // cache outcome) - a substring check for the item id flaked when the id was "0" and a duration contained a 0 (1.43.0).
+        Assert.All(timing.Split(", "), part => Assert.Matches(
+            @"^((db|prep|slot|worker|open|read|encode|publish|total);dur=[0-9]+(\.[0-9])?|cache;desc=[a-z]+)$", part));
         Assert.DoesNotContain(_libRoot, timing);
 
         var diag = await client.GetFromJsonAsync<JsonElement>("/api/v1/operations/diagnostics");

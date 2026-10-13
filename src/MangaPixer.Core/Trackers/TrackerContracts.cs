@@ -46,7 +46,7 @@ public enum TrackerEntryStatus
 /// </summary>
 public sealed record TrackerAppSettings(string? ClientId, string? ClientSecret, Uri? RedirectUri)
 {
-    public override string ToString() => $"TrackerAppSettings {{ ClientId = {(ClientId is null ? "null" : "set")}, ClientSecret = {(ClientSecret is null ? "null" : "***")}, RedirectUri = {(RedirectUri is null ? "null" : "set")} }}";
+    public override string ToString() => $"TrackerAppSettings {{ ClientId = {(ClientId is null ? "null" : "set")}, ClientSecret = {(ClientSecret is null ? "null" : "[redacted]")}, RedirectUri = {(RedirectUri is null ? "null" : "set")} }}";
 }
 
 /// <summary>
@@ -55,13 +55,13 @@ public sealed record TrackerAppSettings(string? ClientId, string? ClientSecret, 
 /// </summary>
 public sealed record TrackerConnectRequest(string? Code, string? CodeVerifier, string? UserName, string? Password)
 {
-    public override string ToString() => "TrackerConnectRequest { *** }";
+    public override string ToString() => "TrackerConnectRequest { [redacted] }";
 }
 
 /// <summary>A user's credentials for one tracker. Stored only encrypted (Data Protection); never logged, returned or exported.</summary>
 public sealed record TrackerTokens(string AccessToken, string? RefreshToken, DateTimeOffset? ExpiresAt)
 {
-    public override string ToString() => $"TrackerTokens {{ AccessToken = ***, RefreshToken = {(RefreshToken is null ? "null" : "***")}, ExpiresAt = {ExpiresAt:O} }}";
+    public override string ToString() => $"TrackerTokens {{ AccessToken = [redacted], RefreshToken = {(RefreshToken is null ? "null" : "[redacted]")}, ExpiresAt = {ExpiresAt:O} }}";
 }
 
 /// <summary>The connected account as the tracker names it ("Connected as ..."). Shown to that user only.</summary>
