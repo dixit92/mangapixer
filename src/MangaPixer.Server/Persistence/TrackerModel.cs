@@ -38,8 +38,6 @@ internal static class TrackerModel
             e.Property(x => x.RefreshTokenProtected).HasMaxLength(ProtectedLength);
             e.Property(x => x.LastFailureCode).HasMaxLength(32);
             e.Property(x => x.RequestsDay).HasMaxLength(10);
-            e.Property(x => x.AddStartedSeries).HasDefaultValue(true);
-            e.Property(x => x.PrivateEntries).HasDefaultValue(true);
             e.HasIndex(x => new { x.UserId, x.Tracker }).IsUnique();
             e.HasOne(x => x.User)
                 .WithMany()
