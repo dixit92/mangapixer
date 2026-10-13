@@ -24,7 +24,7 @@ public sealed class TrackerAdapterHarness : IDisposable
 
     private readonly ServiceProvider _http;
 
-    public TrackerAdapterHarness(MetadataGatewayState? state = null, bool withAllowlist = true)
+    public TrackerAdapterHarness(MetadataGatewayState? state = null)
     {
         Handler = new ScriptedHandler { Respond = _ => throw new InvalidOperationException("No scripted answer.") };
         Time = new ManualTime(new DateTimeOffset(2026, 10, 13, 12, 0, 0, TimeSpan.Zero));
@@ -41,19 +41,10 @@ public sealed class TrackerAdapterHarness : IDisposable
         var services = new ServiceCollection();
         services.AddSingleton(LoggerFactory);
         services.AddLogging();
-        if (withAllowlist)
-        {
-            TrackerAdapterServicesExtensions.AddTrackerClient(services, TrackerHttp.MyAnimeListClient, TrackerHttp.MyAnimeListApiHost, TrackerHttp.MyAnimeListSiteHost)
-                .ConfigurePrimaryHttpMessageHandler(() => Handler);
-            TrackerAdapterServicesExtensions.AddTrackerClient(services, TrackerHttp.MangaUpdatesClient, MetadataHttp.MangaUpdatesApiHost)
-                .ConfigurePrimaryHttpMessageHandler(() => Handler);
-        }
-        else
-        {
-            // For the red-first proof only: the same clients without their allowlist handler.
-            services.AddHttpClient(TrackerHttp.MyAnimeListClient).AddHttpMessageHandler(() => new TrackerBearerHandler()).ConfigurePrimaryHttpMessageHandler(() => Handler);
-            services.AddHttpClient(TrackerHttp.MangaUpdatesClient).AddHttpMessageHandler(() => new TrackerBearerHandler()).ConfigurePrimaryHttpMessageHandler(() => Handler);
-        }
+        TrackerAdapterServicesExtensions.AddTrackerClient(services, TrackerHttp.MyAnimeListClient, TrackerHttp.MyAnimeListApiHost, TrackerHttp.MyAnimeListSiteHost)
+            .ConfigurePrimaryHttpMessageHandler(() => Handler);
+        TrackerAdapterServicesExtensions.AddTrackerClient(services, TrackerHttp.MangaUpdatesClient, MetadataHttp.MangaUpdatesApiHost)
+            .ConfigurePrimaryHttpMessageHandler(() => Handler);
         _http = services.BuildServiceProvider();
         var factory = _http.GetRequiredService<IHttpClientFactory>();
         Mal = new MyAnimeListTrackerClient(factory, Pacing, Time, LoggerFactory.CreateLogger<MyAnimeListTrackerClient>());
