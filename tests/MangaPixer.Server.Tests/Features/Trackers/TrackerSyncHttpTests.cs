@@ -449,6 +449,40 @@ public sealed class TrackerSyncHttpTests
     }
 
     [Fact]
+    public async Task TheDailyCap_StopsRequests_AndADisabledUsersSyncPauses()
+    {
+        var (h, admin, userId, series) = await ConnectedAsync();
+        await using var _ = h;
+        await h.DbAsync(async db =>
+        {
+            var account = await db.TrackerAccounts.SingleAsync(a => a.UserId == userId);
+            account.RequestsDay = TrackerAccountService.DayOf(DateTimeOffset.UtcNow);
+            account.RequestsUsed = TrackerFacts.DailyRequestCap;
+            return await db.SaveChangesAsync();
+        });
+        await MarkReadAsync(admin, series.Archives[0].PublicId);
+        await h.IdleAsync();
+        Assert.Equal(0, h.MangaUpdates.CallCount);
+        var entry = await h.EntryAsync(userId, TrackerSlugs.MangaUpdates, series.RecordId);
+        Assert.Equal((TrackerEntryState.Waiting, "daily_cap"), ((TrackerEntryState)entry!.State, entry.ErrorCode));
+
+        // A disabled user: the account and the mark stay, nothing is sent (an import can still add marks for them).
+        await h.Factory.CreateUserAsync("reader4", "Reader4-Password!", isAdmin: true);
+        var reader = await h.Factory.LoginAsync("reader4", "Reader4-Password!");
+        await h.ConnectMangaUpdatesAsync(reader);
+        var readerId = await h.UserIdAsync("reader4");
+        await h.DbAsync(async db =>
+        {
+            (await db.Users.SingleAsync(u => u.Id == readerId)).IsActive = false;
+            db.ReadMarks.Add(new ReadMarkEntity { UserId = readerId, ItemId = series.Archives[1].Id, MarkedAt = DateTimeOffset.UtcNow, Source = "manual" });
+            return await db.SaveChangesAsync();
+        });
+        await h.IdleAsync();
+        Assert.Equal(0, h.MangaUpdates.CallCount);
+        Assert.Null(await h.EntryAsync(readerId, TrackerSlugs.MangaUpdates, series.RecordId));
+    }
+
+    [Fact]
     public async Task TheAdminsSeriesId_WinsOverTheStoredOne()
     {
         var (h, admin, _, series) = await ConnectedAsync();
