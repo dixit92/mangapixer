@@ -101,7 +101,7 @@ public static class PageHashOperation
                         var second = ImageHasher.Hash(bytes, maxDimension, !request.FastDecode);
                         other = second.Error is null ? second.Hash : null;
                     }
-                    if (probe is { } p && image.Error is null && ImageHasher.Reencoded(bytes, p.Scale, p.Quality, p.Crop) is { } copy)
+                    if (probe is { } p && image.Error is null && ImageHasher.Reencoded(bytes, p.Scale, p.Quality, p.Crop, p.Blank) is { } copy)
                     {
                         var copyHash = ImageHasher.Hash(copy, maxDimension, request.FastDecode);
                         probed = copyHash.Error is null ? copyHash.Hash : null;
@@ -182,18 +182,21 @@ public static class PageHashOperation
         return ms.ToArray();
     }
 
-    private static (double Scale, int Quality, double Crop)? ParseProbe(string? text)
+    private static (double Scale, int Quality, double Crop, double Blank)? ParseProbe(string? text)
     {
         if (string.IsNullOrWhiteSpace(text))
             return null;
         var parts = text.Split(':');
-        if (parts.Length != 3
+        var blank = 0.0;
+        if (parts.Length == 4 && (!double.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out blank) || blank is < 0 or > 0.5))
+            return null;
+        if (parts.Length is not (3 or 4)
             || !double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var scale)
             || !int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var quality)
             || !double.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out var crop)
             || scale is <= 0.05 or > 2 || quality is < 1 or > 100 || crop is < 0 or > 0.2)
             return null;
-        return (scale, quality, crop);
+        return (scale, quality, crop, blank);
     }
 
     internal static (long LastWriteTicks, long ByteLength) StampOf(string path)

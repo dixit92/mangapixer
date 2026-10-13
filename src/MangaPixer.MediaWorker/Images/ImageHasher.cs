@@ -119,7 +119,7 @@ public static class ImageHasher
     /// <paramref name="cropShare"/> of each edge, saved as JPEG at <paramref name="quality"/> - to see how far its hash lands from the
     /// original's (another release of the same scan). Null when the image cannot be decoded.
     /// </summary>
-    public static byte[]? Reencoded(byte[] bytes, double scale, int quality, double cropShare)
+    public static byte[]? Reencoded(byte[] bytes, double scale, int quality, double cropShare, double blankShare = 0)
     {
         if (SniffFormat(bytes) is not { } sniffed)
             return null;
@@ -132,6 +132,25 @@ public static class ImageHasher
             {
                 image.Crop(new MagickGeometry(dx, dy, (uint)Math.Max(1, w - 2 * dx), (uint)Math.Max(1, h - 2 * dy)));
                 image.ResetPage();
+            }
+            if (blankShare > 0)
+            {
+                // Another translation / cleaning: white boxes (speech bubbles re-lettered) over about blankShare of the page,
+                // placed by a seed taken from the bytes so a run is repeatable.
+                var random = new Random(bytes.Length);
+                var (iw, ih) = ((int)image.Width, (int)image.Height);
+                var boxes = 6;
+                var side = Math.Sqrt(blankShare * iw * ih / boxes);
+                var drawables = new Drawables().FillColor(MagickColors.White).StrokeColor(MagickColors.White);
+                for (var i = 0; i < boxes; i++)
+                {
+                    var bw = side * (0.6 + random.NextDouble() * 0.8);
+                    var bh = side * side / bw;
+                    var x = random.NextDouble() * Math.Max(1, iw - bw);
+                    var y = random.NextDouble() * Math.Max(1, ih - bh);
+                    drawables.Ellipse(x + bw / 2, y + bh / 2, bw / 2, bh / 2, 0, 360);
+                }
+                drawables.Draw(image);
             }
             image.FilterType = FilterType.Triangle;
             image.Resize(new MagickGeometry((uint)Math.Max(1, (int)(image.Width * scale)), (uint)Math.Max(1, (int)(image.Height * scale))) { IgnoreAspectRatio = true });
