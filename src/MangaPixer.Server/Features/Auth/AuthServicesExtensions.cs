@@ -36,9 +36,12 @@ public static class AuthServicesExtensions
 
         // Configure DbContext
         var connectionString = DatabaseInitialization.BuildConnectionString(databasePath);
-        services.AddDbContext<MangaPixerDbContext>(options =>
+        services.AddDbContext<MangaPixerDbContext>((sp, options) =>
         {
             options.UseSqlite(connectionString);
+            // 1.43.0: committed read-mark changes reach IReadMarkObserver (tracker sync); registered by AddTrackers.
+            if (sp.GetService<ReadMarkChangeInterceptor>() is { } readMarks)
+                options.AddInterceptors(readMarks);
         });
         services.AddScoped<MangaPixerDbContextFactory>();
 

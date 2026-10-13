@@ -27,14 +27,19 @@ public sealed class ApiTokenTestFactory : WebApplicationFactory<Program>
 
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), "mangapixer-tok-" + Guid.NewGuid().ToString("N")[..8]);
     private readonly TimeProvider? _clock;
+    private readonly Action<IServiceCollection>? _configureServices;
     private HttpClient? _admin;
 
     /// <param name="configuration">Extra configuration keys.</param>
     /// <param name="rateLimitDisabled">The login / failed-attempt limiter switch.</param>
     /// <param name="clock">1.36.0: replaces the host's <see cref="TimeProvider"/> (e.g. a settable clock for the scan cooldown).</param>
-    public ApiTokenTestFactory(IReadOnlyDictionary<string, string?>? configuration = null, bool rateLimitDisabled = true, TimeProvider? clock = null)
+    /// <param name="configureServices">1.43.0: last say over the host's services (e.g. a recording read-mark observer, a fake tracker).</param>
+    public ApiTokenTestFactory(
+        IReadOnlyDictionary<string, string?>? configuration = null, bool rateLimitDisabled = true, TimeProvider? clock = null,
+        Action<IServiceCollection>? configureServices = null)
     {
         _clock = clock;
+        _configureServices = configureServices;
         var data = Path.Combine(_tempRoot, "data");
         var cache = Path.Combine(_tempRoot, "cache");
         var scratch = Path.Combine(_tempRoot, "scratch");
@@ -83,6 +88,7 @@ public sealed class ApiTokenTestFactory : WebApplicationFactory<Program>
                 .WriteTo.Sink(Sink)
                 .WriteTo.Logger(inner)
                 .CreateLogger());
+            _configureServices?.Invoke(services);
         });
     }
 

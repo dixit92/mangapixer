@@ -38,6 +38,7 @@ public static class LogEvents
         ("Administration", Administration.Min, Administration.Max),
         ("Http", Http.Min, Http.Max),
         ("Metadata", Metadata.Min, Metadata.Max),
+        ("Trackers", Trackers.Min, Trackers.Max),
     ];
 
     /// <summary>Category names derived from the real event-ID ranges.</summary>
@@ -284,6 +285,8 @@ public static class LogEvents
         public const int PerformanceSettingsApplied = 4202;
         public const int PerformanceSettingsLoadFailed = 4203;
         public const int PerformanceConfigInvalid = 4204;
+
+        // Reserved, 1.43.0: 4300-4399 volume contents scan (lane V).
     }
 
     /// <summary>Derived-cache lifecycle: hits, publishes, eviction, budget pressure.</summary>
@@ -498,5 +501,23 @@ public static class LogEvents
         public const int MangaDexSelfCompanion = 9500;
         public const int MangaDexStep = 9501;
         public const int MangaDexSwitched = 9502;
+    }
+
+    /// <summary>
+    /// Tracker sync (1.43.0): a user's reading progress sent to that user's own MyAnimeList / MangaUpdates account. Internal user
+    /// ids, tracker slugs, outcome codes, counts, HTTP status codes and timings ONLY - never a token, a password, a tracker or
+    /// series id at Information (with a user id they are that user's reading history; Debug may carry the MangaPixer record id),
+    /// a title, a URL or a path.
+    /// </summary>
+    public static class Trackers
+    {
+        public const int Min = 10000;
+        public const int Max = 10999;
+
+        // Seam (integrator, 10000-10009).
+        public const int ReadMarkObserverFailed = 10001;
+
+        // Reserved, 1.43.0: 10010-10399 engine + API (lane E); 10400-10599 MyAnimeList adapter, 10600-10799 MangaUpdates adapter
+        // (lane A); 10800-10999 free.
     }
 }

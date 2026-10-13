@@ -136,6 +136,10 @@ public sealed class MangaPixerDbContext : DbContext
         ConfigureExportState(modelBuilder);
         ConfigureApiTokens(modelBuilder);
         ConfigureMetadataAuthors(modelBuilder);
+
+        // 1.43.0: each feature configures its own tables in its own file (two lanes, one hot file).
+        TrackerModel.Configure(modelBuilder);
+        VolumeScanModel.Configure(modelBuilder);
     }
 
     private static void ConfigureAppSettings(ModelBuilder mb)
