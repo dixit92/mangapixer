@@ -55,8 +55,8 @@ export function seriesStatusLine(view: VolumeViewDto | null | undefined): string
 /**
  * The status lines under the browse bar while the Volumes view of a linked series is shown. 1.30.0 (reach): two lines from the
  * series' progress - the trackers ("Ongoing (Japan): 22 volumes · English (Yen Press): 14 volumes, ongoing · English chapters:
- * to chapter 65") and what the folder holds ("You have volumes 1-14 + chapters 47-65 · up to date · Volume 15 available in
- * English"), with the completion mark; the 1.29.0 one-line form when the server sends no progress.
+ * to chapter 65") and what the folder holds ("You have volumes 1-14 + chapters 47-65 · up to date · Volume 15 out as an official
+ * English volume"), with the completion mark; the 1.29.0 one-line form when the server sends no progress.
  */
 @Component({
   selector: 'app-volume-series-status',

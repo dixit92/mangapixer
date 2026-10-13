@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **"Official Volume Available"** replaces "Available in English" on the stack of a volume that is out officially in your preferred language while you have it as chapter files - the old wording read as if your copy were not in that language. The tooltip names the language ("Out as an official English volume - you have it as chapters"), and the status line, the Missing report and Official releases say "Volume 15 out as an official English volume".
+
 ## [1.42.0] - 2026-10-12
 
 ### Added

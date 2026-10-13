@@ -1,7 +1,7 @@
 import { SeriesProgressDto, SeriesTrackersDto } from '../../../core/api/api-types';
 import {
-  alsoInVolumeLabel, answerSentence, completionMarkLabel, editionLabel, folderLine, numbersText, officialReleaseLabel, progressIcon,
-  reachSentence, trackersLine, upgradeSentence,
+  alsoInVolumeLabel, answerSentence, completionMarkLabel, editionLabel, folderLine, numbersText, officialReleaseLabel, officialReleaseTitle,
+  progressIcon, reachSentence, trackersLine, upgradeSentence,
 } from './series-progress-labels';
 
 /**
@@ -63,11 +63,11 @@ describe('series progress labels', () => {
 
   it('the owner example once the English volume 15 is out: an upgrade, never missing', () => {
     const p = progress({ ...owner, officialVolumes: 15 }, { reach: reach([[1, 14]], [[47, 65]]), upgradeVolumes: [15], upgradeCount: 1 });
-    expect(folderLine(p)).toBe('You have volumes 1-14 + chapters 47-65 · up to date · Volume 15 available in English');
-    expect(upgradeSentence(p)).toBe('Volume 15 available in English - you hold it as chapters');
+    expect(folderLine(p)).toBe('You have volumes 1-14 + chapters 47-65 · up to date · Volume 15 out as an official English volume');
+    expect(upgradeSentence(p)).toBe('Volume 15 out as an official English volume - you have it as chapters');
     expect(progressIcon(p)).toBe('new_releases');
     const many = progress(owner, { upgradeVolumes: [15, 16, 17, 19], upgradeCount: 5 });
-    expect(upgradeSentence(many)).toBe('Volumes 15-17, 19, +1 more available in English - you hold them as chapters');
+    expect(upgradeSentence(many)).toBe('Volumes 15-17, 19, +1 more out as official English volumes - you have them as chapters');
   });
 
   it('a volumes-only folder of a series finished in English: missing volumes and the prompt', () => {
@@ -137,8 +137,10 @@ describe('series progress labels', () => {
       { reach: reach([], [[1, 87]]) });
     expect(trackersLine(p)).toBe('Ongoing (Japan): 22 volumes · French: to chapter 87');
     expect(folderLine(p)).toBe('You have chapters 1-87 · up to date');
-    expect(officialReleaseLabel('fr')).toBe('Available in French');
+    expect(officialReleaseLabel('fr')).toBe('Official Volume Available');
     expect(officialReleaseLabel(null)).toBe('');
+    expect(officialReleaseTitle('fr')).toBe('Out as an official French volume - you have it as chapters');
+    expect(officialReleaseTitle(null)).toBe('');
   });
 
   it('says what is unknown: no status word, not licensed, a dropped publisher, no numbers', () => {

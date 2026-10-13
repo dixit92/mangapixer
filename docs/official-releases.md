@@ -39,7 +39,7 @@ A folder of volume files is judged by the volume edition: while your language's 
 
 ## Upgrade available
 
-A volume that is out officially in your language, but that you have only as chapter files, is an **upgrade**, never a gap. It never changes the answer - a series can be ready to move and still have an upgrade - so it is a separate mark, **Upgrade available**, with a line such as "Volumes 15-19 available in English - you hold them as chapters". Turn on **Upgrades only** to list just those series. The same volumes show **Available in English** on their stacks in the [Volumes view](volumes.md#what-you-have).
+A volume that is out officially in your language, but that you have only as chapter files, is an **upgrade**, never a gap. It never changes the answer - a series can be ready to move and still have an upgrade - so it is a separate mark, **Upgrade available**, with a line such as "Volumes 15-19 out as official English volumes - you have them as chapters". Turn on **Upgrades only** to list just those series. The same volumes show **Official Volume Available** on their stacks in the [Volumes view](volumes.md#what-you-have).
 
 ## Using it
 
