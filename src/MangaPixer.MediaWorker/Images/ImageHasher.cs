@@ -54,7 +54,19 @@ public static class ImageHasher
         or MagickFormat.Png8 or MagickFormat.Png24 or MagickFormat.Png32 or MagickFormat.Png48 or MagickFormat.Png64
         or MagickFormat.Gif or MagickFormat.Gif87 or MagickFormat.WebP;
 
-    public static HashedImage Hash(byte[] bytes, int maxDimension)
+    public static HashedImage Hash(byte[] bytes, int maxDimension) => Hash(bytes, maxDimension, reducedDecode: false);
+
+    /// <summary>
+    /// The longest edge a reduced JPEG decode keeps at least (1.43.0 page hashing): libjpeg's DCT scaling decodes at 1/2, 1/4 or 1/8
+    /// of the size while staying at or above this, well above the 32x32 square the hash is computed on.
+    /// </summary>
+    public const int ReducedDecodeSide = 128;
+
+    /// <summary>
+    /// <see cref="Hash(byte[], int)"/>, optionally decoding a JPEG at a reduced scale (<see cref="ReducedDecodeSide"/>) - the same
+    /// 32x32 reduction afterwards. Other formats always decode fully. The reported size is the image's own (from its header).
+    /// </summary>
+    public static HashedImage Hash(byte[] bytes, int maxDimension, bool reducedDecode)
     {
         // Defence in depth (1.28.0 review): magic bytes first, then the probe's format, then a decode pinned to that format.
         if (SniffFormat(bytes) is not { } sniffed)
@@ -70,20 +82,10 @@ public static class ImageHasher
             if (probe.Width > (uint)maxDimension || probe.Height > (uint)maxDimension)
                 return HashedImage.Failed(ImageHashErrors.TooLarge);
 
+            if (reducedDecode && sniffed == MagickFormat.Jpeg)
+                settings.SetDefine(MagickFormat.Jpeg, "size", ReducedDecodeSide.ToString(System.Globalization.CultureInfo.InvariantCulture) + "x" + ReducedDecodeSide.ToString(System.Globalization.CultureInfo.InvariantCulture));
             using var image = new MagickImage(bytes, settings);
-            var (width, height) = ((int)image.Width, (int)image.Height);
-            image.BackgroundColor = MagickColors.White;
-            image.Alpha(AlphaAction.Remove);
-            image.Grayscale(PixelIntensityMethod.Rec709Luma);
-            image.FilterType = FilterType.Lanczos;
-            image.Resize(new MagickGeometry(CoverHash.Side, CoverHash.Side) { IgnoreAspectRatio = true });
-            using var pixels = image.GetPixels();
-            var gray = pixels.ToByteArray(PixelMapping.RGB)
-                ?? throw new InvalidDataException("no pixels");
-            var luma = new byte[CoverHash.Side * CoverHash.Side];
-            for (var i = 0; i < luma.Length; i++)
-                luma[i] = gray[i * 3];
-            return new HashedImage(CoverHash.Compute(luma), width, height, null);
+            return new HashedImage(HashOf(image), (int)probe.Width, (int)probe.Height, null);
         }
         catch (MagickException)
         {
@@ -92,6 +94,55 @@ public static class ImageHasher
         catch (InvalidDataException)
         {
             return HashedImage.Failed(ImageHashErrors.DecodeFailed);
+        }
+    }
+
+    /// <summary>The hash of an already decoded image (flattened onto white, grayscale, 32x32 Lanczos). Changes the image.</summary>
+    internal static ulong HashOf(MagickImage image)
+    {
+        image.BackgroundColor = MagickColors.White;
+        image.Alpha(AlphaAction.Remove);
+        image.Grayscale(PixelIntensityMethod.Rec709Luma);
+        image.FilterType = FilterType.Lanczos;
+        image.Resize(new MagickGeometry(CoverHash.Side, CoverHash.Side) { IgnoreAspectRatio = true });
+        using var pixels = image.GetPixels();
+        var gray = pixels.ToByteArray(PixelMapping.RGB)
+            ?? throw new InvalidDataException("no pixels");
+        var luma = new byte[CoverHash.Side * CoverHash.Side];
+        for (var i = 0; i < luma.Length; i++)
+            luma[i] = gray[i * 3];
+        return CoverHash.Compute(luma);
+    }
+
+    /// <summary>
+    /// PROTOTYPE (1.43.0 lane V measurement): a re-encoded copy of the image - scaled by <paramref name="scale"/>, cropped by
+    /// <paramref name="cropShare"/> of each edge, saved as JPEG at <paramref name="quality"/> - to see how far its hash lands from the
+    /// original's (another release of the same scan). Null when the image cannot be decoded.
+    /// </summary>
+    public static byte[]? Reencoded(byte[] bytes, double scale, int quality, double cropShare)
+    {
+        if (SniffFormat(bytes) is not { } sniffed)
+            return null;
+        try
+        {
+            using var image = new MagickImage(bytes, new MagickReadSettings { Format = sniffed });
+            var (w, h) = ((int)image.Width, (int)image.Height);
+            var (dx, dy) = ((int)(w * cropShare), (int)(h * cropShare));
+            if (dx > 0 || dy > 0)
+            {
+                image.Crop(new MagickGeometry(dx, dy, (uint)Math.Max(1, w - 2 * dx), (uint)Math.Max(1, h - 2 * dy)));
+                image.ResetPage();
+            }
+            image.FilterType = FilterType.Triangle;
+            image.Resize(new MagickGeometry((uint)Math.Max(1, (int)(image.Width * scale)), (uint)Math.Max(1, (int)(image.Height * scale))) { IgnoreAspectRatio = true });
+            image.BackgroundColor = MagickColors.White;
+            image.Alpha(AlphaAction.Remove);
+            image.Quality = (uint)quality;
+            return image.ToByteArray(MagickFormat.Jpeg);
+        }
+        catch (MagickException)
+        {
+            return null;
         }
     }
 }
