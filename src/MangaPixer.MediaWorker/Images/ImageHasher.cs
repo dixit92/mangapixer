@@ -3,6 +3,7 @@ namespace com.lifepixer.mangapixer.MediaWorker.Images;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Core.WorkerProtocol;
 using ImageMagick;
+using ImageMagick.Drawing;
 
 /// <summary>The outcome of hashing one image: the hash and the decoded size, or an <see cref="ImageHashErrors"/> code.</summary>
 public sealed record HashedImage(ulong Hash, int Width, int Height, string? Error)
