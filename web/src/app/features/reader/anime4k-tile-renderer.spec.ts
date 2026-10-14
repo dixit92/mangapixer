@@ -4,6 +4,7 @@ import {
   BandRenderRequest, adaptSlice, createSliceBudget, liveStateCount, onTilesLost, releaseTiles, renderBand, sliceBudgetMs,
 } from './anime4k-tile-renderer';
 import { FakeCanvasContext, FakeGpuDevice, fakeCanvas, fakeImage, installNavigatorGpu, removeNavigatorGpu, stubWebGpuGlobals } from './fake-webgpu.testing';
+import { SourceRows, probeBytes, setSourceSamplerForTests } from './blank-guard';
 import { resetGpuDeviceForTests } from './gpu-device';
 import { BandPlan, planBands } from './webtoon-band-plan';
 
@@ -210,5 +211,136 @@ describe('anime4k-tile-renderer', () => {
     const before = devices.length;
     expect((await renderBand(req(800, 3000))).status).toBe('failed');
     expect(devices.length).toBe(before);
+  });
+});
+
+/**
+ * Blank-output guard (1.43.0): WebKit's WebGPU now and then hands back an all-black chain output; the blit forces
+ * alpha 1, so it would paint an opaque black block over a band that is not black. The last slice reads back a tiny
+ * probe of the band's blit; near black over a lit source = `blank`, and the canvas is never touched.
+ */
+describe('anime4k-tile-renderer blank guard', () => {
+  let devices: FakeGpuDevice[];
+  let output: () => readonly [number, number, number, number];
+  let sourceRows: SourceRows[];
+  let sourceLit: boolean;
+
+  const req = (w: number, h: number, i = 0, extra: Partial<BandRenderRequest> = {}): BandRenderRequest => ({
+    source: fakeImage(w, h), canvas: fakeCanvas(), band: planBands(w, h)[i], chain: 'm',
+    nextFrame: () => Promise.resolve(), ...extra,
+  });
+  const configs = (canvas: HTMLCanvasElement) => (canvas.getContext('webgpu') as unknown as FakeCanvasContext).configs;
+
+  beforeEach(() => {
+    stubWebGpuGlobals(vi.stubGlobal);
+    vi.stubGlobal('createImageBitmap', () => Promise.resolve({ close: () => undefined }));
+    output = () => [0, 0, 0, 255];
+    sourceRows = [];
+    sourceLit = true;
+    setSourceSamplerForTests((_img, rows) => {
+      sourceRows.push(rows);
+      return new Uint8ClampedArray(probeBytes).fill(sourceLit ? 255 : 0);
+    });
+    devices = [];
+    installNavigatorGpu(() => { const d = new FakeGpuDevice(); d.output = () => output(); devices.push(d); return d; });
+    resetGpuDeviceForTests();
+    releaseTiles();
+  });
+
+  afterEach(() => {
+    expect(devices.flatMap((d) => d.violations)).toEqual([]);
+    setSourceSamplerForTests(null);
+    releaseTiles();
+    resetGpuDeviceForTests();
+    removeNavigatorGpu();
+    vi.unstubAllGlobals();
+  });
+
+  it('a black output over a lit band is blank: the canvas is never sized, configured or drawn', async () => {
+    const r = req(800, 3000, 1, { budget: { k: 4 } });
+    const res = await renderBand(r);
+    expect(res.status).toBe('blank');
+    const [d] = devices;
+    expect(d.submits).toBe(res.slices); // the chain slices only: no present submission
+    expect(configs(r.canvas).length).toBe(0);
+    expect([r.canvas.width, r.canvas.height]).toEqual([0, 0]);
+  });
+
+  it('samples the source rows the band SHOWS (tile offset + crop), from the page <img>', async () => {
+    const r = req(800, 3000, 2);
+    await renderBand(r);
+    expect(sourceRows).toEqual([{ y: r.band.tileY + r.band.cropY, height: r.band.drawRows }]);
+  });
+
+  it('a black output over a black band is shown (a genuinely black page is no false positive)', async () => {
+    sourceLit = false;
+    const r = req(800, 3000, 1);
+    expect((await renderBand(r)).status).toBe('ok');
+    expect(configs(r.canvas).length).toBe(1);
+    expect(r.canvas.width).toBe(1600);
+  });
+
+  it('a normal output is shown as before and never samples the source (no CPU cost)', async () => {
+    output = () => [180, 170, 160, 255];
+    const r = req(800, 3000, 1);
+    const res = await renderBand(r);
+    expect(res.status).toBe('ok');
+    expect(sourceRows.length).toBe(0);
+    expect(configs(r.canvas).length).toBe(1);
+  });
+
+  it('costs one 4 KB readback per band (a 256-byte-aligned copy) and one small present submission', async () => {
+    output = () => [180, 170, 160, 255];
+    const res = await renderBand(req(800, 3000, 1, { budget: { k: 2 } }));
+    const [d] = devices;
+    expect(d.copiesToBuffer).toBe(1);
+    expect(d.bytesReadBack).toBe(4096);
+    expect(d.submits).toBe(res.slices + 1);
+  });
+
+  it('a blank band and then a good one: the next render of the same band is shown', async () => {
+    let n = 0;
+    output = () => (n++ === 0 ? [0, 0, 0, 255] : [200, 200, 200, 255]);
+    expect((await renderBand(req(800, 3000, 1))).status).toBe('blank');
+    const again = req(800, 3000, 1);
+    expect((await renderBand(again)).status).toBe('ok');
+    expect(configs(again.canvas).length).toBe(1);
+  });
+
+  it('a probe that could not run (validation error) is unknown, never blank: the band shows as before', async () => {
+    installNavigatorGpu(() => {
+      const d = new FakeGpuDevice(); d.output = () => output(); d.failNextScope = true; devices.push(d); return d;
+    });
+    resetGpuDeviceForTests();
+    releaseTiles();
+    const r = req(800, 3000, 1);
+    expect((await renderBand(r)).status).toBe('ok');
+    expect(sourceRows.length).toBe(0);
+  });
+
+  it('aborted during the chain stays aborted (no readback verdict, canvas untouched)', async () => {
+    const ctrl = new AbortController();
+    const r = req(800, 3000, 1, { signal: ctrl.signal, budget: { k: 2 }, nextFrame: () => { ctrl.abort(); return Promise.resolve(); } });
+    expect((await renderBand(r)).status).toBe('aborted');
+    expect(devices[0].copiesToBuffer).toBe(0);
+    expect(configs(r.canvas).length).toBe(0);
+  });
+
+  it('released while the probe is read back: failed, and nothing destroyed is touched', async () => {
+    let release = false;
+    installNavigatorGpu(() => {
+      const d = new FakeGpuDevice();
+      d.output = () => output();
+      const done = d.queue.onSubmittedWorkDone;
+      d.queue.onSubmittedWorkDone = () => { if (release && d.copiesToBuffer > 0) releaseTiles(); return done(); };
+      devices.push(d);
+      return d;
+    });
+    resetGpuDeviceForTests();
+    releaseTiles();
+    release = true;
+    const r = req(800, 3000, 1);
+    expect((await renderBand(r)).status).toBe('failed');
+    expect(configs(r.canvas).length).toBe(0);
   });
 });

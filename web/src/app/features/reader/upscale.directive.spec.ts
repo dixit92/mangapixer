@@ -3,8 +3,14 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
 import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
+import { releaseUpscaler } from './anime4k-renderer';
+import { probeBytes, setSourceSamplerForTests } from './blank-guard';
 import { FakeGl, createFake2d, createFakeGl } from './fake-webgl.testing';
-import { UpscaleDirective, UpscaleSupportService, hasWebGpu } from './upscale.directive';
+import {
+  FakeGpuDevice, FakeTexture, installNavigatorGpu, removeNavigatorGpu, stubWebGpuGlobals,
+} from './fake-webgpu.testing';
+import { resetGpuDeviceForTests } from './gpu-device';
+import { UpscaleDirective, UpscaleSupportService, hasWebGpu, maxBlankTries } from './upscale.directive';
 
 /**
  * The directive's whole contract in a jsdom world is "do nothing, loudly never".
@@ -546,5 +552,133 @@ describe('UpscaleDirective overlay follows its page in a spread (1.36.0)', () =>
     fixture.destroy();
     expect(remove).toHaveBeenCalledWith('load', expect.any(Function), true);
     expect(() => sibling.dispatchEvent(new Event('load'))).not.toThrow();
+  });
+});
+
+/**
+ * 1.43.0 blank-output guard, paged: drives the real directive -> lazy WebGPU renderer -> real `anime4k-webgpu`
+ * chain against the fake device, whose probe readback answers the colour the test picks.
+ */
+describe('UpscaleDirective blank guard (1.43.0, WebGPU)', () => {
+  let devices: FakeGpuDevice[];
+  let outputs: (readonly [number, number, number, number])[];
+  let sourceLit: boolean;
+  let configures: number;
+
+  beforeEach(() => {
+    stubWebGpuGlobals(vi.stubGlobal);
+    vi.stubGlobal('createImageBitmap', () => Promise.resolve({ close: () => undefined }));
+    Object.defineProperty(window, 'devicePixelRatio', { value: 1, configurable: true });
+    outputs = [];
+    sourceLit = true;
+    configures = 0;
+    setSourceSamplerForTests(() => new Uint8ClampedArray(probeBytes).fill(sourceLit ? 255 : 0));
+    devices = [];
+    installNavigatorGpu(() => {
+      const d = new FakeGpuDevice();
+      d.output = () => outputs.shift() ?? [200, 200, 200, 255];
+      devices.push(d);
+      return d;
+    });
+    const context = {
+      configure: () => { configures++; },
+      getCurrentTexture: () => new FakeTexture('swapchain', [1, 1, 1]),
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as unknown as GPUCanvasContext);
+    resetGpuDeviceForTests();
+    releaseUpscaler();
+  });
+
+  afterEach(() => {
+    expect(devices.flatMap((d) => d.violations)).toEqual([]);
+    setSourceSamplerForTests(null);
+    releaseUpscaler();
+    resetGpuDeviceForTests();
+    removeNavigatorGpu();
+    localStorage.clear();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function create() {
+    TestBed.configureTestingModule({ imports: [HostComponent] });
+    const support = TestBed.inject(UpscaleSupportService);
+    support.support.set('ready');
+    TestBed.inject(ReaderPreferencesService).setUpscaler('enhance');
+    const fixture = TestBed.createComponent(HostComponent);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    const img = host.querySelector('img') as HTMLImageElement;
+    fakeLayout(img, 400, 1200); // 3x
+    return { fixture, host, img, support, canvas: () => host.querySelector('canvas') as HTMLCanvasElement | null };
+  }
+
+  /** Probe readbacks so far (one per render). */
+  const renders = () => devices.reduce((n, d) => n + d.copiesToBuffer, 0);
+
+  it('a blank page is never shown, is counted, and is retried once; a good retry is shown', async () => {
+    const { img, support, canvas } = create();
+    outputs = [[0, 0, 0, 255]];
+    img.dispatchEvent(new Event('load'));
+    await vi.waitFor(() => expect(canvas()?.style.display).toBe('block'));
+    expect(renders()).toBe(2);
+    expect(support.blankFrames()).toBe(1);
+    expect(configures).toBe(1); // only the good render touched the canvas
+  });
+
+  it(`after ${maxBlankTries} blanks the page stays on the plain <img> until the source or size changes`, async () => {
+    const { img, support, canvas } = create();
+    outputs = [[0, 0, 0, 255], [0, 0, 0, 255]];
+    img.dispatchEvent(new Event('load'));
+    await vi.waitFor(() => expect(support.blankFrames()).toBe(maxBlankTries));
+    await new Promise((r) => setTimeout(r, 60));
+    expect(renders()).toBe(maxBlankTries);
+    expect(canvas()?.style.display ?? 'none').toBe('none');
+    expect(configures).toBe(0);
+    // Another trigger for the same page and size: no third try (no error loop).
+    img.dispatchEvent(new Event('load'));
+    await new Promise((r) => setTimeout(r, 60));
+    expect(renders()).toBe(maxBlankTries);
+    // A new size is a new render: it may be shown.
+    Object.defineProperty(img, 'offsetWidth', { value: 1000, configurable: true });
+    Object.defineProperty(img, 'offsetHeight', { value: 2000, configurable: true });
+    img.dispatchEvent(new Event('load'));
+    await vi.waitFor(() => expect(canvas()?.style.display).toBe('block'));
+    expect(renders()).toBe(maxBlankTries + 1);
+    expect(support.statusText(false)).toContain(`${maxBlankTries} blank frames caught`);
+  });
+
+  it('a black page with a black output is shown (no false positive, nothing counted)', async () => {
+    const { img, support, canvas } = create();
+    sourceLit = false;
+    outputs = [[0, 0, 0, 255]];
+    img.dispatchEvent(new Event('load'));
+    await vi.waitFor(() => expect(canvas()?.style.display).toBe('block'));
+    expect(renders()).toBe(1);
+    expect(support.blankFrames()).toBe(0);
+  });
+
+  it('a normal page is shown after one render, as before', async () => {
+    const { img, support, canvas } = create();
+    img.dispatchEvent(new Event('load'));
+    await vi.waitFor(() => expect(canvas()?.style.display).toBe('block'));
+    expect(renders()).toBe(1);
+    expect(support.blankFrames()).toBe(0);
+    expect(support.statusText()).not.toContain('blank');
+  });
+
+  it('a re-render of a SHOWN canvas that comes back blank hides it (the <img> shows), never draws black into it', async () => {
+    const { img, support, canvas } = create();
+    img.dispatchEvent(new Event('load'));
+    await vi.waitFor(() => expect(canvas()?.style.display).toBe('block'));
+    expect(configures).toBe(1);
+    outputs = [[0, 0, 0, 255], [0, 0, 0, 255]];
+    Object.defineProperty(img, 'offsetWidth', { value: 1000, configurable: true });
+    Object.defineProperty(img, 'offsetHeight', { value: 2000, configurable: true });
+    img.dispatchEvent(new Event('load'));
+    await vi.waitFor(() => expect(support.blankFrames()).toBe(2));
+    expect(canvas()!.style.display).toBe('none');
+    expect(configures).toBe(1); // the shown canvas was never re-configured or drawn into
+    expect(canvas()!.width).toBe(1200); // nor resized (resizing clears it)
   });
 });

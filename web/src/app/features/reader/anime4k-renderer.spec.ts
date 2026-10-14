@@ -4,6 +4,7 @@ import { PagedRenderStatus, releaseUpscaler, renderUpscaled } from './anime4k-re
 import {
   FakeCanvasContext, FakeGpuDevice, fakeCanvas, fakeImage, installNavigatorGpu, removeNavigatorGpu, stubWebGpuGlobals,
 } from './fake-webgpu.testing';
+import { SourceRows, probeBytes, setSourceSamplerForTests } from './blank-guard';
 import { resetGpuDeviceForTests } from './gpu-device';
 import type { EnhanceChain } from './webtoon-band-plan';
 
@@ -244,5 +245,93 @@ describe('anime4k-renderer chain choice (M default, VL max quality)', () => {
     const before = devices[0].textures.length;
     await render('m', 3600, 5400); // s = 4.5: no Downscale
     expect(devices[0].textures.length - before).toBe(34);
+  });
+});
+
+/**
+ * Blank-output guard on the paged path (1.43.0): the chain's output is probed BEFORE the canvas is touched - the
+ * canvas may already be on screen (a re-render after a resize or a quality switch), and anything drawn into a
+ * WebGPU canvas is presented.
+ */
+describe('anime4k-renderer blank guard', () => {
+  let devices: FakeGpuDevice[];
+  let output: () => readonly [number, number, number, number];
+  let sourceRows: SourceRows[];
+  let sourceLit: boolean;
+
+  beforeEach(() => {
+    stubWebGpuGlobals(vi.stubGlobal);
+    vi.stubGlobal('createImageBitmap', () => Promise.resolve({ close: () => undefined }));
+    output = () => [0, 0, 0, 255];
+    sourceRows = [];
+    sourceLit = true;
+    setSourceSamplerForTests((_img, rows) => {
+      sourceRows.push(rows);
+      return new Uint8ClampedArray(probeBytes).fill(sourceLit ? 255 : 0);
+    });
+    devices = [];
+    installNavigatorGpu(() => { const d = new FakeGpuDevice(); d.output = () => output(); devices.push(d); return d; });
+    resetGpuDeviceForTests();
+    releaseUpscaler();
+  });
+
+  afterEach(() => {
+    expect(devices.flatMap((d) => d.violations)).toEqual([]);
+    setSourceSamplerForTests(null);
+    releaseUpscaler();
+    resetGpuDeviceForTests();
+    removeNavigatorGpu();
+    vi.unstubAllGlobals();
+  });
+
+  const configs = (canvas: HTMLCanvasElement) => (canvas.getContext('webgpu') as unknown as FakeCanvasContext).configs;
+
+  it('a black output over a lit page is blank: one submission, the canvas keeps its size and is never configured', async () => {
+    const canvas = fakeCanvas();
+    canvas.width = 700; // a canvas already showing the previous render
+    canvas.height = 1050;
+    expect(await renderUpscaled({ source: fakeImage(800, 1200), canvas, targetWidth: 1400, targetHeight: 2100 })).toBe('blank');
+    expect(devices[0].submits).toBe(1);
+    expect(configs(canvas).length).toBe(0);
+    expect([canvas.width, canvas.height]).toEqual([700, 1050]);
+    expect(sourceRows).toEqual([{ y: 0, height: 1200 }]); // the whole page
+  });
+
+  it('a black output over a black page is shown (no false positive)', async () => {
+    sourceLit = false;
+    const canvas = fakeCanvas();
+    expect(await renderUpscaled({ source: fakeImage(800, 1200), canvas, targetWidth: 1400, targetHeight: 2100 })).toBe('ok');
+    expect(configs(canvas).length).toBe(1);
+    expect(canvas.width).toBe(1400);
+  });
+
+  it('a normal output is shown as before, with one 4 KB readback and no source sampling', async () => {
+    output = () => [200, 190, 180, 255];
+    const canvas = fakeCanvas();
+    expect(await renderUpscaled({ source: fakeImage(800, 1200), canvas, targetWidth: 1400, targetHeight: 2100 })).toBe('ok');
+    expect(devices[0].copiesToBuffer).toBe(1);
+    expect(devices[0].bytesReadBack).toBe(4096);
+    expect(sourceRows.length).toBe(0);
+    expect(configs(canvas).length).toBe(1);
+  });
+
+  it('a blank render reuses the cached pipeline on the retry, and a good retry is shown', async () => {
+    let n = 0;
+    output = () => (n++ === 0 ? [0, 0, 0, 255] : [200, 200, 200, 255]);
+    expect(await renderUpscaled({ source: fakeImage(800, 1200), canvas: fakeCanvas(), targetWidth: 1400, targetHeight: 2100 })).toBe('blank');
+    const allocated = devices[0].textures.length;
+    const canvas = fakeCanvas();
+    expect(await renderUpscaled({ source: fakeImage(800, 1200), canvas, targetWidth: 1400, targetHeight: 2100 })).toBe('ok');
+    expect(devices[0].textures.length).toBe(allocated);
+    expect(configs(canvas).length).toBe(1);
+  });
+
+  it('a probe that could not run (validation error) is unknown, never blank', async () => {
+    installNavigatorGpu(() => {
+      const d = new FakeGpuDevice(); d.output = () => output(); d.failNextScope = true; devices.push(d); return d;
+    });
+    resetGpuDeviceForTests();
+    releaseUpscaler();
+    expect(await renderUpscaled({ source: fakeImage(800, 1200), canvas: fakeCanvas(), targetWidth: 1400, targetHeight: 2100 })).toBe('ok');
   });
 });

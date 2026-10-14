@@ -4,7 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import type { BandRenderRequest, BandRenderResult } from './anime4k-tile-renderer';
 import {
   TileRendererApi, WEBTOON_TILE_RENDERER, WebtoonEnhanceCoordinator, bandRootMargin, deviceLossWindowMs,
-  flingSettleMs, hiddenReleaseMs, maxConsecutiveFailures, pageRootMargin, resizeDebounceMs,
+  flingSettleMs, hiddenReleaseMs, maxBlankTries, maxConsecutiveFailures, pageRootMargin, resizeDebounceMs,
 } from './webtoon-enhance-coordinator';
 import { UpscaleSupportService } from './upscale.directive';
 
@@ -482,6 +482,108 @@ describe('WebtoonEnhanceCoordinator', () => {
     bandIO().fire([sentinelsOf(0)[0]], true);
     await flush();
     expect(renderer.renderBand).toHaveBeenCalledTimes(2);
+  });
+
+  /**
+   * 1.43.0 blank-output guard: a band whose output came back near black over a source that is not (`blank`) is
+   * never placed, is counted, is re-queued ONCE, and after a second blank stays plain for this page generation.
+   */
+  describe('blank bands (1.43.0)', () => {
+    const blank = (): BandRenderResult => ({ status: 'blank', gpuMs: 12, slices: 3 });
+    const shown = () => canvases().filter((el) => el.style.display === 'block');
+
+    it('a blank band is not shown, is counted and is retried once; a good retry is shown', async () => {
+      const support = TestBed.inject(UpscaleSupportService);
+      c.setEnabled(true);
+      await showBands(0, [0]);
+      await resolveNext(blank());
+      expect(shown().length).toBe(0); // the plain <img> rows stay
+      expect(support.blankFrames()).toBe(1);
+      expect(renderer.renderBand).toHaveBeenCalledTimes(2); // re-queued once, same band
+      expect(renderer.renderBand.mock.calls[1][0].band).toBe(renderer.renderBand.mock.calls[0][0].band);
+      await resolveNext();
+      expect(shown().length).toBe(1);
+      expect(support.blankFrames()).toBe(1);
+    });
+
+    it(`after ${maxBlankTries} blanks the band stays plain for this generation, even when it comes back into view`, async () => {
+      const support = TestBed.inject(UpscaleSupportService);
+      c.setEnabled(true);
+      await showBands(0, [0]);
+      for (let i = 0; i < maxBlankTries; i++) await resolveNext(blank());
+      expect(renderer.renderBand).toHaveBeenCalledTimes(maxBlankTries);
+      expect(c.queuedCount).toBe(0);
+      expect(shown().length).toBe(0);
+      expect(support.blankFrames()).toBe(maxBlankTries);
+      // Scrolled away and back: no third try.
+      bandIO().fire([sentinelsOf(0)[0]], false);
+      bandIO().fire([sentinelsOf(0)[0]], true);
+      await flush();
+      expect(renderer.renderBand).toHaveBeenCalledTimes(maxBlankTries);
+      // A device loss re-queues visible bands - but not this one.
+      lostListener!();
+      await flush();
+      expect(renderer.renderBand).toHaveBeenCalledTimes(maxBlankTries);
+      // Its neighbours still render normally.
+      bandIO().fire([sentinelsOf(0)[1]], true);
+      await flush();
+      expect(renderer.renderBand).toHaveBeenCalledTimes(maxBlankTries + 1);
+      expect(renderer.renderBand.mock.calls[maxBlankTries][0].band.index).toBe(1);
+    });
+
+    it('the band gets a fresh chance in a new generation (new src)', async () => {
+      c.setEnabled(true);
+      await showBands(0, [0]);
+      for (let i = 0; i < maxBlankTries; i++) await resolveNext(blank());
+      define(imgs[0], { currentSrc: '/p0?full' });
+      c.loaded(imgs[0]);
+      bandIO().fire([sentinelsOf(0)[0]], true);
+      await flush();
+      expect(renderer.renderBand).toHaveBeenCalledTimes(maxBlankTries + 1);
+      await resolveNext();
+      expect(shown().length).toBe(1);
+    });
+
+    it('blank bands are not GPU failures: the strip keeps rendering past the failure limit', async () => {
+      c.setEnabled(true);
+      await showBands(0, [0, 1, 2]);
+      for (let i = 0; i < 2 * 3; i++) await resolveNext(blank());
+      expect(c.isActive).toBe(true);
+      expect(renderer.renderBand).toHaveBeenCalledTimes(6); // 3 bands x 2 tries, then nothing more
+      expect(c.queuedCount).toBe(0);
+    });
+
+    it('a blank result for a band that left the margin meanwhile is still counted, never shown, not re-queued', async () => {
+      const support = TestBed.inject(UpscaleSupportService);
+      c.setEnabled(true);
+      await showBands(0, [0]);
+      bandIO().fire([sentinelsOf(0)[0]], false);
+      await resolveNext(blank());
+      expect(support.blankFrames()).toBe(1);
+      expect(shown().length).toBe(0);
+      expect(renderer.renderBand).toHaveBeenCalledTimes(1);
+    });
+
+    it('the GPU status line shows the count of blank frames caught once it is above 0', async () => {
+      const support = TestBed.inject(UpscaleSupportService);
+      support.support.set('ready');
+      expect(support.statusText(false)).not.toContain('blank');
+      c.setEnabled(true);
+      await showBands(0, [0]);
+      await resolveNext(blank());
+      expect(support.statusText(false)).toBe('GPU: WebGPU ready, no WebGL2 - 1 blank frame caught');
+      await resolveNext(blank());
+      expect(support.statusText(false)).toBe('GPU: WebGPU ready, no WebGL2 - 2 blank frames caught');
+    });
+
+    it('an ok band leaves the counter at 0 and the status line unchanged', async () => {
+      const support = TestBed.inject(UpscaleSupportService);
+      c.setEnabled(true);
+      await showBands(0, [0]);
+      await resolveNext();
+      expect(support.blankFrames()).toBe(0);
+      expect(support.statusText()).not.toContain('blank');
+    });
   });
 
   /** 1.25.0: the strip renders whichever backend the Upscaling choice resolved to. */

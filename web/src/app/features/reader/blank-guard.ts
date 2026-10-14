@@ -42,7 +42,7 @@ export interface SourceRows {
 }
 
 /** Samples `source` at the probe grid: `probeColumns * probeRows` RGBA pixels, or null when it cannot. */
-export type SourceSampler = (source: HTMLImageElement, rows: SourceRows) => Uint8ClampedArray | null;
+export type SourceSampler = (source: HTMLImageElement, rows: SourceRows) => ArrayLike<number> | null;
 
 /** Top source row of probe row `i` (the centre of its band of rows, matching the GPU probe's sample point). */
 export function probeRow(i: number, rows: SourceRows): number {
