@@ -67,6 +67,29 @@ describe('AdminTrackersCardComponent', () => {
     expect(q(el, 'admin-tracker-allow-mal').querySelector('button')!.disabled).toBe(true);
   });
 
+  it('links the MyAnimeList app registration page (new tab, no referrer) in the consent text and the app form', () => {
+    const register = 'https://myanimelist.net/apiconfig/create';
+    const links = (root: HTMLElement) => [...root.querySelectorAll(`a[href="${register}"]`)] as HTMLAnchorElement[];
+
+    // Off: the consent text names the page.
+    let { el } = create();
+    const inConsent = links(q(el, 'tracker-consent-admin-mal'));
+    expect(inConsent.length).toBe(1);
+    TestBed.inject(HttpTestingController).verify();
+    TestBed.resetTestingModule();
+
+    // Allowed, app not set up: the registration form names it too.
+    ({ el } = create([adminTracker({ enabled: true, acceptedConsentVersion: 1, consentAt: '2026-10-14T00:00:00Z' }), MU()]));
+    const inForm = links(q(el, 'admin-tracker-registration-mal'));
+    expect(inForm.length).toBe(1);
+    for (const link of [...inConsent, ...inForm]) {
+      expect(link.target).toBe('_blank');
+      expect(link.rel).toContain('noopener');
+      expect(link.rel).toContain('noreferrer');
+      expect(link.textContent!.trim()).toBe('myanimelist.net/apiconfig/create');
+    }
+  });
+
   it('allows a tracker with the consent version this page shows, then folds the text away', () => {
     const { fixture, http, el } = create();
     const panel = fixture.debugElement.queryAll((d) => d.componentInstance instanceof AdminTrackerPanelComponent)[0]

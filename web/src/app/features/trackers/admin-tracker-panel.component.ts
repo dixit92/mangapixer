@@ -61,7 +61,7 @@ import { TRACKER_ADMIN_CONSENT_VERSION, failureText, proposedRedirectUri } from 
         <form class="registration" (ngSubmit)="saveRegistration()" [attr.data-testid]="'admin-tracker-registration-' + s.slug">
           <h5>This server's {{ s.name }} app</h5>
           <p class="hint">
-            Register an app for this server at myanimelist.net/apiconfig/create (choose non-commercial), then enter what it shows.
+            Register an app for this server at <a href="https://myanimelist.net/apiconfig/create" target="_blank" rel="noopener noreferrer">myanimelist.net/apiconfig/create</a> (choose non-commercial), then enter what it shows.
             Users cannot connect until the Client ID and the redirect URL are saved.
           </p>
           <label class="field">

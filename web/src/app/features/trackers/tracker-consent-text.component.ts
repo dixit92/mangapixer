@@ -28,7 +28,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
             user's entry for the series to compare. Never titles, file or folder names, paths, other users, or anything that
             identifies this server. Requests go to api.myanimelist.net and, when connecting, myanimelist.net; they name MangaPixer
             and its version.</p>
-          <p><strong>Register this server with MyAnimeList</strong> (myanimelist.net/apiconfig/create): MangaPixer does not ship a
+          <p><strong>Register this server with MyAnimeList</strong> (<a href="https://myanimelist.net/apiconfig/create" target="_blank" rel="noopener noreferrer">myanimelist.net/apiconfig/create</a>): MangaPixer does not ship a
             shared key. Enter the Client ID you get, and register the redirect URL shown below exactly.</p>
           <p>Turning this off stops all syncing to MyAnimeList at once; users keep their connection and syncing resumes when you turn
             it back on.</p>
