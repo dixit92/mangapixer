@@ -519,5 +519,28 @@ public static class LogEvents
 
         // Reserved, 1.43.0: 10010-10399 engine + API (lane E); 10400-10599 MyAnimeList adapter, 10600-10799 MangaUpdates adapter
         // (lane A); 10800-10999 free.
+
+        // Engine + API (lane E, 1.43.0; 10010-10399). Information carries the internal user id, the tracker slug, outcome codes,
+        // counts, HTTP status and timings only - never a tracker or series id (with a user id they are that user's reading history),
+        // a title, a token, a password or a URL. Debug may add the MangaPixer record id.
+        public const int SettingsChanged = 10010;
+        public const int AccountConnected = 10011;
+        public const int AccountDisconnected = 10012;
+        public const int AccountNeedsReconnect = 10013;
+        public const int TokenRefreshed = 10014;
+        public const int ConnectRefused = 10015;
+        public const int ConnectFailed = 10016;
+        public const int RevokeFailed = 10017;
+        public const int UserRowsDeleted = 10018;
+        public const int SyncOutcome = 10020;
+        public const int SyncFailed = 10021;
+        public const int SyncRateLimited = 10022;
+        public const int DailyCapReached = 10023;
+        public const int RelayBatch = 10024;
+        public const int RelayFailed = 10025;
+        public const int RelayQueueFull = 10026;
+        public const int PreviewRead = 10027;
+        public const int SendAll = 10028;
+        public const int SyncDebug = 10029;
     }
 }

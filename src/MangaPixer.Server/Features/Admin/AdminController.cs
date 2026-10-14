@@ -564,7 +564,8 @@ public sealed class AdminController : ControllerBase
     /// data, other users' rows, audit history).
     /// </summary>
     [HttpDelete("users/{id}")]
-    public async Task<IActionResult> DeleteUser(string id, CancellationToken ct)
+    public async Task<IActionResult> DeleteUser(string id,
+        [FromServices] com.lifepixer.mangapixer.Server.Features.Trackers.TrackerAdminService trackers, CancellationToken ct)
     {
         var user = await _db.Users.FirstOrDefaultAsync(u => u.PublicId == id, ct);
         if (user is null) return NotFound();
@@ -584,10 +585,13 @@ public sealed class AdminController : ControllerBase
         await _db.ItemReaderOverrides.Where(r => r.UserId == user.Id).ExecuteDeleteAsync(ct);
         await _db.Bookmarks.Where(b => b.UserId == user.Id).ExecuteDeleteAsync(ct);
         await _db.ApiTokens.Where(t => t.UserId == user.Id).ExecuteDeleteAsync(ct);
+        // 1.43.0: tracker accounts, entries, retries, sync switches and sign-ins; the stored sign-ins are revoked after the commit.
+        var trackerSignIns = await trackers.DeleteUserRowsAsync(user.Id, ct);
 
         _db.Users.Remove(user);
         await _db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
+        await trackers.RevokeAfterDeleteAsync(user.Id, trackerSignIns, ct);
 
         _logger.LogInformation(LogEvents.Administration.UserDeleted, "Admin deleted user {PublicId}", user.PublicId);
 

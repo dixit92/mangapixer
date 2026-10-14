@@ -102,6 +102,15 @@ public sealed class MangaPixerDbContext : DbContext
     public DbSet<ApiTokenEntity> ApiTokens => Set<ApiTokenEntity>();
     public DbSet<MetadataAuthorEntity> MetadataAuthors => Set<MetadataAuthorEntity>();
 
+    // 1.43.0 tracker sync (lane E, migration AddTrackerSync; configured in TrackerModel).
+    public DbSet<TrackerSettingsEntity> TrackerSettings => Set<TrackerSettingsEntity>();
+    public DbSet<TrackerAccountEntity> TrackerAccounts => Set<TrackerAccountEntity>();
+    public DbSet<TrackerEntryEntity> TrackerEntries => Set<TrackerEntryEntity>();
+    public DbSet<TrackerRetryEntity> TrackerRetries => Set<TrackerRetryEntity>();
+    public DbSet<TrackerNodeOverrideEntity> TrackerNodeOverrides => Set<TrackerNodeOverrideEntity>();
+    public DbSet<TrackerIdOverrideEntity> TrackerIdOverrides => Set<TrackerIdOverrideEntity>();
+    public DbSet<TrackerOAuthStateEntity> TrackerOAuthStates => Set<TrackerOAuthStateEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

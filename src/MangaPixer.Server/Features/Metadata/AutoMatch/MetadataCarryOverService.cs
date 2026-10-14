@@ -91,6 +91,7 @@ public sealed class MetadataCarryOverService
         var extra = _db.CatalogNodes
             .Where(n => n.Kind == folder && n.Availability == tombstoned && libraryIds.Contains(n.LibraryId))
             .Where(n => _db.Favorites.Any(f => f.CatalogNodeId == n.Id)
+                || _db.TrackerNodeOverrides.Any(o => o.NodeId == n.Id)
                 || _db.FolderViewSettings.Any(v => v.NodeId == n.Id)
                 || _db.NodeCoverChoices.Any(c => c.NodeId == n.Id))
             .Select(n => n.Id);
@@ -201,10 +202,11 @@ public sealed class MetadataCarryOverService
     }
 
     public sealed record MovedRows(bool Link, bool Precedence, bool ReaderDefault, bool Content, bool Declared = false,
-        bool Favorites = false, bool ViewSettings = false, bool CoverChoice = false, bool LinkConflict = false, bool CoverPreference = false)
+        bool Favorites = false, bool ViewSettings = false, bool CoverChoice = false, bool LinkConflict = false, bool CoverPreference = false,
+        bool TrackerSwitches = false)
     {
         public bool Any => Link || Precedence || ReaderDefault || Content || Declared || Favorites || ViewSettings || CoverChoice || LinkConflict
-            || CoverPreference;
+            || CoverPreference || TrackerSwitches;
     }
 
     /// <summary>
@@ -300,11 +302,14 @@ public sealed class MetadataCarryOverService
         var starredNew = _db.Favorites.Where(f => f.CatalogNodeId == toNodeId).Select(f => f.UserId);
         var favorites = await _db.Favorites.Where(f => f.CatalogNodeId == fromNodeId && !starredNew.Contains(f.UserId))
             .ExecuteUpdateAsync(u => u.SetProperty(f => f.CatalogNodeId, toNodeId), ct) > 0;
+        // 1.43.0: each user's tracker sync switch follows the same way.
+        var trackerSwitches = await Trackers.TrackerNodeOverrideMoves.MoveAsync(_db, fromNodeId, toNodeId, ct) > 0;
         await tx.CommitAsync(ct);
 
         if (droppedRecord is { } recordId)
             await RemoveOrphanRecordsAsync([recordId], ct);
-        return new MovedRows(link, precedence, readerDefault, content, declared, favorites, viewSettings, coverChoice, linkConflict, coverPreference);
+        return new MovedRows(link, precedence, readerDefault, content, declared, favorites, viewSettings, coverChoice, linkConflict, coverPreference,
+            trackerSwitches);
     }
 
     /// <summary>
