@@ -53,6 +53,12 @@ public sealed record MangaDexManga
     /// <summary>The <c>links.al</c> value (an AniList id) when it is a positive integer, else null.</summary>
     public string? AniListId { get; init; }
 
+    /// <summary>
+    /// 1.43.0: the <c>links.mal</c> value (a MyAnimeList manga id) when it is a positive integer, else null - read from the same answer, no
+    /// extra request; stored as the record's tracker cross id (<see cref="Core.Trackers.TrackerCrossIdKeys.MyAnimeList"/>). Not an official source.
+    /// </summary>
+    public string? MyAnimeListId { get; init; }
+
     /// <summary><c>originalLanguage</c> (a MangaDex locale code), validated.</summary>
     public string? OriginalLanguage { get; init; }
 
@@ -366,6 +372,12 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
 
     // --- JSON readers (internal for the recorded-response tests) ---
 
+    /// <summary>A <c>links</c> id that must be a positive decimal integer (no sign, no spaces inside), normalised; else null.</summary>
+    internal static string? PositiveId(string? value) =>
+        value is { } text && int.TryParse(text.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var id) && id > 0
+            ? id.ToString(CultureInfo.InvariantCulture)
+            : null;
+
     internal static MangaDexManga? ReadManga(JsonElement item)
     {
         if (item.ValueKind != JsonValueKind.Object || Str(item, "id") is not { } id || !IsValidId(id)
@@ -382,7 +394,7 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
         if (bounded.Count == 0)
             return null;
 
-        string? mu = null, al = null;
+        string? mu = null, al = null, mal = null;
         var official = new List<MangaDexOfficialLink>();
         if (attributes.TryGetProperty("links", out var links) && links.ValueKind == JsonValueKind.Object)
         {
@@ -390,6 +402,7 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
             al = Str(links, "al") is { } a && int.TryParse(a.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var alId) && alId > 0
                 ? alId.ToString(CultureInfo.InvariantCulture)
                 : null;
+            mal = PositiveId(Str(links, "mal"));
             foreach (var key in OfficialLinkKeys)
             {
                 if (OfficialLinkUrl(key, Str(links, key)) is { } url)
@@ -461,6 +474,7 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
             AltTitles = bounded.Skip(1).Take(40).ToList(),
             MangaUpdatesLink = mu,
             AniListId = al,
+            MyAnimeListId = mal,
             OriginalLanguage = IsValidLocale(language) ? language : null,
             LastVolume = MetadataText.Line(Str(attributes, "lastVolume"), 16),
             LastChapter = MetadataText.Line(Str(attributes, "lastChapter"), 16),

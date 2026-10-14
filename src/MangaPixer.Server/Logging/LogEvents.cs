@@ -542,5 +542,9 @@ public static class LogEvents
         public const int PreviewRead = 10027;
         public const int SendAll = 10028;
         public const int SyncDebug = 10029;
+
+        // Lane A (1.43.0): one line per tracker request - tracker, operation, status, elapsed ms; never an id, a URL or a token.
+        public const int MyAnimeListCall = 10401;
+        public const int MangaUpdatesCall = 10601;
     }
 }

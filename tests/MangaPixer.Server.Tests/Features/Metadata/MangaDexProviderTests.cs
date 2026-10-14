@@ -132,6 +132,8 @@ public sealed class MangaDexProviderTests
         Assert.Equal("Berserk", berserk.Title);
         Assert.Equal("njeqwry", berserk.MangaUpdatesLink);
         Assert.Equal("30002", berserk.AniListId);
+        Assert.Equal("2", berserk.MyAnimeListId); // 1.43.0: links.mal, from the same recorded answer
+        Assert.DoesNotContain(berserk.OfficialLinks, l => l.Key == "mal");
         Assert.Equal("ja", berserk.OriginalLanguage);
         Assert.NotNull(berserk.MainCoverFile);
         Assert.True(MangaDexProvider.IsValidFileName(berserk.MainCoverFile));
