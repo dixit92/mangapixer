@@ -21,7 +21,7 @@ Turning a tracker **off** stops all syncing to it at once. Users keep their conn
 
 ## MyAnimeList: register this server
 
-MyAnimeList lets an app connect to a user's account only when the app is registered with MyAnimeList. MangaPixer does not ship a shared registration: each server registers its own, once. On a personal server you are both the admin and the user.
+MyAnimeList lets an app connect to a user's account only when the app is registered with MyAnimeList. MangaPixer does not ship a shared registration: each server registers its own, once. On a personal server you are both the admin and the user. A second MangaPixer server - for example a test instance next to your main one - needs its own app too: MyAnimeList sends users back only to the exact redirect URL registered for an app, and each server has its own address.
 
 **For personal servers only.** MyAnimeList's API terms are for personal, non-commercial use. Allow MyAnimeList only on a personal, self-hosted server or a personal desktop install - not on a server you run for the public or for a business.
 
