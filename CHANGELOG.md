@@ -18,6 +18,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **"Official Volume Available"** replaces "Available in English" on the stack of a volume that is out officially in your preferred language while you have it as chapter files - the old wording read as if your copy were not in that language. The tooltip names the language ("Out as an official English volume - you have it as chapters"), and the status line, the Missing report and Official releases say "Volume 15 out as an official English volume".
 
+### Fixed
+
+- **Enhance no longer shows a black block over a page.** On some devices (seen on iPad over HTTPS, where Enhance runs on WebGPU) the graphics chip now and then returned a black picture for a page or for part of a vertical-mode page, which covered the page until you reloaded. MangaPixer now checks each enhanced picture before it shows it: when it comes back black while the page is not, the page stays as it is, Enhance tries once more, and after a second black result that page (or that part of it) is shown without Enhance. The Upscaling status line counts how many such pictures were caught since the reader was opened (for example "GPU: WebGPU ready, WebGL2 ready - 2 blank frames caught"); nothing is stored or sent. A genuinely black page is still enhanced as before.
+
 ## [1.42.0] - 2026-10-12
 
 ### Added

@@ -154,6 +154,8 @@ In vertical mode Enhance always uses Efficient (your Enhance quality choice is k
 
 If the graphics chip resets twice within a minute (for example after the app spends time in the background), vertical-mode Enhance or Crisp pauses until the page is reloaded and the Upscaling status line reads "Enhance paused (GPU reset)" (or "Crisp paused"); the pages still show normally.
 
+Before an enhanced picture replaces the page, MangaPixer checks a few of its pixels against the page. If the graphics chip returns a black picture for a page that is not black (seen now and then with Enhance on WebGPU, for example on an iPad over HTTPS), the plain page stays on screen, Enhance tries that page or part of the page once more, and after a second black result it leaves it plain until the page changes. The Upscaling status line then adds how many such pictures it caught since the reader was opened, for example "GPU: WebGPU ready, WebGL2 ready - 2 blank frames caught". The count is kept only in this browser tab and is never sent. A page that really is black is enhanced as usual.
+
 Enhance is built on [Anime4K](https://github.com/bloc97/Anime4K) by bloc97: on WebGPU through the [anime4k-webgpu](https://github.com/Anime4KWebBoost/Anime4K-WebGPU) port, on WebGL2 from Anime4K's own shaders. Crisp is a port of AMD's [FidelityFX Super Resolution 1](https://github.com/GPUOpen-Effects/FidelityFX-FSR). See [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md).
 
 ## Reading direction
