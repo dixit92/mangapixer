@@ -24,7 +24,7 @@ const VOLUMES_LIBRARY = 'Volume Stacks';
 const SIZES = [{ width: 390, height: 844 }, { width: 820, height: 1180 }];
 const SHOTS = process.env['E2E_SCREENSHOT_DIR'];
 
-interface AdminTracker { slug: string; enabled: boolean; currentConsentVersion: number; clientId: string | null; clientSecretSet: boolean; redirectUri: string | null }
+interface AdminTracker { slug: string; enabled: boolean; acceptedConsentVersion: number | null; currentConsentVersion: number; clientId: string | null; clientSecretSet: boolean; redirectUri: string | null }
 
 async function login(page: Page): Promise<void> {
   await page.goto('/login');
@@ -85,13 +85,15 @@ test.describe('tracker sync web (1.43.0)', () => {
       await page.goto('/admin');
       const panel = page.getByTestId('admin-tracker-mal');
       await panel.scrollIntoViewIfNeeded();
-      await expect(panel.getByTestId('tracker-consent-admin-mal')).toContainText('For personal servers only');
       await expect(panel.getByTestId('admin-tracker-state-mal')).toHaveText('Off');
-
-      // The switch waits for the tick.
       const toggle = panel.getByTestId('admin-tracker-allow-mal').locator('button');
-      await expect(toggle).toBeDisabled();
-      await panel.getByTestId('admin-tracker-consent-mal').locator('input').check();
+      if (server.acceptedConsentVersion !== server.currentConsentVersion) {
+        // A fresh server: the text shows and the switch waits for the tick. (A CI retry finds the consent of the first attempt:
+        // turning the tracker off keeps it, so the text is folded behind "What is sent?".)
+        await expect(panel.getByTestId('tracker-consent-admin-mal')).toContainText('For personal servers only');
+        await expect(toggle).toBeDisabled();
+        await panel.getByTestId('admin-tracker-consent-mal').locator('input').check();
+      }
       const allowed = page.waitForResponse((r) => r.request().method() === 'PUT' && r.url().endsWith('/api/v1/admin/trackers/mal'));
       await toggle.click();
       const allowedRes = await allowed;
@@ -124,7 +126,8 @@ test.describe('tracker sync web (1.43.0)', () => {
       await expect(panel.getByTestId('admin-tracker-client-secret-mal')).toHaveValue('');
       await expect(page.locator('body')).not.toContainText('E2E-CLIENT-SECRET');
       // The new controls are what a click reaches.
-      for (const id of ['admin-tracker-allow-mal', 'admin-tracker-save-mal', 'admin-tracker-copy-redirect-mal', 'admin-trackers-help']) {
+      // (Save is off now - nothing to save - and a disabled Material button takes no pointer events.)
+      for (const id of ['admin-tracker-allow-mal', 'admin-tracker-client-id-mal', 'admin-tracker-copy-redirect-mal', 'admin-trackers-help']) {
         await page.getByTestId(id).scrollIntoViewIfNeeded();
         const box = (await page.getByTestId(id).boundingBox())!;
         const hit = await page.evaluate(([x, y, testId]) => {
@@ -155,13 +158,22 @@ test.describe('tracker sync web (1.43.0)', () => {
       await panel.getByTestId('tracker-consent-mal').locator('input').check();
       const { currentConsentVersion } = (await (await page.request.get('/api/v1/trackers')).json()).trackers
         .find((t: { slug: string }) => t.slug === 'mal');
-      const started = page.waitForResponse((r) => r.url().endsWith('/api/v1/trackers/mal/connect/start'));
-      const left = page.waitForRequest((r) => r.url().startsWith('https://myanimelist.net/'));
+      // The answer is read as it passes (the page leaves for the sign-in address right after, which drops the response body).
+      let startStatus = 0;
+      let startBody = '';
+      let startRequest: unknown = null;
+      await page.route(/\/api\/v1\/trackers\/mal\/connect\/start$/, async (route) => {
+        startRequest = route.request().postDataJSON();
+        const r = await route.fetch();
+        startStatus = r.status();
+        startBody = await r.text();
+        await route.fulfill({ response: r, body: startBody });
+      });
       await connect.click();
-      const res = await started;
-      expect(res.request().postDataJSON()).toEqual({ acceptedConsentVersion: currentConsentVersion });
-      expect(res.status(), await res.text()).toBe(200);
-      const { authorizeUrl } = await res.json();
+      await page.waitForURL(/^https:\/\/myanimelist\.net\//);
+      expect(startRequest).toEqual({ acceptedConsentVersion: currentConsentVersion });
+      expect(startStatus, startBody).toBe(200);
+      const { authorizeUrl } = JSON.parse(startBody);
       const url = new URL(authorizeUrl);
       expect(`${url.origin}${url.pathname}`).toBe('https://myanimelist.net/v1/oauth2/authorize');
       expect(url.searchParams.get('response_type')).toBe('code');
@@ -170,8 +182,8 @@ test.describe('tracker sync web (1.43.0)', () => {
       expect(url.searchParams.get('code_challenge_method')).toBe('plain');
       expect(url.searchParams.get('state')?.length).toBeGreaterThan(20);
       // The browser went to exactly that address - answered by the test's stub, so nothing reached MyAnimeList.
-      expect((await left).url()).toBe(authorizeUrl);
-      expect(outside.filter((u) => !u.endsWith('/favicon.ico'))).toEqual([authorizeUrl]);
+      expect(page.url()).toBe(authorizeUrl);
+      await expect.poll(() => outside.filter((u) => !u.endsWith('/favicon.ico'))).toEqual([authorizeUrl]);
     } finally {
       await page.goto('/settings');
       await reset(page, 'mal');
