@@ -137,14 +137,14 @@ public sealed class MangaUpdatesTrackerClientTests : IDisposable
         Assert.Equal(HttpMethod.Post, add.Method);
         Assert.Equal("https://api.mangaupdates.com/v1/lists/series", add.Uri.ToString());
         Assert.Equal("Bearer " + TrackerAdapterHarness.Access, add.Headers["Authorization"]);
-        Assert.Equal($$"""[{"series":{"id":{{SeriesId}}},"list_id":0,"status":{"volume":2,"chapter":12}}]""", add.Body);
+        Assert.Equal("""[{"series":{"id":51239621230},"list_id":0,"status":{"volume":2,"chapter":12}}]""", add.Body);
     }
 
     [Fact]
     public async Task Write_UpdatesAnEntry_KeepingTheUsersOwnListOfTheSameType()
     {
         _h.Answer(r => r.Method == HttpMethod.Get
-            ? TrackerAdapterHarness.Json($$"""{"series":{"id":{{SeriesId}}},"list_id":101,"list_type":"read","status":{"volume":1,"chapter":5}}""")
+            ? TrackerAdapterHarness.Json("""{"series":{"id":51239621230},"list_id":101,"list_type":"read","status":{"volume":1,"chapter":5}}""")
             : TrackerAdapterHarness.Json("""{"status":"success","reason":"Updated"}"""));
 
         await _h.MangaUpdates.WriteEntryAsync(TrackerAdapterHarness.Tokens, SeriesId.ToString(),
@@ -154,8 +154,8 @@ public sealed class MangaUpdatesTrackerClientTests : IDisposable
 
         var writes = _h.Handler.Seen.Where(s => s.Method == HttpMethod.Post).ToList();
         Assert.All(writes, w => Assert.Equal("https://api.mangaupdates.com/v1/lists/series/update", w.Uri.ToString()));
-        Assert.Equal($$"""[{"series":{"id":{{SeriesId}}},"list_id":101,"status":{"chapter":9}}]""", writes[0].Body);
-        Assert.Equal($$"""[{"series":{"id":{{SeriesId}}},"list_id":2,"status":{"volume":4,"chapter":40}}]""", writes[1].Body);
+        Assert.Equal("""[{"series":{"id":51239621230},"list_id":101,"status":{"chapter":9}}]""", writes[0].Body);
+        Assert.Equal("""[{"series":{"id":51239621230},"list_id":2,"status":{"volume":4,"chapter":40}}]""", writes[1].Body);
     }
 
     [Fact]
