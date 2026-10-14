@@ -12,6 +12,7 @@ using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using com.lifepixer.mangapixer.Tests.Server.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Xunit;
 
 /// <summary>One synthetic linked series: a library, its series folder, chapter archives and the linked MangaUpdates record.</summary>
@@ -33,6 +34,8 @@ internal sealed class TrackerTestHarness : IAsyncDisposable
     {
         Factory = new ApiTokenTestFactory(configuration, configureServices: services =>
         {
+            // The real adapters (AddTrackerAdapters) must never answer a test: drop them, then add the fakes (1.43.0 merge of lanes E + A).
+            services.RemoveAll<ITrackerClient>();
             services.AddSingleton<ITrackerClient>(Mal);
             services.AddSingleton<ITrackerClient>(MangaUpdates);
             configureServices?.Invoke(services);
