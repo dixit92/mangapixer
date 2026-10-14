@@ -258,6 +258,8 @@ public sealed class MovePairingService
             var starredNew = _db.Favorites.Where(f => f.CatalogNodeId == neu.Id).Select(f => f.UserId);
             await _db.Favorites.Where(f => f.CatalogNodeId == old.Id && !starredNew.Contains(f.UserId))
                 .ExecuteUpdateAsync(u => u.SetProperty(f => f.CatalogNodeId, neu.Id), ct);
+            // 1.43.0: each user's tracker sync switch on the archive follows the same way.
+            await Trackers.TrackerNodeOverrideMoves.MoveAsync(_db, old.Id, neu.Id, ct);
 
             // Admin rows of the archive itself: its series link (an archive that is its own work), declared facts, cover choice,
             // spread pairing. The new copy's own row wins; the link follows the link rules.
