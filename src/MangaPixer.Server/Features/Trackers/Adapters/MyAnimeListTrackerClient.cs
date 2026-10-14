@@ -58,8 +58,9 @@ public sealed class MyAnimeListTrackerClient : ITrackerClient
             new("client_id", app.ClientId.Trim()),
             new("state", state),
         };
-        if (app.RedirectUri is { } redirect)
-            query.Add(new("redirect_uri", RedirectOf(redirect)));
+        // No redirect_uri (1.43.0 owner test): MyAnimeList answers the authorize request with a 401 Basic challenge (a browser
+        // sign-in dialog) whenever it is sent, even the exact registered URL. Without it MAL uses the app's registered redirect -
+        // the admin registers this server's callback there (Administration > Trackers shows it), as Mihon and others rely on.
         query.Add(new("code_challenge", codeChallenge));
         query.Add(new("code_challenge_method", "plain"));
         return new Uri(AuthorizeUrl + "?" + string.Join('&', query.Select(p => p.Key + "=" + Uri.EscapeDataString(p.Value))));
@@ -73,8 +74,7 @@ public sealed class MyAnimeListTrackerClient : ITrackerClient
         form.Add(new("grant_type", "authorization_code"));
         form.Add(new("code", request.Code));
         form.Add(new("code_verifier", request.CodeVerifier!));
-        if (app.RedirectUri is { } redirect)
-            form.Add(new("redirect_uri", RedirectOf(redirect)));
+        // No redirect_uri here either: MAL requires it in the token request only when the authorize request carried one.
         return await TokenAsync(form, "connect", refresh: null, ct);
     }
 
@@ -235,11 +235,6 @@ public sealed class MyAnimeListTrackerClient : ITrackerClient
             form.Add(new("client_secret", app.ClientSecret));
         return form;
     }
-
-    private static string RedirectOf(Uri redirect) =>
-        redirect is { IsAbsoluteUri: true } && (redirect.Scheme == Uri.UriSchemeHttps || redirect.Scheme == Uri.UriSchemeHttp)
-            ? redirect.OriginalString
-            : throw new TrackerException(TrackerFailure.Rejected);
 
     private static string MediaIdOf(string mediaId) =>
         int.TryParse(mediaId, NumberStyles.None, CultureInfo.InvariantCulture, out var id) && id > 0
