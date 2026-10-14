@@ -35,6 +35,7 @@ import { VolumeSeriesStatusComponent } from './volume-series-status.component';
 import { MissingChapterCardComponent } from '../../shared/volume-stack/missing-chapter-card.component';
 import { VolumeStackStarComponent } from '../../shared/volume-stack/volume-stack-star.component';
 import { FolderViewActionComponent } from './folder-view-action.component';
+import { TrackerSyncActionComponent } from '../trackers/tracker-sync-action.component';
 import { FolderCoverPreferenceActionComponent } from './folder-cover-preference-action.component';
 import { NodeRowComponent, directionShort as directionChip } from '../../shared/node-row/node-row.component';
 import { SelectionBarComponent } from '../../shared/selection/selection-bar.component';
@@ -108,6 +109,7 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     MissingChapterCardComponent,
     VolumeStackStarComponent,
     FolderViewActionComponent,
+    TrackerSyncActionComponent,
     FolderCoverPreferenceActionComponent,
     NodeRowComponent,
     SelectionBarComponent,
@@ -350,6 +352,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
             <app-folder-view-action [nodes]="nodes()" [selected]="selectedNodeIds()" [disabled]="busy()" (saved)="onFolderViewSaved()" />
             <app-folder-cover-preference-action [nodes]="nodes()" [selected]="selectedNodeIds()" [disabled]="busy()" (saved)="onFolderViewSaved()" />
           }
+          <!-- 1.43.0: "Sync to trackers" On / Off / As default, for a user with a connected tracker (it hides itself otherwise). -->
+          <app-tracker-sync-action [nodes]="nodes()" [selected]="selectedNodeIds()" [disabled]="busy()" />
         </app-selection-bar>
       }
     </div>

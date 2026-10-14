@@ -46,6 +46,7 @@ import { ReadingModeSuggestionsLinkComponent } from './reading-modes/reading-mod
 import { ScheduledJobsComponent } from './scheduled-jobs/scheduled-jobs.component';
 import { TrashCardComponent } from './trash-card/trash-card.component';
 import { ApiTokensCardComponent } from './api-tokens/api-tokens-card.component';
+import { AdminTrackersCardComponent } from '../trackers/admin-trackers-card.component';
 
 /**
  * Admin component. Shows library and user administration.
@@ -86,6 +87,7 @@ import { ApiTokensCardComponent } from './api-tokens/api-tokens-card.component';
     LibraryDeclaredFactsComponent,
     ConsentRenewalBannerComponent,
     ApiTokensCardComponent,
+    AdminTrackersCardComponent,
   ],
   template: `
     <div class="page" data-testid="admin-page">
@@ -460,6 +462,7 @@ import { ApiTokensCardComponent } from './api-tokens/api-tokens-card.component';
       </mat-card-content>
     </mat-card>
     <app-api-tokens-card />
+    <app-admin-trackers-card />
 
 
     </div>
