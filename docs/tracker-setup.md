@@ -21,7 +21,7 @@ Turning a tracker **off** stops all syncing to it at once. Users keep their conn
 
 ## MyAnimeList: register this server
 
-MyAnimeList lets an app connect to a user's account only when the app is registered with MyAnimeList. MangaPixer does not ship a shared registration: each server registers its own, once. On a personal server you are both the admin and the user. A second MangaPixer server - for example a test instance next to your main one - needs its own app too: MyAnimeList sends users back only to the exact redirect URL registered for an app, and each server has its own address.
+MyAnimeList lets an app connect to a user's account only when the app is registered with MyAnimeList. MangaPixer does not ship a shared registration: each server registers its own, once. On a personal server you are both the admin and the user. A second MangaPixer server - for example a test instance next to your main one - has its own address, so its redirect URL must be registered too: add it to the same app (MyAnimeList takes several redirect URLs, one per line) or register a separate app for it.
 
 **For personal servers only.** MyAnimeList's API terms are for personal, non-commercial use. Allow MyAnimeList only on a personal, self-hosted server or a personal desktop install - not on a server you run for the public or for a business.
 
@@ -41,9 +41,9 @@ It must be the address **your users open MangaPixer at**, exactly - the same `ht
 2. Fill in the form. The fields may differ slightly; at the time of writing they are:
     - **App Name** - for example *MangaPixer (my server)*;
     - **App Type** - **web** (MyAnimeList then also gives a client secret) or **other**. Both work with MangaPixer;
-    - **App Description** - for example *Syncs my reading progress from my own MangaPixer server*;
-    - **App Redirect URL** - paste the redirect URL from step 1, **exactly**;
-    - **Homepage URL** - for example `https://github.com/dixit92/mangapixer`;
+    - **App Description** - at least 50 characters, without special characters, for example *Syncs my reading progress from my own MangaPixer server*;
+    - **App Redirect URL** - paste the redirect URL from step 1, **exactly** (several are allowed, one per line);
+    - **Homepage URL** - a full address, for example `https://github.com/dixit92/mangapixer`;
     - **Commercial / Non-Commercial** - choose **non-commercial**;
     - **Name / Company Name** - your name;
     - **Purpose of Use** - for example *hobbyist*.
