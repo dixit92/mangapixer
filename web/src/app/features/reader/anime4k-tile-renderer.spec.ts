@@ -59,12 +59,12 @@ describe('anime4k-tile-renderer', () => {
     vi.unstubAllGlobals();
   });
 
-  it('M tile: input + Clamp 3 + CNNM 9 + CNNx2M 10 textures and one crop uniform', async () => {
+  it('M tile: input + Clamp 3 + CNNM 9 + CNNx2M 10 + blank probe textures, one crop uniform and one probe readback', async () => {
     const r = await renderBand(req(800, 3000, 1));
     expect(r.status).toBe('ok');
     const [d] = devices;
-    expect(d.textures.length).toBe(23);
-    expect(d.buffers.length).toBe(1);
+    expect(d.textures.length).toBe(24);
+    expect(d.buffers.length).toBe(2);
     // The 2x output (DepthToSpace / Overlay of CNNx2M) is exactly twice the tile.
     expect(d.textures.some((t) => t.width === 1600 && t.height === 2 * 432)).toBe(true);
   });
@@ -101,7 +101,7 @@ describe('anime4k-tile-renderer', () => {
   it('reuses the pipeline for every full band of the strip (one key per width)', async () => {
     for (let i = 0; i < 5; i++) expect((await renderBand(req(800, 3000, i))).status).toBe('ok');
     const [d] = devices;
-    expect(d.textures.length).toBe(23);
+    expect(d.textures.length).toBe(24);
     expect(liveStateCount()).toBe(1);
   });
 
@@ -118,21 +118,22 @@ describe('anime4k-tile-renderer', () => {
     expect(liveStateCount()).toBe(2);
     expect(a.every((r) => !r.destroyed)).toBe(true);
     const b = [...d.textures.slice(afterA.t, afterB.t), ...d.buffers.slice(afterA.b, afterB.b)];
-    expect(b.length).toBe(24);
+    expect(b.length).toBe(26);
     expect(b.every((r) => r.destroyCalls === 1)).toBe(true);
   });
 
-  it('slices the chain across frames and encodes every pass exactly once, then the blit', async () => {
+  it('slices the chain across frames and encodes every pass exactly once, then the probe, then the blit', async () => {
     const nextFrame = vi.fn(() => Promise.resolve());
     const r = await renderBand(req(800, 3000, 1, { nextFrame, budget: { k: 2 } }));
     const [d] = devices;
     expect(r.slices).toBeGreaterThan(1);
-    expect(d.submits).toBe(r.slices);
+    // 1.43.0: the chain slices (the last one carries the blank guard's probe), then one present submission.
+    expect(d.submits).toBe(r.slices + 1);
     expect(nextFrame).toHaveBeenCalledTimes(r.slices - 1);
     // M: Clamp 3 + CNNM 8 convs + CNNx2M 8 convs + DepthToSpace = 20 compute passes;
-    // CNNM and CNNx2M overlays + the crop blit = 3 render passes.
+    // CNNM and CNNx2M overlays + the probe blit + the crop blit = 4 render passes.
     expect(d.computePasses).toBe(20);
-    expect(d.renderPasses).toBe(3);
+    expect(d.renderPasses).toBe(4);
   });
 
   it('AIMD: the slice grows by one pass under budget and halves over it', () => {
@@ -173,7 +174,7 @@ describe('anime4k-tile-renderer', () => {
     expect(all.every((r) => r.destroyCalls === 1)).toBe(true);
     expect(live(d)).toBe(0);
     expect((await renderBand(req(800, 3000))).status).toBe('ok');
-    expect(live(d)).toBe(24);
+    expect(live(d)).toBe(26);
   });
 
   it('a release during the tile decode does not touch the destroyed textures', async () => {
