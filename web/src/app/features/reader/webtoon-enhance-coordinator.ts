@@ -30,7 +30,10 @@ import { prefersReducedMotion } from './webtoon-nav.service';
  *  - ONE serial render queue (visible bands first, then ahead, then behind),
  *    paused during a fling and briefly after a resize;
  *  - device-loss handling (re-queue once; a second loss within a minute pauses
- *    webtoon Enhance for the session) and the ms/band median readout.
+ *    webtoon Enhance for the session) and the ms/band median readout;
+ *  - the blank guard's answer (1.43.0, `blank-guard.ts`): a band whose output came
+ *    back `blank` is never placed (its plain `<img>` rows stay), is counted, is
+ *    re-queued ONCE, and after a second blank stays plain for this page generation.
  *
  * Engines (1.25.0): the coordinator renders whichever backend the Upscaling
  * choice resolved to - Enhance on WebGPU (`anime4k-tile-renderer.ts`), or Sharp /
@@ -82,6 +85,8 @@ export const deviceLossWindowMs = 60_000;
 export const maxConsecutiveFailures = 3;
 /** Canvas fade-in (instant under prefers-reduced-motion). */
 export const fadeMs = 120;
+/** Blank guard (1.43.0): renders of one band (per page generation) that may come back blank before it stays plain. */
+export const maxBlankTries = 2;
 
 interface Geometry { left: number; top: number; width: number; height: number }
 
@@ -92,6 +97,8 @@ interface PageState {
   src: string;
   /** Bumped whenever the page's pixels change (src switch): stale canvases are ignored. */
   generation: number;
+  /** Blank renders per band index in this generation (cleared with a new generation). */
+  blanks: Map<number, number>;
   gateOn: boolean;
   nativeWidth: number;
   nativeHeight: number;
@@ -208,7 +215,7 @@ export class WebtoonEnhanceCoordinator {
   register(img: HTMLImageElement): void {
     if (this.pages.has(img)) return;
     const page: PageState = {
-      img, near: false, src: '', generation: 0, gateOn: false, nativeWidth: 0, nativeHeight: 0,
+      img, near: false, src: '', generation: 0, blanks: new Map(), gateOn: false, nativeWidth: 0, nativeHeight: 0,
       profile: null, plan: [], bands: [], container: null, geometry: null,
     };
     this.pages.set(img, page);
@@ -342,6 +349,7 @@ export class WebtoonEnhanceCoordinator {
       this.clearBands(page);
       page.src = src;
       page.generation++;
+      page.blanks = new Map();
       page.nativeWidth = nw;
       page.nativeHeight = nh;
       page.profile = profile;
@@ -419,7 +427,7 @@ export class WebtoonEnhanceCoordinator {
           owned.lastVisible = now;
           this.placeCanvas(owned, band.page);
         } else {
-          this.queue.add(band);
+          this.enqueue(band);
         }
       } else {
         this.queue.delete(band);
@@ -428,6 +436,12 @@ export class WebtoonEnhanceCoordinator {
       }
     }
     this.schedulePump();
+  }
+
+  /** Queue a band for rendering, unless the blank guard gave up on it in this generation. */
+  private enqueue(band: BandState): void {
+    if ((band.page.blanks.get(band.plan.index) ?? 0) >= maxBlankTries) return;
+    this.queue.add(band);
   }
 
   private ownedEntry(band: BandState): PoolEntry | undefined {
@@ -620,6 +634,8 @@ export class WebtoonEnhanceCoordinator {
     const { band, entry } = job;
     const stillOwned = entry.page === band.page && entry.index === band.plan.index && entry.generation === generation
       && band.page.generation === generation;
+    // Every caught blank counts (the owner's data point), even one for a band that was dropped meanwhile.
+    if (result.status === 'blank') this.zone.run(() => this.support.recordBlank());
     if (!this.active || !stillOwned) return;
     if (result.status === 'ok') {
       this.failures = 0;
@@ -634,15 +650,22 @@ export class WebtoonEnhanceCoordinator {
       }
       return;
     }
-    // Aborted or failed: this canvas holds nothing usable for the band.
+    // Aborted, failed or blank: this canvas holds nothing usable for the band.
     entry.rendered = false;
     this.makeRecyclable(entry, true);
+    if (result.status === 'blank') {
+      // Never shown (the plain <img> stays). Not a GPU failure: the strip keeps rendering. Retry once.
+      const page = band.page;
+      page.blanks.set(band.plan.index, (page.blanks.get(band.plan.index) ?? 0) + 1);
+      if (band.intersecting && page.bands.includes(band)) this.enqueue(band);
+      return;
+    }
     if (result.status === 'failed' && ++this.failures >= maxConsecutiveFailures) {
       // A GPU that keeps failing (out of memory, driver trouble): stop for this strip.
       this.broken = true;
       this.deactivate();
     } else if (result.status === 'aborted' && band.intersecting && band.page.bands.includes(band)) {
-      this.queue.add(band);
+      this.enqueue(band);
     }
   }
 
@@ -723,7 +746,7 @@ export class WebtoonEnhanceCoordinator {
       entry.rendered = false;
       this.makeRecyclable(entry, true, now); // not rendered, so this frees it for reuse
     }
-    for (const band of this.sentinels.values()) if (band.intersecting) this.queue.add(band);
+    for (const band of this.sentinels.values()) if (band.intersecting) this.enqueue(band);
     this.schedulePump();
   }
 
@@ -745,7 +768,7 @@ export class WebtoonEnhanceCoordinator {
     if (this.hiddenTimer !== null) { clearTimeout(this.hiddenTimer); this.hiddenTimer = null; }
     if (this.releasedWhileHidden) {
       this.releasedWhileHidden = false;
-      for (const band of this.sentinels.values()) if (band.intersecting) this.queue.add(band);
+      for (const band of this.sentinels.values()) if (band.intersecting) this.enqueue(band);
       this.schedulePump();
     }
   }

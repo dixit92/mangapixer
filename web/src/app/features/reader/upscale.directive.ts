@@ -84,6 +84,9 @@ const upscaleThreshold = 1.02;
 /** How long no Enhance overlay may be live before the renderer's GPU memory is released. */
 export const upscaleReleaseDelayMs = 1500;
 
+/** Blank guard (1.43.0): renders of one page (source, size, chain) that may come back blank before it stays plain. */
+export const maxBlankTries = 2;
+
 /** The lazy renderer modules, once some overlay has loaded them (never loaded here just to release). */
 let renderer: typeof import('./anime4k-renderer') | null = null;
 let glRenderer: typeof import('./webgl-upscaler') | null = null;
@@ -201,6 +204,13 @@ export class UpscaleSupportService {
   readonly bandMs = computed(() => median(this.bandTimes()));
   private taps: number[] = [];
 
+  /**
+   * Blank frames caught this app session (1.43.0): Enhance outputs on WebGPU that came back near black over
+   * a page or band that is not black (`blank-guard.ts`). They were never shown. Session-only: nothing is
+   * stored, logged or sent; the status line shows the count once it is above 0.
+   */
+  readonly blankFrames = signal(0);
+
   /** Upscaling choices already announced as unavailable this app session. */
   private readonly noticed = signal<ReadonlySet<Upscaler>>(new Set());
 
@@ -228,6 +238,8 @@ export class UpscaleSupportService {
     else if (a.state === 'checking') text = 'GPU: checking WebGPU…';
     else text = `GPU: ${capsSummary(this.caps())}`;
     if (this.webtoonPaused()) text += ` - ${pref === 'sharp' ? 'Crisp' : 'Enhance'} paused (GPU reset)`;
+    const blank = this.blankFrames();
+    if (blank > 0) text += ` - ${blank} blank frame${blank === 1 ? '' : 's'} caught`;
     if (this.statsVisible()) {
       const page = this.pageMs();
       const band = this.bandMs();
@@ -261,6 +273,11 @@ export class UpscaleSupportService {
     if (!Number.isFinite(ms) || ms < 0) return;
     const target = kind === 'page' ? this.pageTimes : this.bandTimes;
     target.update((values) => [...values, ms].slice(-timingWindow));
+  }
+
+  /** One blank frame caught (paged page or webtoon band); see `blankFrames`. */
+  recordBlank(): void {
+    this.blankFrames.update((n) => n + 1);
   }
 
   /** One tap on the status line; the `statsTapCount`-th tap within 3 s toggles the readout. */
@@ -335,6 +352,12 @@ export class UpscaleDirective implements OnDestroy {
   private placedSize: { width: number; height: number } | null = null;
   /** Bumped on every (re)schedule so a slow async render can detect it is stale. */
   private token = 0;
+  /**
+   * Blank guard (1.43.0): the render (source, size, chain) whose output came back blank, and how often. The
+   * first blank retries once; the second leaves this page on the plain `<img>` until the source, size or chain
+   * changes.
+   */
+  private blank: { key: string; count: number } | null = null;
   private destroyed = false;
 
   constructor() {
@@ -539,6 +562,10 @@ export class UpscaleDirective implements OnDestroy {
     // Never ask the GPU for more than the page could ever fill at a sane cost.
     if (targetWidth <= 0 || targetHeight <= 0) { this.hide(); return; }
 
+    const chain = pagedChainFor(this.prefs.enhanceQuality());
+    const blankKey = `${img.currentSrc || img.src}|${targetWidth}x${targetHeight}|${chain}`;
+    if (webgpu && this.blank?.key === blankKey && this.blank.count >= maxBlankTries) { this.hide(); return; }
+
     const token = ++this.token;
     // Counted as live before any GPU memory exists, even if the preference effect
     // has not re-run since the engine probe resolved (the release needs it).
@@ -549,9 +576,20 @@ export class UpscaleDirective implements OnDestroy {
       if (webgpu) {
         renderer = await import('./anime4k-renderer');
         if (this.destroyed || token !== this.token) return;
-        const chain = pagedChainFor(this.prefs.enhanceQuality());
         started = performance.now();
-        ok = await renderer.renderUpscaled({ source: img, canvas, targetWidth, targetHeight, chain });
+        const status = await renderer.renderUpscaled({ source: img, canvas, targetWidth, targetHeight, chain });
+        if (this.destroyed || token !== this.token) return;
+        if (status === 'blank') {
+          // Never shown: the plain <img> stays. Retry once (next frame), then leave this page un-enhanced.
+          canvas.style.display = 'none';
+          const count = this.blank?.key === blankKey ? this.blank.count + 1 : 1;
+          this.blank = { key: blankKey, count };
+          this.zone.run(() => this.support.recordBlank());
+          if (count < maxBlankTries) this.schedule();
+          return;
+        }
+        ok = status === 'ok';
+        if (ok) this.blank = null;
       } else {
         // WebGL2: Crisp (FSR 1), or Enhance on the Efficient chain (Max quality is WebGPU-only).
         glRenderer = await import('./webgl-upscaler');

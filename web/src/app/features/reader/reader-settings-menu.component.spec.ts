@@ -311,6 +311,23 @@ describe('ReaderQualityMenuComponent', () => {
       expect(c.support.statsVisible()).toBe(false);
     });
 
+    it('the GPU line shows the blank frames caught this session, only once there are any (1.43.0)', () => {
+      const { fixture, c, prefs } = create();
+      c.support.support.set('ready');
+      prefs.setUpscaler('enhance');
+      fixture.detectChanges();
+      const { panel } = openRendering(fixture);
+      const status = panel.querySelector('button.hint-tap') as HTMLButtonElement;
+      expect(status.textContent?.trim()).toBe('GPU: WebGPU ready, no WebGL2');
+      c.support.recordBlank();
+      fixture.detectChanges();
+      expect(status.textContent?.trim()).toBe('GPU: WebGPU ready, no WebGL2 - 1 blank frame caught');
+      c.support.recordBlank();
+      fixture.detectChanges();
+      expect(status.textContent?.trim()).toBe('GPU: WebGPU ready, no WebGL2 - 2 blank frames caught');
+      expect(c.support.statusText()).toBe('GPU: Enhance - Anime4K - 2 blank frames caught'); // the tooltip line
+    });
+
     it('the GPU status readout is a short, owner-verifiable string', () => {
       const { c, prefs } = create();
       expect(c.support.statusText()).toBe('GPU: WebGPU unavailable, no WebGL2');

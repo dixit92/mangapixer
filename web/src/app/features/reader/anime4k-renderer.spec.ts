@@ -1,9 +1,10 @@
 import { vi } from 'vitest';
 
-import { releaseUpscaler, renderUpscaled } from './anime4k-renderer';
+import { PagedRenderStatus, releaseUpscaler, renderUpscaled } from './anime4k-renderer';
 import {
   FakeCanvasContext, FakeGpuDevice, fakeCanvas, fakeImage, installNavigatorGpu, removeNavigatorGpu, stubWebGpuGlobals,
 } from './fake-webgpu.testing';
+import { SourceRows, probeBytes, setSourceSamplerForTests } from './blank-guard';
 import { resetGpuDeviceForTests } from './gpu-device';
 import type { EnhanceChain } from './webtoon-band-plan';
 
@@ -20,7 +21,7 @@ describe('anime4k-renderer GPU disposal', () => {
 
   // These disposal tests predate 1.24.0 and exercise the heavy VL chain (paged
   // "Max quality"); the M default is covered in its own describe below.
-  function render(nw: number, nh: number, tw: number, th: number, chain: EnhanceChain = 'vl'): Promise<boolean> {
+  function render(nw: number, nh: number, tw: number, th: number, chain: EnhanceChain = 'vl'): Promise<PagedRenderStatus> {
     return renderUpscaled({ source: fakeImage(nw, nh), canvas: fakeCanvas(), targetWidth: tw, targetHeight: th, chain });
   }
 
@@ -50,18 +51,19 @@ describe('anime4k-renderer GPU disposal', () => {
   });
 
   it('builds the heavy VL chain: dozens of textures for one page, all live while cached', async () => {
-    expect(await render(800, 1200, 1400, 2100)).toBe(true); // s = 1.75: Clamp + CNNVL + CNNx2VL + Downscale
+    expect(await render(800, 1200, 1400, 2100)).toBe('ok'); // s = 1.75: Clamp + CNNVL + CNNx2VL + Downscale
     const [d] = devices;
     expect(d.textures.length).toBeGreaterThan(30);
     expect(live(d)).toBe(d.textures.length + d.buffers.length);
-    expect(d.submits).toBe(1);
+    // 1.43.0: the chain + the blank guard's probe, then the present (blit) once the probe said "not blank".
+    expect(d.submits).toBe(2);
   });
 
   it('reuses the cached pipeline for a same-size page without allocating', async () => {
     await render(800, 1200, 1400, 2100);
     const [d] = devices;
     const allocated = d.textures.length;
-    expect(await render(800, 1200, 1400, 2100)).toBe(true);
+    expect(await render(800, 1200, 1400, 2100)).toBe('ok');
     expect(d.textures.length).toBe(allocated);
     expect(d.textures.every((t) => !t.destroyed)).toBe(true);
   });
@@ -70,15 +72,16 @@ describe('anime4k-renderer GPU disposal', () => {
     await render(800, 1200, 1400, 2100);
     const [d] = devices;
     const first = [...d.textures, ...d.buffers];
+    const [t0, b0] = [d.textures.length, d.buffers.length];
     // A different page size (and a scale that adds the CNNx2M tail).
-    expect(await render(600, 900, 1800, 2700)).toBe(true);
-    const second = [...d.textures, ...d.buffers].slice(first.length);
+    expect(await render(600, 900, 1800, 2700)).toBe('ok');
+    const second = [...d.textures.slice(t0), ...d.buffers.slice(b0)];
 
     expect(first.every((r) => r.destroyCalls === 1)).toBe(true);
     expect(second.length).toBeGreaterThan(30);
     expect(second.every((r) => !r.destroyed)).toBe(true);
     expect(live(d)).toBe(second.length);
-    expect(d.submits).toBe(2);
+    expect(d.submits).toBe(4);
   });
 
   it('memory stays flat across many size changes (no growth with page count)', async () => {
@@ -88,7 +91,7 @@ describe('anime4k-renderer GPU disposal', () => {
     const perPipeline = live(devices[0]);
     for (let i = 1; i < 30; i++) {
       const [w, h] = sizes[i % sizes.length];
-      expect(await render(w, h, Math.round(w * 1.75), Math.round(h * 1.75))).toBe(true);
+      expect(await render(w, h, Math.round(w * 1.75), Math.round(h * 1.75))).toBe('ok');
       expect(live(devices[0])).toBe(perPipeline);
     }
     expect(devices[0].textures.length).toBeGreaterThan(perPipeline * 20);
@@ -99,15 +102,16 @@ describe('anime4k-renderer GPU disposal', () => {
     await render(800, 1200, 1400, 2100);
     const [d] = devices;
     const before = d.textures.length;
+    const liveBefore = live(d);
     releaseUpscaler();
     releaseUpscaler(); // idempotent
     expect(live(d)).toBe(0);
     expect(d.textures.every((t) => t.destroyCalls === 1)).toBe(true);
 
     // Same size again: must NOT reuse the destroyed state (the fake throws if it did).
-    expect(await render(800, 1200, 1400, 2100)).toBe(true);
+    expect(await render(800, 1200, 1400, 2100)).toBe('ok');
     expect(d.textures.length).toBe(before * 2);
-    expect(live(d)).toBe(before);
+    expect(live(d)).toBe(liveBefore);
   });
 
   it('a release while a render is decoding does not touch the destroyed textures', async () => {
@@ -117,16 +121,16 @@ describe('anime4k-renderer GPU disposal', () => {
     await vi.waitFor(() => expect(decoded).toBeTypeOf('function'));
     releaseUpscaler();
     decoded({ close: () => undefined });
-    expect(await pending).toBe(false); // falls back to the <img>; the fake would have thrown on reuse
+    expect(await pending).toBe('failed'); // falls back to the <img>; the fake would have thrown on reuse
     expect(live(devices[0])).toBe(0);
     expect(devices[0].submits).toBe(0);
   });
 
   it('serialises a two-page spread of different sizes so neither uses the other’s disposed state', async () => {
     const [a, b] = await Promise.all([render(800, 1200, 1400, 2100), render(700, 1100, 1225, 1925)]);
-    expect(a).toBe(true);
-    expect(b).toBe(true);
-    expect(devices[0].submits).toBe(2);
+    expect(a).toBe('ok');
+    expect(b).toBe('ok');
+    expect(devices[0].submits).toBe(4);
   });
 
   it('a lost device destroys the old state and the next render builds on a new device', async () => {
@@ -134,7 +138,7 @@ describe('anime4k-renderer GPU disposal', () => {
     const [lost] = devices;
     lost.lose();
     await vi.waitFor(() => expect(live(lost)).toBe(0));
-    expect(await render(800, 1200, 1400, 2100)).toBe(true);
+    expect(await render(800, 1200, 1400, 2100)).toBe('ok');
     expect(devices.length).toBe(2);
     expect(live(devices[1])).toBeGreaterThan(30);
   });
@@ -148,7 +152,7 @@ describe('anime4k-renderer GPU disposal', () => {
       if (++n === 10) throw new Error('out of memory');
       return original(desc);
     };
-    expect(await render(600, 900, 1050, 1575)).toBe(false);
+    expect(await render(600, 900, 1050, 1575)).toBe('failed');
     expect(live(d)).toBe(0);
   });
 
@@ -158,7 +162,7 @@ describe('anime4k-renderer GPU disposal', () => {
     // paints a black box over the page; a premultiplied one is transparent, and
     // the blit writing alpha 1 keeps every presented frame looking identical.
     const canvas = fakeCanvas();
-    expect(await renderUpscaled({ source: fakeImage(800, 1200), canvas, targetWidth: 1400, targetHeight: 2100 })).toBe(true);
+    expect(await renderUpscaled({ source: fakeImage(800, 1200), canvas, targetWidth: 1400, targetHeight: 2100 })).toBe('ok');
     const { configs } = canvas.getContext('webgpu') as unknown as FakeCanvasContext;
     expect(configs.length).toBeGreaterThan(0);
     expect(configs.every((c) => c.alphaMode === 'premultiplied')).toBe(true);
@@ -169,7 +173,7 @@ describe('anime4k-renderer GPU disposal', () => {
   it('returns false without WebGPU and allocates nothing', async () => {
     removeNavigatorGpu();
     resetGpuDeviceForTests();
-    expect(await render(800, 1200, 1400, 2100)).toBe(false);
+    expect(await render(800, 1200, 1400, 2100)).toBe('failed');
     expect(devices.length).toBe(0);
   });
 });
@@ -203,13 +207,13 @@ describe('anime4k-renderer chain choice (M default, VL max quality)', () => {
     vi.unstubAllGlobals();
   });
 
-  function render(chain: EnhanceChain | undefined, tw = 1400, th = 2100): Promise<boolean> {
+  function render(chain: EnhanceChain | undefined, tw = 1400, th = 2100): Promise<PagedRenderStatus> {
     return renderUpscaled({ source: fakeImage(800, 1200), canvas: fakeCanvas(), targetWidth: tw, targetHeight: th, chain });
   }
 
-  it('no chain means M: input + Clamp 3 + CNNM 9 + CNNx2M 10 + Downscale 1 = 24 textures', async () => {
-    expect(await render(undefined)).toBe(true);
-    expect(devices[0].textures.length).toBe(24);
+  it('no chain means M: input + Clamp 3 + CNNM 9 + CNNx2M 10 + Downscale 1 + blank probe 1 = 25 textures', async () => {
+    expect(await render(undefined)).toBe('ok');
+    expect(devices[0].textures.length).toBe(25);
   });
 
   it('M allocates well under the VL chain for the same page (the reason it is the default)', async () => {
@@ -226,20 +230,108 @@ describe('anime4k-renderer chain choice (M default, VL max quality)', () => {
     await render('m');
     const [d] = devices;
     const first = [...d.textures, ...d.buffers];
-    expect(await render('vl')).toBe(true);
+    expect(await render('vl')).toBe('ok');
     expect(first.every((r) => r.destroyCalls === 1)).toBe(true);
     const n = d.textures.length;
-    expect(await render('vl')).toBe(true); // same chain + size: reused
+    expect(await render('vl')).toBe('ok'); // same chain + size: reused
     expect(d.textures.length).toBe(n);
   });
 
   it('M follows ModeA geometry: s 3 adds Downscale-to-half + a second CNNx2M, s 4.5 a second CNNx2M', async () => {
     await render('m', 2400, 3600); // s = 3
-    // input 1 + Clamp 3 + CNNM 9 + CNNx2M 10 + Downscale 1 + CNNx2M 10
-    expect(devices[0].textures.length).toBe(34);
+    // input 1 + Clamp 3 + CNNM 9 + CNNx2M 10 + Downscale 1 + CNNx2M 10 + blank probe 1
+    expect(devices[0].textures.length).toBe(35);
     releaseUpscaler();
     const before = devices[0].textures.length;
     await render('m', 3600, 5400); // s = 4.5: no Downscale
-    expect(devices[0].textures.length - before).toBe(33);
+    expect(devices[0].textures.length - before).toBe(34);
+  });
+});
+
+/**
+ * Blank-output guard on the paged path (1.43.0): the chain's output is probed BEFORE the canvas is touched - the
+ * canvas may already be on screen (a re-render after a resize or a quality switch), and anything drawn into a
+ * WebGPU canvas is presented.
+ */
+describe('anime4k-renderer blank guard', () => {
+  let devices: FakeGpuDevice[];
+  let output: () => readonly [number, number, number, number];
+  let sourceRows: SourceRows[];
+  let sourceLit: boolean;
+
+  beforeEach(() => {
+    stubWebGpuGlobals(vi.stubGlobal);
+    vi.stubGlobal('createImageBitmap', () => Promise.resolve({ close: () => undefined }));
+    output = () => [0, 0, 0, 255];
+    sourceRows = [];
+    sourceLit = true;
+    setSourceSamplerForTests((_img, rows) => {
+      sourceRows.push(rows);
+      return new Uint8ClampedArray(probeBytes).fill(sourceLit ? 255 : 0);
+    });
+    devices = [];
+    installNavigatorGpu(() => { const d = new FakeGpuDevice(); d.output = () => output(); devices.push(d); return d; });
+    resetGpuDeviceForTests();
+    releaseUpscaler();
+  });
+
+  afterEach(() => {
+    expect(devices.flatMap((d) => d.violations)).toEqual([]);
+    setSourceSamplerForTests(null);
+    releaseUpscaler();
+    resetGpuDeviceForTests();
+    removeNavigatorGpu();
+    vi.unstubAllGlobals();
+  });
+
+  const configs = (canvas: HTMLCanvasElement) => (canvas.getContext('webgpu') as unknown as FakeCanvasContext).configs;
+
+  it('a black output over a lit page is blank: one submission, the canvas keeps its size and is never configured', async () => {
+    const canvas = fakeCanvas();
+    canvas.width = 700; // a canvas already showing the previous render
+    canvas.height = 1050;
+    expect(await renderUpscaled({ source: fakeImage(800, 1200), canvas, targetWidth: 1400, targetHeight: 2100 })).toBe('blank');
+    expect(devices[0].submits).toBe(1);
+    expect(configs(canvas).length).toBe(0);
+    expect([canvas.width, canvas.height]).toEqual([700, 1050]);
+    expect(sourceRows).toEqual([{ y: 0, height: 1200 }]); // the whole page
+  });
+
+  it('a black output over a black page is shown (no false positive)', async () => {
+    sourceLit = false;
+    const canvas = fakeCanvas();
+    expect(await renderUpscaled({ source: fakeImage(800, 1200), canvas, targetWidth: 1400, targetHeight: 2100 })).toBe('ok');
+    expect(configs(canvas).length).toBe(1);
+    expect(canvas.width).toBe(1400);
+  });
+
+  it('a normal output is shown as before, with one 4 KB readback and no source sampling', async () => {
+    output = () => [200, 190, 180, 255];
+    const canvas = fakeCanvas();
+    expect(await renderUpscaled({ source: fakeImage(800, 1200), canvas, targetWidth: 1400, targetHeight: 2100 })).toBe('ok');
+    expect(devices[0].copiesToBuffer).toBe(1);
+    expect(devices[0].bytesReadBack).toBe(4096);
+    expect(sourceRows.length).toBe(0);
+    expect(configs(canvas).length).toBe(1);
+  });
+
+  it('a blank render reuses the cached pipeline on the retry, and a good retry is shown', async () => {
+    let n = 0;
+    output = () => (n++ === 0 ? [0, 0, 0, 255] : [200, 200, 200, 255]);
+    expect(await renderUpscaled({ source: fakeImage(800, 1200), canvas: fakeCanvas(), targetWidth: 1400, targetHeight: 2100 })).toBe('blank');
+    const allocated = devices[0].textures.length;
+    const canvas = fakeCanvas();
+    expect(await renderUpscaled({ source: fakeImage(800, 1200), canvas, targetWidth: 1400, targetHeight: 2100 })).toBe('ok');
+    expect(devices[0].textures.length).toBe(allocated);
+    expect(configs(canvas).length).toBe(1);
+  });
+
+  it('a probe that could not run (validation error) is unknown, never blank', async () => {
+    installNavigatorGpu(() => {
+      const d = new FakeGpuDevice(); d.output = () => output(); d.failNextScope = true; devices.push(d); return d;
+    });
+    resetGpuDeviceForTests();
+    releaseUpscaler();
+    expect(await renderUpscaled({ source: fakeImage(800, 1200), canvas: fakeCanvas(), targetWidth: 1400, targetHeight: 2100 })).toBe('ok');
   });
 });
