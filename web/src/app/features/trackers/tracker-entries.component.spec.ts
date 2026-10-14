@@ -97,6 +97,13 @@ describe('TrackerEntriesComponent', () => {
     expect(q(el, 'tracker-set-form-s1')).toBeNull();
   });
 
+  it('offers no "Set to" for a series left as is on the tracker', () => {
+    const { el } = create([entry({ state: 'LeftAsIs', remoteStatus: 'Dropped' })]);
+    expect(q(el, 'tracker-entry-state-s1').textContent).toContain('Left as is: Dropped on MyAnimeList');
+    expect(q(el, 'tracker-set-s1')).toBeNull();
+    expect(q(el, 'tracker-sync-now-s1')).not.toBeNull();
+  });
+
   it('refuses a negative or fractional number', () => {
     const { fixture, el, c } = create([entry()]);
     q(el, 'tracker-set-s1').click();

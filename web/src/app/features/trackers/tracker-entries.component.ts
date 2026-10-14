@@ -115,7 +115,8 @@ export const ENTRIES_PAGE = 50;
                     <button mat-button type="button" [disabled]="busy() || !canSync()" (click)="act(e, 'send')"
                             [attr.data-testid]="'tracker-send-' + e.seriesId">Send</button>
                   }
-                  @if (e.remoteId && !e.dontSync) {
+                  @if (e.remoteId && !e.dontSync && e.state !== 'LeftAsIs') {
+                    <!-- Not for a series left as is (on hold, dropped, completed, rereading there): the server leaves it alone even then. -->
                     <button mat-button type="button" [disabled]="busy() || !canSync()" (click)="openSet(e)"
                             [attr.data-testid]="'tracker-set-' + e.seriesId">Set {{ name() }} to…</button>
                   }
