@@ -111,6 +111,7 @@ test('every main page fits a phone and a tablet screen', async ({ page }) => {
     ['debug log', '/admin/logging'],
     ['move conflicts', '/admin/move-conflicts'],
     ['reading mode suggestions', '/admin/reading-modes'],
+    ['tracker sign-in callback', '/trackers/callback/mal'],
     ['reader', `/reader/${archiveId}`],
   ];
 
