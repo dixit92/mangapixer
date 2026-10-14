@@ -46,7 +46,12 @@ describe('ConnectedAccountsCardComponent', () => {
     fixture.debugElement.queryAll((d) => d.componentInstance instanceof TrackerAccountPanelComponent)
       .map((d) => d.componentInstance as TrackerAccountPanelComponent).find((p) => p.tracker().slug === slug)!;
 
-  afterEach(() => TestBed.inject(HttpTestingController).verify());
+  // Reset first: a failed verify must not leave the module instantiated for the next test (one failure, one red).
+  afterEach(() => {
+    const http = TestBed.inject(HttpTestingController);
+    TestBed.resetTestingModule();
+    http.verify();
+  });
 
   it('says when no tracker is allowed, and links the user docs without a referrer', () => {
     const { el } = create([summary({ allowed: false }), MU({ allowed: false })]);

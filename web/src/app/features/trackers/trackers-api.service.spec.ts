@@ -12,7 +12,12 @@ describe('TrackersApiService', () => {
     return { api: TestBed.inject(TrackersApiService), http: TestBed.inject(HttpTestingController) };
   }
 
-  afterEach(() => TestBed.inject(HttpTestingController).verify());
+  // Reset first: a failed verify must not leave the module instantiated for the next test (one failure, one red).
+  afterEach(() => {
+    const http = TestBed.inject(HttpTestingController);
+    TestBed.resetTestingModule();
+    http.verify();
+  });
 
   it('maps every call to its route and method', () => {
     const { api, http } = create();

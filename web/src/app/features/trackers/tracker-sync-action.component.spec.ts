@@ -32,7 +32,12 @@ describe('TrackerSyncActionComponent', () => {
     return { fixture, http, el: fixture.nativeElement as HTMLElement, overlay: TestBed.inject(OverlayContainer).getContainerElement() };
   }
 
-  afterEach(() => TestBed.inject(HttpTestingController).verify());
+  // Reset first: a failed verify must not leave the module instantiated for the next test (one failure, one red).
+  afterEach(() => {
+    const http = TestBed.inject(HttpTestingController);
+    TestBed.resetTestingModule();
+    http.verify();
+  });
 
   it('is hidden without a connected tracker', () => {
     const { el } = create([summary(), summary({ slug: 'mangaupdates', allowed: false, account: trackerAccount({ tracker: 'mangaupdates' }) })]);

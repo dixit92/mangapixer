@@ -41,7 +41,12 @@ describe('TrackerEntriesComponent', () => {
 
   const q = (el: HTMLElement, id: string) => el.querySelector(`[data-testid="${id}"]`) as HTMLElement;
 
-  afterEach(() => TestBed.inject(HttpTestingController).verify());
+  // Reset first: a failed verify must not leave the module instantiated for the next test (one failure, one red).
+  afterEach(() => {
+    const http = TestBed.inject(HttpTestingController);
+    TestBed.resetTestingModule();
+    http.verify();
+  });
 
   it('lists series with their numbers; the ones that need a look come first', () => {
     const { el } = create([

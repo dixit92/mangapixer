@@ -45,7 +45,12 @@ describe('TrackerIdsDialogComponent', () => {
 
   const q = (el: HTMLElement, id: string) => el.querySelector(`[data-testid="${id}"]`) as HTMLElement;
 
-  afterEach(() => TestBed.inject(HttpTestingController).verify());
+  // Reset first: a failed verify must not leave the module instantiated for the next test (one failure, one red).
+  afterEach(() => {
+    const http = TestBed.inject(HttpTestingController);
+    TestBed.resetTestingModule();
+    http.verify();
+  });
 
   it('shows the MyAnimeList id in use and saves one read from a series address', () => {
     const { fixture, http, el, c } = create('mal', ids());
