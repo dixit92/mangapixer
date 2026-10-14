@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 
 import { authGuard, adminGuard, setupGuard, loginGuard, passwordChangeGuard } from './core/auth/auth.guard';
+import { trackerCallbackGuard } from './features/trackers/tracker-callback';
 
 export const routes: Routes = [
   {
@@ -139,5 +140,12 @@ export const routes: Routes = [
     path: 'activate',
     loadComponent: () =>
       import('./features/auth/activate.component').then((m) => m.ActivateComponent),
+  },
+  {
+    // Tracker sign-in callback (1.43.0): importing the guard's module strips `code` / `state` from the address bar before bootstrap.
+    path: 'trackers/callback/:slug',
+    canActivate: [trackerCallbackGuard],
+    loadComponent: () =>
+      import('./features/trackers/tracker-callback.component').then((m) => m.TrackerCallbackComponent),
   },
 ];

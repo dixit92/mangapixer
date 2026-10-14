@@ -12,6 +12,7 @@ import { ApiService } from '../../core/api/api.service';
 import { ApiError, LibraryDto, LibraryViewPreferencesDto } from '../../core/api/api-types';
 import { ReadingPreferencesCardComponent } from './reading-preferences-card.component';
 import { AppearanceCardComponent } from './appearance-card.component';
+import { ConnectedAccountsCardComponent } from '../trackers/connected-accounts-card.component';
 import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series-info-hover-preference.service';
 
 /**
@@ -33,6 +34,7 @@ import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series
     MatSelectModule,
     ReadingPreferencesCardComponent,
     AppearanceCardComponent,
+    ConnectedAccountsCardComponent,
   ],
   template: `
     <mat-card>
@@ -115,6 +117,8 @@ import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series
     <app-appearance-card />
 
     <app-reading-preferences-card />
+
+    <app-connected-accounts-card />
 
     <mat-card class="home-window-card">
       <mat-card-header>

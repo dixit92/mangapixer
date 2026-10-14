@@ -18,6 +18,7 @@ import { CoverPickerDialogService } from '../../shared/cover-picker/cover-picker
 import { DeclaredFactsApiService } from './declared/declared-facts-api.service';
 import { ArtistFolderDialogService } from './artist-folder/artist-folder-dialog.service';
 import { ARTIST_FOLDER_TIP, artistFolderLabel, artistFolderResultMessage } from './artist-folder/artist-folder-labels';
+import { TrackerIdsDialogService } from '../trackers/tracker-ids-dialog.service';
 
 /**
  * Admin menu for one node's series metadata (1.24.0), shared by the overlay and the
@@ -74,6 +75,15 @@ import { ARTIST_FOLDER_TIP, artistFolderLabel, artistFolderResultMessage } from 
         @if (info().web!.provider === 'mangaupdates' && !ownCollection()) {
           <button mat-menu-item (click)="changeMangaDex()" data-testid="mangadex-match">
             <mat-icon>photo_library</mat-icon> Change MangaDex match…
+          </button>
+        }
+        @if (!ownCollection()) {
+          <!-- 1.43.0 tracker sync (owner Q6): the series' tracker number for every user's sync. -->
+          <button mat-menu-item (click)="trackerIds.open(info().nodeId, 'mal')" data-testid="tracker-id-mal">
+            <mat-icon>bookmark_add</mat-icon> Set MyAnimeList id…
+          </button>
+          <button mat-menu-item (click)="trackerIds.open(info().nodeId, 'mangaupdates')" data-testid="tracker-id-mangaupdates">
+            <mat-icon>bookmark_add</mat-icon> Set MangaUpdates id…
           </button>
         }
       }
@@ -176,6 +186,7 @@ export class SeriesAdminActionsComponent {
   private readonly mangaDexDialog = inject(MangaDexMatchDialogService);
   private readonly coverPicker = inject(CoverPickerDialogService);
   private readonly artistDialog = inject(ArtistFolderDialogService);
+  readonly trackerIds = inject(TrackerIdsDialogService);
   // Resolved on use only (after a save): hosts that never mark an artist folder do not need the declared-facts API.
   private readonly injector = inject(Injector);
 
