@@ -57,6 +57,8 @@ describe('SettingsComponent — Private libraries', () => {
       defaultReaderMode: 'PagedLtr', preferDoubleSpread: false, reducedMotion: false,
       preferredBackground: null, alwaysOpenReadFromStart: false,
     });
+    // The Connected accounts card (1.43.0) loads the tracker overview on init.
+    httpMock.expectOne('/api/v1/trackers').flush({ trackers: [] });
     return fixture;
   }
 
@@ -145,6 +147,8 @@ describe('SettingsComponent — Performance (items per load)', () => {
       defaultReaderMode: 'PagedLtr', preferDoubleSpread: false, reducedMotion: false,
       preferredBackground: null, alwaysOpenReadFromStart: false,
     });
+    // The Connected accounts card (1.43.0) loads the tracker overview on init.
+    httpMock.expectOne('/api/v1/trackers').flush({ trackers: [] });
     return fixture;
   }
 
@@ -234,6 +238,8 @@ describe('SettingsComponent — New Chapters (home window)', () => {
       defaultReaderMode: 'PagedLtr', preferDoubleSpread: false, reducedMotion: false,
       preferredBackground: null, alwaysOpenReadFromStart: false,
     });
+    // The Connected accounts card (1.43.0) loads the tracker overview on init.
+    httpMock.expectOne('/api/v1/trackers').flush({ trackers: [] });
     return fixture;
   }
 
@@ -371,6 +377,8 @@ describe('SettingsComponent — New Chapters library picker', () => {
       defaultReaderMode: 'PagedLtr', preferDoubleSpread: false, reducedMotion: false,
       preferredBackground: null, alwaysOpenReadFromStart: false,
     });
+    // The Connected accounts card (1.43.0) loads the tracker overview on init.
+    httpMock.expectOne('/api/v1/trackers').flush({ trackers: [] });
     return fixture;
   }
 
@@ -446,6 +454,8 @@ describe('SettingsComponent - Series information on hover', () => {
       preferredBackground: null, alwaysOpenReadFromStart: false,
     });
     fixture.detectChanges();
+    // The Connected accounts card (1.43.0) loads the tracker overview on init.
+    httpMock.expectOne('/api/v1/trackers').flush({ trackers: [] });
     return fixture;
   }
 

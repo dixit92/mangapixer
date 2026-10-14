@@ -111,7 +111,7 @@ export const ENTRIES_PAGE = 50;
                     <button mat-button type="button" [disabled]="busy()" (click)="act(e, 'sync')"
                             [attr.data-testid]="'tracker-sync-now-' + e.seriesId">Sync now</button>
                   }
-                  @if (e.heldChapters != null || e.heldVolumes != null) {
+                  @if (hasHeld(e)) {
                     <button mat-button type="button" [disabled]="busy() || !canSync()" (click)="act(e, 'send')"
                             [attr.data-testid]="'tracker-send-' + e.seriesId">Send</button>
                   }
@@ -189,7 +189,7 @@ export class TrackerEntriesComponent implements OnInit {
   readonly setChapters = signal<number | null>(null);
   readonly setVolumes = signal<number | null>(null);
 
-  readonly heldCount = computed(() => this.entries().filter((e) => e.heldChapters != null || e.heldVolumes != null).length);
+  readonly heldCount = computed(() => this.entries().filter((e) => this.hasHeld(e)).length);
   readonly attentionCount = computed(() => this.entries().filter((e) => this.isAttention(e)).length);
 
   /** Series that need a look first, then by title. */
@@ -218,6 +218,11 @@ export class TrackerEntriesComponent implements OnInit {
       next: (list) => { this.entries.set(list); this.loading.set(false); },
       error: (err: unknown) => { this.loading.set(false); this.error.set(failureText(err, this.slug())); },
     });
+  }
+
+  /** A jump waits for "Send" (a folder mark-read or an import). */
+  hasHeld(e: TrackerEntryDto): boolean {
+    return e.heldChapters != null || e.heldVolumes != null;
   }
 
   isAttention(e: TrackerEntryDto): boolean {
