@@ -32,12 +32,20 @@
  * visible strip page of its own size is a very different resource problem from
  * "the one or two pages on screen". Both share the device (`gpu-device.ts`).
  *
- * Everything is best-effort: every entry point resolves to a boolean and never
+ * Everything is best-effort: every entry point resolves to a status and never
  * throws, because the fallback ("let the browser paint the <img> as it always
  * did") is always correct.
+ *
+ * Blank guard (1.43.0, `blank-guard.ts`): the chain's output is probed BEFORE the
+ * canvas is touched - the canvas may already be on screen (a re-render after a
+ * resize or a quality switch), and anything drawn into it is presented. A
+ * near-black output over a page that is not black resolves `'blank'`.
  */
 
 import { buildPagedChain } from './anime4k-chains';
+import {
+  OutputProbe, createOutputProbe, encodeOutputProbe, isBlankOutput, popProbeScope, pushProbeScope, readOutputProbe,
+} from './blank-guard';
 import { TrackingDevice, acquireDevice, onDeviceLost, trackingDevice } from './gpu-device';
 import type { EnhanceChain } from './webtoon-band-plan';
 
@@ -115,6 +123,7 @@ interface RenderState {
   inputTexture: GPUTexture;
   pipeline: { pass(encoder: GPUCommandEncoder): void; getOutputTexture(): GPUTexture };
   bindGroup: GPUBindGroup;
+  probe: OutputProbe;
 }
 
 let deviceState: DeviceState | null = null;
@@ -136,35 +145,37 @@ function disposeCached(): void {
 }
 
 /**
- * Upscale `source` into `canvas` at the requested target size.
- *
- * @returns true when the canvas now holds an upscaled frame, false when the
- *          caller should fall back to the plain `<img>` (no WebGPU, device
- *          acquisition failed, a shader/pipeline error, …). Never throws.
+ * `ok`: the canvas now holds an upscaled frame. `failed`: fall back to the plain
+ * `<img>` (no WebGPU, device acquisition failed, a shader/pipeline error, …).
+ * `blank` (1.43.0): the output came back near black over a page that is not
+ * black; the canvas was not touched - fall back to the `<img>` too.
  */
-export function renderUpscaled(req: UpscaleRequest): Promise<boolean> {
+export type PagedRenderStatus = 'ok' | 'blank' | 'failed';
+
+/** Upscale `source` into `canvas` at the requested target size. Never throws. */
+export function renderUpscaled(req: UpscaleRequest): Promise<PagedRenderStatus> {
   // Two pages of a spread (possibly of different sizes, so different keys) must
   // not interleave across the awaits below: the second would dispose the
   // pipeline the first is about to use.
   const run = queue.then(() => renderNow(req));
-  queue = run.catch(() => false);
+  queue = run.catch(() => 'failed');
   return run;
 }
 
-async function renderNow(req: UpscaleRequest): Promise<boolean> {
+async function renderNow(req: UpscaleRequest): Promise<PagedRenderStatus> {
   const { source, canvas } = req;
   const nativeWidth = source.naturalWidth;
   const nativeHeight = source.naturalHeight;
   const targetWidth = Math.max(1, Math.round(req.targetWidth));
   const targetHeight = Math.max(1, Math.round(req.targetHeight));
-  if (nativeWidth <= 0 || nativeHeight <= 0) return false;
+  if (nativeWidth <= 0 || nativeHeight <= 0) return 'failed';
 
   try {
     const device = await acquireDevice();
-    if (!device) return false;
+    if (!device) return 'failed';
 
     const context = canvas.getContext('webgpu') as GPUCanvasContext | null;
-    if (!context) return false;
+    if (!context) return 'failed';
 
     const gpu = (navigator as Navigator & { gpu?: GPU }).gpu;
     const canvasFormat = gpu?.getPreferredCanvasFormat?.() ?? 'bgra8unorm';
@@ -217,6 +228,7 @@ async function renderNow(req: UpscaleRequest): Promise<boolean> {
               { binding: 1, resource: pipeline.getOutputTexture().createView() },
             ],
           }),
+          probe: createOutputProbe(resources.device, shared.canvasFormat),
         };
       } catch (err) {
         // A half-built chain (e.g. out of memory on texture 30 of 40) still owns
@@ -234,7 +246,7 @@ async function renderNow(req: UpscaleRequest): Promise<boolean> {
     try {
       // Released (reader closed / Enhance off) or device lost while decoding:
       // the textures are destroyed, so do not touch them.
-      if (state !== current || deviceState !== shared) return false;
+      if (state !== current || deviceState !== shared) return 'failed';
       device.queue.copyExternalImageToTexture(
         { source: bitmap },
         { texture: current.inputTexture },
@@ -244,6 +256,19 @@ async function renderNow(req: UpscaleRequest): Promise<boolean> {
       bitmap.close();
     }
 
+    // The chain plus the blank guard's probe (this page's blit into a tiny private target).
+    const encoder = device.createCommandEncoder({ label: 'mp-upscale' });
+    current.pipeline.pass(encoder);
+    encodeOutputProbe(encoder, current.probe, shared.blit, current.bindGroup);
+    pushProbeScope(device);
+    device.queue.submit([encoder.finish()]);
+    const scope = popProbeScope(device);
+    await device.queue.onSubmittedWorkDone();
+    const output = (await scope) ? await readOutputProbe(current.probe) : null;
+    // Released (reader closed / Enhance off) or device lost meanwhile: the textures are gone.
+    if (state !== current || deviceState !== shared) return 'failed';
+    if (isBlankOutput(output, source, { y: 0, height: nativeHeight })) return 'blank';
+
     if (canvas.width !== targetWidth) canvas.width = targetWidth;
     if (canvas.height !== targetHeight) canvas.height = targetHeight;
     // 'premultiplied', not 'opaque': the blit writes alpha 1, so a presented
@@ -252,9 +277,8 @@ async function renderNow(req: UpscaleRequest): Promise<boolean> {
     // shows through. With 'opaque' it painted a black page-shaped box.
     context.configure({ device, format: canvasFormat, alphaMode: 'premultiplied' });
 
-    const encoder = device.createCommandEncoder({ label: 'mp-upscale' });
-    current.pipeline.pass(encoder);
-    const pass = encoder.beginRenderPass({
+    const present = device.createCommandEncoder({ label: 'mp-upscale-present' });
+    const pass = present.beginRenderPass({
       colorAttachments: [{
         view: context.getCurrentTexture().createView(),
         // theme-exempt: the upscaler's own render target, cleared before the page is drawn into it - part of the processed image, not the UI.
@@ -269,13 +293,13 @@ async function renderNow(req: UpscaleRequest): Promise<boolean> {
     pass.end();
     // Destroying a texture after this submit is safe: WebGPU defers the free
     // until the submitted work that uses it has finished.
-    device.queue.submit([encoder.finish()]);
+    device.queue.submit([present.finish()]);
     await device.queue.onSubmittedWorkDone();
-    return true;
+    return 'ok';
   } catch {
     // Any failure at all — unsupported format, out of memory, a driver quirk —
     // is answered by "show the plain <img>", which is always a valid reader.
-    return false;
+    return 'failed';
   }
 }
 
