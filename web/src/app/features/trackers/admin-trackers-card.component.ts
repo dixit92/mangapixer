@@ -28,7 +28,7 @@ import { TRACKER_SETUP_DOCS_URL, failureText, trackerName } from './tracker-text
       </mat-card-header>
       <mat-card-content>
         <p class="hint">
-          Each user connects their own account in Settings, after you allow the tracker here. Nothing is sent for users who have
+          Each user connects their own account on the Tracking page, after you allow the tracker here. Nothing is sent for users who have
           not connected one.
           <a [href]="docsUrl" target="_blank" rel="noopener noreferrer" data-testid="admin-trackers-help">How to set this up</a>
         </p>

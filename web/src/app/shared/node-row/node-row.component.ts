@@ -12,6 +12,7 @@ import { StarToggleComponent } from '../star-toggle/star-toggle.component';
 import { VolumeIncompleteBadgeComponent } from '../volume-stack/volume-incomplete-badge.component';
 import { OfficialReleaseBadgeComponent } from '../volume-stack/official-release-badge.component';
 import { AlsoInVolumeBadgeComponent } from '../volume-stack/also-in-volume-badge.component';
+import { TrackerReadMarkComponent } from '../../features/trackers/tracker-read-mark.component';
 
 /** Short label of a folder's direction override chip ("LTR", "RTL", "Vertical", "Spread"). */
 export function directionShort(mode: ReaderMode): string {
@@ -40,6 +41,7 @@ export function directionShort(mode: ReaderMode): string {
   imports: [
     RouterLink, MatIconModule, MatTooltipModule, CoverImageDirective, FolderRollupBadgeComponent, SeriesInfoHoverDirective,
     InfoToggleComponent, StarToggleComponent, VolumeIncompleteBadgeComponent, OfficialReleaseBadgeComponent, AlsoInVolumeBadgeComponent,
+    TrackerReadMarkComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -63,6 +65,8 @@ export function directionShort(mode: ReaderMode): string {
             <img appCover [src]="cover" alt="" loading="lazy">
           }
           <mat-icon class="cover-fallback">{{ icon() }}</mat-icon>
+          <!-- 1.43.0: the tracker's read mark on the thumbnail's top edge, as on the cards. -->
+          <app-tracker-read-mark [trackers]="node().trackerRead" />
           @if (node().volumeStack; as stack) {
             <app-volume-incomplete-badge [summary]="stack" />
           }

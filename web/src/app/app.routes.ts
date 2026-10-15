@@ -70,6 +70,12 @@ export const routes: Routes = [
           import('./features/auth/settings.component').then((m) => m.SettingsComponent),
       },
       {
+        // Tracking (1.43.0 owner redesign): the user's own tracker accounts and tracked series (account menu > Tracking).
+        path: 'tracking',
+        loadComponent: () =>
+          import('./features/trackers/tracking-page.component').then((m) => m.TrackingPageComponent),
+      },
+      {
         path: 'admin',
         canActivate: [adminGuard],
         loadComponent: () =>

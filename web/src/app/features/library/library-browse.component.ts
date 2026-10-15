@@ -36,6 +36,8 @@ import { MissingChapterCardComponent } from '../../shared/volume-stack/missing-c
 import { VolumeStackStarComponent } from '../../shared/volume-stack/volume-stack-star.component';
 import { FolderViewActionComponent } from './folder-view-action.component';
 import { TrackerSyncActionComponent } from '../trackers/tracker-sync-action.component';
+import { TrackerReadMarkComponent } from '../trackers/tracker-read-mark.component';
+import { SeriesTrackingButtonComponent } from '../trackers/series-tracking-button.component';
 import { FolderCoverPreferenceActionComponent } from './folder-cover-preference-action.component';
 import { NodeRowComponent, directionShort as directionChip } from '../../shared/node-row/node-row.component';
 import { SelectionBarComponent } from '../../shared/selection/selection-bar.component';
@@ -110,6 +112,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     VolumeStackStarComponent,
     FolderViewActionComponent,
     TrackerSyncActionComponent,
+    TrackerReadMarkComponent,
+    SeriesTrackingButtonComponent,
     FolderCoverPreferenceActionComponent,
     NodeRowComponent,
     SelectionBarComponent,
@@ -177,6 +181,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
         }
         <!-- Series info for the folder being viewed (1.24.0): its own component. -->
         @if (parentId(); as folderId) {
+          <!-- 1.43.0: the series' tracking (a gold button + popover) for a user with a connected tracker. -->
+          <app-series-tracking-button [nodeId]="folderId" />
           <app-series-info-button [nodeId]="folderId" />
         }
         <!-- Volumes | Folders (1.29.0): only where the folder has a Volumes view; the choice is the per-user
@@ -385,6 +391,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     <!-- Read / rollup / direction / selection markers for one node. Rendered over the
          cover in card mode and at the right edge of the row in list mode (1.17.0). -->
     <ng-template #markers let-node>
+      <!-- 1.43.0: the gold strip on the cover's top edge when the user's tracker counts this item as read (card mark C). -->
+      <app-tracker-read-mark [trackers]="node.trackerRead" />
       @if (node.isRead) {
         <span class="badge read" matTooltip="Read">✓ Read</span>
       } @else if (node.readingState === 'InProgress') {

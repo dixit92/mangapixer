@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
@@ -6,12 +6,18 @@ import {
   AdminTrackerAccountDto,
   AdminTrackerSettingsDto,
   TrackerAccountDto,
+  TrackerAttentionDto,
   TrackerConnectStartResponse,
+  TrackerDatesRequest,
   TrackerEntryDto,
+  TrackerFromTrackerResultDto,
   TrackerNodeOverrideDto,
   TrackerPreviewDto,
   TrackerSendAllResultDto,
   TrackerSeriesIdsDto,
+  TrackerSeriesPageDto,
+  TrackerSeriesRowDto,
+  TrackerSeriesSummaryDto,
   TrackersOverviewDto,
   UpdateTrackerSettingsRequest,
   UpdateTrackerUserSettingsRequest,
@@ -99,6 +105,39 @@ export class TrackersApiService {
   /** true = sync on (also inside a Private library or for doujinshi), false = off, null = as default (removes the switch). */
   setSyncOverrides(nodeIds: string[], enabled: boolean | null): Observable<TrackerNodeOverrideDto[]> {
     return this.http.put<TrackerNodeOverrideDto[]>(`${this.base}/sync-overrides`, { nodeIds, enabled }, { withCredentials: true });
+  }
+
+  // --- The Tracking page (1.43.0 redesign, lane G's API) ---
+
+  /**
+   * One page (50 rows, by title) of the caller's series on a tracker. `filter` is a chip (`TrackerListBucket`, `Attention`) or
+   * `All`; `q` searches titles (on this server only). Stored state only - the server contacts no tracker for it.
+   */
+  seriesPage(slug: string, page: number, filter: string, q: string): Observable<TrackerSeriesPageDto> {
+    let params = new HttpParams().set('page', page);
+    if (filter && filter !== 'All') params = params.set('filter', filter);
+    if (q.trim()) params = params.set('q', q.trim());
+    return this.http.get<TrackerSeriesPageDto>(`${this.base}/${slug}/series`, { params, withCredentials: true });
+  }
+
+  /** The account menu's badge: series waiting for Send + series a tracker is ahead on. */
+  attention(): Observable<TrackerAttentionDto> {
+    return this.http.get<TrackerAttentionDto>(`${this.base}/attention`, { withCredentials: true });
+  }
+
+  /** The series header's Tracking popover: one row per connected tracker for the folder's series (no tracker request). */
+  summary(nodeId: string): Observable<TrackerSeriesSummaryDto> {
+    return this.http.get<TrackerSeriesSummaryDto>(`${this.base}/nodes/${encodeURIComponent(nodeId)}/summary`, { withCredentials: true });
+  }
+
+  /** "Set progress from <tracker> to MangaPixer": marks chapters / volumes read HERE up to the tracker's numbers; never unmarks. */
+  fromTracker(slug: string, seriesId: string): Observable<TrackerFromTrackerResultDto> {
+    return this.http.post<TrackerFromTrackerResultDto>(`${this.entry(slug, seriesId)}/from-tracker`, {}, { withCredentials: true });
+  }
+
+  /** The user's start / finish dates (`yyyy-MM-dd`; null = automatic). Both are replaced. MyAnimeList only. */
+  setDates(slug: string, seriesId: string, request: TrackerDatesRequest): Observable<TrackerSeriesRowDto> {
+    return this.http.put<TrackerSeriesRowDto>(`${this.entry(slug, seriesId)}/dates`, request, { withCredentials: true });
   }
 
   // --- Administration > Trackers ---
