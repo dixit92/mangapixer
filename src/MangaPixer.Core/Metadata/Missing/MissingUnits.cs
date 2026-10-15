@@ -263,11 +263,13 @@ public static class MissingUnits
     /// <summary>
     /// The split chapters among chapter archives (1.29.1, owner soak test): files numbered as parts of chapter N (N.1, N.2, ...)
     /// are chapter N, also where a provider's list names only the plain N. A part is a one-decimal number; N.5 is the usual
-    /// number of an extra (10.5), so it is a part only after N.4. The parts must start at the beginning (1.30.0): at N.1, or at N.2
-    /// when a file N is here (that file is the first part; a file N.1 next to it stays an extra) - a run that starts later (N.6
-    /// next to N and N.5, listed extras) is extras, never a split with its first parts missing. A part missing below the highest
-    /// part here is in
-    /// <see cref="SplitChapters.MissingParts"/> (4.1 and 4.3 here: 4.2 is missing).
+    /// number of an extra (10.5), so it is a part only after N.4 - and so is every tenth above it (N.6, N.7 ...): without N.4 they
+    /// are the extras that follow N.5 (owner, 2026-10-15, MangaList parity: 6.1, 6.2, 6.5 "Extras" and 6.6 "Bonus" made 6.6 a part
+    /// and 6.3, 6.4 missing). The parts must start at the beginning (1.30.0): at N.1, or at N.2 when a file N is here (that file is
+    /// the first part; a file N.1 next to it stays an extra) - a run that starts later (N.6 next to N and N.5, listed extras) is
+    /// extras, never a split with its first parts missing. A part missing below the highest part here is in
+    /// <see cref="SplitChapters.MissingParts"/> (4.1 and 4.3 here: 4.2 is missing; 7.1-7.4 and 7.6: 7.5 is missing); a number held
+    /// here never is, whatever it was read as (a held extra 6.5 is not a missing part).
     /// </summary>
     public static SplitChapters SplitsOf(IEnumerable<UnitNumbers> units)
     {
@@ -294,11 +296,12 @@ public static class MissingUnits
         foreach (var (n, tenths) in tenthsByChapter)
         {
             var hasFile = wholes.Contains(n);
-            var own = tenths.Where(t => (t != 5 || tenths.Contains(4)) && (!hasFile || t >= 2)).ToList();
+            // .5 and above continue a split only after .4; otherwise they are the extras after N.5 (before: only .5 waited for .4).
+            var own = tenths.Where(t => (t < 5 || tenths.Contains(4)) && (!hasFile || t >= 2)).ToList();
             if (own.Count == 0 || own.Min() != (hasFile ? 2 : 1))
                 continue;
             chapters.Add(n);
-            var present = own.ToHashSet();
+            var present = tenths.ToHashSet(); // a held number (an extra too) is never a missing part
             if (hasFile)
                 present.Add(1);
             foreach (var t in own)
