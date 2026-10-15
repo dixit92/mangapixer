@@ -32,7 +32,7 @@ const POSITIONS: ConnectedPosition[] = [
   template: `
     @if (shown()) {
       <button mat-stroked-button type="button" class="tracking-btn" cdkOverlayOrigin #origin="cdkOverlayOrigin"
-              matTooltip="How this series stands on your trackers" aria-label="Tracking" aria-haspopup="dialog"
+              matTooltip="How this series stands on your trackers" [matTooltipDisabled]="open()" aria-label="Tracking" aria-haspopup="dialog"
               [attr.aria-expanded]="open()" aria-controls="series-tracking-popover" data-testid="series-tracking-button"
               (click)="toggle()">
         <mat-icon>track_changes</mat-icon><span class="lbl">Tracking</span>

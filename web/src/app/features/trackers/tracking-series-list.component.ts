@@ -165,7 +165,7 @@ const SEARCH_DELAY_MS = 300;
                     </div>
                   </form>
                 } @else {
-                  <div class="actions">
+                  <div class="actions row-actions">
                     <button mat-flat-button color="primary" type="button" disabledInteractive
                             [disabled]="busy() || !canSync() || !r.fromTracker.possible" [matTooltip]="fromReason(r)"
                             (click)="askFrom(r)" [attr.data-testid]="'tracking-from-' + r.seriesId">
@@ -272,8 +272,11 @@ const SEARCH_DELAY_MS = 300;
     .link { align-self: flex-start; padding: 0; margin-top: 2px; border: 0; background: none; font: inherit; font-size: 12px;
             color: var(--mp-accent); text-decoration: underline; cursor: pointer; }
     .link:disabled { color: var(--mp-text-faint); cursor: default; }
-    .actions-cell .actions button[mat-flat-button] { white-space: normal; height: auto; min-height: 36px; padding-top: 4px; padding-bottom: 4px;
-                                                    line-height: 1.25; text-align: left; }
+    /* The two Set-progress buttons stacked, the "⋯" beside them: two short lines a row, not three. */
+    .row-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 4px; align-items: center; }
+    .row-actions button[mat-flat-button] { grid-column: 1; white-space: normal; height: auto; min-height: 32px; padding: 4px 14px;
+                                           font-size: 13px; line-height: 1.25; text-align: left; justify-content: flex-start; }
+    .row-actions button[mat-icon-button] { grid-column: 2; grid-row: 1 / span 2; }
     .set { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 13px; }
     .set p { flex: 1 1 100%; margin: 2px 0; }
     .set input { font: inherit; width: 90px; padding: 4px 6px; box-sizing: border-box; color: var(--mp-text); background: var(--mp-surface);
