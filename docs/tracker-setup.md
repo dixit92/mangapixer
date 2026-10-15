@@ -63,7 +63,7 @@ Back in **Administration** > **Trackers** > **MyAnimeList**:
 
 The card then says **Allowed**. The client secret is **write-only**: MangaPixer stores it encrypted and never shows it again ("A client secret is saved"). Type a new one to replace it, or press **Remove it**.
 
-If users see **An admin has not finished setting up MyAnimeList on this server yet**, the Client ID or the redirect URL is missing. If MyAnimeList shows an error about the redirect when a user connects, the URL registered at MyAnimeList and the one saved in MangaPixer differ.
+If users see **An admin has not finished setting up MyAnimeList on this server yet**, the Client ID or the redirect URL is missing. If MyAnimeList shows an error about the redirect when a user connects, the URL registered at MyAnimeList and the one saved in MangaPixer differ. If the browser shows **its own sign-in dialog** for myanimelist.net ("Sign in - https://myanimelist.net") that keeps asking, or MyAnimeList's approval page names **another app** than this server's, the Client ID saved here belongs to a different MyAnimeList app - easy to mix up when you have several. Do not press **Allow** on a page that names another app. Open this server's app on MyAnimeList (the one whose App Redirect URL is this server's redirect URL), copy its Client ID (and secret), paste them here and save.
 
 ## MangaUpdates
 
