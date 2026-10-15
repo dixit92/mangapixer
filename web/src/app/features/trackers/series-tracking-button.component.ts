@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, OnDestroy, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ConnectedPosition, OverlayModule } from '@angular/cdk/overlay';
+import { CdkConnectedOverlay, ConnectedPosition, OverlayModule } from '@angular/cdk/overlay';
 import { NavigationStart, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -145,14 +145,25 @@ export class SeriesTrackingButtonComponent implements OnDestroy {
       }
       this.load(id);
     });
-    // Any navigation closes it - also one that keeps this component (back / forward between folders) or leaves it.
+    // Any navigation closes it - also a click-less one (an iPad back / forward swipe), which no outside click closes first. The
+    // overlay is detached HERE, not on the next render: leaving the browse page detaches its view (LibraryBrowseReuseStrategy), so
+    // a render would never come and the popover would stay over the next page (UX review UX0).
     inject(Router).events.pipe(takeUntilDestroyed()).subscribe((event) => {
-      if (event instanceof NavigationStart) this.open.set(false);
+      if (event instanceof NavigationStart) this.close();
     });
   }
 
+  /** The popover's overlay directive, while the button is shown. */
+  private readonly connected = viewChild(CdkConnectedOverlay);
+
   ngOnDestroy(): void {
+    this.close();
+  }
+
+  /** Closes the popover now: the flag, and the overlay itself without waiting for change detection. */
+  private close(): void {
     this.open.set(false);
+    this.connected()?.overlayRef?.detach();
   }
 
   toggle(): void {
