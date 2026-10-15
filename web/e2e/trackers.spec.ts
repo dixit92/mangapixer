@@ -396,7 +396,10 @@ test.describe('tracker sync web (1.43.0)', () => {
     expect(asked.at(-1)).toEqual({ page: '1', filter: 'TrackerAhead', q: 'Saga 006' });
 
     // The new controls are what a click reaches.
-    for (const id of ['tracking-chip-All', 'tracking-search', 'tracker-preview-mal', 'tracking-load-more-mal', 'tracking-more-r006']) {
+    for (const id of ['tracking-tab-mal', 'tracking-chip-All', 'tracking-search', 'tracker-preview-mal', 'tracking-load-more-mal',
+      'tracking-from-r006', 'tracking-to-r006', 'tracking-more-r006', 'tracking-set-dates-r006', 'tracker-disconnect-mal',
+      'tracker-add-started-mal', 'tracking-help']) {
+      await page.getByTestId(id).scrollIntoViewIfNeeded();
       const box = (await page.getByTestId(id).boundingBox())!;
       const hit = await page.evaluate(([x, y, testId]) => !!document.elementFromPoint(x as number, y as number)?.closest(`[data-testid="${testId}"]`),
         [box.x + box.width / 2, box.y + box.height / 2, id] as const);
