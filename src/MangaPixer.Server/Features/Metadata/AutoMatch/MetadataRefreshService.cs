@@ -197,7 +197,9 @@ public sealed class MetadataRefreshService
             .Where(r => r.FetchState != 1)
             .Select(r => new { r.Id, r.FetchedAt, r.OriginStatus })
             .ToListAsync(ct);
-        var catchUp = await PublisherCatchUpAsync(now, ct);
+        var catchUp = new HashSet<long>(await PublisherCatchUpAsync(now, ct));
+        // 1.43.0 (tracker sync, lane G - owner A2): the one-time links.mal catch-up, under the same gate and budget.
+        catchUp.UnionWith(await MalCatchUpAsync(now, ct));
         var due = candidates
             .Where(r => catchUp.Contains(r.Id)
                 || r.FetchedAt + TimeSpan.FromDays(cadences.TryGetValue(r.Id, out var d) ? d : (int)RefreshCadence.AgeFor(r.OriginStatus).TotalDays) <= now)
@@ -313,6 +315,100 @@ public sealed class MetadataRefreshService
             _logger.LogInformation(LogEvents.Metadata.RefreshPass, "Metadata refresh: {Count} records due for the one-time publisher-notes catch-up", ids.Count);
         }
         return ids;
+    }
+
+    /// <summary>The <c>job_runs</c> key of the one-time MyAnimeList id catch-up (1.43.0).</summary>
+    internal const string MalCatchUpKey = "tracker-mal-catchup";
+
+    /// <summary>
+    /// The one-time MyAnimeList id catch-up (1.43.0, owner A2: "on every instance that accepted the consent; it queues when it would exceed
+    /// that server's budget"). Before 1.43.0 a stored MangaDex record kept no <c>links.mal</c>, so MyAnimeList sync would know no series id
+    /// until each record's regular refresh (about 30 days ongoing, 90 finished). Runs only inside a refresh pass that passed the automatic
+    /// gate (the consent that already allows background MangaDex refreshes - not widened), so every request counts in the daily budget and
+    /// pacing and what the budget does not allow today stays due for the next pass. Record ids only (the approved refresh request). Same
+    /// watermark as <see cref="PublisherCatchUpAsync"/>: the first gated pass records its start; then
+    /// <list type="bullet">
+    /// <item>a linked MangaDex SERIES record without a <c>mal</c> cross id, fetched before the watermark, is due now (this method's answer);</item>
+    /// <item>once, at the start: the MangaDex COMPANIONS (Auto / Confirmed) of linked series whose record has no <c>mal</c> become due for their
+    /// regular re-check by id (<c>NextCheckAt</c> pulled in to now - the volume-cover pass re-reads them under its own switch).</item>
+    /// </list>
+    /// A record MangaDex lists no <c>mal</c> for is refreshed once and moves past the watermark; the run is marked done when no series record
+    /// is left. Returns the series record ids still to catch up.
+    /// </summary>
+    private async Task<IReadOnlySet<long>> MalCatchUpAsync(DateTimeOffset now, CancellationToken ct)
+    {
+        var run = await _db.JobRuns.FirstOrDefaultAsync(j => j.Key == MalCatchUpKey, ct);
+        if (run?.LastOutcome == "ok")
+            return new HashSet<long>();
+        if (run is null)
+        {
+            run = new JobRunEntity { Key = MalCatchUpKey, LastStartedAt = now, LastDetail = "mal ids catch-up started" };
+            _db.JobRuns.Add(run);
+            await _db.SaveChangesAsync(ct);
+            var pulled = await PullInMangaDexCompanionsWithoutMalAsync(now, ct);
+            _logger.LogInformation(LogEvents.Trackers.MalCatchUp, "Tracker MAL id catch-up started: {Companions} MangaDex companions due for their re-check",
+                pulled);
+        }
+        var watermark = run.LastStartedAt ?? now;
+        var mangaDex = MetadataProviderAllowlist.MangaDex;
+        var rows = await LinkedRecords().AsNoTracking()
+            .Where(r => r.Provider == mangaDex && r.FetchState != 1 && r.FetchedAt < watermark)
+            .Select(r => new { r.Id, r.CrossIdsJson })
+            .ToListAsync(ct);
+        var ids = rows.Where(r => !HasMalId(r.CrossIdsJson)).Select(r => r.Id).ToHashSet();
+        if (ids.Count == 0)
+        {
+            run.LastOutcome = "ok";
+            run.LastFinishedAt = now;
+            run.LastDetail = "mal ids caught up";
+            await _db.SaveChangesAsync(ct);
+        }
+        else
+        {
+            _logger.LogInformation(LogEvents.Trackers.MalCatchUp, "Metadata refresh: {Count} MangaDex records due for the one-time MAL id catch-up", ids.Count);
+        }
+        return ids;
+    }
+
+    /// <summary>The MangaDex companions of linked series whose record names no MAL id: their next re-check (by id) is now. Returns how many.</summary>
+    private async Task<int> PullInMangaDexCompanionsWithoutMalAsync(DateTimeOffset now, CancellationToken ct)
+    {
+        var mangaDex = MetadataProviderAllowlist.MangaDex;
+        var found = new[] { (int)CompanionState.Auto, (int)CompanionState.Confirmed };
+        var self = (int)CompanionMethod.Self;
+        var linkedSeries = LinkedRecords().Select(r => r.Id);
+        var candidates = await (from c in _db.MetadataCompanions
+                                join r in _db.MetadataRecords.AsNoTracking() on c.CompanionRecordId equals r.Id
+                                where c.Provider == mangaDex && found.Contains(c.State) && c.Method != self && linkedSeries.Contains(c.RecordId)
+                                      && r.FetchedAt < now
+                                select new { Companion = c, r.CrossIdsJson }).ToListAsync(ct);
+        var pulled = 0;
+        foreach (var row in candidates.Where(c => !HasMalId(c.CrossIdsJson)))
+        {
+            if (row.Companion.NextCheckAt is { } next && next <= now)
+                continue;
+            row.Companion.NextCheckAt = now;
+            pulled++;
+        }
+        if (pulled > 0)
+            await _db.SaveChangesAsync(ct);
+        return pulled;
+    }
+
+    /// <summary>A stored cross-id map that names a MyAnimeList id (<c>links.mal</c>, 1.43.0).</summary>
+    internal static bool HasMalId(string? crossIdsJson)
+    {
+        if (string.IsNullOrWhiteSpace(crossIdsJson))
+            return false;
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(crossIdsJson)?
+                .ContainsKey(Core.Trackers.TrackerCrossIdKeys.MyAnimeList) == true;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return false;
+        }
     }
 
     /// <summary>An English publisher credit stored without any of the 1.30.0 fields (status, volume total, omnibus).</summary>

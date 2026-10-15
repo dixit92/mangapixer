@@ -33,11 +33,13 @@ public sealed partial class CatalogBrowseService
     private readonly VolumeEntryService _volumes;
     private readonly StackCoverService _stackCovers;
     private readonly CollectionStackCoverService _collectionCovers;
+    private readonly Trackers.TrackerCardMarks? _trackerMarks;
 
     public CatalogBrowseService(MangaPixerDbContext db, LibraryAuthorizationService auth, SeriesInfoFlagService? seriesInfoFlags = null,
         ICoverResolver? covers = null, VolumeEntryService? volumes = null, StackCoverService? stackCovers = null,
-        CollectionStackCoverService? collectionCovers = null)
+        CollectionStackCoverService? collectionCovers = null, Trackers.TrackerCardMarks? trackerMarks = null)
     {
+        _trackerMarks = trackerMarks;
         _db = db;
         _auth = auth;
         _seriesInfoFlags = seriesInfoFlags ?? new SeriesInfoFlagService(db);
@@ -316,6 +318,10 @@ public sealed partial class CatalogBrowseService
             NextUnread = nextUnread,
         };
     }
+
+    /// <summary>1.43.0 (tracker sync): the cards' "read on &lt;tracker&gt;" flag, when tracker sync is registered (the app; not bare tests).</summary>
+    private async Task<List<CatalogNodeDto>> WithTrackerReadAsync(List<CatalogNodeDto> nodes, long userId, long folderId, CancellationToken ct) =>
+        _trackerMarks is null ? nodes : await _trackerMarks.DecorateAsync(nodes, userId, folderId, _volumes, ct);
 
     /// <summary>
     /// Turns browse rows into card DTOs (1.29.0: extracted so the Volumes view enriches its plain entries and the stack view its

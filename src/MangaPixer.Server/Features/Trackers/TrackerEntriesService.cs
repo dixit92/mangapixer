@@ -104,7 +104,11 @@ public sealed class TrackerEntriesService(
         {
             db.TrackerEntries.Add(new TrackerEntryEntity
             {
-                UserId = userId, Tracker = tracker, RecordId = recordId, State = (int)TrackerEntryState.Pending, UpdatedAt = now,
+                UserId = userId,
+                Tracker = tracker,
+                RecordId = recordId,
+                State = (int)TrackerEntryState.Pending,
+                UpdatedAt = now,
             });
         }
         await db.SaveChangesAsync(ct);
