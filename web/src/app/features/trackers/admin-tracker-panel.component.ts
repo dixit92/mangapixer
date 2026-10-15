@@ -113,7 +113,7 @@ import { TRACKER_ADMIN_CONSENT_VERSION, failureText, proposedRedirectUri } from 
           <input type="number" name="dailyRequestCap" [min]="capMin" [max]="capMax" step="1" [disabled]="saving()"
                  [ngModel]="cap()" (ngModelChange)="cap.set($event)" [attr.data-testid]="'admin-tracker-cap-' + s.slug" />
         </label>
-        <button mat-stroked-button type="submit" [disabled]="saving() || !capValid() || cap() === (s.dailyRequestCap ?? 2000)"
+        <button mat-stroked-button type="submit" [disabled]="saving() || !capValid() || cap() === capSaved()"
                 [attr.data-testid]="'admin-tracker-cap-save-' + s.slug">Save limit</button>
       </form>
       <p class="muted small">Reads, writes and sign-in renewals for one user count; syncing waits for the next day (UTC) when the limit
@@ -173,7 +173,9 @@ export class AdminTrackerPanelComponent {
   /** The per-user daily request limit (owner E5; the server takes 100 - 20000). */
   readonly capMin = 100;
   readonly capMax = 20000;
-  readonly cap = linkedSignal<number | null>(() => this.settings().dailyRequestCap ?? 2000);
+  /** What the server has (lane G sends it always; 2000 is its default). */
+  readonly capSaved = computed(() => this.settings().dailyRequestCap ?? 2000);
+  readonly cap = linkedSignal<number | null>(() => this.capSaved());
   readonly capValid = computed(() => {
     const v = this.cap();
     return v != null && Number.isInteger(v) && v >= this.capMin && v <= this.capMax;
