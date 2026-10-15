@@ -49,7 +49,8 @@ public sealed class TrackerListService(
         var watch = Stopwatch.StartNew();
         var entries = await db.TrackerEntries.AsNoTracking().Where(e => e.UserId == userId && e.Tracker == tracker).ToListAsync(ct);
         var context = await ContextAsync(userId, tracker, entries.Select(e => e.RecordId).Distinct().ToList(), ct);
-        var rows = entries.Where(e => context.Titles.ContainsKey(e.RecordId))
+        // Only series the user can still open (a linked folder in one of their libraries): no title from a library they lost.
+        var rows = entries.Where(e => context.Titles.ContainsKey(e.RecordId) && context.Nodes.ContainsKey(e.RecordId))
             .Select(e => (Entry: e, Bucket: TrackerListRules.BucketOf(FactsOf(e, context.AddStartedSeries))))
             .ToList();
         var counts = CountsOf(rows.Select(r => r.Bucket));
@@ -99,7 +100,9 @@ public sealed class TrackerListService(
                 .Where(e => e.UserId == userId && e.Tracker == account.Tracker && !e.DontSync
                     && (e.State == held || e.State == ahead || e.State == lower || e.HeldChapters != null || e.HeldVolumes != null))
                 .ToListAsync(ct);
-            var count = candidates.Count(e => TrackerListRules.NeedsAttention(TrackerListRules.BucketOf(FactsOf(e, account.AddStartedSeries))));
+            var visible = await resolver.FirstNodesAsync(userId, candidates.Select(e => e.RecordId).Distinct().ToList(), ct);
+            var count = candidates.Count(e => visible.ContainsKey(e.RecordId)
+                && TrackerListRules.NeedsAttention(TrackerListRules.BucketOf(FactsOf(e, account.AddStartedSeries))));
             result.Add(new TrackerAttentionCountDto { Tracker = account.Tracker, Count = count });
         }
         return new TrackerAttentionDto { Total = result.Sum(r => r.Count), Trackers = result };

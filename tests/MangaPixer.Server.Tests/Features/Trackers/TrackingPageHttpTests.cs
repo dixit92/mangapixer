@@ -189,7 +189,9 @@ public sealed class TrackingPageHttpTests
         var series = await h.SeedSeriesAsync(5);
         await MarkReadAsync(admin, series.Archives[2].PublicId);
         await h.IdleAsync();
-        Assert.Equal(Today, Assert.Single(h.Mal.Writes).Write.StartedOn); // the automatic start: the first counted mark
+        var (mediaId, firstWrite, _) = Assert.Single(h.Mal.Writes);
+        Assert.Equal(Today, firstWrite.StartedOn); // the automatic start: the first counted mark
+        Assert.Equal(series.MalId, mediaId); // the MAL id of the MangaUpdates series' MangaDex companion record
 
         var own = new DateOnly(2020, 5, 6);
         var row = await ReadAsync<TrackerSeriesRowDto>(await admin.PutAsJsonAsync(
@@ -216,6 +218,48 @@ public sealed class TrackingPageHttpTests
         Assert.Contains("dates_not_supported", await mu.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task TheMalId_ComesFromTheMangaDexCompanionRecord_AsSoonAsItKnowsOne()
+    {
+        // Integrator census (live, 2026-10-15): MangaUpdates series records carry no cross ids; a MAL id can only come from the series'
+        // MangaDex companion record - filled by its re-check (the A2 catch-up makes those due).
+        var h = new TrackerTestHarness();
+        await using var _ = h;
+        var admin = await h.AdminAsync();
+        await h.AllowAsync(TrackerSlugs.MyAnimeList);
+        await h.ConnectMalAsync(admin);
+        var series = await h.SeedSeriesAsync(3);
+        await h.DbAsync(async db =>
+        {
+            var primary = await db.MetadataRecords.SingleAsync(r => r.Id == series.RecordId);
+            Assert.Null(primary.CrossIdsJson);
+            var companionId = await db.MetadataCompanions.Where(c => c.RecordId == series.RecordId).Select(c => c.CompanionRecordId).SingleAsync();
+            var companion = await db.MetadataRecords.SingleAsync(r => r.Id == companionId);
+            companion.CrossIdsJson = """{"mu":"1"}"""; // stored before 1.43.0: no "mal"
+            return await db.SaveChangesAsync();
+        });
+        await MarkReadAsync(admin, series.Archives[0].PublicId);
+        await h.IdleAsync();
+        Assert.Equal(0, h.Mal.CallCount);
+        var userId = await h.UserIdAsync("admin");
+        Assert.Equal(TrackerEntryState.NoId, (TrackerEntryState)(await h.EntryAsync(userId, TrackerSlugs.MyAnimeList, series.RecordId))!.State);
+
+        // The companion's re-check stores links.mal: the next read syncs to that MAL entry.
+        await h.DbAsync(async db =>
+        {
+            var companionId = await db.MetadataCompanions.Where(c => c.RecordId == series.RecordId).Select(c => c.CompanionRecordId).SingleAsync();
+            var companion = await db.MetadataRecords.SingleAsync(r => r.Id == companionId);
+            companion.CrossIdsJson = $$"""{"mu":"1","mal":"{{series.MalId}}"}""";
+            return await db.SaveChangesAsync();
+        });
+        await MarkReadAsync(admin, series.Archives[1].PublicId);
+        await h.IdleAsync();
+        var (mediaId, write, _) = Assert.Single(h.Mal.Writes);
+        Assert.Equal((series.MalId, 2), (mediaId, write.ChaptersRead));
+        var row = Assert.Single((await ReadAsync<TrackerSeriesPageDto>(await admin.GetAsync("/api/v1/trackers/mal/series"))).Items);
+        Assert.Equal((series.MalId, TrackerIdSource.MangaDex), (row.RemoteId, row.RemoteIdSource));
+    }
+
     // --- The Tracking list ---
 
     [Fact]
@@ -237,7 +281,30 @@ public sealed class TrackingPageHttpTests
                     FetchedAt = now,
                 };
                 db.MetadataRecords.Add(record);
+                var folder = new CatalogNodeEntity
+                {
+                    PublicId = $"lst-node-{i:000}",
+                    LibraryId = series.LibraryId,
+                    ParentId = null,
+                    Kind = (int)CatalogNodeKind.Folder,
+                    DisplayName = record.Title,
+                    RelativePath = $"lst-{i:000}",
+                    PathKey = $"lst-{i:000}",
+                    SortKey = SortKey.ForNode(CatalogNodeKind.Folder, record.Title),
+                    Availability = (int)CatalogNodeAvailability.Available,
+                    CreatedAt = now,
+                };
+                db.CatalogNodes.Add(folder);
                 await db.SaveChangesAsync();
+                db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
+                {
+                    NodeId = folder.Id,
+                    LibraryId = series.LibraryId,
+                    State = (int)SeriesLinkState.Confirmed,
+                    RecordId = record.Id,
+                    CreatedAt = now,
+                    UpdatedAt = now,
+                });
                 var state = i <= 3 ? TrackerEntryState.Held : i <= 5 ? TrackerEntryState.TrackerAhead : i == 6 ? TrackerEntryState.NoId : TrackerEntryState.Ok;
                 db.TrackerEntries.Add(new TrackerEntryEntity
                 {
@@ -253,6 +320,26 @@ public sealed class TrackingPageHttpTests
                     UpdatedAt = now,
                 });
             }
+            return await db.SaveChangesAsync();
+        });
+
+        // One more entry whose series has no folder the user can open: never listed (no title from a library they lost).
+        await h.DbAsync(async db =>
+        {
+            var orphan = new MetadataRecordEntity { PublicId = "lst-orphan", Provider = "mangaupdates", ExternalId = "59999", Title = "Listed Orphan", FetchedAt = now };
+            db.MetadataRecords.Add(orphan);
+            await db.SaveChangesAsync();
+            db.TrackerEntries.Add(new TrackerEntryEntity
+            {
+                UserId = userId,
+                Tracker = TrackerSlugs.MangaUpdates,
+                RecordId = orphan.Id,
+                State = (int)TrackerEntryState.Held,
+                RemoteId = "59999",
+                HeldChapters = 3,
+                RemoteSeenAt = now,
+                UpdatedAt = now,
+            });
             return await db.SaveChangesAsync();
         });
 
