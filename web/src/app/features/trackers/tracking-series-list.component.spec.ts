@@ -178,10 +178,11 @@ describe('TrackingSeriesListComponent', () => {
     q(el, 'tracking-more-s1').click();
     fixture.detectChanges();
     const overlay = document.querySelector('.cdk-overlay-container')!;
-    const items = [...overlay.querySelectorAll('[mat-menu-item]')].map((i) => i.textContent!.replace(/\s+/g, ' ').trim());
+    // The label without its icon's ligature text.
+    const label = (i: Element) => i.textContent!.replace(i.querySelector('mat-icon')?.textContent ?? '', '').replace(/\s+/g, ' ').trim();
+    const items = [...overlay.querySelectorAll('[mat-menu-item]')].map(label);
     expect(items).toEqual([
-      'sync Sync now', 'event Set dates on MyAnimeList…', 'warning_amber Set MyAnimeList to a number… (can lower it)',
-      "sync_disabled Don't sync this series", 'open_in_new Open the series',
+      'Sync now', 'Set dates on MyAnimeList…', 'Set MyAnimeList to a number… (can lower it)', "Don't sync this series", 'Open the series',
     ]);
     expect(q(overlay, 'tracking-menu-set').classList).toContain('warn-item');
   });

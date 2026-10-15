@@ -309,8 +309,11 @@ describe('LayoutComponent sidebar visibility', () => {
       expect(trackers.ensureLoaded).toHaveBeenCalled();
       expect(trackers.refreshAttention).toHaveBeenCalled();
       const items = await menuItems(fixture);
-      const labels = items.map((i) => i.textContent!.replace(/\s+/g, ' ').trim());
-      const at = labels.findIndex((l) => l.startsWith('track_changes Tracking'));
+      // Each label without its icon's ligature text.
+      const labels = items.map((i) => i.textContent!.replace(i.querySelector('mat-icon')?.textContent ?? '', '').replace(/\s+/g, ' ').trim());
+      const at = items.findIndex((i) => i.getAttribute('data-testid') === 'nav-tracking');
+      expect(at).toBeGreaterThan(0);
+      expect(labels[at]).toMatch(/^Tracking/);
       expect(labels[at - 1]).toContain('Settings');
       expect(labels[at + 1]).toContain('MangaPixer Administration');
       const entry = items[at];

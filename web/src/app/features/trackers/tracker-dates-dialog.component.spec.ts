@@ -78,8 +78,10 @@ describe('TrackerDatesDialogComponent', () => {
     fixture.detectChanges();
     expect(q(el, 'tracker-dates-error').textContent).toContain('Give dates from 1900 to today');
   });
+});
 
-  it('today is the browser calendar date', () => {
+describe('todayIso', () => {
+  it('is the browser calendar date', () => {
     expect(todayIso(new Date(2026, 0, 5, 23, 59))).toBe('2026-01-05');
   });
 });
