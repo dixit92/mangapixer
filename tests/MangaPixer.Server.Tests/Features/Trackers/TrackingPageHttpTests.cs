@@ -283,25 +283,30 @@ public sealed class TrackingPageHttpTests
     }
 
     [Fact]
-    public async Task ThePreview_ListsEverySeriesWithAMark_BeforeItIsRead()
+    public async Task ThePreview_ListsEverySeriesWithAMark_AlsoBeyondTheBatchItReads()
     {
-        var (h, admin, userId, series) = await MangaUpdatesAsync(chapters: 2);
+        var (h, admin, userId, first) = await MangaUpdatesAsync(chapters: 1);
         await using var _ = h;
-        // A mark from before the account was usable: no entry yet.
+        // 52 series with a mark from before the account was usable (no entry): the preview reads 50 of them per call.
+        var series = new List<TrackerSeriesSeed> { first };
+        for (var i = 1; i < TrackerFacts.PreviewBatch + 2; i++)
+            series.Add(await h.SeedSeriesAsync(1));
         await h.DbAsync(async db =>
         {
-            await db.TrackerEntries.Where(e => e.UserId == userId).ExecuteDeleteAsync();
-            db.ReadMarks.Add(new ReadMarkEntity { UserId = userId, ItemId = series.Archives[0].Id, MarkedAt = DateTimeOffset.UtcNow, Source = "import" });
+            foreach (var s in series)
+                db.ReadMarks.Add(new ReadMarkEntity { UserId = userId, ItemId = s.Archives[0].Id, MarkedAt = DateTimeOffset.UtcNow, Source = "import" });
             return await db.SaveChangesAsync();
         });
         await h.IdleAsync();
         await h.DbAsync(db => db.TrackerEntries.Where(e => e.UserId == userId).ExecuteDeleteAsync());
         Assert.Equal(0, (await ReadAsync<TrackerSeriesPageDto>(await admin.GetAsync("/api/v1/trackers/mangaupdates/series"))).TotalCount);
 
-        await ReadAsync<TrackerPreviewDto>(await admin.PostAsync("/api/v1/trackers/mangaupdates/preview", null));
+        var preview = await ReadAsync<TrackerPreviewDto>(await admin.PostAsync("/api/v1/trackers/mangaupdates/preview", null));
+        Assert.Equal(2, preview.Remaining);
 
-        var row = Assert.Single((await ReadAsync<TrackerSeriesPageDto>(await admin.GetAsync("/api/v1/trackers/mangaupdates/series"))).Items);
-        Assert.Equal(series.RecordPublicId, row.SeriesId);
+        var page = await ReadAsync<TrackerSeriesPageDto>(await admin.GetAsync("/api/v1/trackers/mangaupdates/series"));
+        Assert.Equal(series.Count, page.TotalCount);
+        Assert.Equal(2, page.Counts.Unchecked);
     }
 
     // --- The series popover ---
