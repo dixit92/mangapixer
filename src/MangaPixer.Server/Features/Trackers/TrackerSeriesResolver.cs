@@ -349,6 +349,29 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
         return (id, links.TryGetValue(id, out var link) && link.IsLinked ? link.RecordId : null);
     }
 
+    /// <summary>
+    /// 1.43.0 (lane G, series folder cards): the record of each node's OWN Confirmed / Auto link (no ancestor walk - a folder card stands for a
+    /// series only when the link is its own), by the node's public id; nodes without one are left out. No access check (the caller browses).
+    /// </summary>
+    public static async Task<Dictionary<string, long>> OwnLinkedRecordsAsync(MangaPixerDbContext db, IReadOnlyCollection<string> nodePublicIds,
+        CancellationToken ct)
+    {
+        var result = new Dictionary<string, long>(StringComparer.Ordinal);
+        if (nodePublicIds.Count == 0)
+            return result;
+        var states = new[] { (int)SeriesLinkState.Confirmed, (int)SeriesLinkState.Auto };
+        foreach (var chunk in nodePublicIds.Distinct().Chunk(Batch))
+        {
+            var rows = await (from n in db.CatalogNodes.AsNoTracking()
+                              join l in db.NodeSeriesLinks.AsNoTracking() on n.Id equals l.NodeId
+                              where chunk.Contains(n.PublicId) && l.RecordId != null && states.Contains(l.State)
+                              select new { n.PublicId, RecordId = l.RecordId!.Value }).ToListAsync(ct);
+            foreach (var row in rows)
+                result[row.PublicId] = row.RecordId;
+        }
+        return result;
+    }
+
     /// <summary>1.43.0 (lane G): per record, the first folder (or archive) with its own Confirmed / Auto link the user can open.</summary>
     public async Task<Dictionary<long, string>> FirstNodesAsync(long userId, IReadOnlyCollection<long> recordIds, CancellationToken ct)
     {
