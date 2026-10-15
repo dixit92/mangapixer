@@ -224,15 +224,18 @@ public sealed class VolumeCoverPassTests : IAsyncLifetime
 
         Assert.Null(result.WaitingCode);
         var sent = _h.MangaDexRequests();
-        // search + one cover page (99 covers) + aggregate + aggregate in the preferred language + two images (volumes 1 and 2).
-        Assert.Equal(6, sent.Count);
-        Assert.Equal(6, result.Requests);
+        // search + one cover page (99 covers) + aggregate + aggregate in the preferred language (with and, 1.43.0, without the chapters
+        // MangaDex took down) + two images (volumes 1 and 2).
+        Assert.Equal(7, sent.Count);
+        Assert.Equal(7, result.Requests);
         Assert.Equal("/manga", sent[0].AbsolutePath);
         Assert.StartsWith("?title=Berserk&", Uri.UnescapeDataString(sent[0].Query), StringComparison.Ordinal);
         Assert.DoesNotContain(sent, u => Uri.UnescapeDataString(u.ToString()).Contains("Synthetic", StringComparison.Ordinal)); // no folder or file name
         Assert.Contains(sent, u => u.AbsolutePath == $"/manga/{MdFixtures.BerserkId}/aggregate" && u.Query == "?includeUnavailable=1");
         Assert.Contains(sent, u => u.AbsolutePath == $"/manga/{MdFixtures.BerserkId}/aggregate"
             && Uri.UnescapeDataString(u.Query) == "?includeUnavailable=1&translatedLanguage[]=en");
+        Assert.Contains(sent, u => u.AbsolutePath == $"/manga/{MdFixtures.BerserkId}/aggregate"
+            && Uri.UnescapeDataString(u.Query) == "?translatedLanguage[]=en");
         var covers = sent.Single(u => u.AbsolutePath == "/cover");
         Assert.Contains("locales[]=en&locales[]=ja", Uri.UnescapeDataString(covers.Query), StringComparison.Ordinal);
         Assert.All(sent.Where(u => u.Host == MetadataHttp.MangaDexImageHost), u =>
@@ -260,6 +263,8 @@ public sealed class VolumeCoverPassTests : IAsyncLifetime
         Assert.True(released.Count > 300);
         Assert.Equal(released.Order(), released);
         Assert.Contains(1m, released);
+        // 1.43.0: the readable chapters (the recording answers the same list, so every released chapter is readable here).
+        Assert.Equal(map.ReleasedChaptersJson, map.ReadableChaptersJson);
 
         // Preferred English is missing for Berserk: the Japanese covers of volumes 1 and 2 are stored.
         var stored = await _t.Db.VolumeCovers.Where(c => c.State == (int)VolumeCoverState.Stored).OrderBy(c => c.Volume).ToListAsync();
@@ -478,7 +483,7 @@ public sealed class VolumeCoverPassTests : IAsyncLifetime
         await _h.TickAsync();
 
         var sent = _h.MangaDexRequests();
-        Assert.Equal(["/manga/" + MdFixtures.BerserkId, "/cover", $"/manga/{MdFixtures.BerserkId}/aggregate", $"/manga/{MdFixtures.BerserkId}/aggregate"],
+        Assert.Equal(["/manga/" + MdFixtures.BerserkId, "/cover", $"/manga/{MdFixtures.BerserkId}/aggregate", $"/manga/{MdFixtures.BerserkId}/aggregate", $"/manga/{MdFixtures.BerserkId}/aggregate"],
             sent.Select(u => u.AbsolutePath));
         Assert.Equal(firstVersion, (await _t.Db.SeriesVolumeMaps.SingleAsync()).Version); // unchanged answer: no new version
     }

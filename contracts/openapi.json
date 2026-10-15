@@ -13686,6 +13686,28 @@
           }
         }
       },
+      "ExportMangaDexReadableDto": {
+        "required": [
+          "chapters"
+        ],
+        "type": "object",
+        "properties": {
+          "latestWholeChapter": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "chapters": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "ExportMangaDexReleasedDto": {
         "required": [
           "language",
@@ -13714,6 +13736,16 @@
           "fetchedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "readable": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ExportMangaDexReadableDto"
+              }
+            ]
           }
         }
       },

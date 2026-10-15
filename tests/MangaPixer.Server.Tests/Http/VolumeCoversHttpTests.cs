@@ -151,7 +151,8 @@ public sealed class VolumeCoversHttpTests
 
         await Worker(factory).RunVolumeCoversAsync(CancellationToken.None);
 
-        Assert.Equal(5, MangaDexCalls(factory)); // search, cover list, aggregate, aggregate in the preferred language, the volume 1 image
+        // search, cover list, aggregate, aggregate in the preferred language (with and without taken-down chapters), the volume 1 image
+        Assert.Equal(6, MangaDexCalls(factory));
         Assert.DoesNotContain(factory.Handler.Seen, s => Uri.UnescapeDataString(s.Uri.ToString()).Contains(Sentinel, StringComparison.Ordinal));
         var status = await OkAsync<CoverPassStatusDto>(await admin.GetAsync("/api/v1/admin/metadata/volume-covers/status"));
         Assert.Equal((0, 1, (string?)null), (status.SeriesPending, status.CoversStored, status.Waiting));
@@ -255,7 +256,7 @@ public sealed class VolumeCoversHttpTests
 
         Assert.Equal("Ok", refreshed.State);
         var paths = factory.Handler.Seen.Where(s => s.Uri.Host == MetadataHttp.MangaDexApiHost).Select(s => s.Uri.AbsolutePath).ToList();
-        Assert.Equal(["/manga", "/cover", $"/manga/{MdFixtures.BerserkId}/aggregate", $"/manga/{MdFixtures.BerserkId}/aggregate"], paths);
+        Assert.Equal(["/manga", "/cover", $"/manga/{MdFixtures.BerserkId}/aggregate", $"/manga/{MdFixtures.BerserkId}/aggregate", $"/manga/{MdFixtures.BerserkId}/aggregate"], paths);
         Assert.DoesNotContain(factory.Handler.Seen, s => s.Uri.Host == MetadataHttp.MangaDexImageHost); // lists only, no images
     }
 

@@ -2370,6 +2370,9 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Property<long?>("NextCheckAt")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("ReadableChaptersJson")
+                        .HasColumnType("TEXT");
+
                     b.Property<long>("RecordId")
                         .HasColumnType("INTEGER");
 

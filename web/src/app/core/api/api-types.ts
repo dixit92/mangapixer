@@ -2978,6 +2978,13 @@ export interface ExportMangaDexReleasedDto {
   latestChapter?: string | null;
   chapters: number;
   fetchedAt: string;
+  /** 1.43.0: the listed chapters MangaDex can be read on (left out when not read yet). */
+  readable?: ExportMangaDexReadableDto | null;
+}
+
+export interface ExportMangaDexReadableDto {
+  latestWholeChapter?: string | null;
+  chapters: number;
 }
 
 export interface ExportAniListDto {

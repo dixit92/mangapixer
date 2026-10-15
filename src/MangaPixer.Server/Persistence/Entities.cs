@@ -1613,6 +1613,14 @@ public sealed class SeriesVolumeMapEntity
     /// </summary>
     public string? ReleasedChaptersJson { get; set; }
 
+    /// <summary>
+    /// 1.43.0 (MangaList, owner 2026-10-15): the chapters of <see cref="ReleasedChaptersJson"/> MangaDex can actually be read on - the same
+    /// list read without <c>includeUnavailable</c>, so chapters MangaDex took down are left out (canonical unit numbers, ascending). Null
+    /// when not read (no preferred-language read, or a list stored before 1.43.0 until its next refresh). Not part of
+    /// <see cref="ContentHash"/>: only the metadata export reads it, so a change bumps no <see cref="Version"/>.
+    /// </summary>
+    public string? ReadableChaptersJson { get; set; }
+
     /// <summary>SHA-256 (hex) of the normalised payload: an unchanged refresh rewrites nothing.</summary>
     public string ContentHash { get; set; } = string.Empty;
 

@@ -23,9 +23,11 @@ public interface IMangaDexProvider
 
     /// <summary>
     /// The volume -> chapter list, including chapters MangaDex does not host (<c>includeUnavailable=1</c>); with
-    /// <paramref name="translatedLanguage"/> only the chapters released in that language (<c>translatedLanguage[]</c>).
+    /// <paramref name="translatedLanguage"/> only the chapters released in that language (<c>translatedLanguage[]</c>). With
+    /// <paramref name="includeUnavailable"/> false (1.43.0, MangaList: the readable chapters) the chapters MangaDex took down are left out.
     /// </summary>
-    Task<IReadOnlyList<MangaDexAggregateVolume>> AggregateAsync(string mangaId, CancellationToken ct, string? translatedLanguage = null);
+    Task<IReadOnlyList<MangaDexAggregateVolume>> AggregateAsync(
+        string mangaId, CancellationToken ct, string? translatedLanguage = null, bool includeUnavailable = true);
 
     /// <summary>One page (up to 100) of the record's covers, filtered to <paramref name="locales"/> when given.</summary>
     Task<MangaDexCoverPage> CoversAsync(string mangaId, IReadOnlyList<string>? locales, int offset, CancellationToken ct);
@@ -329,12 +331,18 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
             : null;
     }
 
-    public async Task<IReadOnlyList<MangaDexAggregateVolume>> AggregateAsync(string mangaId, CancellationToken ct, string? translatedLanguage = null)
+    public async Task<IReadOnlyList<MangaDexAggregateVolume>> AggregateAsync(
+        string mangaId, CancellationToken ct, string? translatedLanguage = null, bool includeUnavailable = true)
     {
         if (!IsValidId(mangaId) || (translatedLanguage is not null && !IsValidLocale(translatedLanguage)))
             return [];
-        var language = translatedLanguage is null ? string.Empty : "&translatedLanguage%5B%5D=" + translatedLanguage;
-        using var doc = await GetJsonAsync($"{ApiBase}/manga/{mangaId}/aggregate?includeUnavailable=1{language}", ct);
+        var parameters = new List<string>(2);
+        if (includeUnavailable)
+            parameters.Add("includeUnavailable=1");
+        if (translatedLanguage is not null)
+            parameters.Add("translatedLanguage%5B%5D=" + translatedLanguage);
+        var query = parameters.Count == 0 ? string.Empty : "?" + string.Join('&', parameters);
+        using var doc = await GetJsonAsync($"{ApiBase}/manga/{mangaId}/aggregate{query}", ct);
         return doc is null ? [] : ReadAggregate(doc.RootElement);
     }
 
