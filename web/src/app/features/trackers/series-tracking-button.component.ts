@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ConnectedPosition, OverlayModule } from '@angular/cdk/overlay';
-import { RouterLink } from '@angular/router';
+import { NavigationStart, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -110,7 +111,7 @@ const POSITIONS: ConnectedPosition[] = [
     .open { align-self: flex-start; }
   `],
 })
-export class SeriesTrackingButtonComponent {
+export class SeriesTrackingButtonComponent implements OnDestroy {
   private readonly api = inject(TrackersApiService);
   private readonly state = inject(TrackerStateService);
 
@@ -132,15 +133,26 @@ export class SeriesTrackingButtonComponent {
   private requested: string | null = null;
 
   constructor() {
-    // A new folder (or the first connected tracker) reads its summary; a folder without one hides the button.
+    // A new folder (or the first connected tracker) reads its summary; a folder without one hides the button. The popover belongs to
+    // the folder it was opened on: the browse page reuses this component from folder to folder, so a new folder closes it (owner
+    // review on an iPad: it reopened by itself on the next series).
     effect(() => {
       const id = this.nodeId();
+      untracked(() => this.open.set(false));
       if (!this.state.hasConnected()) {
         this.summary.set(null);
         return;
       }
       this.load(id);
     });
+    // Any navigation closes it - also one that keeps this component (back / forward between folders) or leaves it.
+    inject(Router).events.pipe(takeUntilDestroyed()).subscribe((event) => {
+      if (event instanceof NavigationStart) this.open.set(false);
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.open.set(false);
   }
 
   toggle(): void {
