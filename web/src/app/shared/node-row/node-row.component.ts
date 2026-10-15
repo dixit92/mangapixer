@@ -132,6 +132,8 @@ export function directionShort(mode: ReaderMode): string {
     .cover {
       position: relative; width: 46px; height: 66px; flex: 0 0 auto; border-radius: 4px; overflow: hidden;
       background: rgb(var(--mp-ink-rgb) / 0.06); display: flex; align-items: center; justify-content: center;
+      /* 1.43.0: the tracker ring is 1 px on this 46 px thumbnail (2 px on the cards) and follows its 4 px radius. */
+      --mp-tracker-mark-width: 1px; --mp-tracker-mark-radius: 4px;
     }
     .cover img { width: 100%; height: 100%; object-fit: cover; position: relative; z-index: 1; }
     .cover-fallback { font-size: 24px; width: 24px; height: 24px; color: var(--mp-text-faint); position: absolute; z-index: 0; }
