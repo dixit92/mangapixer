@@ -14,12 +14,15 @@ using Microsoft.EntityFrameworkCore;
 /// tracker's numbers as MangaPixer last saw them, never a request. Computed for the page being shown only. Called by
 /// <see cref="CatalogBrowseService"/> (folder list and Volumes view) when registered.
 /// </summary>
-public sealed class TrackerCardMarks(MangaPixerDbContext db)
+public sealed class TrackerCardMarks(MangaPixerDbContext db, TrackerSettingsService settings)
 {
     /// <summary>
     /// Sets <see cref="CatalogNodeDto.TrackerRead"/> on the page's archive and volume-stack cards of a folder that belongs to a linked series
-    /// the viewer tracks: for each tracker whose entry of that series was read (on a list, not "Don't sync"), the cards its chapters / volumes
-    /// read cover (<see cref="TrackerReadOn"/>). The common case - a viewer who tracks nothing - costs ONE indexed lookup
+    /// the viewer tracks. Owner (2026-10-15): the ring means "read on EVERY tracker this series syncs to" - an intersection. The series'
+    /// synced trackers are the viewer's entries of it on trackers that are connected (account OK, current consent), allowed by the admin,
+    /// read at least once, on the viewer's list and not "Don't sync"; a card gets the list of ALL of them only when every one covers it
+    /// (<see cref="TrackerReadOn"/>), else nothing. A connected tracker without such an entry neither counts nor blocks; no synced tracker,
+    /// no ring. The common case - a viewer who tracks nothing - costs ONE indexed lookup
     /// (<c>tracker_entries</c> by user); a tracked series adds the folder's link walk, its entries and the cached Volumes-view rows.
     /// </summary>
     public async Task<List<CatalogNodeDto>> DecorateAsync(List<CatalogNodeDto> nodes, long userId, long folderId, VolumeEntryService volumes,
@@ -31,14 +34,18 @@ public sealed class TrackerCardMarks(MangaPixerDbContext db)
             return nodes;
         if (await TrackerSeriesResolver.LinkedRecordOfAsync(db, folderId, ct) is not { } recordId)
             return nodes;
-        var seen = (await db.TrackerEntries.AsNoTracking()
-                .Where(e => e.UserId == userId && e.RecordId == recordId && e.RemoteSeenAt != null && !e.RemoteMissing && !e.DontSync)
-                .Select(e => new { e.Tracker, e.RemoteChapters, e.RemoteVolumes })
-                .ToListAsync(ct))
-            .Select(e => (e.Tracker, Numbers: new TrackerNumbers(e.RemoteChapters, e.RemoteVolumes)))
-            .Where(e => e.Numbers.Chapters > 0 || e.Numbers.Volumes > 0)
-            .OrderBy(e => e.Tracker, StringComparer.Ordinal)
-            .ToList();
+        var ok = (int)TrackerAccountState.Ok;
+        var candidates = await (from e in db.TrackerEntries.AsNoTracking()
+                                join a in db.TrackerAccounts.AsNoTracking() on new { e.UserId, e.Tracker } equals new { a.UserId, a.Tracker }
+                                where e.UserId == userId && e.RecordId == recordId && e.RemoteSeenAt != null && !e.RemoteMissing && !e.DontSync
+                                      && a.State == ok
+                                select new { e.Tracker, e.RemoteChapters, e.RemoteVolumes, a.ConsentVersion }).ToListAsync(ct);
+        var seen = new List<(string Tracker, TrackerNumbers Numbers)>();
+        foreach (var c in candidates.OrderBy(c => c.Tracker, StringComparer.Ordinal))
+        {
+            if (TrackerFacts.IsKnown(c.Tracker) && c.ConsentVersion == TrackerConsent.UserVersion(c.Tracker) && await settings.IsAllowedAsync(c.Tracker, ct))
+                seen.Add((c.Tracker, new TrackerNumbers(c.RemoteChapters, c.RemoteVolumes)));
+        }
         if (seen.Count == 0)
             return nodes;
 
@@ -70,20 +77,27 @@ public sealed class TrackerCardMarks(MangaPixerDbContext db)
 
         return nodes.Select(node =>
         {
-            List<string>? read = null;
-            foreach (var (tracker, numbers) in seen)
-            {
-                var covered = node.Kind == CatalogNodeKind.Archive
-                    ? TrackerReadOn.Covers(units.TryGetValue(node.Id, out var u) ? u : VolumeGrouping.UnitsOf(
-                        new GroupingRow(node.Id, GroupingRowKind.Archive, node.DisplayName, string.Empty)), numbers, map, declared)
-                    : node.VolumeStack is { } summary && stacks.TryGetValue(summary.Key, out var stack)
-                        && TrackerReadOn.CoversStack(stack.Volume,
-                            stack.Members.Where(m => !m.IsVolumeArchive && m.Chapter is not null).Select(m => m.Chapter!.Value).ToList(),
-                            declared ? numbers with { Volumes = null } : numbers);
-                if (covered)
-                    (read ??= []).Add(tracker);
-            }
+            var read = ReadOnEvery(seen, numbers => node.Kind == CatalogNodeKind.Archive
+                ? TrackerReadOn.Covers(units.TryGetValue(node.Id, out var u) ? u : VolumeGrouping.UnitsOf(
+                    new GroupingRow(node.Id, GroupingRowKind.Archive, node.DisplayName, string.Empty)), numbers, map, declared)
+                : node.VolumeStack is { } summary && stacks.TryGetValue(summary.Key, out var stack)
+                    && TrackerReadOn.CoversStack(stack.Volume,
+                        stack.Members.Where(m => !m.IsVolumeArchive && m.Chapter is not null).Select(m => m.Chapter!.Value).ToList(),
+                        declared ? numbers with { Volumes = null } : numbers));
             return read is null ? node : node with { TrackerRead = read };
         }).ToList();
+    }
+
+    /// <summary>
+    /// The intersection rule (owner, 2026-10-15): every synced tracker's slug when ALL of them cover the card, else null (no ring); null for no
+    /// synced tracker. With one synced tracker it is that tracker's own answer.
+    /// </summary>
+    public static IReadOnlyList<string>? ReadOnEvery(IReadOnlyList<(string Tracker, TrackerNumbers Numbers)> synced, Func<TrackerNumbers, bool> covers)
+    {
+        ArgumentNullException.ThrowIfNull(synced);
+        ArgumentNullException.ThrowIfNull(covers);
+        if (synced.Count == 0 || !synced.All(s => covers(s.Numbers)))
+            return null;
+        return synced.Select(s => s.Tracker).ToList();
     }
 }
