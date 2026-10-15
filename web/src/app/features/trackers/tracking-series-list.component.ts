@@ -189,7 +189,7 @@ const SEARCH_DELAY_MS = 300;
                     @let why = whyBlocked(r);
                     @if (why.length) {
                       <p class="why" [attr.data-testid]="'tracking-why-' + r.seriesId">
-                        @for (line of why; track line) { <span>{{ line }}</span> }
+                        @for (line of why; track $index) { <span>{{ line }}</span> }
                       </p>
                     }
                   </div>
