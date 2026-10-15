@@ -16,6 +16,8 @@ using Microsoft.EntityFrameworkCore;
 /// </summary>
 public sealed class TrackerEntriesService(
     MangaPixerDbContext db,
+    TrackerClients clients,
+    TrackerListCheckService listCheck,
     TrackerSyncService sync,
     TrackerSeriesResolver resolver,
     TrackerSettingsService settings,
@@ -113,6 +115,27 @@ public sealed class TrackerEntriesService(
         }
         await db.SaveChangesAsync(ct);
         db.ChangeTracker.Clear();
+
+        // 1.43.0 (owner option C): a tracker that can read the whole list does so - every series here on it gets its row, no per-series reads.
+        if (clients.Get(tracker) is { } client && client is ITrackerListReader { ReadsWholeList: true } reader)
+        {
+            var (check, problem) = await listCheck.CheckAsync(userId, tracker, client, reader, records, ct);
+            if (problem is not null)
+                return (null, problem);
+            var listed = await db.TrackerEntries.AsNoTracking().Where(e => e.UserId == userId && e.Tracker == tracker).ToListAsync(ct);
+            return (new TrackerPreviewDto
+            {
+                Entries = await ToDtosAsync(userId, listed, ct),
+                Remaining = 0,
+                CapReached = check!.CapReached,
+                ListRead = !check.CapReached,
+                ListEntries = check.ListEntries,
+                Matched = check.Matched,
+                Created = check.Created,
+            }, null);
+        }
+
+        // Otherwise (MangaUpdates): the series read here, 50 per call, one read each.
         var unread = records.Where(r => !seen.Contains(r)).Order().ToList();
         var capReached = false;
         var read = 0;

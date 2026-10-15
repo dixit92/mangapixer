@@ -110,8 +110,9 @@ export interface CatalogNodeDto {
   /** 1.30.0 (reach): on a chapter archive, the volume key of a volume FILE of the same series that already holds it ("Also in Volume 10"). */
   alsoInVolume?: string | null;
   /**
-   * 1.43.0: the trackers (`mal`, `mangaupdates`) on which this archive - or this volume of the Volumes view - is read by the
-   * tracker's last-seen numbers, for a linked series the viewer tracks there (display only). Left out when empty / not tracked.
+   * 1.43.0: the trackers (`mal`, `mangaupdates`) this series syncs to, set when the card is read on EVERY one of them by their
+   * last-seen numbers - an archive / a Volumes-view volume by its own numbers, a series FOLDER when every archive of the series the
+   * viewer can open is (display only). Left out when not read on all of them / not tracked.
    */
   trackerRead?: string[] | null;
 }
@@ -3364,6 +3365,18 @@ export interface TrackerPreviewDto {
   entries: TrackerEntryDto[];
   remaining: number;
   capReached: boolean;
+  /**
+   * 1.43.0 "Check my list" (owner option C): true when the WHOLE list on the tracker was read (MyAnimeList) - then nothing is read per
+   * series and `remaining` is 0; null for a tracker checked series by series (MangaUpdates). False with `capReached` when the daily cap
+   * stopped the read mid-list.
+   */
+  listRead?: boolean | null;
+  /** Entries on the list that were read. */
+  listEntries?: number | null;
+  /** Of them, series here the user can open (matched by the tracker's id). */
+  matched?: number | null;
+  /** Of the matches, series that got a row on the Tracking page now. */
+  created?: number | null;
 }
 
 /** `POST /api/v1/trackers/{slug}/entries/send-all`. */

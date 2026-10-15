@@ -554,5 +554,6 @@ public static class LogEvents
         public const int DatesRejected = 10803;
         public const int VolumeListRequeued = 10804;
         public const int MalCatchUp = 10805;
+        public const int ListChecked = 10806;
     }
 }

@@ -22,9 +22,10 @@ using com.lifepixer.mangapixer.Server.Logging;
 /// to MAL again - also after a restart (<see cref="DatesRefused"/>, <see cref="ITrackerDatesMemory"/>). Never a score, tags, comments, priority or re-read counts; no private flag
 /// (MAL's API has none - <see cref="TrackerEntryWrite.Private"/> is ignored here).</item>
 /// <item>No revoke endpoint is documented: <see cref="RevokeAsync"/> sends nothing.</item>
+/// <item>1.43.0 "Check my list": the user's whole list, paged (<see cref="ReadListPageAsync"/>).</item>
 /// </list>
 /// </summary>
-public sealed class MyAnimeListTrackerClient : ITrackerClient, ITrackerDates
+public sealed class MyAnimeListTrackerClient : ITrackerClient, ITrackerDates, ITrackerListReader
 {
     public const string AuthorizeUrl = "https://" + TrackerHttp.MyAnimeListSiteHost + "/v1/oauth2/authorize";
     public const string TokenUrl = "https://" + TrackerHttp.MyAnimeListSiteHost + "/v1/oauth2/token";
@@ -182,6 +183,71 @@ public sealed class MyAnimeListTrackerClient : ITrackerClient, ITrackerDates
             Content = new FormUrlEncodedContent(WriteFormOf(write, withDates)),
         }.WithBearer(tokens);
         return await SendAsync(request, "write", ct);
+    }
+
+    /// <summary>The fields of a whole-list read (1.43.0 "Check my list"): the user's list status of each entry and the series' totals.</summary>
+    public const string ListFields = "list_status{status,num_chapters_read,num_volumes_read,start_date,finish_date,is_rereading},num_chapters,num_volumes,status";
+
+    /// <summary>Entries per page of the whole-list read (MAL's maximum).</summary>
+    public const int ListPageSize = 1000;
+
+    public bool ReadsWholeList => true;
+
+    /// <summary>
+    /// One page of the user's own manga list (1.43.0 "Check my list", owner option C): <c>GET /v2/users/@me/mangalist</c> with
+    /// <see cref="ListFields"/>, <c>limit=1000</c>, <c>offset</c> and <c>nsfw=true</c> (it is the user's own list - without it MAL silently
+    /// leaves entries out). Each entry is read as <see cref="EntryOf"/> reads one series; a title in the answer is never kept. The next page's
+    /// offset is taken from <c>paging.next</c> (only its <c>offset</c>; MangaPixer builds every URL itself).
+    /// </summary>
+    public async Task<TrackerListPage> ReadListPageAsync(TrackerTokens tokens, int offset, CancellationToken ct)
+    {
+        if (offset < 0)
+            throw new TrackerException(TrackerFailure.Rejected);
+        var url = ApiBase + "users/@me/mangalist?fields=" + Uri.EscapeDataString(ListFields) + "&limit=" + ListPageSize.ToString(CultureInfo.InvariantCulture)
+            + "&offset=" + offset.ToString(CultureInfo.InvariantCulture) + "&nsfw=true";
+        using var request = new HttpRequestMessage(HttpMethod.Get, url).WithBearer(tokens);
+        using var response = await SendAsync(request, "list", ct);
+        if (!response.IsSuccessStatusCode)
+            throw Failure(response);
+        using var json = await TrackerHttp.ReadJsonAsync(response, TrackerHttp.MaxListPageBytes, ct);
+        return ListPageOf(json.RootElement);
+    }
+
+    /// <summary>A whole-list answer: <c>data[].node</c> (id, totals, publishing status) + <c>data[].list_status</c>, and <c>paging.next</c>.</summary>
+    public static TrackerListPage ListPageOf(JsonElement root)
+    {
+        var items = new List<TrackerListItem>();
+        if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in data.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("node", out var node) || node.ValueKind != JsonValueKind.Object
+                    || !node.TryGetProperty("id", out var idElement) || !idElement.TryGetInt32(out var id) || id <= 0
+                    || !item.TryGetProperty("list_status", out var mine) || mine.ValueKind != JsonValueKind.Object)
+                    continue;
+                var rereading = mine.TryGetProperty("is_rereading", out var r) && r.ValueKind == JsonValueKind.True;
+                if (StatusOf(Str(mine, "status"), rereading) is not { } status)
+                    continue;
+                items.Add(new TrackerListItem(id.ToString(CultureInfo.InvariantCulture), new TrackerEntry(
+                    status,
+                    Count(mine, "num_chapters_read"),
+                    Count(mine, "num_volumes_read"),
+                    Total(node, "num_chapters"),
+                    Total(node, "num_volumes"),
+                    Str(node, "status") == "finished",
+                    DateOf(Str(mine, "start_date")),
+                    DateOf(Str(mine, "finish_date")))));
+            }
+        }
+        int? next = null;
+        if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("paging", out var paging) && paging.ValueKind == JsonValueKind.Object
+            && Str(paging, "next") is { } nextUrl && Uri.TryCreate(nextUrl, UriKind.Absolute, out var nextUri))
+        {
+            var offsetText = System.Web.HttpUtility.ParseQueryString(nextUri.Query)["offset"];
+            if (int.TryParse(offsetText, NumberStyles.None, CultureInfo.InvariantCulture, out var o) && o > 0)
+                next = o;
+        }
+        return new TrackerListPage(items, next);
     }
 
     /// <summary>MAL documents no revoke endpoint: nothing is sent. The user removes the app's access on myanimelist.net.</summary>

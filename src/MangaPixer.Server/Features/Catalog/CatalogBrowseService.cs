@@ -287,8 +287,7 @@ public sealed partial class CatalogBrowseService
         if (parentId is { } folderId && rows.Any(r => r.Kind == (int)CatalogNodeKind.Archive))
             nodes = await WithAlsoInVolumeAsync(nodes, folderId, ct);
         // 1.43.0 (tracker sync): the cards' "read on <tracker>" flag (one indexed lookup when the viewer tracks nothing).
-        if (parentId is { } trackedFolder)
-            nodes = await WithTrackerReadAsync(nodes, userId, trackedFolder, ct);
+        nodes = await WithTrackerReadAsync(nodes, userId, parentId, ct);
 
         // Compute next cursor from the last row on the current page. recentlyRead
         // paginates by offset (in-memory pure-recency order); the others use a keyset.
@@ -320,7 +319,7 @@ public sealed partial class CatalogBrowseService
     }
 
     /// <summary>1.43.0 (tracker sync): the cards' "read on &lt;tracker&gt;" flag, when tracker sync is registered (the app; not bare tests).</summary>
-    private async Task<List<CatalogNodeDto>> WithTrackerReadAsync(List<CatalogNodeDto> nodes, long userId, long folderId, CancellationToken ct) =>
+    private async Task<List<CatalogNodeDto>> WithTrackerReadAsync(List<CatalogNodeDto> nodes, long userId, long? folderId, CancellationToken ct) =>
         _trackerMarks is null ? nodes : await _trackerMarks.DecorateAsync(nodes, userId, folderId, _volumes, ct);
 
     /// <summary>

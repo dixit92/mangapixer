@@ -181,6 +181,56 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
         }
     }
 
+    /// <summary>
+    /// 1.43.0 "Check my list": the series records the user can open (a Confirmed / Auto linked node in an accessible library, not tombstoned)
+    /// by their tracker id on <paramref name="tracker"/>, resolved exactly as <see cref="RemoteIdAsync"/> does (an admin's id first; MangaUpdates
+    /// = the linked record's own id; MyAnimeList = <c>mal</c> of the series' MangaDex record or its found companion). Bulk: a few queries per
+    /// 500 records.
+    /// </summary>
+    public async Task<Dictionary<string, List<long>>> RecordsByRemoteIdAsync(long userId, string tracker, CancellationToken ct)
+    {
+        var accessible = (await libraries.GetAccessibleLibraryIdsAsync(userId, ct)).ToList();
+        var states = new[] { (int)SeriesLinkState.Confirmed, (int)SeriesLinkState.Auto };
+        var tombstoned = (int)CatalogNodeAvailability.Tombstoned;
+        var recordIds = await (from l in db.NodeSeriesLinks.AsNoTracking()
+                               join n in db.CatalogNodes.AsNoTracking() on l.NodeId equals n.Id
+                               where l.RecordId != null && states.Contains(l.State) && accessible.Contains(n.LibraryId) && n.Availability != tombstoned
+                               select l.RecordId!.Value).Distinct().ToListAsync(ct);
+        var found = new[] { (int)CompanionState.Auto, (int)CompanionState.Confirmed };
+        var result = new Dictionary<string, List<long>>(StringComparer.Ordinal);
+        foreach (var chunk in recordIds.Chunk(Batch))
+        {
+            var overrides = await db.TrackerIdOverrides.AsNoTracking().Where(o => o.Tracker == tracker && chunk.Contains(o.RecordId))
+                .ToDictionaryAsync(o => o.RecordId, o => o.RemoteId, ct);
+            var records = await db.MetadataRecords.AsNoTracking().Where(r => chunk.Contains(r.Id))
+                .Select(r => new { r.Id, r.Provider, r.ExternalId, r.CrossIdsJson }).ToListAsync(ct);
+            var companions = tracker == TrackerSlugs.MyAnimeList
+                ? (await (from c in db.MetadataCompanions.AsNoTracking()
+                          join r in db.MetadataRecords.AsNoTracking() on c.CompanionRecordId equals r.Id
+                          where chunk.Contains(c.RecordId) && c.Provider == MetadataProviderAllowlist.MangaDex && found.Contains(c.State)
+                          select new { c.RecordId, r.CrossIdsJson }).ToListAsync(ct))
+                    .GroupBy(c => c.RecordId).ToDictionary(g => g.Key, g => g.First().CrossIdsJson)
+                : [];
+            foreach (var r in records)
+            {
+                string? id = overrides.TryGetValue(r.Id, out var own) && TrackerFacts.IsValidRemoteId(own) ? own : null;
+                id ??= tracker switch
+                {
+                    TrackerSlugs.MangaUpdates => r.Provider == MetadataProviderAllowlist.MangaUpdates && TrackerFacts.IsValidRemoteId(r.ExternalId) ? r.ExternalId : null,
+                    TrackerSlugs.MyAnimeList => CrossId(r.Provider == MetadataProviderAllowlist.MangaDex ? r.CrossIdsJson : companions.GetValueOrDefault(r.Id),
+                        TrackerCrossIdKeys.MyAnimeList),
+                    _ => null,
+                };
+                if (id is null)
+                    continue;
+                if (!result.TryGetValue(id, out var list))
+                    result[id] = list = [];
+                list.Add(r.Id);
+            }
+        }
+        return result;
+    }
+
     private static string? CrossId(string? json, string key)
     {
         if (string.IsNullOrWhiteSpace(json))
@@ -347,6 +397,29 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
             return null;
         var links = await CoverLinks.NearestAsync(db, [id], ct);
         return (id, links.TryGetValue(id, out var link) && link.IsLinked ? link.RecordId : null);
+    }
+
+    /// <summary>
+    /// 1.43.0 (lane G, series folder cards): the record of each node's OWN Confirmed / Auto link (no ancestor walk - a folder card stands for a
+    /// series only when the link is its own), by the node's public id; nodes without one are left out. No access check (the caller browses).
+    /// </summary>
+    public static async Task<Dictionary<string, long>> OwnLinkedRecordsAsync(MangaPixerDbContext db, IReadOnlyCollection<string> nodePublicIds,
+        CancellationToken ct)
+    {
+        var result = new Dictionary<string, long>(StringComparer.Ordinal);
+        if (nodePublicIds.Count == 0)
+            return result;
+        var states = new[] { (int)SeriesLinkState.Confirmed, (int)SeriesLinkState.Auto };
+        foreach (var chunk in nodePublicIds.Distinct().Chunk(Batch))
+        {
+            var rows = await (from n in db.CatalogNodes.AsNoTracking()
+                              join l in db.NodeSeriesLinks.AsNoTracking() on n.Id equals l.NodeId
+                              where chunk.Contains(n.PublicId) && l.RecordId != null && states.Contains(l.State)
+                              select new { n.PublicId, RecordId = l.RecordId!.Value }).ToListAsync(ct);
+            foreach (var row in rows)
+                result[row.PublicId] = row.RecordId;
+        }
+        return result;
     }
 
     /// <summary>1.43.0 (lane G): per record, the first folder (or archive) with its own Confirmed / Auto link the user can open.</summary>

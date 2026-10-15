@@ -107,11 +107,17 @@ public static class TrackerHttp
     }
 
     /// <summary>Reads a JSON body (bounded); an oversized or unreadable body is "unavailable", never echoed.</summary>
-    public static async Task<System.Text.Json.JsonDocument> ReadJsonAsync(HttpResponseMessage response, CancellationToken ct)
+    public static Task<System.Text.Json.JsonDocument> ReadJsonAsync(HttpResponseMessage response, CancellationToken ct) =>
+        ReadJsonAsync(response, MaxJsonBytes, ct);
+
+    /// <summary>1.43.0: a whole-list page (MyAnimeList, up to 1000 entries) is larger than one entry: its own bound.</summary>
+    public const int MaxListPageBytes = 4 * 1024 * 1024;
+
+    public static async Task<System.Text.Json.JsonDocument> ReadJsonAsync(HttpResponseMessage response, int maxBytes, CancellationToken ct)
     {
         try
         {
-            var bytes = await MetadataHttp.ReadBoundedAsync(response, MaxJsonBytes, ct);
+            var bytes = await MetadataHttp.ReadBoundedAsync(response, maxBytes, ct);
             return System.Text.Json.JsonDocument.Parse(bytes);
         }
         catch (Exception ex) when (ex is MetadataResponseTooLargeException or System.Text.Json.JsonException or HttpRequestException
