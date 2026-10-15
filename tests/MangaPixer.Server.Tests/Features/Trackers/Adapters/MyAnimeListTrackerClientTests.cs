@@ -19,21 +19,19 @@ public sealed class MyAnimeListTrackerClientTests : IDisposable
     public void Dispose() => _h.Dispose();
 
     [Fact]
-    public void TheAuthorizeUrl_IsMalsOwn_WithPlainPkce_AndNoRedirectParameter()
+    public void TheAuthorizeUrl_IsMalsOwn_WithPlainPkce_AndTheRegisteredRedirect()
     {
         var url = _h.Mal.BuildAuthorizeUrl(TrackerAdapterHarness.App(), "state-123", TrackerAdapterHarness.Verifier)!;
 
         Assert.Equal("https://myanimelist.net/v1/oauth2/authorize", url.GetLeftPart(UriPartial.Path));
         var query = TrackerAdapterHarness.Form(url.Query.TrimStart('?'));
         Assert.Equal(
-            ["response_type", "client_id", "state", "code_challenge", "code_challenge_method"],
+            ["response_type", "client_id", "state", "redirect_uri", "code_challenge", "code_challenge_method"],
             query.Select(p => p.Key).ToArray());
         Assert.Equal("code", query.Single(p => p.Key == "response_type").Value);
         Assert.Equal("synthetic-client-id", query.Single(p => p.Key == "client_id").Value);
         Assert.Equal("state-123", query.Single(p => p.Key == "state").Value);
-        // 1.43.0 owner test: MyAnimeList refuses the authorize request (401, a browser sign-in dialog) whenever redirect_uri is sent,
-        // even the exact registered URL; without it MAL uses the app's registered redirect (as Mihon does).
-        Assert.DoesNotContain(query, p => p.Key == "redirect_uri");
+        Assert.Equal("https://reader.example/trackers/callback/mal", query.Single(p => p.Key == "redirect_uri").Value);
         Assert.Equal(TrackerAdapterHarness.Verifier, query.Single(p => p.Key == "code_challenge").Value);
         Assert.Equal("plain", query.Single(p => p.Key == "code_challenge_method").Value);
         Assert.Equal(0, _h.Handler.CallCount); // building a URL sends nothing
@@ -69,8 +67,7 @@ public sealed class MyAnimeListTrackerClientTests : IDisposable
         Assert.False(seen.Headers.ContainsKey("Authorization")); // client credentials travel in the body (the guide's scheme 2)
         Assert.Equal(MetadataHttp.UserAgent, seen.Headers["User-Agent"]);
         var form = TrackerAdapterHarness.Form(seen.Body);
-        // No redirect_uri: the authorize request carried none (MAL: required here only when the authorize request had it).
-        Assert.Equal(["client_id", "client_secret", "grant_type", "code", "code_verifier"], form.Select(p => p.Key).ToArray());
+        Assert.Equal(["client_id", "client_secret", "grant_type", "code", "code_verifier", "redirect_uri"], form.Select(p => p.Key).ToArray());
         Assert.Equal("authorization_code", form.Single(p => p.Key == "grant_type").Value);
         Assert.Equal(TrackerAdapterHarness.Verifier, form.Single(p => p.Key == "code_verifier").Value);
     }
