@@ -47,12 +47,12 @@ public sealed class AddTrackingPageMigrationTests : IDisposable
             // what this test is about).
             await db.Database.ExecuteSqlRawAsync(
                 "INSERT INTO tracker_settings (Id, Tracker, Enabled, ConsentVersion, ConsentAt, ClientId, ClientSecretProtected, RedirectUri, UpdatedAt) " +
-                "VALUES (1, 'mal', 1, 1, 100, 'client', 'protected', 'https://review.test/trackers/callback/mal', 200)");
+                "VALUES (1, 'mal', 1, 1, 0, 'client', 'protected', 'https://review.test/trackers/callback/mal', 0)");
             await db.Database.ExecuteSqlRawAsync(
                 "PRAGMA foreign_keys = OFF; " +
                 "INSERT INTO tracker_entries (Id, UserId, Tracker, RecordId, RemoteId, RemoteIdSource, State, DontSync, LocalChapters, LocalVolumes, " +
                 "RemoteChapters, RemoteVolumes, RemoteStatus, RemoteMissing, RemoteSeenAt, UpdatedAt) " +
-                "VALUES (1, 7, 'mal', 42, '1234', 1, 1, 0, 51, 10, 51, 10, 2, 0, 300, 400)");
+                "VALUES (1, 7, 'mal', 42, '1234', 1, 1, 0, 51, 10, 51, 10, 2, 0, 0, 0)");
         }
 
         await using (var db = NewContext(dbPath))
