@@ -20,7 +20,7 @@ export const TRACKER_SLUGS = ['mal', 'mangaupdates'] as const;
  * Consent text versions this client SHOWS (`tracker-consent-text.component.ts`); each must equal the server's current version
  * (`TrackerConsent.AdminVersion` / `UserVersion`). The client sends its own version back, so a server that moved on refuses a
  * consent given to an older text. Bump with the text.
- * DRAFT (1.43.0, lane U): the texts are lane E's DRAFT wording until the integrator applies the owner-approved text.
+ * 1.43.0: version 1 of each stream is the owner-approved text (2026-10-15).
  */
 export const TRACKER_ADMIN_CONSENT_VERSION: Record<string, number> = { mal: 1, mangaupdates: 1 };
 export const TRACKER_USER_CONSENT_VERSION: Record<string, number> = { mal: 1, mangaupdates: 1 };

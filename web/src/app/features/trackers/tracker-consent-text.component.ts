@@ -4,10 +4,9 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
  * The consent texts of tracker sync (1.43.0), version 1 of each stream (`TRACKER_ADMIN_CONSENT_VERSION` /
  * `TRACKER_USER_CONSENT_VERSION` in `tracker-texts.ts` - bump them with any change here).
  *
- * DRAFT (lane U, 2026-10-14): lane E's DRAFT wording (Tracker Sync Engine note, "DRAFT - consent texts"), corrected with lane A's
- * adapter facts (MyAnimeList documents no way for an app to end its sign-in). DRAFT (lane W, 2026-10-15): MyAnimeList now receives
- * start / finish dates (owner A1, lane G) and users connect on the Tracking page, not in Settings. The integrator applies the
- * owner-approved text here before the release.
+ * Owner-approved 2026-10-15 (T2 - T5 of the 1.43.0 cycle note): lane E's wording, corrected with lane A's adapter facts (MyAnimeList
+ * documents no way for an app to end its sign-in) and lane W's changes (MyAnimeList receives start / finish dates, owner A1; users
+ * connect on the Tracking page). Version 1 is the first shipped text - any change from here on bumps the version.
  */
 @Component({
   selector: 'app-tracker-consent-text',
