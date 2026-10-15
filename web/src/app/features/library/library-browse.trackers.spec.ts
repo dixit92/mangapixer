@@ -76,11 +76,14 @@ describe('LibraryBrowseComponent tracker marks and the Tracking button', () => {
     expect(cards[0].querySelector('.badge.read')).not.toBeNull();
   });
 
-  it('list mode: the strip sits on the row thumbnail', () => {
+  it('list mode: the ring goes around the whole row, not the thumbnail (owner, 2026-10-15)', () => {
     const { el } = setup('list');
     const found = marks(el);
     expect(found).toHaveLength(2);
-    for (const m of found) expect(m.closest('app-node-row .cover')).not.toBeNull();
+    for (const m of found) {
+      expect(m.closest('app-node-row .node-card')).not.toBeNull();
+      expect(m.closest('app-node-row .cover')).toBeNull();
+    }
   });
 
   it('no Tracking button without a connected tracker; with one, a gold button that opens the series popover', () => {
