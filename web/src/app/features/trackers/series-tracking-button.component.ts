@@ -78,12 +78,12 @@ const POSITIONS: ConnectedPosition[] = [
   `,
   styles: [`
     :host { display: contents; }
-    .tracking-btn { border-color: var(--mp-warn-strong); color: var(--mp-warn); background: rgb(var(--mp-warn-strong-rgb) / 0.12); }
+    .tracking-btn { flex: none; border-color: var(--mp-warn-strong); color: var(--mp-warn); background: rgb(var(--mp-warn-strong-rgb) / 0.12); }
     .tracking-btn mat-icon { margin-right: 4px; color: var(--mp-warn); }
     @media (max-width: 599.98px) {
       .tracking-btn .lbl { display: none; }
       .tracking-btn mat-icon { margin-right: 0; }
-      .tracking-btn { min-width: 0; padding: 0 8px; }
+      .tracking-btn { min-width: 40px; padding: 0 8px; }
     }
     .tracking-popover {
       width: min(380px, calc(100vw - 16px)); box-sizing: border-box; max-height: calc(100dvh - 96px); overflow-y: auto;
