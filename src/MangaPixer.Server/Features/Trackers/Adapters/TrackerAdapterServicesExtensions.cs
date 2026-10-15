@@ -16,6 +16,7 @@ public static class TrackerAdapterServicesExtensions
     {
         services.TryAddSingleton<TrackerRateLimitOptions>();
         services.TryAddSingleton<TrackerPacing>();
+        services.TryAddSingleton<ITrackerDatesMemory, JobRunTrackerDatesMemory>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ITrackerClient, MyAnimeListTrackerClient>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ITrackerClient, MangaUpdatesTrackerClient>());
         AddTrackerClient(services, TrackerHttp.MyAnimeListClient, TrackerHttp.MyAnimeListApiHost, TrackerHttp.MyAnimeListSiteHost);

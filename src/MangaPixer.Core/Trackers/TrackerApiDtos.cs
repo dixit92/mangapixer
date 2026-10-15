@@ -434,13 +434,13 @@ public sealed record TrackerListCountsDto
     public required int Problem { get; init; }
     public required int Unchecked { get; init; }
 
-    /// <summary><see cref="Held"/> + <see cref="TrackerAhead"/> (the account menu badge's share of this tracker).</summary>
+    /// <summary><see cref="Held"/> + <see cref="TrackerAhead"/> + <see cref="Problem"/> (the account menu badge's share of this tracker).</summary>
     public required int Attention { get; init; }
 }
 
 /// <summary>
 /// <c>GET /api/v1/trackers/{slug}/series?page=1&amp;filter=Held&amp;q=...</c>: one page (50 series) of the caller's list on a tracker,
-/// ordered by title; <c>filter</c> is a <see cref="TrackerListBucket"/> name or <c>Attention</c> (omitted = all); <c>q</c> searches the
+/// ordered by title; <c>filter</c> is a <see cref="TrackerListBucket"/> name or <c>Attention</c> (Held + TrackerAhead + Problem; omitted = all); <c>q</c> searches the
 /// series' titles (case-insensitive). Reads stored state only - no request to the tracker.
 /// </summary>
 public sealed record TrackerSeriesPageDto
@@ -459,7 +459,7 @@ public sealed record TrackerSeriesPageDto
     public required TrackerListCountsDto Counts { get; init; }
 }
 
-/// <summary><c>GET /api/v1/trackers/attention</c>: the account menu badge - series that need the caller (held + tracker ahead).</summary>
+/// <summary><c>GET /api/v1/trackers/attention</c>: the account menu badge - series that need the caller (held + tracker ahead + problem).</summary>
 public sealed record TrackerAttentionDto
 {
     public required int Total { get; init; }

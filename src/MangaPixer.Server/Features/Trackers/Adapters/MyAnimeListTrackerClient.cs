@@ -19,7 +19,7 @@ using com.lifepixer.mangapixer.Server.Logging;
 /// <see cref="TrackerEntryStatus.Rereading"/>) and - 1.43.0, owner A1 - <c>start_date</c> / <c>finish_date</c> (<c>yyyy-MM-dd</c>) when the
 /// write carries them. MAL's reference does not document the dates for this endpoint (Mihon sends them): when MAL answers a write WITH dates
 /// with a 4xx other than 401 / 403 / 404 / 429, the write is sent once more without them, and when that succeeds this server sends no dates
-/// to MAL again until it restarts (<see cref="DatesRefused"/>). Never a score, tags, comments, priority or re-read counts; no private flag
+/// to MAL again - also after a restart (<see cref="DatesRefused"/>, <see cref="ITrackerDatesMemory"/>). Never a score, tags, comments, priority or re-read counts; no private flag
 /// (MAL's API has none - <see cref="TrackerEntryWrite.Private"/> is ignored here).</item>
 /// <item>No revoke endpoint is documented: <see cref="RevokeAsync"/> sends nothing.</item>
 /// </list>
@@ -37,9 +37,12 @@ public sealed class MyAnimeListTrackerClient : ITrackerClient, ITrackerDates
     private readonly TrackerPacing _pacing;
     private readonly TimeProvider _time;
     private readonly ILogger<MyAnimeListTrackerClient> _logger;
+    private readonly ITrackerDatesMemory? _datesMemory;
 
-    public MyAnimeListTrackerClient(IHttpClientFactory httpFactory, TrackerPacing pacing, TimeProvider time, ILogger<MyAnimeListTrackerClient> logger)
+    public MyAnimeListTrackerClient(IHttpClientFactory httpFactory, TrackerPacing pacing, TimeProvider time, ILogger<MyAnimeListTrackerClient> logger,
+        ITrackerDatesMemory? datesMemory = null)
     {
+        _datesMemory = datesMemory;
         _httpFactory = httpFactory;
         _pacing = pacing;
         _time = time;
@@ -118,7 +121,7 @@ public sealed class MyAnimeListTrackerClient : ITrackerClient, ITrackerDates
     public async Task WriteEntryAsync(TrackerTokens tokens, string mediaId, TrackerEntryWrite write, CancellationToken ct)
     {
         var id = MediaIdOf(mediaId);
-        var withDates = !DatesRefused && (write.StartedOn is not null || write.FinishedOn is not null);
+        var withDates = (write.StartedOn is not null || write.FinishedOn is not null) && !await DatesRefusedAsync(ct);
         using (var response = await SendWriteAsync(tokens, id, write, withDates, ct))
         {
             if (response.IsSuccessStatusCode)
@@ -133,17 +136,39 @@ public sealed class MyAnimeListTrackerClient : ITrackerClient, ITrackerDates
         if (!_datesRefused)
         {
             _datesRefused = true;
-            _logger.LogWarning(LogEvents.Trackers.DatesRejected, "Tracker {Tracker} refused start / finish dates; none are sent until a restart", Slug);
+            _logger.LogWarning(LogEvents.Trackers.DatesRejected, "Tracker {Tracker} refused start / finish dates; none are sent from now on", Slug);
+            try
+            {
+                if (_datesMemory is not null)
+                    await _datesMemory.RememberRefusedAsync(Slug, CancellationToken.None);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Still remembered for this process; the next restart may try dates once more.
+                _logger.LogWarning(LogEvents.Trackers.DatesRejected, "Tracker {Tracker} date refusal not stored: {ErrorType}", Slug, ex.GetType().Name);
+            }
         }
     }
 
     /// <summary>
     /// True once MAL refused a write because of its dates and accepted it without them (owner A1 fallback): no dates are sent from then on.
-    /// Kept for the process (a restart tries once more - one extra refused write).
+    /// 1.43.0 owner answer 3: remembered across restarts (<see cref="ITrackerDatesMemory"/>, read lazily on the first dated write) and never
+    /// cleared by the app.
     /// </summary>
     public bool DatesRefused => _datesRefused;
 
     private volatile bool _datesRefused;
+    private volatile bool _datesMemoryRead;
+
+    private async Task<bool> DatesRefusedAsync(CancellationToken ct)
+    {
+        if (_datesRefused || _datesMemoryRead || _datesMemory is null)
+            return _datesRefused;
+        if (await _datesMemory.IsRefusedAsync(Slug, ct))
+            _datesRefused = true;
+        _datesMemoryRead = true;
+        return _datesRefused;
+    }
 
     /// <summary>An answer that may be MAL refusing the dates: a 4xx that is not about the sign-in, the pace or the series.</summary>
     private static bool IsDateRefusal(HttpStatusCode status) =>

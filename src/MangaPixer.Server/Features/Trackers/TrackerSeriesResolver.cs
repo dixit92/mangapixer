@@ -239,6 +239,9 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
     /// Every archive of <paramref name="recordId"/>'s scope the user can open (each folder with its own Confirmed / Auto link in a library the
     /// user can open, its unit subfolders, a linked archive itself; once each), with its units (<see cref="VolumeGrouping.UnitsOf"/> after the
     /// series heads), its folder's declared edition and whether the user marked it read; and the record's stored volume map.
+    /// 1.43.0 owner answer 2: this scope is NOT narrowed by the outbound sync rules - archives in the user's Private libraries, below the user's
+    /// sync-off switch, or of a doujinshi record are in it ("Set progress from &lt;tracker&gt; to MangaPixer" marks them too); only library access
+    /// limits it. The outbound rules (<see cref="RecordsOfAsync"/>, <see cref="ProgressAsync"/>) are unchanged.
     /// </summary>
     public async Task<(IReadOnlyList<ScopeArchive> Archives, VolumeMapInput Map)> ArchivesAsync(long userId, long recordId, CancellationToken ct)
     {
