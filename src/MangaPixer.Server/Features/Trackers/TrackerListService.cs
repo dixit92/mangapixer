@@ -271,9 +271,11 @@ public sealed class TrackerListService(
         return new TrackerDatesDto
         {
             Supported = true,
-            StartedOn = startOverride ?? ParseDay(e.AutoStartedOn),
+            // The user's own date, else what the tracker keeps, else the automatic date MangaPixer would send (owner review 2026-10-15:
+            // never MangaPixer's first mark beside the tracker's own finish).
+            StartedOn = startOverride ?? ParseDay(e.RemoteStartedOn) ?? ParseDay(e.AutoStartedOn),
             StartedOnOverridden = startOverride is not null,
-            FinishedOn = finishOverride ?? ParseDay(e.AutoFinishedOn) ?? ParseDay(e.RemoteFinishedOn),
+            FinishedOn = finishOverride ?? ParseDay(e.RemoteFinishedOn) ?? ParseDay(e.AutoFinishedOn),
             FinishedOnOverridden = finishOverride is not null,
             RemoteStartedOn = ParseDay(e.RemoteStartedOn),
             RemoteFinishedOn = ParseDay(e.RemoteFinishedOn),

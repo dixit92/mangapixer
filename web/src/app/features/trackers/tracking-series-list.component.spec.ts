@@ -64,6 +64,20 @@ describe('TrackingSeriesListComponent', () => {
     http.verify();
   });
 
+  it('marks a date "(auto)" only when MangaPixer would send it - the tracker keeps none (owner review 2026-10-15)', () => {
+    const { el } = create(seriesPage([
+      seriesRow({ dates: { supported: true, startedOn: '2025-10-05', startedOnOverridden: false, finishedOn: '2025-10-17',
+        finishedOnOverridden: false, remoteStartedOn: '2025-10-05', remoteFinishedOn: '2025-10-17', pending: false } }),
+      seriesRow({ seriesId: 's2', title: 'Second Story', dates: { supported: true, startedOn: '2026-10-15', startedOnOverridden: false,
+        finishedOn: null, finishedOnOverridden: false, remoteStartedOn: null, remoteFinishedOn: null, pending: false } }),
+    ]));
+    const onTracker = q(el, 'tracking-dates-s1').textContent!;
+    expect(onTracker).toContain('Start Oct 5, 2025');
+    expect(onTracker).toContain('Finish Oct 17, 2025');
+    expect(onTracker).not.toContain('(auto)');
+    expect(q(el, 'tracking-dates-s2').textContent).toContain('Start Oct 15, 2026 (auto)');
+  });
+
   it('shows the rows with both sides, the chips with counts and the paging line', () => {
     const { el, firstReq } = create(seriesPage([AHEAD(), seriesRow({ seriesId: 's2', title: 'Second Story' })], {
       totalCount: 120, counts: listCounts({ inSync: 100, trackerAhead: 20 }),
@@ -76,7 +90,8 @@ describe('TrackingSeriesListComponent', () => {
     expect(q(el, 'tracking-remote-s1').textContent).toContain('51 ch · 10 vol');
     expect(row.textContent).toContain('Reading');
     expect(q(el, 'tracking-dates-s1').textContent).toContain('Start Oct 1, 2026');
-    expect(q(el, 'tracking-dates-s1').textContent).toContain('(auto)');
+    // The tracker keeps that start: no note (the column is the tracker's dates).
+    expect(q(el, 'tracking-dates-s1').textContent).not.toContain('(auto)');
     expect((row.querySelector('a.title') as HTMLAnchorElement).getAttribute('href')).toBe('/series/n1');
     const chips = [...el.querySelectorAll('.chip-btn')].map((b) => b.textContent!.trim());
     expect(chips).toEqual([

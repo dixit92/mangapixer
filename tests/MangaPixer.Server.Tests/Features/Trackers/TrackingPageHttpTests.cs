@@ -205,10 +205,12 @@ public sealed class TrackingPageHttpTests
         var page = await ReadAsync<TrackerSeriesPageDto>(await admin.GetAsync("/api/v1/trackers/mal/series"));
         Assert.False(Assert.Single(page.Items).Dates.Pending);
 
-        // Cleared: the automatic date again (not sent - the tracker has a date).
+        // Cleared: no longer the user's - the cell shows what the tracker keeps (the date sent above), not MangaPixer's automatic one,
+        // and nothing is pending (the automatic date is never sent over a date the tracker has).
         var cleared = await ReadAsync<TrackerSeriesRowDto>(await admin.PutAsJsonAsync(
             $"/api/v1/trackers/mal/entries/{series.RecordPublicId}/dates", new TrackerDatesRequest()));
-        Assert.Equal((Today, false, false), (cleared.Dates.StartedOn, cleared.Dates.StartedOnOverridden, cleared.Dates.Pending));
+        Assert.Equal((own, false, false), (cleared.Dates.StartedOn, cleared.Dates.StartedOnOverridden, cleared.Dates.Pending));
+        Assert.Equal(own, cleared.Dates.RemoteStartedOn);
 
         // Refused: a finish before the start, and a tracker that keeps no dates.
         var bad = await admin.PutAsJsonAsync($"/api/v1/trackers/mal/entries/{series.RecordPublicId}/dates",
