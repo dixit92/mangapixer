@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 
 import { TrackerSummaryDto } from '../../core/api/api-types';
 import { SeriesTrackingButtonComponent } from './series-tracking-button.component';
@@ -104,5 +104,41 @@ describe('SeriesTrackingButtonComponent', () => {
     http.expectOne('/api/v1/trackers/nodes/n2/summary').flush({ seriesId: null, rows: [] });
     fixture.detectChanges();
     expect(q(el, 'series-tracking-button')).toBeNull();
+  });
+
+  function openOn(fixture: ReturnType<typeof create>['fixture'], el: HTMLElement, http: HttpTestingController, id: string) {
+    (q(el, 'series-tracking-button') as HTMLButtonElement).click();
+    http.expectOne(`/api/v1/trackers/nodes/${id}/summary`).flush({ seriesId: 's1', rows: [seriesRow()] });
+    fixture.detectChanges();
+    expect(q(overlay(), 'series-tracking-popover')).not.toBeNull();
+  }
+
+  it('closes the popover when the folder changes: the next series\' button starts closed (owner review, iPad)', () => {
+    const { fixture, el, http } = create([summary({ account: trackerAccount() })]);
+    http.expectOne('/api/v1/trackers/nodes/n1/summary').flush({ seriesId: 's1', rows: [seriesRow()] });
+    fixture.detectChanges();
+    openOn(fixture, el, http, 'n1');
+    fixture.componentRef.setInput('nodeId', 'n2');
+    fixture.detectChanges();
+    http.expectOne('/api/v1/trackers/nodes/n2/summary').flush({ seriesId: 's2', rows: [seriesRow({ seriesId: 's2' })] });
+    fixture.detectChanges();
+    const button = q(el, 'series-tracking-button') as HTMLButtonElement;
+    expect(button).not.toBeNull();
+    expect(button.getAttribute('aria-expanded')).toBe('false');
+    expect(q(overlay(), 'series-tracking-popover')).toBeNull();
+  });
+
+  it('closes the popover on any navigation, and when the button goes away', async () => {
+    const { fixture, el, http } = create([summary({ account: trackerAccount() })]);
+    http.expectOne('/api/v1/trackers/nodes/n1/summary').flush({ seriesId: 's1', rows: [seriesRow()] });
+    fixture.detectChanges();
+    openOn(fixture, el, http, 'n1');
+    await TestBed.inject(Router).navigateByUrl('/somewhere-else').catch(() => undefined);
+    fixture.detectChanges();
+    expect(q(overlay(), 'series-tracking-popover')).toBeNull();
+
+    openOn(fixture, el, http, 'n1');
+    fixture.destroy();
+    expect(q(overlay(), 'series-tracking-popover')).toBeNull();
   });
 });

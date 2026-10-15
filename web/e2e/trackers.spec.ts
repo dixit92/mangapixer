@@ -566,6 +566,13 @@ test.describe('tracker sync web (1.43.0)', () => {
     await pop.getByTestId('series-tracking-open-mal').click();
     await expect(page).toHaveURL(/\/tracking\?tracker=mal&series=s7$/);
     await expect(page.getByTestId('tracking-row-s7')).toHaveClass(/focused/);
+    // The popover never follows to another page (owner review on an iPad: it stayed open over the Tracking page), and going back
+    // to the series finds its button closed.
+    await expect(page.getByTestId('series-tracking-popover')).toHaveCount(0);
+    await page.goBack();
+    await expect(page.getByTestId('series-tracking-button')).toBeVisible();
+    await expect(page.getByTestId('series-tracking-button')).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByTestId('series-tracking-popover')).toHaveCount(0);
     // The title travels in the navigation state and seeds the search; it is never in the address.
     expect(asked.at(-1)).toBe('Synthetic Saga s7');
     expect(page.url()).not.toContain('Synthetic');
