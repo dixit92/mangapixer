@@ -283,7 +283,7 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
     }
 
     /// <summary>One archive of a series scope as the "from tracker" marking reads it.</summary>
-    public sealed record ScopeArchive(long NodeId, UnitNumbers Units, bool DeclaredEdition, bool Read);
+    public sealed record ScopeArchive(long NodeId, UnitNumbers Units, bool DeclaredEdition, bool Read, bool OneShot = false);
 
     /// <summary>
     /// Every archive of <paramref name="recordId"/>'s scope the user can open (each folder with its own Confirmed / Auto link in a library the
@@ -301,12 +301,13 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
         var result = new Dictionary<long, ScopeArchive>();
         foreach (var folder in scope.Folders)
         {
-            var withHeads = VolumeGrouping.WithSeriesHeads(folder.Rows.Select(r => r.Row).ToList());
+            // The tracker units (series heads, and the one-shot rule - TrackerUnits).
+            var units = TrackerUnits.Of(folder.Rows.Select(r => r.Row).ToList());
             for (var i = 0; i < folder.Rows.Count; i++)
             {
                 if (folder.Rows[i].NodeId is not { } id || folder.Rows[i].Row.Kind != GroupingRowKind.Archive || result.ContainsKey(id))
                     continue;
-                result[id] = new ScopeArchive(id, VolumeGrouping.UnitsOf(withHeads[i]), folder.DeclaredEdition, scope.Marks.ContainsKey(id));
+                result[id] = new ScopeArchive(id, units[i].Units, folder.DeclaredEdition, scope.Marks.ContainsKey(id), units[i].OneShot);
             }
         }
         return (result.Values.ToList(), scope.Map);

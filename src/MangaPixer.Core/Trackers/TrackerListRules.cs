@@ -175,13 +175,17 @@ public static class TrackerListRules
 /// ratio) - when every whole chapter the list gives its volume(s) is at or below the tracker's chapters read (a user who tracks chapters
 /// only); a volume the list gives no whole chapter never counts this way.</item>
 /// <item>A declared edition (omnibus, "Volumes in this edition") numbers its own volumes: its volume files are never read this way (its
-/// chapter files are). A file whose name states no number is never read this way. A tracker number of 0 or none reads nothing.</item>
+/// chapter files are). A file whose name states no number is never read this way - except a ONE-SHOT, the only archive of the series'
+/// scope (<see cref="TrackerUnits"/>), read when the tracker shows chapter 1 or volume 1. A tracker number of 0 or none reads nothing.</item>
 /// </list>
 /// </summary>
 public static class TrackerReadOn
 {
-    public static bool Covers(UnitNumbers units, TrackerNumbers remote, VolumeMapInput? exactMap, bool declaredEdition)
+    public static bool Covers(UnitNumbers units, TrackerNumbers remote, VolumeMapInput? exactMap, bool declaredEdition, bool oneShot = false)
     {
+        // 1.43.0: a one-shot (TrackerUnits) is chapter 1 / volume 1 - read when the tracker has either.
+        if (oneShot)
+            return remote.Chapters is > 0 || remote.Volumes is > 0;
         if (units.Chapter is { } start)
         {
             var end = units.ChapterEnd is { } e && e > start ? e : start;
