@@ -380,6 +380,11 @@ test.describe('tracker sync web (1.43.0)', () => {
     await expect(list.getByTestId('tracking-chip-All')).toHaveText('All · 120');
     await expect(list.getByTestId('tracking-chip-TrackerAhead')).toHaveText('MyAnimeList ahead · 20');
     expect(asked[0]).toEqual({ page: '1' });
+    // Load more is what a click reaches while there is more (a disabled Material button takes no pointer events).
+    await list.getByTestId('tracking-load-more-mal').scrollIntoViewIfNeeded();
+    const more = (await list.getByTestId('tracking-load-more-mal').boundingBox())!;
+    expect(await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('[data-testid="tracking-load-more-mal"]'),
+      [more.x + more.width / 2, more.y + more.height / 2])).toBe(true);
 
     await list.getByTestId('tracking-load-more-mal').click();
     await expect(list.locator('[data-testid^="tracking-row-"]')).toHaveCount(100);
@@ -396,7 +401,7 @@ test.describe('tracker sync web (1.43.0)', () => {
     expect(asked.at(-1)).toEqual({ page: '1', filter: 'TrackerAhead', q: 'Saga 006' });
 
     // The new controls are what a click reaches.
-    for (const id of ['tracking-tab-mal', 'tracking-chip-All', 'tracking-search', 'tracker-preview-mal', 'tracking-load-more-mal',
+    for (const id of ['tracking-tab-mal', 'tracking-chip-All', 'tracking-search', 'tracker-preview-mal',
       'tracking-from-r006', 'tracking-to-r006', 'tracking-more-r006', 'tracking-set-dates-r006', 'tracker-disconnect-mal',
       'tracker-add-started-mal', 'tracking-help']) {
       await page.getByTestId(id).scrollIntoViewIfNeeded();
@@ -493,7 +498,8 @@ test.describe('tracker sync web (1.43.0)', () => {
     await expect(mark).toHaveAttribute('aria-label', 'Read on MyAnimeList');
     const look = await mark.evaluate((el) => {
       const s = getComputedStyle(el);
-      const cover = el.parentElement!.getBoundingClientRect();
+      // The host is `display: contents`: measure against the cover box itself.
+      const cover = el.closest('.cover')!.getBoundingClientRect();
       const box = el.getBoundingClientRect();
       const probe = document.createElement('span');
       probe.style.color = 'var(--mp-warn-strong)';
