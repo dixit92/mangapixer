@@ -130,8 +130,8 @@ const SEARCH_DELAY_MS = 300;
                 <div class="cell dates" [attr.data-testid]="'tracking-dates-' + r.seriesId">
                   <span class="cell-label">Dates on {{ name() }}</span>
                   @if (r.dates.supported) {
-                    <span>Start {{ date(r.dates.startedOn) }} <span class="sub">{{ r.dates.startedOn ? (r.dates.startedOnOverridden ? '(yours)' : '(auto)') : '' }}</span></span>
-                    <span>Finish {{ date(r.dates.finishedOn) }} <span class="sub">{{ r.dates.finishedOn ? (r.dates.finishedOnOverridden ? '(yours)' : '(auto)') : '' }}</span></span>
+                    <span>Start {{ date(r.dates.startedOn) }} <span class="sub">{{ dateNote(r.dates.startedOn, r.dates.startedOnOverridden, r.dates.remoteStartedOn) }}</span></span>
+                    <span>Finish {{ date(r.dates.finishedOn) }} <span class="sub">{{ dateNote(r.dates.finishedOn, r.dates.finishedOnOverridden, r.dates.remoteFinishedOn) }}</span></span>
                     @if (r.dates.pending) { <span class="sub">Goes with the next update</span> }
                     <button type="button" class="link" [disabled]="busy()" (click)="openDates(r)"
                             [attr.data-testid]="'tracking-set-dates-' + r.seriesId">Set dates…</button>
@@ -356,6 +356,16 @@ export class TrackingSeriesListComponent implements OnInit, OnDestroy {
   readonly numbers = numbersText;
   readonly status = statusText;
   readonly date = dateText;
+
+  /**
+   * The note beside a date of the "Dates on <tracker>" cell: "(yours)" for the user's own, nothing for what the tracker already keeps,
+   * "(auto)" only for the automatic date MangaPixer would send because the tracker keeps none.
+   */
+  dateNote(shown: string | null | undefined, overridden: boolean, remote: string | null | undefined): string {
+    if (!shown) return '';
+    if (overridden) return '(yours)';
+    return shown === remote ? '' : '(auto)';
+  }
   readonly question = fromTrackerQuestion;
 
   private generation = 0;

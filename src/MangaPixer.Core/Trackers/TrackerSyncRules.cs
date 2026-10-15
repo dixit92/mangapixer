@@ -158,13 +158,16 @@ public static class TrackerSyncRules
 
     /// <summary>
     /// The start date a write carries: the user's own when it differs from the tracker's (owner A1: it wins), else the automatic one (the
-    /// first counted mark) only when the tracker has none; null = left as the tracker has it.
+    /// first counted mark) only when the tracker has none - and never after a finish date the tracker keeps (an entry finished elsewhere:
+    /// a later first mark here would put its start after its finish); null = left as the tracker has it.
     /// </summary>
     private static DateOnly? StartOf(TrackerSyncInput input, TrackerEntry? remote)
     {
         if (input.StartedOverride is { } own)
             return own != remote?.StartedOn ? own : null;
-        return remote?.StartedOn is null ? input.StartedOn : null;
+        if (remote?.StartedOn is not null)
+            return null;
+        return remote?.FinishedOn is { } finished && input.StartedOn > finished ? null : input.StartedOn;
     }
 
     /// <summary>The finish date of a write that completes the entry: the user's own (when it differs), else today when the tracker has none.</summary>
