@@ -15,7 +15,7 @@ import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { TrackersApiService } from './trackers-api.service';
 import {
   actionBlockText, bucketText, bucketTone, dateText, entryStateText, failureText, fromTrackerQuestion, movedCounts, numbersText, ofText,
-  statusText, trackerName, trackingChips,
+  previewNotice, statusText, trackerName, trackingChips,
 } from './tracker-texts';
 import { provideTrackerTooltips } from './tracker-tooltips';
 import { TrackingListMemory } from './tracking-list-memory.service';
@@ -38,7 +38,7 @@ const SEARCH_DELAY_MS = 300;
  *   a mouse also gets it as the tooltip - UX review UX1);
  * - "⋯": Sync now, Set dates on <tracker>…, "Set <tracker> to a number… (can lower it)" (the warning form, in the warn colour),
  *   Don't sync this series / Sync again, Open the series; a disabled item says why in a muted line (UX7).
- * The toolbar keeps "Check my list on <tracker>" (the first-connect preview: reads 50 series a click, writes nothing) and "Send
+ * The toolbar keeps "Check my list on <tracker>" (writes nothing: MyAnimeList reads the whole list, others 50 series a click) and "Send
  * all" for the series waiting for the user. The list itself is stored state: showing, paging, filtering and searching contact no
  * tracker. A list reload (chip, search, Load more) closes an open confirm or "Set to" form and clears the error line once a page
  * arrives; a row action moves its series between the chip counts at once; Back from "Open the series" finds the same chip, search
@@ -674,9 +674,7 @@ export class TrackingSeriesListComponent implements OnInit, OnChanges, OnDestroy
   preview(): void {
     this.run(this.api.preview(this.slug()), (p) => {
       this.previewRemaining.set(p.remaining);
-      this.notice.set(p.capReached
-        ? `Checked ${p.entries.length}. Today's request limit for ${this.name()} is reached - try again tomorrow.`
-        : `Checked ${p.entries.length} series${p.remaining > 0 ? `, ${p.remaining} left` : ''}. Nothing was changed on ${this.name()}.`);
+      this.notice.set(previewNotice(p, this.name()));
       this.reload();
       this.changed.emit();
     });
