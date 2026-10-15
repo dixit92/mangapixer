@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Text.Json;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
+using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Core.Trackers;
 using com.lifepixer.mangapixer.Server.Features.Auth;
 using com.lifepixer.mangapixer.Server.Features.Covers;
@@ -203,6 +204,72 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
     /// </summary>
     public async Task<TrackerSeriesProgress> ProgressAsync(long userId, long recordId, CancellationToken ct)
     {
+        var scope = await LoadScopeAsync(userId, recordId, ct);
+        if (scope is null)
+            return TrackerSeriesProgress.Empty;
+        var eligible = scope.Marks.Count == 0
+            ? new HashSet<long>()
+            : await EligibleAsync(userId, scope.Marks.Keys.ToDictionary(id => id, _ => recordId), ct);
+
+        TrackerNumbers auto = TrackerNumbers.None, all = TrackerNumbers.None;
+        DateTimeOffset? earliest = null;
+        foreach (var folder in scope.Folders)
+        {
+            var progressRows = new List<TrackerProgressRow>(folder.Rows.Count);
+            foreach (var (row, nodeId) in folder.Rows)
+            {
+                var read = nodeId is { } id && scope.Marks.TryGetValue(id, out var mark) && eligible.Contains(id);
+                var held = read && IsHeldSource(scope.Marks[nodeId!.Value].Source);
+                if (read && (earliest is null || scope.Marks[nodeId!.Value].At < earliest))
+                    earliest = scope.Marks[nodeId!.Value].At;
+                progressRows.Add(new TrackerProgressRow(row, read, held));
+            }
+            var result = TrackerProgress.Compute(progressRows, scope.Map, folder.DeclaredEdition);
+            auto = Max(auto, result.Automatic);
+            all = Max(all, result.All);
+        }
+        var startedOn = earliest is { } e ? DateOnly.FromDateTime(e.UtcDateTime) : (DateOnly?)null;
+        return new TrackerSeriesProgress(new TrackerProgressResult(auto, all), startedOn, scope.FirstNodePublicId);
+    }
+
+    /// <summary>One archive of a series scope as the "from tracker" marking reads it.</summary>
+    public sealed record ScopeArchive(long NodeId, UnitNumbers Units, bool DeclaredEdition, bool Read);
+
+    /// <summary>
+    /// Every archive of <paramref name="recordId"/>'s scope the user can open (each folder with its own Confirmed / Auto link in a library the
+    /// user can open, its unit subfolders, a linked archive itself; once each), with its units (<see cref="VolumeGrouping.UnitsOf"/> after the
+    /// series heads), its folder's declared edition and whether the user marked it read; and the record's stored volume map.
+    /// </summary>
+    public async Task<(IReadOnlyList<ScopeArchive> Archives, VolumeMapInput Map)> ArchivesAsync(long userId, long recordId, CancellationToken ct)
+    {
+        var scope = await LoadScopeAsync(userId, recordId, ct);
+        if (scope is null)
+            return ([], VolumeMapInput.Empty);
+        var result = new Dictionary<long, ScopeArchive>();
+        foreach (var folder in scope.Folders)
+        {
+            var withHeads = VolumeGrouping.WithSeriesHeads(folder.Rows.Select(r => r.Row).ToList());
+            for (var i = 0; i < folder.Rows.Count; i++)
+            {
+                if (folder.Rows[i].NodeId is not { } id || folder.Rows[i].Row.Kind != GroupingRowKind.Archive || result.ContainsKey(id))
+                    continue;
+                result[id] = new ScopeArchive(id, VolumeGrouping.UnitsOf(withHeads[i]), folder.DeclaredEdition, scope.Marks.ContainsKey(id));
+            }
+        }
+        return (result.Values.ToList(), scope.Map);
+    }
+
+    private sealed record ScopeFolder(IReadOnlyList<(GroupingRow Row, long? NodeId)> Rows, bool DeclaredEdition);
+
+    private sealed record Scope(
+        IReadOnlyList<ScopeFolder> Folders,
+        IReadOnlyDictionary<long, (string Source, DateTimeOffset At)> Marks,
+        VolumeMapInput Map,
+        string FirstNodePublicId);
+
+    /// <summary>The rows of every linked folder of the record the user can open, the user's marks on them, the map and the editions.</summary>
+    private async Task<Scope?> LoadScopeAsync(long userId, long recordId, CancellationToken ct)
+    {
         var accessible = (await libraries.GetAccessibleLibraryIdsAsync(userId, ct)).ToList();
         var states = new[] { (int)SeriesLinkState.Confirmed, (int)SeriesLinkState.Auto };
         var tombstoned = (int)CatalogNodeAvailability.Tombstoned;
@@ -213,7 +280,7 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
                                orderby n.Id
                                select new { n.Id, n.PublicId, n.Kind, n.ParentId, n.DisplayName, n.SortKey }).ToListAsync(ct);
         if (linkNodes.Count == 0)
-            return TrackerSeriesProgress.Empty;
+            return null;
 
         // Rows per link node: a folder's series scope (SeriesProgressLoader), or a linked archive on its own.
         var archive = (int)CatalogNodeKind.Archive;
@@ -231,7 +298,7 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
                 a.ParentId is { } p ? parentNames.GetValueOrDefault(p) : null)];
         }
 
-        // Archive public id -> node id, the marks of the user, and which archives may sync.
+        // Archive public id -> node id, and the marks of the user.
         var publicIds = rowsByNode.Values.SelectMany(r => r).Select(r => r.Id).Distinct().ToList();
         var nodeIds = new Dictionary<string, long>(StringComparer.Ordinal);
         foreach (var chunk in publicIds.Chunk(Batch))
@@ -248,42 +315,86 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
                          .Select(m => new { m.ItemId, m.Source, m.MarkedAt }).ToListAsync(ct))
                 marks[m.ItemId] = (m.Source, m.MarkedAt);
         }
-        var readIds = marks.Keys.ToDictionary(id => id, _ => recordId);
-        var eligible = readIds.Count == 0 ? new HashSet<long>() : await EligibleAsync(userId, readIds, ct);
 
         // The map of the record, and each folder's declared edition.
         var (map, _) = await MapAsync(recordId, ct);
         var editions = await DeclaredFactsResolution.LoadEditionAsync(db, linkNodes.Select(n => n.Id).ToList(), ct);
-
-        TrackerNumbers auto = TrackerNumbers.None, all = TrackerNumbers.None;
-        DateTimeOffset? earliest = null;
-        foreach (var node in linkNodes)
+        var scopeFolders = linkNodes.Select(node =>
         {
-            var rows = rowsByNode[node.Id];
-            var progressRows = new List<TrackerProgressRow>(rows.Count);
-            foreach (var row in rows)
-            {
-                var read = nodeIds.TryGetValue(row.Id, out var id) && marks.TryGetValue(id, out var mark) && eligible.Contains(id);
-                var held = read && IsHeldSource(marks[id].Source);
-                if (read && (earliest is null || marks[id].At < earliest))
-                    earliest = marks[id].At;
-                progressRows.Add(new TrackerProgressRow(row, read, held));
-            }
             var edition = editions.GetValueOrDefault(node.Id);
             var declared = edition is { VolumeTotal: not null } or { Edition: not null };
-            var result = TrackerProgress.Compute(progressRows, map, declared);
-            auto = Max(auto, result.Automatic);
-            all = Max(all, result.All);
+            var rows = rowsByNode[node.Id].Select(r => (r, nodeIds.TryGetValue(r.Id, out var id) ? id : (long?)null)).ToList();
+            return new ScopeFolder(rows, declared);
+        }).ToList();
+        return new Scope(scopeFolders, marks, map, linkNodes[0].PublicId);
+    }
+
+    /// <summary>
+    /// 1.43.0 (lane G): the node behind a public id when it is in a library the user can open (not tombstoned), with the record of its
+    /// nearest Confirmed / Auto link (as <see cref="RecordsOfAsync"/> reads an archive's) - null record when it has none.
+    /// </summary>
+    public async Task<(long NodeId, long? RecordId)?> SeriesOfNodeAsync(long userId, string nodePublicId, CancellationToken ct)
+    {
+        var accessible = (await libraries.GetAccessibleLibraryIdsAsync(userId, ct)).ToList();
+        var tombstoned = (int)CatalogNodeAvailability.Tombstoned;
+        var node = await db.CatalogNodes.AsNoTracking()
+            .Where(n => n.PublicId == nodePublicId && accessible.Contains(n.LibraryId) && n.Availability != tombstoned)
+            .Select(n => (long?)n.Id).FirstOrDefaultAsync(ct);
+        if (node is not { } id)
+            return null;
+        var links = await CoverLinks.NearestAsync(db, [id], ct);
+        return (id, links.TryGetValue(id, out var link) && link.IsLinked ? link.RecordId : null);
+    }
+
+    /// <summary>1.43.0 (lane G): per record, the first folder (or archive) with its own Confirmed / Auto link the user can open.</summary>
+    public async Task<Dictionary<long, string>> FirstNodesAsync(long userId, IReadOnlyCollection<long> recordIds, CancellationToken ct)
+    {
+        var result = new Dictionary<long, string>();
+        if (recordIds.Count == 0)
+            return result;
+        var accessible = (await libraries.GetAccessibleLibraryIdsAsync(userId, ct)).ToList();
+        var states = new[] { (int)SeriesLinkState.Confirmed, (int)SeriesLinkState.Auto };
+        var tombstoned = (int)CatalogNodeAvailability.Tombstoned;
+        foreach (var chunk in recordIds.Distinct().Chunk(Batch))
+        {
+            var rows = await (from l in db.NodeSeriesLinks.AsNoTracking()
+                              join n in db.CatalogNodes.AsNoTracking() on l.NodeId equals n.Id
+                              where l.RecordId != null && chunk.Contains(l.RecordId.Value) && states.Contains(l.State)
+                                    && accessible.Contains(n.LibraryId) && n.Availability != tombstoned
+                              orderby n.Id
+                              select new { RecordId = l.RecordId!.Value, n.PublicId }).ToListAsync(ct);
+            foreach (var row in rows)
+                result.TryAdd(row.RecordId, row.PublicId);
         }
-        var startedOn = earliest is { } e ? DateOnly.FromDateTime(e.UtcDateTime) : (DateOnly?)null;
-        return new TrackerSeriesProgress(new TrackerProgressResult(auto, all), startedOn, linkNodes[0].PublicId);
+        return result;
     }
 
     /// <summary>Marks that wait for the user's "Send" (owner Q4): a folder mark-read and a YACReader import.</summary>
     public static bool IsHeldSource(string source) => source is "bulk" or "import";
 
+    /// <summary>
+    /// 1.43.0 (lane G): the source of a mark made by "Set progress from &lt;tracker&gt; to MangaPixer". Such a mark never triggers an
+    /// outbound sync (the relay ignores it); it counts in the numbers like a manual mark (it is at or below the tracker's numbers).
+    /// </summary>
+    public const string TrackerMarkSource = "tracker";
+
     /// <summary>The record's stored volume map (as every reader sees it) and the record's progress fields.</summary>
-    public async Task<(VolumeMapInput Map, SeriesProgressLoader.RecordRow? Record)> MapAsync(long recordId, CancellationToken ct)
+    public Task<(VolumeMapInput Map, SeriesProgressLoader.RecordRow? Record)> MapAsync(long recordId, CancellationToken ct) =>
+        MapAsync(db, recordId, ct);
+
+    /// <summary>
+    /// 1.43.0 (lane G): the record of a node's nearest Confirmed / Auto link (the same walk as <see cref="RecordsOfAsync"/>), or null - for
+    /// the browse cards' "read on &lt;tracker&gt;" mark (no access check here: the caller browses a folder it may open).
+    /// </summary>
+    public static async Task<long?> LinkedRecordOfAsync(MangaPixerDbContext db, long nodeId, CancellationToken ct)
+    {
+        var links = await CoverLinks.NearestAsync(db, [nodeId], ct);
+        return links.TryGetValue(nodeId, out var link) && link.IsLinked ? link.RecordId : null;
+    }
+
+    /// <summary>The record's stored volume map over any context (see the instance method).</summary>
+    public static async Task<(VolumeMapInput Map, SeriesProgressLoader.RecordRow? Record)> MapAsync(MangaPixerDbContext db, long recordId,
+        CancellationToken ct)
     {
         var maps = await db.SeriesVolumeMaps.AsNoTracking().Where(m => m.RecordId == recordId).ToListAsync(ct);
         var record = await db.MetadataRecords.AsNoTracking().Where(r => r.Id == recordId)

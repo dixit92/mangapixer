@@ -518,7 +518,7 @@ public static class LogEvents
         public const int ReadMarkObserverFailed = 10001;
 
         // Reserved, 1.43.0: 10010-10399 engine + API (lane E); 10400-10599 MyAnimeList adapter, 10600-10799 MangaUpdates adapter
-        // (lane A); 10800-10999 free.
+        // (lane A); 10800-10899 tracking redesign (lane G); 10900-10999 free.
 
         // Engine + API (lane E, 1.43.0; 10010-10399). Information carries the internal user id, the tracker slug, outcome codes,
         // counts, HTTP status and timings only - never a tracker or series id (with a user id they are that user's reading history),
@@ -546,5 +546,13 @@ public static class LogEvents
         // Lane A (1.43.0): one line per tracker request - tracker, operation, status, elapsed ms; never an id, a URL or a token.
         public const int MyAnimeListCall = 10401;
         public const int MangaUpdatesCall = 10601;
+
+        // Tracking redesign (lane G, 1.43.0; 10800-10899): same rules as lane E's - user id, slug, codes, counts, timings at Information.
+        public const int ListRead = 10800;
+        public const int PulledFromTracker = 10801;
+        public const int DatesChanged = 10802;
+        public const int DatesRejected = 10803;
+        public const int VolumeListRequeued = 10804;
+        public const int MalCatchUp = 10805;
     }
 }

@@ -457,7 +457,7 @@ public sealed class TrackerSyncHttpTests
         {
             var account = await db.TrackerAccounts.SingleAsync(a => a.UserId == userId);
             account.RequestsDay = TrackerAccountService.DayOf(DateTimeOffset.UtcNow);
-            account.RequestsUsed = TrackerFacts.DailyRequestCap;
+            account.RequestsUsed = TrackerFacts.DefaultDailyRequestCap;
             return await db.SaveChangesAsync();
         });
         await MarkReadAsync(admin, series.Archives[0].PublicId);

@@ -246,6 +246,12 @@ public sealed record AdminTrackerSettingsDto
 
     /// <summary>Users with a connected account (any state).</summary>
     public required int ConnectedUsers { get; init; }
+
+    /// <summary>
+    /// 1.43.0 (owner E5): requests one user may make to this tracker per UTC day (default 2000, 100 - 20000). Always sent; not "required" in
+    /// the contract so a 1.43.0 client built before it keeps compiling.
+    /// </summary>
+    public int DailyRequestCap { get; init; } = TrackerFacts.DefaultDailyRequestCap;
 }
 
 /// <summary><c>PUT /api/v1/admin/trackers/{slug}</c> (null = unchanged).</summary>
@@ -265,8 +271,11 @@ public sealed record UpdateTrackerSettingsRequest
     /// <summary>The exact redirect URL registered with the tracker (absolute http(s)); empty clears it.</summary>
     public string? RedirectUri { get; init; }
 
+    /// <summary>1.43.0 (owner E5): the per-user daily request cap, 100 - 20000 (null = unchanged).</summary>
+    public int? DailyRequestCap { get; init; }
+
     public override string ToString() =>
-        $"UpdateTrackerSettingsRequest {{ Enabled = {Enabled}, AcceptedConsentVersion = {AcceptedConsentVersion}, ClientId = {(ClientId is null ? "null" : "set")}, ClientSecret = {(ClientSecret is null ? "null" : "[redacted]")}, RedirectUri = {(RedirectUri is null ? "null" : "set")} }}";
+        $"UpdateTrackerSettingsRequest {{ Enabled = {Enabled}, AcceptedConsentVersion = {AcceptedConsentVersion}, ClientId = {(ClientId is null ? "null" : "set")}, ClientSecret = {(ClientSecret is null ? "null" : "[redacted]")}, RedirectUri = {(RedirectUri is null ? "null" : "set")}, DailyRequestCap = {DailyRequestCap} }}";
 }
 
 /// <summary>A user's connection as an admin sees it: that it exists and its state - never the remote account or a token.</summary>
@@ -305,4 +314,203 @@ public sealed record TrackerSeriesIdDto
 public sealed record UpdateTrackerSeriesIdRequest
 {
     public string? RemoteId { get; init; }
+}
+
+// ---- 1.43.0 tracking redesign (lane G, owner 2026-10-15): the Tracking page, the two "Set progress" actions, dates, the daily cap
+// setting, the account menu badge and the series header popover. Cookie + CSRF only, like every route above.
+
+/// <summary>
+/// A series' start / finish dates as MangaPixer sends them to a tracker that keeps dates (MyAnimeList; <see cref="Supported"/> false for
+/// MangaUpdates - nothing is sent). The automatic start is the day of the user's first counted mark of the series; the automatic finish is
+/// the day MangaPixer set the entry Completed (else the tracker's own). A date the user set (<c>*Overridden</c>) wins and is sent on the
+/// next write; cleared, the automatic date applies again.
+/// </summary>
+public sealed record TrackerDatesDto
+{
+    public required bool Supported { get; init; }
+
+    /// <summary>The start date in effect (the user's, else the automatic one), or null.</summary>
+    public DateOnly? StartedOn { get; init; }
+
+    public required bool StartedOnOverridden { get; init; }
+
+    /// <summary>The finish date in effect (the user's, else the automatic one), or null.</summary>
+    public DateOnly? FinishedOn { get; init; }
+
+    public required bool FinishedOnOverridden { get; init; }
+
+    /// <summary>The tracker's own dates when last read.</summary>
+    public DateOnly? RemoteStartedOn { get; init; }
+
+    public DateOnly? RemoteFinishedOn { get; init; }
+
+    /// <summary>A date the user set has not reached the tracker yet (it goes with the next write, Sync now or "Set progress from MangaPixer").</summary>
+    public required bool Pending { get; init; }
+}
+
+/// <summary>Whether one of the two "Set progress" actions can move anything now, and why not.</summary>
+public sealed record TrackerActionDto
+{
+    public required bool Possible { get; init; }
+    public required TrackerActionBlock Block { get; init; }
+}
+
+/// <summary>One series of the Tracking list (per tracker, the caller's own): both sides' numbers, the state, dates and the two actions.</summary>
+public sealed record TrackerSeriesRowDto
+{
+    /// <summary>The linked series record's public id (the key of the per-series routes).</summary>
+    public required string SeriesId { get; init; }
+
+    public required string Title { get; init; }
+
+    /// <summary>A folder of the series the caller can open, or null.</summary>
+    public string? NodeId { get; init; }
+
+    public required string Tracker { get; init; }
+
+    /// <summary>The tracker's id of the series, or null when none is known (the site link is built by the client from it).</summary>
+    public string? RemoteId { get; init; }
+
+    public TrackerIdSource? RemoteIdSource { get; init; }
+
+    /// <summary>The stored sync state (fine-grained) and the filter chip it falls in.</summary>
+    public required TrackerEntryState State { get; init; }
+
+    public required TrackerListBucket Bucket { get; init; }
+
+    public string? ErrorCode { get; init; }
+    public required bool DontSync { get; init; }
+
+    /// <summary>MangaPixer's numbers that sync on their own (marks read in the reader or by hand).</summary>
+    public int? Chapters { get; init; }
+    public int? Volumes { get; init; }
+
+    /// <summary>MangaPixer's numbers with every mark (folder mark-reads and imports included).</summary>
+    public int? AllChapters { get; init; }
+    public int? AllVolumes { get; init; }
+
+    /// <summary>The jump waiting for the user (part of <see cref="AllChapters"/> / <see cref="AllVolumes"/>), or null.</summary>
+    public int? HeldChapters { get; init; }
+    public int? HeldVolumes { get; init; }
+
+    /// <summary>"Of how many": the tracker's totals when it lists them, else the stored record's; null when unknown.</summary>
+    public int? TotalChapters { get; init; }
+    public int? TotalVolumes { get; init; }
+
+    /// <summary>The tracker's numbers and list status when last read (or as last written).</summary>
+    public int? RemoteChapters { get; init; }
+    public int? RemoteVolumes { get; init; }
+    public TrackerEntryStatus? RemoteStatus { get; init; }
+
+    /// <summary>The last read found the series on none of the caller's lists.</summary>
+    public required bool RemoteMissing { get; init; }
+
+    public required TrackerDatesDto Dates { get; init; }
+
+    /// <summary>"Set progress from &lt;tracker&gt; to MangaPixer" (marks read here, never unmarks).</summary>
+    public required TrackerActionDto FromTracker { get; init; }
+
+    /// <summary>"Set progress from MangaPixer to &lt;tracker&gt;" (the route <c>.../send</c>: every mark, never lowers the tracker).</summary>
+    public required TrackerActionDto ToTracker { get; init; }
+
+    /// <summary>When the tracker was last read for this series, or null (never).</summary>
+    public DateTimeOffset? LastSyncAt { get; init; }
+
+    public DateTimeOffset? LastSentAt { get; init; }
+    public required DateTimeOffset UpdatedAt { get; init; }
+}
+
+/// <summary>Series per filter chip of a tracker's list (before the search), and how many need the user.</summary>
+public sealed record TrackerListCountsDto
+{
+    public required int All { get; init; }
+    public required int InSync { get; init; }
+    public required int MangaPixerAhead { get; init; }
+    public required int TrackerAhead { get; init; }
+    public required int LeftAsIs { get; init; }
+    public required int Held { get; init; }
+    public required int NoId { get; init; }
+    public required int NotSynced { get; init; }
+    public required int Problem { get; init; }
+    public required int Unchecked { get; init; }
+
+    /// <summary><see cref="Held"/> + <see cref="TrackerAhead"/> (the account menu badge's share of this tracker).</summary>
+    public required int Attention { get; init; }
+}
+
+/// <summary>
+/// <c>GET /api/v1/trackers/{slug}/series?page=1&amp;filter=Held&amp;q=...</c>: one page (50 series) of the caller's list on a tracker,
+/// ordered by title; <c>filter</c> is a <see cref="TrackerListBucket"/> name or <c>Attention</c> (omitted = all); <c>q</c> searches the
+/// series' titles (case-insensitive). Reads stored state only - no request to the tracker.
+/// </summary>
+public sealed record TrackerSeriesPageDto
+{
+    public required IReadOnlyList<TrackerSeriesRowDto> Items { get; init; }
+
+    /// <summary>1-based.</summary>
+    public required int Page { get; init; }
+
+    public required int PageSize { get; init; }
+
+    /// <summary>Series matching the filter and the search (all pages).</summary>
+    public required int TotalCount { get; init; }
+
+    /// <summary>Per chip over the whole list (the search applies to the items only).</summary>
+    public required TrackerListCountsDto Counts { get; init; }
+}
+
+/// <summary><c>GET /api/v1/trackers/attention</c>: the account menu badge - series that need the caller (held + tracker ahead).</summary>
+public sealed record TrackerAttentionDto
+{
+    public required int Total { get; init; }
+    public required IReadOnlyList<TrackerAttentionCountDto> Trackers { get; init; }
+}
+
+public sealed record TrackerAttentionCountDto
+{
+    public required string Tracker { get; init; }
+    public required int Count { get; init; }
+}
+
+/// <summary>
+/// <c>POST /api/v1/trackers/{slug}/entries/{seriesId}/from-tracker</c>: "Set progress from &lt;tracker&gt; to MangaPixer" - reads the caller's
+/// entry (one request), then marks read every archive of the series in the caller's libraries whose number is at or below the tracker's
+/// (<see cref="TrackerReadOn"/>). Never unmarks; nothing is sent to any tracker for these marks.
+/// </summary>
+public sealed record TrackerFromTrackerResultDto
+{
+    /// <summary>Archives marked read now.</summary>
+    public required int Marked { get; init; }
+
+    /// <summary>Archives at or below the tracker's numbers that were read already.</summary>
+    public required int AlreadyRead { get; init; }
+
+    /// <summary>The tracker's numbers just read.</summary>
+    public int? RemoteChapters { get; init; }
+    public int? RemoteVolumes { get; init; }
+
+    /// <summary>The series' row after the marks.</summary>
+    public required TrackerSeriesRowDto Entry { get; init; }
+}
+
+/// <summary>
+/// <c>PUT /api/v1/trackers/{slug}/entries/{seriesId}/dates</c>: the caller's start / finish dates for the series on this tracker (both are
+/// replaced; null = automatic again). Sent on the next write. Refused for a tracker that keeps no dates.
+/// </summary>
+public sealed record TrackerDatesRequest
+{
+    public DateOnly? StartedOn { get; init; }
+    public DateOnly? FinishedOn { get; init; }
+}
+
+/// <summary>
+/// <c>GET /api/v1/trackers/nodes/{nodeId}/summary</c>: the series header's tracking popover for the series a folder belongs to - one row
+/// per tracker the caller is connected to (display only; stored state and local numbers, no request).
+/// </summary>
+public sealed record TrackerSeriesSummaryDto
+{
+    /// <summary>The linked series record's public id, or null when the folder has no Confirmed / Auto link (then no rows).</summary>
+    public string? SeriesId { get; init; }
+
+    public required IReadOnlyList<TrackerSeriesRowDto> Rows { get; init; }
 }

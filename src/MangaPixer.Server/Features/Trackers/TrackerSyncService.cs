@@ -7,6 +7,15 @@ using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
+/// <summary>
+/// 1.43.0 (lane G, owner A1): a tracker client that sends start / finish dates and may learn that the tracker refuses them (then it sends
+/// none for the rest of the process; the engine keeps such dates pending).
+/// </summary>
+public interface ITrackerDates
+{
+    bool DatesRefused { get; }
+}
+
 /// <summary>What started a sync, for the network decision.</summary>
 public enum TrackerSyncTrigger
 {
@@ -73,6 +82,9 @@ public sealed class TrackerSyncService(
         var progress = await resolver.ProgressAsync(userId, recordId, ct);
         entry.LocalChapters = progress.Numbers.Automatic.Chapters;
         entry.LocalVolumes = progress.Numbers.Automatic.Volumes;
+        entry.AllChapters = progress.Numbers.All.Chapters;
+        entry.AllVolumes = progress.Numbers.All.Volumes;
+        entry.AutoStartedOn = TrackerListService.DayOf(progress.StartedOn);
         entry.UpdatedAt = now;
 
         if (entry.DontSync && mode != TrackerSyncMode.SetTo)
@@ -94,17 +106,19 @@ public sealed class TrackerSyncService(
         var known = new TrackerNumbers(Higher(entry.LastSentChapters, entry.RemoteChapters), Higher(entry.LastSentVolumes, entry.RemoteVolumes));
 
         // No request when nothing can be new: a removal, or a read mark that is not ahead of what was sent or seen.
+        var dates = DatesOf(entry);
         if (trigger == TrackerSyncTrigger.Removal || (trigger == TrackerSyncTrigger.ReadMark && !local.IsAheadOf(known)))
         {
             var offline = TrackerSyncRules.Decide(new TrackerSyncInput(mode, local, progress.Numbers.All, StoredRemote(entry),
-                account.AddStartedSeries, PrivateEntry(account), progress.StartedOn, today, entry.LastSentChapters, entry.LastSentVolumes));
+                account.AddStartedSeries, PrivateEntry(account), progress.StartedOn, today, entry.LastSentChapters, entry.LastSentVolumes,
+                dates.Start, dates.Finish));
             SetHeld(entry, offline.Held);
             // Never read and nothing held: whether it is on a list is unknown until the next read.
             var state = entry.RemoteSeenAt is null && offline.State == TrackerEntryState.NotOnList ? TrackerEntryState.Pending : offline.State;
             return await DoneAsync(entry, state, null, "offline", userId, tracker, ct);
         }
 
-        if (!accounts.TryCountRequests(account, 1))
+        if (!await accounts.TryCountRequestsAsync(account, 1, ct))
             return await CapReachedAsync(entry, userId, tracker, ct);
         var tokens = await accounts.TokensForSyncAsync(account, client, ct);
         if (tokens is null)
@@ -122,14 +136,11 @@ public sealed class TrackerSyncService(
                 var (chapters, volumes, finished) = TrackerSeriesResolver.TotalsOf(record);
                 remote = remote with { TotalChapters = chapters, TotalVolumes = volumes, SeriesFinished = finished };
             }
-            entry.RemoteChapters = remote?.ChaptersRead;
-            entry.RemoteVolumes = remote?.VolumesRead;
-            entry.RemoteStatus = (int?)remote?.Status;
-            entry.RemoteMissing = remote is null;
-            entry.RemoteSeenAt = now;
+            StoreRemote(entry, remote, now);
 
             var decision = TrackerSyncRules.Decide(new TrackerSyncInput(mode, local, progress.Numbers.All, remote, account.AddStartedSeries,
-                PrivateEntry(account), progress.StartedOn, today, entry.LastSentChapters, entry.LastSentVolumes));
+                PrivateEntry(account), progress.StartedOn, today, entry.LastSentChapters, entry.LastSentVolumes,
+                dates.Start, dates.Finish, DatesPending: trigger != TrackerSyncTrigger.Preview && entry.DatesPending));
 
             if (decision.Write is { } write && trigger == TrackerSyncTrigger.Preview)
             {
@@ -140,7 +151,7 @@ public sealed class TrackerSyncService(
             }
             if (decision.Write is { } send)
             {
-                if (!accounts.TryCountRequests(account, 1))
+                if (!await accounts.TryCountRequestsAsync(account, 1, ct))
                     return await CapReachedAsync(entry, userId, tracker, ct);
                 await client.WriteEntryAsync(tokens, remoteId.Id, send, ct);
                 entry.LastSentChapters = send.ChaptersRead ?? entry.LastSentChapters;
@@ -151,6 +162,19 @@ public sealed class TrackerSyncService(
                 entry.RemoteVolumes = send.VolumesRead ?? entry.RemoteVolumes;
                 entry.RemoteStatus = (int)send.Status;
                 entry.RemoteMissing = false;
+                if (TrackerFacts.SupportsDates(tracker))
+                {
+                    // What the tracker now shows (the adapter drops dates for good if the tracker refuses them - then they stay pending).
+                    if (send.StartedOn is { } started && client is not ITrackerDates { DatesRefused: true })
+                        entry.RemoteStartedOn = TrackerListService.DayOf(started);
+                    if (send.FinishedOn is { } finished && client is not ITrackerDates { DatesRefused: true })
+                    {
+                        entry.RemoteFinishedOn = TrackerListService.DayOf(finished);
+                        if (dates.Finish is null)
+                            entry.AutoFinishedOn = entry.RemoteFinishedOn;
+                    }
+                    entry.DatesPending = DatesDiffer(entry);
+                }
             }
             SetHeld(entry, decision.Held);
             await db.TrackerRetries.Where(r => r.UserId == userId && r.Tracker == tracker && r.RecordId == recordId).ExecuteDeleteAsync(ct);
@@ -188,6 +212,36 @@ public sealed class TrackerSyncService(
     }
 
     private static int? Higher(int? a, int? b) => a is null ? b : b is null ? a : Math.Max(a.Value, b.Value);
+
+    /// <summary>The tracker's entry as just read: numbers, status, totals and dates (null = on none of the user's lists).</summary>
+    public static void StoreRemote(TrackerEntryEntity entry, TrackerEntry? remote, DateTimeOffset now)
+    {
+        entry.RemoteChapters = remote?.ChaptersRead;
+        entry.RemoteVolumes = remote?.VolumesRead;
+        entry.RemoteStatus = (int?)remote?.Status;
+        entry.RemoteMissing = remote is null;
+        entry.RemoteSeenAt = now;
+        entry.RemoteTotalChapters = remote?.TotalChapters;
+        entry.RemoteTotalVolumes = remote?.TotalVolumes;
+        if (TrackerFacts.SupportsDates(entry.Tracker))
+        {
+            entry.RemoteStartedOn = TrackerListService.DayOf(remote?.StartedOn);
+            entry.RemoteFinishedOn = TrackerListService.DayOf(remote?.FinishedOn);
+            entry.DatesPending = DatesDiffer(entry);
+        }
+    }
+
+    /// <summary>A date the user set differs from what the tracker shows (it waits for the next write).</summary>
+    public static bool DatesDiffer(TrackerEntryEntity entry) =>
+        TrackerFacts.SupportsDates(entry.Tracker)
+        && ((entry.StartedOnOverride is { } start && start != entry.RemoteStartedOn)
+            || (entry.FinishedOnOverride is { } finish && finish != entry.RemoteFinishedOn));
+
+    /// <summary>The user's own dates of the entry (owner A1), only for a tracker that keeps dates.</summary>
+    private static (DateOnly? Start, DateOnly? Finish) DatesOf(TrackerEntryEntity entry) =>
+        TrackerFacts.SupportsDates(entry.Tracker)
+            ? (TrackerListService.ParseDay(entry.StartedOnOverride), TrackerListService.ParseDay(entry.FinishedOnOverride))
+            : (null, null);
 
     private bool PrivateEntry(TrackerAccountEntity account) => account.PrivateEntries && TrackerFacts.SupportsPrivateEntries(account.Tracker);
 

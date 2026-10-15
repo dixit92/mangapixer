@@ -15,14 +15,16 @@ using com.lifepixer.mangapixer.Server.Logging;
 /// <item>Tokens: the guide's table says an access token lasts one hour and a refresh token one month while its sample answer has
 /// <c>expires_in = 2415600</c> (about 28 days) - so <see cref="TrackerTokens.ExpiresAt"/> comes from each answer's <c>expires_in</c>.
 /// A refresh returns a NEW refresh token (the old one stays usable until it expires).</item>
-/// <item>Written fields: <c>status</c>, <c>num_chapters_read</c>, <c>num_volumes_read</c> and <c>is_rereading</c> (only for
-/// <see cref="TrackerEntryStatus.Rereading"/>). Never a score, tags, comments, priority or re-read counts; no start / finish dates (the
-/// reference does not document them for this endpoint); no private flag (MAL's API has none - <see cref="TrackerEntryWrite.Private"/>
-/// is ignored here).</item>
+/// <item>Written fields: <c>status</c>, <c>num_chapters_read</c>, <c>num_volumes_read</c>, <c>is_rereading</c> (only for
+/// <see cref="TrackerEntryStatus.Rereading"/>) and - 1.43.0, owner A1 - <c>start_date</c> / <c>finish_date</c> (<c>yyyy-MM-dd</c>) when the
+/// write carries them. MAL's reference does not document the dates for this endpoint (Mihon sends them): when MAL answers a write WITH dates
+/// with a 4xx other than 401 / 403 / 404 / 429, the write is sent once more without them, and when that succeeds this server sends no dates
+/// to MAL again until it restarts (<see cref="DatesRefused"/>). Never a score, tags, comments, priority or re-read counts; no private flag
+/// (MAL's API has none - <see cref="TrackerEntryWrite.Private"/> is ignored here).</item>
 /// <item>No revoke endpoint is documented: <see cref="RevokeAsync"/> sends nothing.</item>
 /// </list>
 /// </summary>
-public sealed class MyAnimeListTrackerClient : ITrackerClient
+public sealed class MyAnimeListTrackerClient : ITrackerClient, ITrackerDates
 {
     public const string AuthorizeUrl = "https://" + TrackerHttp.MyAnimeListSiteHost + "/v1/oauth2/authorize";
     public const string TokenUrl = "https://" + TrackerHttp.MyAnimeListSiteHost + "/v1/oauth2/token";
@@ -116,20 +118,52 @@ public sealed class MyAnimeListTrackerClient : ITrackerClient
     public async Task WriteEntryAsync(TrackerTokens tokens, string mediaId, TrackerEntryWrite write, CancellationToken ct)
     {
         var id = MediaIdOf(mediaId);
+        var withDates = !DatesRefused && (write.StartedOn is not null || write.FinishedOn is not null);
+        using (var response = await SendWriteAsync(tokens, id, write, withDates, ct))
+        {
+            if (response.IsSuccessStatusCode)
+                return;
+            if (!withDates || !IsDateRefusal(response.StatusCode))
+                throw Failure(response);
+        }
+        // MAL refused a write with dates (undocumented fields): once more without them, and none again when that works.
+        using var retry = await SendWriteAsync(tokens, id, write, withDates: false, ct);
+        if (!retry.IsSuccessStatusCode)
+            throw Failure(retry);
+        if (!_datesRefused)
+        {
+            _datesRefused = true;
+            _logger.LogWarning(LogEvents.Trackers.DatesRejected, "Tracker {Tracker} refused start / finish dates; none are sent until a restart", Slug);
+        }
+    }
+
+    /// <summary>
+    /// True once MAL refused a write because of its dates and accepted it without them (owner A1 fallback): no dates are sent from then on.
+    /// Kept for the process (a restart tries once more - one extra refused write).
+    /// </summary>
+    public bool DatesRefused => _datesRefused;
+
+    private volatile bool _datesRefused;
+
+    /// <summary>An answer that may be MAL refusing the dates: a 4xx that is not about the sign-in, the pace or the series.</summary>
+    private static bool IsDateRefusal(HttpStatusCode status) =>
+        (int)status is >= 400 and < 500
+        && status is not (HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.NotFound or HttpStatusCode.TooManyRequests);
+
+    private async Task<HttpResponseMessage> SendWriteAsync(TrackerTokens tokens, string id, TrackerEntryWrite write, bool withDates, CancellationToken ct)
+    {
         using var request = new HttpRequestMessage(HttpMethod.Patch, $"{ApiBase}manga/{id}/my_list_status")
         {
-            Content = new FormUrlEncodedContent(WriteFormOf(write)),
+            Content = new FormUrlEncodedContent(WriteFormOf(write, withDates)),
         }.WithBearer(tokens);
-        using var response = await SendAsync(request, "write", ct);
-        if (!response.IsSuccessStatusCode)
-            throw Failure(response);
+        return await SendAsync(request, "write", ct);
     }
 
     /// <summary>MAL documents no revoke endpoint: nothing is sent. The user removes the app's access on myanimelist.net.</summary>
     public Task RevokeAsync(TrackerAppSettings app, TrackerTokens tokens, CancellationToken ct) => Task.CompletedTask;
 
-    /// <summary>The form body of a write: ONLY these fields (see the class summary).</summary>
-    public static IReadOnlyList<KeyValuePair<string, string>> WriteFormOf(TrackerEntryWrite write)
+    /// <summary>The form body of a write: ONLY these fields (see the class summary); the dates only <paramref name="withDates"/>.</summary>
+    public static IReadOnlyList<KeyValuePair<string, string>> WriteFormOf(TrackerEntryWrite write, bool withDates = true)
     {
         var form = new List<KeyValuePair<string, string>> { new("status", StatusWord(write.Status)) };
         if (write.Status == TrackerEntryStatus.Rereading)
@@ -138,6 +172,10 @@ public sealed class MyAnimeListTrackerClient : ITrackerClient
             form.Add(new("num_chapters_read", Math.Max(0, chapters).ToString(CultureInfo.InvariantCulture)));
         if (write.VolumesRead is { } volumes)
             form.Add(new("num_volumes_read", Math.Max(0, volumes).ToString(CultureInfo.InvariantCulture)));
+        if (withDates && write.StartedOn is { } started)
+            form.Add(new("start_date", started.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)));
+        if (withDates && write.FinishedOn is { } finished)
+            form.Add(new("finish_date", finished.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)));
         return form;
     }
 

@@ -88,6 +88,7 @@ public sealed class TrackerSettingsService(
         ClientSecretSet = !string.IsNullOrEmpty(row?.ClientSecretProtected),
         RedirectUri = row?.RedirectUri,
         ConnectedUsers = connected,
+        DailyRequestCap = TrackerFacts.DailyRequestCapOf(row?.DailyRequestCap),
     };
 
     public static TrackerConnectKind ConnectKindOf(string tracker) =>
@@ -107,6 +108,8 @@ public sealed class TrackerSettingsService(
             return "invalid_client_secret";
         if (request.RedirectUri is { Length: > 0 } redirect && !IsValidRedirect(redirect))
             return "invalid_redirect_uri";
+        if (request.DailyRequestCap is { } cap && (cap < TrackerFacts.MinDailyRequestCap || cap > TrackerFacts.MaxDailyRequestCap))
+            return "invalid_daily_cap";
 
         var now = time.GetUtcNow();
         if (row is null)
@@ -153,6 +156,12 @@ public sealed class TrackerSettingsService(
                 row.RedirectUri = value;
                 changes++;
             }
+        }
+        if (request.DailyRequestCap is { } newCap && TrackerFacts.DailyRequestCapOf(row.DailyRequestCap) != newCap)
+        {
+            // The default is stored as null, so a later change of the default reaches servers that never chose a cap.
+            row.DailyRequestCap = newCap == TrackerFacts.DefaultDailyRequestCap ? null : newCap;
+            changes++;
         }
         if (changes == 0)
         {

@@ -50,6 +50,8 @@ public sealed partial class CatalogBrowseService
                 _ => VolumeStackService.WithAlsoInVolume(VolumeTitled(plainNodes[e.Row!.Id], e), view),
             })
             .ToList();
+        // 1.43.0 (tracker sync): the cards' "read on <tracker>" flag.
+        items = await WithTrackerReadAsync(items, userId, view.FolderId, ct);
         return new PageResponse<CatalogNodeDto>
         {
             Items = items,

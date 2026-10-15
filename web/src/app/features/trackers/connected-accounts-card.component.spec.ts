@@ -149,7 +149,7 @@ describe('ConnectedAccountsCardComponent', () => {
 
     q(el, 'tracker-disconnect-mal').click();
     fixture.detectChanges();
-    expect(q(el, 'tracker-disconnect-confirm-mal').textContent).toContain('MyAnimeList offers apps no way to end their own sign-in');
+    expect(q(el, 'tracker-disconnect-confirm-mal').textContent).toContain('MyAnimeList has no page to remove an app\'s access');
     q(el, 'tracker-disconnect-yes-mal').click();
     http.expectOne(`${BASE}/mal/disconnect`).flush(null, { status: 204, statusText: 'No Content' });
     http.expectOne(BASE).flush({ trackers: [summary()] });

@@ -46,13 +46,16 @@ public sealed class VolumeMapService
     private readonly CompanionLinkService _companions;
     private readonly TimeProvider _time;
     private readonly Reach.ReachCheckService? _reach;
+    private readonly Trackers.TrackerRelay? _trackers;
     private readonly ILogger<VolumeMapService> _logger;
 
     public VolumeMapService(
         MangaPixerDbContext db, MetadataGateway gateway, IMangaDexProvider mangaDex, MissingConversionService conversion,
-        CompanionLinkService companions, TimeProvider time, ILogger<VolumeMapService> logger, Reach.ReachCheckService? reach = null)
+        CompanionLinkService companions, TimeProvider time, ILogger<VolumeMapService> logger, Reach.ReachCheckService? reach = null,
+        Trackers.TrackerRelay? trackers = null)
     {
         _reach = reach;
+        _trackers = trackers;
         _db = db;
         _gateway = gateway;
         _mangaDex = mangaDex;
@@ -290,6 +293,9 @@ public sealed class VolumeMapService
             : (null, 0);
     }
 
+    /// <summary>1.43.0 (lane G): a stored list of the series was removed outside <see cref="StoreAsync"/> (Wikipedia "no list").</summary>
+    internal void NotifyListChanged(long seriesRecordId) => _trackers?.OnVolumeListChanged([seriesRecordId]);
+
     /// <summary>Stores a map for a source (shared with the Wikipedia companion, 1.32.0): an unchanged answer rewrites nothing.</summary>
     internal async Task<SeriesVolumeMapEntity> StoreAsync(
         MetadataRecordEntity series, VolumeMapSource source, VolumeMapState state, string? volumesJson, string? unassignedJson,
@@ -333,6 +339,10 @@ public sealed class VolumeMapService
         // 1.30.0 (reach): a new or changed volume list may show that an automatic link contradicts what its folder holds.
         if (changed && _reach is not null)
             await _reach.TryCheckRecordAsync(series.Id, ct);
+        // 1.43.0 (tracker sync, lane G - owner E1 catch-up): the series' tracker entries are synced again by the normal rules (enqueued only;
+        // a request only when the user may now be ahead). An unchanged answer re-queues nothing.
+        if (changed)
+            _trackers?.OnVolumeListChanged([series.Id]);
         return map;
     }
 

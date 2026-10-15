@@ -33,6 +33,12 @@ public sealed class TrackerSettingsEntity
     public string? RedirectUri { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }
+
+    /// <summary>
+    /// 1.43.0 (lane G, owner E5): requests one user may make to this tracker per UTC day; null = the default
+    /// (<c>TrackerFacts.DefaultDailyRequestCap</c>, 2000).
+    /// </summary>
+    public int? DailyRequestCap { get; set; }
 }
 
 /// <summary>One user's connected account on one tracker. Unique (user, tracker).</summary>
@@ -144,6 +150,33 @@ public sealed class TrackerEntryEntity
     public DateTimeOffset? RemoteSeenAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }
+
+    // 1.43.0 tracking redesign (lane G). Dates are UTC days, "yyyy-MM-dd" (max 10).
+
+    /// <summary>MangaPixer's numbers with every mark (folder mark-reads and imports too), as last computed.</summary>
+    public int? AllChapters { get; set; }
+    public int? AllVolumes { get; set; }
+
+    /// <summary>The tracker's series totals when last read (MyAnimeList lists them), or null.</summary>
+    public int? RemoteTotalChapters { get; set; }
+    public int? RemoteTotalVolumes { get; set; }
+
+    /// <summary>The automatic start: the day of the user's first counted mark of the series.</summary>
+    public string? AutoStartedOn { get; set; }
+
+    /// <summary>The automatic finish: the day MangaPixer set the entry Completed.</summary>
+    public string? AutoFinishedOn { get; set; }
+
+    /// <summary>The user's own start / finish date for this series on this tracker (owner A1); null = automatic.</summary>
+    public string? StartedOnOverride { get; set; }
+    public string? FinishedOnOverride { get; set; }
+
+    /// <summary>A date the user set waits for the next write.</summary>
+    public bool DatesPending { get; set; }
+
+    /// <summary>The tracker's own start / finish dates when last read.</summary>
+    public string? RemoteStartedOn { get; set; }
+    public string? RemoteFinishedOn { get; set; }
 }
 
 /// <summary>

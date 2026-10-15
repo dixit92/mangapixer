@@ -18,7 +18,11 @@ using Microsoft.AspNetCore.Mvc;
 [ApiController]
 [Route("api/v1/trackers")]
 [Authorize]
-public sealed class TrackersController(TrackerAccountService accounts, TrackerEntriesService entries) : ControllerBase
+public sealed class TrackersController(
+    TrackerAccountService accounts,
+    TrackerEntriesService entries,
+    TrackerListService list,
+    TrackerPullService pull) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType<TrackersOverviewDto>(StatusCodes.Status200OK)]
@@ -106,7 +110,10 @@ public sealed class TrackersController(TrackerAccountService accounts, TrackerEn
     public Task<IActionResult> SyncNow(string slug, string seriesId, CancellationToken ct) =>
         ActAsync(slug, seriesId, TrackerSyncMode.Automatic, null, ct);
 
-    /// <summary>"Send": the held jump (folder mark-reads and imports count) - still never lowers the tracker.</summary>
+    /// <summary>
+    /// "Send" - in the 1.43.0 Tracking page "Set progress from MangaPixer to &lt;tracker&gt;": every mark counts (a held jump from folder
+    /// mark-reads and imports too) - still never lowers the tracker. The route keeps its name.
+    /// </summary>
     [HttpPost("{slug}/entries/{seriesId}/send")]
     [ProducesResponseType<TrackerEntryDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiError>(StatusCodes.Status404NotFound)]
@@ -159,6 +166,70 @@ public sealed class TrackersController(TrackerAccountService accounts, TrackerEn
             return Forbid();
         var (result, problem) = await entries.SendAllAsync(userId, slug, ct);
         return problem is null ? Ok(result) : Problem(problem);
+    }
+
+    /// <summary>
+    /// 1.43.0 Tracking page: one page (50) of the caller's series on this tracker, by title; <c>filter</c> = a chip
+    /// (<see cref="TrackerListBucket"/> name) or <c>Attention</c>; <c>q</c> = title search. Stored state only - no request to the tracker.
+    /// </summary>
+    [HttpGet("{slug}/series")]
+    [ProducesResponseType<TrackerSeriesPageDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Series(string slug, [FromQuery] int? page, [FromQuery] string? filter, [FromQuery] string? q, CancellationToken ct)
+    {
+        if (UserId() is not { } userId)
+            return Forbid();
+        var (result, problem) = await list.PageAsync(userId, slug, page, filter, q, ct);
+        return problem is null ? Ok(result) : Problem(problem);
+    }
+
+    /// <summary>1.43.0: the account menu badge - the caller's series that need them (a held jump, a tracker ahead), per tracker.</summary>
+    [HttpGet("attention")]
+    [ProducesResponseType<TrackerAttentionDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> Attention(CancellationToken ct) =>
+        UserId() is { } userId ? Ok(await list.AttentionAsync(userId, ct)) : Forbid();
+
+    /// <summary>1.43.0: the series header popover - the caller's tracking of the series a folder belongs to (display only, no request).</summary>
+    [HttpGet("nodes/{nodeId}/summary")]
+    [ProducesResponseType<TrackerSeriesSummaryDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Summary(string nodeId, CancellationToken ct)
+    {
+        if (UserId() is not { } userId)
+            return Forbid();
+        var (summary, problem) = await list.SummaryAsync(userId, nodeId, ct);
+        return problem is null ? Ok(summary) : Problem(problem);
+    }
+
+    /// <summary>
+    /// 1.43.0 "Set progress from &lt;tracker&gt; to MangaPixer": reads the caller's entry, then marks read here every archive of the series at or
+    /// below the tracker's numbers. Never unmarks; nothing is sent to a tracker for these marks.
+    /// </summary>
+    [HttpPost("{slug}/entries/{seriesId}/from-tracker")]
+    [ProducesResponseType<TrackerFromTrackerResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> FromTracker(string slug, string seriesId, CancellationToken ct)
+    {
+        if (UserId() is not { } userId)
+            return Forbid();
+        var (result, problem) = await pull.FromTrackerAsync(userId, slug, seriesId, ct);
+        return problem is null ? Ok(result) : Problem(problem);
+    }
+
+    /// <summary>1.43.0 (owner A1): the caller's start / finish dates of the series on this tracker (null = automatic); sent on the next write.</summary>
+    [HttpPut("{slug}/entries/{seriesId}/dates")]
+    [ProducesResponseType<TrackerSeriesRowDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SetDates(string slug, string seriesId, [FromBody] TrackerDatesRequest request, CancellationToken ct)
+    {
+        if (UserId() is not { } userId)
+            return Forbid();
+        var (row, problem) = await pull.SetDatesAsync(userId, slug, seriesId, request, ct);
+        return problem is null ? Ok(row) : Problem(problem);
     }
 
     /// <summary>The caller's sync switches on folders / series (owner Q3).</summary>

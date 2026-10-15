@@ -93,6 +93,7 @@ public sealed class AdminTrackersController(
         "invalid_client_id" => "The Client ID is too long or not valid.",
         "invalid_client_secret" => "The client secret is too long or not valid.",
         "invalid_redirect_uri" => "Enter the full redirect URL (http or https) exactly as registered.",
+        "invalid_daily_cap" => "The daily request cap must be from 100 to 20000.",
         _ => "The settings are not valid.",
     };
 }

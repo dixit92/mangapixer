@@ -27,6 +27,10 @@ public enum TrackerSyncMode
 /// <param name="StartedOn">The day of the user's earliest mark of the series (sent only when the tracker has no start date).</param>
 /// <param name="Today">Today (the user's finish date when the entry turns Completed).</param>
 /// <param name="LastSentChapters">The chapters MangaPixer last wrote (tells "lower here" from "tracker ahead").</param>
+/// <param name="StartedOverride">1.43.0 (owner A1): the user's own start date - it wins over the automatic one and is sent with the next
+/// write (also on its own while <paramref name="DatesPending"/>). Null = automatic. Only for a tracker that keeps dates.</param>
+/// <param name="FinishedOverride">The user's own finish date, sent when the entry turns Completed (instead of today).</param>
+/// <param name="DatesPending">A date the user set has not reached the tracker yet.</param>
 public sealed record TrackerSyncInput(
     TrackerSyncMode Mode,
     TrackerNumbers Local,
@@ -37,7 +41,10 @@ public sealed record TrackerSyncInput(
     DateOnly? StartedOn,
     DateOnly Today,
     int? LastSentChapters = null,
-    int? LastSentVolumes = null);
+    int? LastSentVolumes = null,
+    DateOnly? StartedOverride = null,
+    DateOnly? FinishedOverride = null,
+    bool DatesPending = false);
 
 /// <summary>The outcome: the entry state, the one write to make (or null), and the jump still held for "Send".</summary>
 public sealed record TrackerSyncDecision(TrackerEntryState State, TrackerEntryWrite? Write, TrackerNumbers Held);
@@ -72,18 +79,22 @@ public static class TrackerSyncRules
 
         if (input.Local.IsEmpty || !input.Local.IsAheadOf(remoteNumbers))
         {
-            // Nothing to send: unread, equal, or the tracker is ahead (never lowered automatically).
+            // Nothing to send: unread, equal, or the tracker is ahead (never lowered automatically). A start date the user set still goes
+            // out on its own (1.43.0 owner A1): the entry's status and numbers stay as the tracker has them.
+            var datesOnly = remote is not null && input.DatesPending && input.StartedOverride is { } own && own != remote.StartedOn
+                ? new TrackerEntryWrite(remote.Status, null, null, own, null, null)
+                : null;
             var held = Held(TrackerNumbers.None);
             if (!held.IsEmpty)
-                return new TrackerSyncDecision(TrackerEntryState.Held, null, held);
+                return new TrackerSyncDecision(TrackerEntryState.Held, datesOnly, held);
             if (remote is null)
                 return new TrackerSyncDecision(input.Local.IsEmpty ? TrackerEntryState.Ok : TrackerEntryState.NotOnList, null, TrackerNumbers.None);
             if (remoteNumbers.IsAheadOf(input.Local))
             {
                 var lower = (input.LastSentChapters ?? 0) > (input.Local.Chapters ?? 0) || (input.LastSentVolumes ?? 0) > (input.Local.Volumes ?? 0);
-                return new TrackerSyncDecision(lower ? TrackerEntryState.LowerHere : TrackerEntryState.TrackerAhead, null, TrackerNumbers.None);
+                return new TrackerSyncDecision(lower ? TrackerEntryState.LowerHere : TrackerEntryState.TrackerAhead, datesOnly, TrackerNumbers.None);
             }
-            return new TrackerSyncDecision(TrackerEntryState.Ok, null, TrackerNumbers.None);
+            return new TrackerSyncDecision(TrackerEntryState.Ok, datesOnly, TrackerNumbers.None);
         }
 
         if (remote is null)
@@ -91,8 +102,8 @@ public static class TrackerSyncRules
             if (!input.AddStartedSeries)
                 return new TrackerSyncDecision(TrackerEntryState.NotOnList, null, TrackerNumbers.None);
             // A new entry: the tracker's totals are unknown here, so it is never created as Completed.
-            var create = new TrackerEntryWrite(TrackerEntryStatus.Reading, input.Local.Chapters, input.Local.Volumes, input.StartedOn, null,
-                input.PrivateEntry ? true : null);
+            var create = new TrackerEntryWrite(TrackerEntryStatus.Reading, input.Local.Chapters, input.Local.Volumes,
+                input.StartedOverride ?? input.StartedOn, null, input.PrivateEntry ? true : null);
             var heldAfterCreate = Held(input.Local);
             return new TrackerSyncDecision(heldAfterCreate.IsEmpty ? TrackerEntryState.Ok : TrackerEntryState.Held, create, heldAfterCreate);
         }
@@ -105,8 +116,8 @@ public static class TrackerSyncRules
             completed ? TrackerEntryStatus.Completed : TrackerEntryStatus.Reading,
             chapters,
             volumes,
-            remote.StartedOn is null ? input.StartedOn : null,
-            completed && remote.FinishedOn is null ? input.Today : null,
+            StartOf(input, remote),
+            completed ? FinishOf(input, remote) : null,
             null);
         var heldAfter = Held(new TrackerNumbers(chapters, volumes));
         return new TrackerSyncDecision(heldAfter.IsEmpty ? TrackerEntryState.Ok : TrackerEntryState.Held, write, heldAfter);
@@ -139,10 +150,29 @@ public static class TrackerSyncRules
             completed ? TrackerEntryStatus.Completed : TrackerEntryStatus.Reading,
             chapters,
             volumes,
-            remote?.StartedOn is null ? input.StartedOn : null,
-            completed && remote!.FinishedOn is null ? input.Today : null,
+            StartOf(input, remote),
+            completed ? FinishOf(input, remote!) : null,
             remote is null && input.PrivateEntry ? true : null);
         return new TrackerSyncDecision(TrackerEntryState.Ok, write, TrackerNumbers.None);
+    }
+
+    /// <summary>
+    /// The start date a write carries: the user's own when it differs from the tracker's (owner A1: it wins), else the automatic one (the
+    /// first counted mark) only when the tracker has none; null = left as the tracker has it.
+    /// </summary>
+    private static DateOnly? StartOf(TrackerSyncInput input, TrackerEntry? remote)
+    {
+        if (input.StartedOverride is { } own)
+            return own != remote?.StartedOn ? own : null;
+        return remote?.StartedOn is null ? input.StartedOn : null;
+    }
+
+    /// <summary>The finish date of a write that completes the entry: the user's own (when it differs), else today when the tracker has none.</summary>
+    private static DateOnly? FinishOf(TrackerSyncInput input, TrackerEntry remote)
+    {
+        if (input.FinishedOverride is { } own)
+            return own != remote.FinishedOn ? own : null;
+        return remote.FinishedOn is null ? input.Today : null;
     }
 
     private static int? Higher(int? local, int? remote) => local is null ? remote : remote is null ? local : Math.Max(local.Value, remote.Value);

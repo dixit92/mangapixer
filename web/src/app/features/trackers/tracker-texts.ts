@@ -36,11 +36,11 @@ export function proposedRedirectUri(slug: string, origin: string = globalThis.lo
   return `${origin}${TRACKER_CALLBACK_PATH}${slug}`;
 }
 
-/** Where a user ends MangaPixer's access on the tracker's own site (lane A's facts; MAL's page is unconfirmed). */
+/** How a user's access ends on each tracker (MangaUpdates: logout; MyAnimeList: no revoke endpoint and no user page - owner A5, 2026-10-14). */
 export function revokeHint(slug: string): string {
   return slug === 'mangaupdates'
     ? 'Disconnecting also signs MangaPixer out on MangaUpdates. Changing your MangaUpdates password ends its sign-ins too.'
-    : 'Disconnecting deletes MangaPixer\'s sign-in from this server. MyAnimeList offers apps no way to end their own sign-in.';
+    : 'Disconnecting deletes MangaPixer\'s sign-in from this server, so it can no longer be used. MyAnimeList has no page to remove an app\'s access; the old sign-in there simply expires.';
 }
 
 /** An entry's state in words, for the caller's list. */

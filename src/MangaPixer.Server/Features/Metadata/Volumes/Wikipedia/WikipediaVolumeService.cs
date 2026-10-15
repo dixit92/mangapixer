@@ -371,7 +371,10 @@ public sealed class WikipediaVolumeService
         row.CheckedAt = now;
         row.NextCheckAt = null;
         await _db.SaveChangesAsync(ct);
-        await _db.SeriesVolumeMaps.Where(m => m.RecordId == series.Id && m.Source == (int)VolumeMapSource.WikipediaList).ExecuteDeleteAsync(ct);
+        var removed = await _db.SeriesVolumeMaps.Where(m => m.RecordId == series.Id && m.Source == (int)VolumeMapSource.WikipediaList).ExecuteDeleteAsync(ct);
+        // 1.43.0 (tracker sync, lane G - owner E1 catch-up): a removed list changes what the trackers are told, by the normal rules.
+        if (removed > 0)
+            _maps.NotifyListChanged(series.Id);
     }
 
     /// <summary>"Check Wikipedia again": "none" is cleared, then the page is asked for now (an admin request).</summary>
