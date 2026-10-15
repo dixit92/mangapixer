@@ -6,6 +6,7 @@ import {
   TrackerEntryStatus,
   TrackerListBucket,
   TrackerListCountsDto,
+  TrackerPreviewDto,
   TrackerSeriesRowDto,
 } from '../../core/api/api-types';
 
@@ -33,6 +34,22 @@ export const TRACKER_SYNC_DOCS_URL = 'https://mangapixer.com/tracker-sync/';
  * What the gold ring around a cover means (owner, 2026-10-15): read on EVERY tracker the series syncs to - a series synced to two trackers
  * shows no ring on a chapter one of them has not reached. Shown as a legend on the Tracking page and in the series header's popover.
  */
+/**
+ * The notice after "Check my list on <tracker>" (1.43.0). A tracker whose whole list is read (MyAnimeList, owner option C) reports the
+ * list's size, the series here on it and the new rows; otherwise the per-series check (50 a click) reports what it checked.
+ */
+export function previewNotice(p: TrackerPreviewDto, name: string): string {
+  const n = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+  if (p.listRead) {
+    const entries = n(p.listEntries ?? 0, 'entry', 'entries');
+    if (p.capReached) return `Stopped after ${entries}: today's ${name} requests are used up - try again tomorrow.`;
+    return `Read your ${name} list (${entries}); ${n(p.matched ?? 0, 'is a series', 'are series')} here, ${p.created ?? 0} new on the `
+      + `Tracking page. Nothing was changed on ${name}.`;
+  }
+  if (p.capReached) return `Checked ${p.entries.length}. Today's request limit for ${name} is reached - try again tomorrow.`;
+  return `Checked ${n(p.entries.length, 'series', 'series')}${p.remaining > 0 ? `, ${p.remaining} left` : ''}. Nothing was changed on ${name}.`;
+}
+
 export const TRACKER_RING_LEGEND =
   'A gold border around a cover means every tracker this series syncs to counts that chapter or volume as read.';
 

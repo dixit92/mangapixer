@@ -1,7 +1,7 @@
 import {
   TRACKER_ADMIN_CONSENT_VERSION, TRACKER_USER_CONSENT_VERSION, accountProblem, actionBlockText, bucketText, dateText, decodeBase36,
-  entryStateText, errorText, failureText, fromTrackerQuestion, numbersText, ofText, parseTrackerId, proposedRedirectUri, revokeHint,
-  trackerName, trackingChips,
+  entryStateText, errorText, failureText, fromTrackerQuestion, numbersText, ofText, parseTrackerId, previewNotice, proposedRedirectUri,
+  revokeHint, trackerName, trackingChips,
 } from './tracker-texts';
 import { listCounts, seriesRow } from './trackers.testing';
 import { TrackerAccountDto } from '../../core/api/api-types';
@@ -147,5 +147,17 @@ describe('tracker texts', () => {
     expect(failureText({ status: 503, error: { error: 'rate_limited' } }, 'mangaupdates')).toContain('MangaUpdates asked MangaPixer to slow down');
     expect(failureText({ status: 409, error: { error: 'daily_cap' } }, 'mal')).toContain("Today's request limit for MyAnimeList");
     expect(failureText({ status: 409, error: { error: 'no_id' } }, 'mal')).toContain('No MyAnimeList id');
+  });
+
+  it('words "Check my list": a whole-list read with its counts, the cap stop, and the per-series check (owner option C)', () => {
+    const base = { entries: [], remaining: 0, capReached: false };
+    expect(previewNotice({ ...base, listRead: true, listEntries: 412, matched: 37, created: 12 }, 'MyAnimeList')).toBe(
+      'Read your MyAnimeList list (412 entries); 37 are series here, 12 new on the Tracking page. Nothing was changed on MyAnimeList.');
+    expect(previewNotice({ ...base, listRead: true, listEntries: 1, matched: 1, created: 0 }, 'MyAnimeList')).toBe(
+      'Read your MyAnimeList list (1 entry); 1 is a series here, 0 new on the Tracking page. Nothing was changed on MyAnimeList.');
+    expect(previewNotice({ ...base, listRead: true, listEntries: 1000, capReached: true }, 'MyAnimeList')).toBe(
+      'Stopped after 1000 entries: today\'s MyAnimeList requests are used up - try again tomorrow.');
+    expect(previewNotice({ ...base, entries: [], remaining: 3 }, 'MangaUpdates')).toBe(
+      'Checked 0 series, 3 left. Nothing was changed on MangaUpdates.');
   });
 });
