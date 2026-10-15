@@ -7,30 +7,36 @@
 It is off until two things happen:
 
 1. an admin **allows** the tracker for the server (see [Tracker setup](tracker-setup.md));
-2. you **connect** your own account in **Settings** > **Connected accounts**.
+2. you **connect** your own account on the **Tracking** page (account menu > **Tracking**).
 
 Other users of the server are not affected by your connection, and nothing is sent for a user who has not connected an account.
 
+## The Tracking page
+
+*New in 1.43.0.* Everything about your tracker lists is on one page: open the account menu (top right) and choose **Tracking**. The entry shows a count when series need a look (waiting for you, or a tracker is ahead). **Settings** links there too.
+
+The page has a card for each tracker your admin allows - **MyAnimeList** and **MangaUpdates** - and, once you connected an account, the list of your series on that tracker (one tab per tracker; see [Your series](#your-series)).
+
 ## Connect your account
 
-Open **Settings** and find the **Connected accounts** card. It lists the trackers your admin allows.
+On the **Tracking** page, press **Connect MyAnimeList…** or **Connect MangaUpdates…** on the tracker's card.
 
 ### MyAnimeList
 
-1. Read the text under **MyAnimeList**: it says what is sent and what MangaPixer will not do.
+1. Read the text that opens: it says what is sent and what MangaPixer will not do.
 2. Tick **I understand - connect my MyAnimeList account** and press **Connect MyAnimeList**.
 3. Your browser opens **myanimelist.net**. Sign in there (if you are not already) and allow access.
-4. MyAnimeList sends you back to MangaPixer, which finishes the connection and says **Your MyAnimeList account is connected**. Press **Back to Settings**.
+4. MyAnimeList sends you back to MangaPixer, which finishes the connection and says **Your MyAnimeList account is connected**. Press **Back to Tracking**.
 
 You type your MyAnimeList password only on myanimelist.net - MangaPixer never sees it. MangaPixer keeps the sign-in token MyAnimeList gives it, encrypted on the server.
 
-If the page says **This sign-in is not valid any more**, the sign-in was used already, took longer than 10 minutes, or was started in another browser or another MangaPixer sign-in. Start again from **Settings**.
+If the page says **This sign-in is not valid any more**, the sign-in was used already, took longer than 10 minutes, or was started in another browser or another MangaPixer sign-in. Start again from the **Tracking** page.
 
 ### MangaUpdates
 
 MangaUpdates has no other way to connect an app, so MangaPixer asks for your **MangaUpdates username and password once**:
 
-1. Read the text under **MangaUpdates**.
+1. Read the text that opens.
 2. Tick **I understand - connect my MangaUpdates account**.
 3. Enter your MangaUpdates username and password and press **Connect MangaUpdates**.
 
@@ -45,7 +51,7 @@ For a series you read, MangaPixer first **reads** your entry for that series on 
 | Which series | its MyAnimeList number | its MangaUpdates number |
 | Your progress | chapters and volumes read | chapters and volumes read |
 | A status | Reading, or Completed (see below) | the Reading list, or Complete |
-| Dates | no | no |
+| Dates | the day you started and the day you finished the series (see [Dates](#dates-on-myanimelist)) | no |
 | Your sign-in | the token MyAnimeList gave MangaPixer | the token MangaUpdates gave MangaPixer |
 
 **Never sent:** titles, file or folder names, paths, which files you read, page positions, scores, your other activity on this server, anything about other users, or anything that identifies the server. Every request names MangaPixer and its version (the same for every MangaPixer server).
@@ -55,15 +61,17 @@ The requests come from the **server**, not from your browser: your browser only 
 ## When MangaPixer syncs
 
 - **While you read.** Finishing an archive in the reader, or marking one archive read, updates the tracker right away.
-- **Folders marked read at once, and imported reading, wait for you.** A jump like that shows in your list as **Waiting for you to press Send**: press **Send** for one series, or **Send all**.
-- **Nothing happens while nobody reads**, except what you start yourself: **Sync now**, **Send**, **Send all**, or **Check my list**.
+- **Folders marked read at once, and imported reading, wait for you.** A jump like that shows in your list as **Waiting for you**: press **Set progress from MangaPixer to *tracker*** for one series, or **Send all**.
+- **Nothing happens while nobody reads**, except what you start yourself: **Sync now**, the two **Set progress** buttons, **Send all**, or **Check my list**.
+- **When a series' volume list changes** (MangaPixer refreshed it), the series is checked again, so volumes it now knows count.
 - **Marking something unread never lowers the tracker.**
 
-MangaPixer counts the highest whole chapter you have read (extras and half chapters do not count) and the volumes you have read as volume files. Volumes are counted only for series whose volume list MangaPixer knows exactly.
+MangaPixer counts the highest whole chapter you have read (extras and half chapters do not count) and the volumes you have read - as volume files, or as chapter files when you read every chapter of that volume. Volumes are counted only for series whose volume list MangaPixer knows exactly.
 
 ## What MangaPixer will not do
 
-- **Lower a number** on the tracker without asking you. Only **Set MyAnimeList to...** / **Set MangaUpdates to...** in your list can lower it, after a warning.
+- **Lower a number** on the tracker without asking you. Only **Set MyAnimeList to a number… (can lower it)** / **Set MangaUpdates to a number…** in your list can lower it, after a warning.
+- **Unmark anything here.** **Set progress from *tracker* to MangaPixer** only ever marks chapters and volumes read.
 - **Change a series you put on hold, dropped, completed or are rereading** there. It shows as **Left as is**.
 - **Mark an ongoing series Completed.** A series is set Completed only when it is finished and you reached the tracker's own total.
 - **Sync your Private libraries or doujinshi** - unless you turn sync on for that folder or series (next section).
@@ -97,40 +105,59 @@ A series syncs when the tracker's own number for it is known:
 - **MyAnimeList:** the MyAnimeList number that the series' **MangaDex** record names. It fills in as MangaPixer refreshes MangaDex records.
 - An admin can set the number for a series (series **Admin** menu > **Set MyAnimeList id** / **Set MangaUpdates id**).
 
-A series without a number shows as **No MyAnimeList number for this series - an admin can set it**. MangaPixer never searches a tracker by title.
+A series without a number shows as **No MyAnimeList id** (an admin can set it). MangaPixer never searches a tracker by title.
 
-## Your list
+## Your series
 
-Under each connected account, **Your series on MyAnimeList** (or MangaUpdates) lists the series MangaPixer has synced or looked at, the ones that need a look first. Each row shows your numbers **Here**, a jump **Waiting for Send**, what was **Sent** last, and the tracker's numbers when MangaPixer last read them.
+Below the cards, the **Tracking** page lists your series on each tracker you connected - the series MangaPixer has synced, looked at, or found on your list when you pressed **Check my list**. It is built for long lists: 50 series at a time (**Load more** shows the next 50), a search by title (**Find a series**), and chips that show only the series in one state, each with its count:
 
-| State | Meaning |
+| Chip | Meaning |
 |---|---|
-| Up to date | The tracker has what you read here. |
-| *Tracker* is ahead - nothing sent | The tracker already has more; nothing was changed. |
-| Lower here than what was sent | You have less marked here than MangaPixer sent earlier (for example after marking something unread). The tracker is not lowered. |
-| Waiting for you to press Send | A folder marked read at once, or imported reading. |
-| No *tracker* number for this series | See [Which series sync](#which-series-sync). |
-| Not synced (your choice) | You pressed **Don't sync** for this series. |
-| Left as is | The series is on hold, dropped, completed or being reread on the tracker. |
-| Not on your list | The series is not on your list and **Add series I start** is off. |
-| *Tracker* asked to slow down | It is tried again soon (MangaUpdates allows one list change every few seconds). |
-| Last sync failed | The tracker refused or could not be reached; the reason is shown. |
-| Not checked yet | MangaPixer has not read this series on the tracker yet. |
+| All | Every series in the list. |
+| MangaPixer ahead | You read more here than the tracker has, and it was not sent yet (for example the tracker could not be reached, or today's limit was reached). |
+| *Tracker* ahead | The tracker already has more than you read here (for example you read elsewhere). Nothing is lowered. |
+| Left as is | The series is on hold, dropped, completed or being reread on the tracker - MangaPixer does not change it. |
+| Waiting for you | A folder marked read at once, or imported reading, waits for your click. |
+| No *tracker* id | See [Which series sync](#which-series-sync). |
+| Not synced | You pressed **Don't sync this series**, or the series is not on your list and **Add series I start reading** is off. |
+| In sync, Not checked yet, Sync problem | Shown when they hold a series: both sides agree; MangaPixer has not read the tracker for it yet; the last attempt failed (the reason is shown). |
 
-Actions on a series:
+Each row shows the series' cover and title (open it to go to the series), its state, **MangaPixer**'s chapters and volumes read (of how many, when known), the **tracker**'s numbers and status as MangaPixer last read them, and for MyAnimeList the start and finish dates.
+
+### Bring the two sides in line
+
+Each row has two buttons; the one that cannot move anything is greyed out, and its tooltip says why (for example *MyAnimeList is not ahead of MangaPixer*):
+
+- **Set progress from *tracker* to MangaPixer** - marks chapters and volumes **read here** up to the tracker's numbers, for example after you read elsewhere. MangaPixer first asks (*Mark chapters 1-51 read in MangaPixer?*), then says how many files it marked. It only marks - nothing is unmarked - and these marks are not sent back to the tracker.
+- **Set progress from MangaPixer to *tracker*** - sends MangaPixer's numbers, including a jump waiting for you. It never lowers the tracker.
+
+The **⋯** menu of a row has more:
 
 - **Sync now** - read the tracker and send what syncs on its own (a waiting jump stays waiting).
-- **Send** - send a waiting jump. It still never lowers the tracker.
-- **Set *tracker* to...** - send the numbers you type. This **replaces** what the tracker has, also when the tracker has more.
-- **Don't sync** / **Sync again** - leave this series out of sync on this tracker.
+- **Set dates on MyAnimeList…** - see [Dates](#dates-on-myanimelist).
+- **Set *tracker* to a number… (can lower it)** - send the numbers you type. This **replaces** what the tracker has, also when the tracker has more; it warns you first. Not offered for a series left as is.
+- **Don't sync this series** / **Sync this series again** - leave this series out of sync on this tracker.
+- **Open the series**.
 
-**Check my list** (the first time you connect, or any time): MangaPixer reads your tracker entries for the series here, **50 at a time** - press again for the next 50 - and shows where MangaPixer is ahead. It changes nothing on the tracker. Then **Send all** sends every waiting jump, after a confirmation.
+**Check my list on *tracker*** (the first time you connect, or any time): MangaPixer reads your tracker entries for the series here, **50 at a time** - press again for the next 50 - and shows where each side is ahead. It changes nothing on the tracker. **Send all** sends every series waiting for you, after a confirmation.
 
-MangaPixer makes at most **300 requests per day** to each tracker for your account (reads, writes and sign-in renewals). When the limit is reached, syncing resumes the next day (UTC).
+### From a series
+
+When you open a series MangaPixer tracks for you, a gold **Tracking** button sits next to **Series info**. It shows, per tracker, the series' state, MangaPixer's numbers next to the tracker's, the dates, and **Open in Tracking**, which opens the Tracking page at that series.
+
+In the library, a thin **gold line along the top edge of a cover** means the tracker counts that chapter or volume as read (by the tracker's numbers as MangaPixer last read them). MangaPixer's own **Read** badge is separate: the two can differ, for example after you read on another device - **Set progress from *tracker* to MangaPixer** brings MangaPixer in line.
+
+### Dates on MyAnimeList
+
+MyAnimeList keeps a start and a finish date for each series on your list. MangaPixer sends them with its updates: the **start** is the day you first read the series here, the **finish** the day the series was completed. **Set dates…** (under the dates, or in the **⋯** menu) lets you enter your own dates instead, or put either back to **Automatic**. Your dates go to MyAnimeList with the next update of that series. MangaUpdates keeps no dates.
+
+### Daily limit
+
+MangaPixer makes at most a set number of requests per day to each tracker for your account - reads, writes and sign-in renewals; **2000** unless your admin changed it. Your card shows how many were used today. When the limit is reached, syncing resumes the next day (UTC).
 
 ## Disconnect
 
-Press **Disconnect** under the account in **Settings** > **Connected accounts**. MangaPixer deletes its sign-in token and your series list for that tracker from the server. Nothing on the tracker is changed - your list there stays as it is.
+Press **Disconnect** on the tracker's card on the **Tracking** page. MangaPixer deletes its sign-in token and your series list for that tracker from the server. Nothing on the tracker is changed - your list there stays as it is.
 
 - **MangaUpdates:** disconnecting also signs MangaPixer out on MangaUpdates.
 - **MyAnimeList:** disconnecting deletes MangaPixer's sign-in from the server, so it can no longer be used. MyAnimeList has no page where you can remove an app's access, and offers apps no way to end their own sign-in; the old sign-in simply expires there.

@@ -12,7 +12,7 @@ import { ApiService } from '../../core/api/api.service';
 import { ApiError, LibraryDto, LibraryViewPreferencesDto } from '../../core/api/api-types';
 import { ReadingPreferencesCardComponent } from './reading-preferences-card.component';
 import { AppearanceCardComponent } from './appearance-card.component';
-import { ConnectedAccountsCardComponent } from '../trackers/connected-accounts-card.component';
+import { TrackingSettingsLinkComponent } from '../trackers/tracking-settings-link.component';
 import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series-info-hover-preference.service';
 
 /**
@@ -34,7 +34,7 @@ import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series
     MatSelectModule,
     ReadingPreferencesCardComponent,
     AppearanceCardComponent,
-    ConnectedAccountsCardComponent,
+    TrackingSettingsLinkComponent,
   ],
   template: `
     <mat-card>
@@ -118,7 +118,8 @@ import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series
 
     <app-reading-preferences-card />
 
-    <app-connected-accounts-card />
+    <!-- 1.43.0: tracker accounts live on the Tracking page (account menu > Tracking); Settings keeps a one-line link. -->
+    <app-tracking-settings-link />
 
     <mat-card class="home-window-card">
       <mat-card-header>

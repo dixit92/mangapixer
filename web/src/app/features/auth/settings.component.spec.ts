@@ -5,6 +5,7 @@ import {
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { provideRouter } from '@angular/router';
 import { MatCheckboxChange } from '@angular/material/checkbox';
 import { MatSelectChange } from '@angular/material/select';
 
@@ -34,6 +35,7 @@ describe('SettingsComponent — Private libraries', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideNoopAnimations(),
+        provideRouter([]),
       ],
     });
     const fixture = TestBed.createComponent(SettingsComponent);
@@ -57,8 +59,6 @@ describe('SettingsComponent — Private libraries', () => {
       defaultReaderMode: 'PagedLtr', preferDoubleSpread: false, reducedMotion: false,
       preferredBackground: null, alwaysOpenReadFromStart: false,
     });
-    // The Connected accounts card (1.43.0) loads the tracker overview on init.
-    httpMock.expectOne('/api/v1/trackers').flush({ trackers: [] });
     return fixture;
   }
 
@@ -130,6 +130,7 @@ describe('SettingsComponent — Performance (items per load)', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideNoopAnimations(),
+        provideRouter([]),
       ],
     });
     const fixture = TestBed.createComponent(SettingsComponent);
@@ -147,8 +148,6 @@ describe('SettingsComponent — Performance (items per load)', () => {
       defaultReaderMode: 'PagedLtr', preferDoubleSpread: false, reducedMotion: false,
       preferredBackground: null, alwaysOpenReadFromStart: false,
     });
-    // The Connected accounts card (1.43.0) loads the tracker overview on init.
-    httpMock.expectOne('/api/v1/trackers').flush({ trackers: [] });
     return fixture;
   }
 
@@ -221,6 +220,7 @@ describe('SettingsComponent — New Chapters (home window)', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideNoopAnimations(),
+        provideRouter([]),
       ],
     });
     const fixture = TestBed.createComponent(SettingsComponent);
@@ -238,8 +238,6 @@ describe('SettingsComponent — New Chapters (home window)', () => {
       defaultReaderMode: 'PagedLtr', preferDoubleSpread: false, reducedMotion: false,
       preferredBackground: null, alwaysOpenReadFromStart: false,
     });
-    // The Connected accounts card (1.43.0) loads the tracker overview on init.
-    httpMock.expectOne('/api/v1/trackers').flush({ trackers: [] });
     return fixture;
   }
 
@@ -357,6 +355,7 @@ describe('SettingsComponent — New Chapters library picker', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideNoopAnimations(),
+        provideRouter([]),
       ],
     });
     const fixture = TestBed.createComponent(SettingsComponent);
@@ -377,8 +376,6 @@ describe('SettingsComponent — New Chapters library picker', () => {
       defaultReaderMode: 'PagedLtr', preferDoubleSpread: false, reducedMotion: false,
       preferredBackground: null, alwaysOpenReadFromStart: false,
     });
-    // The Connected accounts card (1.43.0) loads the tracker overview on init.
-    httpMock.expectOne('/api/v1/trackers').flush({ trackers: [] });
     return fixture;
   }
 
@@ -438,7 +435,7 @@ describe('SettingsComponent - Series information on hover', () => {
   function createComponent(prefs: Record<string, unknown>) {
     TestBed.configureTestingModule({
       imports: [SettingsComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations()],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations(), provideRouter([])],
     });
     const fixture = TestBed.createComponent(SettingsComponent);
     httpMock = TestBed.inject(HttpTestingController);
@@ -454,8 +451,6 @@ describe('SettingsComponent - Series information on hover', () => {
       preferredBackground: null, alwaysOpenReadFromStart: false,
     });
     fixture.detectChanges();
-    // The Connected accounts card (1.43.0) loads the tracker overview on init.
-    httpMock.expectOne('/api/v1/trackers').flush({ trackers: [] });
     return fixture;
   }
 
@@ -503,5 +498,16 @@ describe('SettingsComponent - Series information on hover', () => {
     expect(cmp.seriesInfoOnHover()).toBe(true);
     expect(pref.enabled()).toBe(true);
     expect(cmp.hoverError()).toBe('nope');
+  });
+
+  it('links to the Tracking page instead of the old Connected accounts card (1.43.0 redesign), with no tracker request', () => {
+    const fixture = createComponent({});
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('app-connected-accounts-card')).toBeNull();
+    expect(el.querySelector('[data-testid="connected-accounts-card"]')).toBeNull();
+    const link = el.querySelector('[data-testid="settings-tracking-link"]') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/tracking');
+    expect(el.querySelector('[data-testid="settings-tracking-link-card"]')!.textContent).toContain('Tracking page');
+    httpMock.expectNone('/api/v1/trackers');
   });
 });

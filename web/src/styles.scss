@@ -232,6 +232,21 @@ html {
   --mp-reader-text-muted: var(--mp-text-muted);
 }
 
+/* Tracker mark (1.43.0, owner's card mark C): a gold strip along the top edge of a cover when the user's tracker counts that chapter /
+   volume as read - 3 px of the theme's strong warn gold with a 1 px contrast edge beneath it. The edge keeps the strip visible on any
+   cover: dark / black gold (#ffb300) is only 1.6-1.8:1 on light or white covers, so the edge is black 60 % there; light / sepia gold
+   passes 3:1 on every cover and gets a white 70 % edge. A separate block, like the reader's: the colour guard suggests tokens only from
+   the main :root block. */
+:root {
+  --mp-tracker-mark: var(--mp-warn-strong);
+  --mp-tracker-mark-edge: rgb(0 0 0 / 0.6);
+}
+
+:root[data-theme='light'],
+:root[data-theme='sepia'] {
+  --mp-tracker-mark-edge: rgb(255 255 255 / 0.7);
+}
+
 /* 1.37.1: on a phone the review page's snackbar (Undo) opens just above its bottom action bar instead of over its buttons; the
    review page measures the bar into --mp-snack-lift when it opens a snackbar. The overlay PANE is lifted, not the snackbar inside it:
    a margin on the snackbar would grow the (transparent) pane over the bar and swallow taps on its buttons. */

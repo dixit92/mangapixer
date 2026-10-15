@@ -12,6 +12,7 @@ import { IncognitoService } from '../core/incognito/incognito.service';
 import { ApiService } from '../core/api/api.service';
 import { MetadataReviewSummaryDto } from '../core/api/api-types';
 import { MetadataReviewStateService } from '../features/metadata/metadata-review-state.service';
+import { TrackerStateService } from '../features/trackers/tracker-state.service';
 
 /** Bare routed component so the outlet has something to activate. */
 @Component({ standalone: true, template: 'routed' })
@@ -44,7 +45,10 @@ class FakeBreakpointObserver {
  * the pre-existing tests below assert exactly that with no changes needed.
  */
 describe('LayoutComponent sidebar visibility', () => {
-  function create(options: { authenticated?: boolean; phone?: boolean; admin?: boolean; attention?: [number, number] } = {}) {
+  function create(options: {
+    authenticated?: boolean; phone?: boolean; admin?: boolean; attention?: [number, number];
+    trackers?: { available: boolean; attention: number };
+  } = {}) {
     const { authenticated = false, phone = false, admin = false } = options;
     const authSpy = {
       isAuthenticated: () => authenticated,
@@ -67,6 +71,17 @@ describe('LayoutComponent sidebar visibility', () => {
       clear: vi.fn(() => summary.set(null)),
     };
 
+    // Tracker sync (1.43.0): the account menu's Tracking entry and its count.
+    const trackerOptions = options.trackers ?? { available: false, attention: 0 };
+    const trackerAttention = signal(0);
+    const trackers = {
+      pageAvailable: signal(trackerOptions.available),
+      attention: trackerAttention.asReadonly(),
+      ensureLoaded: vi.fn(),
+      refreshAttention: vi.fn(() => trackerAttention.set(trackerOptions.attention)),
+      clear: vi.fn(),
+    };
+
     TestBed.configureTestingModule({
       imports: [LayoutComponent],
       providers: [
@@ -84,11 +99,12 @@ describe('LayoutComponent sidebar visibility', () => {
         { provide: ApiService, useValue: apiSpy },
         { provide: BreakpointObserver, useValue: breakpointObserver },
         { provide: MetadataReviewStateService, useValue: metadataReview },
+        { provide: TrackerStateService, useValue: trackers },
       ],
     });
     const fixture = TestBed.createComponent(LayoutComponent);
     const router = TestBed.inject(Router);
-    return { fixture, router, breakpointObserver, metadataReview };
+    return { fixture, router, breakpointObserver, metadataReview, trackers };
   }
 
   async function go(router: Router, url: string, fixture: ReturnType<typeof create>['fixture']) {
@@ -277,6 +293,60 @@ describe('LayoutComponent sidebar visibility', () => {
       expect(fixture.componentInstance.adminAttention()).toBe(0);
       fixture.componentInstance.refreshAttention();
       expect(metadataReview.refresh).not.toHaveBeenCalled();
+    });
+  });
+  describe('Tracking entry (1.43.0 tracker sync)', () => {
+    async function menuItems(fixture: ReturnType<typeof create>['fixture']): Promise<HTMLElement[]> {
+      (fixture.nativeElement.querySelector('button[aria-label^="Account menu"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      return Array.from(document.querySelectorAll<HTMLElement>('.cdk-overlay-container [mat-menu-item]'));
+    }
+
+    it('lists Tracking between Settings and Administration with the count of series that need a look', async () => {
+      const { fixture, router, trackers } = create({ authenticated: true, admin: true, trackers: { available: true, attention: 3 } });
+      await go(router, '/', fixture);
+      expect(trackers.ensureLoaded).toHaveBeenCalled();
+      expect(trackers.refreshAttention).toHaveBeenCalled();
+      const items = await menuItems(fixture);
+      // Each label without its icon's ligature text.
+      const labels = items.map((i) => i.textContent!.replace(i.querySelector('mat-icon')?.textContent ?? '', '').replace(/\s+/g, ' ').trim());
+      const at = items.findIndex((i) => i.getAttribute('data-testid') === 'nav-tracking');
+      expect(at).toBeGreaterThan(0);
+      expect(labels[at]).toMatch(/^Tracking/);
+      expect(labels[at - 1]).toContain('Settings');
+      expect(labels[at + 1]).toContain('MangaPixer Administration');
+      const entry = items[at];
+      expect(entry.querySelector('[data-testid="nav-tracking-count"]')!.textContent!.trim()).toBe('3');
+      expect(entry.getAttribute('aria-label')).toBe('Tracking, 3 series need a look');
+    });
+
+    it('shows no count when nothing needs a look, and no entry where no tracker is allowed', async () => {
+      const first = create({ authenticated: true, trackers: { available: true, attention: 0 } });
+      await go(first.router, '/', first.fixture);
+      let items = await menuItems(first.fixture);
+      const entry = items.find((i) => i.getAttribute('data-testid') === 'nav-tracking')!;
+      expect(entry).toBeDefined();
+      expect(entry.querySelector('[data-testid="nav-tracking-count"]')).toBeNull();
+      TestBed.resetTestingModule();
+
+      const second = create({ authenticated: true, trackers: { available: false, attention: 0 } });
+      await go(second.router, '/', second.fixture);
+      items = await menuItems(second.fixture);
+      expect(items.some((i) => i.getAttribute('data-testid') === 'nav-tracking')).toBe(false);
+    });
+
+    it('re-reads the count when the menu opens; signed out it forgets the trackers', async () => {
+      const { fixture, router, trackers } = create({ authenticated: true, trackers: { available: true, attention: 1 } });
+      await go(router, '/', fixture);
+      trackers.refreshAttention.mockClear();
+      fixture.componentInstance.refreshAttention();
+      expect(trackers.refreshAttention).toHaveBeenCalledTimes(1);
+      TestBed.resetTestingModule();
+      const out = create({ authenticated: false });
+      await go(out.router, '/', out.fixture);
+      expect(out.trackers.clear).toHaveBeenCalled();
+      expect(out.trackers.ensureLoaded).not.toHaveBeenCalled();
     });
   });
 });

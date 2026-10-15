@@ -149,9 +149,10 @@ test.describe('tracker sync web (1.43.0)', () => {
     const origin = new URL(page.url()).origin;
     await allow(page, 'mal', { clientId: 'e2e-client-id', redirectUri: `${origin}/trackers/callback/mal` });
     try {
-      await page.goto('/settings');
+      await page.goto('/tracking');
       const panel = page.getByTestId('tracker-account-mal');
       await panel.scrollIntoViewIfNeeded();
+      await panel.getByTestId('tracker-connect-open-mal').click();
       await expect(panel.getByTestId('tracker-consent-user-mal')).toContainText('MangaPixer never sees your password');
       const connect = panel.getByTestId('tracker-connect-mal');
       await expect(connect).toBeDisabled();
@@ -185,7 +186,7 @@ test.describe('tracker sync web (1.43.0)', () => {
       expect(page.url()).toBe(authorizeUrl);
       await expect.poll(() => outside.filter((u) => !u.endsWith('/favicon.ico'))).toEqual([authorizeUrl]);
     } finally {
-      await page.goto('/settings');
+      await page.goto('/tracking');
       await reset(page, 'mal');
     }
   });
@@ -214,7 +215,7 @@ test.describe('tracker sync web (1.43.0)', () => {
     }
     await expect(page.locator('body')).not.toContainText('BOGUS');
     await page.getByTestId('tracker-callback-settings').click();
-    await expect(page).toHaveURL(/\/settings$/);
+    await expect(page).toHaveURL(/\/tracking$/);
     expect(outside).toEqual([]);
   });
 
@@ -226,9 +227,10 @@ test.describe('tracker sync web (1.43.0)', () => {
     try {
       const sent: string[] = [];
       page.on('request', (r) => { if (r.url().includes('/connect/password')) sent.push(r.url()); });
-      await page.goto('/settings');
+      await page.goto('/tracking');
       const panel = page.getByTestId('tracker-account-mangaupdates');
       await panel.scrollIntoViewIfNeeded();
+      await panel.getByTestId('tracker-connect-open-mangaupdates').click();
       await expect(panel.getByTestId('tracker-consent-user-mangaupdates')).toContainText('username and password ONCE');
       await panel.getByTestId('tracker-consent-mangaupdates').locator('input').check();
       await panel.getByTestId('tracker-username-mangaupdates').fill('e2e-reader');
@@ -275,7 +277,7 @@ test.describe('tracker sync web (1.43.0)', () => {
     expect(outside).toEqual([]);
   });
 
-  test('the tracker cards, the ids dialog and the callback page fit a phone and a tablet screen', async ({ page }) => {
+  test('the tracker cards, the Tracking page, the popover, the ids dialog and the callback page fit a phone and a tablet screen', async ({ page }) => {
     test.skip(!VOLUMES_ROOT, 'E2E_SERIES_FIXTURE_ROOT not set: no synthetic library available');
     // Contract-shaped data with long names: MyAnimeList allowed with its registration, a connected account with entries in every
     // state, the Set form and the Send all confirm open, the sync menu, the ids dialog. Nothing is changed on the server.
@@ -298,14 +300,29 @@ test.describe('tracker sync web (1.43.0)', () => {
       await page.getByTestId('admin-tracker-disconnect-mal-u1').click();
       await check('admin trackers', size.width);
 
-      await page.goto('/settings');
-      const entries = page.getByTestId('tracker-entries-mal');
-      await entries.scrollIntoViewIfNeeded();
-      await expect(entries.getByTestId('tracker-entry-s1')).toBeVisible();
-      await entries.getByTestId('tracker-set-s1').click();
-      await entries.getByTestId('tracker-send-all-mal').click();
+      // The Tracking page: both account cards, every chip, rows in every state with the from-tracker confirm, the "Set to"
+      // warning form and the Send all confirm open, and the Disconnect confirm.
+      await page.goto('/tracking');
+      const list = page.getByTestId('tracking-list-mal');
+      await expect(list.getByTestId('tracking-row-s1')).toBeVisible();
+      await list.getByTestId('tracking-from-s6').click();
+      await list.getByTestId('tracking-more-s5').click();
+      await page.getByTestId('tracking-menu-set').click();
+      await list.getByTestId('tracker-send-all-mal').click();
       await page.getByTestId('tracker-disconnect-mal').click();
-      await check('connected accounts', size.width);
+      await page.getByTestId('tracker-connect-open-mangaupdates').click();
+      await check('tracking page', size.width);
+      await list.getByTestId('tracking-set-dates-s5').click();
+      await expect(page.getByTestId('tracker-dates-dialog')).toBeVisible();
+      await check('tracking dates dialog', size.width);
+      await page.keyboard.press('Escape');
+
+      // The series header's Tracking popover.
+      await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+      await page.getByTestId('series-tracking-button').click();
+      await expect(page.getByTestId('series-tracking-popover')).toBeVisible();
+      await check('series tracking popover', size.width);
+      await page.keyboard.press('Escape');
 
       await page.goto('/trackers/callback/mal?code=layout-code&state=layout-state');
       await expect(page.getByTestId('tracker-callback-error')).toBeVisible();
@@ -330,6 +347,224 @@ test.describe('tracker sync web (1.43.0)', () => {
     expect(failures, `tracker pages that do not fit the screen:\n${failures.join('\n')}`).toEqual([]);
     expect(outside).toEqual([]);
   });
+
+  test('the Tracking list pages, filters and searches on the server (50 a page, chips with counts)', async ({ page }) => {
+    // A connected MyAnimeList account needs MyAnimeList itself, so the overview and the list answer as contract-shaped data;
+    // what is asserted is what the page asks this server for, and that nothing leaves the test.
+    test.setTimeout(120_000);
+    const outside = await guardOutside(page);
+    await login(page);
+    const all = Array.from({ length: 120 }, (_, i) => trackingRow(`r${String(i).padStart(3, '0')}`,
+      i % 6 === 0 ? 'TrackerAhead' : 'InSync', { title: `Synthetic Saga ${String(i).padStart(3, '0')}` }));
+    const asked: Record<string, string>[] = [];
+    await page.route(/\/api\/v1\/trackers$/, (r) => r.fulfill({ json: { trackers: [connectedMal()] } }));
+    await page.route(/\/api\/v1\/trackers\/attention$/, (r) => r.fulfill({ json: { total: 20, trackers: [{ tracker: 'mal', count: 20 }] } }));
+    await page.route(/\/api\/v1\/trackers\/mal\/series(\?.*)?$/, (r) => {
+      const url = new URL(r.request().url());
+      const q = Object.fromEntries(url.searchParams.entries());
+      asked.push(q);
+      const pageNo = Number(q['page'] ?? '1');
+      let rows = all;
+      if (q['filter']) rows = rows.filter((x) => x.bucket === q['filter']);
+      if (q['q']) rows = rows.filter((x) => x.title.toLowerCase().includes(q['q'].toLowerCase()));
+      return r.fulfill({ json: {
+        items: rows.slice((pageNo - 1) * 50, pageNo * 50), page: pageNo, pageSize: 50, totalCount: rows.length,
+        counts: { all: 120, inSync: 100, mangaPixerAhead: 0, trackerAhead: 20, leftAsIs: 0, held: 0, noId: 0, notSynced: 0, problem: 0, unchecked: 0, attention: 20 },
+      } });
+    });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/tracking');
+    const list = page.getByTestId('tracking-list-mal');
+    await expect(list.locator('[data-testid^="tracking-row-"]')).toHaveCount(50);
+    await expect(list.getByTestId('tracking-shown-mal')).toContainText('Showing 1–50 of 120');
+    await expect(list.getByTestId('tracking-chip-All')).toHaveText('All · 120');
+    await expect(list.getByTestId('tracking-chip-TrackerAhead')).toHaveText('MyAnimeList ahead · 20');
+    expect(asked[0]).toEqual({ page: '1' });
+    // Load more is what a click reaches while there is more (a disabled Material button takes no pointer events).
+    await list.getByTestId('tracking-load-more-mal').scrollIntoViewIfNeeded();
+    const more = (await list.getByTestId('tracking-load-more-mal').boundingBox())!;
+    expect(await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('[data-testid="tracking-load-more-mal"]'),
+      [more.x + more.width / 2, more.y + more.height / 2])).toBe(true);
+
+    await list.getByTestId('tracking-load-more-mal').click();
+    await expect(list.locator('[data-testid^="tracking-row-"]')).toHaveCount(100);
+    expect(asked.at(-1)).toEqual({ page: '2' });
+
+    await list.getByTestId('tracking-chip-TrackerAhead').click();
+    await expect(list.locator('[data-testid^="tracking-row-"]')).toHaveCount(20);
+    await expect(list.getByTestId('tracking-chip-TrackerAhead')).toHaveAttribute('aria-pressed', 'true');
+    expect(asked.at(-1)).toEqual({ page: '1', filter: 'TrackerAhead' });
+    await expect(list.getByTestId('tracking-load-more-mal')).toBeDisabled();
+
+    await list.getByTestId('tracking-search').fill('Saga 006');
+    await expect(list.locator('[data-testid^="tracking-row-"]')).toHaveCount(1);
+    expect(asked.at(-1)).toEqual({ page: '1', filter: 'TrackerAhead', q: 'Saga 006' });
+
+    // The new controls are what a click reaches.
+    for (const id of ['tracking-tab-mal', 'tracking-chip-All', 'tracking-search', 'tracker-preview-mal',
+      'tracking-from-r006', 'tracking-to-r006', 'tracking-more-r006', 'tracking-set-dates-r006', 'tracker-disconnect-mal',
+      'tracker-add-started-mal', 'tracking-help']) {
+      await page.getByTestId(id).scrollIntoViewIfNeeded();
+      const box = (await page.getByTestId(id).boundingBox())!;
+      const hit = await page.evaluate(([x, y, testId]) => !!document.elementFromPoint(x as number, y as number)?.closest(`[data-testid="${testId}"]`),
+        [box.x + box.width / 2, box.y + box.height / 2, id] as const);
+      expect(hit, `${id} is covered`).toBe(true);
+    }
+    expect(outside).toEqual([]);
+  });
+
+  test('the two "Set progress" buttons: from MyAnimeList asks first and shows the counts; to MyAnimeList sends; the blocked one says why', async ({ page }) => {
+    test.setTimeout(120_000);
+    const outside = await guardOutside(page);
+    await login(page);
+    const ahead = trackingRow('s1', 'TrackerAhead', { allChapters: 45, chapters: 45, remoteChapters: 51, remoteVolumes: null, totalChapters: 51,
+      fromTracker: { possible: true, block: 'None' }, toTracker: { possible: false, block: 'NotAhead' } });
+    const behind = trackingRow('s2', 'MangaPixerAhead', { allChapters: 60, remoteChapters: 40,
+      fromTracker: { possible: false, block: 'NotAhead' }, toTracker: { possible: true, block: 'None' } });
+    let rows = [ahead, behind];
+    const posts: string[] = [];
+    await page.route(/\/api\/v1\/trackers$/, (r) => r.fulfill({ json: { trackers: [connectedMal()] } }));
+    await page.route(/\/api\/v1\/trackers\/attention$/, (r) => r.fulfill({ json: { total: 1, trackers: [{ tracker: 'mal', count: 1 }] } }));
+    await page.route(/\/api\/v1\/trackers\/mal\/series(\?.*)?$/, (r) => r.fulfill({ json: {
+      items: rows, page: 1, pageSize: 50, totalCount: rows.length,
+      counts: { all: 2, inSync: 0, mangaPixerAhead: 1, trackerAhead: 1, leftAsIs: 0, held: 0, noId: 0, notSynced: 0, problem: 0, unchecked: 0, attention: 1 },
+    } }));
+    await page.route(/\/api\/v1\/trackers\/mal\/entries\/s1\/from-tracker$/, (r) => {
+      posts.push(`${r.request().method()} from-tracker s1`);
+      const done = { ...ahead, bucket: 'InSync', state: 'Ok', allChapters: 51, chapters: 51, fromTracker: { possible: false, block: 'NotAhead' } };
+      rows = [done, behind];
+      return r.fulfill({ json: { marked: 6, alreadyRead: 45, remoteChapters: 51, remoteVolumes: null, entry: done } });
+    });
+    await page.route(/\/api\/v1\/trackers\/mal\/entries\/s2\/send$/, (r) => {
+      posts.push(`${r.request().method()} send s2`);
+      rows = [rows[0], { ...behind, bucket: 'InSync', state: 'Ok', remoteChapters: 60, toTracker: { possible: false, block: 'NotAhead' } }];
+      return r.fulfill({ json: { seriesId: 's2', title: behind.title, nodeId: null, tracker: 'mal', remoteId: '2', state: 'Ok', dontSync: false,
+        localChapters: 60, remoteChapters: 60, remoteMissing: false, updatedAt: '2026-10-13T10:00:00Z' } });
+    });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/tracking');
+    const list = page.getByTestId('tracking-list-mal');
+    const from = list.getByTestId('tracking-from-s1');
+    const toBlocked = list.getByTestId('tracking-to-s1');
+    await expect(from).toHaveText(/Set progress from MyAnimeList to MangaPixer/);
+    await expect(toBlocked).toHaveAttribute('aria-disabled', 'true');
+    await toBlocked.hover();
+    await expect(page.locator('.mat-mdc-tooltip')).toContainText('MangaPixer is not ahead of MyAnimeList - nothing to send');
+
+    await from.click();
+    await expect(list.getByTestId('tracking-from-confirm-s1')).toContainText('Mark chapters 1-51 read in MangaPixer?');
+    expect(posts).toEqual([]);
+    await list.getByTestId('tracking-from-yes-s1').click();
+    await expect(list.getByTestId('tracking-notice-mal')).toContainText('marked 6 files read in MangaPixer (45 files already read)');
+    await expect(list.getByTestId('tracking-state-s1')).toHaveText('In sync');
+
+    await list.getByTestId('tracking-to-s2').click();
+    await expect(list.getByTestId('tracking-notice-mal')).toContainText('up to date');
+    await expect(list.getByTestId('tracking-state-s2')).toHaveText('In sync');
+    expect(posts).toEqual(['POST from-tracker s1', 'POST send s2']);
+    expect(outside).toEqual([]);
+  });
+
+  test('the card mark: a gold strip on the covers the tracker counts as read, none on the others; the menu leads to Tracking', async ({ page }) => {
+    test.skip(!VOLUMES_ROOT, 'E2E_SERIES_FIXTURE_ROOT not set: no synthetic library available');
+    test.setTimeout(180_000);
+    const outside = await guardOutside(page);
+    await login(page);
+    const [libraryId, folderId] = await volumeLibrary(page);
+    await page.route(/\/api\/v1\/trackers$/, (r) => r.fulfill({ json: { trackers: [connectedMal()] } }));
+    await page.route(/\/api\/v1\/trackers\/attention$/, (r) => r.fulfill({ json: { total: 2, trackers: [{ tracker: 'mal', count: 2 }] } }));
+    await page.route(/\/api\/v1\/trackers\/nodes\/[^/]+\/summary$/, (r) => r.fulfill({ json: { seriesId: null, rows: [] } }));
+    // The server sets `trackerRead` only for a series the viewer tracks on a connected tracker; here the browse answer gets it for
+    // the first card only, as the server would for one volume read on MyAnimeList.
+    let marked = '';
+    await page.route(new RegExp(`/api/v1/libraries/${libraryId}/browse\\?.*parentId=${folderId}`), async (r) => {
+      const res = await r.fetch();
+      const body = await res.json();
+      const items = body.items as { id: string; kind: string; trackerRead?: string[] }[];
+      const first = (items as { id: string; kind: string; trackerRead?: string[]; volumeStack?: { missing?: boolean } }[])
+        .find((n) => n.kind === 'Archive' || (n.kind === 'VolumeStack' && !n.volumeStack?.missing));
+      if (first) { first.trackerRead = ['mal']; marked = first.id; }
+      await r.fulfill({ response: res, json: body });
+    });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+    const marks = page.getByTestId('tracker-read-mark');
+    await expect(marks).toHaveCount(1);
+    expect(marked).not.toBe('');
+    // One card carries it; every other card of the folder has none.
+    expect(await page.locator('.nodes .node-wrap').count()).toBeGreaterThan(1);
+    await expect(page.locator('.nodes .node-wrap').filter({ has: page.getByTestId('tracker-read-mark') })).toHaveCount(1);
+    const mark = marks.first();
+    await expect(mark).toHaveAttribute('aria-label', 'Read on MyAnimeList');
+    const look = await mark.evaluate((el) => {
+      const s = getComputedStyle(el);
+      // The host is `display: contents`: measure against the cover box itself.
+      const cover = el.closest('.cover')!.getBoundingClientRect();
+      const box = el.getBoundingClientRect();
+      const probe = document.createElement('span');
+      probe.style.color = 'var(--mp-warn-strong)';
+      document.body.appendChild(probe);
+      const gold = getComputedStyle(probe).color;
+      probe.remove();
+      const hit = document.elementFromPoint(box.x + box.width / 2, box.y + 1);
+      return { height: s.height, edge: s.borderBottomWidth, edgeColor: s.borderBottomColor, background: s.backgroundColor, gold,
+        top: box.top - cover.top, fullWidth: Math.abs(box.width - cover.width) < 1, hit: hit === el };
+    });
+    expect(look).toMatchObject({ height: '3px', edge: '1px', top: 0, fullWidth: true, hit: true });
+    expect(look.background).toBe(look.gold);
+    expect(look.edgeColor).toBe('rgba(0, 0, 0, 0.6)');
+
+    // The account menu: Tracking between Settings and Administration, with the count; it opens the page.
+    await page.getByRole('button', { name: /^Account menu/ }).click();
+    const entry = page.getByTestId('nav-tracking');
+    await expect(entry).toBeVisible();
+    await expect(page.getByTestId('nav-tracking-count')).toHaveText('2');
+    const labels = await page.locator('.mat-mdc-menu-panel [mat-menu-item]').allTextContents();
+    const at = labels.findIndex((l) => l.includes('Tracking'));
+    expect(labels[at - 1]).toContain('Settings');
+    expect(labels[at + 1]).toContain('Administration');
+    await entry.click();
+    await expect(page).toHaveURL(/\/tracking$/);
+    expect(outside).toEqual([]);
+  });
+
+  test('the series header\'s Tracking popover opens the series\' row on the Tracking page', async ({ page }) => {
+    test.skip(!VOLUMES_ROOT, 'E2E_SERIES_FIXTURE_ROOT not set: no synthetic library available');
+    test.setTimeout(180_000);
+    const outside = await guardOutside(page);
+    await login(page);
+    const [libraryId, folderId] = await volumeLibrary(page);
+    const row = trackingRow('s7', 'LeftAsIs', { nodeId: folderId, remoteStatus: 'Completed', allChapters: 45, remoteChapters: 51,
+      remoteVolumes: 10, toTracker: { possible: false, block: 'LeftAsIs' }, fromTracker: { possible: false, block: 'LeftAsIs' } });
+    const asked: string[] = [];
+    await page.route(/\/api\/v1\/trackers$/, (r) => r.fulfill({ json: { trackers: [connectedMal()] } }));
+    await page.route(/\/api\/v1\/trackers\/attention$/, (r) => r.fulfill({ json: { total: 0, trackers: [] } }));
+    await page.route(new RegExp(`/api/v1/trackers/nodes/${folderId}/summary$`), (r) => r.fulfill({ json: { seriesId: 's7', rows: [row] } }));
+    await page.route(/\/api\/v1\/trackers\/mal\/series(\?.*)?$/, (r) => {
+      asked.push(new URL(r.request().url()).searchParams.get('q') ?? '');
+      return r.fulfill({ json: { items: [row], page: 1, pageSize: 50, totalCount: 1,
+        counts: { all: 1, inSync: 0, mangaPixerAhead: 0, trackerAhead: 0, leftAsIs: 1, held: 0, noId: 0, notSynced: 0, problem: 0, unchecked: 0, attention: 0 } } });
+    });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+    const button = page.getByTestId('series-tracking-button');
+    await expect(button).toBeVisible();
+    const box = (await button.boundingBox())!;
+    expect(await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('[data-testid="series-tracking-button"]'),
+      [box.x + box.width / 2, box.y + box.height / 2])).toBe(true);
+    await button.click();
+    const pop = page.getByTestId('series-tracking-popover');
+    await expect(pop.getByTestId('series-tracking-state-mal')).toHaveText('Left as is · Completed on MyAnimeList');
+    await expect(pop.getByTestId('series-tracking-here-mal')).toContainText('45 of 300 ch');
+    await expect(pop.getByTestId('series-tracking-remote-mal')).toContainText('51 ch · 10 vol · Completed');
+    await pop.getByTestId('series-tracking-open-mal').click();
+    await expect(page).toHaveURL(/\/tracking\?tracker=mal&series=s7$/);
+    await expect(page.getByTestId('tracking-row-s7')).toHaveClass(/focused/);
+    // The title travels in the navigation state and seeds the search; it is never in the address.
+    expect(asked.at(-1)).toBe('Synthetic Saga s7');
+    expect(page.url()).not.toContain('Synthetic');
+    expect(outside).toEqual([]);
+  });
 });
 
 function connectedMal(extra: Record<string, unknown> = {}) {
@@ -339,7 +574,7 @@ function connectedMal(extra: Record<string, unknown> = {}) {
     account: {
       tracker: 'mal', state: 'Ok', displayName: 'a-reader-with-a-rather-long-myanimelist-name', connectedAt: '2026-10-13T10:00:00Z',
       lastSuccessAt: '2026-10-13T11:00:00Z', consentRenewalNeeded: false, addStartedSeries: true, privateEntries: true,
-      requestsToday: 12, dailyRequestCap: 300,
+      requestsToday: 12, dailyRequestCap: 2000,
     },
     ...extra,
   };
@@ -365,23 +600,12 @@ async function volumeLibrary(page: Page): Promise<[string, string]> {
   return [lib!.id, folder];
 }
 
-/** Contract-shaped tracker answers for the layout check (lane E's DTOs), with long names. */
+/** Contract-shaped tracker answers for the layout check (lane E's and lane G's DTOs), with long names. */
 async function mockTrackerData(page: Page, folderId: string): Promise<void> {
   const long = 'A synthetic series title that is long enough to wrap on a phone screen';
-  const entry = (seriesId: string, state: string, extra: Record<string, unknown> = {}) => ({
-    seriesId, title: `${long} ${seriesId}`, nodeId: folderId, tracker: 'mal', remoteId: '2', remoteIdSource: 'MangaDex', state,
-    errorCode: null, dontSync: false, localChapters: 120, localVolumes: 12, heldChapters: null, heldVolumes: null,
-    lastSentChapters: 118, lastSentVolumes: 12, lastSentAt: '2026-10-13T10:00:00Z', remoteChapters: 118, remoteVolumes: 12,
-    remoteStatus: 'Reading', remoteMissing: false, remoteSeenAt: '2026-10-13T10:00:00Z', updatedAt: '2026-10-13T10:00:00Z', ...extra,
+  const row = (seriesId: string, bucket: string, extra: Record<string, unknown> = {}) => trackingRow(seriesId, bucket, {
+    title: `${long} ${seriesId}`, nodeId: folderId, ...extra,
   });
-  const entries = [
-    entry('s1', 'Held', { heldChapters: 240, heldVolumes: 24 }),
-    entry('s2', 'Error', { errorCode: 'unavailable' }),
-    entry('s3', 'LeftAsIs', { remoteStatus: 'OnHold' }),
-    entry('s4', 'NoId', { remoteId: null }),
-    entry('s5', 'Ok'),
-    entry('s6', 'TrackerAhead', { remoteChapters: 300 }),
-  ];
   const adminMal = {
     slug: 'mal', name: 'MyAnimeList', enabled: true, acceptedConsentVersion: 1, currentConsentVersion: 1, consentAt: '2026-10-13T10:00:00Z',
     consentRenewalNeeded: false, networkDisabledByConfig: false, connectKind: 'OAuthPkce', needsAppRegistration: true,
@@ -400,7 +624,23 @@ async function mockTrackerData(page: Page, folderId: string): Promise<void> {
     slug: 'mangaupdates', name: 'MangaUpdates', allowed: true, networkDisabledByConfig: false, connectKind: 'Password', currentConsentVersion: 1,
     supportsPrivateEntries: false, account: null,
   }] })));
-  await page.route(/\/api\/v1\/trackers\/mal\/entries$/, (r) => r.fulfill(json(entries)));
+  const rows = [
+    row('s1', 'Held', { heldChapters: 240, heldVolumes: 24, toTracker: { possible: true, block: 'None' } }),
+    row('s2', 'Problem', { errorCode: 'unavailable' }),
+    row('s3', 'LeftAsIs', { remoteStatus: 'OnHold', toTracker: { possible: false, block: 'LeftAsIs' }, fromTracker: { possible: false, block: 'LeftAsIs' } }),
+    row('s4', 'NoId', { remoteId: null, toTracker: { possible: false, block: 'NoId' }, fromTracker: { possible: false, block: 'NoId' } }),
+    row('s5', 'InSync'),
+    row('s6', 'TrackerAhead', { remoteChapters: 300, fromTracker: { possible: true, block: 'None' } }),
+    row('s7', 'MangaPixerAhead', { remoteChapters: 100, toTracker: { possible: true, block: 'None' } }),
+    row('s8', 'NotSynced', { dontSync: true, toTracker: { possible: false, block: 'DontSync' }, fromTracker: { possible: false, block: 'DontSync' } }),
+    row('s9', 'Unchecked', { remoteChapters: null, remoteVolumes: null, remoteStatus: null, lastSyncAt: null, toTracker: { possible: false, block: 'NotChecked' }, fromTracker: { possible: false, block: 'NotChecked' } }),
+  ];
+  await page.route(/\/api\/v1\/trackers\/mal\/series(\?.*)?$/, (r) => r.fulfill(json({
+    items: rows, page: 1, pageSize: 50, totalCount: rows.length,
+    counts: { all: 9, inSync: 1, mangaPixerAhead: 1, trackerAhead: 1, leftAsIs: 1, held: 1, noId: 1, notSynced: 1, problem: 1, unchecked: 1, attention: 2 },
+  })));
+  await page.route(/\/api\/v1\/trackers\/attention$/, (r) => r.fulfill(json({ total: 2, trackers: [{ tracker: 'mal', count: 2 }] })));
+  await page.route(/\/api\/v1\/trackers\/nodes\/[^/]+\/summary$/, (r) => r.fulfill(json({ seriesId: 's6', rows: [rows[5]] })));
   await page.route(/\/api\/v1\/admin\/trackers\/nodes\/[^/]+\/ids$/, (r) => r.fulfill(json({
     seriesId: 'r1', ids: [
       { tracker: 'mal', remoteId: '2', source: 'MangaDex', overrideId: null },
@@ -414,4 +654,19 @@ async function mockTrackerData(page: Page, folderId: string): Promise<void> {
     body.web ??= { provider: 'mangaupdates', providerName: 'MangaUpdates', siteUrl: null, fetchedAt: '2026-10-13T10:00:00Z' };
     await r.fulfill({ response: res, json: body });
   });
+}
+
+/** One row of the Tracking list (lane G's `TrackerSeriesRowDto`), in sync at 120 ch / 12 vol unless told otherwise. */
+function trackingRow(seriesId: string, bucket: string, extra: Record<string, unknown> = {}) {
+  const state = ({ InSync: 'Ok', MangaPixerAhead: 'Ok', TrackerAhead: 'TrackerAhead', LeftAsIs: 'LeftAsIs', Held: 'Held', NoId: 'NoId',
+    NotSynced: 'DontSync', Problem: 'Error', Unchecked: 'Pending' } as Record<string, string>)[bucket] ?? 'Ok';
+  return {
+    seriesId, title: `Synthetic Saga ${seriesId}`, nodeId: null, tracker: 'mal', remoteId: '2', remoteIdSource: 'MangaDex', state, bucket,
+    errorCode: null, dontSync: false, chapters: 120, volumes: 12, allChapters: 120, allVolumes: 12, heldChapters: null, heldVolumes: null,
+    totalChapters: 300, totalVolumes: 30, remoteChapters: 120, remoteVolumes: 12, remoteStatus: 'Reading', remoteMissing: false,
+    dates: { supported: true, startedOn: '2026-10-01', startedOnOverridden: false, finishedOn: null, finishedOnOverridden: false,
+      remoteStartedOn: '2026-10-01', remoteFinishedOn: null, pending: false },
+    fromTracker: { possible: false, block: 'NotAhead' }, toTracker: { possible: false, block: 'NotAhead' },
+    lastSyncAt: '2026-10-13T10:00:00Z', lastSentAt: '2026-10-13T10:00:00Z', updatedAt: '2026-10-13T10:00:00Z', ...extra,
+  };
 }

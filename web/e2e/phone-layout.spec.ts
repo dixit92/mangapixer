@@ -101,6 +101,7 @@ test('every main page fits a phone and a tablet screen', async ({ page }) => {
     ['favorites', '/favorites'],
     ['library menu', '/library-nav'],
     ['settings', '/settings'],
+    ['tracking', '/tracking'],
     ['admin', '/admin'],
     ['metadata settings', '/admin/metadata?tab=settings'],
     ['metadata review', '/admin/metadata?tab=review'],

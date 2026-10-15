@@ -1,13 +1,15 @@
 import {
-  TRACKER_ADMIN_CONSENT_VERSION, TRACKER_USER_CONSENT_VERSION, accountProblem, decodeBase36, entryStateText, errorText, failureText,
-  numbersText, parseTrackerId, proposedRedirectUri, revokeHint, trackerName,
+  TRACKER_ADMIN_CONSENT_VERSION, TRACKER_USER_CONSENT_VERSION, accountProblem, actionBlockText, bucketText, dateText, decodeBase36,
+  entryStateText, errorText, failureText, fromTrackerQuestion, numbersText, ofText, parseTrackerId, proposedRedirectUri, revokeHint,
+  trackerName, trackingChips,
 } from './tracker-texts';
+import { listCounts, seriesRow } from './trackers.testing';
 import { TrackerAccountDto } from '../../core/api/api-types';
 
 function account(overrides: Partial<TrackerAccountDto> = {}): TrackerAccountDto {
   return {
     tracker: 'mal', state: 'Ok', displayName: 'reader', connectedAt: '2026-10-13T00:00:00Z', consentRenewalNeeded: false,
-    addStartedSeries: true, privateEntries: true, requestsToday: 0, dailyRequestCap: 300, ...overrides,
+    addStartedSeries: true, privateEntries: true, requestsToday: 0, dailyRequestCap: 2000, ...overrides,
   };
 }
 
@@ -50,7 +52,7 @@ describe('tracker texts', () => {
 
   it('turns the callback errors into plain words', () => {
     expect(errorText('invalid_state')).toContain('not valid any more');
-    expect(errorText('connect_rejected', 'mal')).toBe('MyAnimeList did not accept this sign-in. Start again from Settings.');
+    expect(errorText('connect_rejected', 'mal')).toBe('MyAnimeList did not accept this sign-in. Start again from the Tracking page.');
     expect(errorText('tracker_unavailable', 'mal')).toContain('could not be reached');
     expect(failureText({ status: 400, error: { error: 'invalid_state', message: 'x' } })).toContain('not valid any more');
     expect(failureText({ status: 401, error: null })).toContain('Sign in again');
@@ -83,5 +85,57 @@ describe('tracker texts', () => {
     expect(parseTrackerId('mangaupdates', 'https://myanimelist.net/manga/2')).toBeNull();
     expect(decodeBase36('zzzzzzzzzzzzzz')).toBeNull();
     expect(decodeBase36('1y2p0ij32e8e8')).toBeNull(); // past the signed 64-bit range
+  });
+
+  // ---- The Tracking page (1.43.0 owner redesign) ----
+
+  it('lists the seven owner chips always and the other buckets only while they hold a series', () => {
+    expect(trackingChips(listCounts({ trackerAhead: 2 }), 'mal').map((c) => `${c.filter}:${c.label}:${c.count}`)).toEqual([
+      'All:All:2', 'MangaPixerAhead:MangaPixer ahead:0', 'TrackerAhead:MyAnimeList ahead:2', 'LeftAsIs:Left as is:0',
+      'Held:Waiting for you:0', 'NoId:No MyAnimeList id:0', 'NotSynced:Not synced:0',
+    ]);
+    expect(trackingChips(listCounts({ inSync: 1, unchecked: 2, problem: 3 }), 'mangaupdates').slice(7).map((c) => c.label))
+      .toEqual(['In sync', 'Not checked yet', 'Sync problem']);
+    expect(trackingChips(null, 'mal')).toHaveLength(7);
+  });
+
+  it('puts every chip of a row in words', () => {
+    const r = (o: Parameters<typeof seriesRow>[0]) => bucketText(seriesRow(o));
+    expect(r({ bucket: 'InSync' })).toBe('In sync');
+    expect(r({ bucket: 'MangaPixerAhead' })).toBe('MangaPixer ahead');
+    expect(r({ bucket: 'TrackerAhead' })).toBe('MyAnimeList ahead');
+    expect(r({ bucket: 'LeftAsIs', remoteStatus: 'OnHold' })).toBe('Left as is · On hold on MyAnimeList');
+    expect(r({ bucket: 'Held' })).toBe('Waiting for you');
+    expect(r({ bucket: 'NoId', tracker: 'mangaupdates' })).toBe('No MangaUpdates id');
+    expect(r({ bucket: 'NotSynced', dontSync: true })).toBe('Not synced (your choice)');
+    expect(r({ bucket: 'NotSynced' })).toBe('Not synced - not on your MyAnimeList list');
+    expect(r({ bucket: 'Problem', errorCode: 'rate_limited' })).toBe('Sync problem (asked to slow down)');
+    expect(r({ bucket: 'Unchecked' })).toBe('Not checked yet');
+  });
+
+  it('gives every reason a "Set progress" action is off', () => {
+    expect(actionBlockText('None', 'from', 'mal')).toBeNull();
+    expect(actionBlockText('NotAhead', 'from', 'mal')).toBe('MyAnimeList is not ahead of MangaPixer - nothing to bring in');
+    expect(actionBlockText('NotAhead', 'to', 'mal')).toBe('MangaPixer is not ahead of MyAnimeList - nothing to send');
+    for (const b of ['NotChecked', 'NoId', 'DontSync', 'LeftAsIs', 'NotOnList'] as const) {
+      expect(actionBlockText(b, 'to', 'mangaupdates')).toContain('MangaUpdates');
+    }
+  });
+
+  it('words the from-tracker question, the numbers and the dates', () => {
+    expect(fromTrackerQuestion({ remoteChapters: 51, remoteVolumes: null })).toBe('Mark chapters 1-51 read in MangaPixer?');
+    expect(fromTrackerQuestion({ remoteChapters: 1, remoteVolumes: 3 })).toBe('Mark chapter 1 and volumes 1-3 read in MangaPixer?');
+    expect(ofText(45, 51, 'ch')).toBe('45 of 51 ch');
+    expect(ofText(4, null, 'vol')).toBe('4 vol');
+    expect(ofText(null, 51, 'ch')).toBeNull();
+    expect(dateText('2026-10-14')).toBe('Oct 14, 2026');
+    expect(dateText(null)).toBe('—');
+  });
+
+  it('says a tracker failure as a sentence that names the tracker', () => {
+    expect(failureText({ status: 503, error: { error: 'unavailable' } }, 'mal')).toBe('MyAnimeList could not be reached from this server. Try again later.');
+    expect(failureText({ status: 503, error: { error: 'rate_limited' } }, 'mangaupdates')).toContain('MangaUpdates asked MangaPixer to slow down');
+    expect(failureText({ status: 409, error: { error: 'daily_cap' } }, 'mal')).toContain("Today's request limit for MyAnimeList");
+    expect(failureText({ status: 409, error: { error: 'no_id' } }, 'mal')).toContain('No MyAnimeList id');
   });
 });

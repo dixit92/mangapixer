@@ -18,7 +18,7 @@ type CallbackView =
 /**
  * The page a tracker's sign-in returns to (1.43.0, `/trackers/callback/<slug>`). The code and state were already taken out of
  * the address bar (`tracker-callback.ts`); this page posts them to the server once, then says in plain words whether the account
- * is connected, and links back to Settings. It never logs or shows the code or the state.
+ * is connected, and links back to the Tracking page. It never logs or shows the code or the state.
  */
 @Component({
   selector: 'app-tracker-callback',
@@ -46,7 +46,7 @@ type CallbackView =
               <p class="error" role="alert" data-testid="tracker-callback-error">{{ failure() }}</p>
             }
           }
-          <a mat-raised-button color="primary" routerLink="/settings" data-testid="tracker-callback-settings">Back to Settings</a>
+          <a mat-raised-button color="primary" routerLink="/tracking" data-testid="tracker-callback-settings">Back to Tracking</a>
         </mat-card-content>
       </mat-card>
     </div>
@@ -71,7 +71,7 @@ export class TrackerCallbackComponent implements OnInit {
   ngOnInit(): void {
     const params = takeTrackerCallback(this.slug);
     if (!params) {
-      this.view.set({ kind: 'failed', message: `There is no ${this.name} sign-in to finish here. Start from Settings > Connected accounts.` });
+      this.view.set({ kind: 'failed', message: `There is no ${this.name} sign-in to finish here. Start from the Tracking page (account menu > Tracking).` });
       return;
     }
     if (params.error) {
@@ -79,7 +79,7 @@ export class TrackerCallbackComponent implements OnInit {
         kind: 'failed',
         message: params.error === 'access_denied'
           ? `You did not allow MangaPixer on ${this.name}. Nothing was connected.`
-          : `${this.name} did not finish the sign-in. Nothing was connected. Start again from Settings.`,
+          : `${this.name} did not finish the sign-in. Nothing was connected. Start again from the Tracking page.`,
       });
       return;
     }

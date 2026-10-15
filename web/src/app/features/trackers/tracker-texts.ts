@@ -1,4 +1,13 @@
-import { TrackerAccountDto, TrackerEntryDto, TrackerEntryState, TrackerEntryStatus } from '../../core/api/api-types';
+import {
+  TrackerAccountDto,
+  TrackerActionBlock,
+  TrackerEntryDto,
+  TrackerEntryState,
+  TrackerEntryStatus,
+  TrackerListBucket,
+  TrackerListCountsDto,
+  TrackerSeriesRowDto,
+} from '../../core/api/api-types';
 
 /**
  * Tracker sync (1.43.0) words and small helpers shared by the trackers pages. No request is made here.
@@ -98,8 +107,8 @@ export function accountProblem(account: TrackerAccountDto, slug: string): string
 export function errorText(code: string | null | undefined, slug?: string): string {
   const name = trackerName(slug);
   switch (code) {
-    case 'invalid_state': return 'This sign-in is not valid any more (it was used, it expired, or it was started in another browser session). Start again from Settings.';
-    case 'connect_rejected': return `${name} did not accept this sign-in. Start again from Settings.`;
+    case 'invalid_state': return 'This sign-in is not valid any more (it was used, it expired, or it was started in another browser session). Start again from the Tracking page.';
+    case 'connect_rejected': return `${name} did not accept this sign-in. Start again from the Tracking page.`;
     case 'tracker_unavailable': return `${name} could not be reached from this server. Try again later.`;
     case 'tracker_not_allowed': return `An admin has not allowed ${name} on this server.`;
     case 'not_configured': return `An admin has not finished setting up ${name} on this server yet.`;
@@ -114,6 +123,15 @@ export function errorText(code: string | null | undefined, slug?: string): strin
     case 'invalid_redirect_uri': return 'Enter the full redirect URL (http or https) exactly as registered.';
     case 'invalid_client_id': return 'The Client ID is too long or not valid.';
     case 'invalid_client_secret': return 'The client secret is too long or not valid.';
+    case 'no_id': return `No ${name} id for this series - an admin can set it.`;
+    case 'not_on_list': return `This series is not on your ${name} list.`;
+    case 'daily_cap': return `Today's request limit for ${name} is reached. Try again tomorrow.`;
+    case 'dates_not_supported': return `${name} keeps no start or finish dates.`;
+    case 'invalid_date': return 'Give dates from 1900 to today, the finish not before the start.';
+    case 'invalid_filter':
+    case 'invalid_page':
+    case 'invalid_search': return 'The list could not be shown with this filter or search (at most 200 characters).';
+    case 'unknown_node': return 'This folder is not known any more.';
     case 'rate_limited': return 'asked to slow down';
     case 'rejected': return 'refused';
     case 'unavailable': return 'not reachable';
@@ -129,10 +147,23 @@ export function apiErrorCode(err: unknown): string | null {
   return typeof body?.error === 'string' ? body.error : null;
 }
 
+/** The codes `errorText` words as a fragment ("refused", for "Last sync failed (...)") as a sentence of their own. */
+function failureSentence(code: string, slug?: string): string | null {
+  const name = trackerName(slug);
+  switch (code) {
+    case 'rate_limited': return `${name} asked MangaPixer to slow down. Try again in a moment.`;
+    case 'rejected': return `${name} refused the request.`;
+    case 'unavailable': return `${name} could not be reached from this server. Try again later.`;
+    case 'key_ring': return `The server's keys changed. Connect your ${name} account again.`;
+    case 'expired': return `Your ${name} sign-in expired. Connect again.`;
+    default: return null;
+  }
+}
+
 /** Plain words for a failed request: the server's code when known, else its message, else a generic line. */
 export function failureText(err: unknown, slug?: string): string {
   const code = apiErrorCode(err);
-  if (code) return errorText(code, slug);
+  if (code) return failureSentence(code, slug) ?? errorText(code, slug);
   const status = (err as { status?: number } | null)?.status;
   if (status === 401) return 'Your session ended. Sign in again.';
   if (status === 403) return 'You are not allowed to do this.';
@@ -180,4 +211,120 @@ export function decodeBase36(token: string): string | null {
   let value = 0n;
   for (const c of t) value = value * 36n + BigInt(parseInt(c, 36));
   return value > 0n && value <= 9223372036854775807n ? value.toString() : null;
+}
+
+// ---- The Tracking page (1.43.0 owner redesign) ----
+
+/** The SPA route of the Tracking page (account menu > Tracking). */
+export const TRACKING_PATH = '/tracking';
+
+/** One filter chip of the Tracking list: the server's `filter` value, its words and its count. */
+export interface TrackingChip {
+  filter: 'All' | TrackerListBucket;
+  label: string;
+  count: number;
+}
+
+/**
+ * The chips in the order the page shows them (owner-approved mockup): All, MangaPixer ahead, <tracker> ahead, Left as is, Waiting for
+ * you, No <tracker> id, Not synced - always shown, with their counts; then In sync, Not checked yet and Sync problem, only while they
+ * hold a series (the server has these buckets too, and a row in them would otherwise be reachable only under All).
+ */
+export function trackingChips(counts: TrackerListCountsDto | null | undefined, slug: string): TrackingChip[] {
+  const name = trackerName(slug);
+  const c = counts ?? {
+    all: 0, inSync: 0, mangaPixerAhead: 0, trackerAhead: 0, leftAsIs: 0, held: 0, noId: 0, notSynced: 0, problem: 0, unchecked: 0, attention: 0,
+  };
+  const always: TrackingChip[] = [
+    { filter: 'All', label: 'All', count: c.all },
+    { filter: 'MangaPixerAhead', label: 'MangaPixer ahead', count: c.mangaPixerAhead },
+    { filter: 'TrackerAhead', label: `${name} ahead`, count: c.trackerAhead },
+    { filter: 'LeftAsIs', label: 'Left as is', count: c.leftAsIs },
+    { filter: 'Held', label: 'Waiting for you', count: c.held },
+    { filter: 'NoId', label: `No ${name} id`, count: c.noId },
+    { filter: 'NotSynced', label: 'Not synced', count: c.notSynced },
+  ];
+  const optional: TrackingChip[] = [
+    { filter: 'InSync', label: 'In sync', count: c.inSync },
+    { filter: 'Unchecked', label: 'Not checked yet', count: c.unchecked },
+    { filter: 'Problem', label: 'Sync problem', count: c.problem },
+  ];
+  return [...always, ...optional.filter((o) => o.count > 0)];
+}
+
+/** A row's chip in words (with the tracker's status for a series left as is). */
+export function bucketText(row: Pick<TrackerSeriesRowDto, 'bucket' | 'tracker' | 'remoteStatus' | 'errorCode' | 'dontSync'>): string {
+  const name = trackerName(row.tracker);
+  switch (row.bucket) {
+    case 'InSync': return 'In sync';
+    case 'MangaPixerAhead': return 'MangaPixer ahead';
+    case 'TrackerAhead': return `${name} ahead`;
+    case 'LeftAsIs': return `Left as is · ${statusText(row.remoteStatus) ?? 'not Reading'} on ${name}`;
+    case 'Held': return 'Waiting for you';
+    case 'NoId': return `No ${name} id`;
+    case 'NotSynced': return row.dontSync ? 'Not synced (your choice)' : `Not synced - not on your ${name} list`;
+    case 'Problem': return `Sync problem${row.errorCode ? ` (${errorText(row.errorCode)})` : ''}`;
+    case 'Unchecked': return 'Not checked yet';
+    default: return row.bucket;
+  }
+}
+
+/** The chip's colour family: `ahead` (accent), `tracker` (gold), `warn`, `muted` or `ok`. */
+export function bucketTone(bucket: TrackerListBucket): 'ok' | 'ahead' | 'tracker' | 'warn' | 'muted' {
+  switch (bucket) {
+    case 'InSync': return 'ok';
+    case 'MangaPixerAhead': return 'ahead';
+    case 'TrackerAhead':
+    case 'LeftAsIs': return 'tracker';
+    case 'Held':
+    case 'Problem': return 'warn';
+    default: return 'muted';
+  }
+}
+
+/**
+ * Why a "Set progress" action cannot move anything now (the disabled button's tooltip). `direction` 'from' = "from <tracker> to
+ * MangaPixer", 'to' = "from MangaPixer to <tracker>".
+ */
+export function actionBlockText(block: TrackerActionBlock, direction: 'from' | 'to', slug: string): string | null {
+  const name = trackerName(slug);
+  switch (block) {
+    case 'None': return null;
+    case 'NotChecked': return `${name} was not checked for this series yet - use Sync now first`;
+    case 'NotAhead': return direction === 'from'
+      ? `${name} is not ahead of MangaPixer - nothing to bring in`
+      : `MangaPixer is not ahead of ${name} - nothing to send`;
+    case 'NoId': return `No ${name} id for this series - an admin can set it`;
+    case 'DontSync': return `You turned sync off for this series on ${name}`;
+    case 'LeftAsIs': return `Left as is on ${name} (on hold, dropped, completed or rereading) - MangaPixer does not change it`;
+    case 'NotOnList': return `Not on your ${name} list`;
+    default: return block;
+  }
+}
+
+/** "45 of 51 ch · 4 of 10 vol", "12 ch", or null when neither side is known. */
+export function ofText(read: number | null | undefined, total: number | null | undefined, unit: 'ch' | 'vol'): string | null {
+  if (read == null) return null;
+  return total != null && total > 0 ? `${read} of ${total} ${unit}` : `${read} ${unit}`;
+}
+
+/**
+ * The confirm question of "Set progress from <tracker> to MangaPixer" ("Mark chapters 1-51 read in MangaPixer?"). Chapters when
+ * the tracker has them, else volumes.
+ */
+export function fromTrackerQuestion(row: Pick<TrackerSeriesRowDto, 'remoteChapters' | 'remoteVolumes'>): string {
+  const parts: string[] = [];
+  if (row.remoteChapters != null && row.remoteChapters > 0) parts.push(row.remoteChapters === 1 ? 'chapter 1' : `chapters 1-${row.remoteChapters}`);
+  if (row.remoteVolumes != null && row.remoteVolumes > 0) parts.push(row.remoteVolumes === 1 ? 'volume 1' : `volumes 1-${row.remoteVolumes}`);
+  return `Mark ${parts.length ? parts.join(' and ') : 'what the tracker has'} read in MangaPixer?`;
+}
+
+/** A `yyyy-MM-dd` date as the page shows it ("Oct 14, 2026"), locale-independent; '—' for none. */
+export function dateText(value: string | null | undefined): string {
+  if (!value) return '—';
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return value;
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = months[Number(m[2]) - 1];
+  return month ? `${month} ${Number(m[3])}, ${m[1]}` : value;
 }
