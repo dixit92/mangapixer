@@ -232,14 +232,17 @@ html {
   --mp-reader-text-muted: var(--mp-text-muted);
 }
 
-/* Tracker mark (1.43.0, owner's card mark C): a gold strip along the top edge of a cover when the user's tracker counts that chapter /
-   volume as read - 3 px of the theme's strong warn gold with a 1 px contrast edge beneath it. The edge keeps the strip visible on any
-   cover: dark / black gold (#ffb300) is only 1.6-1.8:1 on light or white covers, so the edge is black 60 % there; light / sepia gold
-   passes 3:1 on every cover and gets a white 70 % edge. A separate block, like the reader's: the colour guard suggests tokens only from
-   the main :root block. */
+/* Tracker mark (1.43.0, the owner's V2): a gold ring inside the whole cover when the user's tracker counts that chapter / volume as
+   read - 2 px of the theme's strong warn gold with a 1 px contrast edge inside it (1 px ring on the list thumbnail, node-row). Against
+   the page the gold passes 3:1 in every theme (dark 10.4, black 11.7, light 4.1, sepia 3.6). On the cover side dark / black gold
+   (#ffb300) is only 1.6-1.8:1 on light or white covers, so the edge is black 60 % there; light / sepia gold passes 3:1 on every cover
+   and gets a white 70 % edge. The radius follows the card cover (8 px). A separate block, like the reader's: the colour guard suggests
+   tokens only from the main :root block. */
 :root {
   --mp-tracker-mark: var(--mp-warn-strong);
   --mp-tracker-mark-edge: rgb(0 0 0 / 0.6);
+  --mp-tracker-mark-width: 2px;
+  --mp-tracker-mark-radius: 8px;
 }
 
 :root[data-theme='light'],

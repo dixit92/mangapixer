@@ -3,7 +3,7 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
 import { TrackerReadMarkComponent } from './tracker-read-mark.component';
 
-/** The card mark C (1.43.0): a strip with the trackers' names for screen readers and the tooltip; nothing when none counts it. */
+/** The card mark (1.43.0, owner's V2): a gold ring with the trackers' names for screen readers; nothing when none counts it. */
 describe('TrackerReadMarkComponent', () => {
   function create(trackers: string[] | null | undefined) {
     TestBed.configureTestingModule({ imports: [TrackerReadMarkComponent], providers: [provideNoopAnimations()] });

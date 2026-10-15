@@ -145,7 +145,7 @@ The **⋯** menu of a row has more:
 
 When you open a series MangaPixer tracks for you, a gold **Tracking** button sits next to **Series info**. It shows, per tracker, the series' state, MangaPixer's numbers next to the tracker's, the dates, and **Open in Tracking**, which opens the Tracking page at that series.
 
-In the library, a thin **gold line along the top edge of a cover** means the tracker counts that chapter or volume as read (by the tracker's numbers as MangaPixer last read them). MangaPixer's own **Read** badge is separate: the two can differ, for example after you read on another device - **Set progress from *tracker* to MangaPixer** brings MangaPixer in line.
+In the library, a thin **gold border around a cover** means the tracker counts that chapter or volume as read (by the tracker's numbers as MangaPixer last read them). MangaPixer's own **Read** badge is separate: the two can differ, for example after you read on another device - **Set progress from *tracker* to MangaPixer** brings MangaPixer in line.
 
 ### Dates on MyAnimeList
 
