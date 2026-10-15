@@ -31,6 +31,17 @@ public sealed class TrackerDateRulesTests
     }
 
     [Fact]
+    public void TheAutomaticStart_IsNeverLaterThanTheTrackersFinish()
+    {
+        // The tracker kept a finish but no start (an entry finished elsewhere): a first mark made after that finish would put the start
+        // after the finish - left as the tracker has it.
+        Assert.Null(Decide(5, Remote(2, finished: new DateOnly(2025, 10, 17))).Write!.StartedOn);
+        // A first mark on or before the tracker's finish still goes out.
+        Assert.Equal(FirstMark, Decide(5, Remote(2, finished: FirstMark)).Write!.StartedOn);
+        Assert.Equal(FirstMark, Decide(5, Remote(2, finished: Today)).Write!.StartedOn);
+    }
+
+    [Fact]
     public void TheUsersStart_WinsOverTheAutomaticAndTheTrackers()
     {
         Assert.Equal(Own, Decide(5, Remote(2), Own).Write!.StartedOn);
