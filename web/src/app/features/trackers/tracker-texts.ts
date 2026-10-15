@@ -103,6 +103,12 @@ export function accountProblem(account: TrackerAccountDto, slug: string): string
   return null;
 }
 
+/** What `errorText` says for a code it does not know (a fragment: "Sync problem (an unexpected error)"). */
+const UNKNOWN_ERROR_FRAGMENT = 'an unexpected error';
+
+/** The plain sentence of a failed request whose reason the client cannot name. */
+export const GENERIC_FAILURE = 'Something went wrong. Try again.';
+
 /** Server error codes (`ApiError.error`) in plain words. */
 export function errorText(code: string | null | undefined, slug?: string): string {
   const name = trackerName(slug);
@@ -132,12 +138,15 @@ export function errorText(code: string | null | undefined, slug?: string): strin
     case 'invalid_page':
     case 'invalid_search': return 'The list could not be shown with this filter or search (at most 200 characters).';
     case 'unknown_node': return 'This folder is not known any more.';
+    case 'invalid_daily_cap': return 'Give a daily request limit from 100 to 20000.';
+    case 'invalid_nodes': return 'Select 1 to 500 folders or series.';
     case 'rate_limited': return 'asked to slow down';
     case 'rejected': return 'refused';
     case 'unavailable': return 'not reachable';
     case 'key_ring': return 'the server\'s keys changed';
     case 'expired': return 'the sign-in expired';
-    default: return code ?? 'unknown error';
+    // A code this client does not know is never shown as it is (UX review UX11): a generic fragment instead.
+    default: return UNKNOWN_ERROR_FRAGMENT;
   }
 }
 
@@ -160,14 +169,20 @@ function failureSentence(code: string, slug?: string): string | null {
   }
 }
 
-/** Plain words for a failed request: the server's code when known, else its message, else a generic line. */
+/**
+ * Plain words for a failed request: the server's code when this client knows it, else the HTTP status' meaning, else a generic
+ * line - never a raw code (UX review UX11).
+ */
 export function failureText(err: unknown, slug?: string): string {
   const code = apiErrorCode(err);
-  if (code) return failureSentence(code, slug) ?? errorText(code, slug);
+  if (code) {
+    const known = failureSentence(code, slug) ?? errorText(code, slug);
+    if (known !== UNKNOWN_ERROR_FRAGMENT) return known;
+  }
   const status = (err as { status?: number } | null)?.status;
   if (status === 401) return 'Your session ended. Sign in again.';
   if (status === 403) return 'You are not allowed to do this.';
-  return 'Something went wrong. Try again.';
+  return GENERIC_FAILURE;
 }
 
 /**
@@ -250,6 +265,32 @@ export function trackingChips(counts: TrackerListCountsDto | null | undefined, s
     { filter: 'Problem', label: 'Sync problem', count: c.problem },
   ];
   return [...always, ...optional.filter((o) => o.count > 0)];
+}
+
+/** The chip count each bucket adds to (`TrackerListCountsDto`). */
+const COUNT_OF_BUCKET: Record<TrackerListBucket, Exclude<keyof TrackerListCountsDto, 'all' | 'attention'>> = {
+  InSync: 'inSync', MangaPixerAhead: 'mangaPixerAhead', TrackerAhead: 'trackerAhead', LeftAsIs: 'leftAsIs', Held: 'held', NoId: 'noId',
+  NotSynced: 'notSynced', Problem: 'problem', Unchecked: 'unchecked',
+};
+
+/** The buckets the account menu's badge counts (the server's `TrackerListRules.NeedsAttention`). */
+const ATTENTION_BUCKETS: readonly TrackerListBucket[] = ['Held', 'TrackerAhead'];
+
+/**
+ * The chip counts after one series moved from one bucket to another (a row action answered with the row's new state; UX review
+ * UX2). The counts are the user's whole list - the server counts them before the filter and the search - so the move is exact
+ * without a new request. `all` stays; a bucket never drops below 0.
+ */
+export function movedCounts(counts: TrackerListCountsDto, from: TrackerListBucket, to: TrackerListBucket): TrackerListCountsDto {
+  if (from === to) return counts;
+  const next = { ...counts };
+  const out = COUNT_OF_BUCKET[from];
+  const into = COUNT_OF_BUCKET[to];
+  if (out) next[out] = Math.max(0, next[out] - 1);
+  if (into) next[into] = next[into] + 1;
+  const weight = (b: TrackerListBucket) => (ATTENTION_BUCKETS.includes(b) ? 1 : 0);
+  next.attention = Math.max(0, next.attention + weight(to) - weight(from));
+  return next;
 }
 
 /** A row's chip in words (with the tracker's status for a series left as is). */

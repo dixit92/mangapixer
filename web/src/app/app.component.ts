@@ -40,7 +40,9 @@ import { InstallHintService } from './shared/install-hint/install-hint.service';
       color: rgb(var(--mp-ink-rgb) / 0.35);
       text-align: right;
       pointer-events: none;
-      z-index: 1;
+      /* Under the page's content (UX review 1.43.0, UX9): a watermark, so a button or a card scrolled to the bottom line is never
+         painted over - the line shows where the page itself is empty. */
+      z-index: -1;
     }
     /* On a phone a fixed line floats over the page's cards while scrolling (owner report,
        1.25.0 RC): there it is an ordinary last line instead. */

@@ -97,4 +97,18 @@ describe('LibraryBrowseComponent tracker marks and the Tracking button', () => {
     // Next to "Series info" (its slot follows the Tracking button in the bar).
     expect(button.closest('app-series-tracking-button')!.nextElementSibling!.tagName.toLowerCase()).toBe('app-series-info-button');
   });
+
+  it('UX6: with the Tracking button the bar may wrap (the trail keeps its room; on a phone it takes its own row); without it, not', () => {
+    const none = setup('card', true);
+    none.http.expectOne('/api/v1/trackers/nodes/f1/summary').flush({ seriesId: null, rows: [] });
+    none.fixture.detectChanges();
+    expect(none.el.querySelector('.browse-bar')!.classList).not.toContain('has-tracking');
+    TestBed.resetTestingModule();
+
+    const { fixture, el, http } = setup('card', true);
+    http.expectOne('/api/v1/trackers/nodes/f1/summary').flush({ seriesId: 's1', rows: [seriesRow()] });
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="series-tracking-button"]')).not.toBeNull();
+    expect(el.querySelector('.browse-bar')!.classList).toContain('has-tracking');
+  });
 });

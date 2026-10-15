@@ -1,5 +1,5 @@
 import {
-  ChangeDetectionStrategy, Component, ElementRef, OnDestroy, OnInit, computed, inject, input, output, signal,
+  ChangeDetectionStrategy, Component, ElementRef, OnChanges, OnDestroy, OnInit, SimpleChanges, computed, inject, input, output, signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -14,9 +14,11 @@ import { TrackerEntryDto, TrackerListCountsDto, TrackerSeriesRowDto } from '../.
 import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { TrackersApiService } from './trackers-api.service';
 import {
-  actionBlockText, bucketText, bucketTone, dateText, entryStateText, failureText, fromTrackerQuestion, numbersText, ofText,
-  statusText, trackingChips,
+  actionBlockText, bucketText, bucketTone, dateText, entryStateText, failureText, fromTrackerQuestion, movedCounts, numbersText, ofText,
+  statusText, trackerName, trackingChips,
 } from './tracker-texts';
+import { provideTrackerTooltips } from './tracker-tooltips';
+import { TrackingListMemory } from './tracking-list-memory.service';
 
 /** Rows per page (the server's page size). */
 export const TRACKING_PAGE_SIZE = 50;
@@ -32,17 +34,21 @@ const SEARCH_DELAY_MS = 300;
  * - "Set progress from <tracker> to MangaPixer" marks chapters / volumes read HERE up to the tracker's numbers, after a confirm
  *   ("Mark chapters 1-51 read in MangaPixer?"), and says what it marked; it never unmarks;
  * - "Set progress from MangaPixer to <tracker>" sends MangaPixer's numbers (a held jump too; never lowers the tracker);
- * - the one that cannot move anything is disabled, with the reason in its tooltip;
+ * - the one that cannot move anything is disabled, with the reason as a muted line under the buttons (a touch screen has no hover;
+ *   a mouse also gets it as the tooltip - UX review UX1);
  * - "⋯": Sync now, Set dates on <tracker>…, "Set <tracker> to a number… (can lower it)" (the warning form, in the warn colour),
- *   Don't sync this series / Sync again, Open the series.
+ *   Don't sync this series / Sync again, Open the series; a disabled item says why in a muted line (UX7).
  * The toolbar keeps "Check my list on <tracker>" (the first-connect preview: reads 50 series a click, writes nothing) and "Send
  * all" for the series waiting for the user. The list itself is stored state: showing, paging, filtering and searching contact no
- * tracker.
+ * tracker. A list reload (chip, search, Load more) closes an open confirm or "Set to" form and clears the error line once a page
+ * arrives; a row action moves its series between the chip counts at once; Back from "Open the series" finds the same chip, search
+ * and pages (UX review UX2-UX4, UX11).
  */
 @Component({
   selector: 'app-tracking-series-list',
   standalone: true,
   imports: [FormsModule, RouterLink, MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule, CoverImageDirective],
+  providers: [provideTrackerTooltips()],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="list" [attr.data-testid]="'tracking-list-' + slug()">
@@ -180,6 +186,12 @@ const SEARCH_DELAY_MS = 300;
                             aria-label="More actions" matTooltip="More actions" [attr.data-testid]="'tracking-more-' + r.seriesId">
                       <mat-icon>more_horiz</mat-icon>
                     </button>
+                    @let why = whyBlocked(r);
+                    @if (why.length) {
+                      <p class="why" [attr.data-testid]="'tracking-why-' + r.seriesId">
+                        @for (line of why; track line) { <span>{{ line }}</span> }
+                      </p>
+                    }
                   </div>
                 }
               </div>
@@ -191,7 +203,8 @@ const SEARCH_DELAY_MS = 300;
       <mat-menu #more="matMenu" class="tracking-more-menu">
         <ng-template matMenuContent let-r="r">
           <button mat-menu-item type="button" [disabled]="!canAct(r)" (click)="syncNow(r)" data-testid="tracking-menu-sync">
-            <mat-icon>sync</mat-icon><span>Sync now</span>
+            <mat-icon>sync</mat-icon><span class="item">Sync now
+              @if (syncBlock(r); as why) { <span class="item-why" data-testid="tracking-menu-sync-why">{{ why }}</span> }</span>
           </button>
           @if (r.dates.supported) {
             <button mat-menu-item type="button" (click)="openDates(r)" data-testid="tracking-menu-dates">
@@ -199,7 +212,8 @@ const SEARCH_DELAY_MS = 300;
             </button>
           }
           <button mat-menu-item type="button" class="warn-item" [disabled]="!canSetTo(r)" (click)="openSet(r)" data-testid="tracking-menu-set">
-            <mat-icon>warning_amber</mat-icon><span>Set {{ name() }} to a number… (can lower it)</span>
+            <mat-icon>warning_amber</mat-icon><span class="item">Set {{ name() }} to a number… (can lower it)
+              @if (setBlock(r); as why) { <span class="item-why" data-testid="tracking-menu-set-why">{{ why }}</span> }</span>
           </button>
           <button mat-menu-item type="button" (click)="toggleDontSync(r)" data-testid="tracking-menu-dont-sync">
             <mat-icon>{{ r.dontSync ? 'sync' : 'sync_disabled' }}</mat-icon><span>{{ r.dontSync ? 'Sync this series again' : "Don't sync this series" }}</span>
@@ -277,6 +291,15 @@ const SEARCH_DELAY_MS = 300;
     .row-actions button[mat-flat-button] { grid-column: 1; white-space: normal; height: auto; min-height: 32px; padding: 4px 14px;
                                            font-size: 13px; line-height: 1.25; text-align: left; justify-content: flex-start; }
     .row-actions button[mat-icon-button] { grid-column: 2; grid-row: 1 / span 2; }
+    /* Why a Set-progress button is off, readable without a hover (UX1): one short muted line per reason, under both buttons. */
+    .row-actions .why { grid-column: 1 / -1; margin: 0; display: flex; flex-direction: column; gap: 2px; font-size: 12px; line-height: 1.3;
+                        color: var(--mp-text-muted); overflow-wrap: anywhere; }
+    /* A disabled "⋯" item keeps its reason readable: the item is not faded as a whole, only its icon and label (UX7). */
+    ::ng-deep .tracking-more-menu .item { display: flex; flex-direction: column; gap: 2px; padding: 4px 0; white-space: normal; }
+    ::ng-deep .tracking-more-menu .item-why { font-size: 12px; line-height: 1.3; color: var(--mp-text-muted); }
+    ::ng-deep .tracking-more-menu .mat-mdc-menu-item[disabled] { opacity: 1; }
+    ::ng-deep .tracking-more-menu .mat-mdc-menu-item[disabled] > .mat-icon,
+    ::ng-deep .tracking-more-menu .mat-mdc-menu-item[disabled] .item { color: var(--mp-text-faint); }
     .set { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 13px; }
     .set p { flex: 1 1 100%; margin: 2px 0; }
     .set input { font: inherit; width: 90px; padding: 4px 6px; box-sizing: border-box; color: var(--mp-text); background: var(--mp-surface);
@@ -295,10 +318,11 @@ const SEARCH_DELAY_MS = 300;
     }
   `],
 })
-export class TrackingSeriesListComponent implements OnInit, OnDestroy {
+export class TrackingSeriesListComponent implements OnInit, OnChanges, OnDestroy {
   private readonly api = inject(TrackersApiService);
   private readonly dialog = inject(MatDialog);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly memory = inject(TrackingListMemory);
 
   readonly slug = input.required<string>();
   readonly name = input.required<string>();
@@ -370,15 +394,43 @@ export class TrackingSeriesListComponent implements OnInit, OnDestroy {
 
   private generation = 0;
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The focused series was highlighted, or the user moved on (a search or a chip): it is not highlighted again. */
+  private focusDone = false;
+  /** Back from "Open the series": the pages still to load and the scroll position to return to. */
+  private restoring: { pages: number; scrollY: number } | null = null;
 
   ngOnInit(): void {
     const q = this.initialSearch().trim();
-    if (q) this.search.set(q.slice(0, 200));
+    const back = this.focusSeries() ? null : this.memory.take(this.slug());
+    if (q) {
+      this.search.set(q.slice(0, 200));
+    } else if (back) {
+      this.filter.set(back.filter);
+      this.search.set(back.search);
+      this.restoring = { pages: back.pages, scrollY: back.scrollY };
+    }
+    this.reload();
+  }
+
+  /** Another `?series=` while the list is shown (UX8): that series is searched and highlighted; none = the highlight ends. */
+  ngOnChanges(changes: SimpleChanges): void {
+    const moved = [changes['focusSeries'], changes['initialSearch']].some((c) => c && !c.firstChange);
+    if (!moved) return;
+    if (!this.focusSeries()) {
+      this.endFocus();
+      return;
+    }
+    this.focusDone = false;
+    this.focused.set(null);
+    this.filter.set('All');
+    this.search.set(this.initialSearch().trim().slice(0, 200));
+    if (this.searchTimer) { clearTimeout(this.searchTimer); this.searchTimer = null; }
     this.reload();
   }
 
   ngOnDestroy(): void {
     if (this.searchTimer) clearTimeout(this.searchTimer);
+    this.memory.save(this.slug(), { filter: this.filter(), search: this.search(), pages: Math.max(1, this.page()), scrollY: globalThis.scrollY ?? 0 });
   }
 
   coverOf(nodeId: string): string {
@@ -417,6 +469,35 @@ export class TrackingSeriesListComponent implements OnInit, OnDestroy {
     return actionBlockText(r.toTracker.block, 'to', this.slug()) ?? `Send MangaPixer's numbers to ${this.name()} (never lowers it)`;
   }
 
+  /**
+   * Why the disabled Set-progress buttons are off, as the muted lines under them (UX1): none while both can act; one line when both
+   * are off for the same reason ("neither side is ahead" for a series in sync). A busy moment is not a reason.
+   */
+  whyBlocked(r: TrackerSeriesRowDto): string[] {
+    if (!this.canSync()) return ['Your account cannot sync right now'];
+    const from = r.fromTracker.possible ? null : actionBlockText(r.fromTracker.block, 'from', this.slug());
+    const to = r.toTracker.possible ? null : actionBlockText(r.toTracker.block, 'to', this.slug());
+    if (from && to && r.fromTracker.block === 'NotAhead' && r.toTracker.block === 'NotAhead') {
+      return ['Neither side is ahead - nothing to bring in or send'];
+    }
+    if (from && to && from === to) return [from];
+    return [from, to].filter((t): t is string => !!t);
+  }
+
+  /** Why "Sync now" is off (the menu item's muted line, UX7); null when it is on. */
+  syncBlock(r: TrackerSeriesRowDto): string | null {
+    if (this.canAct(r)) return null;
+    if (!this.canSync()) return 'Your account cannot sync right now';
+    if (r.dontSync) return 'Not synced (your choice)';
+    return `No ${trackerName(this.slug())} id - an admin can set it`;
+  }
+
+  /** Why "Set <tracker> to a number…" is off; null when it is on. */
+  setBlock(r: TrackerSeriesRowDto): string | null {
+    if (this.canSetTo(r)) return null;
+    return this.syncBlock(r) ?? `Left as is on ${trackerName(this.slug())} - MangaPixer does not change it`;
+  }
+
   /** Sync now reaches the tracker: only for a series with an id that syncs. */
   canAct(r: TrackerSeriesRowDto): boolean {
     return this.canSync() && !r.dontSync && r.bucket !== 'NoId' && !!r.remoteId;
@@ -429,11 +510,13 @@ export class TrackingSeriesListComponent implements OnInit, OnDestroy {
 
   setFilter(filter: string): void {
     if (this.filter() === filter) return;
+    this.endFocus();
     this.filter.set(filter);
     this.reload();
   }
 
   onSearch(text: string): void {
+    this.endFocus();
     this.search.set(text ?? '');
     if (this.searchTimer) clearTimeout(this.searchTimer);
     this.searchTimer = setTimeout(() => { this.searchTimer = null; this.reload(); }, SEARCH_DELAY_MS);
@@ -441,26 +524,31 @@ export class TrackingSeriesListComponent implements OnInit, OnDestroy {
 
   searchNow(): void {
     if (this.searchTimer) { clearTimeout(this.searchTimer); this.searchTimer = null; }
+    this.endFocus();
     this.reload();
   }
 
   /** Page 1 again (a new filter or search, or after a change that may move rows between chips). */
   reload(): void {
     const gen = ++this.generation;
+    this.closeRowForms();
     this.loading.set(this.items().length === 0);
     this.api.seriesPage(this.slug(), 1, this.filter(), this.search()).subscribe({
       next: (p) => {
         if (gen !== this.generation) return;
         this.loading.set(false);
+        this.error.set(null);
         this.items.set(p.items);
         this.counts.set(p.counts);
         this.total.set(p.totalCount);
         this.page.set(p.page);
         this.focusOnce();
+        this.continueRestore();
       },
       error: (err: unknown) => {
         if (gen !== this.generation) return;
         this.loading.set(false);
+        this.restoring = null;
         this.error.set(failureText(err, this.slug()));
       },
     });
@@ -469,19 +557,51 @@ export class TrackingSeriesListComponent implements OnInit, OnDestroy {
   loadMore(): void {
     if (this.loadingMore() || this.items().length >= this.total()) return;
     const gen = this.generation;
+    this.closeRowForms();
     this.loadingMore.set(true);
     this.api.seriesPage(this.slug(), this.page() + 1, this.filter(), this.search()).subscribe({
       next: (p) => {
         this.loadingMore.set(false);
         if (gen !== this.generation) return;
+        this.error.set(null);
         const seen = new Set(this.items().map((r) => r.seriesId));
         this.items.update((list) => [...list, ...p.items.filter((r) => !seen.has(r.seriesId))]);
         this.counts.set(p.counts);
         this.total.set(p.totalCount);
         this.page.set(p.page);
+        this.continueRestore();
       },
-      error: (err: unknown) => { this.loadingMore.set(false); this.error.set(failureText(err, this.slug())); },
+      error: (err: unknown) => {
+        this.loadingMore.set(false);
+        this.restoring = null;
+        this.error.set(failureText(err, this.slug()));
+      },
     });
+  }
+
+  /** A reload or another page drops the transient row UI: the from-tracker confirm, the "Set to" form, the Send all confirm (UX3). */
+  private closeRowForms(): void {
+    this.confirmFrom.set(null);
+    this.setting.set(null);
+    this.confirmSendAll.set(false);
+  }
+
+  /** Back from "Open the series": the next saved page, or - all there - the saved scroll position. */
+  private continueRestore(): void {
+    const r = this.restoring;
+    if (!r) return;
+    if (this.page() < r.pages && this.items().length < this.total()) {
+      this.loadMore();
+      return;
+    }
+    this.restoring = null;
+    setTimeout(() => globalThis.scrollTo?.({ top: r.scrollY }));
+  }
+
+  /** The `?series=` highlight ends for good: the user searches or picks a chip (UX11). */
+  private endFocus(): void {
+    this.focusDone = true;
+    this.focused.set(null);
   }
 
   askFrom(r: TrackerSeriesRowDto): void {
@@ -531,6 +651,8 @@ export class TrackingSeriesListComponent implements OnInit, OnDestroy {
     this.run(this.api.setDontSync(this.slug(), r.seriesId, !r.dontSync), (updated) => {
       this.notice.set(updated.dontSync ? `${r.title} is not synced any more.` : `${r.title} syncs again.`);
       this.refreshRow(r);
+      // A series waiting for the user leaves the badge's count when it stops syncing.
+      this.changed.emit();
     });
   }
 
@@ -598,14 +720,19 @@ export class TrackingSeriesListComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** Puts a row's new state in place; when its chip changed, the chip counts follow without a reload (UX2). */
   private replace(updated: TrackerSeriesRowDto): void {
+    const before = this.items().find((x) => x.seriesId === updated.seriesId);
     this.items.update((list) => list.map((x) => (x.seriesId === updated.seriesId ? updated : x)));
+    const counts = this.counts();
+    if (before && counts && before.bucket !== updated.bucket) this.counts.set(movedCounts(counts, before.bucket, updated.bucket));
   }
 
   /** Highlights and scrolls to the focused series once, after the first page that holds it. */
   private focusOnce(): void {
     const id = this.focusSeries();
-    if (!id || this.focused() === id || !this.items().some((r) => r.seriesId === id)) return;
+    if (!id || this.focusDone || !this.items().some((r) => r.seriesId === id)) return;
+    this.focusDone = true;
     this.focused.set(id);
     setTimeout(() => {
       const el = this.host.nativeElement.querySelector(`[data-testid="tracking-row-${id}"]`);

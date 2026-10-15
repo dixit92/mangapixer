@@ -141,4 +141,41 @@ describe('SeriesTrackingButtonComponent', () => {
     fixture.destroy();
     expect(q(overlay(), 'series-tracking-popover')).toBeNull();
   });
+
+  it('UX5: opening moves the focus into the popover, a named dialog; Escape closes it and gives the focus back to the button', () => {
+    const { fixture, el, http } = create([summary({ account: trackerAccount() })]);
+    http.expectOne('/api/v1/trackers/nodes/n1/summary').flush({ seriesId: 's1', rows: [seriesRow()] });
+    fixture.detectChanges();
+    const button = q(el, 'series-tracking-button') as HTMLButtonElement;
+    button.focus();
+    openOn(fixture, el, http, 'n1');
+    const pop = q(overlay(), 'series-tracking-popover')!;
+    expect(pop.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).toBe(q(pop, 'series-tracking-open-mal'));
+    expect(pop.getAttribute('role')).toBe('dialog');
+    expect(document.getElementById(pop.getAttribute('aria-labelledby') ?? '')?.textContent).toBe('Tracking for this series');
+
+    document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true } as KeyboardEventInit));
+    fixture.detectChanges();
+    expect(q(overlay(), 'series-tracking-popover')).toBeNull();
+    expect(document.activeElement).toBe(button);
+  });
+
+  it('UX10: a press beside the open popover lands on a transparent backdrop: it only closes the popover (focus back on the button)', () => {
+    const { fixture, el, http } = create([summary({ account: trackerAccount() })]);
+    http.expectOne('/api/v1/trackers/nodes/n1/summary').flush({ seriesId: 's1', rows: [seriesRow()] });
+    fixture.detectChanges();
+    openOn(fixture, el, http, 'n1');
+    const backdrop = overlay().querySelector('.cdk-overlay-backdrop') as HTMLElement | null;
+    expect(backdrop).not.toBeNull();
+    expect(backdrop!.classList).toContain('cdk-overlay-transparent-backdrop');
+    backdrop!.click();
+    fixture.detectChanges();
+    const button = q(el, 'series-tracking-button') as HTMLButtonElement;
+    expect(q(overlay(), 'series-tracking-popover')).toBeNull();
+    expect(button.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(button);
+    // The button opens it again.
+    openOn(fixture, el, http, 'n1');
+  });
 });
