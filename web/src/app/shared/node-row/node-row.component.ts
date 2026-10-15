@@ -12,6 +12,7 @@ import { StarToggleComponent } from '../star-toggle/star-toggle.component';
 import { VolumeIncompleteBadgeComponent } from '../volume-stack/volume-incomplete-badge.component';
 import { OfficialReleaseBadgeComponent } from '../volume-stack/official-release-badge.component';
 import { AlsoInVolumeBadgeComponent } from '../volume-stack/also-in-volume-badge.component';
+import { TrackerReadMarkComponent } from '../../features/trackers/tracker-read-mark.component';
 
 /** Short label of a folder's direction override chip ("LTR", "RTL", "Vertical", "Spread"). */
 export function directionShort(mode: ReaderMode): string {
@@ -40,6 +41,7 @@ export function directionShort(mode: ReaderMode): string {
   imports: [
     RouterLink, MatIconModule, MatTooltipModule, CoverImageDirective, FolderRollupBadgeComponent, SeriesInfoHoverDirective,
     InfoToggleComponent, StarToggleComponent, VolumeIncompleteBadgeComponent, OfficialReleaseBadgeComponent, AlsoInVolumeBadgeComponent,
+    TrackerReadMarkComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -58,6 +60,8 @@ export function directionShort(mode: ReaderMode): string {
          (pointerup)="pressEnd.emit()"
          (pointercancel)="pressEnd.emit()"
          (pointerleave)="pressEnd.emit()">
+        <!-- 1.43.0: the tracker ring goes around the whole row in list mode (owner, 2026-10-15), around the cover on cards. -->
+        <app-tracker-read-mark [trackers]="node().trackerRead" />
         <div class="cover" [appSeriesInfoHover]="hoverId()" [hoverAnchor]="cardEl">
           @if (node().coverUrl; as cover) {
             <img appCover [src]="cover" alt="" loading="lazy">
@@ -124,6 +128,9 @@ export function directionShort(mode: ReaderMode): string {
       flex: 1 1 auto; min-width: 0; cursor: pointer; text-decoration: none; color: inherit;
       display: flex; align-items: center; gap: 12px;
       padding: 6px; border-radius: 8px; background: rgb(var(--mp-ink-rgb) / 0.03);
+      /* The tracker ring's frame in list mode: the row, with its 8 px radius (the ring is inset: the 6 px padding keeps it off the
+         thumbnail and the badges). */
+      position: relative; --mp-tracker-mark-radius: 8px;
     }
     .cover {
       position: relative; width: 46px; height: 66px; flex: 0 0 auto; border-radius: 4px; overflow: hidden;

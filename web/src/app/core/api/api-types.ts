@@ -109,6 +109,12 @@ export interface CatalogNodeDto {
   coverSource?: CardCoverSource | null;
   /** 1.30.0 (reach): on a chapter archive, the volume key of a volume FILE of the same series that already holds it ("Also in Volume 10"). */
   alsoInVolume?: string | null;
+  /**
+   * 1.43.0: the trackers (`mal`, `mangaupdates`) this series syncs to, set when the card is read on EVERY one of them by their
+   * last-seen numbers - an archive / a Volumes-view volume by its own numbers, a series FOLDER when every archive of the series the
+   * viewer can open is (display only). Left out when not read on all of them / not tracked.
+   */
+  trackerRead?: string[] | null;
 }
 
 export interface BreadcrumbEntry {
@@ -2972,6 +2978,13 @@ export interface ExportMangaDexReleasedDto {
   latestChapter?: string | null;
   chapters: number;
   fetchedAt: string;
+  /** 1.43.0: the listed chapters MangaDex can be read on (left out when not read yet). */
+  readable?: ExportMangaDexReadableDto | null;
+}
+
+export interface ExportMangaDexReadableDto {
+  latestWholeChapter?: string | null;
+  chapters: number;
 }
 
 export interface ExportAniListDto {
@@ -3209,4 +3222,383 @@ export interface UpdatePerformanceSettingsRequest {
   pageCacheBytes?: number | null;
   backgroundWhileReading?: string | null;
   reset?: string[] | null;
+}
+
+// --- Tracker sync (1.43.0, lane E): `/api/v1/trackers` (the caller's own) and `/api/v1/admin/trackers`. Cookie + CSRF only.
+// No type carries a token, a password, a client secret or an OAuth code after use.
+
+/** `mal` (MyAnimeList) or `mangaupdates` (MangaUpdates lists). */
+export type TrackerSlug = 'mal' | 'mangaupdates';
+
+/** How a user connects: a sign-in on the tracker's site (PKCE), or a username and password used once (MangaUpdates). */
+export type TrackerConnectKind = 'OAuthPkce' | 'Password';
+
+/** A user's connected account. */
+export type TrackerAccountState = 'Ok' | 'NeedsReconnect' | 'DisconnectedByAdmin';
+
+/** One series' sync outcome for the caller on a tracker. */
+export type TrackerEntryState =
+  | 'Ok'
+  | 'TrackerAhead'
+  | 'LowerHere'
+  | 'Held'
+  | 'NoId'
+  | 'DontSync'
+  | 'Error'
+  | 'NotOnList'
+  | 'LeftAsIs'
+  | 'Waiting'
+  | 'Pending';
+
+/** A list entry's status on the tracker. */
+export type TrackerEntryStatus = 'Reading' | 'Completed' | 'OnHold' | 'Dropped' | 'PlanToRead' | 'Rereading';
+
+/** Where a series' tracker id came from: the linked record itself, the series' MangaDex record, or an admin. */
+export type TrackerIdSource = 'Link' | 'MangaDex' | 'Admin';
+
+/** `GET /api/v1/trackers`: the trackers this server allows and the caller's own connections. */
+export interface TrackersOverviewDto {
+  trackers: TrackerSummaryDto[];
+}
+
+export interface TrackerSummaryDto {
+  slug: string;
+  name: string;
+  /** Allowed by an admin under the current admin consent, and not disabled by `Trackers:NetworkDisabled`. */
+  allowed: boolean;
+  networkDisabledByConfig: boolean;
+  connectKind: TrackerConnectKind;
+  /** The user consent text version to show and send back when connecting. */
+  currentConsentVersion: number;
+  /** Whether "Private entries" has an effect on this tracker. */
+  supportsPrivateEntries: boolean;
+  /** The caller's account, or null when not connected. */
+  account?: TrackerAccountDto | null;
+}
+
+/** The caller's account on one tracker - "connected / expires", never a token. */
+export interface TrackerAccountDto {
+  tracker: string;
+  state: TrackerAccountState;
+  /** "Connected as ...", or null after an admin disconnected the account. */
+  displayName?: string | null;
+  connectedAt: string;
+  expiresAt?: string | null;
+  lastSuccessAt?: string | null;
+  lastFailureAt?: string | null;
+  /** `needs_reconnect` | `rate_limited` | `rejected` | `unavailable` | `key_ring` | `expired`. */
+  lastFailureCode?: string | null;
+  /** Accepted an older consent version: connect again (accepting the current text) to resume syncing. */
+  consentRenewalNeeded: boolean;
+  addStartedSeries: boolean;
+  privateEntries: boolean;
+  requestsToday: number;
+  dailyRequestCap: number;
+}
+
+/** `POST /api/v1/trackers/{slug}/connect/start`. */
+export interface TrackerConnectStartRequest {
+  acceptedConsentVersion?: number | null;
+}
+
+/** The tracker's sign-in page to open (it carries the one-use `state`). */
+export interface TrackerConnectStartResponse {
+  authorizeUrl: string;
+}
+
+/** `POST /api/v1/trackers/{slug}/connect`: what the tracker handed back to the callback page. */
+export interface TrackerConnectFinishRequest {
+  code?: string | null;
+  state?: string | null;
+}
+
+/** `POST /api/v1/trackers/{slug}/connect/password` (MangaUpdates): used once, never stored. */
+export interface TrackerConnectPasswordRequest {
+  username?: string | null;
+  password?: string | null;
+  acceptedConsentVersion?: number | null;
+}
+
+/** `PUT /api/v1/trackers/{slug}/settings` (null = unchanged). */
+export interface UpdateTrackerUserSettingsRequest {
+  addStartedSeries?: boolean | null;
+  privateEntries?: boolean | null;
+}
+
+/** One linked series in the caller's tracker list. */
+export interface TrackerEntryDto {
+  /** The linked series record's public id (key of the per-series routes). */
+  seriesId: string;
+  title: string;
+  /** A folder of the series the caller can open, or null. */
+  nodeId?: string | null;
+  tracker: string;
+  remoteId?: string | null;
+  remoteIdSource?: TrackerIdSource | null;
+  state: TrackerEntryState;
+  errorCode?: string | null;
+  dontSync: boolean;
+  /** What MangaPixer sends on its own (marks read in the reader or by hand). */
+  localChapters?: number | null;
+  localVolumes?: number | null;
+  /** The jump waiting for "Send" (folder mark-reads and imports count). */
+  heldChapters?: number | null;
+  heldVolumes?: number | null;
+  lastSentChapters?: number | null;
+  lastSentVolumes?: number | null;
+  lastSentAt?: string | null;
+  /** The tracker's numbers when last read (shown, never stored as reading state). */
+  remoteChapters?: number | null;
+  remoteVolumes?: number | null;
+  remoteStatus?: TrackerEntryStatus | null;
+  remoteMissing: boolean;
+  remoteSeenAt?: string | null;
+  updatedAt: string;
+}
+
+/** `POST /api/v1/trackers/{slug}/entries/{seriesId}/set`: may LOWER the tracker - ask first. */
+export interface TrackerSetProgressRequest {
+  chapters?: number | null;
+  volumes?: number | null;
+}
+
+/** `PUT /api/v1/trackers/{slug}/entries/{seriesId}/dont-sync`. */
+export interface TrackerDontSyncRequest {
+  dontSync: boolean;
+}
+
+/** `POST /api/v1/trackers/{slug}/preview`: reads a batch from the tracker, writes nothing; call again while `remaining` > 0. */
+export interface TrackerPreviewDto {
+  entries: TrackerEntryDto[];
+  remaining: number;
+  capReached: boolean;
+  /**
+   * 1.43.0 "Check my list" (owner option C): true when the WHOLE list on the tracker was read (MyAnimeList) - then nothing is read per
+   * series and `remaining` is 0; null for a tracker checked series by series (MangaUpdates). False with `capReached` when the daily cap
+   * stopped the read mid-list.
+   */
+  listRead?: boolean | null;
+  /** Entries on the list that were read. */
+  listEntries?: number | null;
+  /** Of them, series here the user can open (matched by the tracker's id). */
+  matched?: number | null;
+  /** Of the matches, series that got a row on the Tracking page now. */
+  created?: number | null;
+}
+
+/** `POST /api/v1/trackers/{slug}/entries/send-all`. */
+export interface TrackerSendAllResultDto {
+  sent: number;
+  skipped: number;
+  failed: number;
+  capReached: boolean;
+}
+
+/** The caller's sync switch on a folder or series: on (also inside a Private library, or for doujinshi) or off. */
+export interface TrackerNodeOverrideDto {
+  nodeId: string;
+  name: string;
+  libraryId: string;
+  enabled: boolean;
+  updatedAt: string;
+}
+
+/** `PUT /api/v1/trackers/sync-overrides`: `enabled` true = on, false = off, null = remove the switch. */
+export interface UpdateTrackerNodeOverridesRequest {
+  nodeIds?: string[] | null;
+  enabled?: boolean | null;
+}
+
+/** Administration > Trackers: one tracker. The client secret is write-only (`clientSecretSet`). */
+export interface AdminTrackerSettingsDto {
+  slug: string;
+  name: string;
+  enabled: boolean;
+  acceptedConsentVersion?: number | null;
+  currentConsentVersion: number;
+  consentAt?: string | null;
+  consentRenewalNeeded: boolean;
+  networkDisabledByConfig: boolean;
+  connectKind: TrackerConnectKind;
+  /** MyAnimeList: this server's own app registration (Client ID + redirect URL) is needed. */
+  needsAppRegistration: boolean;
+  clientId?: string | null;
+  clientSecretSet: boolean;
+  redirectUri?: string | null;
+  connectedUsers: number;
+  /** 1.43.0 (owner E5): requests one user may make to this tracker per UTC day (default 2000, 100 - 20000). Always sent. */
+  dailyRequestCap?: number;
+}
+
+/** `PUT /api/v1/admin/trackers/{slug}` (null = unchanged; an empty string clears a field). */
+export interface UpdateTrackerSettingsRequest {
+  enabled?: boolean | null;
+  /** Required (the current admin consent version) to turn the tracker on. */
+  acceptedConsentVersion?: number | null;
+  clientId?: string | null;
+  clientSecret?: string | null;
+  redirectUri?: string | null;
+  /** 1.43.0 (owner E5): the per-user daily request cap, 100 - 20000 (null = unchanged). */
+  dailyRequestCap?: number | null;
+}
+
+/** A user's connection as an admin sees it - never the remote account or a token. */
+export interface AdminTrackerAccountDto {
+  userId: string;
+  username: string;
+  tracker: string;
+  state: TrackerAccountState;
+  connectedAt: string;
+  lastSuccessAt?: string | null;
+  lastFailureCode?: string | null;
+}
+
+/** `GET /api/v1/admin/trackers/nodes/{nodeId}/ids`. */
+export interface TrackerSeriesIdsDto {
+  /** Null when the folder has no Confirmed / Auto series link. */
+  seriesId?: string | null;
+  ids: TrackerSeriesIdDto[];
+}
+
+export interface TrackerSeriesIdDto {
+  tracker: string;
+  remoteId?: string | null;
+  source?: TrackerIdSource | null;
+  /** The admin's id (wins over the stored one), or null. */
+  overrideId?: string | null;
+}
+
+/** `PUT /api/v1/admin/trackers/nodes/{nodeId}/ids/{slug}`: null or empty removes the admin's id. */
+export interface UpdateTrackerSeriesIdRequest {
+  remoteId?: string | null;
+}
+
+// ---- 1.43.0 tracking redesign (server lane G): the Tracking page, the two "Set progress" actions, dates, the badge, the popover.
+
+/** The filter chip of a series on the Tracking page (one per row). */
+export type TrackerListBucket =
+  | 'InSync'
+  | 'MangaPixerAhead'
+  | 'TrackerAhead'
+  | 'LeftAsIs'
+  | 'Held'
+  | 'NoId'
+  | 'NotSynced'
+  | 'Problem'
+  | 'Unchecked';
+
+/** Why one of the two "Set progress" actions cannot move anything now ('None' = it can). */
+export type TrackerActionBlock = 'None' | 'NotChecked' | 'NotAhead' | 'NoId' | 'DontSync' | 'LeftAsIs' | 'NotOnList';
+
+/** A series' start / finish dates on a tracker that keeps dates (MyAnimeList); `supported` false = none are sent. Dates are `yyyy-MM-dd`. */
+export interface TrackerDatesDto {
+  supported: boolean;
+  /** In effect: the user's date, else the automatic one (first counted mark). */
+  startedOn?: string | null;
+  startedOnOverridden: boolean;
+  /** In effect: the user's date, else the day MangaPixer set Completed (else the tracker's). */
+  finishedOn?: string | null;
+  finishedOnOverridden: boolean;
+  remoteStartedOn?: string | null;
+  remoteFinishedOn?: string | null;
+  /** A date the user set has not reached the tracker yet (it goes with the next write). */
+  pending: boolean;
+}
+
+export interface TrackerActionDto {
+  possible: boolean;
+  block: TrackerActionBlock;
+}
+
+/** One series of the Tracking list (per tracker, the caller's own). */
+export interface TrackerSeriesRowDto {
+  seriesId: string;
+  title: string;
+  nodeId?: string | null;
+  tracker: string;
+  remoteId?: string | null;
+  remoteIdSource?: TrackerIdSource | null;
+  state: TrackerEntryState;
+  bucket: TrackerListBucket;
+  errorCode?: string | null;
+  dontSync: boolean;
+  /** MangaPixer's numbers that sync on their own. */
+  chapters?: number | null;
+  volumes?: number | null;
+  /** MangaPixer's numbers with every mark (folder mark-reads and imports included). */
+  allChapters?: number | null;
+  allVolumes?: number | null;
+  heldChapters?: number | null;
+  heldVolumes?: number | null;
+  /** "Of how many": the tracker's totals, else the stored record's; null when unknown. */
+  totalChapters?: number | null;
+  totalVolumes?: number | null;
+  remoteChapters?: number | null;
+  remoteVolumes?: number | null;
+  remoteStatus?: TrackerEntryStatus | null;
+  remoteMissing: boolean;
+  dates: TrackerDatesDto;
+  /** "Set progress from <tracker> to MangaPixer" (`POST .../from-tracker`). */
+  fromTracker: TrackerActionDto;
+  /** "Set progress from MangaPixer to <tracker>" (`POST .../send`). */
+  toTracker: TrackerActionDto;
+  lastSyncAt?: string | null;
+  lastSentAt?: string | null;
+  updatedAt: string;
+}
+
+/** Series per chip (whole list, before the search); `attention` = held + trackerAhead. */
+export interface TrackerListCountsDto {
+  all: number;
+  inSync: number;
+  mangaPixerAhead: number;
+  trackerAhead: number;
+  leftAsIs: number;
+  held: number;
+  noId: number;
+  notSynced: number;
+  problem: number;
+  unchecked: number;
+  attention: number;
+}
+
+/** `GET /api/v1/trackers/{slug}/series?page=1&filter=<bucket|Attention>&q=<title>` (50 a page, by title). */
+export interface TrackerSeriesPageDto {
+  items: TrackerSeriesRowDto[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  counts: TrackerListCountsDto;
+}
+
+/** `GET /api/v1/trackers/attention`: the account menu badge. */
+export interface TrackerAttentionDto {
+  total: number;
+  trackers: TrackerAttentionCountDto[];
+}
+
+export interface TrackerAttentionCountDto {
+  tracker: string;
+  count: number;
+}
+
+/** `POST /api/v1/trackers/{slug}/entries/{seriesId}/from-tracker`: marks read here up to the tracker's numbers; never unmarks. */
+export interface TrackerFromTrackerResultDto {
+  marked: number;
+  alreadyRead: number;
+  remoteChapters?: number | null;
+  remoteVolumes?: number | null;
+  entry: TrackerSeriesRowDto;
+}
+
+/** `PUT /api/v1/trackers/{slug}/entries/{seriesId}/dates` (`yyyy-MM-dd`; null = automatic). Answers the row. */
+export interface TrackerDatesRequest {
+  startedOn?: string | null;
+  finishedOn?: string | null;
+}
+
+/** `GET /api/v1/trackers/nodes/{nodeId}/summary`: the series header popover (one row per connected tracker). */
+export interface TrackerSeriesSummaryDto {
+  seriesId?: string | null;
+  rows: TrackerSeriesRowDto[];
 }

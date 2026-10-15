@@ -262,6 +262,10 @@ public sealed partial class Program
             builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.Declared.DeclaredFactsService>();
             builder.Services.AddScoped<com.lifepixer.mangapixer.Server.Features.Metadata.Declared.IDeclaredFactsReader, com.lifepixer.mangapixer.Server.Features.Metadata.Declared.DeclaredFactsReader>();
             AddMetadataNetwork(builder.Services, dataRoot);
+
+            // 1.43.0: tracker sync (MyAnimeList, MangaUpdates lists) and the volume contents scan register in their own extensions.
+            Features.Trackers.TrackerServicesExtensions.AddTrackers(builder.Services);
+            Features.VolumeScan.VolumeScanServicesExtensions.AddVolumeScan(builder.Services);
             AddMetadataExport(builder.Services);
             Features.Reading.Suggestions.ReadingModeSuggestionServices.AddReadingModeSuggestions(builder.Services); // 1.41.0 lane R
 

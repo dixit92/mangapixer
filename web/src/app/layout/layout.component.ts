@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject } from '@angular/core';
+import { Component, computed, effect, inject, untracked } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive, Router, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, startWith } from 'rxjs/operators';
@@ -13,6 +13,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from '../core/auth/auth.service';
 import { IncognitoService } from '../core/incognito/incognito.service';
 import { MetadataReviewStateService } from '../features/metadata/metadata-review-state.service';
+import { TrackerStateService } from '../features/trackers/tracker-state.service';
 import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
 
 /**
@@ -98,6 +99,16 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
           <button mat-menu-item routerLink="/settings">
             <mat-icon>settings</mat-icon>Settings
           </button>
+          <!-- 1.43.0: the user's tracker accounts and tracked series; the count = series waiting for the user + a tracker ahead. -->
+          @if (trackers.pageAvailable()) {
+            <button mat-menu-item routerLink="/tracking" data-testid="nav-tracking"
+                    [attr.aria-label]="trackers.attention() ? 'Tracking, ' + trackers.attention() + ' series need a look' : 'Tracking'">
+              <mat-icon>track_changes</mat-icon>Tracking
+              @if (trackers.attention()) {
+                <span class="menu-count tracking-count" data-testid="nav-tracking-count">{{ trackers.attention() }}</span>
+              }
+            </button>
+          }
           @if (auth.isAdmin()) {
             <button mat-menu-item routerLink="/admin">
               <mat-icon>admin_panel_settings</mat-icon>MangaPixer Administration
@@ -183,6 +194,7 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
       margin-left: 8px; padding: 0 7px; border-radius: 9px; font-size: 11px; font-weight: 600;
       line-height: 18px; background: var(--mp-accent-strong); color: var(--mp-on-accent);
     }
+    .menu-count.tracking-count { background: var(--mp-warn-strong); color: var(--mp-on-warn); }
   `],
 })
 export class LayoutComponent {
@@ -191,6 +203,7 @@ export class LayoutComponent {
   private readonly router = inject(Router);
   private readonly breakpointObserver = inject(BreakpointObserver);
   private readonly metadataReview = inject(MetadataReviewStateService);
+  readonly trackers = inject(TrackerStateService);
 
   /** Series to review + open flags (admins only; 0 hides the badge). */
   readonly adminAttention = computed(() => (this.auth.isAdmin() ? this.metadataReview.attention() : 0));
@@ -204,10 +217,23 @@ export class LayoutComponent {
       if (this.auth.isAdmin()) this.metadataReview.refresh();
       else this.metadataReview.clear();
     });
+    // 1.43.0: the Tracking entry and its count, for every signed-in user (local GETs; no tracker is contacted).
+    effect(() => {
+      const signedIn = this.auth.isAuthenticated();
+      untracked(() => {
+        if (signedIn) {
+          this.trackers.ensureLoaded();
+          this.trackers.refreshAttention();
+        } else {
+          this.trackers.clear();
+        }
+      });
+    });
   }
 
   refreshAttention(): void {
     if (this.auth.isAdmin()) this.metadataReview.refresh();
+    if (this.auth.isAuthenticated()) this.trackers.refreshAttention();
   }
 
   /**

@@ -23,7 +23,7 @@ public static class MdJson
     public sealed record Manga(
         string Id, string Title, string[]? Alt = null, string? Mu = null, string? Al = null, string Language = "ja", int Year = 2015,
         string Status = "ongoing", string[]? Tags = null, string? LastVolume = null, string? LastChapter = null, string[]? Authors = null,
-        string? Description = "A synthetic description.");
+        string? Description = "A synthetic description.", string? Mal = null);
 
     public static object Item(Manga m) => new
     {
@@ -34,8 +34,8 @@ public static class MdJson
             title = new Dictionary<string, string> { ["en"] = m.Title },
             altTitles = (m.Alt ?? []).Select(a => new Dictionary<string, string> { ["ja-ro"] = a }).ToArray(),
             description = m.Description is null ? (object)Array.Empty<object>() : new Dictionary<string, string> { ["en"] = m.Description },
-            links = m.Mu is null && m.Al is null ? (object)Array.Empty<object>()
-                : new Dictionary<string, string?> { ["mu"] = m.Mu, ["al"] = m.Al }.Where(kv => kv.Value is not null).ToDictionary(kv => kv.Key, kv => kv.Value),
+            links = m.Mu is null && m.Al is null && m.Mal is null ? (object)Array.Empty<object>()
+                : new Dictionary<string, string?> { ["mu"] = m.Mu, ["al"] = m.Al, ["mal"] = m.Mal }.Where(kv => kv.Value is not null).ToDictionary(kv => kv.Key, kv => kv.Value),
             originalLanguage = m.Language,
             lastVolume = m.LastVolume,
             lastChapter = m.LastChapter,

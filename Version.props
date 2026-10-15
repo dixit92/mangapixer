@@ -458,7 +458,15 @@
          (series head, site watermarks, placeholder groups, three-decimal chapters); export: MangaDex's released chapters, estimated
          volumes. Migrations AddMangaDexSeriesRecords, AddPerformanceSettings (additive); consent main 6 / automatic 5 (new kind of
          request: MangaDex search); matcher rules revision unchanged (4); worker protocol unchanged (5; three optional timing fields). -->
-    <MangaPixerVersionMinor>42</MangaPixerVersionMinor>
+    <!-- 1.43.0 - MINOR (2026-10-15, cycle "Tracker Sync and Volume Contents"): tracker sync to MyAnimeList and MangaUpdates (admin
+         allows per server - MyAnimeList only on a personal / self-hosted instance with its own app registration; each user connects on
+         the new Tracking page), MyAnimeList dates, Set progress both ways, the gold ring (read on every synced tracker; list rows,
+         series folders), whole-list Check my list for MyAnimeList, admin daily limit per tracker; MyAnimeList ids from MangaDex records
+         (one-time refresh); one-shots count as chapter 1 / volume 1; split chapters next to extras; export: MangaDex readable chapters;
+         Enhance black-output guard; "Official Volume Available". Migrations AddTrackerSync, AddTrackingPage,
+         AddVolumeMapReadableChapters (additive); tracker consents v1 (new third privacy exception, AGENTS.md); metadata consents
+         unchanged (main 6 / automatic 5); worker protocol unchanged (5). -->
+    <MangaPixerVersionMinor>43</MangaPixerVersionMinor>
     <!-- 1.31.1 - PATCH (2026-10-01, integrator-direct, owner live check of 1.31.0): content signatures backfilled for archives
          analysed before 1.5.0 (their moves were never recognised); Re-attach to a folder in another library; "Episode N" next
          to a volume is a part label, not a chapter; the review list shows the file's own page 1, never the cover layer's;

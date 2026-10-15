@@ -23,9 +23,11 @@ public interface IMangaDexProvider
 
     /// <summary>
     /// The volume -> chapter list, including chapters MangaDex does not host (<c>includeUnavailable=1</c>); with
-    /// <paramref name="translatedLanguage"/> only the chapters released in that language (<c>translatedLanguage[]</c>).
+    /// <paramref name="translatedLanguage"/> only the chapters released in that language (<c>translatedLanguage[]</c>). With
+    /// <paramref name="includeUnavailable"/> false (1.43.0, MangaList: the readable chapters) the chapters MangaDex took down are left out.
     /// </summary>
-    Task<IReadOnlyList<MangaDexAggregateVolume>> AggregateAsync(string mangaId, CancellationToken ct, string? translatedLanguage = null);
+    Task<IReadOnlyList<MangaDexAggregateVolume>> AggregateAsync(
+        string mangaId, CancellationToken ct, string? translatedLanguage = null, bool includeUnavailable = true);
 
     /// <summary>One page (up to 100) of the record's covers, filtered to <paramref name="locales"/> when given.</summary>
     Task<MangaDexCoverPage> CoversAsync(string mangaId, IReadOnlyList<string>? locales, int offset, CancellationToken ct);
@@ -52,6 +54,12 @@ public sealed record MangaDexManga
 
     /// <summary>The <c>links.al</c> value (an AniList id) when it is a positive integer, else null.</summary>
     public string? AniListId { get; init; }
+
+    /// <summary>
+    /// 1.43.0: the <c>links.mal</c> value (a MyAnimeList manga id) when it is a positive integer, else null - read from the same answer, no
+    /// extra request; stored as the record's tracker cross id (<see cref="Core.Trackers.TrackerCrossIdKeys.MyAnimeList"/>). Not an official source.
+    /// </summary>
+    public string? MyAnimeListId { get; init; }
 
     /// <summary><c>originalLanguage</c> (a MangaDex locale code), validated.</summary>
     public string? OriginalLanguage { get; init; }
@@ -323,12 +331,18 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
             : null;
     }
 
-    public async Task<IReadOnlyList<MangaDexAggregateVolume>> AggregateAsync(string mangaId, CancellationToken ct, string? translatedLanguage = null)
+    public async Task<IReadOnlyList<MangaDexAggregateVolume>> AggregateAsync(
+        string mangaId, CancellationToken ct, string? translatedLanguage = null, bool includeUnavailable = true)
     {
         if (!IsValidId(mangaId) || (translatedLanguage is not null && !IsValidLocale(translatedLanguage)))
             return [];
-        var language = translatedLanguage is null ? string.Empty : "&translatedLanguage%5B%5D=" + translatedLanguage;
-        using var doc = await GetJsonAsync($"{ApiBase}/manga/{mangaId}/aggregate?includeUnavailable=1{language}", ct);
+        var parameters = new List<string>(2);
+        if (includeUnavailable)
+            parameters.Add("includeUnavailable=1");
+        if (translatedLanguage is not null)
+            parameters.Add("translatedLanguage%5B%5D=" + translatedLanguage);
+        var query = parameters.Count == 0 ? string.Empty : "?" + string.Join('&', parameters);
+        using var doc = await GetJsonAsync($"{ApiBase}/manga/{mangaId}/aggregate{query}", ct);
         return doc is null ? [] : ReadAggregate(doc.RootElement);
     }
 
@@ -366,6 +380,12 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
 
     // --- JSON readers (internal for the recorded-response tests) ---
 
+    /// <summary>A <c>links</c> id that must be a positive decimal integer (no sign, no spaces inside), normalised; else null.</summary>
+    internal static string? PositiveId(string? value) =>
+        value is { } text && int.TryParse(text.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var id) && id > 0
+            ? id.ToString(CultureInfo.InvariantCulture)
+            : null;
+
     internal static MangaDexManga? ReadManga(JsonElement item)
     {
         if (item.ValueKind != JsonValueKind.Object || Str(item, "id") is not { } id || !IsValidId(id)
@@ -382,7 +402,7 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
         if (bounded.Count == 0)
             return null;
 
-        string? mu = null, al = null;
+        string? mu = null, al = null, mal = null;
         var official = new List<MangaDexOfficialLink>();
         if (attributes.TryGetProperty("links", out var links) && links.ValueKind == JsonValueKind.Object)
         {
@@ -390,6 +410,7 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
             al = Str(links, "al") is { } a && int.TryParse(a.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var alId) && alId > 0
                 ? alId.ToString(CultureInfo.InvariantCulture)
                 : null;
+            mal = PositiveId(Str(links, "mal"));
             foreach (var key in OfficialLinkKeys)
             {
                 if (OfficialLinkUrl(key, Str(links, key)) is { } url)
@@ -461,6 +482,7 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
             AltTitles = bounded.Skip(1).Take(40).ToList(),
             MangaUpdatesLink = mu,
             AniListId = al,
+            MyAnimeListId = mal,
             OriginalLanguage = IsValidLocale(language) ? language : null,
             LastVolume = MetadataText.Line(Str(attributes, "lastVolume"), 16),
             LastChapter = MetadataText.Line(Str(attributes, "lastChapter"), 16),

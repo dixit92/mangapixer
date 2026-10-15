@@ -77,8 +77,11 @@ public sealed class MangaDexSeriesRecordHttpTests
                 return ScriptedHandler.Json(MdJson.Entity(manga));
             if (uri.AbsolutePath.EndsWith("/aggregate", StringComparison.Ordinal))
             {
-                // All languages: volumes 1-2; English: chapters 1-12.5.
+                // All languages: volumes 1-2; English: chapters 1-12.5; English and readable (1.43.0: without includeUnavailable): 1, 7 and 9 (9 is not
+                // released in English - never counted).
                 var english = uri.Query.Contains("translatedLanguage", StringComparison.Ordinal);
+                if (english && !uri.Query.Contains("includeUnavailable", StringComparison.Ordinal))
+                    return ScriptedHandler.Json("{\"result\":\"ok\",\"volumes\":{\"1\":{\"volume\":\"1\",\"count\":3,\"chapters\":{\"1\":{\"chapter\":\"1\",\"count\":1},\"7\":{\"chapter\":\"7\",\"count\":1},\"9\":{\"chapter\":\"9\",\"count\":1}}}}}");
                 return ScriptedHandler.Json(english
                     ? "{\"result\":\"ok\",\"volumes\":{\"1\":{\"volume\":\"1\",\"count\":3,\"chapters\":{\"1\":{\"chapter\":\"1\",\"count\":1},\"12.5\":{\"chapter\":\"12.5\",\"count\":1},\"7\":{\"chapter\":\"7\",\"count\":1}}}}}"
                     : "{\"result\":\"ok\",\"volumes\":{\"1\":{\"volume\":\"1\",\"count\":2,\"chapters\":{\"1\":{\"chapter\":\"1\",\"count\":1},\"2\":{\"chapter\":\"2\",\"count\":1}}},\"2\":{\"volume\":\"2\",\"count\":2,\"chapters\":{\"3\":{\"chapter\":\"3\",\"count\":1},\"4\":{\"chapter\":\"4\",\"count\":1}}}}}");
@@ -186,6 +189,10 @@ public sealed class MangaDexSeriesRecordHttpTests
         (await admin.PostAsync("/api/v1/admin/metadata/nodes/mdxSeries/refresh", null)).EnsureSuccessStatusCode();
         Assert.Contains(factory.Handler.Seen, s => s.Uri.AbsolutePath == "/manga/" + LanternId);
         Assert.Contains(factory.Handler.Seen, s => s.Uri.AbsolutePath == $"/manga/{LanternId}/aggregate");
+        // 1.43.0: the readable list - the same list in the preferred language without includeUnavailable; only the id and the language.
+        Assert.Equal(
+            ["?includeUnavailable=1", "?includeUnavailable=1&translatedLanguage[]=en", "?translatedLanguage[]=en"],
+            factory.Handler.Seen.Where(s => s.Uri.AbsolutePath == $"/manga/{LanternId}/aggregate").Select(s => Uri.UnescapeDataString(s.Uri.Query)));
         Assert.DoesNotContain(factory.Handler.Seen, s => s.Uri.Query.Contains("title=", StringComparison.Ordinal));
         Assert.All(factory.Handler.Seen, s => Assert.Contains(s.Uri.Host, new[] { "api.mangadex.org", "uploads.mangadex.org" }));
 
@@ -202,6 +209,8 @@ public sealed class MangaDexSeriesRecordHttpTests
             Assert.Equal(38, item.Record.TotalChapters);
             Assert.Equal(LanternId, item.Companions!.Mangadex);
             Assert.Equal("12.5", item.Companions.MangadexReleased!.LatestChapter);
+            // 1.43.0: what can be read there - 1 and 7; 12.5 was taken down.
+            Assert.Equal(("7", 2), (item.Companions.MangadexReleased.Readable!.LatestWholeChapter, item.Companions.MangadexReleased.Readable.Chapters));
         }
     }
 

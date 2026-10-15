@@ -38,6 +38,7 @@ public static class LogEvents
         ("Administration", Administration.Min, Administration.Max),
         ("Http", Http.Min, Http.Max),
         ("Metadata", Metadata.Min, Metadata.Max),
+        ("Trackers", Trackers.Min, Trackers.Max),
     ];
 
     /// <summary>Category names derived from the real event-ID ranges.</summary>
@@ -284,6 +285,8 @@ public static class LogEvents
         public const int PerformanceSettingsApplied = 4202;
         public const int PerformanceSettingsLoadFailed = 4203;
         public const int PerformanceConfigInvalid = 4204;
+
+        // Reserved, 1.43.0: 4300-4399 volume contents scan (lane V).
     }
 
     /// <summary>Derived-cache lifecycle: hits, publishes, eviction, budget pressure.</summary>
@@ -498,5 +501,59 @@ public static class LogEvents
         public const int MangaDexSelfCompanion = 9500;
         public const int MangaDexStep = 9501;
         public const int MangaDexSwitched = 9502;
+    }
+
+    /// <summary>
+    /// Tracker sync (1.43.0): a user's reading progress sent to that user's own MyAnimeList / MangaUpdates account. Internal user
+    /// ids, tracker slugs, outcome codes, counts, HTTP status codes and timings ONLY - never a token, a password, a tracker or
+    /// series id at Information (with a user id they are that user's reading history; Debug may carry the MangaPixer record id),
+    /// a title, a URL or a path.
+    /// </summary>
+    public static class Trackers
+    {
+        public const int Min = 10000;
+        public const int Max = 10999;
+
+        // Seam (integrator, 10000-10009).
+        public const int ReadMarkObserverFailed = 10001;
+
+        // Reserved, 1.43.0: 10010-10399 engine + API (lane E); 10400-10599 MyAnimeList adapter, 10600-10799 MangaUpdates adapter
+        // (lane A); 10800-10899 tracking redesign (lane G); 10900-10999 free.
+
+        // Engine + API (lane E, 1.43.0; 10010-10399). Information carries the internal user id, the tracker slug, outcome codes,
+        // counts, HTTP status and timings only - never a tracker or series id (with a user id they are that user's reading history),
+        // a title, a token, a password or a URL. Debug may add the MangaPixer record id.
+        public const int SettingsChanged = 10010;
+        public const int AccountConnected = 10011;
+        public const int AccountDisconnected = 10012;
+        public const int AccountNeedsReconnect = 10013;
+        public const int TokenRefreshed = 10014;
+        public const int ConnectRefused = 10015;
+        public const int ConnectFailed = 10016;
+        public const int RevokeFailed = 10017;
+        public const int UserRowsDeleted = 10018;
+        public const int SyncOutcome = 10020;
+        public const int SyncFailed = 10021;
+        public const int SyncRateLimited = 10022;
+        public const int DailyCapReached = 10023;
+        public const int RelayBatch = 10024;
+        public const int RelayFailed = 10025;
+        public const int RelayQueueFull = 10026;
+        public const int PreviewRead = 10027;
+        public const int SendAll = 10028;
+        public const int SyncDebug = 10029;
+
+        // Lane A (1.43.0): one line per tracker request - tracker, operation, status, elapsed ms; never an id, a URL or a token.
+        public const int MyAnimeListCall = 10401;
+        public const int MangaUpdatesCall = 10601;
+
+        // Tracking redesign (lane G, 1.43.0; 10800-10899): same rules as lane E's - user id, slug, codes, counts, timings at Information.
+        public const int ListRead = 10800;
+        public const int PulledFromTracker = 10801;
+        public const int DatesChanged = 10802;
+        public const int DatesRejected = 10803;
+        public const int VolumeListRequeued = 10804;
+        public const int MalCatchUp = 10805;
+        public const int ListChecked = 10806;
     }
 }

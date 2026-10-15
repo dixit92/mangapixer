@@ -1,0 +1,245 @@
+import { ChangeDetectionStrategy, Component, OnDestroy, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { A11yModule } from '@angular/cdk/a11y';
+import { CdkConnectedOverlay, ConnectedPosition, OverlayModule } from '@angular/cdk/overlay';
+import { NavigationStart, Router, RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatTooltipModule } from '@angular/material/tooltip';
+
+import { TrackerSeriesRowDto, TrackerSeriesSummaryDto } from '../../core/api/api-types';
+import { TrackerStateService } from './tracker-state.service';
+import { TrackersApiService } from './trackers-api.service';
+import { TRACKER_RING_LEGEND, TRACKING_PATH, bucketText, bucketTone, dateText, numbersText, ofText, statusText, trackerName } from './tracker-texts';
+import { provideTrackerTooltips } from './tracker-tooltips';
+
+/** Below the button, right-aligned; above it when there is no room below. */
+const POSITIONS: ConnectedPosition[] = [
+  { originX: 'end', originY: 'bottom', overlayX: 'end', overlayY: 'top', offsetY: 6 },
+  { originX: 'start', originY: 'bottom', overlayX: 'start', overlayY: 'top', offsetY: 6 },
+  { originX: 'end', originY: 'top', overlayX: 'end', overlayY: 'bottom', offsetY: -6 },
+];
+
+/**
+ * The series header's "Tracking" button (1.43.0 owner redesign): on a folder of a linked series, for a user with a connected
+ * tracker, a gold button next to "Series info" opens a small popover - per connected tracker the tracker's name, the series' state
+ * chip, MangaPixer's numbers against the tracker's, the dates, and "Open in Tracking" to that series' row on the Tracking page.
+ * Hidden without a connected tracker (the shared overview, loaded by the app shell at sign-in), and for a folder that is not a
+ * linked series. Reads `GET /trackers/nodes/{id}/summary` (stored state only - nothing is sent to a tracker). Phone: icon only.
+ * The popover is a small dialog (UX review UX5 / UX10): opening moves the focus into it (its first link) and Tab stays inside;
+ * Escape or a press outside closes it and puts the focus back on the button. A transparent backdrop takes that outside press, so a
+ * tap beside the popover only closes it - it never also opens the card under the finger.
+ */
+@Component({
+  selector: 'app-series-tracking-button',
+  standalone: true,
+  imports: [A11yModule, OverlayModule, RouterLink, MatButtonModule, MatIconModule, MatTooltipModule],
+  providers: [provideTrackerTooltips()],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    @if (shown()) {
+      <button mat-stroked-button type="button" class="tracking-btn" cdkOverlayOrigin #origin="cdkOverlayOrigin"
+              matTooltip="How this series stands on your trackers" [matTooltipDisabled]="open()" aria-label="Tracking" aria-haspopup="dialog"
+              [attr.aria-expanded]="open()" aria-controls="series-tracking-popover" data-testid="series-tracking-button"
+              (click)="toggle()">
+        <mat-icon>track_changes</mat-icon><span class="lbl">Tracking</span>
+      </button>
+      <ng-template cdkConnectedOverlay [cdkConnectedOverlayOrigin]="origin" [cdkConnectedOverlayOpen]="open()"
+                   [cdkConnectedOverlayPositions]="positions" [cdkConnectedOverlayPush]="true"
+                   [cdkConnectedOverlayViewportMargin]="8" [cdkConnectedOverlayHasBackdrop]="true"
+                   cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop"
+                   (backdropClick)="dismiss(origin.elementRef.nativeElement)" (detach)="open.set(false)" (attach)="focusIn()"
+                   (overlayKeydown)="onKey($event, origin.elementRef.nativeElement)">
+        <section id="series-tracking-popover" class="tracking-popover" role="dialog" aria-labelledby="series-tracking-popover-title"
+                 tabindex="-1" cdkTrapFocus data-testid="series-tracking-popover">
+          <span id="series-tracking-popover-title" class="sr-only">Tracking for this series</span>
+          @for (row of rows(); track row.tracker) {
+            <div class="row" [attr.data-testid]="'series-tracking-row-' + row.tracker">
+              <div class="head">
+                <h2>{{ name(row.tracker) }}</h2>
+                <span class="chip" [attr.data-tone]="tone(row)" [attr.data-testid]="'series-tracking-state-' + row.tracker">{{ chip(row) }}</span>
+              </div>
+              <div class="tiles">
+                <div class="tile">
+                  <span class="cap">MangaPixer</span>
+                  <span class="num" [attr.data-testid]="'series-tracking-here-' + row.tracker">{{ here(row) }}</span>
+                </div>
+                <div class="tile remote">
+                  <span class="cap">{{ name(row.tracker) }}</span>
+                  <span class="num" [attr.data-testid]="'series-tracking-remote-' + row.tracker">{{ remote(row) }}</span>
+                </div>
+              </div>
+              @if (row.dates.supported) {
+                <p class="dates" [attr.data-testid]="'series-tracking-dates-' + row.tracker">
+                  Start {{ date(row.dates.startedOn) }} · Finish {{ date(row.dates.finishedOn) }}
+                </p>
+              }
+              <a mat-flat-button color="primary" class="open" [routerLink]="trackingPath"
+                 [queryParams]="{ tracker: row.tracker, series: row.seriesId }" [state]="{ title: row.title }"
+                 (click)="open.set(false)" [attr.data-testid]="'series-tracking-open-' + row.tracker">
+                Open in Tracking <mat-icon iconPositionEnd>arrow_forward</mat-icon>
+              </a>
+            </div>
+          }
+          <p class="legend" data-testid="series-tracking-ring-legend"><span class="ring-swatch" aria-hidden="true"></span>{{ ringLegend }}</p>
+        </section>
+      </ng-template>
+    }
+  `,
+  styles: [`
+    :host { display: contents; }
+    .tracking-btn { flex: none; border-color: var(--mp-warn-strong); color: var(--mp-warn); background: rgb(var(--mp-warn-strong-rgb) / 0.12); }
+    .tracking-btn mat-icon { margin-right: 4px; color: var(--mp-warn); }
+    @media (max-width: 599.98px) {
+      .tracking-btn .lbl { display: none; }
+      .tracking-btn mat-icon { margin-right: 0; }
+      .tracking-btn { min-width: 40px; padding: 0 8px; }
+    }
+    .tracking-popover:focus { outline: none; }
+    .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0);
+               white-space: nowrap; border: 0; }
+    .tracking-popover {
+      position: relative; width: min(380px, calc(100vw - 16px)); box-sizing: border-box; max-height: calc(100dvh - 96px); overflow-y: auto;
+      background: var(--mp-surface-raised); color: var(--mp-text); border: 1px solid rgb(var(--mp-ink-rgb) / 0.16);
+      border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 14px;
+      box-shadow: 0 8px 24px rgb(var(--mp-shade-rgb) / 0.45);
+    }
+    .row { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    .row + .row { border-top: 1px solid rgb(var(--mp-ink-rgb) / 0.1); padding-top: 12px; }
+    .head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; }
+    h2 { margin: 0; font-size: 15px; font-weight: 500; color: var(--mp-text-strong); }
+    .chip { font-size: 12px; padding: 2px 8px; border-radius: 10px; overflow-wrap: anywhere;
+            background: rgb(var(--mp-ink-rgb) / 0.08); color: var(--mp-text-secondary); }
+    .chip[data-tone='ok'] { background: rgb(var(--mp-success-strong-rgb) / 0.16); color: var(--mp-success); }
+    .chip[data-tone='ahead'] { background: rgb(var(--mp-accent-strong-rgb) / 0.16); color: var(--mp-accent); }
+    .chip[data-tone='tracker'], .chip[data-tone='warn'] { background: rgb(var(--mp-warn-strong-rgb) / 0.16); color: var(--mp-warn); }
+    .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .tile { background: var(--mp-surface); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .tile.remote { box-shadow: inset 0 -2px 0 var(--mp-tracker-mark); }
+    .cap { font-size: 12px; color: var(--mp-text-muted); }
+    .num { font-size: 15px; color: var(--mp-text-strong); overflow-wrap: anywhere; }
+    .remote .num { color: var(--mp-warn); }
+    .dates { margin: 0; font-size: 13px; color: var(--mp-text-secondary); }
+    .open { align-self: flex-start; }
+    .legend { display: flex; align-items: center; gap: 8px; margin: 0; padding-top: 10px; border-top: 1px solid rgb(var(--mp-ink-rgb) / 0.1);
+      font-size: 12px; color: var(--mp-text-secondary); }
+    .ring-swatch {
+      flex: none; width: 14px; height: 20px; border-radius: 3px; background: rgb(var(--mp-ink-rgb) / 0.08);
+      box-shadow: inset 0 0 0 2px var(--mp-tracker-mark), inset 0 0 0 3px var(--mp-tracker-mark-edge);
+    }
+  `],
+})
+export class SeriesTrackingButtonComponent implements OnDestroy {
+  private readonly api = inject(TrackersApiService);
+  private readonly state = inject(TrackerStateService);
+
+  /** The folder being browsed. */
+  readonly nodeId = input.required<string>();
+
+  readonly trackingPath = TRACKING_PATH;
+  readonly ringLegend = TRACKER_RING_LEGEND;
+  readonly positions = POSITIONS;
+  readonly open = signal(false);
+  readonly summary = signal<TrackerSeriesSummaryDto | null>(null);
+
+  readonly rows = computed(() => this.summary()?.rows ?? []);
+  /** A connected tracker and a linked series with at least one row. */
+  readonly shown = computed(() => this.state.hasConnected() && !!this.summary()?.seriesId && this.rows().length > 0);
+
+  readonly name = trackerName;
+  readonly date = dateText;
+
+  private requested: string | null = null;
+
+  constructor() {
+    // A new folder (or the first connected tracker) reads its summary; a folder without one hides the button. The popover belongs to
+    // the folder it was opened on: the browse page reuses this component from folder to folder, so a new folder closes it (owner
+    // review on an iPad: it reopened by itself on the next series).
+    effect(() => {
+      const id = this.nodeId();
+      untracked(() => this.open.set(false));
+      if (!this.state.hasConnected()) {
+        this.summary.set(null);
+        return;
+      }
+      this.load(id);
+    });
+    // Any navigation closes it - also a click-less one (an iPad back / forward swipe), which no outside click closes first. The
+    // overlay is detached HERE, not on the next render: leaving the browse page detaches its view (LibraryBrowseReuseStrategy), so
+    // a render would never come and the popover would stay over the next page (UX review UX0).
+    inject(Router).events.pipe(takeUntilDestroyed()).subscribe((event) => {
+      if (event instanceof NavigationStart) this.close();
+    });
+  }
+
+  /** The popover's overlay directive, while the button is shown. */
+  private readonly connected = viewChild(CdkConnectedOverlay);
+
+  ngOnDestroy(): void {
+    this.close();
+  }
+
+  /** Closes the popover now: the flag, and the overlay itself without waiting for change detection. */
+  private close(): void {
+    this.open.set(false);
+    this.connected()?.overlayRef?.detach();
+  }
+
+  toggle(): void {
+    const next = !this.open();
+    this.open.set(next);
+    // Opening re-reads the numbers (a sync may have run since).
+    if (next) this.load(this.nodeId(), true);
+  }
+
+  /** A press outside (on the transparent backdrop - the button too lies under it): close, and the focus goes back to the button. */
+  dismiss(origin: HTMLElement): void {
+    this.open.set(false);
+    origin.focus({ preventScroll: true });
+  }
+
+  onKey(event: KeyboardEvent, origin: HTMLElement): void {
+    // The overlay detaches itself on Escape; the focus goes back to the button, not to the page's body.
+    if (event.key === 'Escape') this.dismiss(origin);
+  }
+
+  /** Just opened: the focus moves into the popover - its first link ("Open in Tracking"), else the dialog itself. */
+  focusIn(): void {
+    const pane = this.connected()?.overlayRef?.overlayElement;
+    const target = pane?.querySelector<HTMLElement>('a[href], button:not([disabled])') ?? pane?.querySelector<HTMLElement>('[role="dialog"]');
+    target?.focus({ preventScroll: true });
+  }
+
+  chip(row: TrackerSeriesRowDto): string {
+    return bucketText(row);
+  }
+
+  tone(row: TrackerSeriesRowDto): string {
+    return bucketTone(row.bucket);
+  }
+
+  here(row: TrackerSeriesRowDto): string {
+    const parts = [ofText(row.allChapters ?? row.chapters, row.totalChapters, 'ch'), ofText(row.allVolumes ?? row.volumes, row.totalVolumes, 'vol')]
+      .filter((p): p is string => !!p);
+    return parts.length ? parts.join(' · ') : 'nothing read';
+  }
+
+  remote(row: TrackerSeriesRowDto): string {
+    if (row.remoteMissing) return 'not on your list';
+    const n = numbersText(row.remoteChapters, row.remoteVolumes);
+    const s = statusText(row.remoteStatus);
+    if (!n && !s) return row.lastSyncAt ? 'nothing read' : 'not checked yet';
+    return [n, s].filter((p) => !!p).join(' · ');
+  }
+
+  private load(id: string, force = false): void {
+    if (!force && this.requested === id) return;
+    // Another folder: its own summary or nothing - never the previous folder's while this one loads.
+    if (this.requested !== id) this.summary.set(null);
+    this.requested = id;
+    this.api.summary(id).subscribe({
+      next: (s) => { if (this.nodeId() === id) this.summary.set(s); },
+      error: () => { if (this.nodeId() === id) this.summary.set(null); },
+    });
+  }
+}

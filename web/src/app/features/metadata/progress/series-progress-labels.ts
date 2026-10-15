@@ -143,13 +143,18 @@ export function reachText(reach: SeriesReachDto | null | undefined): string | nu
   return parts.length > 0 ? parts.join(' + ') : null;
 }
 
-/** "Volume 15 available in English" / "Volumes 15-19 available in English"; null without upgrades. */
+/**
+ * "Volume 15 out as an official English volume" / "Volumes 15-19 out as official English volumes"; null without upgrades.
+ * 1.43.0 (owner): the held copy may already be in that language - what is new is the OFFICIAL volume, not the language.
+ */
 export function upgradeText(progress: SeriesProgressDto): string | null {
   if (progress.upgradeCount <= 0) return null;
   const more = progress.upgradeCount - progress.upgradeVolumes.length;
   const numbers = numbersText(progress.upgradeVolumes) + (more > 0 ? `, +${more} more` : '');
-  const word = progress.upgradeCount === 1 ? 'Volume' : 'Volumes';
-  return `${word} ${numbers} available in ${languageName(progress.trackers.language)}`;
+  const language = languageName(progress.trackers.language);
+  return progress.upgradeCount === 1
+    ? `Volume ${numbers} out as an official ${language} volume`
+    : `Volumes ${numbers} out as official ${language} volumes`;
 }
 
 /** The missing count ("2 volumes, 3 chapters missing"), or null when nothing is missing. */
@@ -161,7 +166,7 @@ export function missingText(progress: SeriesProgressDto): string | null {
 }
 
 /**
- * Line 2, the folder: "You have volumes 1-14 + chapters 47-65 · up to date · Volume 15 available in English",
+ * Line 2, the folder: "You have volumes 1-14 + chapters 47-65 · up to date · Volume 15 out as an official English volume",
  * "You have volumes 1-12 · 2 volumes missing · finished - missing some (Official, 12 of 14)",
  * "You have volumes 1-14 · finished - you have it all (Official)" (1.32.0 wording).
  */
@@ -363,16 +368,24 @@ export function answerSentence(progress: SeriesProgressDto): string | null {
   }
 }
 
-/** "Volumes 15-19 available in English - you hold them as chapters". */
+/** "Volumes 15-19 out as official English volumes - you have them as chapters". */
 export function upgradeSentence(progress: SeriesProgressDto): string | null {
   const text = upgradeText(progress);
   if (!text) return null;
-  return `${text} - you hold ${progress.upgradeCount === 1 ? 'it' : 'them'} as chapters`;
+  return `${text} - you have ${progress.upgradeCount === 1 ? 'it' : 'them'} as chapters`;
 }
 
-/** The stack / card marker of an official volume held as chapters: "Available in English". */
+/**
+ * The stack / card marker of an official volume held as chapters: "Official Volume Available" (1.43.0 owner wording - the
+ * old "Available in English" read as if the held copy were not English); '' without a language (no badge renders).
+ */
 export function officialReleaseLabel(language: string | null | undefined): string {
-  return language ? `Available in ${languageName(language)}` : '';
+  return language ? 'Official Volume Available' : '';
+}
+
+/** The marker's tooltip, naming the preferred language: "Out as an official French volume - you have it as chapters". */
+export function officialReleaseTitle(language: string | null | undefined): string {
+  return language ? `Out as an official ${languageName(language)} volume - you have it as chapters` : '';
 }
 
 /** The chapter card marker: "Also in Volume 10". */

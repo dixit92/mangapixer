@@ -2370,6 +2370,9 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Property<long?>("NextCheckAt")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("ReadableChaptersJson")
+                        .HasColumnType("TEXT");
+
                     b.Property<long>("RecordId")
                         .HasColumnType("INTEGER");
 
@@ -2441,6 +2444,402 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("sessions", (string)null);
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.TrackerAccountEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AccessTokenProtected")
+                        .HasMaxLength(8192)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("AddStartedSeries")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ConsentAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ConsentVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("ExpiresAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("LastFailureAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LastFailureCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("LastSuccessAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("PrivateEntries")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RefreshTokenProtected")
+                        .HasMaxLength(8192)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RemoteUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RequestsDay")
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RequestsUsed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("State")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Tracker")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "Tracker")
+                        .IsUnique();
+
+                    b.ToTable("tracker_accounts", (string)null);
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.TrackerEntryEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("AllChapters")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("AllVolumes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AutoFinishedOn")
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AutoStartedOn")
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("DatesPending")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("DontSync")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FinishedOnOverride")
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("HeldChapters")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("HeldVolumes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("LastSentAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("LastSentChapters")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("LastSentStatus")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("LastSentVolumes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("LocalChapters")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("LocalVolumes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("RecordId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("RemoteChapters")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RemoteFinishedOn")
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RemoteId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("RemoteIdSource")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("RemoteMissing")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("RemoteSeenAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RemoteStartedOn")
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("RemoteStatus")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("RemoteTotalChapters")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("RemoteTotalVolumes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("RemoteVolumes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("StartedOnOverride")
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("State")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Tracker")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecordId");
+
+                    b.HasIndex("UserId", "Tracker", "RecordId")
+                        .IsUnique();
+
+                    b.ToTable("tracker_entries", (string)null);
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.TrackerIdOverrideEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("RecordId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RemoteId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("SetAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Tracker")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecordId", "Tracker")
+                        .IsUnique();
+
+                    b.ToTable("tracker_id_overrides", (string)null);
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.TrackerNodeOverrideEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("NodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NodeId");
+
+                    b.HasIndex("UserId", "NodeId")
+                        .IsUnique();
+
+                    b.ToTable("tracker_node_overrides", (string)null);
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.TrackerOAuthStateEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ConsentVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ExpiresAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SessionHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StateHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Tracker")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("VerifierProtected")
+                        .IsRequired()
+                        .HasMaxLength(8192)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.HasIndex("StateHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("tracker_oauth_states", (string)null);
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.TrackerRetryEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("NotBefore")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("RecordId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("SendHeld")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Tracker")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NotBefore");
+
+                    b.HasIndex("RecordId");
+
+                    b.HasIndex("UserId", "Tracker", "RecordId")
+                        .IsUnique();
+
+                    b.ToTable("tracker_retries", (string)null);
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.TrackerSettingsEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ClientId")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ClientSecretProtected")
+                        .HasMaxLength(8192)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("ConsentAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ConsentVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("DailyRequestCap")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RedirectUri")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Tracker")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Tracker")
+                        .IsUnique();
+
+                    b.ToTable("tracker_settings", (string)null);
                 });
 
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", b =>
@@ -3158,6 +3557,80 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.TrackerAccountEntity", b =>
+                {
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.TrackerEntryEntity", b =>
+                {
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.MetadataRecordEntity", null)
+                        .WithMany()
+                        .HasForeignKey("RecordId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.TrackerIdOverrideEntity", b =>
+                {
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.MetadataRecordEntity", null)
+                        .WithMany()
+                        .HasForeignKey("RecordId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.TrackerNodeOverrideEntity", b =>
+                {
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.CatalogNodeEntity", null)
+                        .WithMany()
+                        .HasForeignKey("NodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.TrackerOAuthStateEntity", b =>
+                {
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.TrackerRetryEntity", b =>
+                {
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.MetadataRecordEntity", null)
+                        .WithMany()
+                        .HasForeignKey("RecordId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.VolumeCoverEntity", b =>

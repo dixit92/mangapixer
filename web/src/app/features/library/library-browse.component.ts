@@ -35,6 +35,9 @@ import { VolumeSeriesStatusComponent } from './volume-series-status.component';
 import { MissingChapterCardComponent } from '../../shared/volume-stack/missing-chapter-card.component';
 import { VolumeStackStarComponent } from '../../shared/volume-stack/volume-stack-star.component';
 import { FolderViewActionComponent } from './folder-view-action.component';
+import { TrackerSyncActionComponent } from '../trackers/tracker-sync-action.component';
+import { TrackerReadMarkComponent } from '../trackers/tracker-read-mark.component';
+import { SeriesTrackingButtonComponent } from '../trackers/series-tracking-button.component';
 import { FolderCoverPreferenceActionComponent } from './folder-cover-preference-action.component';
 import { NodeRowComponent, directionShort as directionChip } from '../../shared/node-row/node-row.component';
 import { SelectionBarComponent } from '../../shared/selection/selection-bar.component';
@@ -108,6 +111,9 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     MissingChapterCardComponent,
     VolumeStackStarComponent,
     FolderViewActionComponent,
+    TrackerSyncActionComponent,
+    TrackerReadMarkComponent,
+    SeriesTrackingButtonComponent,
     FolderCoverPreferenceActionComponent,
     NodeRowComponent,
     SelectionBarComponent,
@@ -122,7 +128,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
          (links, buttons, sliders), which all carry their own accessible/keyboard
          semantics already. Marking the wrapper presentational keeps it out of the a11y
          tree instead of misrepresenting the whole toolbar as one focusable widget. -->
-    <div class="browse-bar" #browseBar [class.selecting]="selectMode()" [class.has-view-switch]="!!volumeView()?.available" role="presentation"
+    <div class="browse-bar" #browseBar [class.selecting]="selectMode()" [class.has-view-switch]="!!volumeView()?.available"
+         [class.has-tracking]="trackingShown()" role="presentation"
          (click)="onBarClick($event)">
       @if (!selectMode()) {
         <div class="breadcrumbs">
@@ -175,6 +182,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
         }
         <!-- Series info for the folder being viewed (1.24.0): its own component. -->
         @if (parentId(); as folderId) {
+          <!-- 1.43.0: the series' tracking (a gold button + popover) for a user with a connected tracker. -->
+          <app-series-tracking-button [nodeId]="folderId" />
           <app-series-info-button [nodeId]="folderId" />
         }
         <!-- Volumes | Folders (1.29.0): only where the folder has a Volumes view; the choice is the per-user
@@ -350,6 +359,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
             <app-folder-view-action [nodes]="nodes()" [selected]="selectedNodeIds()" [disabled]="busy()" (saved)="onFolderViewSaved()" />
             <app-folder-cover-preference-action [nodes]="nodes()" [selected]="selectedNodeIds()" [disabled]="busy()" (saved)="onFolderViewSaved()" />
           }
+          <!-- 1.43.0: "Sync to trackers" On / Off / As default, for a user with a connected tracker (it hides itself otherwise). -->
+          <app-tracker-sync-action [nodes]="nodes()" [selected]="selectedNodeIds()" [disabled]="busy()" />
         </app-selection-bar>
       }
     </div>
@@ -381,6 +392,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     <!-- Read / rollup / direction / selection markers for one node. Rendered over the
          cover in card mode and at the right edge of the row in list mode (1.17.0). -->
     <ng-template #markers let-node>
+      <!-- 1.43.0: the gold strip on the cover's top edge when the user's tracker counts this item as read (card mark C). -->
+      <app-tracker-read-mark [trackers]="node.trackerRead" />
       @if (node.isRead) {
         <span class="badge read" matTooltip="Read">✓ Read</span>
       } @else if (node.readingState === 'InProgress') {
@@ -548,8 +561,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     /* 1.38.0: with the Volumes | Folders switch the controls squeezed the trail to a letter on a tablet (820 px). The bar
        may wrap: the trail keeps at least 240 px on the first row and the controls move to a second row, right-aligned.
        Where everything fits (desktop) nothing moves; the phone rule below still gives the trail its own row. */
-    .browse-bar.has-view-switch { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; }
-    .browse-bar.has-view-switch .breadcrumbs { flex: 1 1 240px; }
+    .browse-bar.has-view-switch, .browse-bar.has-tracking { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; }
+    .browse-bar.has-view-switch .breadcrumbs, .browse-bar.has-tracking .breadcrumbs { flex: 1 1 240px; }
     .breadcrumbs {
       flex: 1 1 auto; min-width: 0;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -685,8 +698,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
         font-size: 15px; line-height: 1.35;
       }
       /* The Volumes | Folders switch (1.29.0) would squeeze the trail: the bar wraps, the trail takes its own row. */
-      .browse-bar.has-view-switch { flex-wrap: wrap; justify-content: flex-start; }
-      .browse-bar.has-view-switch .breadcrumbs { flex-basis: 100%; }
+      .browse-bar.has-view-switch, .browse-bar.has-tracking { flex-wrap: wrap; justify-content: flex-start; }
+      .browse-bar.has-view-switch .breadcrumbs, .browse-bar.has-tracking .breadcrumbs { flex-basis: 100%; }
       .breadcrumbs a { padding: 2px 0; }
       .breadcrumbs .sep { color: var(--mp-text-faint); }
       /* The current folder: the brightest crumb — the mobile "you are here".
@@ -834,6 +847,9 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   /** Measured height of the sticky top bar: the jump rail's sticky offset. */
   readonly barHeight = signal(0);
   private readonly browseBar = viewChild<ElementRef<HTMLElement>>('browseBar');
+  /** 1.43.0 (UX review UX6): the gold Tracking button takes room from the trail - the bar then wraps like with the Volumes switch. */
+  private readonly trackingButton = viewChild(SeriesTrackingButtonComponent);
+  readonly trackingShown = computed(() => this.trackingButton()?.shown() ?? false);
   private barResize: ResizeObserver | null = null;
 
   // Scroll-spy (1.8.0): the element whose scroll events drive the active letter.

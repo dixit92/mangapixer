@@ -115,16 +115,18 @@ describe('UpscaleDirective GPU release wiring', () => {
   it('does NOT release on a page turn (the <img> and its directive are re-created)', async () => {
     const { fixture, host } = await enhancedPage();
     const allocated = devices[0].textures.length;
+    const liveBefore = live();
     vi.useFakeTimers();
     fixture.componentInstance.pages.set(['p1']);
     fixture.detectChanges();
     vi.advanceTimersByTime(upscaleReleaseDelayMs * 2);
-    expect(live()).toBe(allocated);
+    expect(live()).toBe(liveBefore);
 
-    // The new page renders at the same size: the cached pipeline is reused.
+    // The new page renders at the same size: the cached pipeline is reused (two submissions a page since 1.43.0:
+    // the chain + the blank guard's probe, then the present).
     vi.useRealTimers();
     layoutAndLoad(host.querySelector('img') as HTMLImageElement);
-    await vi.waitFor(() => expect(devices[0].submits).toBe(2));
+    await vi.waitFor(() => expect(devices[0].submits).toBe(4));
     expect(devices[0].textures.length).toBe(allocated);
   });
 

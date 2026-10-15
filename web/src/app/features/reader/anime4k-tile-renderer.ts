@@ -18,9 +18,13 @@
  *     30-100 ms monolithic submission would starve the compositor on the tiled
  *     GPUs of a phone or iPad and make scrolling stutter. The slice size adapts
  *     (AIMD) to keep each slice's GPU time under `sliceBudgetMs`;
- *  4. the last slice blits the band's own rows (`cropY`, `drawRows`) of the fixed
- *     2x output onto the band canvas, whose backing store is exactly
- *     `2 * Wn x 2 * drawRows` device pixels.
+ *  4. the last slice also draws the band's blit into the blank guard's tiny probe
+ *     target and reads it back (`blank-guard.ts`, 1.43.0); a near-black output over
+ *     a band whose source is not black is answered `'blank'` and the canvas is
+ *     never touched;
+ *  5. otherwise one more small submission blits the band's own rows (`cropY`,
+ *     `drawRows`) of the fixed 2x output onto the band canvas, whose backing store
+ *     is exactly `2 * Wn x 2 * drawRows` device pixels.
  *
  * Never throws: every failure resolves `'failed'` and the caller keeps the plain
  * `<img>`, which is always a correct picture.
@@ -28,6 +32,9 @@
 
 import { buildTileChain, EncodeStep, flattenPasses } from './anime4k-chains';
 import { SliceBudget, adaptSlice, createSliceBudget, nextAnimationFrame } from './band-slicing';
+import {
+  OutputProbe, createOutputProbe, encodeOutputProbe, isBlankOutput, popProbeScope, pushProbeScope, readOutputProbe,
+} from './blank-guard';
 import { TrackingDevice, acquireDevice, onDeviceLost, trackingDevice } from './gpu-device';
 import type { RenderMode } from './upscale-engine';
 import type { BandPlan, EnhanceChain } from './webtoon-band-plan';
@@ -98,7 +105,11 @@ export interface BandRenderRequest {
 }
 
 export interface BandRenderResult {
-  readonly status: 'ok' | 'aborted' | 'failed';
+  /**
+   * `blank` (1.43.0): the chain output came back near black over a band whose source is not black
+   * (`blank-guard.ts`); the canvas was not touched - keep the plain `<img>`.
+   */
+  readonly status: 'ok' | 'aborted' | 'failed' | 'blank';
   /** Sum of the slices' submit-to-done times (the ms/band readout). */
   readonly gpuMs: number;
   /** Slices submitted for this band. */
@@ -119,6 +130,7 @@ interface RenderState {
   steps: EncodeStep[];
   uniform: GPUBuffer;
   bindGroup: GPUBindGroup;
+  probe: OutputProbe;
 }
 
 let deviceState: DeviceState | null = null;
@@ -215,6 +227,7 @@ function stateFor(device: GPUDevice, shared: DeviceState, chain: EnhanceChain, w
       inputTexture,
       steps: flattenPasses(chainPipelines),
       uniform,
+      probe: createOutputProbe(resources.device, shared.canvasFormat),
       bindGroup: device.createBindGroup({
         layout: shared.blit.getBindGroupLayout(0),
         entries: [
@@ -268,6 +281,7 @@ async function renderNow(req: BandRenderRequest): Promise<BandRenderResult> {
 
     let next = 0;
     const steps = state.steps;
+    let probeRan = false;
     while (next < steps.length) {
       if (signal?.aborted) return result('aborted');
       if (!alive()) return result('failed');
@@ -275,42 +289,58 @@ async function renderNow(req: BandRenderRequest): Promise<BandRenderResult> {
       const end = Math.min(steps.length, next + Math.max(1, budget.k));
       for (let i = next; i < end; i++) steps[i](encoder);
       next = end;
+      const last = next >= steps.length;
 
-      if (next >= steps.length) {
-        // Last slice: blit the band's rows onto the canvas, unless the job was
-        // dropped meanwhile (never overwrite a canvas with a band it no longer shows).
-        if (signal?.aborted) return result('aborted');
-        const targetW = 2 * width;
-        const targetH = 2 * band.drawRows;
-        if (canvas.width !== targetW) canvas.width = targetW;
-        if (canvas.height !== targetH) canvas.height = targetH;
-        context.configure({ device, format: shared.canvasFormat, alphaMode: 'premultiplied' });
+      if (last) {
+        // Last slice: the blank guard's probe (the band's blit into a tiny private target, read back below).
         device.queue.writeBuffer(state.uniform, 0,
           new Float32Array([band.cropY / band.tileRows, band.drawRows / band.tileRows, 0, 0]));
-        const pass = encoder.beginRenderPass({
-          colorAttachments: [{
-            view: context.getCurrentTexture().createView(),
-            // theme-exempt: the upscaler's own render target, cleared before the page is drawn into it - part of the processed image, not the UI.
-            clearValue: { r: 0, g: 0, b: 0, a: 1 },
-            loadOp: 'clear',
-            storeOp: 'store',
-          }],
-        });
-        pass.setPipeline(shared.blit);
-        pass.setBindGroup(0, state.bindGroup);
-        pass.draw(3);
-        pass.end();
+        encodeOutputProbe(encoder, state.probe, shared.blit, state.bindGroup);
+        pushProbeScope(device);
       }
 
       const started = performance.now();
       device.queue.submit([encoder.finish()]);
       slices++;
+      const scope = last ? popProbeScope(device) : null;
       await device.queue.onSubmittedWorkDone();
+      if (scope) probeRan = await scope;
       const elapsed = performance.now() - started;
       gpuMs += elapsed;
       adaptSlice(budget, elapsed);
       if (next < steps.length) await nextFrame();
     }
+
+    const output = probeRan ? await readOutputProbe(state.probe) : null;
+    // Dropped or released meanwhile: never overwrite a canvas with a band it no longer shows.
+    if (signal?.aborted) return result('aborted');
+    if (!alive()) return result('failed');
+    if (isBlankOutput(output, source, { y: band.tileY + band.cropY, height: band.drawRows })) return result('blank');
+
+    // Present: blit the band's rows onto the canvas (a tiny pass; the chain output is already done).
+    const targetW = 2 * width;
+    const targetH = 2 * band.drawRows;
+    if (canvas.width !== targetW) canvas.width = targetW;
+    if (canvas.height !== targetH) canvas.height = targetH;
+    context.configure({ device, format: shared.canvasFormat, alphaMode: 'premultiplied' });
+    const encoder = device.createCommandEncoder({ label: 'mp-tile-present' });
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [{
+        view: context.getCurrentTexture().createView(),
+        // theme-exempt: the upscaler's own render target, cleared before the page is drawn into it - part of the processed image, not the UI.
+        clearValue: { r: 0, g: 0, b: 0, a: 1 },
+        loadOp: 'clear',
+        storeOp: 'store',
+      }],
+    });
+    pass.setPipeline(shared.blit);
+    pass.setBindGroup(0, state.bindGroup);
+    pass.draw(3);
+    pass.end();
+    const started = performance.now();
+    device.queue.submit([encoder.finish()]);
+    await device.queue.onSubmittedWorkDone();
+    gpuMs += performance.now() - started;
     return result('ok');
   } catch {
     return result('failed');

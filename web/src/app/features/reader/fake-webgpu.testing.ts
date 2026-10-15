@@ -30,7 +30,30 @@ export class FakeTexture extends FakeResource {
   }
 }
 
-export class FakeBuffer extends FakeResource {}
+/** A buffer; a `MAP_READ` readback buffer is filled by `copyTextureToBuffer` at submit (see `FakeGpuDevice.output`). */
+export class FakeBuffer extends FakeResource {
+  readonly data: Uint8Array;
+  mapped = false;
+  mapCalls = 0;
+  constructor(readonly label: string | undefined = undefined, size = 0) {
+    super();
+    this.data = new Uint8Array(size);
+  }
+  mapAsync(): Promise<void> {
+    this.mapCalls++;
+    if (this.destroyed) return Promise.reject(new Error('mapAsync on a destroyed buffer'));
+    this.mapped = true;
+    return Promise.resolve();
+  }
+  getMappedRange(): ArrayBuffer {
+    if (!this.mapped) throw new Error('getMappedRange on an unmapped buffer');
+    return this.data.buffer as ArrayBuffer;
+  }
+  unmap(): void { this.mapped = false; }
+}
+
+/** An RGBA colour (0..255) the fake GPU "renders" into every probe readback. */
+export type FakeColour = readonly [number, number, number, number];
 
 interface FakeBindGroup { resources: FakeResource[] }
 
@@ -50,6 +73,19 @@ export class FakeGpuDevice {
   readonly textures: FakeTexture[] = [];
   readonly buffers: FakeBuffer[] = [];
   submits = 0;
+  /**
+   * What the chain "outputs", as seen by a texture -> buffer readback (1.43.0 blank guard): called once per
+   * copy at submit, so a spec can answer black once and then a picture. Default: a mid grey (a normal page).
+   */
+  output: () => FakeColour = () => [128, 128, 128, 255];
+  /** Texture -> buffer copies submitted (the guard's readbacks). */
+  copiesToBuffer = 0;
+  /** Bytes those copies moved. */
+  bytesReadBack = 0;
+  /** Answer the next `popErrorScope()` with a validation error (the probe "could not run"). */
+  failNextScope = false;
+  private scopes = 0;
+  private pendingCopies: { buffer: FakeBuffer; bytes: number }[] = [];
   /** WGSL source of every shader module created on this device, in order. */
   readonly shaderCode: string[] = [];
   private loseDevice!: (info: GPUDeviceLostInfo) => void;
@@ -79,7 +115,19 @@ export class FakeGpuDevice {
     writeTexture: (dst: { texture: FakeTexture }) => { this.assertLive('writeTexture', [dst.texture]); },
     submit: () => {
       this.assertLive('submit', this.pending);
+      if (this.pendingCopies.some((c) => c.buffer.mapped)) {
+        const message = 'submit uses a mapped buffer';
+        this.violations.push(message);
+        throw new Error(message);
+      }
+      for (const { buffer, bytes } of this.pendingCopies) {
+        const colour = this.output();
+        for (let p = 0; p + 3 < bytes && p + 3 < buffer.data.length; p += 4) buffer.data.set(colour, p);
+        this.copiesToBuffer++;
+        this.bytesReadBack += bytes;
+      }
       this.pending = [];
+      this.pendingCopies = [];
       this.submits++;
     },
     onSubmittedWorkDone: () => Promise.resolve(),
@@ -91,8 +139,8 @@ export class FakeGpuDevice {
     return t;
   }
 
-  createBuffer(): FakeBuffer {
-    const b = new FakeBuffer();
+  createBuffer(desc?: GPUBufferDescriptor): FakeBuffer {
+    const b = new FakeBuffer(desc?.label, desc?.size ?? 0);
     this.buffers.push(b);
     return b;
   }
@@ -122,6 +170,17 @@ export class FakeGpuDevice {
         this.assertLive('copyTextureToTexture', [src.texture, dst.texture]);
         this.pending.push(src.texture, dst.texture);
       },
+      copyTextureToBuffer: (src: { texture: FakeTexture }, dst: { buffer: FakeBuffer; bytesPerRow?: number }, size: GPUExtent3D) => {
+        this.assertLive('copyTextureToBuffer', [src.texture, dst.buffer]);
+        const [w, h] = Array.isArray(size) ? size : [(size as GPUExtent3DDict).width, (size as GPUExtent3DDict).height ?? 1];
+        if (dst.bytesPerRow !== undefined && dst.bytesPerRow % 256 !== 0) {
+          const message = `copyTextureToBuffer bytesPerRow ${dst.bytesPerRow} is not a multiple of 256`;
+          this.violations.push(message);
+          throw new Error(message);
+        }
+        this.pending.push(src.texture, dst.buffer);
+        this.pendingCopies.push({ buffer: dst.buffer, bytes: (dst.bytesPerRow ?? Number(w) * 4) * Number(h ?? 1) });
+      },
       finish: () => ({}),
     };
   }
@@ -133,6 +192,14 @@ export class FakeGpuDevice {
   createSampler() { return {}; }
   createComputePipeline() { return { getBindGroupLayout: () => ({}) }; }
   createRenderPipeline() { return { getBindGroupLayout: () => ({}) }; }
+
+  pushErrorScope(): void { this.scopes++; }
+  popErrorScope(): Promise<GPUError | null> {
+    if (this.scopes-- <= 0) return Promise.reject(new Error('popErrorScope without a scope'));
+    const fail = this.failNextScope;
+    this.failNextScope = false;
+    return Promise.resolve(fail ? ({ message: 'validation' } as GPUError) : null);
+  }
 
   /** Simulate a driver reset. */
   lose(): void {

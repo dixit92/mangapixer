@@ -101,6 +101,7 @@ test('every main page fits a phone and a tablet screen', async ({ page }) => {
     ['favorites', '/favorites'],
     ['library menu', '/library-nav'],
     ['settings', '/settings'],
+    ['tracking', '/tracking'],
     ['admin', '/admin'],
     ['metadata settings', '/admin/metadata?tab=settings'],
     ['metadata review', '/admin/metadata?tab=review'],
@@ -111,6 +112,7 @@ test('every main page fits a phone and a tablet screen', async ({ page }) => {
     ['debug log', '/admin/logging'],
     ['move conflicts', '/admin/move-conflicts'],
     ['reading mode suggestions', '/admin/reading-modes'],
+    ['tracker sign-in callback', '/trackers/callback/mal'],
     ['reader', `/reader/${archiveId}`],
   ];
 

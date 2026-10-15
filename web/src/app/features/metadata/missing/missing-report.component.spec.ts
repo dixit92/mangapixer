@@ -168,7 +168,7 @@ describe('MissingReportComponent', () => {
     http.expectOne((r) => r.url === '/api/v1/admin/metadata/missing').flush({ ...pageDto, summary: { ...pageDto.summary, upgrades: 1 } });
     fixture.detectChanges();
     expect(el.querySelector('[data-testid="missing-reach"]')!.textContent).toBe('You have volumes 1-14 + chapters 43-57');
-    expect(el.querySelector('[data-testid="missing-upgrade"]')!.textContent).toBe('Volume 15 available in English (an upgrade, not missing)');
+    expect(el.querySelector('[data-testid="missing-upgrade"]')!.textContent).toBe('Volume 15 out as an official English volume (an upgrade, not missing)');
     (el.querySelector('[data-testid="missing-upgrades-link"]') as HTMLButtonElement).click();
     expect(opened).toHaveBeenCalled();
   });

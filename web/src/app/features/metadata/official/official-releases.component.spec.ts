@@ -112,7 +112,7 @@ describe('OfficialReleasesComponent (Completion tab)', () => {
     req.flush(page([row({ progress: progress({ upgradeVolumes: [15], upgradeCount: 1 }) })]));
     fixture.detectChanges();
     expect(text(el, 'series-upgrade')).toContain('Upgrade available');
-    expect(text(el, 'official-upgrade')).toBe('Volume 15 available in English - you hold it as chapters');
+    expect(text(el, 'official-upgrade')).toBe('Volume 15 out as an official English volume - you have it as chapters');
   });
 
   it('pages with Load more and switches library', () => {

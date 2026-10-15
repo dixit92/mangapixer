@@ -196,6 +196,15 @@ public sealed record CatalogNodeDto
     /// already holds its chapters - "Also in Volume 10". Null everywhere else.
     /// </summary>
     public string? AlsoInVolume { get; init; }
+
+    /// <summary>
+    /// 1.43.0 (tracker sync, lane G): the trackers (<c>mal</c>, <c>mangaupdates</c>) this series syncs to for the viewer, set when the card
+    /// is read on EVERY one of them by the tracker's last-seen numbers: an archive or a volume of the Volumes view by its own numbers; a
+    /// series FOLDER (its own link) when every archive of the series the viewer can open is (display only; no request). Left out when not
+    /// read on all of them, or not tracked.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? TrackerRead { get; init; }
 }
 
 /// <summary>
