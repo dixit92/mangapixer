@@ -377,8 +377,9 @@ public sealed class MetadataRefreshService
         var found = new[] { (int)CompanionState.Auto, (int)CompanionState.Confirmed };
         var self = (int)CompanionMethod.Self;
         var linkedSeries = LinkedRecords().Select(r => r.Id);
+        // A tracking query (AsNoTracking anywhere in it would leave the companions untracked and the change unsaved).
         var candidates = await (from c in _db.MetadataCompanions
-                                join r in _db.MetadataRecords.AsNoTracking() on c.CompanionRecordId equals r.Id
+                                join r in _db.MetadataRecords on c.CompanionRecordId equals r.Id
                                 where c.Provider == mangaDex && found.Contains(c.State) && c.Method != self && linkedSeries.Contains(c.RecordId)
                                       && r.FetchedAt < now
                                 select new { Companion = c, r.CrossIdsJson }).ToListAsync(ct);
