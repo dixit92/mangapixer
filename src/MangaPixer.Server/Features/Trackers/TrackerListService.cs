@@ -20,7 +20,7 @@ public sealed class TrackerListService(
     TimeProvider time,
     ILogger<TrackerListService> logger)
 {
-    /// <summary>The filter value that selects the chips needing the user (held + tracker ahead).</summary>
+    /// <summary>The filter value that selects the chips needing the user (held + tracker ahead + problem).</summary>
     public const string AttentionFilter = "Attention";
 
     public async Task<(TrackerSeriesPageDto? Page, TrackerProblem? Problem)> PageAsync(long userId, string tracker, int? page, string? filter,
@@ -81,7 +81,7 @@ public sealed class TrackerListService(
 
     /// <summary>
     /// The account menu badge: per tracker the caller has an account on (and the server allows), the series that need the caller - a held
-    /// jump or a tracker ahead of MangaPixer (<see cref="TrackerListRules.NeedsAttention"/>).
+    /// jump, a tracker ahead of MangaPixer, or a failed sync (<see cref="TrackerListRules.NeedsAttention"/>).
     /// </summary>
     public async Task<TrackerAttentionDto> AttentionAsync(long userId, CancellationToken ct)
     {
@@ -91,6 +91,7 @@ public sealed class TrackerListService(
         var held = (int)TrackerEntryState.Held;
         var ahead = (int)TrackerEntryState.TrackerAhead;
         var lower = (int)TrackerEntryState.LowerHere;
+        var error = (int)TrackerEntryState.Error;
         foreach (var account in accounts.Where(a => a.State != (int)TrackerAccountState.DisconnectedByAdmin).OrderBy(a => a.Tracker, StringComparer.Ordinal))
         {
             if (!await settings.IsAllowedAsync(account.Tracker, ct))
@@ -98,7 +99,7 @@ public sealed class TrackerListService(
             // Only the rows that can be in an attention chip are read (an indexed lookup by user + tracker).
             var candidates = await db.TrackerEntries.AsNoTracking()
                 .Where(e => e.UserId == userId && e.Tracker == account.Tracker && !e.DontSync
-                    && (e.State == held || e.State == ahead || e.State == lower || e.HeldChapters != null || e.HeldVolumes != null))
+                    && (e.State == held || e.State == ahead || e.State == lower || e.State == error || e.HeldChapters != null || e.HeldVolumes != null))
                 .ToListAsync(ct);
             var visible = await resolver.FirstNodesAsync(userId, candidates.Select(e => e.RecordId).Distinct().ToList(), ct);
             var count = candidates.Count(e => visible.ContainsKey(e.RecordId)

@@ -47,6 +47,7 @@ public sealed class TrackerAdapterHarness : IDisposable
             .ConfigurePrimaryHttpMessageHandler(() => Handler);
         _http = services.BuildServiceProvider();
         var factory = _http.GetRequiredService<IHttpClientFactory>();
+        HttpFactory = factory;
         Mal = new MyAnimeListTrackerClient(factory, Pacing, Time, LoggerFactory.CreateLogger<MyAnimeListTrackerClient>());
         MangaUpdates = new MangaUpdatesTrackerClient(factory, Pacing, Time, LoggerFactory.CreateLogger<MangaUpdatesTrackerClient>());
     }
@@ -54,6 +55,13 @@ public sealed class TrackerAdapterHarness : IDisposable
     private readonly bool _ownsState;
 
     public ScriptedHandler Handler { get; }
+
+    /// <summary>The harness's HTTP clients (scripted handler).</summary>
+    public IHttpClientFactory HttpFactory { get; }
+
+    /// <summary>A NEW MyAnimeList client over the same scripted HTTP (1.43.0: a "restart" with a dates memory).</summary>
+    public MyAnimeListTrackerClient NewMal(com.lifepixer.mangapixer.Server.Features.Trackers.ITrackerDatesMemory? datesMemory) =>
+        new(HttpFactory, Pacing, Time, LoggerFactory.CreateLogger<MyAnimeListTrackerClient>(), datesMemory);
     public ManualTime Time { get; }
     public CapturingLoggerProvider Logs { get; }
     public ILoggerFactory LoggerFactory { get; }

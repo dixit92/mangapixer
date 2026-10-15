@@ -30,7 +30,8 @@ public sealed class TrackerListRulesTests
         Assert.Equal(TrackerListBucket.Held, TrackerListRules.BucketOf(Facts(TrackerEntryState.Held, local: 2, all: 9, held: 9, remote: 2)));
         Assert.Equal(TrackerListBucket.TrackerAhead, TrackerListRules.BucketOf(Facts(TrackerEntryState.TrackerAhead, local: 2, remote: 9)));
         Assert.Equal(TrackerListBucket.TrackerAhead, TrackerListRules.BucketOf(Facts(TrackerEntryState.LowerHere, local: 2, remote: 9)));
-        Assert.Equal(TrackerListBucket.MangaPixerAhead, TrackerListRules.BucketOf(Facts(TrackerEntryState.Error, local: 9, remote: 2)));
+        // A failed sync is a Problem even while MangaPixer is ahead (owner answer 4); a rate-limited write waiting for its retry is not.
+        Assert.Equal(TrackerListBucket.Problem, TrackerListRules.BucketOf(Facts(TrackerEntryState.Error, local: 9, remote: 2)));
         Assert.Equal(TrackerListBucket.MangaPixerAhead, TrackerListRules.BucketOf(Facts(TrackerEntryState.Waiting, local: 9, remote: 2)));
         Assert.Equal(TrackerListBucket.Problem, TrackerListRules.BucketOf(Facts(TrackerEntryState.Error, local: 2, remote: 2)));
         Assert.Equal(TrackerListBucket.Unchecked, TrackerListRules.BucketOf(Facts(TrackerEntryState.Pending, seen: false, local: 2)));
@@ -38,9 +39,9 @@ public sealed class TrackerListRulesTests
     }
 
     [Fact]
-    public void Attention_IsHeldAndTrackerAhead()
+    public void Attention_IsHeldAndTrackerAheadAndProblem()
     {
-        Assert.Equal([TrackerListBucket.TrackerAhead, TrackerListBucket.Held],
+        Assert.Equal([TrackerListBucket.TrackerAhead, TrackerListBucket.Held, TrackerListBucket.Problem],
             Enum.GetValues<TrackerListBucket>().Where(TrackerListRules.NeedsAttention).ToArray());
     }
 

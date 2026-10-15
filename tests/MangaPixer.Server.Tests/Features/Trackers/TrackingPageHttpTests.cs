@@ -307,7 +307,9 @@ public sealed class TrackingPageHttpTests
                     CreatedAt = now,
                     UpdatedAt = now,
                 });
-                var state = i <= 3 ? TrackerEntryState.Held : i <= 5 ? TrackerEntryState.TrackerAhead : i == 6 ? TrackerEntryState.NoId : TrackerEntryState.Ok;
+                // 1-3 held, 4-5 tracker ahead, 6 no id, 7-8 a failed sync (7 while MangaPixer is ahead), 9 a rate-limited write waiting.
+                var state = i <= 3 ? TrackerEntryState.Held : i <= 5 ? TrackerEntryState.TrackerAhead : i == 6 ? TrackerEntryState.NoId
+                    : i <= 8 ? TrackerEntryState.Error : i == 9 ? TrackerEntryState.Waiting : TrackerEntryState.Ok;
                 db.TrackerEntries.Add(new TrackerEntryEntity
                 {
                     UserId = userId,
@@ -315,7 +317,8 @@ public sealed class TrackingPageHttpTests
                     RecordId = record.Id,
                     State = (int)state,
                     RemoteId = state == TrackerEntryState.NoId ? null : record.ExternalId,
-                    LocalChapters = 4,
+                    LocalChapters = i is 7 or 9 ? 9 : 4,
+                    ErrorCode = state == TrackerEntryState.Error ? "needs_reconnect" : state == TrackerEntryState.Waiting ? "rate_limited" : null,
                     RemoteChapters = state == TrackerEntryState.TrackerAhead ? 9 : 4,
                     HeldChapters = state == TrackerEntryState.Held ? 8 : null,
                     RemoteSeenAt = now,
@@ -348,8 +351,8 @@ public sealed class TrackingPageHttpTests
         var first = await ReadAsync<TrackerSeriesPageDto>(await admin.GetAsync("/api/v1/trackers/mangaupdates/series"));
         Assert.Equal((1, 50, 60, 50), (first.Page, first.PageSize, first.TotalCount, first.Items.Count));
         Assert.Equal("Listed Series 001", first.Items[0].Title);
-        Assert.Equal((60, 3, 2, 1, 54, 5), (first.Counts.All, first.Counts.Held, first.Counts.TrackerAhead, first.Counts.NoId, first.Counts.InSync,
-            first.Counts.Attention));
+        Assert.Equal((60, 3, 2, 1, 2, 1, 51, 7), (first.Counts.All, first.Counts.Held, first.Counts.TrackerAhead, first.Counts.NoId,
+            first.Counts.Problem, first.Counts.MangaPixerAhead, first.Counts.InSync, first.Counts.Attention));
         var second = await ReadAsync<TrackerSeriesPageDto>(await admin.GetAsync("/api/v1/trackers/mangaupdates/series?page=2"));
         Assert.Equal(10, second.Items.Count);
 
@@ -358,7 +361,9 @@ public sealed class TrackingPageHttpTests
         Assert.All(held.Items, r => Assert.Equal((TrackerListBucket.Held, true, 8), (r.Bucket, r.ToTracker.Possible, r.AllChapters)));
         var ahead = await ReadAsync<TrackerSeriesPageDto>(await admin.GetAsync("/api/v1/trackers/mangaupdates/series?filter=trackerahead"));
         Assert.All(ahead.Items, r => Assert.Equal((true, TrackerActionBlock.NotAhead), (r.FromTracker.Possible, r.ToTracker.Block)));
-        Assert.Equal(5, (await ReadAsync<TrackerSeriesPageDto>(await admin.GetAsync("/api/v1/trackers/mangaupdates/series?filter=Attention"))).TotalCount);
+        var needs = await ReadAsync<TrackerSeriesPageDto>(await admin.GetAsync("/api/v1/trackers/mangaupdates/series?filter=Attention"));
+        Assert.Equal(7, needs.TotalCount);
+        Assert.Equal(2, needs.Items.Count(r => r.Bucket == TrackerListBucket.Problem));
 
         var search = await ReadAsync<TrackerSeriesPageDto>(await admin.GetAsync("/api/v1/trackers/mangaupdates/series?q=series%2005"));
         Assert.Equal(10, search.TotalCount);
@@ -368,10 +373,10 @@ public sealed class TrackingPageHttpTests
             Assert.Equal(HttpStatusCode.BadRequest, (await admin.GetAsync("/api/v1/trackers/mangaupdates/series" + bad)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync("/api/v1/trackers/nope/series")).StatusCode);
 
-        // The badge: held + tracker ahead.
+        // The badge: held + tracker ahead + problem (owner answer 4) - not the rate-limited write that waits for its retry.
         var attention = await ReadAsync<TrackerAttentionDto>(await admin.GetAsync("/api/v1/trackers/attention"));
-        Assert.Equal(5, attention.Total);
-        Assert.Equal(5, Assert.Single(attention.Trackers).Count);
+        Assert.Equal(7, attention.Total);
+        Assert.Equal(7, Assert.Single(attention.Trackers).Count);
 
         // Another user sees none of it.
         await h.Factory.CreateUserAsync("other", "Other-Pass-12345", isAdmin: false);

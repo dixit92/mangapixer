@@ -10,7 +10,8 @@ using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 /// <summary>
 /// The filter chip a series of the Tracking list falls in (one per row; the first rule that matches wins, in this order):
 /// <see cref="NotSynced"/>, <see cref="NoId"/>, <see cref="LeftAsIs"/>, <see cref="Held"/>, <see cref="TrackerAhead"/>,
-/// <see cref="MangaPixerAhead"/>, <see cref="Problem"/>, <see cref="Unchecked"/>, <see cref="InSync"/>. Values are append-only (they
+/// <see cref="Problem"/>, <see cref="MangaPixerAhead"/>, <see cref="Unchecked"/>, <see cref="InSync"/> (1.43.0 owner answer 4: a failed
+/// sync is a Problem even when MangaPixer is ahead - it counts in the badge). Values are append-only (they
 /// travel over the API as names).
 /// </summary>
 public enum TrackerListBucket
@@ -18,7 +19,7 @@ public enum TrackerListBucket
     /// <summary>Both sides agree (or MangaPixer has nothing to send).</summary>
     InSync = 0,
 
-    /// <summary>MangaPixer is ahead and it was not sent yet (a failed or rate-limited write, the daily cap, or not checked since).</summary>
+    /// <summary>MangaPixer is ahead and it was not sent yet (a rate-limited write waiting for its retry, the daily cap, or not checked since).</summary>
     MangaPixerAhead = 1,
 
     /// <summary>The tracker is ahead (or MangaPixer is now lower than what it sent): nothing is lowered without the user's click.</summary>
@@ -36,7 +37,10 @@ public enum TrackerListBucket
     /// <summary>The user's "Don't sync", or the series is on none of the user's lists and "Add series I start" is off.</summary>
     NotSynced = 6,
 
-    /// <summary>The last attempt failed and MangaPixer is not ahead (<c>ErrorCode</c> says why).</summary>
+    /// <summary>
+    /// The last attempt failed (<c>ErrorCode</c> says why: <c>needs_reconnect</c>, <c>rejected</c>, <c>unavailable</c>, <c>rate_limited</c> after
+    /// the last retry, ...), whether or not MangaPixer is ahead.
+    /// </summary>
     Problem = 7,
 
     /// <summary>Never checked against the tracker.</summary>
@@ -86,8 +90,12 @@ public sealed record TrackerRowFacts(
 
 public static class TrackerListRules
 {
-    /// <summary>The chips that need the user (the account menu's badge): a held jump, and a tracker ahead of MangaPixer.</summary>
-    public static bool NeedsAttention(TrackerListBucket bucket) => bucket is TrackerListBucket.Held or TrackerListBucket.TrackerAhead;
+    /// <summary>
+    /// The chips that need the user (the account menu's badge, the list's Attention filter, <c>Counts.Attention</c>): a held jump, a tracker
+    /// ahead of MangaPixer, and - 1.43.0 owner answer 4 - a problem (the last sync of the series failed).
+    /// </summary>
+    public static bool NeedsAttention(TrackerListBucket bucket) =>
+        bucket is TrackerListBucket.Held or TrackerListBucket.TrackerAhead or TrackerListBucket.Problem;
 
     private static bool IsLeftAsIsStatus(TrackerEntryStatus? status) =>
         status is TrackerEntryStatus.OnHold or TrackerEntryStatus.Dropped or TrackerEntryStatus.Completed or TrackerEntryStatus.Rereading;
@@ -105,10 +113,10 @@ public static class TrackerListRules
             return TrackerListBucket.Held;
         if (row.State is TrackerEntryState.TrackerAhead or TrackerEntryState.LowerHere)
             return TrackerListBucket.TrackerAhead;
-        if (row.RemoteSeen && row.Automatic.IsAheadOf(row.Remote))
-            return TrackerListBucket.MangaPixerAhead;
         if (row.State == TrackerEntryState.Error)
             return TrackerListBucket.Problem;
+        if (row.RemoteSeen && row.Automatic.IsAheadOf(row.Remote))
+            return TrackerListBucket.MangaPixerAhead;
         if (!row.RemoteSeen || row.State == TrackerEntryState.Pending)
             return TrackerListBucket.Unchecked;
         return TrackerListBucket.InSync;

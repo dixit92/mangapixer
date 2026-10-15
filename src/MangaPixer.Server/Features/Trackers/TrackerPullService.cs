@@ -13,7 +13,8 @@ using Microsoft.EntityFrameworkCore;
 /// <item>"Set progress from &lt;tracker&gt; to MangaPixer" (owner, 2026-10-15; reverses D2 Q10 for an explicit click only): ONE read of the
 /// user's entry, then every archive of the series in the user's libraries that the tracker's numbers cover (<see cref="TrackerReadOn"/>) is
 /// marked read with source <c>tracker</c> - a read mark only, like a folder mark-read (no page position changes). Never unmarks. The relay
-/// ignores these marks: nothing goes out to any tracker for them.</item>
+/// ignores these marks: nothing goes out to any tracker for them. Owner answer 2 (2026-10-15): also in the user's Private libraries, below
+/// the user's sync-off switch and for doujinshi - every library the user can open; marks are always the caller's own.</item>
 /// <item>The user's start / finish dates for a series on a tracker that keeps dates (owner A1): stored with the user's entry, sent on the
 /// next write, cleared = automatic again.</item>
 /// </list>
