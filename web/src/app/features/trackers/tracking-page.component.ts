@@ -1,11 +1,13 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 
 import { TrackerSummaryDto } from '../../core/api/api-types';
 import { TrackerAccountPanelComponent } from './tracker-account-panel.component';
 import { TrackerStateService } from './tracker-state.service';
 import { TrackersApiService } from './trackers-api.service';
 import { TRACKER_SLUGS, TRACKER_SYNC_DOCS_URL, failureText } from './tracker-texts';
+import { TrackingListMemory } from './tracking-list-memory.service';
 import { TrackingSeriesListComponent } from './tracking-series-list.component';
 
 /**
@@ -15,7 +17,8 @@ import { TrackingSeriesListComponent } from './tracking-series-list.component';
  * - the series list, one tab per connected tracker (`app-tracking-series-list`: paging, chips, search, the two "Set progress"
  *   actions and the "⋯" menu).
  * `?tracker=<slug>&series=<seriesId>` (the series header's "Open in Tracking") opens that tracker's tab with the series highlighted;
- * the title travels in the navigation state (never in the address) and seeds the search. Settings keeps a one-line link here.
+ * the title travels in the navigation state (never in the address) and seeds the search. The address is followed while the page is
+ * shown (another `?tracker=` / `?series=` - UX review UX8). Settings keeps a one-line link here.
  * Nothing on this page contacts a tracker unless the user presses an action that says so.
  */
 @Component({
@@ -98,6 +101,7 @@ export class TrackingPageComponent implements OnInit {
   private readonly api = inject(TrackersApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
   readonly state = inject(TrackerStateService);
 
   readonly docsUrl = TRACKER_SYNC_DOCS_URL;
@@ -118,15 +122,28 @@ export class TrackingPageComponent implements OnInit {
     return tabs.some((t) => t.slug === picked) ? picked : (tabs[0]?.slug ?? null);
   });
 
+  constructor() {
+    // Created by a Back / Forward: the series list comes back with its chip, search and pages (UX11).
+    inject(TrackingListMemory).arm(this.router.currentNavigation()?.trigger === 'popstate');
+  }
+
   ngOnInit(): void {
-    const params = this.route.snapshot.queryParamMap;
-    this.picked.set(params.get('tracker'));
-    this.focusSeries.set(params.get('series'));
-    // "Open in Tracking": the title comes with the navigation (history state), never in the address.
-    const title = (globalThis.history?.state as { title?: unknown } | null)?.title;
-    if (this.focusSeries() && typeof title === 'string') this.initialSearch.set(title);
+    // The address is read for every change while the page is shown, not once (UX8): the route is reused for another query.
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => this.applyQuery(params));
     this.reload();
     this.state.refreshAttention();
+  }
+
+  private applyQuery(params: ParamMap): void {
+    this.picked.set(params.get('tracker'));
+    const series = params.get('series');
+    // "Open in Tracking": the title comes with the navigation (its state, also kept in the history entry), never in the address.
+    // During a navigation its own state only (the history entry is still the previous page's); after it, the current entry's.
+    const nav = this.router.currentNavigation();
+    const state = nav ? nav.extras.state : (globalThis.history?.state as Record<string, unknown> | null | undefined);
+    const title = state?.['title'];
+    this.initialSearch.set(series && typeof title === 'string' ? title : '');
+    this.focusSeries.set(series);
   }
 
   reload(): void {

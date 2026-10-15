@@ -1,6 +1,8 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
-import { ConnectedPosition, OverlayModule } from '@angular/cdk/overlay';
-import { RouterLink } from '@angular/router';
+import { ChangeDetectionStrategy, Component, OnDestroy, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { A11yModule } from '@angular/cdk/a11y';
+import { CdkConnectedOverlay, ConnectedPosition, OverlayModule } from '@angular/cdk/overlay';
+import { NavigationStart, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -9,6 +11,7 @@ import { TrackerSeriesRowDto, TrackerSeriesSummaryDto } from '../../core/api/api
 import { TrackerStateService } from './tracker-state.service';
 import { TrackersApiService } from './trackers-api.service';
 import { TRACKING_PATH, bucketText, bucketTone, dateText, numbersText, ofText, statusText, trackerName } from './tracker-texts';
+import { provideTrackerTooltips } from './tracker-tooltips';
 
 /** Below the button, right-aligned; above it when there is no room below. */
 const POSITIONS: ConnectedPosition[] = [
@@ -23,11 +26,15 @@ const POSITIONS: ConnectedPosition[] = [
  * chip, MangaPixer's numbers against the tracker's, the dates, and "Open in Tracking" to that series' row on the Tracking page.
  * Hidden without a connected tracker (the shared overview, loaded by the app shell at sign-in), and for a folder that is not a
  * linked series. Reads `GET /trackers/nodes/{id}/summary` (stored state only - nothing is sent to a tracker). Phone: icon only.
+ * The popover is a small dialog (UX review UX5 / UX10): opening moves the focus into it (its first link) and Tab stays inside;
+ * Escape or a press outside closes it and puts the focus back on the button. A transparent backdrop takes that outside press, so a
+ * tap beside the popover only closes it - it never also opens the card under the finger.
  */
 @Component({
   selector: 'app-series-tracking-button',
   standalone: true,
-  imports: [OverlayModule, RouterLink, MatButtonModule, MatIconModule, MatTooltipModule],
+  imports: [A11yModule, OverlayModule, RouterLink, MatButtonModule, MatIconModule, MatTooltipModule],
+  providers: [provideTrackerTooltips()],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (shown()) {
@@ -39,11 +46,13 @@ const POSITIONS: ConnectedPosition[] = [
       </button>
       <ng-template cdkConnectedOverlay [cdkConnectedOverlayOrigin]="origin" [cdkConnectedOverlayOpen]="open()"
                    [cdkConnectedOverlayPositions]="positions" [cdkConnectedOverlayPush]="true"
-                   [cdkConnectedOverlayViewportMargin]="8"
-                   (overlayOutsideClick)="onOutside($event, origin.elementRef.nativeElement)" (detach)="open.set(false)"
-                   (overlayKeydown)="onKey($event)">
-        <section id="series-tracking-popover" class="tracking-popover" role="dialog" aria-label="Tracking for this series"
-                 data-testid="series-tracking-popover">
+                   [cdkConnectedOverlayViewportMargin]="8" [cdkConnectedOverlayHasBackdrop]="true"
+                   cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop"
+                   (backdropClick)="dismiss(origin.elementRef.nativeElement)" (detach)="open.set(false)" (attach)="focusIn()"
+                   (overlayKeydown)="onKey($event, origin.elementRef.nativeElement)">
+        <section id="series-tracking-popover" class="tracking-popover" role="dialog" aria-labelledby="series-tracking-popover-title"
+                 tabindex="-1" cdkTrapFocus data-testid="series-tracking-popover">
+          <span id="series-tracking-popover-title" class="sr-only">Tracking for this series</span>
           @for (row of rows(); track row.tracker) {
             <div class="row" [attr.data-testid]="'series-tracking-row-' + row.tracker">
               <div class="head">
@@ -85,8 +94,11 @@ const POSITIONS: ConnectedPosition[] = [
       .tracking-btn mat-icon { margin-right: 0; }
       .tracking-btn { min-width: 40px; padding: 0 8px; }
     }
+    .tracking-popover:focus { outline: none; }
+    .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0);
+               white-space: nowrap; border: 0; }
     .tracking-popover {
-      width: min(380px, calc(100vw - 16px)); box-sizing: border-box; max-height: calc(100dvh - 96px); overflow-y: auto;
+      position: relative; width: min(380px, calc(100vw - 16px)); box-sizing: border-box; max-height: calc(100dvh - 96px); overflow-y: auto;
       background: var(--mp-surface-raised); color: var(--mp-text); border: 1px solid rgb(var(--mp-ink-rgb) / 0.16);
       border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 14px;
       box-shadow: 0 8px 24px rgb(var(--mp-shade-rgb) / 0.45);
@@ -110,7 +122,7 @@ const POSITIONS: ConnectedPosition[] = [
     .open { align-self: flex-start; }
   `],
 })
-export class SeriesTrackingButtonComponent {
+export class SeriesTrackingButtonComponent implements OnDestroy {
   private readonly api = inject(TrackersApiService);
   private readonly state = inject(TrackerStateService);
 
@@ -132,15 +144,37 @@ export class SeriesTrackingButtonComponent {
   private requested: string | null = null;
 
   constructor() {
-    // A new folder (or the first connected tracker) reads its summary; a folder without one hides the button.
+    // A new folder (or the first connected tracker) reads its summary; a folder without one hides the button. The popover belongs to
+    // the folder it was opened on: the browse page reuses this component from folder to folder, so a new folder closes it (owner
+    // review on an iPad: it reopened by itself on the next series).
     effect(() => {
       const id = this.nodeId();
+      untracked(() => this.open.set(false));
       if (!this.state.hasConnected()) {
         this.summary.set(null);
         return;
       }
       this.load(id);
     });
+    // Any navigation closes it - also a click-less one (an iPad back / forward swipe), which no outside click closes first. The
+    // overlay is detached HERE, not on the next render: leaving the browse page detaches its view (LibraryBrowseReuseStrategy), so
+    // a render would never come and the popover would stay over the next page (UX review UX0).
+    inject(Router).events.pipe(takeUntilDestroyed()).subscribe((event) => {
+      if (event instanceof NavigationStart) this.close();
+    });
+  }
+
+  /** The popover's overlay directive, while the button is shown. */
+  private readonly connected = viewChild(CdkConnectedOverlay);
+
+  ngOnDestroy(): void {
+    this.close();
+  }
+
+  /** Closes the popover now: the flag, and the overlay itself without waiting for change detection. */
+  private close(): void {
+    this.open.set(false);
+    this.connected()?.overlayRef?.detach();
   }
 
   toggle(): void {
@@ -150,14 +184,22 @@ export class SeriesTrackingButtonComponent {
     if (next) this.load(this.nodeId(), true);
   }
 
-  onOutside(event: MouseEvent, origin: HTMLElement): void {
-    // A click on the button itself toggles; anything else outside closes.
-    if (event.target instanceof Node && origin.contains(event.target)) return;
+  /** A press outside (on the transparent backdrop - the button too lies under it): close, and the focus goes back to the button. */
+  dismiss(origin: HTMLElement): void {
     this.open.set(false);
+    origin.focus({ preventScroll: true });
   }
 
-  onKey(event: KeyboardEvent): void {
-    if (event.key === 'Escape') this.open.set(false);
+  onKey(event: KeyboardEvent, origin: HTMLElement): void {
+    // The overlay detaches itself on Escape; the focus goes back to the button, not to the page's body.
+    if (event.key === 'Escape') this.dismiss(origin);
+  }
+
+  /** Just opened: the focus moves into the popover - its first link ("Open in Tracking"), else the dialog itself. */
+  focusIn(): void {
+    const pane = this.connected()?.overlayRef?.overlayElement;
+    const target = pane?.querySelector<HTMLElement>('a[href], button:not([disabled])') ?? pane?.querySelector<HTMLElement>('[role="dialog"]');
+    target?.focus({ preventScroll: true });
   }
 
   chip(row: TrackerSeriesRowDto): string {

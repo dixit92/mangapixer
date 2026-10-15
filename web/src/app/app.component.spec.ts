@@ -39,6 +39,15 @@ describe('AppComponent footer version', () => {
     expect(footer.textContent).toContain('1.3.0');
   });
 
+  it('keeps the version line under the page content, so it never paints over a button at the bottom (UX review UX9)', () => {
+    const { fixture, httpMock } = setup();
+    httpMock.expectOne('/api/v1/system/info').flush({ version: '1.3.0+sha.abc123' });
+    fixture.detectChanges();
+    const footer = fixture.nativeElement.querySelector('.app-footer') as HTMLElement;
+    expect(Number(getComputedStyle(footer).zIndex)).toBeLessThan(0);
+    expect(getComputedStyle(footer).pointerEvents).toBe('none');
+  });
+
   it('hides the footer when the request fails', () => {
     const { fixture, httpMock } = setup();
     const req = httpMock.expectOne('/api/v1/system/info');

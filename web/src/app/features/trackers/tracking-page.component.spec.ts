@@ -3,6 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { BehaviorSubject } from 'rxjs';
 import { vi } from 'vitest';
 
 import { TrackerSummaryDto } from '../../core/api/api-types';
@@ -26,14 +27,18 @@ const MU = (o: Partial<TrackerSummaryDto> = {}) => summary({ slug: 'mangaupdates
 describe('TrackingPageComponent', () => {
   const openSignIn = vi.fn((url: string) => url.startsWith('https://'));
 
+  let query$: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+
   function create(trackers: TrackerSummaryDto[], query: Record<string, string> = {}) {
     openSignIn.mockClear();
+    query$ = new BehaviorSubject(convertToParamMap(query));
     TestBed.configureTestingModule({
       imports: [TrackingPageComponent],
       providers: [
         provideNoopAnimations(), provideRouter([]), provideHttpClient(), provideHttpClientTesting(),
         { provide: TrackerNavigationService, useValue: { openSignIn } },
-        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(query) } } },
+        // The address as the router gives it: the snapshot at creation, and every later change of the query.
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(query) }, queryParamMap: query$ } },
       ],
     });
     const fixture = TestBed.createComponent(TrackingPageComponent);
@@ -213,5 +218,27 @@ describe('TrackingPageComponent', () => {
     } finally {
       history.replaceState(null, '');
     }
+  });
+
+  it('UX8: a new ?tracker= / ?series= while the page is shown switches the tab and highlights that series', () => {
+    const { fixture, http, el } = create([summary({ account: trackerAccount() }), MU({ account: trackerAccount({ tracker: 'mangaupdates' }) })],
+      { tracker: 'mal' });
+    http.expectOne((r) => r.url === `${BASE}/mal/series`).flush(seriesPage([seriesRow()]));
+    fixture.detectChanges();
+    expect(q(el, 'tracking-tab-mal').getAttribute('aria-selected')).toBe('true');
+
+    query$.next(convertToParamMap({ tracker: 'mangaupdates', series: 's9' }));
+    fixture.detectChanges();
+    http.expectOne((r) => r.url === `${BASE}/mangaupdates/series`).flush(seriesPage([seriesRow({ seriesId: 's9', tracker: 'mangaupdates' })]));
+    fixture.detectChanges();
+    expect(q(el, 'tracking-tab-mangaupdates').getAttribute('aria-selected')).toBe('true');
+    expect(q(el, 'tracking-row-s9').classList).toContain('focused');
+
+    // Another series on the same tab: searched for and highlighted in the list that is already there.
+    query$.next(convertToParamMap({ tracker: 'mangaupdates', series: 's3' }));
+    fixture.detectChanges();
+    http.expectOne((r) => r.url === `${BASE}/mangaupdates/series`).flush(seriesPage([seriesRow({ seriesId: 's3', tracker: 'mangaupdates' })]));
+    fixture.detectChanges();
+    expect(q(el, 'tracking-row-s3').classList).toContain('focused');
   });
 });

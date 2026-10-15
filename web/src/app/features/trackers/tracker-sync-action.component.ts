@@ -9,6 +9,7 @@ import { CatalogNodeDto } from '../../core/api/api-types';
 import { TrackerStateService } from './tracker-state.service';
 import { TrackersApiService } from './trackers-api.service';
 import { failureText } from './tracker-texts';
+import { provideTrackerTooltips } from './tracker-tooltips';
 
 /**
  * The browse selection's "Sync to trackers" (1.43.0, owner Q3), for every user with a connected tracker: On / Off / As default
@@ -20,6 +21,7 @@ import { failureText } from './tracker-texts';
   selector: 'app-tracker-sync-action',
   standalone: true,
   imports: [MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule],
+  providers: [provideTrackerTooltips()],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (state.hasConnected()) {

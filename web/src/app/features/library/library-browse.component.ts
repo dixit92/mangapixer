@@ -128,7 +128,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
          (links, buttons, sliders), which all carry their own accessible/keyboard
          semantics already. Marking the wrapper presentational keeps it out of the a11y
          tree instead of misrepresenting the whole toolbar as one focusable widget. -->
-    <div class="browse-bar" #browseBar [class.selecting]="selectMode()" [class.has-view-switch]="!!volumeView()?.available" role="presentation"
+    <div class="browse-bar" #browseBar [class.selecting]="selectMode()" [class.has-view-switch]="!!volumeView()?.available"
+         [class.has-tracking]="trackingShown()" role="presentation"
          (click)="onBarClick($event)">
       @if (!selectMode()) {
         <div class="breadcrumbs">
@@ -560,8 +561,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     /* 1.38.0: with the Volumes | Folders switch the controls squeezed the trail to a letter on a tablet (820 px). The bar
        may wrap: the trail keeps at least 240 px on the first row and the controls move to a second row, right-aligned.
        Where everything fits (desktop) nothing moves; the phone rule below still gives the trail its own row. */
-    .browse-bar.has-view-switch { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; }
-    .browse-bar.has-view-switch .breadcrumbs { flex: 1 1 240px; }
+    .browse-bar.has-view-switch, .browse-bar.has-tracking { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; }
+    .browse-bar.has-view-switch .breadcrumbs, .browse-bar.has-tracking .breadcrumbs { flex: 1 1 240px; }
     .breadcrumbs {
       flex: 1 1 auto; min-width: 0;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -697,8 +698,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
         font-size: 15px; line-height: 1.35;
       }
       /* The Volumes | Folders switch (1.29.0) would squeeze the trail: the bar wraps, the trail takes its own row. */
-      .browse-bar.has-view-switch { flex-wrap: wrap; justify-content: flex-start; }
-      .browse-bar.has-view-switch .breadcrumbs { flex-basis: 100%; }
+      .browse-bar.has-view-switch, .browse-bar.has-tracking { flex-wrap: wrap; justify-content: flex-start; }
+      .browse-bar.has-view-switch .breadcrumbs, .browse-bar.has-tracking .breadcrumbs { flex-basis: 100%; }
       .breadcrumbs a { padding: 2px 0; }
       .breadcrumbs .sep { color: var(--mp-text-faint); }
       /* The current folder: the brightest crumb — the mobile "you are here".
@@ -846,6 +847,9 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   /** Measured height of the sticky top bar: the jump rail's sticky offset. */
   readonly barHeight = signal(0);
   private readonly browseBar = viewChild<ElementRef<HTMLElement>>('browseBar');
+  /** 1.43.0 (UX review UX6): the gold Tracking button takes room from the trail - the bar then wraps like with the Volumes switch. */
+  private readonly trackingButton = viewChild(SeriesTrackingButtonComponent);
+  readonly trackingShown = computed(() => this.trackingButton()?.shown() ?? false);
   private barResize: ResizeObserver | null = null;
 
   // Scroll-spy (1.8.0): the element whose scroll events drive the active letter.

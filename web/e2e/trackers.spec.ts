@@ -566,9 +566,182 @@ test.describe('tracker sync web (1.43.0)', () => {
     await pop.getByTestId('series-tracking-open-mal').click();
     await expect(page).toHaveURL(/\/tracking\?tracker=mal&series=s7$/);
     await expect(page.getByTestId('tracking-row-s7')).toHaveClass(/focused/);
+    // The popover never follows to another page (owner review on an iPad: it stayed open over the Tracking page), and going back
+    // to the series finds its button closed.
+    await expect(page.getByTestId('series-tracking-popover')).toHaveCount(0);
+    await page.goBack();
+    await expect(page.getByTestId('series-tracking-button')).toBeVisible();
+    await expect(page.getByTestId('series-tracking-button')).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByTestId('series-tracking-popover')).toHaveCount(0);
+    // A click-less navigation away while it is open (an iPad back / forward swipe - no outside click to close it first): the browse
+    // page is kept and detached, so the popover must be closed before it goes (UX review UX0).
+    await page.getByTestId('series-tracking-button').click();
+    await expect(page.getByTestId('series-tracking-popover')).toBeVisible();
+    await page.goForward();
+    await expect(page).toHaveURL(/\/tracking\?tracker=mal&series=s7$/);
+    await expect(page.getByTestId('tracking-row-s7')).toBeVisible();
+    await expect(page.getByTestId('series-tracking-popover')).toHaveCount(0);
+    await page.goBack();
+    await expect(page.getByTestId('series-tracking-button')).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByTestId('series-tracking-popover')).toHaveCount(0);
     // The title travels in the navigation state and seeds the search; it is never in the address.
     expect(asked.at(-1)).toBe('Synthetic Saga s7');
     expect(page.url()).not.toContain('Synthetic');
+    expect(outside).toEqual([]);
+  });
+});
+
+/**
+ * The UX review of 1.43.0 (lane UX): what a touch screen, a keyboard and an address change do with the Tracking page and the series
+ * header's popover. Contract-shaped answers, nothing leaves the test instance.
+ */
+test.describe('tracking UX review fixes (1.43.0)', () => {
+  /** The Tracking list for MyAnimeList (and MangaUpdates when `mu` rows are given): one row per bucket that matters here. */
+  async function mockList(page: Page, mal: Record<string, unknown>[], mu: Record<string, unknown>[] | null = null): Promise<void> {
+    const muSummary = { slug: 'mangaupdates', name: 'MangaUpdates', allowed: true, networkDisabledByConfig: false, connectKind: 'Password',
+      currentConsentVersion: 1, supportsPrivateEntries: false,
+      account: mu ? { ...connectedMal().account, tracker: 'mangaupdates', displayName: 'reader' } : null };
+    await page.route(/\/api\/v1\/trackers$/, (r) => r.fulfill({ json: { trackers: [connectedMal(), muSummary] } }));
+    await page.route(/\/api\/v1\/trackers\/attention$/, (r) => r.fulfill({ json: { total: 0, trackers: [] } }));
+    const answer = (rows: Record<string, unknown>[]) => ({ items: rows, page: 1, pageSize: 50, totalCount: rows.length,
+      counts: { all: rows.length, inSync: rows.length, mangaPixerAhead: 0, trackerAhead: 0, leftAsIs: 0, held: 0, noId: 0, notSynced: 0, problem: 0,
+        unchecked: 0, attention: 0 } });
+    await page.route(/\/api\/v1\/trackers\/mal\/series(\?.*)?$/, (r) => r.fulfill({ json: answer(mal) }));
+    if (mu) await page.route(/\/api\/v1\/trackers\/mangaupdates\/series(\?.*)?$/, (r) => r.fulfill({ json: answer(mu) }));
+  }
+
+  const hits = (page: Page, box: { x: number; y: number; width: number; height: number }, testId: string) =>
+    page.evaluate(([x, y, t]) => !!document.elementFromPoint(x as number, y as number)?.closest(`[data-testid="${t}"]`),
+      [box.x + box.width / 2, box.y + box.height / 2, testId] as const);
+
+  test.describe('on a touch screen', () => {
+    test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
+
+    test('UX1: a disabled "Set progress" says why in the row, and no tooltip opens or stays on a touch screen', async ({ page }) => {
+      test.setTimeout(120_000);
+      const outside = await guardOutside(page);
+      await login(page);
+      await mockList(page, [trackingRow('s5', 'InSync'), trackingRow('s1', 'TrackerAhead', { remoteChapters: 300, fromTracker: { possible: true, block: 'None' } })]);
+      await page.goto('/tracking');
+      const list = page.getByTestId('tracking-list-mal');
+      const blocked = list.getByTestId('tracking-to-s5');
+      await expect(blocked).toHaveAttribute('aria-disabled', 'true');
+      // The reason is written in the row - no hover or long press needed - and it is what a tap there reaches.
+      const why = list.getByTestId('tracking-why-s5');
+      await expect(why).toBeVisible();
+      await expect(why).toHaveText('Neither side is ahead - nothing to bring in or send');
+      await expect(list.getByTestId('tracking-why-s1')).toHaveText('MangaPixer is not ahead of MyAnimeList - nothing to send');
+      await why.scrollIntoViewIfNeeded();
+      expect(await hits(page, (await why.boundingBox())!, 'tracking-why-s5')).toBe(true);
+
+      // A tap, the compatibility mouseenter an iPad sends with a tap, and a long press: no tooltip, now or later.
+      await blocked.tap({ force: true });
+      await blocked.dispatchEvent('mouseenter');
+      const box = (await blocked.boundingBox())!;
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }] });
+      await page.waitForTimeout(900);
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await cdp.detach();
+      await page.waitForTimeout(600);
+      await expect(page.locator('.mat-mdc-tooltip')).toHaveCount(0);
+      expect(outside).toEqual([]);
+    });
+
+    test('UX10: a tap beside the open popover only closes it - the card under the finger does not open; the button still toggles', async ({ page }) => {
+      test.skip(!VOLUMES_ROOT, 'E2E_SERIES_FIXTURE_ROOT not set: no synthetic library available');
+      test.setTimeout(180_000);
+      const outside = await guardOutside(page);
+      await login(page);
+      const [libraryId, folderId] = await volumeLibrary(page);
+      await mockList(page, []);
+      const row = trackingRow('s7', 'InSync', { nodeId: folderId });
+      await page.route(new RegExp(`/api/v1/trackers/nodes/${folderId}/summary$`), (r) => r.fulfill({ json: { seriesId: 's7', rows: [row] } }));
+      await page.setViewportSize({ width: 820, height: 1180 });
+      await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+      const button = page.getByTestId('series-tracking-button');
+      await button.tap();
+      const pop = page.getByTestId('series-tracking-popover');
+      await expect(pop).toBeVisible();
+      const popBox = (await pop.boundingBox())!;
+      // A card whose centre is beside the popover.
+      let target: { x: number; y: number } | null = null;
+      for (const card of await page.locator('.nodes .node-wrap').all()) {
+        const b = await card.boundingBox();
+        if (!b) continue;
+        const x = b.x + b.width / 2; const y = b.y + b.height / 2;
+        const inPop = x >= popBox.x && x <= popBox.x + popBox.width && y >= popBox.y && y <= popBox.y + popBox.height;
+        if (!inPop && y > 0 && y < 1170) { target = { x, y }; break; }
+      }
+      expect(target, 'a card beside the popover').not.toBeNull();
+      const before = page.url();
+      await page.touchscreen.tap(target!.x, target!.y);
+      await expect(pop).toHaveCount(0);
+      await page.waitForTimeout(500);
+      expect(page.url()).toBe(before);
+      await expect(button).toBeFocused();
+
+      // The button opens it, and a tap on the button while open closes it (the backdrop above the button takes that tap).
+      await button.tap();
+      await expect(pop).toBeVisible();
+      const bb = (await button.boundingBox())!;
+      await page.touchscreen.tap(bb.x + bb.width / 2, bb.y + bb.height / 2);
+      await expect(pop).toHaveCount(0);
+      await button.tap();
+      await expect(pop).toBeVisible();
+      expect(outside).toEqual([]);
+    });
+  });
+
+  test('UX5: the popover takes the focus when it opens, keeps Tab inside, and Escape gives it back to the button', async ({ page }) => {
+    test.skip(!VOLUMES_ROOT, 'E2E_SERIES_FIXTURE_ROOT not set: no synthetic library available');
+    test.setTimeout(180_000);
+    const outside = await guardOutside(page);
+    await login(page);
+    const [libraryId, folderId] = await volumeLibrary(page);
+    await mockList(page, []);
+    const row = trackingRow('s7', 'InSync', { nodeId: folderId });
+    await page.route(new RegExp(`/api/v1/trackers/nodes/${folderId}/summary$`), (r) => r.fulfill({ json: { seriesId: 's7', rows: [row] } }));
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+    const button = page.getByTestId('series-tracking-button');
+    await button.focus();
+    await page.keyboard.press('Enter');
+    const pop = page.getByTestId('series-tracking-popover');
+    await expect(pop).toBeVisible();
+    await expect(pop).toHaveAttribute('role', 'dialog');
+    await expect(pop).toHaveAccessibleName('Tracking for this series');
+    await expect(pop.getByTestId('series-tracking-open-mal')).toBeFocused();
+    const inside = () => page.evaluate(() => !!document.activeElement?.closest('[data-testid="series-tracking-popover"]'));
+    for (const key of ['Tab', 'Tab', 'Shift+Tab', 'Shift+Tab', 'Shift+Tab']) {
+      await page.keyboard.press(key);
+      expect(await inside(), `focus inside after ${key}`).toBe(true);
+    }
+    await page.keyboard.press('Escape');
+    await expect(pop).toHaveCount(0);
+    await expect(button).toBeFocused();
+    expect(outside).toEqual([]);
+  });
+
+  test('UX8: another ?tracker= / ?series= while the Tracking page is shown switches the tab and highlights that series', async ({ page }) => {
+    test.setTimeout(120_000);
+    const outside = await guardOutside(page);
+    await login(page);
+    await mockList(page, [trackingRow('s1', 'InSync')], [trackingRow('m1', 'InSync', { tracker: 'mangaupdates' }), trackingRow('m2', 'InSync', { tracker: 'mangaupdates' })]);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/tracking?tracker=mal');
+    await expect(page.getByTestId('tracking-row-s1')).toBeVisible();
+    await expect(page.getByTestId('tracking-tab-mal')).toHaveAttribute('aria-selected', 'true');
+    // An in-app change of the address (here: back to an earlier entry of this same page) - the route is reused, not re-created.
+    await page.evaluate(() => {
+      history.pushState(null, '', '/tracking?tracker=mangaupdates&series=m2');
+      history.pushState(null, '', '/tracking?tracker=mal');
+      history.back();
+    });
+    await expect(page).toHaveURL(/\/tracking\?tracker=mangaupdates&series=m2$/);
+    await expect(page.getByTestId('tracking-tab-mangaupdates')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByTestId('tracking-row-m2')).toHaveClass(/focused/);
+    await expect(page.getByTestId('tracking-row-m1')).not.toHaveClass(/focused/);
     expect(outside).toEqual([]);
   });
 });

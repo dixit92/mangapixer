@@ -8,6 +8,7 @@ import { of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { TrackerEntryDto, TrackerSeriesRowDto } from '../../core/api/api-types';
+import { TrackingListMemory } from './tracking-list-memory.service';
 import { TrackingSeriesListComponent } from './tracking-series-list.component';
 import { listCounts, seriesPage, seriesRow } from './trackers.testing';
 
@@ -36,11 +37,12 @@ const AHEAD = (o: Partial<TrackerSeriesRowDto> = {}) => seriesRow({
  * the first-connect preview and Send all. Mocked HTTP backend: every request is to this server.
  */
 describe('TrackingSeriesListComponent', () => {
-  function create(first: ReturnType<typeof seriesPage>, opts: { canSync?: boolean; focus?: string | null; search?: string } = {}) {
+  function create(first: ReturnType<typeof seriesPage>, opts: { canSync?: boolean; focus?: string | null; search?: string; before?: () => void } = {}) {
     TestBed.configureTestingModule({
       imports: [TrackingSeriesListComponent],
       providers: [provideNoopAnimations(), provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
     });
+    opts.before?.();
     const fixture = TestBed.createComponent(TrackingSeriesListComponent);
     fixture.componentRef.setInput('slug', 'mal');
     fixture.componentRef.setInput('name', 'MyAnimeList');
@@ -301,5 +303,218 @@ describe('TrackingSeriesListComponent', () => {
     const { el, firstReq } = create(seriesPage([AHEAD()]), { focus: 's1', search: 'Synthetic Saga' });
     expect(params(firstReq)).toEqual({ page: '1', q: 'Synthetic Saga' });
     expect(q(el, 'tracking-row-s1').classList).toContain('focused');
+  });
+
+  // ---- UX review 1.43.0 (lane UX) ----
+
+  it('UX1: a disabled "Set progress" says why in a line under the buttons - readable without a hover; an enabled one adds none', () => {
+    const inSync = seriesRow({ seriesId: 's2', title: 'Second Story' });
+    const noId = seriesRow({ seriesId: 's3', title: 'Third Tale', bucket: 'NoId', state: 'NoId', remoteId: null,
+      toTracker: { possible: false, block: 'NoId' }, fromTracker: { possible: false, block: 'NoId' } });
+    const both = seriesRow({ seriesId: 's4', title: 'Fourth', toTracker: { possible: true, block: 'None' }, fromTracker: { possible: true, block: 'None' } });
+    const { el } = create(seriesPage([AHEAD(), inSync, noId, both]));
+    // Only "to" is blocked: its reason, under the buttons (the tooltip stays for a mouse).
+    expect(q(el, 'tracking-why-s1').textContent!.trim()).toBe('MangaPixer is not ahead of MyAnimeList - nothing to send');
+    expect(q(el, 'tracking-to-s1').getAttribute('aria-disabled')).toBe('true');
+    // Both blocked because the two sides agree: one short line, not two.
+    expect(q(el, 'tracking-why-s2').textContent!.trim()).toBe('Neither side is ahead - nothing to bring in or send');
+    // Both blocked for the same reason: said once.
+    expect(q(el, 'tracking-why-s3').querySelectorAll('span')).toHaveLength(1);
+    expect(q(el, 'tracking-why-s3').textContent).toContain('No MyAnimeList id for this series - an admin can set it');
+    // Nothing blocked: no line.
+    expect(q(el, 'tracking-why-s4')).toBeNull();
+  });
+
+  it('UX1: an account that cannot sync says so under the buttons', () => {
+    const { el } = create(seriesPage([AHEAD()]), { canSync: false });
+    expect(q(el, 'tracking-why-s1').textContent!.trim()).toBe('Your account cannot sync right now');
+  });
+
+  it('UX2: after a row action the chip counts follow the series to its new chip, without reloading the list', () => {
+    const { fixture, http, el } = create(seriesPage([AHEAD(), seriesRow({ seriesId: 's2', title: 'Second Story' })], {
+      totalCount: 2, counts: listCounts({ trackerAhead: 1, inSync: 1, attention: 1 }),
+    }));
+    const chips = () => [...el.querySelectorAll('.chip-btn')].map((b) => b.textContent!.replace(/\s+/g, ' ').trim());
+    expect(chips()).toContain('MyAnimeList ahead · 1');
+    expect(chips()).toContain('In sync · 1');
+    q(el, 'tracking-from-s1').click();
+    fixture.detectChanges();
+    q(el, 'tracking-from-yes-s1').click();
+    http.expectOne(`${BASE}/entries/s1/from-tracker`).flush({ marked: 6, alreadyRead: 45, remoteChapters: 51, remoteVolumes: 10,
+      entry: seriesRow({ allChapters: 51, chapters: 51, remoteChapters: 51 }) });
+    fixture.detectChanges();
+    http.expectNone((r) => r.url === `${BASE}/series`);
+    expect(chips()).toContain('MyAnimeList ahead · 0');
+    expect(chips()).toContain('In sync · 2');
+    expect(chips()).toContain('All · 2');
+  });
+
+  it('UX2: "Don\'t sync" moves the series to Not synced in the chips (re-read row) and tells the page the badge may change', () => {
+    const held = seriesRow({ bucket: 'Held', state: 'Held', heldChapters: 40, toTracker: { possible: true, block: 'None' } });
+    const { fixture, http, el, c } = create(seriesPage([held], { counts: listCounts({ held: 1, attention: 1 }) }));
+    const changed = vi.fn();
+    c.changed.subscribe(changed);
+    c.toggleDontSync(held);
+    http.expectOne(`${BASE}/entries/s1/dont-sync`).flush(entry({ dontSync: true, state: 'DontSync' }));
+    http.expectOne('/api/v1/trackers/nodes/n1/summary').flush({ seriesId: 's1', rows: [seriesRow({ dontSync: true, bucket: 'NotSynced' })] });
+    fixture.detectChanges();
+    const chips = [...el.querySelectorAll('.chip-btn')].map((b) => b.textContent!.replace(/\s+/g, ' ').trim());
+    expect(chips).toContain('Waiting for you · 0');
+    expect(chips).toContain('Not synced · 1');
+    expect(changed).toHaveBeenCalled();
+  });
+
+  it('UX3: a chip, a search or another page closes an open confirm, "Set to" form or Send all confirm', async () => {
+    const rows = Array.from({ length: 50 }, (_, i) => seriesRow({ seriesId: `x${i}`, title: `Series ${i}` }));
+    const { fixture, http, el, c } = create(seriesPage([AHEAD(), ...rows], { totalCount: 80, counts: listCounts({ trackerAhead: 1, inSync: 79, held: 2 }) }));
+    q(el, 'tracking-from-s1').click();
+    fixture.detectChanges();
+    expect(q(el, 'tracking-from-confirm-s1')).not.toBeNull();
+    q(el, 'tracking-chip-InSync').click();
+    http.expectOne((r) => r.url === `${BASE}/series`).flush(seriesPage(rows, { totalCount: 79, counts: listCounts({ trackerAhead: 1, inSync: 79, held: 2 }) }));
+    q(el, 'tracking-chip-All').click();
+    http.expectOne((r) => r.url === `${BASE}/series`).flush(seriesPage([AHEAD(), ...rows], { totalCount: 80, counts: listCounts({ trackerAhead: 1, inSync: 79, held: 2 }) }));
+    fixture.detectChanges();
+    expect(q(el, 'tracking-from-confirm-s1')).toBeNull();
+    expect(q(el, 'tracking-from-s1')).not.toBeNull();
+
+    c.openSet(AHEAD());
+    q(el, 'tracker-send-all-mal').click();
+    fixture.detectChanges();
+    expect(q(el, 'tracker-set-form-s1')).not.toBeNull();
+    expect(q(el, 'tracker-send-all-confirm-mal')).not.toBeNull();
+    q(el, 'tracking-load-more-mal').click();
+    http.expectOne((r) => r.url === `${BASE}/series` && r.params.get('page') === '2')
+      .flush(seriesPage([seriesRow({ seriesId: 'y1', title: 'More' })], { page: 2, totalCount: 80, counts: listCounts({ trackerAhead: 1, inSync: 79, held: 2 }) }));
+    fixture.detectChanges();
+    expect(q(el, 'tracker-set-form-s1')).toBeNull();
+    expect(q(el, 'tracker-send-all-confirm-mal')).toBeNull();
+
+    c.openSet(AHEAD());
+    fixture.detectChanges();
+    c.searchNow();
+    http.expectOne((r) => r.url === `${BASE}/series`).flush(seriesPage([AHEAD()], { counts: listCounts({ trackerAhead: 1 }) }));
+    fixture.detectChanges();
+    expect(q(el, 'tracker-set-form-s1')).toBeNull();
+  });
+
+  it('UX4: the error line clears when the next page or the next list arrives', () => {
+    const page1 = Array.from({ length: 50 }, (_, i) => seriesRow({ seriesId: `a${i}`, title: `Series ${i}` }));
+    const { fixture, http, el } = create(seriesPage(page1, { totalCount: 60 }));
+    q(el, 'tracking-load-more-mal').click();
+    http.expectOne((r) => r.url === `${BASE}/series`).flush({ error: 'daily_cap', message: 'x' }, { status: 409, statusText: 'Conflict' });
+    fixture.detectChanges();
+    expect(q(el, 'tracking-error-mal').textContent).toContain("Today's request limit");
+    q(el, 'tracking-load-more-mal').click();
+    http.expectOne((r) => r.url === `${BASE}/series`).flush(seriesPage([seriesRow({ seriesId: 'b1', title: 'More' })], { page: 2, totalCount: 60 }));
+    fixture.detectChanges();
+    expect(q(el, 'tracking-error-mal')).toBeNull();
+
+    q(el, 'tracking-chip-InSync').click();
+    http.expectOne((r) => r.url === `${BASE}/series`).flush({ error: 'invalid_filter', message: 'x' }, { status: 400, statusText: 'Bad Request' });
+    fixture.detectChanges();
+    expect(q(el, 'tracking-error-mal')).not.toBeNull();
+    q(el, 'tracking-chip-All').click();
+    http.expectOne((r) => r.url === `${BASE}/series`).flush(seriesPage(page1, { totalCount: 60 }));
+    fixture.detectChanges();
+    expect(q(el, 'tracking-error-mal')).toBeNull();
+  });
+
+  it('UX7: a disabled "⋯" item says why in a muted line', () => {
+    const noId = seriesRow({ seriesId: 's2', bucket: 'NoId', state: 'NoId', remoteId: null,
+      toTracker: { possible: false, block: 'NoId' }, fromTracker: { possible: false, block: 'NoId' } });
+    const left = seriesRow({ seriesId: 's3', bucket: 'LeftAsIs', state: 'LeftAsIs', remoteStatus: 'Dropped',
+      toTracker: { possible: false, block: 'LeftAsIs' }, fromTracker: { possible: false, block: 'LeftAsIs' } });
+    const { fixture, el } = create(seriesPage([AHEAD(), noId, left]));
+    const overlay = () => document.querySelector('.cdk-overlay-container')!;
+    const openMenu = (id: string) => { q(el, `tracking-more-${id}`).click(); fixture.detectChanges(); };
+    const close = () => { (document.querySelector('.cdk-overlay-backdrop') as HTMLElement | null)?.click(); fixture.detectChanges(); };
+
+    openMenu('s1');
+    expect(q(overlay(), 'tracking-menu-sync-why')).toBeNull();
+    expect(q(overlay(), 'tracking-menu-set-why')).toBeNull();
+    close();
+
+    openMenu('s2');
+    expect((q(overlay(), 'tracking-menu-sync') as HTMLButtonElement).disabled).toBe(true);
+    expect(q(overlay(), 'tracking-menu-sync-why').textContent).toContain('No MyAnimeList id - an admin can set it');
+    expect(q(overlay(), 'tracking-menu-set-why').textContent).toContain('No MyAnimeList id - an admin can set it');
+    close();
+
+    openMenu('s3');
+    expect(q(overlay(), 'tracking-menu-sync-why')).toBeNull();
+    expect(q(overlay(), 'tracking-menu-set-why').textContent).toContain('Left as is on MyAnimeList');
+  });
+
+  it('UX8: another series to focus while the list is shown is searched and highlighted (the chip back to All)', () => {
+    const { fixture, http, el } = create(seriesPage([AHEAD()]), { focus: 's1', search: 'Synthetic Saga' });
+    expect(q(el, 'tracking-row-s1').classList).toContain('focused');
+    q(el, 'tracking-chip-TrackerAhead').click();
+    http.expectOne((r) => r.url === `${BASE}/series`).flush(seriesPage([AHEAD()]));
+    fixture.componentRef.setInput('focusSeries', 's9');
+    fixture.componentRef.setInput('initialSearch', 'Ninth Story');
+    fixture.detectChanges();
+    const req = http.expectOne((r) => r.url === `${BASE}/series`);
+    expect(params(req)).toEqual({ page: '1', q: 'Ninth Story' });
+    req.flush(seriesPage([seriesRow({ seriesId: 's9', title: 'Ninth Story' })]));
+    fixture.detectChanges();
+    expect(q(el, 'tracking-row-s9').classList).toContain('focused');
+    expect(q(el, 'tracking-chip-All').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('UX11: the "Open in Tracking" highlight ends on the first search or chip and does not come back', async () => {
+    vi.useFakeTimers();
+    try {
+      const { fixture, http, el, c } = create(seriesPage([AHEAD()]), { focus: 's1', search: 'Synthetic Saga' });
+      expect(q(el, 'tracking-row-s1').classList).toContain('focused');
+      c.onSearch('Synth');
+      fixture.detectChanges();
+      expect(q(el, 'tracking-row-s1').classList).not.toContain('focused');
+      vi.advanceTimersByTime(350);
+      http.expectOne((r) => r.url === `${BASE}/series`).flush(seriesPage([AHEAD()]));
+      fixture.detectChanges();
+      expect(q(el, 'tracking-row-s1').classList).not.toContain('focused');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('UX11: Back from "Open the series" finds the same chip, search and pages (in memory, armed by the page)', () => {
+    const page1 = Array.from({ length: 50 }, (_, i) => seriesRow({ seriesId: `a${i}`, title: `Series ${i}` }));
+    const page2 = Array.from({ length: 50 }, (_, i) => seriesRow({ seriesId: `b${i}`, title: `More ${i}` }));
+    const first = create(seriesPage(page1, { totalCount: 120 }));
+    first.c.setFilter('InSync');
+    first.http.expectOne((r) => r.url === `${BASE}/series`).flush(seriesPage(page1, { totalCount: 120 }));
+    first.c.onSearch('Ser');
+    first.c.searchNow();
+    first.http.expectOne((r) => r.url === `${BASE}/series`).flush(seriesPage(page1, { totalCount: 120 }));
+    first.c.loadMore();
+    first.http.expectOne((r) => r.url === `${BASE}/series`).flush(seriesPage(page2, { page: 2, totalCount: 120 }));
+    const memory = TestBed.inject(TrackingListMemory);
+    first.fixture.destroy();
+    first.http.verify();
+    TestBed.resetTestingModule();
+
+    // Back: the page arms the memory (shared, root) before the list is created.
+    const second = create(seriesPage(page1, { totalCount: 120 }), {
+      before: () => {
+        TestBed.overrideProvider(TrackingListMemory, { useValue: memory });
+        memory.arm(true);
+      },
+    });
+    expect(params(second.firstReq)).toEqual({ page: '1', filter: 'InSync', q: 'Ser' });
+    const more = second.http.expectOne((r) => r.url === `${BASE}/series`);
+    expect(params(more)).toEqual({ page: '2', filter: 'InSync', q: 'Ser' });
+    more.flush(seriesPage(page2, { page: 2, totalCount: 120 }));
+    second.fixture.detectChanges();
+    expect(second.el.querySelectorAll('.row:not(.header)')).toHaveLength(100);
+    expect(q(second.el, 'tracking-chip-InSync').getAttribute('aria-pressed')).toBe('true');
+    second.fixture.destroy();
+    second.http.verify();
+    TestBed.resetTestingModule();
+
+    // Any other way in (not armed): page 1, no chip, no search.
+    const third = create(seriesPage(page1, { totalCount: 120 }), { before: () => TestBed.overrideProvider(TrackingListMemory, { useValue: memory }) });
+    expect(params(third.firstReq)).toEqual({ page: '1' });
   });
 });

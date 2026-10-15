@@ -59,6 +59,16 @@ describe('tracker texts', () => {
     expect(failureText(new Error('boom'))).toBe('Something went wrong. Try again.');
   });
 
+  it('never shows a server code it does not know: a generic sentence, a generic fragment in a chip (UX review UX11)', () => {
+    expect(failureText({ status: 500, error: { error: 'boom', message: 'x' } })).toBe('Something went wrong. Try again.');
+    expect(failureText({ status: 403, error: { error: 'boom', message: 'x' } })).toBe('You are not allowed to do this.');
+    expect(errorText('boom')).toBe('an unexpected error');
+    expect(entryStateText({ tracker: 'mal', errorCode: 'boom', remoteStatus: null, state: 'Error' })).toBe('Last sync failed (an unexpected error)');
+    // The codes the tracker routes answer with are all worded.
+    expect(failureText({ status: 400, error: { error: 'invalid_nodes', message: 'x' } })).toBe('Select 1 to 500 folders or series.');
+    expect(failureText({ status: 400, error: { error: 'invalid_daily_cap', message: 'x' } })).toContain('from 100 to 20000');
+  });
+
   it('formats numbers', () => {
     expect(numbersText(12, 2)).toBe('12 ch · 2 vol');
     expect(numbersText(null, 3)).toBe('3 vol');
