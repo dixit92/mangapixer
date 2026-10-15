@@ -6,7 +6,7 @@ import { TrackerSummaryDto } from '../../core/api/api-types';
 import { TrackerAccountPanelComponent } from './tracker-account-panel.component';
 import { TrackerStateService } from './tracker-state.service';
 import { TrackersApiService } from './trackers-api.service';
-import { TRACKER_SLUGS, TRACKER_SYNC_DOCS_URL, failureText } from './tracker-texts';
+import { TRACKER_RING_LEGEND, TRACKER_SLUGS, TRACKER_SYNC_DOCS_URL, failureText } from './tracker-texts';
 import { TrackingListMemory } from './tracking-list-memory.service';
 import { TrackingSeriesListComponent } from './tracking-series-list.component';
 
@@ -34,6 +34,7 @@ import { TrackingSeriesListComponent } from './tracking-series-list.component';
           your click. Private libraries and doujinshi are not synced unless you turn sync on for a folder or series (Select in a
           library, then "Sync").
           <a [href]="docsUrl" target="_blank" rel="noopener noreferrer" data-testid="tracking-help">How tracker sync works</a></p>
+        <p class="legend" data-testid="tracking-ring-legend"><span class="ring-swatch" aria-hidden="true"></span>{{ ringLegend }}</p>
       </header>
 
       @if (loading()) {
@@ -85,6 +86,11 @@ import { TrackingSeriesListComponent } from './tracking-series-list.component';
     h1 { margin: 0; font-size: 26px; font-weight: 500; color: var(--mp-text-strong); }
     .intro p { margin: 0; color: var(--mp-text-muted); overflow-wrap: anywhere; }
     .intro a { color: var(--mp-accent); }
+    .legend { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+    .ring-swatch {
+      flex: none; width: 16px; height: 22px; border-radius: 3px; background: rgb(var(--mp-ink-rgb) / 0.08);
+      box-shadow: inset 0 0 0 2px var(--mp-tracker-mark), inset 0 0 0 3px var(--mp-tracker-mark-edge);
+    }
     .accounts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; align-items: stretch; }
     .series { background: var(--mp-surface); border: 1px solid rgb(var(--mp-ink-rgb) / 0.12); border-radius: 12px; min-width: 0; overflow: hidden; }
     .tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 14px 16px 2px; }
@@ -105,6 +111,7 @@ export class TrackingPageComponent implements OnInit {
   readonly state = inject(TrackerStateService);
 
   readonly docsUrl = TRACKER_SYNC_DOCS_URL;
+  readonly ringLegend = TRACKER_RING_LEGEND;
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
   /** The tab picked by the user or the address. */

@@ -69,6 +69,8 @@ describe('TrackingPageComponent', () => {
   it('says when no tracker is allowed, and links the user docs without a referrer', () => {
     const { el } = create([summary({ allowed: false }), MU({ allowed: false })]);
     expect(q(el, 'tracking-none').textContent).toContain('No tracker is allowed');
+    // The gold ring's meaning (owner, 2026-10-15): read on every tracker the series syncs to.
+    expect(q(el, 'tracking-ring-legend').textContent).toContain('every tracker this series syncs to counts that chapter or volume as read');
     const help = q(el, 'tracking-help') as HTMLAnchorElement;
     expect(help.href).toBe('https://mangapixer.com/tracker-sync/');
     expect(help.rel).toContain('noreferrer');

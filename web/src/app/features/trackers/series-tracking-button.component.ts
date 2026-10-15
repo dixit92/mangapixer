@@ -10,7 +10,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { TrackerSeriesRowDto, TrackerSeriesSummaryDto } from '../../core/api/api-types';
 import { TrackerStateService } from './tracker-state.service';
 import { TrackersApiService } from './trackers-api.service';
-import { TRACKING_PATH, bucketText, bucketTone, dateText, numbersText, ofText, statusText, trackerName } from './tracker-texts';
+import { TRACKER_RING_LEGEND, TRACKING_PATH, bucketText, bucketTone, dateText, numbersText, ofText, statusText, trackerName } from './tracker-texts';
 import { provideTrackerTooltips } from './tracker-tooltips';
 
 /** Below the button, right-aligned; above it when there is no room below. */
@@ -81,6 +81,7 @@ const POSITIONS: ConnectedPosition[] = [
               </a>
             </div>
           }
+          <p class="legend" data-testid="series-tracking-ring-legend"><span class="ring-swatch" aria-hidden="true"></span>{{ ringLegend }}</p>
         </section>
       </ng-template>
     }
@@ -120,6 +121,12 @@ const POSITIONS: ConnectedPosition[] = [
     .remote .num { color: var(--mp-warn); }
     .dates { margin: 0; font-size: 13px; color: var(--mp-text-secondary); }
     .open { align-self: flex-start; }
+    .legend { display: flex; align-items: center; gap: 8px; margin: 0; padding-top: 10px; border-top: 1px solid rgb(var(--mp-ink-rgb) / 0.1);
+      font-size: 12px; color: var(--mp-text-secondary); }
+    .ring-swatch {
+      flex: none; width: 14px; height: 20px; border-radius: 3px; background: rgb(var(--mp-ink-rgb) / 0.08);
+      box-shadow: inset 0 0 0 2px var(--mp-tracker-mark), inset 0 0 0 3px var(--mp-tracker-mark-edge);
+    }
   `],
 })
 export class SeriesTrackingButtonComponent implements OnDestroy {
@@ -130,6 +137,7 @@ export class SeriesTrackingButtonComponent implements OnDestroy {
   readonly nodeId = input.required<string>();
 
   readonly trackingPath = TRACKING_PATH;
+  readonly ringLegend = TRACKER_RING_LEGEND;
   readonly positions = POSITIONS;
   readonly open = signal(false);
   readonly summary = signal<TrackerSeriesSummaryDto | null>(null);

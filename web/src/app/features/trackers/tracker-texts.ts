@@ -29,6 +29,13 @@ export const TRACKER_USER_CONSENT_VERSION: Record<string, number> = { mal: 1, ma
 export const TRACKER_SETUP_DOCS_URL = 'https://mangapixer.com/tracker-setup/';
 export const TRACKER_SYNC_DOCS_URL = 'https://mangapixer.com/tracker-sync/';
 
+/**
+ * What the gold ring around a cover means (owner, 2026-10-15): read on EVERY tracker the series syncs to - a series synced to two trackers
+ * shows no ring on a chapter one of them has not reached. Shown as a legend on the Tracking page and in the series header's popover.
+ */
+export const TRACKER_RING_LEGEND =
+  'A gold border around a cover means every tracker this series syncs to counts that chapter or volume as read.';
+
 /** The SPA route MyAnimeList redirects back to after the sign-in (`app.routes.ts`). */
 export const TRACKER_CALLBACK_PATH = '/trackers/callback/';
 

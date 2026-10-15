@@ -60,13 +60,13 @@ export function directionShort(mode: ReaderMode): string {
          (pointerup)="pressEnd.emit()"
          (pointercancel)="pressEnd.emit()"
          (pointerleave)="pressEnd.emit()">
+        <!-- 1.43.0: the tracker ring goes around the whole row in list mode (owner, 2026-10-15), around the cover on cards. -->
+        <app-tracker-read-mark [trackers]="node().trackerRead" />
         <div class="cover" [appSeriesInfoHover]="hoverId()" [hoverAnchor]="cardEl">
           @if (node().coverUrl; as cover) {
             <img appCover [src]="cover" alt="" loading="lazy">
           }
           <mat-icon class="cover-fallback">{{ icon() }}</mat-icon>
-          <!-- 1.43.0: the tracker's read mark on the thumbnail's top edge, as on the cards. -->
-          <app-tracker-read-mark [trackers]="node().trackerRead" />
           @if (node().volumeStack; as stack) {
             <app-volume-incomplete-badge [summary]="stack" />
           }
@@ -128,12 +128,13 @@ export function directionShort(mode: ReaderMode): string {
       flex: 1 1 auto; min-width: 0; cursor: pointer; text-decoration: none; color: inherit;
       display: flex; align-items: center; gap: 12px;
       padding: 6px; border-radius: 8px; background: rgb(var(--mp-ink-rgb) / 0.03);
+      /* The tracker ring's frame in list mode: the row, with its 8 px radius (the ring is inset: the 6 px padding keeps it off the
+         thumbnail and the badges). */
+      position: relative; --mp-tracker-mark-radius: 8px;
     }
     .cover {
       position: relative; width: 46px; height: 66px; flex: 0 0 auto; border-radius: 4px; overflow: hidden;
       background: rgb(var(--mp-ink-rgb) / 0.06); display: flex; align-items: center; justify-content: center;
-      /* 1.43.0: the tracker ring is 1 px on this 46 px thumbnail (2 px on the cards) and follows its 4 px radius. */
-      --mp-tracker-mark-width: 1px; --mp-tracker-mark-radius: 4px;
     }
     .cover img { width: 100%; height: 100%; object-fit: cover; position: relative; z-index: 1; }
     .cover-fallback { font-size: 24px; width: 24px; height: 24px; color: var(--mp-text-faint); position: absolute; z-index: 0; }

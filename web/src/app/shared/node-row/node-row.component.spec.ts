@@ -116,10 +116,11 @@ describe('NodeRowComponent', () => {
     expect(directionShort('Spread' as never)).toBe('Spread');
   });
 
-  it('shows the tracker read mark on the thumbnail only when a tracker counts the item as read (1.43.0)', () => {
+  it('shows the tracker ring around the whole row (not the thumbnail) only when the trackers count the item as read (1.43.0)', () => {
     const marked = create({ node: node({ trackerRead: ['mal'] }) });
-    const mark = marked.el.querySelector('.cover [data-testid="tracker-read-mark"]') as HTMLElement;
+    const mark = marked.el.querySelector('.node-card > app-tracker-read-mark [data-testid="tracker-read-mark"]') as HTMLElement;
     expect(mark).not.toBeNull();
+    expect(marked.el.querySelector('.cover [data-testid="tracker-read-mark"]')).toBeNull();
     expect(mark.getAttribute('aria-label')).toBe('Read on MyAnimeList');
     // MangaPixer's own read badge is unchanged by it.
     expect(marked.el.querySelector('.badge.read')).toBeNull();
