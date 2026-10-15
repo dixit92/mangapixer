@@ -263,6 +263,13 @@ public sealed class ExportItemBuilder(MangaPixerDbContext db)
             LatestChapter = chapters.Count == 0 ? null : chapters.Max().ToString("0.############", CultureInfo.InvariantCulture),
             Chapters = chapters.Select(decimal.Floor).Distinct().Count(),
             FetchedAt = ExportJson.Truncate(map.FetchedAt),
+            Readable = ReleasedInLanguage.ParseChapters(map.ReadableChaptersJson) is { } readable
+                ? new ExportMangaDexReadableDto
+                {
+                    LatestWholeChapter = readable.Count == 0 ? null : decimal.Floor(readable.Max()).ToString("0", CultureInfo.InvariantCulture),
+                    Chapters = readable.Select(decimal.Floor).Distinct().Count(),
+                }
+                : null,
         };
     }
 

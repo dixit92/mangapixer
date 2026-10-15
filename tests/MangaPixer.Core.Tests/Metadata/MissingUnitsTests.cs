@@ -236,6 +236,96 @@ public sealed class MissingUnitsTests
         Assert.Empty(extras.MissingParts);
     }
 
+    // --- Split chapters next to extras (owner, 2026-10-15: MangaList parity, its 2026.10.34 fix) ---
+    // A folder holding a chapter's parts "Ch. 0006.10" / "Ch. 0006.20" beside its extras "Ch. 0006.50" (Extras) and "Ch. 0006.60"
+    // (Bonus) read 6.6 as a part (only .5 waited for .4), so 6.3, 6.4 and the held extra 6.5 were "missing". Made-up names in that
+    // folder's exact shapes: zero-padded two-digit decimals, parts N.10 / N.20 (/ N.30), extras N.50, N.60 ..., whole chapters N.00.
+
+    private const string SplitTitle = "Lantern Tide Notes";
+
+    internal static IReadOnlyList<string> SplitFolderNames()
+    {
+        static string Whole(int n, int volume, string title) => $"Ch. {n:0000}.00 Vol. {volume:000} ({title}) [Made Up Scans].cbz";
+        var names = new List<string>();
+        names.AddRange(Enumerable.Range(1, 5).Select(n => Whole(n, 1, SplitTitle)));
+        names.AddRange([
+            $"Ch. 0006.10 Vol. 001 ({SplitTitle} [1]).cbz",
+            $"Ch. 0006.20 Vol. 001 ({SplitTitle} [2]).cbz",
+            "Ch. 0006.50 Vol. 001 (Extras 1).cbz",
+            $"Ch. 0006.60 Vol. 001 (Bonus Manga {SplitTitle}).cbz",
+            "Ch. 0007.10 Vol. 002 (Lanterns [1]).cbz",
+            "Ch. 0007.20 Vol. 002 (Lanterns [2]).cbz",
+            "Ch. 0007.50 Vol. 002 (Extras 2).cbz",
+        ]);
+        names.AddRange(new[] { 1, 2 }.Select(t => $"Ch. 0008.{t}0 Vol. 002 (Harbour [{t}]).cbz"));
+        names.AddRange(new[] { 5, 6, 7 }.Select(t => $"Ch. 0008.{t}0 Vol. 002 (Bonus {t}).cbz"));
+        names.AddRange(new[] { 1, 2, 3 }.Select(t => $"Ch. 0009.{t}0 Vol. 002 (Bridges [{t}]).cbz"));
+        names.Add("Ch. 0009.50 Vol. 002 (Extras 3).cbz");
+        names.Add("Ch. 0010.00 Vol. 002 (Tides).cbz");
+        names.AddRange(new[] { 1, 2 }.Select(t => $"Ch. 0011.{t}0 Vol. 002 (Ferns [{t}]).cbz"));
+        names.AddRange(["Ch. 0011.50 Vol. 002 (Extras 4).cbz", "Ch. 0011.60 Vol. 002 (Bonus Manga 2).cbz"]);
+        names.AddRange(new[] { 1, 2, 3 }.Select(t => $"Ch. 0012.{t}0 Vol. 002 (Kites [{t}]).cbz"));
+        names.Add("Ch. 0012.50 Vol. 002 (Extras 5).cbz");
+        names.AddRange(new[] { 1, 2, 3 }.Select(t => $"Ch. 0013.{t}0 Vol. 003 (Stones [{t}]).cbz"));
+        names.AddRange(["Ch. 0013.50 Vol. 003 (Extras 6).cbz", "Ch. 0013.90 Vol. 003 (Afterword).cbz"]);
+        names.AddRange(Enumerable.Range(14, 6).Select(n => Whole(n, 3, SplitTitle)));
+        return names;
+    }
+
+    private static List<UnitNumbers> UnitsOfNames(IEnumerable<string> names) => names.Select(n => AutoMatchText.UnitsOf(n)).ToList();
+
+    [Fact]
+    public void SplitFolder_ZeroPaddedTwoDigitDecimals_AreTheChapterNumbers()
+    {
+        var chapters = UnitsOfNames(SplitFolderNames()).Select(u => u.Chapter).OfType<decimal>().ToHashSet();
+        Assert.Superset(new HashSet<decimal> { 6.1m, 6.5m, 6.6m, 13.5m, 13.9m, 19m }, chapters);
+    }
+
+    [Fact]
+    public void SplitFolder_PartsAndTheExtrasAfterThem()
+    {
+        var s = MissingUnits.SplitsOf(UnitsOfNames(SplitFolderNames()));
+
+        Assert.Equal([6, 7, 8, 9, 11, 12, 13], s.Chapters.Order());
+        Assert.Equal([6.1m, 6.2m, 7.1m, 7.2m, 8.1m, 8.2m, 9.1m, 9.2m, 9.3m, 11.1m, 11.2m, 12.1m, 12.2m, 12.3m, 13.1m, 13.2m, 13.3m], s.Parts.Order());
+        Assert.Empty(s.MissingParts); // no 6.3 / 6.4 invented, and the held 6.5 is never missing
+    }
+
+    [Fact]
+    public void SplitFolder_TheMissingReportSeesEveryChapterHeld()
+    {
+        var held = MissingUnits.Evaluate(One([.. SplitFolderNames()]), new PublishedTotals(OriginChapters: 19));
+        Assert.Equal(MissingVerdict.UpToDate, held.Verdict);
+        Assert.Empty(held.Chapters!.Missing);
+
+        var behind = MissingUnits.Evaluate(One([.. SplitFolderNames()]), new PublishedTotals(OriginChapters: 20));
+        Assert.Equal((MissingVerdict.Behind, 19, 1), (behind.Verdict, behind.Chapters!.Have, behind.Chapters.BehindBy));
+        Assert.Empty(behind.Chapters.Missing);
+    }
+
+    [Fact]
+    public void SplitsOf_KeepsTheGapsBetweenParts()
+    {
+        // .5 and above continue a split after .4 (5.1-5.6 parts, 5.5 among them); a part missing below the highest part here is still
+        // missing (4.1 + 4.3: 4.2; 7.1-7.4 + 7.6: 7.5).
+        var s = MissingUnits.SplitsOf([Ch(4.1m), Ch(4.3m), Ch(5.1m), Ch(5.2m), Ch(5.3m), Ch(5.4m), Ch(5.5m), Ch(5.6m),
+            Ch(7.1m), Ch(7.2m), Ch(7.3m), Ch(7.4m), Ch(7.6m)]);
+        Assert.Equal([4, 5, 7], s.Chapters.Order());
+        Assert.Equal([4.2m, 7.5m], s.MissingParts);
+        Assert.Contains(5.6m, s.Parts);
+        Assert.Contains(7.6m, s.Parts);
+    }
+
+    [Fact]
+    public void SplitsOf_TenthsAboveAMissingN4_AreExtras()
+    {
+        // 3.1 + 3.2 + 3.7 (no 3.4): 3.7 is an extra, so 3.3-3.6 are not missing; a whole 9 + 9.2 + 9.6: 9.6 is an extra.
+        var s = MissingUnits.SplitsOf([Ch(3.1m), Ch(3.2m), Ch(3.7m), Ch(9m), Ch(9.2m), Ch(9.6m)]);
+        Assert.Equal([3, 9], s.Chapters.Order());
+        Assert.Equal([3.1m, 3.2m, 9.2m], s.Parts.Order());
+        Assert.Empty(s.MissingParts);
+    }
+
     [Fact]
     public void VolumesFolder_ReadsBareNumbersAsVolumes()
     {

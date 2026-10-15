@@ -444,6 +444,56 @@ public sealed class ExportRebuildServiceTests
     }
 
     [Fact]
+    public async Task MangaDexReadable_GivesTheHighestReadableWholeChapter_AndIsLeftOutWhenNotRead()
+    {
+        // 1.43.0 (MangaList, owner 2026-10-15): latestChapter / chapters count chapters MangaDex took down; readable names the highest
+        // WHOLE chapter that can be read there. Three series: partly taken down, all taken down, and a list read before 1.43.0.
+        await using var kit = await ExportTestKit.CreateAsync();
+        var released = "[\"1\",\"2\",\"3\",\"4.1\",\"4.2\",\"5.5\",\"18\"]";
+        async Task<(string NodeId, long RecordId)> SeriesAsync(string mu, string name, string? readable)
+        {
+            var folder = await kit.Db.AddFolderAsync(null, name);
+            var record = await kit.Db.AddRecordAsync(mu, name);
+            await kit.Db.AddLinkAsync(folder, record);
+            kit.Db.Db.SeriesVolumeMaps.Add(new SeriesVolumeMapEntity
+            {
+                RecordId = record.Id,
+                Source = (int)VolumeMapSource.MangaDexAggregate,
+                State = (int)VolumeMapState.Empty,
+                ReleasedLanguage = "en",
+                ReleasedChaptersJson = released,
+                ReadableChaptersJson = readable,
+                ContentHash = mu,
+                FetchedAt = ExportTestKit.Start.AddHours(-1),
+            });
+            return (folder.PublicId, record.Id);
+        }
+        var partly = await SeriesAsync("6161", "Partly Taken Down", "[\"1\",\"2\",\"4.1\",\"4.2\",\"5.5\"]");
+        var none = await SeriesAsync("6262", "All Taken Down", "[]");
+        var before = await SeriesAsync("6363", "Read Before The Field", null);
+        await kit.Db.Db.SaveChangesAsync();
+
+        await kit.RebuildAsync();
+
+        var items = (await kit.PageAsync()).GetProperty("items").EnumerateArray()
+            .ToDictionary(i => i.GetProperty("nodeId").GetString()!);
+        JsonElement Released(string nodeId) => items[nodeId].GetProperty("companions").GetProperty("mangadexReleased");
+
+        // The released list keeps its meaning: taken-down chapters still count.
+        Assert.All(new[] { partly, none, before }, s => Assert.Equal(("18", 6),
+            (Released(s.NodeId).GetProperty("latestChapter").GetString(), Released(s.NodeId).GetProperty("chapters").GetInt32())));
+        // Readable up to 5.5 (an extra after 5): the highest whole chapter is 5; 1, 2, 4 (as 4.1 + 4.2) and 5 are four whole chapters.
+        var readable = Released(partly.NodeId).GetProperty("readable");
+        Assert.Equal(("5", 4), (readable.GetProperty("latestWholeChapter").GetString(), readable.GetProperty("chapters").GetInt32()));
+        // Nothing readable: the object is there, its latest chapter null.
+        var nothing = Released(none.NodeId).GetProperty("readable");
+        Assert.Equal(JsonValueKind.Null, nothing.GetProperty("latestWholeChapter").ValueKind);
+        Assert.Equal(0, nothing.GetProperty("chapters").GetInt32());
+        // Not read yet (a list stored before 1.43.0): left out, the item exactly as before.
+        Assert.False(Released(before.NodeId).TryGetProperty("readable", out _));
+    }
+
+    [Fact]
     public async Task EstimatedVolumes_AreExportedWithTheirChapterFiles_AndFlagged()
     {
         // 1.42.0 (MangaList): the Volumes view's "~ Volume N" stacks - a held volume whose chapters the list does not map - with the

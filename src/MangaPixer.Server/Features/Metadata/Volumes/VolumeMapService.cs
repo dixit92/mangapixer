@@ -95,13 +95,26 @@ public sealed class VolumeMapService
 
         // 1.29.0 RC (owner: "missing" = released in the preferred language): the same list filtered by that language - one
         // more request - tells which chapters are released in it.
-        string? releasedLanguage = null, releasedJson = null;
+        string? releasedLanguage = null, releasedJson = null, readableJson = null;
         if (MangaDexProvider.IsValidLocale(preferredLanguage))
         {
             var released = await _gateway.CompanionCallAsync(MetadataProviderAllowlist.MangaDex, "aggregate-released", libraryId,
                 c => _mangaDex.AggregateAsync(mangaDexRecord.ExternalId, c, preferredLanguage), call, ct);
             releasedLanguage = preferredLanguage;
-            releasedJson = VolumeMapJson.WriteChapters(VolumeListBuilder.ChaptersOf(Raw(released)));
+            var releasedChapters = VolumeListBuilder.ChaptersOf(Raw(released));
+            releasedJson = VolumeMapJson.WriteChapters(releasedChapters);
+
+            // 1.43.0 (MangaList, owner 2026-10-15): the released list counts chapters MangaDex took down; the same request without
+            // includeUnavailable tells which of them can be read (never more than the released list). Nothing released, nothing
+            // readable - no request.
+            readableJson = releasedJson;
+            if (releasedChapters.Count > 0)
+            {
+                var readable = await _gateway.CompanionCallAsync(MetadataProviderAllowlist.MangaDex, "aggregate-readable", libraryId,
+                    c => _mangaDex.AggregateAsync(mangaDexRecord.ExternalId, c, preferredLanguage, includeUnavailable: false), call, ct);
+                var listed = releasedChapters.ToHashSet(StringComparer.Ordinal);
+                readableJson = VolumeMapJson.WriteChapters(VolumeListBuilder.ChaptersOf(Raw(readable)).Where(listed.Contains).ToList());
+            }
         }
 
         // 1.42.0: a series linked to MangaDex itself takes its latest chapter from this list - the highest chapter released in the
@@ -118,7 +131,7 @@ public sealed class VolumeMapService
         return await StoreAsync(series, VolumeMapSource.MangaDexAggregate, state,
             state == VolumeMapState.Ok ? VolumeMapJson.Write(built.Volumes) : null,
             built.Unassigned.Count > 0 ? VolumeMapJson.WriteChapters(built.Unassigned) : null,
-            state == VolumeMapState.Ok ? built.ChaptersPerVolume : null, known, ct, releasedLanguage, releasedJson);
+            state == VolumeMapState.Ok ? built.ChaptersPerVolume : null, known, ct, releasedLanguage, releasedJson, readableJson);
     }
 
     private static IReadOnlyList<VolumeListBuilder.RawVolume> Raw(IReadOnlyList<MangaDexAggregateVolume> volumes) =>
@@ -299,7 +312,8 @@ public sealed class VolumeMapService
     /// <summary>Stores a map for a source (shared with the Wikipedia companion, 1.32.0): an unchanged answer rewrites nothing.</summary>
     internal async Task<SeriesVolumeMapEntity> StoreAsync(
         MetadataRecordEntity series, VolumeMapSource source, VolumeMapState state, string? volumesJson, string? unassignedJson,
-        double? chaptersPerVolume, int? knownVolumeCount, CancellationToken ct, string? releasedLanguage = null, string? releasedChaptersJson = null)
+        double? chaptersPerVolume, int? knownVolumeCount, CancellationToken ct, string? releasedLanguage = null, string? releasedChaptersJson = null,
+        string? readableChaptersJson = null)
     {
         var now = _time.GetUtcNow();
         var parts = new List<string>
@@ -333,6 +347,8 @@ public sealed class VolumeMapService
             _logger.LogInformation(LogEvents.Metadata.VolumeListStored, "Volume list of record {RecordId} stored ({Source}, {State}, {Volumes} volumes, version {Version})",
                 series.Id, source, state, VolumeMapJson.Read(volumesJson).Count, map.Version);
         }
+        // The readable list (1.43.0) is written with every read, outside the hash: only the export reads it.
+        map.ReadableChaptersJson = releasedLanguage is null ? null : readableChaptersJson;
         map.FetchedAt = now;
         map.NextCheckAt = CompanionSchedule.NextCheck(series, now);
         await _db.SaveChangesAsync(ct);

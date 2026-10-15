@@ -241,6 +241,26 @@ public sealed record ExportMangaDexReleasedDto
     public required int Chapters { get; init; }
 
     public required DateTimeOffset FetchedAt { get; init; }
+
+    /// <summary>
+    /// 1.43.0 (MangaList): the listed chapters MangaDex can actually be read on - <see cref="LatestChapter"/> and <see cref="Chapters"/>
+    /// also count chapters MangaDex took down. Left out when that was not read (a list stored before 1.43.0, until its next refresh).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ExportMangaDexReadableDto? Readable { get; init; }
+}
+
+/// <summary>The chapters of a MangaDex released list that are readable there (not taken down).</summary>
+public sealed record ExportMangaDexReadableDto
+{
+    /// <summary>
+    /// The highest WHOLE chapter readable, as an exact string (<c>18</c>; a readable <c>18.5</c> or <c>18.1</c> gives <c>18</c>), or null
+    /// when no listed chapter is readable.
+    /// </summary>
+    public string? LatestWholeChapter { get; init; }
+
+    /// <summary>How many whole chapters are readable (parts such as <c>4.1</c> and <c>4.2</c> count once).</summary>
+    public required int Chapters { get; init; }
 }
 
 /// <summary>The AniList entry of the linked series and its totals.</summary>
