@@ -36,7 +36,7 @@ public sealed class TrackerCardMarks(MangaPixerDbContext db, TrackerSettingsServ
         CancellationToken ct)
     {
         var hasItems = folderId is not null && nodes.Any(n => n.Kind == CatalogNodeKind.Archive || n.VolumeStack is not null);
-        var hasFolders = nodes.Any(n => n.Kind == CatalogNodeKind.Folder);
+        var hasFolders = nodes.Any(n => n.Kind is CatalogNodeKind.Folder or CatalogNodeKind.Archive);
         if (!hasItems && !hasFolders)
             return nodes;
         if (!await db.TrackerEntries.AsNoTracking().AnyAsync(e => e.UserId == userId && e.RemoteSeenAt != null, ct))
@@ -44,7 +44,7 @@ public sealed class TrackerCardMarks(MangaPixerDbContext db, TrackerSettingsServ
         if (hasItems)
             nodes = await DecorateItemsAsync(nodes, userId, folderId!.Value, volumes, ct);
         if (hasFolders)
-            nodes = await DecorateSeriesFoldersAsync(nodes, userId, ct);
+            nodes = await DecorateSeriesFoldersAsync(nodes, userId, folderId, ct);
         return nodes;
     }
 
@@ -82,10 +82,20 @@ public sealed class TrackerCardMarks(MangaPixerDbContext db, TrackerSettingsServ
     }
 
     /// <summary>The series folder cards' rollup (see <see cref="DecorateAsync"/>).</summary>
-    private async Task<List<CatalogNodeDto>> DecorateSeriesFoldersAsync(List<CatalogNodeDto> nodes, long userId, CancellationToken ct)
+    /// <remarks>
+    /// 1.43.0 (one-shot fix): also an ARCHIVE card with its own link to a series other than the browsed folder's (an archive linked as its
+    /// own series, e.g. a one-shot in a collection folder) - its ring is the rollup of its own series, never the folder's numbers.
+    /// </remarks>
+    private async Task<List<CatalogNodeDto>> DecorateSeriesFoldersAsync(List<CatalogNodeDto> nodes, long userId, long? folderId, CancellationToken ct)
     {
-        var folderIds = nodes.Where(n => n.Kind == CatalogNodeKind.Folder).Select(n => n.Id).ToList();
-        var records = await TrackerSeriesResolver.OwnLinkedRecordsAsync(db, folderIds, ct);
+        var ids = nodes.Where(n => n.Kind is CatalogNodeKind.Folder or CatalogNodeKind.Archive).Select(n => n.Id).ToList();
+        var records = await TrackerSeriesResolver.OwnLinkedRecordsAsync(db, ids, ct);
+        if (records.Count == 0)
+            return nodes;
+        var folderRecord = folderId is { } f ? await TrackerSeriesResolver.LinkedRecordOfAsync(db, f, ct) : null;
+        var kinds = nodes.GroupBy(n => n.Id, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First().Kind, StringComparer.Ordinal);
+        foreach (var archive in records.Where(r => kinds.GetValueOrDefault(r.Key) == CatalogNodeKind.Archive && r.Value == folderRecord).ToList())
+            records.Remove(archive.Key); // an archive of the browsed series itself: its own numbers decide (the items path)
         if (records.Count == 0)
             return nodes;
         var synced = await SyncedAsync(userId, records.Values.ToList(), ct);
@@ -98,12 +108,16 @@ public sealed class TrackerCardMarks(MangaPixerDbContext db, TrackerSettingsServ
             var (archives, map) = await resolver.ArchivesAsync(userId, recordId, ct);
             rings[recordId] = archives.Count == 0
                 ? null
-                : ReadOnEvery(synced[recordId], numbers => archives.All(a => TrackerReadOn.Covers(a.Units, numbers, map, a.DeclaredEdition)));
+                : ReadOnEvery(synced[recordId], numbers => archives.All(a => TrackerReadOn.Covers(a.Units, numbers, map, a.DeclaredEdition, a.OneShot)));
         }
         return nodes.Select(node =>
-            node.Kind == CatalogNodeKind.Folder && records.TryGetValue(node.Id, out var recordId) && rings.GetValueOrDefault(recordId) is { } ring
-                ? node with { TrackerRead = ring }
-                : node).ToList();
+        {
+            if (!records.TryGetValue(node.Id, out var recordId))
+                return node;
+            var ring = rings.GetValueOrDefault(recordId);
+            // An archive of another series: its own series decides, also to "no ring".
+            return node.Kind == CatalogNodeKind.Archive ? node with { TrackerRead = ring } : ring is null ? node : node with { TrackerRead = ring };
+        }).ToList();
     }
 
     /// <summary>The archive and volume-stack cards of a folder of a linked series (see <see cref="DecorateAsync"/>).</summary>
@@ -129,23 +143,27 @@ public sealed class TrackerCardMarks(MangaPixerDbContext db, TrackerSettingsServ
                 rows.AddRange(stack.Members.Select(m => m.Row));
             }
         }
-        var units = new Dictionary<string, UnitNumbers>(StringComparer.Ordinal);
-        foreach (var row in VolumeGrouping.WithSeriesHeads(rows.DistinctBy(r => r.Id).ToList()))
-            units[row.Id] = VolumeGrouping.UnitsOf(row);
+        var distinct = rows.DistinctBy(r => r.Id).ToList();
+        var trackerUnits = TrackerUnits.Of(distinct);
+        var units = new Dictionary<string, TrackerUnit>(StringComparer.Ordinal);
+        for (var i = 0; i < distinct.Count; i++)
+            units[distinct[i].Id] = trackerUnits[i];
 
         // A declared edition numbers its own volumes; an exact list lets a volume file count by its chapters.
         var editionFolder = view?.SeriesFolderId ?? folderId;
         var edition = (await DeclaredFactsResolution.LoadEditionAsync(db, [editionFolder], ct)).GetValueOrDefault(editionFolder);
         var declared = edition is { VolumeTotal: not null } or { Edition: not null };
         VolumeMapInput? map = null;
-        if (nodes.Any(n => n.Kind == CatalogNodeKind.Archive && units.TryGetValue(n.Id, out var u) && u.Chapter is null && u.Volume is not null))
+        if (nodes.Any(n => n.Kind == CatalogNodeKind.Archive && units.TryGetValue(n.Id, out var u) && u.Units.Chapter is null && u.Units.Volume is not null))
             (map, _) = await TrackerSeriesResolver.MapAsync(db, recordId, ct);
 
         return nodes.Select(node =>
         {
             var read = ReadOnEvery(seen, numbers => node.Kind == CatalogNodeKind.Archive
-                ? TrackerReadOn.Covers(units.TryGetValue(node.Id, out var u) ? u : VolumeGrouping.UnitsOf(
-                    new GroupingRow(node.Id, GroupingRowKind.Archive, node.DisplayName, string.Empty)), numbers, map, declared)
+                ? units.TryGetValue(node.Id, out var u)
+                    ? TrackerReadOn.Covers(u.Units, numbers, map, declared, u.OneShot)
+                    : TrackerReadOn.Covers(VolumeGrouping.UnitsOf(new GroupingRow(node.Id, GroupingRowKind.Archive, node.DisplayName, string.Empty)),
+                        numbers, map, declared)
                 : node.VolumeStack is { } summary && stacks.TryGetValue(summary.Key, out var stack)
                     && TrackerReadOn.CoversStack(stack.Volume,
                         stack.Members.Where(m => !m.IsVolumeArchive && m.Chapter is not null).Select(m => m.Chapter!.Value).ToList(),

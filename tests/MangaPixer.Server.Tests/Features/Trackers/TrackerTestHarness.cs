@@ -97,12 +97,15 @@ internal sealed class TrackerTestHarness : IAsyncDisposable
     }
 
     /// <summary>
-    /// A library with a series folder of chapter archives <c>Chapter 001</c>..<c>Chapter {chapters:000}</c>, linked (Confirmed) to a
-    /// MangaUpdates record, with a MangaDex companion naming a MyAnimeList id.
+    /// A library with a series folder of chapter archives <c>Chapter 001</c>..<c>Chapter {chapters:000}</c> (or <paramref name="names"/>),
+    /// linked (Confirmed) to a MangaUpdates record, with a MangaDex companion naming a MyAnimeList id. <paramref name="anchorFirstArchive"/>:
+    /// the link is on the first archive instead (an archive linked as its own series; the folder stays unlinked).
     /// </summary>
     public async Task<TrackerSeriesSeed> SeedSeriesAsync(int chapters = 10, MetadataFormat? format = null,
-        MetadataOriginStatus status = MetadataOriginStatus.Ongoing)
+        MetadataOriginStatus status = MetadataOriginStatus.Ongoing, IReadOnlyList<string>? names = null, bool anchorFirstArchive = false)
     {
+        if (names is not null)
+            chapters = names.Count;
         var n = Interlocked.Increment(ref s_next);
         return await DbAsync(async db =>
         {
@@ -115,7 +118,7 @@ internal sealed class TrackerTestHarness : IAsyncDisposable
             var archives = new List<(long, string)>();
             for (var c = 1; c <= chapters; c++)
             {
-                var archive = Node(library.Id, folder.Id, CatalogNodeKind.Archive, $"trk-{n}-c{c}", $"Chapter {c:000}");
+                var archive = Node(library.Id, folder.Id, CatalogNodeKind.Archive, $"trk-{n}-c{c}", names?[c - 1] ?? $"Chapter {c:000}");
                 db.CatalogNodes.Add(archive);
                 await db.SaveChangesAsync();
                 db.ArchiveItems.Add(new ArchiveItemEntity { NodeId = archive.Id, ContentVersion = 1, AnalysisState = 0, PageCount = 10, ByteLength = 1024 });
@@ -151,9 +154,10 @@ internal sealed class TrackerTestHarness : IAsyncDisposable
                 CompanionRecordId = mangadex.Id,
                 State = (int)CompanionState.Auto,
             });
+            // 1.43.0 (one-shot): the first archive linked as its own series inside an unlinked folder (an archive anchor).
             db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
             {
-                NodeId = folder.Id,
+                NodeId = anchorFirstArchive ? archives[0].Item1 : folder.Id,
                 LibraryId = library.Id,
                 State = (int)SeriesLinkState.Confirmed,
                 RecordId = record.Id,

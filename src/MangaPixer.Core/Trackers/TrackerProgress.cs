@@ -43,6 +43,8 @@ public static class TrackerProgress
     /// files (a range covers its range; a split chapter counts when all its parts here are marked). Extras, <c>.5</c> and chapter 0 are
     /// never required and never enough; a volume the list gives no whole chapter never counts this way; a hole holds only that volume
     /// back (the highest complete volume counts, as for chapters).</item>
+    /// <item>1.43.0: a one-shot (the only archive of the scope, its name stating no number - <see cref="TrackerUnits"/>) is chapter 1 and
+    /// volume 1 (no volume for a chapters-only series or a declared edition).</item>
     /// <item>A chapters-only series (webtoon / manhwa without a real list) sends no volumes; a declared edition (omnibus, "Volumes in this
     /// edition") never sends volume numbers and never maps its volumes to chapters - chapters only where its file names state them.</item>
     /// </list>
@@ -55,15 +57,18 @@ public static class TrackerProgress
             && map.Source is VolumeListSource.MangaDex or VolumeListSource.Wikipedia;
         var volumesAllowed = exact;
 
-        // Series heads are read over every archive of the scope (read or not), as the Volumes view does.
-        var withHeads = VolumeGrouping.WithSeriesHeads(rows.Select(r => r.Row).ToList());
-        var units = withHeads.Select(VolumeGrouping.UnitsOf).ToList();
+        // Series heads are read over every archive of the scope (read or not), as the Volumes view does; a one-shot counts as chapter 1 /
+        // volume 1 (TrackerUnits - the one place that decides it).
+        var trackerUnits = TrackerUnits.Of(rows.Select(r => r.Row).ToList());
+        var units = trackerUnits.Select(u => u.OneShot ? default : u.Units).ToList();
         int? autoChapters = null, autoVolumes = null, allChapters = null, allVolumes = null;
         for (var i = 0; i < rows.Count; i++)
         {
             if (!rows[i].Read)
                 continue;
-            var (chapter, volume) = NumbersOf(units[i], map, exact, volumesAllowed);
+            var (chapter, volume) = trackerUnits[i].OneShot
+                ? (1, map.ChaptersOnly || declaredEdition ? null : (int?)1)
+                : NumbersOf(units[i], map, exact, volumesAllowed);
             allChapters = Max(allChapters, chapter);
             allVolumes = Max(allVolumes, volume);
             if (!rows[i].Held)

@@ -103,7 +103,7 @@ public sealed class TrackerPullService(
         // Mark every covered archive the user has not marked yet (one save; the relay ignores source "tracker").
         var remoteNumbers = new TrackerNumbers(remote.ChaptersRead, remote.VolumesRead);
         var (archives, map) = await resolver.ArchivesAsync(userId, recordId, ct);
-        var covered = archives.Where(a => TrackerReadOn.Covers(a.Units, remoteNumbers, map, a.DeclaredEdition)).ToList();
+        var covered = archives.Where(a => TrackerReadOn.Covers(a.Units, remoteNumbers, map, a.DeclaredEdition, a.OneShot)).ToList();
         var already = covered.Count(a => a.Read);
         var toMark = covered.Where(a => !a.Read).Select(a => a.NodeId).ToList();
         var marked = 0;
