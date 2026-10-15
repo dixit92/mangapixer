@@ -185,6 +185,21 @@ public sealed record TrackerPreviewDto
 
     /// <summary>The caller's daily request cap for this tracker is used up; the rest waits until tomorrow (UTC).</summary>
     public required bool CapReached { get; init; }
+
+    /// <summary>
+    /// 1.43.0 "Check my list" (owner option C): true when the caller's WHOLE list on the tracker was read (MyAnimeList) - then nothing is
+    /// read per series and <see cref="Remaining"/> is 0; null for a tracker checked series by series (MangaUpdates).
+    /// </summary>
+    public bool? ListRead { get; init; }
+
+    /// <summary>Entries on the caller's list that were read (null without a whole-list read).</summary>
+    public int? ListEntries { get; init; }
+
+    /// <summary>Of them, series here the caller can open (matched by the tracker's id).</summary>
+    public int? Matched { get; init; }
+
+    /// <summary>Of the matches, series that got a row on the Tracking page now.</summary>
+    public int? Created { get; init; }
 }
 
 /// <summary><c>POST /api/v1/trackers/{slug}/entries/send-all</c>: "Send all" - every series where MangaPixer is ahead (held jumps included).</summary>

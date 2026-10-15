@@ -2,13 +2,14 @@ namespace com.lifepixer.mangapixer.Tests.Server.Features.Trackers;
 
 using System.Collections.Concurrent;
 using com.lifepixer.mangapixer.Core.Trackers;
+using com.lifepixer.mangapixer.Server.Features.Trackers;
 
 /// <summary>
 /// A fake <see cref="ITrackerClient"/> for the engine tests (1.43.0): no network - entries live in memory, every call is recorded, and
 /// failures can be queued. Tokens and passwords it hands out are made-up marker strings so a test can search logs / responses / the
 /// database for them.
 /// </summary>
-internal sealed class FakeTrackerClient(string slug, TrackerConnectKind kind) : ITrackerClient
+internal sealed class FakeTrackerClient(string slug, TrackerConnectKind kind) : ITrackerClient, ITrackerListReader
 {
     public const string AccessPrefix = "AT-SECRET-";
     public const string RefreshPrefix = "RT-SECRET-";
@@ -35,7 +36,28 @@ internal sealed class FakeTrackerClient(string slug, TrackerConnectKind kind) : 
     /// <summary>Lifetime of the tokens it issues.</summary>
     public TimeSpan TokenLifetime { get; set; } = TimeSpan.FromDays(30);
 
-    public int CallCount => Reads.Count + Writes.Count;
+    public int CallCount => Reads.Count + Writes.Count + ListReads.Count;
+
+    /// <summary>1.43.0: a whole-list reader with pages of this size (null = it reads series by series, like MangaUpdates).</summary>
+    public int? ListPageSize { get; set; }
+
+    /// <summary>The offsets of the whole-list pages read.</summary>
+    public ConcurrentQueue<int> ListReads { get; } = new();
+
+    public ConcurrentQueue<TrackerException> ListFailures { get; } = new();
+
+    public bool ReadsWholeList => ListPageSize is not null;
+
+    public Task<TrackerListPage> ReadListPageAsync(TrackerTokens tokens, int offset, CancellationToken ct)
+    {
+        ListReads.Enqueue(offset);
+        if (ListFailures.TryDequeue(out var failure))
+            throw failure;
+        var size = ListPageSize ?? int.MaxValue;
+        var all = Entries.OrderBy(e => e.Key, StringComparer.Ordinal).ToList();
+        var page = all.Skip(offset).Take(size).Select(e => new TrackerListItem(e.Key, e.Value)).ToList();
+        return Task.FromResult(new TrackerListPage(page, offset + page.Count < all.Count ? offset + page.Count : null));
+    }
 
     public Uri? BuildAuthorizeUrl(TrackerAppSettings app, string state, string codeChallenge) =>
         ConnectKind == TrackerConnectKind.Password

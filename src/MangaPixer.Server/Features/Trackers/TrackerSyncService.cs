@@ -30,6 +30,12 @@ public enum TrackerSyncTrigger
 
     /// <summary>A read mark was removed: recompute from stored numbers only, no request (the tracker is never lowered automatically).</summary>
     Removal = 3,
+
+    /// <summary>
+    /// 1.43.0 "Check my list": the tracker's entry was just stored from the user's whole list - decide from it without a request and never
+    /// write; like the preview, a series MangaPixer is ahead on waits for "Send" (Held).
+    /// </summary>
+    ListRead = 4,
 }
 
 /// <summary>
@@ -107,11 +113,17 @@ public sealed class TrackerSyncService(
 
         // No request when nothing can be new: a removal, or a read mark that is not ahead of what was sent or seen.
         var dates = DatesOf(entry);
-        if (trigger == TrackerSyncTrigger.Removal || (trigger == TrackerSyncTrigger.ReadMark && !local.IsAheadOf(known)))
+        if (trigger is TrackerSyncTrigger.Removal or TrackerSyncTrigger.ListRead || (trigger == TrackerSyncTrigger.ReadMark && !local.IsAheadOf(known)))
         {
             var offline = TrackerSyncRules.Decide(new TrackerSyncInput(mode, local, progress.Numbers.All, StoredRemote(entry),
                 account.AddStartedSeries, PrivateEntry(account), progress.StartedOn, today, entry.LastSentChapters, entry.LastSentVolumes,
                 dates.Start, dates.Finish));
+            if (trigger == TrackerSyncTrigger.ListRead && offline.Write is { } wouldWrite && (wouldWrite.ChaptersRead is not null || wouldWrite.VolumesRead is not null))
+            {
+                // As the preview: what MangaPixer would send waits for the user's "Send".
+                SetHeld(entry, progress.Numbers.All.IsAheadOf(local) ? progress.Numbers.All : local);
+                return await DoneAsync(entry, TrackerEntryState.Held, null, "list", userId, tracker, ct);
+            }
             SetHeld(entry, offline.Held);
             // Never read and nothing held: whether it is on a list is unknown until the next read.
             var state = entry.RemoteSeenAt is null && offline.State == TrackerEntryState.NotOnList ? TrackerEntryState.Pending : offline.State;
