@@ -133,7 +133,7 @@ MangaPixer makes at most **300 requests per day** to each tracker for your accou
 Press **Disconnect** under the account in **Settings** > **Connected accounts**. MangaPixer deletes its sign-in token and your series list for that tracker from the server. Nothing on the tracker is changed - your list there stays as it is.
 
 - **MangaUpdates:** disconnecting also signs MangaPixer out on MangaUpdates.
-- **MyAnimeList:** MyAnimeList offers apps no way to end their own sign-in; disconnecting deletes MangaPixer's sign-in from the server.
+- **MyAnimeList:** disconnecting deletes MangaPixer's sign-in from the server, so it can no longer be used. MyAnimeList has no page where you can remove an app's access, and offers apps no way to end their own sign-in; the old sign-in simply expires there.
 
 An admin can see **that** you connected an account (and its state) and can disconnect it - for example when you leave the server - but cannot see or use your sign-in. If an admin disconnected your account, the card says so; connect again to resume.
 
