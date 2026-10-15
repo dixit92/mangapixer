@@ -247,8 +247,11 @@ public sealed record AdminTrackerSettingsDto
     /// <summary>Users with a connected account (any state).</summary>
     public required int ConnectedUsers { get; init; }
 
-    /// <summary>1.43.0 (owner E5): requests one user may make to this tracker per UTC day (default 2000, 100 - 20000).</summary>
-    public required int DailyRequestCap { get; init; }
+    /// <summary>
+    /// 1.43.0 (owner E5): requests one user may make to this tracker per UTC day (default 2000, 100 - 20000). Always sent; not "required" in
+    /// the contract so a 1.43.0 client built before it keeps compiling.
+    /// </summary>
+    public int DailyRequestCap { get; init; } = TrackerFacts.DefaultDailyRequestCap;
 }
 
 /// <summary><c>PUT /api/v1/admin/trackers/{slug}</c> (null = unchanged).</summary>

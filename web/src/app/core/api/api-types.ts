@@ -3406,8 +3406,8 @@ export interface AdminTrackerSettingsDto {
   clientSecretSet: boolean;
   redirectUri?: string | null;
   connectedUsers: number;
-  /** 1.43.0 (owner E5): requests one user may make to this tracker per UTC day (default 2000, 100 - 20000). */
-  dailyRequestCap: number;
+  /** 1.43.0 (owner E5): requests one user may make to this tracker per UTC day (default 2000, 100 - 20000). Always sent. */
+  dailyRequestCap?: number;
 }
 
 /** `PUT /api/v1/admin/trackers/{slug}` (null = unchanged; an empty string clears a field). */

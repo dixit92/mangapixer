@@ -11925,8 +11925,7 @@
           "connectKind",
           "needsAppRegistration",
           "clientSecretSet",
-          "connectedUsers",
-          "dailyRequestCap"
+          "connectedUsers"
         ],
         "type": "object",
         "properties": {

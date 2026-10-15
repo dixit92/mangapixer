@@ -230,18 +230,27 @@ public sealed class TrackingPageHttpTests
             {
                 var record = new MetadataRecordEntity
                 {
-                    PublicId = $"lst-{i:000}", Provider = "mangaupdates", ExternalId = (50000 + i).ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    Title = $"Listed Series {i:000}", FetchedAt = now,
+                    PublicId = $"lst-{i:000}",
+                    Provider = "mangaupdates",
+                    ExternalId = (50000 + i).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    Title = $"Listed Series {i:000}",
+                    FetchedAt = now,
                 };
                 db.MetadataRecords.Add(record);
                 await db.SaveChangesAsync();
                 var state = i <= 3 ? TrackerEntryState.Held : i <= 5 ? TrackerEntryState.TrackerAhead : i == 6 ? TrackerEntryState.NoId : TrackerEntryState.Ok;
                 db.TrackerEntries.Add(new TrackerEntryEntity
                 {
-                    UserId = userId, Tracker = TrackerSlugs.MangaUpdates, RecordId = record.Id, State = (int)state,
+                    UserId = userId,
+                    Tracker = TrackerSlugs.MangaUpdates,
+                    RecordId = record.Id,
+                    State = (int)state,
                     RemoteId = state == TrackerEntryState.NoId ? null : record.ExternalId,
-                    LocalChapters = 4, RemoteChapters = state == TrackerEntryState.TrackerAhead ? 9 : 4,
-                    HeldChapters = state == TrackerEntryState.Held ? 8 : null, RemoteSeenAt = now, UpdatedAt = now,
+                    LocalChapters = 4,
+                    RemoteChapters = state == TrackerEntryState.TrackerAhead ? 9 : 4,
+                    HeldChapters = state == TrackerEntryState.Held ? 8 : null,
+                    RemoteSeenAt = now,
+                    UpdatedAt = now,
                 });
             }
             return await db.SaveChangesAsync();
