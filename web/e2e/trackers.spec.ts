@@ -465,7 +465,7 @@ test.describe('tracker sync web (1.43.0)', () => {
     expect(outside).toEqual([]);
   });
 
-  test('the card mark: a gold strip on the covers the tracker counts as read, none on the others; the menu leads to Tracking', async ({ page }) => {
+  test('the card mark: a gold border around the covers the tracker counts as read, none on the others; the menu leads to Tracking', async ({ page }) => {
     test.skip(!VOLUMES_ROOT, 'E2E_SERIES_FIXTURE_ROOT not set: no synthetic library available');
     test.setTimeout(180_000);
     const outside = await guardOutside(page);
@@ -496,23 +496,29 @@ test.describe('tracker sync web (1.43.0)', () => {
     await expect(page.locator('.nodes .node-wrap').filter({ has: page.getByTestId('tracker-read-mark') })).toHaveCount(1);
     const mark = marks.first();
     await expect(mark).toHaveAttribute('aria-label', 'Read on MyAnimeList');
+    // The owner's V2 (2026-10-15): a 2 px gold ring inside the whole cover with the 1 px contrast edge inside it - a border that
+    // lets every click through to the card (it covers the cover box, so it must never take the pointer).
     const look = await mark.evaluate((el) => {
       const s = getComputedStyle(el);
       // The host is `display: contents`: measure against the cover box itself.
-      const cover = el.closest('.cover')!.getBoundingClientRect();
+      const coverEl = el.closest('.cover')!;
+      const cover = coverEl.getBoundingClientRect();
       const box = el.getBoundingClientRect();
       const probe = document.createElement('span');
       probe.style.color = 'var(--mp-warn-strong)';
       document.body.appendChild(probe);
       const gold = getComputedStyle(probe).color;
       probe.remove();
-      const hit = document.elementFromPoint(box.x + box.width / 2, box.y + 1);
-      return { height: s.height, edge: s.borderBottomWidth, edgeColor: s.borderBottomColor, background: s.backgroundColor, gold,
-        top: box.top - cover.top, fullWidth: Math.abs(box.width - cover.width) < 1, hit: hit === el };
+      const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+      const same = (a: number, b: number) => Math.abs(a - b) < 1;
+      return { shadow: s.boxShadow, pointer: s.pointerEvents, gold, radius: s.borderTopLeftRadius,
+        coverRadius: getComputedStyle(coverEl).borderTopLeftRadius,
+        fillsCover: same(box.top, cover.top) && same(box.left, cover.left) && same(box.width, cover.width) && same(box.height, cover.height),
+        hit: hit === el, hitInCover: !!hit && coverEl.contains(hit) };
     });
-    expect(look).toMatchObject({ height: '3px', edge: '1px', top: 0, fullWidth: true, hit: true });
-    expect(look.background).toBe(look.gold);
-    expect(look.edgeColor).toBe('rgba(0, 0, 0, 0.6)');
+    expect(look).toMatchObject({ pointer: 'none', fillsCover: true, hit: false, hitInCover: true });
+    expect(look.radius).toBe(look.coverRadius);
+    expect(look.shadow).toBe(`${look.gold} 0px 0px 0px 2px inset, rgba(0, 0, 0, 0.6) 0px 0px 0px 3px inset`);
 
     // The account menu: Tracking between Settings and Administration, with the count; it opens the page.
     await page.getByRole('button', { name: /^Account menu/ }).click();
