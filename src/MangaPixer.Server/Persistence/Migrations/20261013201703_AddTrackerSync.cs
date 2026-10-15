@@ -73,18 +73,7 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     RemoteStatus = table.Column<int>(type: "INTEGER", nullable: true),
                     RemoteMissing = table.Column<bool>(type: "INTEGER", nullable: false),
                     RemoteSeenAt = table.Column<long>(type: "INTEGER", nullable: true),
-                    UpdatedAt = table.Column<long>(type: "INTEGER", nullable: false),
-                    AllChapters = table.Column<int>(type: "INTEGER", nullable: true),
-                    AllVolumes = table.Column<int>(type: "INTEGER", nullable: true),
-                    RemoteTotalChapters = table.Column<int>(type: "INTEGER", nullable: true),
-                    RemoteTotalVolumes = table.Column<int>(type: "INTEGER", nullable: true),
-                    AutoStartedOn = table.Column<string>(type: "TEXT", maxLength: 10, nullable: true),
-                    AutoFinishedOn = table.Column<string>(type: "TEXT", maxLength: 10, nullable: true),
-                    StartedOnOverride = table.Column<string>(type: "TEXT", maxLength: 10, nullable: true),
-                    FinishedOnOverride = table.Column<string>(type: "TEXT", maxLength: 10, nullable: true),
-                    DatesPending = table.Column<bool>(type: "INTEGER", nullable: false),
-                    RemoteStartedOn = table.Column<string>(type: "TEXT", maxLength: 10, nullable: true),
-                    RemoteFinishedOn = table.Column<string>(type: "TEXT", maxLength: 10, nullable: true)
+                    UpdatedAt = table.Column<long>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -223,8 +212,7 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     ClientId = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
                     ClientSecretProtected = table.Column<string>(type: "TEXT", maxLength: 8192, nullable: true),
                     RedirectUri = table.Column<string>(type: "TEXT", maxLength: 1024, nullable: true),
-                    UpdatedAt = table.Column<long>(type: "INTEGER", nullable: false),
-                    DailyRequestCap = table.Column<int>(type: "INTEGER", nullable: true)
+                    UpdatedAt = table.Column<long>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
