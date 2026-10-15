@@ -183,8 +183,9 @@ public sealed class MyAnimeListTrackerClientTests : IDisposable
         Assert.Equal("https://api.myanimelist.net/v2/manga/2/my_list_status", seen.Uri.ToString());
         Assert.Equal("Bearer " + TrackerAdapterHarness.Access, seen.Headers["Authorization"]);
         var form = TrackerAdapterHarness.Form(seen.Body);
-        Assert.Equal(["status", "num_chapters_read", "num_volumes_read"], form.Select(p => p.Key).ToArray());
-        Assert.Equal(["reading", "12", "2"], form.Select(p => p.Value).ToArray());
+        // 1.43.0 (owner A1): the start / finish dates go with the write; still no private flag, score or anything else.
+        Assert.Equal(["status", "num_chapters_read", "num_volumes_read", "start_date", "finish_date"], form.Select(p => p.Key).ToArray());
+        Assert.Equal(["reading", "12", "2", "2026-01-02", "2026-03-04"], form.Select(p => p.Value).ToArray());
     }
 
     [Theory]

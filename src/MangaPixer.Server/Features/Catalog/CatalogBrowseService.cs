@@ -284,6 +284,9 @@ public sealed partial class CatalogBrowseService
         var nodes = await EnrichAsync(rows, userId, libraryId, ct);
         if (parentId is { } folderId && rows.Any(r => r.Kind == (int)CatalogNodeKind.Archive))
             nodes = await WithAlsoInVolumeAsync(nodes, folderId, ct);
+        // 1.43.0 (tracker sync): the cards' "read on <tracker>" flag (one indexed lookup when the viewer tracks nothing).
+        if (parentId is { } trackedFolder)
+            nodes = await WithTrackerReadAsync(nodes, userId, trackedFolder, ct);
 
         // Compute next cursor from the last row on the current page. recentlyRead
         // paginates by offset (in-memory pure-recency order); the others use a keyset.

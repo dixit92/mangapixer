@@ -379,7 +379,22 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
     public const string TrackerMarkSource = "tracker";
 
     /// <summary>The record's stored volume map (as every reader sees it) and the record's progress fields.</summary>
-    public async Task<(VolumeMapInput Map, SeriesProgressLoader.RecordRow? Record)> MapAsync(long recordId, CancellationToken ct)
+    public Task<(VolumeMapInput Map, SeriesProgressLoader.RecordRow? Record)> MapAsync(long recordId, CancellationToken ct) =>
+        MapAsync(db, recordId, ct);
+
+    /// <summary>
+    /// 1.43.0 (lane G): the record of a node's nearest Confirmed / Auto link (the same walk as <see cref="RecordsOfAsync"/>), or null - for
+    /// the browse cards' "read on &lt;tracker&gt;" mark (no access check here: the caller browses a folder it may open).
+    /// </summary>
+    public static async Task<long?> LinkedRecordOfAsync(MangaPixerDbContext db, long nodeId, CancellationToken ct)
+    {
+        var links = await CoverLinks.NearestAsync(db, [nodeId], ct);
+        return links.TryGetValue(nodeId, out var link) && link.IsLinked ? link.RecordId : null;
+    }
+
+    /// <summary>The record's stored volume map over any context (see the instance method).</summary>
+    public static async Task<(VolumeMapInput Map, SeriesProgressLoader.RecordRow? Record)> MapAsync(MangaPixerDbContext db, long recordId,
+        CancellationToken ct)
     {
         var maps = await db.SeriesVolumeMaps.AsNoTracking().Where(m => m.RecordId == recordId).ToListAsync(ct);
         var record = await db.MetadataRecords.AsNoTracking().Where(r => r.Id == recordId)
