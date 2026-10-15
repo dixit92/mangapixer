@@ -97,7 +97,7 @@ describe('TrackerCallbackComponent', () => {
     expect(el.querySelector('[data-testid="tracker-callback-connected"]')!.textContent).toContain('connected as reader');
     expect(el.textContent).not.toContain(CODE);
     expect(el.textContent).not.toContain(STATE);
-    expect(el.querySelector('[data-testid="tracker-callback-settings"]')!.getAttribute('href')).toBe('/settings');
+    expect(el.querySelector('[data-testid="tracker-callback-settings"]')!.getAttribute('href')).toBe('/tracking');
     http.verify();
   });
 

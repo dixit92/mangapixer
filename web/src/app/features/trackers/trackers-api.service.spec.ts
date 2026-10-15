@@ -38,6 +38,11 @@ describe('TrackersApiService', () => {
       [() => api.sendAll('mal'), 'POST', '/api/v1/trackers/mal/entries/send-all', {}],
       [() => api.syncOverrides(), 'GET', '/api/v1/trackers/sync-overrides', null],
       [() => api.setSyncOverrides(['n1'], null), 'PUT', '/api/v1/trackers/sync-overrides', { nodeIds: ['n1'], enabled: null }],
+      [() => api.attention(), 'GET', '/api/v1/trackers/attention', null],
+      [() => api.summary('n 1'), 'GET', '/api/v1/trackers/nodes/n%201/summary', null],
+      [() => api.fromTracker('mal', 's1'), 'POST', '/api/v1/trackers/mal/entries/s1/from-tracker', {}],
+      [() => api.setDates('mal', 's1', { startedOn: '2026-10-01', finishedOn: null }), 'PUT', '/api/v1/trackers/mal/entries/s1/dates',
+        { startedOn: '2026-10-01', finishedOn: null }],
       [() => api.adminList(), 'GET', '/api/v1/admin/trackers', null],
       [() => api.adminUpdate('mal', { enabled: false }), 'PUT', '/api/v1/admin/trackers/mal', { enabled: false }],
       [() => api.adminAccounts(), 'GET', '/api/v1/admin/trackers/accounts', null],
@@ -51,6 +56,33 @@ describe('TrackersApiService', () => {
       expect(req.request.method).toBe(method);
       expect(req.request.withCredentials).toBe(true);
       if (body !== null) expect(req.request.body).toEqual(body);
+      req.flush({});
+    }
+  });
+});
+
+describe('TrackersApiService.seriesPage (the Tracking list, 1.43.0)', () => {
+  afterEach(() => {
+    const http = TestBed.inject(HttpTestingController);
+    TestBed.resetTestingModule();
+    http.verify();
+  });
+
+  it('sends the page, the chip (not for All) and the trimmed search as query parameters', () => {
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    const api = TestBed.inject(TrackersApiService);
+    const http = TestBed.inject(HttpTestingController);
+    const cases: [number, string, string, Record<string, string>][] = [
+      [1, 'All', '', { page: '1' }],
+      [2, 'TrackerAhead', '', { page: '2', filter: 'TrackerAhead' }],
+      [1, 'Attention', '  Saga ', { page: '1', filter: 'Attention', q: 'Saga' }],
+    ];
+    for (const [page, filter, q, expected] of cases) {
+      api.seriesPage('mal', page, filter, q).subscribe();
+      const req = http.expectOne((r) => r.url === '/api/v1/trackers/mal/series');
+      expect(req.request.method).toBe('GET');
+      expect(req.request.withCredentials).toBe(true);
+      expect(Object.fromEntries(req.request.params.keys().map((k) => [k, req.request.params.get(k)]))).toEqual(expected);
       req.flush({});
     }
   });

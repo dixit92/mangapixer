@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, effect, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
 import { ConnectedPosition, OverlayModule } from '@angular/cdk/overlay';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -21,8 +21,8 @@ const POSITIONS: ConnectedPosition[] = [
  * The series header's "Tracking" button (1.43.0 owner redesign): on a folder of a linked series, for a user with a connected
  * tracker, a gold button next to "Series info" opens a small popover - per connected tracker the tracker's name, the series' state
  * chip, MangaPixer's numbers against the tracker's, the dates, and "Open in Tracking" to that series' row on the Tracking page.
- * Hidden without a connected tracker, and for a folder that is not a linked series. Reads `GET /trackers/nodes/{id}/summary`
- * (stored state only - nothing is sent to a tracker). Phone: icon only.
+ * Hidden without a connected tracker (the shared overview, loaded by the app shell at sign-in), and for a folder that is not a
+ * linked series. Reads `GET /trackers/nodes/{id}/summary` (stored state only - nothing is sent to a tracker). Phone: icon only.
  */
 @Component({
   selector: 'app-series-tracking-button',
@@ -110,7 +110,7 @@ const POSITIONS: ConnectedPosition[] = [
     .open { align-self: flex-start; }
   `],
 })
-export class SeriesTrackingButtonComponent implements OnInit {
+export class SeriesTrackingButtonComponent {
   private readonly api = inject(TrackersApiService);
   private readonly state = inject(TrackerStateService);
 
@@ -141,10 +141,6 @@ export class SeriesTrackingButtonComponent implements OnInit {
       }
       this.load(id);
     });
-  }
-
-  ngOnInit(): void {
-    this.state.ensureLoaded();
   }
 
   toggle(): void {

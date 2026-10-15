@@ -2,41 +2,45 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { vi } from 'vitest';
 
 import { TrackerSummaryDto } from '../../core/api/api-types';
-import { ConnectedAccountsCardComponent } from './connected-accounts-card.component';
 import { TrackerAccountPanelComponent } from './tracker-account-panel.component';
 import { TrackerNavigationService } from './tracker-navigation.service';
 import { TrackerStateService } from './tracker-state.service';
-import { summary, trackerAccount } from './trackers.testing';
+import { TrackingPageComponent } from './tracking-page.component';
+import { seriesPage, seriesRow, summary, trackerAccount } from './trackers.testing';
 
 const BASE = '/api/v1/trackers';
 
 const MU = (o: Partial<TrackerSummaryDto> = {}) => summary({ slug: 'mangaupdates', name: 'MangaUpdates', connectKind: 'Password', ...o });
 
 /**
- * Settings > Connected accounts (1.43.0): the user consent, Connect (MyAnimeList: the browser goes to the sign-in address the
- * server gives; MangaUpdates: username + password, never echoed, cleared after submit, an empty password refused without a
- * request), "Connected as", Disconnect after a confirm, and the user's settings. Mocked HTTP backend and navigation.
+ * The Tracking page (1.43.0 owner redesign; it replaces Settings > Connected accounts): the account cards (the user consent behind
+ * "Connect <tracker>…", Connect - MyAnimeList: the browser goes to the sign-in address the server gives; MangaUpdates: username +
+ * password, never echoed, cleared after submit, an empty password refused without a request -, "Connected as", Disconnect after a
+ * confirm, the user's settings), one series tab per connected tracker, and "Open in Tracking" (`?tracker=&series=`). Mocked HTTP
+ * backend and navigation.
  */
-describe('ConnectedAccountsCardComponent', () => {
+describe('TrackingPageComponent', () => {
   const openSignIn = vi.fn((url: string) => url.startsWith('https://'));
 
-  function create(trackers: TrackerSummaryDto[]) {
+  function create(trackers: TrackerSummaryDto[], query: Record<string, string> = {}) {
     openSignIn.mockClear();
     TestBed.configureTestingModule({
-      imports: [ConnectedAccountsCardComponent],
+      imports: [TrackingPageComponent],
       providers: [
         provideNoopAnimations(), provideRouter([]), provideHttpClient(), provideHttpClientTesting(),
         { provide: TrackerNavigationService, useValue: { openSignIn } },
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(query) } } },
       ],
     });
-    const fixture = TestBed.createComponent(ConnectedAccountsCardComponent);
+    const fixture = TestBed.createComponent(TrackingPageComponent);
     fixture.detectChanges();
     const http = TestBed.inject(HttpTestingController);
     http.expectOne(BASE).flush({ trackers });
+    http.expectOne(`${BASE}/attention`).flush({ total: 0, trackers: [] });
     fixture.detectChanges();
     return { fixture, http, el: fixture.nativeElement as HTMLElement };
   }
@@ -45,6 +49,10 @@ describe('ConnectedAccountsCardComponent', () => {
   const panel = (fixture: ReturnType<typeof create>['fixture'], slug: string) =>
     fixture.debugElement.queryAll((d) => d.componentInstance instanceof TrackerAccountPanelComponent)
       .map((d) => d.componentInstance as TrackerAccountPanelComponent).find((p) => p.tracker().slug === slug)!;
+  const openConnect = (fixture: ReturnType<typeof create>['fixture'], el: HTMLElement, slug: string) => {
+    q(el, `tracker-connect-open-${slug}`).click();
+    fixture.detectChanges();
+  };
 
   // Reset first: a failed verify must not leave the module instantiated for the next test (one failure, one red).
   afterEach(() => {
@@ -55,15 +63,27 @@ describe('ConnectedAccountsCardComponent', () => {
 
   it('says when no tracker is allowed, and links the user docs without a referrer', () => {
     const { el } = create([summary({ allowed: false }), MU({ allowed: false })]);
-    expect(q(el, 'connected-accounts-none').textContent).toContain('No tracker is allowed');
-    const help = q(el, 'connected-accounts-help') as HTMLAnchorElement;
+    expect(q(el, 'tracking-none').textContent).toContain('No tracker is allowed');
+    const help = q(el, 'tracking-help') as HTMLAnchorElement;
     expect(help.href).toBe('https://mangapixer.com/tracker-sync/');
     expect(help.rel).toContain('noreferrer');
+    expect(q(el, 'tracking-series')).toBeNull();
   });
 
-  it('MyAnimeList: shows the user consent, waits for the tick, then opens the sign-in address the server gives', () => {
+  it('shows one card per allowed tracker, in a fixed order, and no series list before an account is connected', () => {
+    const { el } = create([MU(), summary()]);
+    const cards = [...el.querySelectorAll('[data-testid^="tracker-account-"]')].map((c) => c.getAttribute('data-testid'));
+    expect(cards).toEqual(['tracker-account-mal', 'tracker-account-mangaupdates']);
+    expect(q(el, 'tracker-status-mal').textContent).toContain('Not connected');
+    expect(q(el, 'tracker-consent-user-mal')).toBeNull();
+    expect(q(el, 'tracking-no-account').textContent).toContain('Connect an account above');
+  });
+
+  it('MyAnimeList: "Connect…" shows the user consent, waits for the tick, then opens the sign-in address the server gives', () => {
     const { fixture, http, el } = create([summary()]);
+    openConnect(fixture, el, 'mal');
     expect(q(el, 'tracker-consent-user-mal').textContent).toContain('MangaPixer never sees your password');
+    expect(q(el, 'tracker-consent-user-mal').textContent).toContain('the dates you started and finished it');
     const connect = q(el, 'tracker-connect-mal') as HTMLButtonElement;
     expect(connect.disabled).toBe(true);
     panel(fixture, 'mal').consentTicked.set(true);
@@ -78,6 +98,7 @@ describe('ConnectedAccountsCardComponent', () => {
 
   it('MyAnimeList: a refused start is shown in plain words', () => {
     const { fixture, http, el } = create([summary()]);
+    openConnect(fixture, el, 'mal');
     panel(fixture, 'mal').consentTicked.set(true);
     fixture.detectChanges();
     q(el, 'tracker-connect-mal').click();
@@ -89,6 +110,7 @@ describe('ConnectedAccountsCardComponent', () => {
 
   it('MangaUpdates: refuses an empty password without a request and clears the password after every submit', async () => {
     const { fixture, http, el } = create([MU()]);
+    openConnect(fixture, el, 'mangaupdates');
     const p = panel(fixture, 'mangaupdates');
     p.consentTicked.set(true);
     p.username.set('reader');
@@ -113,8 +135,9 @@ describe('ConnectedAccountsCardComponent', () => {
     expect(q(el, 'tracker-error-mangaupdates').textContent).toContain('MangaUpdates did not accept this sign-in');
   });
 
-  it('MangaUpdates: a successful connect reloads the overview', () => {
+  it('MangaUpdates: a successful connect reloads the overview and opens its series tab', () => {
     const { fixture, http, el } = create([MU()]);
+    openConnect(fixture, el, 'mangaupdates');
     const p = panel(fixture, 'mangaupdates');
     p.consentTicked.set(true);
     p.username.set('reader');
@@ -123,28 +146,33 @@ describe('ConnectedAccountsCardComponent', () => {
     q(el, 'tracker-connect-mangaupdates').click();
     http.expectOne(`${BASE}/mangaupdates/connect/password`).flush(trackerAccount({ tracker: 'mangaupdates' }));
     http.expectOne(BASE).flush({ trackers: [MU({ account: trackerAccount({ tracker: 'mangaupdates' }) })] });
+    http.expectOne(`${BASE}/attention`).flush({ total: 0, trackers: [] });
     fixture.detectChanges();
-    http.expectOne(`${BASE}/mangaupdates/entries`).flush([]);
+    http.expectOne((r) => r.url === `${BASE}/mangaupdates/series`).flush(seriesPage([]));
     fixture.detectChanges();
     expect(q(el, 'tracker-connected-as-mangaupdates').textContent).toContain('Connected as reader');
+    expect(q(el, 'tracking-tab-mangaupdates').getAttribute('aria-selected')).toBe('true');
     expect(TestBed.inject(TrackerStateService).hasConnected()).toBe(true);
   });
 
   it('connected: shows the account, the settings (private entries only where supported) and disconnects after a confirm', () => {
-    const { fixture, http, el } = create([summary({ account: trackerAccount() }), MU({ account: trackerAccount({ tracker: 'mangaupdates' }), supportsPrivateEntries: true })]);
-    http.expectOne(`${BASE}/mal/entries`).flush([]);
-    http.expectOne(`${BASE}/mangaupdates/entries`).flush([]);
+    const { fixture, http, el } = create([summary({ account: trackerAccount() }),
+      MU({ account: trackerAccount({ tracker: 'mangaupdates' }), supportsPrivateEntries: true })]);
+    http.expectOne((r) => r.url === `${BASE}/mal/series`).flush(seriesPage([seriesRow()]));
     fixture.detectChanges();
     expect(q(el, 'tracker-connected-as-mal').textContent).toContain('Connected as reader');
+    expect(q(el, 'tracker-status-mal').textContent).toContain('Connected');
     expect(q(el, 'tracker-consent-user-mal')).toBeNull();
     expect(q(el, 'tracker-private-entries-mal')).toBeNull();
     expect(q(el, 'tracker-private-entries-mangaupdates')).not.toBeNull();
+    expect([...el.querySelectorAll('[role="tab"]')].map((t) => t.textContent!.trim())).toEqual(['MyAnimeList', 'MangaUpdates']);
 
     q(el, 'tracker-add-started-mal').querySelector('button')!.click();
     const settings = http.expectOne(`${BASE}/mal/settings`);
     expect(settings.request.body).toEqual({ addStartedSeries: false });
     settings.flush(trackerAccount({ addStartedSeries: false }));
     http.expectOne(BASE).flush({ trackers: [summary({ account: trackerAccount({ addStartedSeries: false }) })] });
+    http.expectOne(`${BASE}/attention`).flush({ total: 0, trackers: [] });
     fixture.detectChanges();
 
     q(el, 'tracker-disconnect-mal').click();
@@ -153,16 +181,37 @@ describe('ConnectedAccountsCardComponent', () => {
     q(el, 'tracker-disconnect-yes-mal').click();
     http.expectOne(`${BASE}/mal/disconnect`).flush(null, { status: 204, statusText: 'No Content' });
     http.expectOne(BASE).flush({ trackers: [summary()] });
+    http.expectOne(`${BASE}/attention`).flush({ total: 0, trackers: [] });
     fixture.detectChanges();
     expect(q(el, 'tracker-notice-mal').textContent).toContain('Disconnected from MyAnimeList');
-    expect(q(el, 'tracker-consent-user-mal')).not.toBeNull();
+    expect(q(el, 'tracker-connect-open-mal')).not.toBeNull();
+    expect(q(el, 'tracking-series')).toBeNull();
   });
 
   it('an account disconnected by an admin asks to connect again', () => {
     const { fixture, http, el } = create([summary({ account: trackerAccount({ state: 'DisconnectedByAdmin', displayName: null }) })]);
-    http.expectOne(`${BASE}/mal/entries`).flush([]);
+    http.expectOne((r) => r.url === `${BASE}/mal/series`).flush(seriesPage([]));
     fixture.detectChanges();
     expect(q(el, 'tracker-problem-mal').textContent).toContain('An admin disconnected');
-    expect(q(el, 'tracker-connect-mal')).not.toBeNull();
+    expect(q(el, 'tracker-status-mal').textContent).toContain('Connect again');
+    expect(q(el, 'tracker-connect-open-mal').textContent).toContain('Connect again…');
+    // The list stays, its actions off (the account cannot sync).
+    expect((q(el, 'tracker-preview-mal') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('"Open in Tracking" (?tracker=mangaupdates&series=s9) opens that tab with the series highlighted', () => {
+    history.replaceState({ title: 'Synthetic Saga' }, '');
+    try {
+      const { fixture, http, el } = create([summary({ account: trackerAccount() }), MU({ account: trackerAccount({ tracker: 'mangaupdates' }) })],
+        { tracker: 'mangaupdates', series: 's9' });
+      const req = http.expectOne((r) => r.url === `${BASE}/mangaupdates/series`);
+      expect(req.request.params.get('q')).toBe('Synthetic Saga');
+      req.flush(seriesPage([seriesRow({ seriesId: 's9', tracker: 'mangaupdates' })]));
+      fixture.detectChanges();
+      expect(q(el, 'tracking-tab-mangaupdates').getAttribute('aria-selected')).toBe('true');
+      expect(q(el, 'tracking-row-s9').classList).toContain('focused');
+    } finally {
+      history.replaceState(null, '');
+    }
   });
 });

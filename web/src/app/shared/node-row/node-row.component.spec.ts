@@ -115,4 +115,18 @@ describe('NodeRowComponent', () => {
     expect(directionShort('VerticalWebtoon')).toBe('Vertical');
     expect(directionShort('Spread' as never)).toBe('Spread');
   });
+
+  it('shows the tracker read mark on the thumbnail only when a tracker counts the item as read (1.43.0)', () => {
+    const marked = create({ node: node({ trackerRead: ['mal'] }) });
+    const mark = marked.el.querySelector('.cover [data-testid="tracker-read-mark"]') as HTMLElement;
+    expect(mark).not.toBeNull();
+    expect(mark.getAttribute('aria-label')).toBe('Read on MyAnimeList');
+    // MangaPixer's own read badge is unchanged by it.
+    expect(marked.el.querySelector('.badge.read')).toBeNull();
+    TestBed.resetTestingModule();
+
+    const plain = create({ node: node({ trackerRead: null, isRead: true }) });
+    expect(plain.el.querySelector('[data-testid="tracker-read-mark"]')).toBeNull();
+    expect(plain.el.querySelector('.badge.read')).not.toBeNull();
+  });
 });
