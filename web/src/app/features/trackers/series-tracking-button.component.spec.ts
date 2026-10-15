@@ -73,6 +73,7 @@ describe('SeriesTrackingButtonComponent', () => {
     expect(q(pop, 'series-tracking-here-mal')!.textContent).toContain('45 of 51 ch');
     expect(q(pop, 'series-tracking-remote-mal')!.textContent).toContain('51 ch · 10 vol · Completed');
     expect(q(pop, 'series-tracking-dates-mal')!.textContent).toContain('Start Oct 1, 2026 · Finish —');
+    expect(q(pop, 'series-tracking-ring-legend')!.textContent).toContain('every tracker this series syncs to');
     const open = q(pop, 'series-tracking-open-mal') as HTMLAnchorElement;
     expect(open.getAttribute('href')).toBe('/tracking?tracker=mal&series=s1');
     expect(open.getAttribute('href')).not.toContain('Synthetic');
