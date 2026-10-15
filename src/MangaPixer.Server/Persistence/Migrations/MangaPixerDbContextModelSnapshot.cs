@@ -2525,11 +2525,32 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("AllChapters")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("AllVolumes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AutoFinishedOn")
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AutoStartedOn")
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("DatesPending")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("DontSync")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("ErrorCode")
                         .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FinishedOnOverride")
+                        .HasMaxLength(10)
                         .HasColumnType("TEXT");
 
                     b.Property<int?>("HeldChapters")
@@ -2562,6 +2583,10 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Property<int?>("RemoteChapters")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("RemoteFinishedOn")
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("RemoteId")
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
@@ -2575,11 +2600,25 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Property<long?>("RemoteSeenAt")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("RemoteStartedOn")
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
                     b.Property<int?>("RemoteStatus")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("RemoteTotalChapters")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("RemoteTotalVolumes")
                         .HasColumnType("INTEGER");
 
                     b.Property<int?>("RemoteVolumes")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("StartedOnOverride")
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("State")
                         .HasColumnType("INTEGER");
@@ -2772,6 +2811,9 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int?>("ConsentVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("DailyRequestCap")
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("Enabled")

@@ -12,6 +12,9 @@ internal static class TrackerModel
     public const int SlugLength = 32;
     public const int ProtectedLength = 8192;
 
+    /// <summary>A UTC day as stored, "yyyy-MM-dd" (1.43.0 lane G dates).</summary>
+    public const int DateLength = 10;
+
     public static void Configure(ModelBuilder mb)
     {
         mb.Entity<TrackerSettingsEntity>(e =>
@@ -53,6 +56,12 @@ internal static class TrackerModel
             e.Property(x => x.Tracker).HasMaxLength(SlugLength).IsRequired();
             e.Property(x => x.RemoteId).HasMaxLength(64);
             e.Property(x => x.ErrorCode).HasMaxLength(32);
+            e.Property(x => x.AutoStartedOn).HasMaxLength(DateLength);
+            e.Property(x => x.AutoFinishedOn).HasMaxLength(DateLength);
+            e.Property(x => x.StartedOnOverride).HasMaxLength(DateLength);
+            e.Property(x => x.FinishedOnOverride).HasMaxLength(DateLength);
+            e.Property(x => x.RemoteStartedOn).HasMaxLength(DateLength);
+            e.Property(x => x.RemoteFinishedOn).HasMaxLength(DateLength);
             e.HasIndex(x => new { x.UserId, x.Tracker, x.RecordId }).IsUnique();
             e.HasIndex(x => x.RecordId);
             e.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);

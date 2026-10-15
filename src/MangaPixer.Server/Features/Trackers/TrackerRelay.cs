@@ -41,6 +41,17 @@ public sealed class TrackerRelay : IReadMarkObserver
     /// <summary>Asks the consumer to run the due retries (of one user, or of everyone).</summary>
     public void EnqueueRetries(long? userId) => Enqueue(new TrackerRelayWork([], userId ?? TrackerRelayWork.AllUsers));
 
+    /// <summary>
+    /// 1.43.0 (lane G, owner E1 catch-up): the stored volume list of these series records changed - every connected user's entry of them is
+    /// recomputed and synced by the normal rules (a request only when MangaPixer may now be ahead of what was sent or seen). Never blocks.
+    /// </summary>
+    public void OnVolumeListChanged(IReadOnlyCollection<long> recordIds)
+    {
+        if (recordIds.Count == 0)
+            return;
+        Enqueue(new TrackerRelayWork([], null) { ChangedRecords = recordIds.Distinct().ToList() });
+    }
+
     private void Enqueue(TrackerRelayWork work)
     {
         lock (_gate)
@@ -85,6 +96,9 @@ public sealed class TrackerRelay : IReadMarkObserver
 public sealed record TrackerRelayWork(IReadOnlyList<ReadMarkChange> Changes, long? RetriesFor)
 {
     public const long AllUsers = -1;
+
+    /// <summary>1.43.0 (lane G): series records whose stored volume list changed (E1 catch-up), or empty.</summary>
+    public IReadOnlyList<long> ChangedRecords { get; init; } = [];
 }
 
 /// <summary>
@@ -162,6 +176,8 @@ public sealed class TrackerRelayProcessor(
             await sync.RunDueRetriesAsync(retryUser == TrackerRelayWork.AllUsers ? null : retryUser, ct);
             return await sync.NextRetryAtAsync(ct);
         }
+        if (work.ChangedRecords.Count > 0)
+            return await RequeueAsync(work.ChangedRecords, ct);
 
         var userIds = work.Changes.Select(c => c.UserId).Distinct().ToList();
         // One query decides the common case: nobody in this batch has a usable account -> nothing to do.
@@ -184,8 +200,11 @@ public sealed class TrackerRelayProcessor(
             if (trackers.Count == 0)
                 continue;
             var changes = work.Changes.Where(c => c.UserId == userId).ToList();
-            // An upgrade mark is a carry-over to a volume file (no new reading): it triggers nothing on its own.
-            var added = changes.Where(c => c.Kind == ReadMarkChangeKind.Added && c.Source != Library.Moves.UpgradeCarryOverService.MarkSource).Select(c => c.ItemId).Distinct().ToList();
+            // An upgrade mark is a carry-over to a volume file (no new reading): it triggers nothing on its own. A mark made by "Set progress
+            // from <tracker> to MangaPixer" (1.43.0) came FROM a tracker: it never triggers an outbound sync either.
+            var added = changes.Where(c => c.Kind == ReadMarkChangeKind.Added && c.Source != Library.Moves.UpgradeCarryOverService.MarkSource
+                    && c.Source != TrackerSeriesResolver.TrackerMarkSource)
+                .Select(c => c.ItemId).Distinct().ToList();
             var removed = changes.Where(c => c.Kind == ReadMarkChangeKind.Removed).Select(c => c.ItemId).Distinct().ToList();
             var addedRecords = added.Count == 0 ? new List<long>() : (await resolver.RecordsOfAsync(userId, added, ct)).Values.Distinct().ToList();
             var removedRecords = removed.Count == 0 ? new List<long>() : (await resolver.RecordsOfAsync(userId, removed, ct)).Values.Distinct()
@@ -212,6 +231,36 @@ public sealed class TrackerRelayProcessor(
         }
         logger.LogInformation(LogEvents.Trackers.RelayBatch, "Tracker relay: {Changes} change(s), {Users} user(s), {Syncs} series sync(s)",
             work.Changes.Count, accounts.Select(a => a.UserId).Distinct().Count(), written);
+        return await sync.NextRetryAtAsync(ct);
+    }
+
+    /// <summary>
+    /// E1 catch-up (owner, 2026-10-15): a series' volume list changed, so volumes read from chapters (or chapters read from volume files) may
+    /// have changed. Every user with a usable account and an entry of the series on an allowed tracker is synced as after a new read mark:
+    /// the numbers are recomputed and the tracker is read (and written) only when MangaPixer may now be ahead of what was sent or seen - an
+    /// unchanged list sends nothing. "Don't sync" and the other gates apply as always.
+    /// </summary>
+    private async Task<DateTimeOffset?> RequeueAsync(IReadOnlyList<long> recordIds, CancellationToken ct)
+    {
+        var ok = (int)TrackerAccountState.Ok;
+        var targets = await (from e in db.TrackerEntries.AsNoTracking()
+                             join a in db.TrackerAccounts.AsNoTracking() on new { e.UserId, e.Tracker } equals new { a.UserId, a.Tracker }
+                             where recordIds.Contains(e.RecordId) && a.State == ok && !e.DontSync
+                             orderby e.UserId, e.Tracker, e.RecordId
+                             select new { e.UserId, e.Tracker, e.RecordId }).ToListAsync(ct);
+        var allowed = new Dictionary<string, bool>(StringComparer.Ordinal);
+        var synced = 0;
+        foreach (var t in targets)
+        {
+            if (!allowed.TryGetValue(t.Tracker, out var isAllowed))
+                allowed[t.Tracker] = isAllowed = await settings.IsAllowedAsync(t.Tracker, ct);
+            if (!isAllowed)
+                continue;
+            await sync.SyncAsync(t.UserId, t.Tracker, t.RecordId, TrackerSyncMode.Automatic, TrackerSyncTrigger.ReadMark, null, ct);
+            synced++;
+        }
+        logger.LogInformation(LogEvents.Trackers.VolumeListRequeued, "Tracker re-queue after a volume list change: {Records} series, {Syncs} entry sync(s)",
+            recordIds.Count, synced);
         return await sync.NextRetryAtAsync(ct);
     }
 }

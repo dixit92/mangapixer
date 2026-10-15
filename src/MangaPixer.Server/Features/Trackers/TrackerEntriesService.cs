@@ -96,6 +96,19 @@ public sealed class TrackerEntriesService(
         var seen = (await db.TrackerEntries.AsNoTracking()
                 .Where(e => e.UserId == userId && e.Tracker == tracker && e.RemoteSeenAt != null).Select(e => e.RecordId).ToListAsync(ct))
             .ToHashSet();
+        // 1.43.0 (lane G): every series with an eligible mark gets a row on the Tracking page now ("not checked" until it is read).
+        var known = (await db.TrackerEntries.AsNoTracking().Where(e => e.UserId == userId && e.Tracker == tracker).Select(e => e.RecordId)
+            .ToListAsync(ct)).ToHashSet();
+        var now = time.GetUtcNow();
+        foreach (var recordId in records.Where(r => !known.Contains(r)))
+        {
+            db.TrackerEntries.Add(new TrackerEntryEntity
+            {
+                UserId = userId, Tracker = tracker, RecordId = recordId, State = (int)TrackerEntryState.Pending, UpdatedAt = now,
+            });
+        }
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
         var unread = records.Where(r => !seen.Contains(r)).Order().ToList();
         var capReached = false;
         var read = 0;
@@ -209,7 +222,7 @@ public sealed class TrackerEntriesService(
         return (await ListOverridesAsync(userId, ct), null);
     }
 
-    private async Task<(TrackerAccountEntity? Account, TrackerProblem? Problem)> ConnectedAsync(long userId, string tracker, CancellationToken ct)
+    internal async Task<(TrackerAccountEntity? Account, TrackerProblem? Problem)> ConnectedAsync(long userId, string tracker, CancellationToken ct)
     {
         if (!TrackerFacts.IsKnown(tracker))
             return (null, TrackerProblem.UnknownTracker);
@@ -223,7 +236,7 @@ public sealed class TrackerEntriesService(
         return (account, null);
     }
 
-    private async Task<(long RecordId, TrackerProblem? Problem)> UsableAsync(long userId, string tracker, string seriesId, CancellationToken ct)
+    internal async Task<(long RecordId, TrackerProblem? Problem)> UsableAsync(long userId, string tracker, string seriesId, CancellationToken ct)
     {
         var account = await ConnectedAsync(userId, tracker, ct);
         if (account.Problem is not null)
@@ -233,7 +246,7 @@ public sealed class TrackerEntriesService(
     }
 
     /// <summary>The record behind a series id, when one of its Confirmed / Auto linked folders is in a library the user can open.</summary>
-    private async Task<long?> RecordIdAsync(long userId, string seriesId, CancellationToken ct)
+    internal async Task<long?> RecordIdAsync(long userId, string seriesId, CancellationToken ct)
     {
         var accessible = (await libraries.GetAccessibleLibraryIdsAsync(userId, ct)).ToList();
         var states = new[] { (int)Core.Metadata.SeriesLinkState.Confirmed, (int)Core.Metadata.SeriesLinkState.Auto };

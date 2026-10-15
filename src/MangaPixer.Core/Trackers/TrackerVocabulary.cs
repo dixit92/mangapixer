@@ -92,8 +92,20 @@ public static class TrackerConsent
 /// <summary>Fixed facts and limits of the trackers MangaPixer syncs to.</summary>
 public static class TrackerFacts
 {
-    /// <summary>Requests one user may make to one tracker per UTC day (D2 4.5), so a bulk send cannot drain a shared budget.</summary>
-    public const int DailyRequestCap = 300;
+    /// <summary>
+    /// Requests one user may make to one tracker per UTC day (D2 4.5), so a bulk send cannot drain a shared budget. 1.43.0 owner E5: an
+    /// admin setting per tracker (Administration > Trackers), default <see cref="DefaultDailyRequestCap"/>, from
+    /// <see cref="MinDailyRequestCap"/> to <see cref="MaxDailyRequestCap"/>.
+    /// </summary>
+    public const int DefaultDailyRequestCap = 2000;
+
+    public const int MinDailyRequestCap = 100;
+
+    public const int MaxDailyRequestCap = 20_000;
+
+    /// <summary>The cap in effect for a stored setting (null or out of range = the default).</summary>
+    public static int DailyRequestCapOf(int? stored) =>
+        stored is { } cap && cap >= MinDailyRequestCap && cap <= MaxDailyRequestCap ? cap : DefaultDailyRequestCap;
 
     /// <summary>A refresh is attempted when the access token expires within this window.</summary>
     public static readonly TimeSpan RefreshAhead = TimeSpan.FromMinutes(10);
@@ -122,6 +134,18 @@ public static class TrackerFacts
     /// confirms); MangaUpdates lists have none. The "Private entries" setting is stored for both and sent only where this is true.
     /// </summary>
     public static bool SupportsPrivateEntries(string tracker) => false;
+
+    /// <summary>
+    /// Whether the tracker keeps a start / finish date on a list entry that MangaPixer may send (1.43.0 owner A1: MyAnimeList, whose
+    /// list update takes <c>start_date</c> / <c>finish_date</c>; MangaUpdates lists keep no dates).
+    /// </summary>
+    public static bool SupportsDates(string tracker) => tracker == TrackerSlugs.MyAnimeList;
+
+    /// <summary>Series per page of the Tracking list (owner redesign, 2026-10-15).</summary>
+    public const int ListPageSize = 50;
+
+    /// <summary>The longest search text the Tracking list accepts.</summary>
+    public const int MaxSearchLength = 200;
 
     /// <summary>Whether the instance must register an app with the tracker (MyAnimeList: Client ID + redirect URL).</summary>
     public static bool NeedsAppRegistration(string tracker) => tracker == TrackerSlugs.MyAnimeList;

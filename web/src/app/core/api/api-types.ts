@@ -109,6 +109,11 @@ export interface CatalogNodeDto {
   coverSource?: CardCoverSource | null;
   /** 1.30.0 (reach): on a chapter archive, the volume key of a volume FILE of the same series that already holds it ("Also in Volume 10"). */
   alsoInVolume?: string | null;
+  /**
+   * 1.43.0: the trackers (`mal`, `mangaupdates`) on which this archive - or this volume of the Volumes view - is read by the
+   * tracker's last-seen numbers, for a linked series the viewer tracks there (display only). Left out when empty / not tracked.
+   */
+  trackerRead?: string[] | null;
 }
 
 export interface BreadcrumbEntry {
@@ -3401,6 +3406,8 @@ export interface AdminTrackerSettingsDto {
   clientSecretSet: boolean;
   redirectUri?: string | null;
   connectedUsers: number;
+  /** 1.43.0 (owner E5): requests one user may make to this tracker per UTC day (default 2000, 100 - 20000). */
+  dailyRequestCap: number;
 }
 
 /** `PUT /api/v1/admin/trackers/{slug}` (null = unchanged; an empty string clears a field). */
@@ -3411,6 +3418,8 @@ export interface UpdateTrackerSettingsRequest {
   clientId?: string | null;
   clientSecret?: string | null;
   redirectUri?: string | null;
+  /** 1.43.0 (owner E5): the per-user daily request cap, 100 - 20000 (null = unchanged). */
+  dailyRequestCap?: number | null;
 }
 
 /** A user's connection as an admin sees it - never the remote account or a token. */
@@ -3442,4 +3451,134 @@ export interface TrackerSeriesIdDto {
 /** `PUT /api/v1/admin/trackers/nodes/{nodeId}/ids/{slug}`: null or empty removes the admin's id. */
 export interface UpdateTrackerSeriesIdRequest {
   remoteId?: string | null;
+}
+
+// ---- 1.43.0 tracking redesign (server lane G): the Tracking page, the two "Set progress" actions, dates, the badge, the popover.
+
+/** The filter chip of a series on the Tracking page (one per row). */
+export type TrackerListBucket =
+  | 'InSync'
+  | 'MangaPixerAhead'
+  | 'TrackerAhead'
+  | 'LeftAsIs'
+  | 'Held'
+  | 'NoId'
+  | 'NotSynced'
+  | 'Problem'
+  | 'Unchecked';
+
+/** Why one of the two "Set progress" actions cannot move anything now ('None' = it can). */
+export type TrackerActionBlock = 'None' | 'NotChecked' | 'NotAhead' | 'NoId' | 'DontSync' | 'LeftAsIs' | 'NotOnList';
+
+/** A series' start / finish dates on a tracker that keeps dates (MyAnimeList); `supported` false = none are sent. Dates are `yyyy-MM-dd`. */
+export interface TrackerDatesDto {
+  supported: boolean;
+  /** In effect: the user's date, else the automatic one (first counted mark). */
+  startedOn?: string | null;
+  startedOnOverridden: boolean;
+  /** In effect: the user's date, else the day MangaPixer set Completed (else the tracker's). */
+  finishedOn?: string | null;
+  finishedOnOverridden: boolean;
+  remoteStartedOn?: string | null;
+  remoteFinishedOn?: string | null;
+  /** A date the user set has not reached the tracker yet (it goes with the next write). */
+  pending: boolean;
+}
+
+export interface TrackerActionDto {
+  possible: boolean;
+  block: TrackerActionBlock;
+}
+
+/** One series of the Tracking list (per tracker, the caller's own). */
+export interface TrackerSeriesRowDto {
+  seriesId: string;
+  title: string;
+  nodeId?: string | null;
+  tracker: string;
+  remoteId?: string | null;
+  remoteIdSource?: TrackerIdSource | null;
+  state: TrackerEntryState;
+  bucket: TrackerListBucket;
+  errorCode?: string | null;
+  dontSync: boolean;
+  /** MangaPixer's numbers that sync on their own. */
+  chapters?: number | null;
+  volumes?: number | null;
+  /** MangaPixer's numbers with every mark (folder mark-reads and imports included). */
+  allChapters?: number | null;
+  allVolumes?: number | null;
+  heldChapters?: number | null;
+  heldVolumes?: number | null;
+  /** "Of how many": the tracker's totals, else the stored record's; null when unknown. */
+  totalChapters?: number | null;
+  totalVolumes?: number | null;
+  remoteChapters?: number | null;
+  remoteVolumes?: number | null;
+  remoteStatus?: TrackerEntryStatus | null;
+  remoteMissing: boolean;
+  dates: TrackerDatesDto;
+  /** "Set progress from <tracker> to MangaPixer" (`POST .../from-tracker`). */
+  fromTracker: TrackerActionDto;
+  /** "Set progress from MangaPixer to <tracker>" (`POST .../send`). */
+  toTracker: TrackerActionDto;
+  lastSyncAt?: string | null;
+  lastSentAt?: string | null;
+  updatedAt: string;
+}
+
+/** Series per chip (whole list, before the search); `attention` = held + trackerAhead. */
+export interface TrackerListCountsDto {
+  all: number;
+  inSync: number;
+  mangaPixerAhead: number;
+  trackerAhead: number;
+  leftAsIs: number;
+  held: number;
+  noId: number;
+  notSynced: number;
+  problem: number;
+  unchecked: number;
+  attention: number;
+}
+
+/** `GET /api/v1/trackers/{slug}/series?page=1&filter=<bucket|Attention>&q=<title>` (50 a page, by title). */
+export interface TrackerSeriesPageDto {
+  items: TrackerSeriesRowDto[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  counts: TrackerListCountsDto;
+}
+
+/** `GET /api/v1/trackers/attention`: the account menu badge. */
+export interface TrackerAttentionDto {
+  total: number;
+  trackers: TrackerAttentionCountDto[];
+}
+
+export interface TrackerAttentionCountDto {
+  tracker: string;
+  count: number;
+}
+
+/** `POST /api/v1/trackers/{slug}/entries/{seriesId}/from-tracker`: marks read here up to the tracker's numbers; never unmarks. */
+export interface TrackerFromTrackerResultDto {
+  marked: number;
+  alreadyRead: number;
+  remoteChapters?: number | null;
+  remoteVolumes?: number | null;
+  entry: TrackerSeriesRowDto;
+}
+
+/** `PUT /api/v1/trackers/{slug}/entries/{seriesId}/dates` (`yyyy-MM-dd`; null = automatic). Answers the row. */
+export interface TrackerDatesRequest {
+  startedOn?: string | null;
+  finishedOn?: string | null;
+}
+
+/** `GET /api/v1/trackers/nodes/{nodeId}/summary`: the series header popover (one row per connected tracker). */
+export interface TrackerSeriesSummaryDto {
+  seriesId?: string | null;
+  rows: TrackerSeriesRowDto[];
 }

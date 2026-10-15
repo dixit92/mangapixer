@@ -54,12 +54,14 @@ public sealed class TrackerAccountService(
                 ConnectKind = TrackerSettingsService.ConnectKindOf(slug),
                 CurrentConsentVersion = TrackerConsent.UserVersion(slug),
                 SupportsPrivateEntries = TrackerFacts.SupportsPrivateEntries(slug),
-                Account = accounts.FirstOrDefault(a => a.Tracker == slug) is { } account ? ToDto(account) : null,
+                Account = accounts.FirstOrDefault(a => a.Tracker == slug) is { } account
+                    ? ToDto(account, TrackerFacts.DailyRequestCapOf(rows.FirstOrDefault(r => r.Tracker == slug)?.DailyRequestCap))
+                    : null,
             }).ToList(),
         };
     }
 
-    public TrackerAccountDto ToDto(TrackerAccountEntity a) => new()
+    public TrackerAccountDto ToDto(TrackerAccountEntity a, int dailyRequestCap) => new()
     {
         Tracker = a.Tracker,
         State = (TrackerAccountState)a.State,
@@ -73,7 +75,7 @@ public sealed class TrackerAccountService(
         AddStartedSeries = a.AddStartedSeries,
         PrivateEntries = a.PrivateEntries,
         RequestsToday = a.RequestsDay == DayOf(time.GetUtcNow()) ? a.RequestsUsed : 0,
-        DailyRequestCap = TrackerFacts.DailyRequestCap,
+        DailyRequestCap = dailyRequestCap,
     };
 
     /// <summary>Starts an OAuth sign-in: a 256-bit <c>state</c> (stored hashed, bound to the user and session) and a PKCE verifier.</summary>
@@ -212,7 +214,7 @@ public sealed class TrackerAccountService(
         await db.SaveChangesAsync(ct);
         await audit.RecordAsync(TrackerAuditActions.Connect, AuditResults.Success, actor, targetUserId: userId, correlationId: tracker, ct: ct);
         logger.LogInformation(LogEvents.Trackers.AccountConnected, "Tracker account connected for user {UserId} on {Tracker}", userId, tracker);
-        return (ToDto(account), null);
+        return (ToDto(account, await CapOfAsync(tracker, ct)), null);
     }
 
     public async Task<(TrackerAccountDto? Account, TrackerProblem? Problem)> UpdateSettingsAsync(
@@ -228,7 +230,7 @@ public sealed class TrackerAccountService(
         if (request.PrivateEntries is { } priv)
             account.PrivateEntries = priv;
         await db.SaveChangesAsync(ct);
-        return (ToDto(account), null);
+        return (ToDto(account, await CapOfAsync(tracker, ct)), null);
     }
 
     /// <summary>
@@ -326,7 +328,7 @@ public sealed class TrackerAccountService(
             await MarkNeedsReconnectAsync(account, "expired", ct);
             return null;
         }
-        if (!TryCountRequests(account, 1))
+        if (!await TryCountRequestsAsync(account, 1, ct))
             return expires > now ? tokens : null;
         try
         {
@@ -363,12 +365,16 @@ public sealed class TrackerAccountService(
             account.UserId, account.Tracker, code);
     }
 
-    /// <summary>Counts <paramref name="count"/> requests against the account's daily cap; false (nothing counted) when it would exceed it.</summary>
-    public bool TryCountRequests(TrackerAccountEntity account, int count)
+    /// <summary>
+    /// Counts <paramref name="count"/> requests against the account's daily cap (1.43.0 owner E5: the admin's setting for the tracker, default
+    /// 2000); false (nothing counted) when it would exceed it.
+    /// </summary>
+    public async Task<bool> TryCountRequestsAsync(TrackerAccountEntity account, int count, CancellationToken ct)
     {
+        var cap = await CapOfAsync(account.Tracker, ct);
         var today = DayOf(time.GetUtcNow());
         var used = account.RequestsDay == today ? account.RequestsUsed : 0;
-        if (used + count > TrackerFacts.DailyRequestCap)
+        if (used + count > cap)
             return false;
         account.RequestsDay = today;
         account.RequestsUsed = used + count;
@@ -376,8 +382,19 @@ public sealed class TrackerAccountService(
     }
 
     /// <summary>The requests left today for the account.</summary>
-    public int RequestsLeft(TrackerAccountEntity account) =>
-        TrackerFacts.DailyRequestCap - (account.RequestsDay == DayOf(time.GetUtcNow()) ? account.RequestsUsed : 0);
+    public async Task<int> RequestsLeftAsync(TrackerAccountEntity account, CancellationToken ct) =>
+        await CapOfAsync(account.Tracker, ct) - (account.RequestsDay == DayOf(time.GetUtcNow()) ? account.RequestsUsed : 0);
+
+    /// <summary>The per-user daily request cap of a tracker (the admin's setting, read once per scope).</summary>
+    public async Task<int> CapOfAsync(string tracker, CancellationToken ct)
+    {
+        if (_caps.TryGetValue(tracker, out var cap))
+            return cap;
+        var stored = await db.TrackerSettings.AsNoTracking().Where(s => s.Tracker == tracker).Select(s => s.DailyRequestCap).FirstOrDefaultAsync(ct);
+        return _caps[tracker] = TrackerFacts.DailyRequestCapOf(stored);
+    }
+
+    private readonly Dictionary<string, int> _caps = new(StringComparer.Ordinal);
 
     private void CountRequests(TrackerAccountEntity account, int count)
     {
