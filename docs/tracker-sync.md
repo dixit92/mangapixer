@@ -126,7 +126,7 @@ Each row shows the series' cover and title (open it to go to the series), its st
 
 ### Bring the two sides in line
 
-Each row has two buttons; the one that cannot move anything is greyed out, and its tooltip says why (for example *MyAnimeList is not ahead of MangaPixer*):
+Each row has two buttons; the one that cannot move anything is greyed out, and a short line under the buttons says why (for example *MyAnimeList is not ahead of MangaPixer - nothing to bring in*; with a mouse, its tooltip says it too):
 
 - **Set progress from *tracker* to MangaPixer** - marks chapters and volumes **read here** up to the tracker's numbers, for example after you read elsewhere. MangaPixer first asks (*Mark chapters 1-51 read in MangaPixer?*), then says how many files it marked. It only marks - nothing is unmarked - and these marks are not sent back to the tracker.
 - **Set progress from MangaPixer to *tracker*** - sends MangaPixer's numbers, including a jump waiting for you. It never lowers the tracker.
@@ -139,6 +139,8 @@ The **⋯** menu of a row has more:
 - **Don't sync this series** / **Sync this series again** - leave this series out of sync on this tracker.
 - **Open the series**.
 
+A greyed-out **Sync now** or **Set *tracker* to a number…** says why under its name.
+
 **Check my list on *tracker*** (the first time you connect, or any time): MangaPixer reads your tracker entries for the series here, **50 at a time** - press again for the next 50 - and shows where each side is ahead. It changes nothing on the tracker. **Send all** sends every series waiting for you, after a confirmation.
 
 ### From a series
@@ -149,7 +151,7 @@ In the library, a thin **gold border around a cover** means the tracker counts t
 
 ### Dates on MyAnimeList
 
-MyAnimeList keeps a start and a finish date for each series on your list. MangaPixer sends them with its updates: the **start** is the day you first read the series here, the **finish** the day the series was completed. **Set dates…** (under the dates, or in the **⋯** menu) lets you enter your own dates instead, or put either back to **Automatic**. Your dates go to MyAnimeList with the next update of that series. MangaUpdates keeps no dates.
+MyAnimeList keeps a start and a finish date for each series on your list. MangaPixer fills in only the dates MyAnimeList does not have yet, with its updates: the **start** is the day you first read the series here (never later than a finish date MyAnimeList already has), the **finish** the day the series was completed. The **Dates on MyAnimeList** column shows the dates MyAnimeList has; a date marked **(auto)** is one MyAnimeList does not have yet, which MangaPixer would send. **Set dates…** (under the dates, or in the **⋯** menu) lets you enter your own dates instead, or put either back to **Automatic**. Your dates go to MyAnimeList with the next update of that series. MangaUpdates keeps no dates.
 
 ### Daily limit
 
