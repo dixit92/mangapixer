@@ -106,6 +106,18 @@ import { TRACKER_ADMIN_CONSENT_VERSION, failureText, proposedRedirectUri } from 
           @if (copied()) { <p class="ok" role="status">Copied.</p> }
         </form>
       }
+      <!-- 1.43.0 (owner E5): the per-user daily request limit for this tracker. -->
+      <form class="cap" (ngSubmit)="saveCap()" [attr.data-testid]="'admin-tracker-cap-form-' + s.slug">
+        <label class="field">
+          <span>Requests per user per day ({{ capMin }} - {{ capMax }})</span>
+          <input type="number" name="dailyRequestCap" [min]="capMin" [max]="capMax" step="1" [disabled]="saving()"
+                 [ngModel]="cap()" (ngModelChange)="cap.set($event)" [attr.data-testid]="'admin-tracker-cap-' + s.slug" />
+        </label>
+        <button mat-stroked-button type="submit" [disabled]="saving() || !capValid() || cap() === s.dailyRequestCap"
+                [attr.data-testid]="'admin-tracker-cap-save-' + s.slug">Save limit</button>
+      </form>
+      <p class="muted small">Reads, writes and sign-in renewals for one user count; syncing waits for the next day (UTC) when the limit
+        is reached. 2000 by default.</p>
       <p class="muted small" [attr.data-testid]="'admin-tracker-connected-' + s.slug">
         {{ s.connectedUsers === 1 ? '1 user has' : s.connectedUsers + ' users have' }} connected an account.
       </p>
@@ -129,6 +141,9 @@ import { TRACKER_ADMIN_CONSENT_VERSION, failureText, proposedRedirectUri } from 
                    color: var(--mp-text); background: var(--mp-surface); border: 1px solid rgb(var(--mp-ink-rgb) / 0.2); border-radius: 4px; }
     .url { font-size: 12px; overflow-wrap: anywhere; word-break: break-all; }
     .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .cap { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px 12px; margin-top: 8px; }
+    .cap .field { margin: 0; }
+    .cap .field input { width: 120px; }
     .actions mat-icon { margin-right: 4px; }
     .link { background: none; border: 0; padding: 0; font: inherit; color: var(--mp-accent); cursor: pointer; text-decoration: underline; }
     .link:disabled { color: var(--mp-text-faint); cursor: default; }
@@ -154,6 +169,15 @@ export class AdminTrackerPanelComponent {
   readonly clientSecret = linkedSignal(() => { this.settings(); return ''; });
   readonly redirectUri = linkedSignal(() => this.settings().redirectUri || this.proposed());
   readonly proposed = computed(() => proposedRedirectUri(this.settings().slug));
+
+  /** The per-user daily request limit (owner E5; the server takes 100 - 20000). */
+  readonly capMin = 100;
+  readonly capMax = 20000;
+  readonly cap = linkedSignal<number | null>(() => this.settings().dailyRequestCap);
+  readonly capValid = computed(() => {
+    const v = this.cap();
+    return v != null && Number.isInteger(v) && v >= this.capMin && v <= this.capMax;
+  });
 
   readonly dirty = computed(() => {
     const s = this.settings();
@@ -204,6 +228,12 @@ export class AdminTrackerPanelComponent {
     };
     if (this.clientSecret() !== '') request.clientSecret = this.clientSecret();
     this.save(request, `${s.name} app settings saved.`);
+  }
+
+  saveCap(): void {
+    const v = this.cap();
+    if (!this.capValid() || v == null) return;
+    this.save({ dailyRequestCap: v }, `Up to ${v} requests per user per day to ${this.settings().name}.`);
   }
 
   removeSecret(): void {

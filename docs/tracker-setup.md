@@ -2,7 +2,7 @@
 
 *New in 1.43.0.* For admins.
 
-[Tracker sync](tracker-sync.md) lets each user of your server send their reading progress to their own **MyAnimeList** or **MangaUpdates** list. It is off by default. You allow each tracker once for the server; after that, every user decides for themselves whether to connect an account.
+[Tracker sync](tracker-sync.md) lets each user of your server send their reading progress to their own **MyAnimeList** or **MangaUpdates** list. It is off by default. You allow each tracker once for the server; after that, every user decides for themselves whether to connect an account - on their **Tracking** page (account menu > **Tracking**).
 
 Tracker sync is separate from the series information MangaPixer fetches ("Fetch from the web" in Metadata Manager): it has its own switches and texts, and works whether or not that is on.
 
@@ -18,6 +18,10 @@ The text folds away after you accept it; **What is sent?** shows it again. If a 
 Turning a tracker **off** stops all syncing to it at once. Users keep their connection, and syncing resumes when you turn it back on.
 
 **MyAnimeList also needs this server's own app registration** (next section) - users cannot connect until it is saved. **MangaUpdates needs no registration.**
+
+### Daily limit per user
+
+**Requests per user per day** (under each tracker; 100 to 20000, **2000** by default) caps how many requests MangaPixer makes to that tracker for one user in a day - reads, writes and sign-in renewals. A user who reads many short works in a day needs more than one would think; when the limit is reached, that user's syncing waits for the next day (UTC). Users see their own count on their Tracking page.
 
 ## MyAnimeList: register this server
 
@@ -74,7 +78,7 @@ Nothing to register. Each user connects with their own MangaUpdates username and
 MangaPixer syncs only series whose number on the tracker it knows; it never searches a tracker by title:
 
 - **MangaUpdates:** the MangaUpdates series a folder is linked to.
-- **MyAnimeList:** the MyAnimeList number the series' MangaDex record names (it fills in as MangaDex records are refreshed).
+- **MyAnimeList:** the MyAnimeList number the series' MangaDex record names. It fills in as MangaDex records are refreshed. *1.43.0:* on a server that already refreshes MangaDex records in the background, MangaPixer refreshes once, early, every stored MangaDex record that names no MyAnimeList number yet - the same request by record number, within the daily request budget of series information (what does not fit waits for the next day).
 
 When a number is missing or wrong, open the series' **Admin** menu (on the series page or the series information panel) and choose **Set MyAnimeList id** or **Set MangaUpdates id**. Paste the number or the series' address on the tracker's site (for example `https://myanimelist.net/manga/2/...` or `https://www.mangaupdates.com/series/...`); MangaPixer reads the number from the address without contacting the site. Your number applies to every user's sync of that series. Leave the field empty and save to use the series' own number again.
 

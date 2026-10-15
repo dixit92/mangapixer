@@ -13,7 +13,7 @@ function adminTracker(overrides: Partial<AdminTrackerSettingsDto> = {}): AdminTr
   return {
     slug: 'mal', name: 'MyAnimeList', enabled: false, acceptedConsentVersion: null, currentConsentVersion: 1, consentAt: null,
     consentRenewalNeeded: false, networkDisabledByConfig: false, connectKind: 'OAuthPkce', needsAppRegistration: true,
-    clientId: null, clientSecretSet: false, redirectUri: null, connectedUsers: 0, ...overrides,
+    clientId: null, clientSecretSet: false, redirectUri: null, connectedUsers: 0, dailyRequestCap: 2000, ...overrides,
   };
 }
 
@@ -145,6 +145,28 @@ describe('AdminTrackersCardComponent', () => {
     const req = http.expectOne(`${LIST}/mal`);
     expect(req.request.body).toEqual({ clientSecret: '' });
     req.flush(adminTracker({ clientId: 'c', redirectUri: 'https://x.test/trackers/callback/mal' }));
+  });
+
+  it('saves the per-user daily request limit (owner E5) and refuses one outside 100 - 20000 without a request', () => {
+    const { fixture, http, el } = create([adminTracker({ enabled: true, acceptedConsentVersion: 1, clientId: 'c', redirectUri: 'https://x.test/trackers/callback/mal' }), MU()]);
+    const input = q(el, 'admin-tracker-cap-mal') as HTMLInputElement;
+    const save = q(el, 'admin-tracker-cap-save-mal') as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    const panel = fixture.debugElement.queryAll((d) => d.componentInstance instanceof AdminTrackerPanelComponent)
+      .map((d) => d.componentInstance as AdminTrackerPanelComponent).find((p) => p.settings().slug === 'mal')!;
+    panel.cap.set(50);
+    fixture.detectChanges();
+    expect(save.disabled).toBe(true);
+    panel.cap.set(5000);
+    fixture.detectChanges();
+    expect(input).toBeTruthy();
+    save.click();
+    const req = http.expectOne(`${LIST}/mal`);
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({ dailyRequestCap: 5000 });
+    req.flush(adminTracker({ enabled: true, acceptedConsentVersion: 1, clientId: 'c', redirectUri: 'https://x.test/trackers/callback/mal', dailyRequestCap: 5000 }));
+    fixture.detectChanges();
+    expect(q(el, 'admin-tracker-notice-mal').textContent).toContain('Up to 5000 requests per user per day to MyAnimeList');
   });
 
   it('shows a refused save in plain words', () => {
