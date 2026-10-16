@@ -1,6 +1,8 @@
 import {
   TrackerAccountDto,
   TrackerActionBlock,
+  TrackerBatchAction,
+  TrackerBatchSkip,
   TrackerEntryDto,
   TrackerEntryState,
   TrackerEntryStatus,
@@ -243,6 +245,31 @@ export function parseTrackerId(slug: string, input: string): string | null {
   return null;
 }
 
+/** A positive decimal id (within a signed 64-bit range) as the base36 token MangaUpdates' site addresses use; null for anything else. */
+export function encodeBase36(decimal: string | null | undefined): string | null {
+  if (!decimal || !/^\d{1,19}$/.test(decimal)) return null;
+  const value = BigInt(decimal);
+  return value > 0n && value <= 9223372036854775807n ? value.toString(36) : null;
+}
+
+/**
+ * 1.43.2: the series' own page on the tracker's site, from the tracker's id the row carries (`remoteId`) - MyAnimeList
+ * `https://myanimelist.net/manga/<id>`, MangaUpdates `https://www.mangaupdates.com/series/<base36 id>` (the address form the site
+ * uses and `parseTrackerId` reads back). Null without a usable id. Opened only by the user's click, in a new tab, without a referrer
+ * (`rel="noopener noreferrer"`) - nothing is fetched here.
+ */
+export function trackerSeriesUrl(slug: string | null | undefined, remoteId: string | null | undefined): string | null {
+  if (!remoteId || !/^\d{1,19}$/.test(remoteId) || BigInt(remoteId) <= 0n) return null;
+  switch (slug) {
+    case 'mal': return `https://myanimelist.net/manga/${BigInt(remoteId).toString()}`;
+    case 'mangaupdates': {
+      const token = encodeBase36(remoteId);
+      return token ? `https://www.mangaupdates.com/series/${token}` : null;
+    }
+    default: return null;
+  }
+}
+
 /** A base36 token (0-9a-z, at most 13 characters) as a positive decimal id within a signed 64-bit range, else null. */
 export function decodeBase36(token: string): string | null {
   const t = token.toLowerCase();
@@ -392,4 +419,163 @@ export function dateText(value: string | null | undefined): string {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const month = months[Number(m[2]) - 1];
   return month ? `${month} ${Number(m[3])}, ${m[1]}` : value;
+}
+
+// ---- 1.43.2: the Tracking list's Select mode (one multi-select for every chip; it replaces "Send all") ----
+
+/** The bar's actions in their default order. */
+export const BATCH_ACTIONS: readonly TrackerBatchAction[] = ['FromTracker', 'ToTracker', 'SyncNow', 'DontSync', 'SyncAgain'];
+
+/**
+ * The bar's actions for a chip: the chip's natural action first (MyAnimeList ahead -> from the tracker; Waiting for you / MangaPixer
+ * ahead -> to the tracker; Not synced -> Sync again), then the rest in the default order.
+ */
+export function batchActionsFor(filter: string): TrackerBatchAction[] {
+  const first: TrackerBatchAction | null = filter === 'TrackerAhead' ? 'FromTracker'
+    : filter === 'Held' || filter === 'MangaPixerAhead' ? 'ToTracker'
+      : filter === 'NotSynced' ? 'SyncAgain' : null;
+  return first ? [first, ...BATCH_ACTIONS.filter((a) => a !== first)] : [...BATCH_ACTIONS];
+}
+
+/** An action's words: the full label, and the short one a narrow bar shows (the full one stays its accessible name). */
+export function batchActionLabel(action: TrackerBatchAction, slug: string, short = false): string {
+  const name = trackerName(slug);
+  switch (action) {
+    case 'FromTracker': return short ? `${name} → MangaPixer` : `Set progress from ${name} to MangaPixer`;
+    case 'ToTracker': return short ? `MangaPixer → ${name}` : `Set progress from MangaPixer to ${name}`;
+    case 'SyncNow': return 'Sync now';
+    case 'DontSync': return "Don't sync";
+    case 'SyncAgain': return 'Sync again';
+    default: return action;
+  }
+}
+
+/** The confirm button of an action. */
+export function batchConfirmLabel(action: TrackerBatchAction): string {
+  switch (action) {
+    case 'FromTracker': return 'Mark read';
+    case 'ToTracker': return 'Send';
+    case 'SyncNow': return 'Sync now';
+    case 'DontSync': return "Don't sync";
+    case 'SyncAgain': return 'Sync again';
+    default: return action;
+  }
+}
+
+const seriesCount = (n: number) => `${n} series`;
+
+/**
+ * The one confirmation of an apply, with the counts: `applies` series the action applies to, `others` selected series it leaves as
+ * they are. "Set progress from MangaPixer" words the add part from the account's "Add series I start reading".
+ */
+export function batchQuestion(action: TrackerBatchAction, slug: string, applies: number, others: number, addStartedSeries: boolean): string {
+  const name = trackerName(slug);
+  let text: string;
+  switch (action) {
+    case 'FromTracker':
+      text = `Mark read in MangaPixer what ${name} counts, for ${seriesCount(applies)}? Nothing is unmarked.`;
+      break;
+    case 'ToTracker':
+      text = `Send MangaPixer's progress to ${name} for ${seriesCount(applies)}? Never lowers; series not on your list are `
+        + (addStartedSeries ? 'added (Add series I start reading is on).' : 'left out (Add series I start reading is off).');
+      break;
+    case 'SyncNow':
+      text = `Sync ${seriesCount(applies)} with ${name} now? MangaPixer reads each one there and sends only what syncs on its own; `
+        + 'a jump waiting for you keeps waiting.';
+      break;
+    case 'DontSync':
+      text = `Stop syncing ${seriesCount(applies)} with ${name}? Nothing is sent for them until you turn sync on again.`;
+      break;
+    case 'SyncAgain':
+      text = `Sync ${seriesCount(applies)} with ${name} again? They sync the next time you read them, or with Sync now.`;
+      break;
+    default:
+      text = '';
+  }
+  return others > 0 ? `${text} ${others} of the selected ${others === 1 ? 'is' : 'are'} left as ${others === 1 ? 'it is' : 'they are'}.` : text;
+}
+
+/** Why a batch left a series as it is, in a few words ("2 skipped (left as is)"). */
+export function batchSkipText(reason: TrackerBatchSkip, slug: string): string {
+  const name = trackerName(slug);
+  switch (reason) {
+    case 'NotChecked': return 'not checked yet';
+    case 'NotAhead': return 'not ahead';
+    case 'NoId': return `no ${name} id`;
+    case 'DontSync': return 'not synced';
+    case 'LeftAsIs': return 'left as is';
+    case 'NotOnList': return `not on your ${name} list`;
+    case 'NotListed': return 'not on this list any more';
+    case 'AlreadyOff': return 'already off';
+    case 'AlreadyOn': return 'already on';
+    case 'RetryLater': return `${name} asked to slow down - tried again shortly`;
+    default: return reason;
+  }
+}
+
+/** What an apply did, over all its chunks. */
+export interface BatchTotals {
+  done: number;
+  skipped: number;
+  failed: number;
+  marked: number;
+  alreadyRead: number;
+  capReached: boolean;
+  notReached: number;
+  stoppedCode: string | null;
+  skips: Partial<Record<TrackerBatchSkip, number>>;
+  /** Selected series no request reached: after a Cancel, the cap or a stop (their chunks were never sent). */
+  unsent: number;
+  cancelled: boolean;
+}
+
+export function emptyBatchTotals(): BatchTotals {
+  return { done: 0, skipped: 0, failed: 0, marked: 0, alreadyRead: 0, capReached: false, notReached: 0, stoppedCode: null, skips: {}, unsent: 0,
+    cancelled: false };
+}
+
+/**
+ * The one notice after an apply ("Set progress from MyAnimeList for 51 series: 412 files marked, 3 already read, 2 skipped (left as
+ * is)."), with the daily cap, a stop or a Cancel said at the end.
+ */
+export function batchSummary(action: TrackerBatchAction, slug: string, t: BatchTotals): string {
+  const name = trackerName(slug);
+  const processed = t.done + t.skipped + t.failed;
+  const files = (n: number) => (n === 1 ? '1 file' : `${n} files`);
+  const parts: string[] = [];
+  let lead: string;
+  switch (action) {
+    case 'FromTracker':
+      lead = `Set progress from ${name} for ${seriesCount(processed)}`;
+      parts.push(`${files(t.marked)} marked`, `${t.alreadyRead} already read`);
+      break;
+    case 'ToTracker':
+      lead = `Set progress from MangaPixer to ${name} for ${seriesCount(processed)}`;
+      parts.push(`${t.done} sent`);
+      break;
+    case 'SyncNow':
+      lead = `Synced ${seriesCount(processed)} with ${name}`;
+      parts.push(`${t.done} checked`);
+      break;
+    case 'DontSync':
+      lead = `Turned sync off for ${seriesCount(processed)}`;
+      parts.push(`${t.done} turned off`);
+      break;
+    default:
+      lead = `Turned sync on again for ${seriesCount(processed)}`;
+      parts.push(`${t.done} turned on`);
+      break;
+  }
+  if (t.skipped > 0) {
+    const reasons = (Object.entries(t.skips) as [TrackerBatchSkip, number][]).filter(([, n]) => n > 0);
+    const why = reasons.length === 1 ? batchSkipText(reasons[0][0], slug) : reasons.map(([r, n]) => `${n} ${batchSkipText(r, slug)}`).join(', ');
+    parts.push(`${t.skipped} skipped${why ? ` (${why})` : ''}`);
+  }
+  if (t.failed > 0) parts.push(`${t.failed} failed (see their rows)`);
+  let text = `${lead}: ${parts.join(', ')}.`;
+  const left = t.notReached + t.unsent;
+  if (t.capReached) text += ` Today's request limit for ${name} is reached - ${seriesCount(left)} not done; try again tomorrow.`;
+  else if (t.stoppedCode) text += ` Stopped: ${failureText({ error: { error: t.stoppedCode } }, slug)}${left > 0 ? ` ${seriesCount(left)} not done.` : ''}`;
+  else if (t.cancelled && left > 0) text += ` Cancelled - ${seriesCount(left)} not done.`;
+  return text;
 }

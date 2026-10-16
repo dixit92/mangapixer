@@ -56,13 +56,13 @@ For a series you read, MangaPixer first **reads** your entry for that series on 
 
 **Never sent:** titles, file or folder names, paths, which files you read, page positions, scores, your other activity on this server, anything about other users, or anything that identifies the server. Every request names MangaPixer and its version (the same for every MangaPixer server).
 
-The requests come from the **server**, not from your browser: your browser only talks to MangaPixer (and to myanimelist.net once, when you sign in there).
+The requests come from the **server**, not from your browser: your browser only talks to MangaPixer (and to myanimelist.net once, when you sign in there - or when you open a series' page on the tracker from its link on the **Tracking** page, in a new tab and without a referrer).
 
 ## When MangaPixer syncs
 
 - **While you read.** Finishing an archive in the reader, or marking one archive read, updates the tracker right away.
-- **Folders marked read at once, and imported reading, wait for you.** A jump like that shows in your list as **Waiting for you**: press **Set progress from MangaPixer to *tracker*** for one series, or **Send all**.
-- **Nothing happens while nobody reads**, except what you start yourself: **Sync now**, the two **Set progress** buttons, **Send all**, or **Check my list**.
+- **Folders marked read at once, and imported reading, wait for you.** A jump like that shows in your list as **Waiting for you**: press **Set progress from MangaPixer to *tracker*** for one series, or select them all in that chip and apply it to every one at once (see [Select several series](#select-several-series)).
+- **Nothing happens while nobody reads**, except what you start yourself: **Sync now**, the two **Set progress** buttons (for one series or for the series you selected), or **Check my list**.
 - **When a series' volume list changes** (MangaPixer refreshed it), the series is checked again, so volumes it now knows count.
 - **Marking something unread never lowers the tracker.**
 
@@ -122,7 +122,7 @@ Below the cards, the **Tracking** page lists your series on each tracker you con
 | Not synced | You pressed **Don't sync this series**, or the series is not on your list and **Add series I start reading** is off. |
 | In sync, Not checked yet, Sync problem | Shown when they hold a series: both sides agree; MangaPixer has not read the tracker for it yet; the last attempt failed (the reason is shown). |
 
-Each row shows the series' cover and title (open it to go to the series), its state, **MangaPixer**'s chapters and volumes read (of how many, when known), the **tracker**'s numbers and status as MangaPixer last read them, and for MyAnimeList the start and finish dates.
+Each row shows the series' cover and title (open it to go to the series), its state, **MangaPixer**'s chapters and volumes read (of how many, when known), the **tracker**'s numbers and status as MangaPixer last read them, and for MyAnimeList the start and finish dates. The tracker's numbers are a link (with an external-link icon) that opens the series on MyAnimeList or MangaUpdates in a new tab; it is there only when the tracker's number for the series is known. Your browser opens that page itself, without telling the site which address you came from (no referrer), and MangaPixer makes no request for it.
 
 ### Bring the two sides in line
 
@@ -138,10 +138,22 @@ The **⋯** menu of a row has more:
 - **Set *tracker* to a number… (can lower it)** - send the numbers you type. This **replaces** what the tracker has, also when the tracker has more; it warns you first. Not offered for a series left as is.
 - **Don't sync this series** / **Sync this series again** - leave this series out of sync on this tracker.
 - **Open the series**.
+- **Open on *tracker*** - the series' page on MyAnimeList or MangaUpdates, in a new tab (when its number is known).
 
 A greyed-out **Sync now** or **Set *tracker* to a number…** says why under its name.
 
-**Check my list on *tracker*** (the first time you connect, or any time): for MyAnimeList, MangaPixer reads **your whole manga list** there (a page of up to 1000 entries per request) and adds every series here that is on it to the Tracking page - also a series you read on MyAnimeList but never here, so **Set progress from MyAnimeList to MangaPixer** can bring it in. Entries for series that are not here are skipped and nothing about them is kept. For MangaUpdates it reads your entries for the series here, **50 at a time** - press again for the next 50. Either way it shows where each side is ahead and changes nothing on the tracker. **Send all** sends every series waiting for you, after a confirmation.
+**Check my list on *tracker*** (the first time you connect, or any time): for MyAnimeList, MangaPixer reads **your whole manga list** there (a page of up to 1000 entries per request) and adds every series here that is on it to the Tracking page - also a series you read on MyAnimeList but never here, so **Set progress from MyAnimeList to MangaPixer** can bring it in. Entries for series that are not here are skipped and nothing about them is kept. For MangaUpdates it reads your entries for the series here, **50 at a time** - press again for the next 50. Either way it shows where each side is ahead and changes nothing on the tracker.
+
+### Select several series
+
+Press **Select** above the list to act on many series at once - in any chip, in a search, or in **All**:
+
+- tick the series (each row gets a box; with a mouse, **Shift**-click ticks every row between the last one you ticked and this one), or press **Select all *N* in this chip** to select **every** series in the chip and search - also the ones not shown yet;
+- the bar at the bottom of the screen shows how many are selected and the actions, each with **how many of the selected series it applies to**: **Set progress from *tracker* to MangaPixer**, **Set progress from MangaPixer to *tracker***, **Sync now**, **Don't sync** and **Sync again**. The chip's own action comes first (*MyAnimeList ahead*: from the tracker; *Waiting for you* and *MangaPixer ahead*: to the tracker; *Not synced*: Sync again). An action that applies to none of them is greyed out, with a line saying why;
+- press an action: MangaPixer asks once, with the counts (for example *Mark read in MangaPixer what MyAnimeList counts, for 51 series? Nothing is unmarked.*), then works through the series, showing how far it got (*37 of 51…*); **Cancel** stops it after the part it is on. Each series gets exactly what its own button does - nothing is ever lowered on the tracker, nothing is unmarked here, and a series the action does not apply to is left as it is;
+- at the end one line says what happened (for example *Set progress from MyAnimeList for 51 series: 412 files marked, 3 already read, 2 skipped (left as is).*), the list and its counts are read again, and the selection is cleared.
+
+The actions that reach the tracker count against your [daily limit](#daily-limit); when it is reached, MangaPixer stops and says how many series were not done. *Waiting for you* > **Select all** > **Set progress from MangaPixer to *tracker*** sends every series waiting for you (this replaces the **Send all** button of 1.43.0).
 
 ### From a series
 
@@ -153,7 +165,7 @@ MangaPixer is the hub: each tracker follows MangaPixer's own progress on its own
 
 ### Dates on MyAnimeList
 
-MyAnimeList keeps a start and a finish date for each series on your list. MangaPixer fills in only the dates MyAnimeList does not have yet, with its updates: the **start** is the day you first read the series here (never later than a finish date MyAnimeList already has), the **finish** the day the series was completed. The **Dates on MyAnimeList** column shows the dates MyAnimeList has; a date marked **(auto)** is one MyAnimeList does not have yet, which MangaPixer would send. **Set dates…** (under the dates, or in the **⋯** menu) lets you enter your own dates instead, or put either back to **Automatic**. Your dates go to MyAnimeList with the next update of that series. MangaUpdates keeps no dates.
+MyAnimeList keeps a start and a finish date for each series on your list. MangaPixer fills in only the dates MyAnimeList does not have yet, with its updates: the **start** is the day you first read the series here (never later than a finish date MyAnimeList already has), the **finish** the day the series was completed. The **Dates on MyAnimeList** column shows the dates MyAnimeList has; a date marked **(auto)** is one MyAnimeList does not have yet, which MangaPixer would send. **Set dates…** (under the dates, or in the **⋯** menu) lets you enter your own dates instead, put either back to **Automatic**, or fill it with **Set today** (today's date where you are). Your dates go to MyAnimeList with the next update of that series. MangaUpdates keeps no dates.
 
 ### Daily limit
 

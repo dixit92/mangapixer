@@ -10,7 +10,9 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { TrackerSeriesRowDto, TrackerSeriesSummaryDto } from '../../core/api/api-types';
 import { TrackerStateService } from './tracker-state.service';
 import { TrackersApiService } from './trackers-api.service';
-import { TRACKER_RING_LEGEND, TRACKING_PATH, bucketText, bucketTone, dateText, numbersText, ofText, statusText, trackerName } from './tracker-texts';
+import {
+  TRACKER_RING_LEGEND, TRACKING_PATH, bucketText, bucketTone, dateText, numbersText, ofText, statusText, trackerName, trackerSeriesUrl,
+} from './tracker-texts';
 import { provideTrackerTooltips } from './tracker-tooltips';
 
 /** Below the button, right-aligned; above it when there is no room below. */
@@ -66,7 +68,17 @@ const POSITIONS: ConnectedPosition[] = [
                 </div>
                 <div class="tile remote">
                   <span class="cap">{{ name(row.tracker) }}</span>
-                  <span class="num" [attr.data-testid]="'series-tracking-remote-' + row.tracker">{{ remote(row) }}</span>
+                  @if (seriesUrl(row); as url) {
+                    <!-- 1.43.2: the series on the tracker's site - a new tab, no referrer. -->
+                    <a class="num ext" [href]="url" target="_blank" rel="noopener noreferrer"
+                       [attr.aria-label]="'Open on ' + name(row.tracker) + ': ' + remote(row)"
+                       [attr.data-testid]="'series-tracking-remote-link-' + row.tracker">
+                      <span [attr.data-testid]="'series-tracking-remote-' + row.tracker">{{ remote(row) }}</span>
+                      <mat-icon aria-hidden="true">open_in_new</mat-icon>
+                    </a>
+                  } @else {
+                    <span class="num" [attr.data-testid]="'series-tracking-remote-' + row.tracker">{{ remote(row) }}</span>
+                  }
                 </div>
               </div>
               @if (row.dates.supported) {
@@ -119,6 +131,9 @@ const POSITIONS: ConnectedPosition[] = [
     .cap { font-size: 12px; color: var(--mp-text-muted); }
     .num { font-size: 15px; color: var(--mp-text-strong); overflow-wrap: anywhere; }
     .remote .num { color: var(--mp-warn); }
+    a.ext { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; text-decoration: none; }
+    a.ext:hover span, a.ext:focus-visible span { text-decoration: underline; }
+    a.ext mat-icon { font-size: 16px; width: 16px; height: 16px; flex: none; }
     .dates { margin: 0; font-size: 13px; color: var(--mp-text-secondary); }
     .open { align-self: flex-start; }
     .legend { display: flex; align-items: center; gap: 8px; margin: 0; padding-top: 10px; border-top: 1px solid rgb(var(--mp-ink-rgb) / 0.1);
@@ -206,7 +221,9 @@ export class SeriesTrackingButtonComponent implements OnDestroy {
   /** Just opened: the focus moves into the popover - its first link ("Open in Tracking"), else the dialog itself. */
   focusIn(): void {
     const pane = this.connected()?.overlayRef?.overlayElement;
-    const target = pane?.querySelector<HTMLElement>('a[href], button:not([disabled])') ?? pane?.querySelector<HTMLElement>('[role="dialog"]');
+    // "Open in Tracking" first (1.43.2: the tracker-site link before it in the tile is not where the focus starts).
+    const target = pane?.querySelector<HTMLElement>('a.open') ?? pane?.querySelector<HTMLElement>('a[href], button:not([disabled])')
+      ?? pane?.querySelector<HTMLElement>('[role="dialog"]');
     target?.focus({ preventScroll: true });
   }
 
@@ -230,6 +247,11 @@ export class SeriesTrackingButtonComponent implements OnDestroy {
     const s = statusText(row.remoteStatus);
     if (!n && !s) return row.lastSyncAt ? 'nothing read' : 'not checked yet';
     return [n, s].filter((p) => !!p).join(' · ');
+  }
+
+  /** The series' page on the tracker's site (1.43.2), or null without a usable id. */
+  seriesUrl(row: TrackerSeriesRowDto): string | null {
+    return trackerSeriesUrl(row.tracker, row.remoteId);
   }
 
   private load(id: string, force = false): void {
