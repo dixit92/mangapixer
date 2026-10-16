@@ -120,10 +120,14 @@ public sealed class TrackerListCheckService(
                     matches[recordId] = (mediaId, entry);
             }
         }
-        // Read here but on none of the user's lists - only knowable when the whole list was read.
-        var missing = capReached ? [] : markedRecords.Where(r => !matches.ContainsKey(r)).Distinct().ToList();
+        // Read here but on none of the user's lists - only knowable when the whole list was read, and only for a series whose tracker id
+        // is known (1.43.1: a series without one could not be looked up; it gets its row as "No <tracker> id", never "not on your list").
+        var known = byRemoteId.Values.SelectMany(r => r).ToHashSet();
+        var unmatched = markedRecords.Where(r => !matches.ContainsKey(r)).Distinct().ToList();
+        var missing = capReached ? [] : unmatched.Where(known.Contains).ToList();
+        var noId = unmatched.Where(r => !known.Contains(r)).ToList();
 
-        var wanted = matches.Keys.Concat(missing).ToList();
+        var wanted = matches.Keys.Concat(missing).Concat(noId).ToList();
         var existing = new Dictionary<long, TrackerEntryEntity>();
         foreach (var chunk in wanted.Chunk(500))
         {
@@ -149,6 +153,8 @@ public sealed class TrackerListCheckService(
         }
         foreach (var recordId in missing)
             TrackerSyncService.StoreRemote(EntryOf(recordId), null, now);
+        foreach (var recordId in noId)
+            EntryOf(recordId).RemoteMissing = false; // clears 1.43.0's "not on your list" on a series it could not look up
         await db.SaveChangesAsync(ct);
 
         // The states, decided from what was just stored (no request, never a write).

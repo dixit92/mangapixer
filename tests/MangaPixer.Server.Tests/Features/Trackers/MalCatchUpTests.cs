@@ -166,6 +166,36 @@ public sealed class MalCatchUpTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AtStartup_TheCatchUpStartsOnce_UnderTheGate_MakingCompanionsDue_WithoutARequestOfItsOwn()
+    {
+        // 1.43.1 (owner, after the 1.43.0 deploy): the catch-up starts when the server starts, not at the next nightly refresh.
+        var companion = await CompanionWithoutMalAsync();
+        await _h.EnableAutomaticAsync();
+
+        var started = await _h.Refresh().StartMalCatchUpAsync(CancellationToken.None);
+
+        Assert.Equal(1, started);
+        Assert.Empty(_h.Handler.Seen); // the volume-cover pass re-checks the companion, within the budget
+        var due = (await FreshAsync(() => _db.Db.MetadataCompanions.AsNoTracking().SingleAsync(c => c.Id == companion.Id))).NextCheckAt;
+        Assert.True(due <= _h.Time.GetUtcNow());
+        Assert.True(await FreshAsync(() => _db.Db.JobRuns.AnyAsync(j => j.Key == "tracker-mal-catchup")));
+        // Once per instance: a second start (another restart) does nothing.
+        Assert.Null(await _h.Refresh().StartMalCatchUpAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AtStartup_WithoutTheAutomaticConsent_TheCatchUpDoesNotStart()
+    {
+        var companion = await CompanionWithoutMalAsync();
+        await _h.Net.EnableAsync();
+
+        Assert.Null(await _h.Refresh().StartMalCatchUpAsync(CancellationToken.None));
+        Assert.False(await FreshAsync(() => _db.Db.JobRuns.AnyAsync(j => j.Key == "tracker-mal-catchup")));
+        var after = await FreshAsync(() => _db.Db.MetadataCompanions.AsNoTracking().SingleAsync(c => c.Id == companion.Id));
+        Assert.True(after.NextCheckAt > _h.Time.GetUtcNow());
+    }
+
+    [Fact]
     public async Task ASpentBudget_LeavesTheRestDueForTheNextPass()
     {
         await MangaDexSeriesAsync(WithoutMal, null);
