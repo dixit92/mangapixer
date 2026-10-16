@@ -7,15 +7,17 @@ import {
   AdminTrackerSettingsDto,
   TrackerAccountDto,
   TrackerAttentionDto,
+  TrackerBatchAction,
+  TrackerBatchResultDto,
   TrackerConnectStartResponse,
   TrackerDatesRequest,
   TrackerEntryDto,
   TrackerFromTrackerResultDto,
   TrackerNodeOverrideDto,
   TrackerPreviewDto,
-  TrackerSendAllResultDto,
   TrackerSeriesIdsDto,
   TrackerSeriesPageDto,
+  TrackerSelectableSeriesListDto,
   TrackerSeriesRowDto,
   TrackerSeriesSummaryDto,
   TrackersOverviewDto,
@@ -94,10 +96,6 @@ export class TrackersApiService {
     return this.http.post<TrackerPreviewDto>(`${this.base}/${slug}/preview`, {}, { withCredentials: true });
   }
 
-  sendAll(slug: string): Observable<TrackerSendAllResultDto> {
-    return this.http.post<TrackerSendAllResultDto>(`${this.base}/${slug}/entries/send-all`, {}, { withCredentials: true });
-  }
-
   syncOverrides(): Observable<TrackerNodeOverrideDto[]> {
     return this.http.get<TrackerNodeOverrideDto[]>(`${this.base}/sync-overrides`, { withCredentials: true });
   }
@@ -118,6 +116,25 @@ export class TrackersApiService {
     if (filter && filter !== 'All') params = params.set('filter', filter);
     if (q.trim()) params = params.set('q', q.trim());
     return this.http.get<TrackerSeriesPageDto>(`${this.base}/${slug}/series`, { params, withCredentials: true });
+  }
+
+  /**
+   * 1.43.2 "Select all in this chip": every series id matching the chip + search (the list's own rules, at most 2000 - `truncated`),
+   * with which batch actions apply to each. Stored state only.
+   */
+  selectableSeries(slug: string, filter: string, q: string): Observable<TrackerSelectableSeriesListDto> {
+    let params = new HttpParams();
+    if (filter && filter !== 'All') params = params.set('filter', filter);
+    if (q.trim()) params = params.set('q', q.trim());
+    return this.http.get<TrackerSelectableSeriesListDto>(`${this.base}/${slug}/series/ids`, { params, withCredentials: true });
+  }
+
+  /**
+   * 1.43.2 Select mode (replaces "Send all"): one action for up to 100 series (the caller sends larger selections in chunks); each
+   * series gets what its per-series route does, the server skips the ones it does not apply to and stops at the daily cap.
+   */
+  batch(slug: string, action: TrackerBatchAction, seriesIds: string[]): Observable<TrackerBatchResultDto> {
+    return this.http.post<TrackerBatchResultDto>(`${this.base}/${slug}/entries/batch`, { action, seriesIds }, { withCredentials: true });
   }
 
   /** The account menu's badge: series waiting for Send + series a tracker is ahead on. */

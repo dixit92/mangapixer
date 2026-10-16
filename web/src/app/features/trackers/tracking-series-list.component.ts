@@ -10,18 +10,27 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Observable, firstValueFrom } from 'rxjs';
 
-import { TrackerEntryDto, TrackerListCountsDto, TrackerSeriesRowDto } from '../../core/api/api-types';
+import { TrackerBatchAction, TrackerBatchResultDto, TrackerEntryDto, TrackerListCountsDto, TrackerSeriesRowDto } from '../../core/api/api-types';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { TrackersApiService } from './trackers-api.service';
 import {
-  actionBlockText, bucketText, bucketTone, dateText, entryStateText, failureText, fromTrackerQuestion, movedCounts, numbersText, ofText,
-  previewNotice, statusText, trackerName, trackingChips,
+  BatchTotals, actionBlockText, batchActionLabel, batchActionsFor, batchConfirmLabel, batchQuestion, batchSummary, bucketText, bucketTone,
+  dateText, emptyBatchTotals, entryStateText, failureText, fromTrackerQuestion, movedCounts, numbersText, ofText, previewNotice, statusText,
+  trackerName, trackerSeriesUrl, trackingChips,
 } from './tracker-texts';
+import { SelectFlags, applies, flagsOfRow, flagsOfSelectable, noneReason, reachesTracker } from './tracking-selection';
 import { provideTrackerTooltips } from './tracker-tooltips';
 import { TrackingListMemory } from './tracking-list-memory.service';
 
 /** Rows per page (the server's page size). */
 export const TRACKING_PAGE_SIZE = 50;
+
+/**
+ * Series per batch request: small for the actions that reach the tracker (paced at about one request a second, so a request stays
+ * short and the progress moves), the server's maximum for the switches (no request to the tracker).
+ */
+export const BATCH_CHUNK_TRACKER = 10;
+export const BATCH_CHUNK_SWITCH = 100;
 
 /** How long the search waits after the last key before it asks the server. */
 const SEARCH_DELAY_MS = 300;
@@ -38,9 +47,13 @@ const SEARCH_DELAY_MS = 300;
  *   a mouse also gets it as the tooltip - UX review UX1);
  * - "⋯": Sync now, Set dates on <tracker>…, "Set <tracker> to a number… (can lower it)" (the warning form, in the warn colour),
  *   Don't sync this series / Sync again, Open the series; a disabled item says why in a muted line (UX7).
- * The toolbar keeps "Check my list on <tracker>" (writes nothing: MyAnimeList reads the whole list, others 50 series a click) and "Send
- * all" for the series waiting for the user. The list itself is stored state: showing, paging, filtering and searching contact no
- * tracker. A list reload (chip, search, Load more) closes an open confirm or "Set to" form and clears the error line once a page
+ * The tracker column's numbers open the series on the tracker's site (a new tab, no referrer; also "Open on <tracker>" in "⋯").
+ * The toolbar keeps "Check my list on <tracker>" (writes nothing: MyAnimeList reads the whole list, others 50 series a click) and
+ * "Select" (1.43.2, replaces "Send all"): a tick per row (Shift-click fills a range), "Select all N in this chip" (every matching
+ * series on the server, not only the loaded pages), and a bar at the bottom with the actions - each with how many of the selected it
+ * applies to, the chip's natural one first, a line saying why one applies to none -, ONE confirm with the counts, then the series go to
+ * the server in chunks with "37 of 51…" and Cancel between chunks, and one summary. The list itself is stored state: showing, paging,
+ * filtering and searching contact no tracker. A list reload (chip, search, Load more) closes an open confirm or "Set to" form and clears the error line once a page
  * arrives; a row action moves its series between the chip counts at once; Back from "Open the series" finds the same chip, search
  * and pages (UX review UX2-UX4, UX11).
  */
@@ -63,12 +76,10 @@ const SEARCH_DELAY_MS = 300;
           <mat-icon>fact_check</mat-icon>
           {{ previewRemaining() > 0 ? 'Check ' + Math.min(previewRemaining(), 50) + ' more (' + previewRemaining() + ' left)' : 'Check my list on ' + name() }}
         </button>
-        @if ((counts()?.held ?? 0) > 0) {
-          <button mat-stroked-button type="button" [disabled]="busy() || !canSync()" (click)="confirmSendAll.set(true)"
-                  [attr.data-testid]="'tracker-send-all-' + slug()">
-            <mat-icon>send</mat-icon> Send all ({{ counts()?.held }})
-          </button>
-        }
+        <button mat-stroked-button type="button" class="select-toggle" [class.on]="selecting()" [attr.aria-pressed]="selecting()"
+                [disabled]="applying()" (click)="toggleSelect()" [attr.data-testid]="'tracking-select-' + slug()">
+          <mat-icon>checklist</mat-icon> {{ selecting() ? 'Done selecting' : 'Select' }}
+        </button>
       </div>
 
       <div class="chips" role="group" aria-label="Show series by state">
@@ -80,17 +91,6 @@ const SEARCH_DELAY_MS = 300;
         }
       </div>
 
-      @if (confirmSendAll()) {
-        <div class="confirm" role="alertdialog" aria-label="Send all" [attr.data-testid]="'tracker-send-all-confirm-' + slug()">
-          <p>Send the waiting progress of {{ counts()?.held === 1 ? '1 series' : counts()?.held + ' series' }} to {{ name() }}? This
-            includes folders you marked read at once and imported reading. A number on {{ name() }} is never lowered.</p>
-          <div class="actions">
-            <button mat-flat-button color="primary" type="button" [disabled]="busy()" (click)="sendAll()"
-                    [attr.data-testid]="'tracker-send-all-yes-' + slug()">Send all</button>
-            <button mat-button type="button" [disabled]="busy()" (click)="confirmSendAll.set(false)">Cancel</button>
-          </div>
-        </div>
-      }
       @if (notice(); as n) { <p class="ok" role="status" [attr.data-testid]="'tracking-notice-' + slug()">{{ n }}</p> }
       @if (error(); as e) { <p class="error" role="alert" [attr.data-testid]="'tracking-error-' + slug()">{{ e }}</p> }
 
@@ -105,10 +105,16 @@ const SEARCH_DELAY_MS = 300;
             @if (datesColumn()) { <span>Dates on {{ name() }}</span> }
             <span>Bring in line</span>
           </div>
-          @for (r of items(); track r.seriesId) {
-            <div class="row" [class.focused]="focused() === r.seriesId" [attr.data-testid]="'tracking-row-' + r.seriesId"
-                 [attr.data-bucket]="r.bucket">
+          @for (r of items(); track r.seriesId; let i = $index) {
+            <div class="row" [class.focused]="focused() === r.seriesId" [class.picked]="selecting() && isSelected(r)"
+                 [attr.data-testid]="'tracking-row-' + r.seriesId" [attr.data-bucket]="r.bucket">
               <div class="series">
+                @if (selecting()) {
+                  <label class="pick" [attr.data-testid]="'tracking-pick-' + r.seriesId">
+                    <input type="checkbox" [checked]="isSelected(r)" [disabled]="applying()" (click)="pick($event, r, i)"
+                           [attr.aria-label]="'Select ' + r.title" [attr.data-testid]="'tracking-pick-box-' + r.seriesId" />
+                  </label>
+                }
                 <div class="thumb" aria-hidden="true">
                   @if (r.nodeId) { <img appCover [src]="coverOf(r.nodeId)" alt="" loading="lazy"> }
                   <mat-icon>menu_book</mat-icon>
@@ -129,7 +135,16 @@ const SEARCH_DELAY_MS = 300;
               </div>
               <div class="cell remote">
                 <span class="cell-label">{{ name() }}</span>
-                <span [attr.data-testid]="'tracking-remote-' + r.seriesId">{{ remote(r) }}</span>
+                @if (seriesUrl(r); as url) {
+                  <!-- 1.43.2: the series on the tracker's site - a new tab, no referrer (this server's address never reaches it). -->
+                  <a class="remote-num ext" [href]="url" target="_blank" rel="noopener noreferrer"
+                     [attr.aria-label]="'Open on ' + name() + ': ' + remote(r)" [attr.data-testid]="'tracking-remote-link-' + r.seriesId">
+                    <span [attr.data-testid]="'tracking-remote-' + r.seriesId">{{ remote(r) }}</span>
+                    <mat-icon aria-hidden="true">open_in_new</mat-icon>
+                  </a>
+                } @else {
+                  <span class="remote-num" [attr.data-testid]="'tracking-remote-' + r.seriesId">{{ remote(r) }}</span>
+                }
                 @if (!r.remoteMissing && status(r.remoteStatus); as s) { <span class="sub">{{ s }}</span> }
               </div>
               @if (datesColumn()) {
@@ -220,11 +235,70 @@ const SEARCH_DELAY_MS = 300;
           </button>
           @if (r.nodeId) {
             <a mat-menu-item [routerLink]="['/series', r.nodeId]" data-testid="tracking-menu-open">
-              <mat-icon>open_in_new</mat-icon><span>Open the series</span>
+              <mat-icon>menu_book</mat-icon><span>Open the series</span>
+            </a>
+          }
+          @if (seriesUrl(r); as url) {
+            <a mat-menu-item [href]="url" target="_blank" rel="noopener noreferrer" data-testid="tracking-menu-open-tracker">
+              <mat-icon>open_in_new</mat-icon><span>Open on {{ name() }}</span>
             </a>
           }
         </ng-template>
       </mat-menu>
+
+      @if (selecting()) {
+        <!-- 1.43.2 Select mode: one bar for every chip - the count, Select all in this chip, Clear, and the actions with how many of the
+             selected each applies to; an action that applies to none says why in a line (no hover needed). -->
+        <div class="select-bar" role="region" aria-label="Selected series" [attr.data-testid]="'tracking-select-bar-' + slug()">
+          <div class="sel-head">
+            <span class="sel-count" role="status" data-testid="tracking-selected-count">{{ selectedCount() }} selected</span>
+            @if (selectAllLabel(); as label) {
+              <button mat-button type="button" [disabled]="busy() || selectingAll()" (click)="selectAllInChip()"
+                      data-testid="tracking-select-all">{{ selectingAll() ? 'Selecting…' : label }}</button>
+            }
+            <button mat-button type="button" [disabled]="applying() || selectedCount() === 0" (click)="clearSelection()"
+                    data-testid="tracking-select-clear">Clear</button>
+            <button mat-stroked-button type="button" class="sel-done" [disabled]="applying()" (click)="toggleSelect()"
+                    data-testid="tracking-select-done"><mat-icon>close</mat-icon> Done</button>
+          </div>
+          @if (progress(); as p) {
+            <div class="progress" role="status" data-testid="tracking-batch-progress">
+              <span>{{ p.done }} of {{ p.total }}…</span>
+              <button mat-button type="button" [disabled]="cancelRequested()" (click)="cancelBatch()" data-testid="tracking-batch-cancel">
+                {{ cancelRequested() ? 'Stopping after this part…' : 'Cancel' }}</button>
+            </div>
+          } @else if (batchConfirm(); as action) {
+            <div class="confirm" role="alertdialog" aria-label="Apply to the selected series" data-testid="tracking-batch-confirm">
+              <p>{{ batchQuestionText(action) }}</p>
+              <div class="actions">
+                <button mat-flat-button color="primary" type="button" (click)="applyBatch(action)" data-testid="tracking-batch-yes">
+                  {{ confirmLabel(action) }}</button>
+                <button mat-button type="button" (click)="batchConfirm.set(null)" data-testid="tracking-batch-no">Cancel</button>
+              </div>
+            </div>
+          } @else {
+            <div class="sel-actions">
+              @for (a of batchActions(); track a; let first = $first) {
+                <button type="button" [class]="first ? 'sel-act primary' : 'sel-act'" [disabled]="busy() || actionCount(a) === 0"
+                        [attr.aria-label]="actionLabel(a) + ' (' + actionCount(a) + ')'" (click)="askBatch(a)"
+                        [attr.data-testid]="'tracking-batch-' + a">
+                  <span class="lbl-long">{{ actionLabel(a) }}</span><span class="lbl-short">{{ actionLabel(a, true) }}</span>
+                  <span class="n">{{ actionCount(a) }}</span>
+                </button>
+              }
+            </div>
+            @if (selectedCount() === 0) {
+              <p class="why" data-testid="tracking-batch-why">Tick series with the boxes{{ selectAllLabel() ? ', or select all in this chip' : '' }}.</p>
+            } @else if (whyLines().length) {
+              <p class="why" data-testid="tracking-batch-why">
+                @for (line of whyLines(); track line.action) {
+                  <span [attr.data-testid]="'tracking-batch-why-' + line.action"><b>{{ actionLabel(line.action, true) }}:</b> {{ line.text }}</span>
+                }
+              </p>
+            }
+          }
+        </div>
+      }
 
       <div class="footer">
         <span [attr.data-testid]="'tracking-shown-' + slug()">{{ shownText() }}</span>
@@ -280,7 +354,36 @@ const SEARCH_DELAY_MS = 300;
     .state[data-tone='tracker'], .state[data-tone='warn'] { background: rgb(var(--mp-warn-strong-rgb) / 0.16); color: var(--mp-warn); }
     .cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 13px; overflow-wrap: anywhere; color: var(--mp-text); }
     .cell-label { display: none; font-size: 12px; color: var(--mp-text-muted); }
-    .remote > span:nth-child(2) { color: var(--mp-warn); }
+    .remote .remote-num { color: var(--mp-warn); }
+    a.ext { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; text-decoration: none; min-height: 24px; }
+    a.ext:hover span, a.ext:focus-visible span { text-decoration: underline; }
+    a.ext mat-icon { font-size: 15px; width: 15px; height: 15px; flex: none; }
+    /* Select mode (1.43.2): a 44 px tick target before the cover; the picked row is tinted. */
+    .select-toggle.on { background: var(--mp-surface-accent); border-color: rgb(var(--mp-accent-strong-rgb) / 0.5); }
+    .pick { flex: none; width: 44px; height: 44px; margin: -6px -4px -6px -8px; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; border-radius: 8px; }
+    .pick:hover { background: rgb(var(--mp-ink-rgb) / 0.06); }
+    .pick input { width: 20px; height: 20px; margin: 0; cursor: pointer; accent-color: var(--mp-accent-strong); }
+    .row.picked { background: rgb(var(--mp-accent-strong-rgb) / 0.08); }
+    /* The bar stays at the bottom of the screen while the list scrolls under it. */
+    .select-bar { position: sticky; bottom: 0; z-index: 5; display: flex; flex-direction: column; gap: 8px; padding: 10px 16px 12px;
+                  background: var(--mp-surface-raised); border-top: 1px solid rgb(var(--mp-accent-strong-rgb) / 0.5);
+                  box-shadow: 0 -6px 16px rgb(var(--mp-shade-rgb) / 0.25); }
+    .sel-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+    .sel-count { font-weight: 600; margin-right: auto; color: var(--mp-text-strong); }
+    .sel-done mat-icon { margin-right: 4px; }
+    .sel-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .sel-act { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 12px; border-radius: 20px; font: inherit;
+               font-size: 13px; line-height: 1.25; text-align: left; cursor: pointer; color: var(--mp-accent);
+               background: transparent; border: 1px solid rgb(var(--mp-accent-strong-rgb) / 0.6); max-width: 100%; }
+    .sel-act.primary { background: var(--mp-accent-strong); border-color: var(--mp-accent-strong); color: var(--mp-on-accent); }
+    .sel-act:disabled { cursor: default; color: var(--mp-text-faint); background: transparent; border-color: rgb(var(--mp-ink-rgb) / 0.14); }
+    .sel-act .n { font-weight: 600; font-size: 12px; padding: 1px 7px; border-radius: 9px; background: rgb(var(--mp-ink-rgb) / 0.12); }
+    .sel-act .lbl-short { display: none; }
+    .select-bar .why { margin: 0; display: flex; flex-direction: column; gap: 2px; font-size: 12px; line-height: 1.3; color: var(--mp-text-muted);
+                       overflow-wrap: anywhere; }
+    .select-bar .why b { font-weight: 500; color: var(--mp-text-secondary); }
+    .progress { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; color: var(--mp-text); }
     .sub { font-size: 12px; color: var(--mp-text-muted); }
     .held { font-size: 12px; color: var(--mp-warn); }
     .link { align-self: flex-start; padding: 0; margin-top: 2px; border: 0; background: none; font: inherit; font-size: 12px;
@@ -309,6 +412,10 @@ const SEARCH_DELAY_MS = 300;
     ::ng-deep .tracking-more-menu .warn-item:not([disabled]), ::ng-deep .tracking-more-menu .warn-item:not([disabled]) .mat-icon { color: var(--mp-warn); }
     .footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px;
               color: var(--mp-text-muted); font-size: 13px; }
+    @container (max-width: 600px) {
+      .sel-act .lbl-long { display: none; }
+      .sel-act .lbl-short { display: inline; }
+    }
     @container (max-width: 900px) {
       .row, .rows.with-dates .row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
       .row.header { display: none; }
@@ -332,6 +439,8 @@ export class TrackingSeriesListComponent implements OnInit, OnChanges, OnDestroy
   readonly focusSeries = input<string | null>(null);
   /** The search to start with (the focused series' title). */
   readonly initialSearch = input('');
+  /** The account's "Add series I start reading" (words the confirm of "Set progress from MangaPixer"). */
+  readonly addStartedSeries = input(true);
   /** Something changed that the account menu's badge counts (a send, a from-tracker, a preview). */
   readonly changed = output<void>();
 
@@ -349,7 +458,15 @@ export class TrackingSeriesListComponent implements OnInit, OnChanges, OnDestroy
   readonly notice = signal<string | null>(null);
   readonly error = signal<string | null>(null);
   readonly previewRemaining = signal(0);
-  readonly confirmSendAll = signal(false);
+  /** Select mode (1.43.2): the selected series (in the order they were picked) with what applies to each. */
+  readonly selecting = signal(false);
+  readonly selected = signal<Map<string, SelectFlags>>(new Map());
+  readonly selectingAll = signal(false);
+  /** The action whose confirm is open, the progress of a running apply, and a Cancel waiting for the current chunk. */
+  readonly batchConfirm = signal<TrackerBatchAction | null>(null);
+  readonly progress = signal<{ done: number; total: number } | null>(null);
+  readonly cancelRequested = signal(false);
+  readonly applying = computed(() => this.progress() !== null);
   readonly focused = signal<string | null>(null);
 
   /** The series whose from-tracker confirm is open. */
@@ -360,6 +477,31 @@ export class TrackingSeriesListComponent implements OnInit, OnChanges, OnDestroy
   readonly setVolumes = signal<number | null>(null);
 
   readonly chips = computed(() => trackingChips(this.counts(), this.slug()));
+  readonly selectedCount = computed(() => this.selected().size);
+  /** The selected series' flags - a loaded row's current ones (they follow a row action), else what "Select all" brought. */
+  private readonly selectedFlags = computed(() => {
+    const rows = new Map(this.items().map((r) => [r.seriesId, r]));
+    return [...this.selected()].map(([id, f]) => { const r = rows.get(id); return r ? flagsOfRow(r) : f; });
+  });
+  readonly batchActions = computed(() => batchActionsFor(this.filter()));
+  private readonly actionCounts = computed(() => {
+    const flags = this.selectedFlags();
+    const sync = this.canSync();
+    return new Map(this.batchActions().map((a) => [a, !sync && reachesTracker(a) ? 0 : flags.filter((f) => applies(a, f)).length]));
+  });
+  readonly whyLines = computed(() => {
+    const flags = this.selectedFlags();
+    return this.batchActions()
+      .map((action) => ({ action, text: noneReason(action, flags, this.canSync(), this.slug()) }))
+      .filter((l): l is { action: TrackerBatchAction; text: string } => !!l.text);
+  });
+  /** "Select all 51 in this chip" while more match than are selected; null when every match is selected. */
+  readonly selectAllLabel = computed(() => {
+    const total = this.total();
+    if (total === 0 || this.selected().size >= total) return null;
+    if (this.search().trim()) return `Select all ${total} matching`;
+    return this.filter() === 'All' ? `Select all ${total}` : `Select all ${total} in this chip`;
+  });
   readonly datesColumn = computed(() => this.items().some((r) => r.dates.supported));
   readonly shownText = computed(() => {
     const n = this.items().length;
@@ -393,6 +535,8 @@ export class TrackingSeriesListComponent implements OnInit, OnChanges, OnDestroy
   readonly question = fromTrackerQuestion;
 
   private generation = 0;
+  /** The index (in the loaded rows) of the last row ticked or unticked: a Shift-click fills from here. */
+  private anchor: number | null = null;
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
   /** The focused series was highlighted, or the user moved on (a search or a chip): it is not highlighted again. */
   private focusDone = false;
@@ -422,6 +566,7 @@ export class TrackingSeriesListComponent implements OnInit, OnChanges, OnDestroy
     }
     this.focusDone = false;
     this.focused.set(null);
+    this.clearSelection();
     this.filter.set('All');
     this.search.set(this.initialSearch().trim().slice(0, 200));
     if (this.searchTimer) { clearTimeout(this.searchTimer); this.searchTimer = null; }
@@ -509,14 +654,16 @@ export class TrackingSeriesListComponent implements OnInit, OnChanges, OnDestroy
   }
 
   setFilter(filter: string): void {
-    if (this.filter() === filter) return;
+    if (this.filter() === filter || this.applying()) return;
     this.endFocus();
+    this.clearSelection();
     this.filter.set(filter);
     this.reload();
   }
 
   onSearch(text: string): void {
     this.endFocus();
+    this.clearSelection();
     this.search.set(text ?? '');
     if (this.searchTimer) clearTimeout(this.searchTimer);
     this.searchTimer = setTimeout(() => { this.searchTimer = null; this.reload(); }, SEARCH_DELAY_MS);
@@ -528,8 +675,8 @@ export class TrackingSeriesListComponent implements OnInit, OnChanges, OnDestroy
     this.reload();
   }
 
-  /** Page 1 again (a new filter or search, or after a change that may move rows between chips). */
-  reload(): void {
+  /** Page 1 again (a new filter or search, or after a change that may move rows between chips); `then` runs once it arrived. */
+  reload(then?: () => void): void {
     const gen = ++this.generation;
     this.closeRowForms();
     this.loading.set(this.items().length === 0);
@@ -544,6 +691,7 @@ export class TrackingSeriesListComponent implements OnInit, OnChanges, OnDestroy
         this.page.set(p.page);
         this.focusOnce();
         this.continueRestore();
+        then?.();
       },
       error: (err: unknown) => {
         if (gen !== this.generation) return;
@@ -579,11 +727,11 @@ export class TrackingSeriesListComponent implements OnInit, OnChanges, OnDestroy
     });
   }
 
-  /** A reload or another page drops the transient row UI: the from-tracker confirm, the "Set to" form, the Send all confirm (UX3). */
+  /** A reload or another page drops the transient row UI: the from-tracker confirm, the "Set to" form, the Select-mode confirm (UX3). */
   private closeRowForms(): void {
     this.confirmFrom.set(null);
     this.setting.set(null);
-    this.confirmSendAll.set(false);
+    this.batchConfirm.set(null);
   }
 
   /** Back from "Open the series": the next saved page, or - all there - the saved scroll position. */
@@ -680,16 +828,152 @@ export class TrackingSeriesListComponent implements OnInit, OnChanges, OnDestroy
     });
   }
 
-  sendAll(): void {
-    this.run(this.api.sendAll(this.slug()), (r) => {
-      this.confirmSendAll.set(false);
-      const parts = [`Sent ${r.sent}`];
-      if (r.skipped) parts.push(`${r.skipped} unchanged`);
-      if (r.failed) parts.push(`${r.failed} failed`);
-      this.notice.set(parts.join(', ') + (r.capReached ? `. Today's request limit for ${this.name()} is reached.` : '.'));
-      this.reload();
-      this.changed.emit();
+  /** The series' page on the tracker's site, or null without a usable id. */
+  seriesUrl(r: TrackerSeriesRowDto): string | null {
+    return trackerSeriesUrl(this.slug(), r.remoteId);
+  }
+
+  // ---- Select mode (1.43.2) ----
+
+  isSelected(r: TrackerSeriesRowDto): boolean {
+    return this.selected().has(r.seriesId);
+  }
+
+  toggleSelect(): void {
+    if (this.applying()) return;
+    this.selecting.update((v) => !v);
+    this.clearSelection();
+  }
+
+  clearSelection(): void {
+    this.selected.set(new Map());
+    this.anchor = null;
+    this.batchConfirm.set(null);
+  }
+
+  /** A row's tick: toggles it; Shift-click (desktop) also ticks every loaded row between the last tick and this one. */
+  pick(event: MouseEvent, r: TrackerSeriesRowDto, index: number): void {
+    // The tick shows the selection (a Shift-click on a ticked row keeps it ticked): the box never toggles on its own.
+    event.preventDefault();
+    if (this.applying()) return;
+    this.batchConfirm.set(null);
+    const next = new Map(this.selected());
+    const anchor = this.anchor;
+    if (event.shiftKey && anchor !== null && anchor < this.items().length) {
+      const [lo, hi] = anchor < index ? [anchor, index] : [index, anchor];
+      for (const row of this.items().slice(lo, hi + 1)) next.set(row.seriesId, flagsOfRow(row));
+    } else if (next.has(r.seriesId)) {
+      next.delete(r.seriesId);
+    } else {
+      next.set(r.seriesId, flagsOfRow(r));
+    }
+    this.anchor = index;
+    this.selected.set(next);
+  }
+
+  /** "Select all N in this chip": every series matching the chip and the search - from the loaded rows when all are loaded, else the server's ids. */
+  selectAllInChip(): void {
+    if (this.busy() || this.selectingAll()) return;
+    this.batchConfirm.set(null);
+    if (this.items().length >= this.total()) {
+      this.selected.set(new Map(this.items().map((r) => [r.seriesId, flagsOfRow(r)])));
+      return;
+    }
+    const gen = this.generation;
+    this.selectingAll.set(true);
+    this.error.set(null);
+    this.api.selectableSeries(this.slug(), this.filter(), this.search()).subscribe({
+      next: (list) => {
+        this.selectingAll.set(false);
+        if (gen !== this.generation || !this.selecting()) return;
+        this.selected.set(new Map(list.items.map((x) => [x.seriesId, flagsOfSelectable(x)])));
+        this.notice.set(list.truncated ? `Selected the first ${list.items.length} of ${list.totalCount} series - apply, then select the rest.` : null);
+      },
+      error: (err: unknown) => { this.selectingAll.set(false); this.error.set(failureText(err, this.slug())); },
     });
+  }
+
+  actionLabel(action: TrackerBatchAction, short = false): string {
+    return batchActionLabel(action, this.slug(), short);
+  }
+
+  confirmLabel(action: TrackerBatchAction): string {
+    return batchConfirmLabel(action);
+  }
+
+  actionCount(action: TrackerBatchAction): number {
+    return this.actionCounts().get(action) ?? 0;
+  }
+
+  batchQuestionText(action: TrackerBatchAction): string {
+    const applying = this.actionCount(action);
+    return batchQuestion(action, this.slug(), applying, this.selectedCount() - applying, this.addStartedSeries());
+  }
+
+  askBatch(action: TrackerBatchAction): void {
+    if (this.busy() || this.actionCount(action) === 0) return;
+    this.batchConfirm.set(action);
+  }
+
+  cancelBatch(): void {
+    if (this.applying()) this.cancelRequested.set(true);
+  }
+
+  /**
+   * After the confirm: every selected series goes to the server, a chunk at a time (the server skips the ones the action does not
+   * apply to, with a reason), "37 of 51…" between chunks; it stops at the daily cap, when the account can no longer sync, on an error
+   * or on Cancel. Then one summary, the list again (chip counts follow), the badge, and the selection cleared.
+   */
+  async applyBatch(action: TrackerBatchAction): Promise<void> {
+    if (this.busy()) return;
+    const ids = [...this.selected().keys()];
+    if (ids.length === 0) return;
+    const size = reachesTracker(action) ? BATCH_CHUNK_TRACKER : BATCH_CHUNK_SWITCH;
+    const totals: BatchTotals = emptyBatchTotals();
+    this.batchConfirm.set(null);
+    this.cancelRequested.set(false);
+    this.notice.set(null);
+    this.error.set(null);
+    this.busy.set(true);
+    this.progress.set({ done: 0, total: ids.length });
+    let sent = 0;
+    let failure: string | null = null;
+    try {
+      while (sent < ids.length) {
+        if (this.cancelRequested()) { totals.cancelled = true; break; }
+        const chunk = ids.slice(sent, sent + size);
+        let r: TrackerBatchResultDto;
+        try {
+          r = await firstValueFrom(this.api.batch(this.slug(), action, chunk));
+        } catch (err: unknown) {
+          failure = failureText(err, this.slug());
+          break;
+        }
+        sent += chunk.length;
+        totals.done += r.done;
+        totals.skipped += r.skipped;
+        totals.failed += r.failed;
+        totals.marked += r.marked;
+        totals.alreadyRead += r.alreadyRead;
+        totals.notReached += r.notReached;
+        for (const s of r.skips) totals.skips[s.reason] = (totals.skips[s.reason] ?? 0) + s.count;
+        for (const row of r.rows) this.replace(row);
+        this.progress.set({ done: sent, total: ids.length });
+        if (r.capReached) { totals.capReached = true; break; }
+        if (r.stoppedCode) { totals.stoppedCode = r.stoppedCode; break; }
+      }
+    } finally {
+      totals.unsent = ids.length - sent;
+      this.progress.set(null);
+      this.cancelRequested.set(false);
+      this.busy.set(false);
+    }
+    if (totals.done + totals.skipped + totals.failed > 0) this.notice.set(batchSummary(action, this.slug(), totals));
+    if (failure) this.error.set(failure);
+    this.clearSelection();
+    // The list again (its arrival clears the error line - a refused chunk is said again after it).
+    this.reload(() => { if (failure) this.error.set(failure); });
+    this.changed.emit();
   }
 
   /** An action answering the old per-series entry: say what happened, then re-read the row in the list's shape. */

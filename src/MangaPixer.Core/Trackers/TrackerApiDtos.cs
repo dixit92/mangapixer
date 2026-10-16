@@ -202,15 +202,6 @@ public sealed record TrackerPreviewDto
     public int? Created { get; init; }
 }
 
-/// <summary><c>POST /api/v1/trackers/{slug}/entries/send-all</c>: "Send all" - every series where MangaPixer is ahead (held jumps included).</summary>
-public sealed record TrackerSendAllResultDto
-{
-    public required int Sent { get; init; }
-    public required int Skipped { get; init; }
-    public required int Failed { get; init; }
-    public required bool CapReached { get; init; }
-}
-
 /// <summary>A user's sync switch on a folder or series (owner Q3): on inside a Private library (or for doujinshi), or off.</summary>
 public sealed record TrackerNodeOverrideDto
 {
@@ -528,4 +519,142 @@ public sealed record TrackerSeriesSummaryDto
     public string? SeriesId { get; init; }
 
     public required IReadOnlyList<TrackerSeriesRowDto> Rows { get; init; }
+}
+
+// ---- 1.43.2 (owner, 2026-10-16): the Tracking list's Select mode - one shared multi-select with an apply action for every chip
+// (it replaces "Send all"). Cookie + CSRF only, the caller's own rows, like every route above.
+
+/// <summary>What a batch applies to each selected series (values travel as names; append-only).</summary>
+public enum TrackerBatchAction
+{
+    /// <summary>"Set progress from &lt;tracker&gt; to MangaPixer" (what the per-series <c>.../from-tracker</c> does): marks read here, never unmarks.</summary>
+    FromTracker = 0,
+
+    /// <summary>"Set progress from MangaPixer to &lt;tracker&gt;" (the per-series <c>.../send</c>): every mark counts, never lowers the tracker.</summary>
+    ToTracker = 1,
+
+    /// <summary>"Sync now" (the per-series <c>.../sync</c>): a held jump stays held.</summary>
+    SyncNow = 2,
+
+    /// <summary>"Don't sync this series" on this tracker (no request).</summary>
+    DontSync = 3,
+
+    /// <summary>"Sync this series again" (no request).</summary>
+    SyncAgain = 4,
+}
+
+/// <summary>Why a batch left a selected series as it is (values travel as names; append-only).</summary>
+public enum TrackerBatchSkip
+{
+    /// <summary>The tracker was never read for this series (use Sync now first).</summary>
+    NotChecked = 1,
+
+    /// <summary>The side the action copies from is not ahead (also: a Send that found nothing to write after reading the tracker).</summary>
+    NotAhead = 2,
+
+    /// <summary>No tracker id is known for the series.</summary>
+    NoId = 3,
+
+    /// <summary>The user turned sync off for this series on this tracker.</summary>
+    DontSync = 4,
+
+    /// <summary>On hold, dropped, completed or rereading on the tracker: never changed by MangaPixer.</summary>
+    LeftAsIs = 5,
+
+    /// <summary>The series is on none of the user's lists on the tracker.</summary>
+    NotOnList = 6,
+
+    /// <summary>Not on the caller's Tracking list for this tracker, or no longer in a library the caller can open.</summary>
+    NotListed = 7,
+
+    /// <summary>"Don't sync": already off.</summary>
+    AlreadyOff = 8,
+
+    /// <summary>"Sync again": already syncing.</summary>
+    AlreadyOn = 9,
+
+    /// <summary>The tracker asked MangaPixer to slow down: the write is tried again shortly on its own.</summary>
+    RetryLater = 10,
+}
+
+/// <summary>
+/// <c>POST /api/v1/trackers/{slug}/entries/batch</c>: one action for up to <see cref="TrackerFacts.MaxBatchSeries"/> of the caller's series
+/// (series ids as the list shows them). Each series gets exactly what its per-series route does; a series the action does not apply to is
+/// left as it is and counted by reason.
+/// </summary>
+public sealed record TrackerBatchRequest
+{
+    public required TrackerBatchAction Action { get; init; }
+    public required IReadOnlyList<string> SeriesIds { get; init; }
+}
+
+/// <summary>How many selected series a batch left as they are for one reason.</summary>
+public sealed record TrackerBatchSkipCountDto
+{
+    public required TrackerBatchSkip Reason { get; init; }
+    public required int Count { get; init; }
+}
+
+/// <summary>The answer of a batch: counts only, and the rows of the series it was given (after the action) that the caller can open.</summary>
+public sealed record TrackerBatchResultDto
+{
+    /// <summary>Series the action was applied to (a write sent, archives marked or checked, a switch turned).</summary>
+    public required int Done { get; init; }
+
+    /// <summary>Series left as they are (see <see cref="Skips"/>).</summary>
+    public required int Skipped { get; init; }
+
+    /// <summary>Series whose request to the tracker failed (their row says why).</summary>
+    public required int Failed { get; init; }
+
+    /// <summary>Today's requests to this tracker are used up: the batch stopped there (see <see cref="NotReached"/>).</summary>
+    public required bool CapReached { get; init; }
+
+    /// <summary>Series not reached because the batch stopped (the daily cap, or the account can no longer sync).</summary>
+    public required int NotReached { get; init; }
+
+    /// <summary>"Set progress from &lt;tracker&gt;" only: archives marked read now, and archives the tracker covers that were read already.</summary>
+    public required int Marked { get; init; }
+
+    public required int AlreadyRead { get; init; }
+
+    /// <summary>The account cannot sync any more (a sign-in the tracker refused): the batch stopped; the code says why.</summary>
+    public string? StoppedCode { get; init; }
+
+    public required IReadOnlyList<TrackerBatchSkipCountDto> Skips { get; init; }
+
+    public required IReadOnlyList<TrackerSeriesRowDto> Rows { get; init; }
+}
+
+/// <summary>One series of "Select all in this chip": its id and which of the batch actions apply to it now (from the stored row).</summary>
+public sealed record TrackerSelectableSeriesDto
+{
+    public required string SeriesId { get; init; }
+
+    /// <summary>"Set progress from &lt;tracker&gt; to MangaPixer" (as the row's <see cref="TrackerSeriesRowDto.FromTracker"/>).</summary>
+    public required TrackerActionDto FromTracker { get; init; }
+
+    /// <summary>"Set progress from MangaPixer to &lt;tracker&gt;" (as the row's <see cref="TrackerSeriesRowDto.ToTracker"/>).</summary>
+    public required TrackerActionDto ToTracker { get; init; }
+
+    /// <summary>"Sync now" can reach the tracker: a known id and sync not turned off.</summary>
+    public required bool CanSync { get; init; }
+
+    public required bool DontSync { get; init; }
+}
+
+/// <summary>
+/// <c>GET /api/v1/trackers/{slug}/series/ids?filter=Held&amp;q=...</c>: every series of the caller's list matching the chip and the search
+/// (the list's own rules: only series the caller can open), in the list's order, at most <see cref="TrackerFacts.MaxSelectableSeries"/>.
+/// Stored state only - no request to the tracker.
+/// </summary>
+public sealed record TrackerSelectableSeriesListDto
+{
+    public required IReadOnlyList<TrackerSelectableSeriesDto> Items { get; init; }
+
+    /// <summary>Series matching the filter and the search (also beyond the cap).</summary>
+    public required int TotalCount { get; init; }
+
+    /// <summary>More series match than <see cref="Items"/> holds.</summary>
+    public required bool Truncated { get; init; }
 }

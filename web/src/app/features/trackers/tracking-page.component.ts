@@ -68,6 +68,7 @@ import { TrackingSeriesListComponent } from './tracking-series-list.component';
             @if (active() === t.slug) {
               <div role="tabpanel" [id]="'tracking-panel-' + t.slug" [attr.aria-labelledby]="'tracking-tab-' + t.slug">
                 <app-tracking-series-list [slug]="t.slug" [name]="t.name" [canSync]="canSync(t)"
+                                          [addStartedSeries]="t.account?.addStartedSeries ?? true"
                                           [focusSeries]="focusSeries()" [initialSearch]="initialSearch()"
                                           (changed)="state.refreshAttention()" />
               </div>
@@ -92,7 +93,8 @@ import { TrackingSeriesListComponent } from './tracking-series-list.component';
       box-shadow: inset 0 0 0 2px var(--mp-tracker-mark), inset 0 0 0 3px var(--mp-tracker-mark-edge);
     }
     .accounts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; align-items: stretch; }
-    .series { background: var(--mp-surface); border: 1px solid rgb(var(--mp-ink-rgb) / 0.12); border-radius: 12px; min-width: 0; overflow: hidden; }
+    /* clip, not hidden: the rounded corners without a scroll container, so the list's Select bar can stick to the screen (1.43.2). */
+    .series { background: var(--mp-surface); border: 1px solid rgb(var(--mp-ink-rgb) / 0.12); border-radius: 12px; min-width: 0; overflow: clip; }
     .tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 14px 16px 2px; }
     .tab { min-height: 36px; padding: 0 14px; border-radius: 18px; border: 0; background: transparent; color: var(--mp-text-muted);
            font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }

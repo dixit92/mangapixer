@@ -574,6 +574,14 @@ public static class VolumeGrouping
     {
         var hasVolumeArchive = volumeArchives.Count > 0;
         var required = resolver.RequiredUnits(volume);
+        // 1.43.2 (owner): a listed chapter 0 (a prologue, a pilot, an announcement - many releases have none) counts only when a file
+        // numbered 0 is here; otherwise it is never missing, never a placeholder and not in "N of M" (as the Missing report: a lone 0
+        // is not progress). Every other number keeps its rules.
+        if (required is not null && required.Any(u => decimal.Truncate(u) == 0)
+            && !chapterMembers.Any(m => m.Chapter is { } c && decimal.Truncate(c) == 0) && !inFolder(0m))
+        {
+            required = required.Where(u => decimal.Truncate(u) != 0).ToList();
+        }
         var requiredSet = required?.ToHashSet() ?? [];
         var units = chapterMembers.Select(m => UnitsOf(m.Row)).ToList();
         var splits = MissingUnits.SplitsOf(units);

@@ -280,7 +280,7 @@ test.describe('tracker sync web (1.43.0)', () => {
   test('the tracker cards, the Tracking page, the popover, the ids dialog and the callback page fit a phone and a tablet screen', async ({ page }) => {
     test.skip(!VOLUMES_ROOT, 'E2E_SERIES_FIXTURE_ROOT not set: no synthetic library available');
     // Contract-shaped data with long names: MyAnimeList allowed with its registration, a connected account with entries in every
-    // state, the Set form and the Send all confirm open, the sync menu, the ids dialog. Nothing is changed on the server.
+    // state, the Set form open, Select mode with its bar (1.43.2), the sync menu, the ids dialog. Nothing is changed on the server.
     test.setTimeout(240_000);
     const outside = await guardOutside(page);
     await login(page);
@@ -301,19 +301,36 @@ test.describe('tracker sync web (1.43.0)', () => {
       await check('admin trackers', size.width);
 
       // The Tracking page: both account cards, every chip, rows in every state with the from-tracker confirm, the "Set to"
-      // warning form and the Send all confirm open, and the Disconnect confirm.
+      // warning form open, and the Disconnect confirm.
       await page.goto('/tracking');
       const list = page.getByTestId('tracking-list-mal');
       await expect(list.getByTestId('tracking-row-s1')).toBeVisible();
       await list.getByTestId('tracking-from-s6').click();
       await list.getByTestId('tracking-more-s5').click();
       await page.getByTestId('tracking-menu-set').click();
-      await list.getByTestId('tracker-send-all-mal').click();
       await page.getByTestId('tracker-disconnect-mal').click();
       await page.getByTestId('tracker-connect-open-mangaupdates').click();
       await check('tracking page', size.width);
+      // 1.43.2 Select mode: a tick per row and the bar at the bottom with every action, their counts and the reasons; then its confirm.
+      await list.getByTestId('tracking-select-mal').click();
+      // Left as is, no id and in sync: both Set-progress actions and Sync again apply to none - three reason lines.
+      for (const id of ['s3', 's4', 's5']) await list.getByTestId(`tracking-pick-box-${id}`).click();
+      await expect(list.getByTestId('tracking-selected-count')).toHaveText('3 selected');
+      await expect(list.getByTestId('tracking-batch-why-FromTracker')).toBeVisible();
+      await expect(list.getByTestId('tracking-batch-why-SyncAgain')).toBeVisible();
+      await check('tracking select mode', size.width);
+      await list.getByTestId('tracking-batch-DontSync').click();
+      await expect(list.getByTestId('tracking-batch-confirm')).toBeVisible();
+      await check('tracking select confirm', size.width);
+      await list.getByTestId('tracking-batch-no').click();
+      await list.getByTestId('tracking-select-done').click();
       await list.getByTestId('tracking-set-dates-s5').click();
       await expect(page.getByTestId('tracker-dates-dialog')).toBeVisible();
+      // 1.43.2: "Set today" beside each date - the buttons stay on one row together (they may wrap under the field).
+      await page.getByTestId('tracker-dates-start-today').click();
+      await page.getByTestId('tracker-dates-finish-today').click();
+      const [auto, today] = [await page.getByTestId('tracker-dates-finish-auto').boundingBox(), await page.getByTestId('tracker-dates-finish-today').boundingBox()];
+      expect(Math.abs(auto!.y - today!.y), `${size.width} px: Automatic and Set today on one row`).toBeLessThan(4);
       await check('tracking dates dialog', size.width);
       await page.keyboard.press('Escape');
 
@@ -401,7 +418,7 @@ test.describe('tracker sync web (1.43.0)', () => {
     expect(asked.at(-1)).toEqual({ page: '1', filter: 'TrackerAhead', q: 'Saga 006' });
 
     // The new controls are what a click reaches.
-    for (const id of ['tracking-tab-mal', 'tracking-chip-All', 'tracking-search', 'tracker-preview-mal',
+    for (const id of ['tracking-tab-mal', 'tracking-chip-All', 'tracking-search', 'tracker-preview-mal', 'tracking-select-mal',
       'tracking-from-r006', 'tracking-to-r006', 'tracking-more-r006', 'tracking-set-dates-r006', 'tracker-disconnect-mal',
       'tracker-add-started-mal', 'tracking-help']) {
       await page.getByTestId(id).scrollIntoViewIfNeeded();
@@ -463,6 +480,124 @@ test.describe('tracker sync web (1.43.0)', () => {
     await expect(list.getByTestId('tracking-state-s2')).toHaveText('In sync');
     expect(posts).toEqual(['POST from-tracker s1', 'POST send s2']);
     expect(outside).toEqual([]);
+  });
+
+  test('Select mode (1.43.2): select all in a chip, apply once with the counts, the server gets it in chunks, one summary, the list again', async ({ page }) => {
+    // Contract-shaped answers (a connected MyAnimeList account needs MyAnimeList itself); asserted is what the page asks THIS server
+    // for, and that nothing leaves the test.
+    test.setTimeout(120_000);
+    const outside = await guardOutside(page);
+    await login(page);
+    const ahead = Array.from({ length: 60 }, (_, i) => trackingRow(`t${String(i).padStart(2, '0')}`, 'TrackerAhead', {
+      title: `Synthetic Saga ${String(i).padStart(2, '0')}`, remoteChapters: 200, fromTracker: { possible: true, block: 'None' } }));
+    const others = Array.from({ length: 30 }, (_, i) => trackingRow(`o${String(i).padStart(2, '0')}`, 'InSync', { title: `Other Story ${i}` }));
+    let applied = false;
+    const counts = () => ({ all: 90, inSync: applied ? 90 : 30, mangaPixerAhead: 0, trackerAhead: applied ? 0 : 60, leftAsIs: 0, held: 0, noId: 0,
+      notSynced: 0, problem: 0, unchecked: 0, attention: applied ? 0 : 60 });
+    const asked: string[] = [];
+    const batches: { action: string; seriesIds: string[] }[] = [];
+    await page.route(/\/api\/v1\/trackers$/, (r) => r.fulfill({ json: { trackers: [connectedMal()] } }));
+    await page.route(/\/api\/v1\/trackers\/attention$/, (r) => r.fulfill({ json: { total: applied ? 0 : 60, trackers: [{ tracker: 'mal', count: applied ? 0 : 60 }] } }));
+    await page.route(/\/api\/v1\/trackers\/mal\/series(\?.*)?$/, (r) => {
+      const q = Object.fromEntries(new URL(r.request().url()).searchParams.entries());
+      asked.push(`series ${q['filter'] ?? 'All'}`);
+      const pageNo = Number(q['page'] ?? '1');
+      const rows = q['filter'] === 'TrackerAhead' ? (applied ? [] : ahead) : [...ahead, ...others];
+      return r.fulfill({ json: { items: rows.slice((pageNo - 1) * 50, pageNo * 50), page: pageNo, pageSize: 50, totalCount: rows.length, counts: counts() } });
+    });
+    await page.route(/\/api\/v1\/trackers\/mal\/series\/ids(\?.*)?$/, (r) => {
+      const q = Object.fromEntries(new URL(r.request().url()).searchParams.entries());
+      asked.push(`ids ${q['filter'] ?? 'All'}`);
+      return r.fulfill({ json: { items: ahead.map((x) => ({ seriesId: x.seriesId, fromTracker: x.fromTracker, toTracker: x.toTracker, canSync: true, dontSync: false })),
+        totalCount: 60, truncated: false } });
+    });
+    await page.route(/\/api\/v1\/trackers\/mal\/entries\/batch$/, async (r) => {
+      const body = r.request().postDataJSON() as { action: string; seriesIds: string[] };
+      batches.push(body);
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      if (batches.reduce((n, b) => n + b.seriesIds.length, 0) >= 60) applied = true;
+      const left = body.seriesIds.filter((id) => id === 't07').length;
+      return r.fulfill({ json: { done: body.seriesIds.length - left, skipped: left, failed: 0, capReached: false, notReached: 0,
+        marked: (body.seriesIds.length - left) * 8, alreadyRead: 0, stoppedCode: null, skips: left ? [{ reason: 'LeftAsIs', count: left }] : [], rows: [] } });
+    });
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/tracking');
+    const list = page.getByTestId('tracking-list-mal');
+    await list.getByTestId('tracking-chip-TrackerAhead').click();
+    await expect(list.locator('[data-testid^="tracking-row-"]')).toHaveCount(50);
+    await list.getByTestId('tracking-select-mal').click();
+    await list.getByTestId('tracking-select-all').click();
+    await expect(list.getByTestId('tracking-selected-count')).toHaveText('60 selected');
+    expect(asked).toContain('ids TrackerAhead');
+    // The chip's natural action comes first, with how many of the selected it applies to.
+    const first = list.locator('.sel-act').first();
+    await expect(first).toHaveAttribute('data-testid', 'tracking-batch-FromTracker');
+    await expect(first).toHaveAttribute('aria-label', 'Set progress from MyAnimeList to MangaPixer (60)');
+    // The bar sits on the screen while the list is long, and its controls are what a click reaches.
+    for (const id of ['tracking-batch-FromTracker', 'tracking-select-clear', 'tracking-select-done', 'tracking-pick-t00']) {
+      const box = (await list.getByTestId(id).boundingBox())!;
+      expect(box.y + box.height, `${id} on the screen`).toBeLessThanOrEqual(900);
+      const hit = await page.evaluate(([x, y, testId]) => !!document.elementFromPoint(x as number, y as number)?.closest(`[data-testid="${testId}"]`),
+        [box.x + box.width / 2, box.y + box.height / 2, id] as const);
+      expect(hit, `${id} is covered`).toBe(true);
+    }
+
+    await first.click();
+    await expect(list.getByTestId('tracking-batch-confirm')).toContainText('Mark read in MangaPixer what MyAnimeList counts, for 60 series? Nothing is unmarked.');
+    expect(batches).toEqual([]);
+    await list.getByTestId('tracking-batch-yes').click();
+    await expect(list.getByTestId('tracking-batch-progress')).toBeVisible();
+    await expect(list.getByTestId('tracking-notice-mal')).toHaveText(
+      'Set progress from MyAnimeList for 60 series: 472 files marked, 0 already read, 1 skipped (left as is).', { timeout: 30_000 });
+    expect(batches.map((b) => b.seriesIds.length)).toEqual([10, 10, 10, 10, 10, 10]);
+    expect(batches.every((b) => b.action === 'FromTracker')).toBe(true);
+    expect(batches.flatMap((b) => b.seriesIds)).toEqual(ahead.map((x) => x.seriesId));
+    // The list again: the chip is empty now, its count follows, and the selection is cleared.
+    await expect(list.getByTestId('tracking-chip-TrackerAhead')).toHaveText('MyAnimeList ahead · 0');
+    await expect(list.getByTestId('tracking-selected-count')).toHaveText('0 selected');
+    expect(outside).toEqual([]);
+  });
+
+  test('the tracker\'s numbers open the series on MyAnimeList in a new tab, without a referrer (1.43.2)', async ({ page }) => {
+    test.setTimeout(120_000);
+    const outside = await guardOutside(page);
+    const referers: (string | undefined)[] = [];
+    await page.context().route(/^https:\/\/myanimelist\.net\//, (route) => {
+      referers.push(route.request().headers()['referer']);
+      outside.push(route.request().url());
+      return route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>stub</title><p>stub</p>' });
+    });
+    await login(page);
+    const rows = [trackingRow('s1', 'InSync', { remoteId: '2' }), trackingRow('s2', 'NoId', { remoteId: null })];
+    await page.route(/\/api\/v1\/trackers$/, (r) => r.fulfill({ json: { trackers: [connectedMal()] } }));
+    await page.route(/\/api\/v1\/trackers\/attention$/, (r) => r.fulfill({ json: { total: 0, trackers: [] } }));
+    await page.route(/\/api\/v1\/trackers\/mal\/series(\?.*)?$/, (r) => r.fulfill({ json: {
+      items: rows, page: 1, pageSize: 50, totalCount: 2,
+      counts: { all: 2, inSync: 1, mangaPixerAhead: 0, trackerAhead: 0, leftAsIs: 0, held: 0, noId: 1, notSynced: 0, problem: 0, unchecked: 0, attention: 0 },
+    } }));
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/tracking');
+    const list = page.getByTestId('tracking-list-mal');
+    const link = list.getByTestId('tracking-remote-link-s1');
+    await expect(link).toHaveAttribute('href', 'https://myanimelist.net/manga/2');
+    await expect(link).toHaveAttribute('target', '_blank');
+    await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    await expect(link).toHaveAttribute('aria-label', 'Open on MyAnimeList: 120 ch · 12 vol');
+    await expect(list.getByTestId('tracking-remote-link-s2')).toHaveCount(0);
+    await list.getByTestId('tracking-more-s1').click();
+    await expect(page.getByTestId('tracking-menu-open-tracker')).toHaveAttribute('href', 'https://myanimelist.net/manga/2');
+    await page.keyboard.press('Escape');
+
+    // A click opens a new tab; the request carries no referrer (this server's address never reaches the tracker) and is answered here.
+    const [popup] = await Promise.all([page.waitForEvent('popup'), link.click()]);
+    await popup.waitForLoadState();
+    expect(popup.url()).toBe('https://myanimelist.net/manga/2');
+    expect(await popup.evaluate(() => document.referrer)).toBe('');
+    expect(await popup.evaluate(() => window.opener)).toBeNull();
+    await popup.close();
+    expect(referers).toEqual([undefined]);
+    expect(outside).toEqual(['https://myanimelist.net/manga/2']);
   });
 
   test('the card mark: a gold border around the covers the tracker counts as read, none on the others; the menu leads to Tracking', async ({ page }) => {

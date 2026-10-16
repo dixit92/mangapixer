@@ -147,6 +147,12 @@ public static class TrackerFacts
     /// <summary>The longest search text the Tracking list accepts.</summary>
     public const int MaxSearchLength = 200;
 
+    /// <summary>1.43.2: series per batch request of the Tracking list's Select mode (the page sends larger selections in chunks).</summary>
+    public const int MaxBatchSeries = 100;
+
+    /// <summary>1.43.2: the most series ids "Select all in this chip" returns (the answer says when it stopped there).</summary>
+    public const int MaxSelectableSeries = 2000;
+
     /// <summary>Whether the instance must register an app with the tracker (MyAnimeList: Client ID + redirect URL).</summary>
     public static bool NeedsAppRegistration(string tracker) => tracker == TrackerSlugs.MyAnimeList;
 

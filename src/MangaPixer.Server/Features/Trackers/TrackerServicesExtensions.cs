@@ -29,6 +29,7 @@ public static class TrackerServicesExtensions
         services.TryAddScoped<TrackerPullService>();
         services.TryAddScoped<TrackerCardMarks>();
         services.TryAddScoped<TrackerListCheckService>();
+        services.TryAddScoped<TrackerBatchService>();
         services.AddHostedService<TrackerRelayService>();
         Adapters.TrackerAdapterServicesExtensions.AddTrackerAdapters(services);
         return services;

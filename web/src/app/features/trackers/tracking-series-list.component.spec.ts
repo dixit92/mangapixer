@@ -34,7 +34,8 @@ const AHEAD = (o: Partial<TrackerSeriesRowDto> = {}) => seriesRow({
  * The Tracking page's series list (1.43.0 owner redesign): server paging (50, Load more), chips by state with counts, title search,
  * rows with both sides' numbers and dates, the two "Set progress" actions (the one that cannot move anything disabled with its
  * reason), the from-tracker confirm and its counts, the "⋯" menu (Sync now, dates, Set to N behind its warning, Don't sync, open),
- * the first-connect preview and Send all. Mocked HTTP backend: every request is to this server.
+ * the first-connect preview. (Select mode, which replaces Send all in 1.43.2: tracking-select-mode.spec.ts.) Mocked HTTP backend: every
+ * request is to this server.
  */
 describe('TrackingSeriesListComponent', () => {
   function create(first: ReturnType<typeof seriesPage>, opts: { canSync?: boolean; focus?: string | null; search?: string; before?: () => void } = {}) {
@@ -190,7 +191,7 @@ describe('TrackingSeriesListComponent', () => {
     expect((q(el, 'tracker-preview-mal') as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('the "⋯" menu: Sync now, Set dates, "Set MyAnimeList to a number… (can lower it)", Don\'t sync, Open the series', () => {
+  it('the "⋯" menu: Sync now, Set dates, "Set MyAnimeList to a number… (can lower it)", Don\'t sync, Open the series, Open on MyAnimeList', () => {
     const { fixture, el } = create(seriesPage([AHEAD()]));
     q(el, 'tracking-more-s1').click();
     fixture.detectChanges();
@@ -200,6 +201,7 @@ describe('TrackingSeriesListComponent', () => {
     const items = [...overlay.querySelectorAll('[mat-menu-item]')].map(label);
     expect(items).toEqual([
       'Sync now', 'Set dates on MyAnimeList…', 'Set MyAnimeList to a number… (can lower it)', "Don't sync this series", 'Open the series',
+      'Open on MyAnimeList',
     ]);
     expect(q(overlay, 'tracking-menu-set').classList).toContain('warn-item');
   });
@@ -276,17 +278,11 @@ describe('TrackingSeriesListComponent', () => {
     expect(q(el, 'tracking-row-s1')).not.toBeNull();
   });
 
-  it('Send all asks first, then reports the counts and reloads', () => {
-    const { fixture, http, el } = create(seriesPage([seriesRow({ bucket: 'Held', heldChapters: 40 })], { counts: listCounts({ held: 1 }) }));
-    q(el, 'tracker-send-all-mal').click();
-    fixture.detectChanges();
-    expect(q(el, 'tracker-send-all-confirm-mal').textContent).toContain('never lowered');
-    http.expectNone(`${BASE}/entries/send-all`);
-    q(el, 'tracker-send-all-yes-mal').click();
-    http.expectOne(`${BASE}/entries/send-all`).flush({ sent: 1, skipped: 0, failed: 0, capReached: false });
-    http.expectOne((r) => r.url === `${BASE}/series`).flush(seriesPage([seriesRow()]));
-    fixture.detectChanges();
-    expect(q(el, 'tracking-notice-mal').textContent).toContain('Sent 1');
+  it('1.43.2: Send all is gone - also with series waiting for the user', () => {
+    const { el } = create(seriesPage([seriesRow({ bucket: 'Held', heldChapters: 40 })], { counts: listCounts({ held: 1 }) }));
+    expect(q(el, 'tracker-send-all-mal')).toBeNull();
+    expect(el.textContent).not.toContain('Send all');
+    expect(q(el, 'tracking-select-mal')).not.toBeNull();
   });
 
   it('a failed action is said in plain words with the tracker named', () => {
@@ -364,7 +360,7 @@ describe('TrackingSeriesListComponent', () => {
     expect(changed).toHaveBeenCalled();
   });
 
-  it('UX3: a chip, a search or another page closes an open confirm, "Set to" form or Send all confirm', async () => {
+  it('UX3: a chip, a search or another page closes an open confirm, "Set to" form or Select-mode confirm', async () => {
     const rows = Array.from({ length: 50 }, (_, i) => seriesRow({ seriesId: `x${i}`, title: `Series ${i}` }));
     const { fixture, http, el, c } = create(seriesPage([AHEAD(), ...rows], { totalCount: 80, counts: listCounts({ trackerAhead: 1, inSync: 79, held: 2 }) }));
     q(el, 'tracking-from-s1').click();
@@ -379,16 +375,20 @@ describe('TrackingSeriesListComponent', () => {
     expect(q(el, 'tracking-from-s1')).not.toBeNull();
 
     c.openSet(AHEAD());
-    q(el, 'tracker-send-all-mal').click();
+    q(el, 'tracking-select-mal').click();
+    fixture.detectChanges();
+    q(el, 'tracking-pick-box-s1').click();
+    fixture.detectChanges();
+    q(el, 'tracking-batch-FromTracker').click();
     fixture.detectChanges();
     expect(q(el, 'tracker-set-form-s1')).not.toBeNull();
-    expect(q(el, 'tracker-send-all-confirm-mal')).not.toBeNull();
+    expect(q(el, 'tracking-batch-confirm')).not.toBeNull();
     q(el, 'tracking-load-more-mal').click();
     http.expectOne((r) => r.url === `${BASE}/series` && r.params.get('page') === '2')
       .flush(seriesPage([seriesRow({ seriesId: 'y1', title: 'More' })], { page: 2, totalCount: 80, counts: listCounts({ trackerAhead: 1, inSync: 79, held: 2 }) }));
     fixture.detectChanges();
     expect(q(el, 'tracker-set-form-s1')).toBeNull();
-    expect(q(el, 'tracker-send-all-confirm-mal')).toBeNull();
+    expect(q(el, 'tracking-batch-confirm')).toBeNull();
 
     c.openSet(AHEAD());
     fixture.detectChanges();

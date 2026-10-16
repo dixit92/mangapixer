@@ -1,7 +1,7 @@
 import {
   TRACKER_ADMIN_CONSENT_VERSION, TRACKER_USER_CONSENT_VERSION, accountProblem, actionBlockText, bucketText, dateText, decodeBase36,
   entryStateText, errorText, failureText, fromTrackerQuestion, numbersText, ofText, parseTrackerId, previewNotice, proposedRedirectUri,
-  revokeHint, trackerName, trackingChips,
+  revokeHint, trackerName, trackingChips, encodeBase36, trackerSeriesUrl, batchActionsFor, batchQuestion, batchSummary, emptyBatchTotals,
 } from './tracker-texts';
 import { listCounts, seriesRow } from './trackers.testing';
 import { TrackerAccountDto } from '../../core/api/api-types';
@@ -159,5 +159,56 @@ describe('tracker texts', () => {
       'Stopped after 1000 entries: today\'s MyAnimeList requests are used up - try again tomorrow.');
     expect(previewNotice({ ...base, entries: [], remaining: 3 }, 'MangaUpdates')).toBe(
       'Checked 0 series, 3 left. Nothing was changed on MangaUpdates.');
+  });
+
+  // ---- 1.43.2 ----
+
+  it('encodes a MangaUpdates id as the site\'s base36 token - the inverse of decodeBase36', () => {
+    for (const id of ['1', '35', '36', '51239621230', '9223372036854775807']) {
+      const token = encodeBase36(id)!;
+      expect(decodeBase36(token)).toBe(id);
+    }
+    expect(encodeBase36(decodeBase36('njeqwry'))).toBe('njeqwry');
+    for (const bad of [null, '', '0', '-1', '12a', '9223372036854775808', '1'.repeat(20)]) expect(encodeBase36(bad)).toBeNull();
+  });
+
+  it('builds the series\' page on the tracker\'s site from a usable id only', () => {
+    expect(trackerSeriesUrl('mal', '2')).toBe('https://myanimelist.net/manga/2');
+    expect(trackerSeriesUrl('mal', '0012')).toBe('https://myanimelist.net/manga/12');
+    expect(trackerSeriesUrl('mangaupdates', '51239621230')).toBe(`https://www.mangaupdates.com/series/${(51239621230).toString(36)}`);
+    for (const bad of [null, undefined, '', '0', 'abc', '2/../../x', '1'.repeat(20)]) expect(trackerSeriesUrl('mal', bad)).toBeNull();
+    expect(trackerSeriesUrl('other', '2')).toBeNull();
+  });
+
+  it('puts the chip\'s natural Select-mode action first', () => {
+    expect(batchActionsFor('TrackerAhead')[0]).toBe('FromTracker');
+    expect(batchActionsFor('Held')[0]).toBe('ToTracker');
+    expect(batchActionsFor('MangaPixerAhead')[0]).toBe('ToTracker');
+    expect(batchActionsFor('NotSynced')[0]).toBe('SyncAgain');
+    expect(batchActionsFor('All')).toEqual(['FromTracker', 'ToTracker', 'SyncNow', 'DontSync', 'SyncAgain']);
+    expect(new Set(batchActionsFor('NotSynced')).size).toBe(5);
+  });
+
+  it('words the one confirmation of an apply with its counts', () => {
+    expect(batchQuestion('FromTracker', 'mal', 51, 0, true)).toBe('Mark read in MangaPixer what MyAnimeList counts, for 51 series? Nothing is unmarked.');
+    expect(batchQuestion('ToTracker', 'mal', 26, 0, true)).toBe(
+      'Send MangaPixer\'s progress to MyAnimeList for 26 series? Never lowers; series not on your list are added (Add series I start reading is on).');
+    expect(batchQuestion('ToTracker', 'mangaupdates', 1, 2, false)).toBe(
+      'Send MangaPixer\'s progress to MangaUpdates for 1 series? Never lowers; series not on your list are left out (Add series I start reading is off). '
+      + '2 of the selected are left as they are.');
+    expect(batchQuestion('SyncAgain', 'mal', 3, 0, true)).toContain('Sync 3 series with MyAnimeList again?');
+  });
+
+  it('sums an apply up in one line, with the skip reasons, failures, the cap, a stop and a Cancel', () => {
+    const t = { ...emptyBatchTotals(), done: 49, skipped: 2, marked: 412, alreadyRead: 3, skips: { LeftAsIs: 2 } };
+    expect(batchSummary('FromTracker', 'mal', t)).toBe(
+      'Set progress from MyAnimeList for 51 series: 412 files marked, 3 already read, 2 skipped (left as is).');
+    expect(batchSummary('ToTracker', 'mal', { ...emptyBatchTotals(), done: 20, skipped: 3, failed: 1, skips: { NotAhead: 2, LeftAsIs: 1 } })).toBe(
+      'Set progress from MangaPixer to MyAnimeList for 24 series: 20 sent, 3 skipped (2 not ahead, 1 left as is), 1 failed (see their rows).');
+    expect(batchSummary('SyncNow', 'mal', { ...emptyBatchTotals(), done: 1, capReached: true, notReached: 4, unsent: 5 })).toContain(
+      'Today\'s request limit for MyAnimeList is reached - 9 series not done; try again tomorrow.');
+    expect(batchSummary('SyncNow', 'mal', { ...emptyBatchTotals(), done: 1, stoppedCode: 'needs_reconnect', unsent: 2 })).toBe(
+      'Synced 1 series with MyAnimeList: 1 checked. Stopped: Connect your account again. 2 series not done.');
+    expect(batchSummary('DontSync', 'mal', { ...emptyBatchTotals(), done: 2, cancelled: true, unsent: 0 })).toBe('Turned sync off for 2 series: 2 turned off.');
   });
 });

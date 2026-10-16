@@ -419,7 +419,7 @@ public sealed class TrackerSyncHttpTests
     }
 
     [Fact]
-    public async Task ThePreview_ReadsWithoutWriting_AndSendAllSends()
+    public async Task ThePreview_ReadsWithoutWriting_AndASelectModeSendSends()
     {
         var (h, admin, userId, series) = await ConnectedAsync();
         await using var _ = h;
@@ -443,8 +443,10 @@ public sealed class TrackerSyncHttpTests
         Assert.Equal(readsBefore + 1, h.MangaUpdates.Reads.Count);
         Assert.Empty(h.MangaUpdates.Writes);
 
-        var sendAll = await admin.PostAsync("/api/v1/trackers/mangaupdates/entries/send-all", null);
-        Assert.Equal(1, (await sendAll.Content.ReadFromJsonAsync<TrackerSendAllResultDto>(TestJson.Web))!.Sent);
+        // 1.43.2: "Send all" is the Select mode's "Set progress from MangaPixer" over the Waiting-for-you chip.
+        var send = await admin.PostAsJsonAsync("/api/v1/trackers/mangaupdates/entries/batch",
+            new TrackerBatchRequest { Action = TrackerBatchAction.ToTracker, SeriesIds = [series.RecordPublicId] }, TestJson.Web);
+        Assert.Equal(1, (await send.Content.ReadFromJsonAsync<TrackerBatchResultDto>(TestJson.Web))!.Done);
         Assert.Equal(6, Assert.Single(h.MangaUpdates.Writes).Write.ChaptersRead);
     }
 

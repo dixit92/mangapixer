@@ -35,7 +35,8 @@ describe('TrackersApiService', () => {
       [() => api.setProgress('mal', 's1', 3, null), 'POST', '/api/v1/trackers/mal/entries/s1/set', { chapters: 3, volumes: null }],
       [() => api.setDontSync('mal', 's1', true), 'PUT', '/api/v1/trackers/mal/entries/s1/dont-sync', { dontSync: true }],
       [() => api.preview('mal'), 'POST', '/api/v1/trackers/mal/preview', {}],
-      [() => api.sendAll('mal'), 'POST', '/api/v1/trackers/mal/entries/send-all', {}],
+      [() => api.batch('mal', 'FromTracker', ['s1', 's2']), 'POST', '/api/v1/trackers/mal/entries/batch',
+        { action: 'FromTracker', seriesIds: ['s1', 's2'] }],
       [() => api.syncOverrides(), 'GET', '/api/v1/trackers/sync-overrides', null],
       [() => api.setSyncOverrides(['n1'], null), 'PUT', '/api/v1/trackers/sync-overrides', { nodeIds: ['n1'], enabled: null }],
       [() => api.attention(), 'GET', '/api/v1/trackers/attention', null],
@@ -50,6 +51,8 @@ describe('TrackersApiService', () => {
       [() => api.seriesIds('n1'), 'GET', '/api/v1/admin/trackers/nodes/n1/ids', null],
       [() => api.setSeriesId('n1', 'mal', '2'), 'PUT', '/api/v1/admin/trackers/nodes/n1/ids/mal', { remoteId: '2' }],
     ];
+    // 1.43.2: Send all is gone - the Select mode's batch replaces it.
+    expect((api as unknown as Record<string, unknown>)['sendAll']).toBeUndefined();
     for (const [call, method, url, body] of calls) {
       (call() as { subscribe: () => void }).subscribe();
       const req = http.expectOne(url);
@@ -84,6 +87,33 @@ describe('TrackersApiService.seriesPage (the Tracking list, 1.43.0)', () => {
       expect(req.request.withCredentials).toBe(true);
       expect(Object.fromEntries(req.request.params.keys().map((k) => [k, req.request.params.get(k)]))).toEqual(expected);
       req.flush({});
+    }
+  });
+});
+
+describe('TrackersApiService.selectableSeries ("Select all in this chip", 1.43.2)', () => {
+  afterEach(() => {
+    const http = TestBed.inject(HttpTestingController);
+    TestBed.resetTestingModule();
+    http.verify();
+  });
+
+  it('asks the ids route with the chip (not for All) and the trimmed search', () => {
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    const api = TestBed.inject(TrackersApiService);
+    const http = TestBed.inject(HttpTestingController);
+    const cases: [string, string, Record<string, string>][] = [
+      ['All', '', {}],
+      ['Held', '', { filter: 'Held' }],
+      ['TrackerAhead', ' Saga  ', { filter: 'TrackerAhead', q: 'Saga' }],
+    ];
+    for (const [filter, q, expected] of cases) {
+      api.selectableSeries('mal', filter, q).subscribe();
+      const req = http.expectOne((r) => r.url === '/api/v1/trackers/mal/series/ids');
+      expect(req.request.method).toBe('GET');
+      expect(req.request.withCredentials).toBe(true);
+      expect(Object.fromEntries(req.request.params.keys().map((k) => [k, req.request.params.get(k)]))).toEqual(expected);
+      req.flush({ items: [], totalCount: 0, truncated: false });
     }
   });
 });

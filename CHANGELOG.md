@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.43.2] - 2026-10-16
+
+### Added
+
+- **Select several series on the Tracking page.** Press **Select** above a tracker's list - in any chip, in a search or in **All** - and tick series (with a mouse, Shift-click ticks a range), or press **Select all *N* in this chip** to take every series in the chip, also the ones not shown yet. The bar at the bottom shows each action with how many of the selected series it applies to - **Set progress from *tracker* to MangaPixer**, **Set progress from MangaPixer to *tracker***, **Sync now**, **Don't sync**, **Sync again** - the chip's own action first, and says why an action applies to none. One confirmation with the counts, then MangaPixer works through them ("37 of 51..."; **Cancel** stops after the part it is on), doing for each series exactly what its own button does - never lowering a number on the tracker, never unmarking anything here - and sums it up in one line. It stops when today's request limit for the tracker is reached.
+- **Open a series on MyAnimeList or MangaUpdates.** The tracker's numbers on the Tracking page and in a series' **Tracking** button, and **Open on *tracker*** in a row's **...** menu, open the series' page on the tracker in a new tab, without telling the tracker which server you came from. Shown when the tracker's number for the series is known.
+- **Set today** beside each date in **Set dates...** fills in today's date where you are (not the UTC date). As before, the dates go to MyAnimeList with the next update.
+
+### Fixed
+
+- **A chapter 0 in a series' volume list no longer counts as missing.** MangaDex often lists a prologue, pilot or announcement as chapter 0, and many releases have none - a folder holding chapters 1-6 showed volume 1 as "5 of 6" with a "Ch. 0 - missing" placeholder. A listed chapter 0 now counts only when you have a file numbered 0; every other number keeps its rules.
+
+### Removed
+
+- **Send all** on the Tracking page: select all in **Waiting for you** and press **Set progress from MangaPixer to *tracker*** instead. For API clients: `POST /api/v1/trackers/{slug}/entries/send-all` is gone; `POST /api/v1/trackers/{slug}/entries/batch` and `GET /api/v1/trackers/{slug}/series/ids` are new (cookie sign-in only, as every tracker route).
+
 ## [1.43.1] - 2026-10-15
 
 ### Fixed

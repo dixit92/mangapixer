@@ -94,6 +94,26 @@ describe('SeriesTrackingButtonComponent', () => {
     expect(q(overlay(), 'series-tracking-dates-mangaupdates')).toBeNull();
   });
 
+  it('1.43.2: the tracker\'s numbers open the series on its site - a new tab, no referrer; none without an id', () => {
+    const { fixture, el, http } = create([summary({ account: trackerAccount() }),
+      summary({ slug: 'mangaupdates', name: 'MangaUpdates', account: trackerAccount({ tracker: 'mangaupdates' }) })]);
+    const rows = [seriesRow({ remoteId: '2' }), seriesRow({ tracker: 'mangaupdates', remoteId: null, bucket: 'NoId', state: 'NoId',
+      dates: { ...seriesRow().dates, supported: false } })];
+    http.expectOne('/api/v1/trackers/nodes/n1/summary').flush({ seriesId: 's1', rows });
+    fixture.detectChanges();
+    (q(el, 'series-tracking-button') as HTMLButtonElement).click();
+    http.expectOne('/api/v1/trackers/nodes/n1/summary').flush({ seriesId: 's1', rows });
+    fixture.detectChanges();
+    const link = q(overlay(), 'series-tracking-remote-link-mal') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('https://myanimelist.net/manga/2');
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(link.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(link.getAttribute('aria-label')).toContain('Open on MyAnimeList');
+    expect(link.textContent).toContain('12 ch · 2 vol');
+    expect(q(overlay(), 'series-tracking-remote-link-mangaupdates')).toBeNull();
+    expect(q(overlay(), 'series-tracking-remote-mangaupdates')!.textContent).toContain('12 ch');
+  });
+
   it('another folder drops the previous folder\'s summary until its own arrives', () => {
     const { fixture, el, http } = create([summary({ account: trackerAccount() })]);
     http.expectOne('/api/v1/trackers/nodes/n1/summary').flush({ seriesId: 's1', rows: [seriesRow()] });
