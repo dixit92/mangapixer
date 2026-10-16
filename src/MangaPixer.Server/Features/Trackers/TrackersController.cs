@@ -22,7 +22,8 @@ public sealed class TrackersController(
     TrackerAccountService accounts,
     TrackerEntriesService entries,
     TrackerListService list,
-    TrackerPullService pull) : ControllerBase
+    TrackerPullService pull,
+    TrackerBatchService batch) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType<TrackersOverviewDto>(StatusCodes.Status200OK)]
@@ -155,19 +156,6 @@ public sealed class TrackersController(
         return problem is null ? Ok(preview) : Problem(problem);
     }
 
-    /// <summary>"Send all": every held jump of the caller's list, until the daily cap.</summary>
-    [HttpPost("{slug}/entries/send-all")]
-    [ProducesResponseType<TrackerSendAllResultDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ApiError>(StatusCodes.Status404NotFound)]
-    [ProducesResponseType<ApiError>(StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> SendAll(string slug, CancellationToken ct)
-    {
-        if (UserId() is not { } userId)
-            return Forbid();
-        var (result, problem) = await entries.SendAllAsync(userId, slug, ct);
-        return problem is null ? Ok(result) : Problem(problem);
-    }
-
     /// <summary>
     /// 1.43.0 Tracking page: one page (50) of the caller's series on this tracker, by title; <c>filter</c> = a chip
     /// (<see cref="TrackerListBucket"/> name) or <c>Attention</c>; <c>q</c> = title search. Stored state only - no request to the tracker.
@@ -181,6 +169,39 @@ public sealed class TrackersController(
         if (UserId() is not { } userId)
             return Forbid();
         var (result, problem) = await list.PageAsync(userId, slug, page, filter, q, ct);
+        return problem is null ? Ok(result) : Problem(problem);
+    }
+
+    /// <summary>
+    /// 1.43.2 "Select all in this chip": every series id of the caller's list matching <c>filter</c> + <c>q</c> (the list's rules), with
+    /// which batch actions apply to each; at most 2000 (<c>truncated</c>). Stored state only - no request to the tracker.
+    /// </summary>
+    [HttpGet("{slug}/series/ids")]
+    [ProducesResponseType<TrackerSelectableSeriesListDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SeriesIds(string slug, [FromQuery] string? filter, [FromQuery] string? q, CancellationToken ct)
+    {
+        if (UserId() is not { } userId)
+            return Forbid();
+        var (result, problem) = await list.SelectableAsync(userId, slug, filter, q, ct);
+        return problem is null ? Ok(result) : Problem(problem);
+    }
+
+    /// <summary>
+    /// 1.43.2 Select mode (replaces "Send all"): one action for up to 100 of the caller's series, each exactly as its per-series route;
+    /// series it does not apply to are left as they are (counted by reason); stops at the daily cap.
+    /// </summary>
+    [HttpPost("{slug}/entries/batch")]
+    [ProducesResponseType<TrackerBatchResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Batch(string slug, [FromBody] TrackerBatchRequest request, CancellationToken ct)
+    {
+        if (UserId() is not { } userId)
+            return Forbid();
+        var (result, problem) = await batch.ApplyAsync(userId, slug, request, ct);
         return problem is null ? Ok(result) : Problem(problem);
     }
 

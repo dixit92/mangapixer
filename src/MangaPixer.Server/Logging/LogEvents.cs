@@ -540,7 +540,7 @@ public static class LogEvents
         public const int RelayFailed = 10025;
         public const int RelayQueueFull = 10026;
         public const int PreviewRead = 10027;
-        public const int SendAll = 10028;
+        // 10028 was "Send all" (removed in 1.43.2 - the Select mode's batch replaces it; see BatchApplied).
         public const int SyncDebug = 10029;
 
         // Lane A (1.43.0): one line per tracker request - tracker, operation, status, elapsed ms; never an id, a URL or a token.
@@ -555,5 +555,8 @@ public static class LogEvents
         public const int VolumeListRequeued = 10804;
         public const int MalCatchUp = 10805;
         public const int ListChecked = 10806;
+
+        // 1.43.2 (Select mode, replaces Send all): one line per batch request - user id, slug, action, counts and timing only.
+        public const int BatchApplied = 10807;
     }
 }
