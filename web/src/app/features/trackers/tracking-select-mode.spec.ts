@@ -257,8 +257,8 @@ describe('TrackingSeriesListComponent - Select mode (1.43.2)', () => {
       + 'Today\'s request limit for MyAnimeList is reached - 8 series not done; try again tomorrow.');
   });
 
-  it('the confirm words the add part from "Add series I start reading", and counts the selected it leaves as they are', () => {
-    for (const add of [true, false]) {
+  for (const add of [true, false]) {
+    it(`the confirm words the add part from "Add series I start reading" (${add ? 'on' : 'off'}), and counts the selected it leaves as they are`, () => {
       const { fixture, el } = create(seriesPage([TO(), SYNCED()]), { addStartedSeries: add });
       q(el, 'tracking-select-mal').click();
       fixture.detectChanges();
@@ -273,10 +273,8 @@ describe('TrackingSeriesListComponent - Select mode (1.43.2)', () => {
       q(el, 'tracking-batch-no').click();
       fixture.detectChanges();
       expect(q(el, 'tracking-batch-confirm')).toBeNull();
-      TestBed.inject(HttpTestingController).verify();
-      TestBed.resetTestingModule();
-    }
-  });
+    });
+  }
 
   it('an account that cannot sync: the tracker actions are off with the reason; the switches still work (no request to the tracker)', async () => {
     const { fixture, http, el } = create(seriesPage([FROM(), SYNCED()]), { canSync: false });

@@ -191,7 +191,7 @@ describe('TrackingSeriesListComponent', () => {
     expect((q(el, 'tracker-preview-mal') as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('the "⋯" menu: Sync now, Set dates, "Set MyAnimeList to a number… (can lower it)", Don\'t sync, Open the series', () => {
+  it('the "⋯" menu: Sync now, Set dates, "Set MyAnimeList to a number… (can lower it)", Don\'t sync, Open the series, Open on MyAnimeList', () => {
     const { fixture, el } = create(seriesPage([AHEAD()]));
     q(el, 'tracking-more-s1').click();
     fixture.detectChanges();
@@ -201,6 +201,7 @@ describe('TrackingSeriesListComponent', () => {
     const items = [...overlay.querySelectorAll('[mat-menu-item]')].map(label);
     expect(items).toEqual([
       'Sync now', 'Set dates on MyAnimeList…', 'Set MyAnimeList to a number… (can lower it)', "Don't sync this series", 'Open the series',
+      'Open on MyAnimeList',
     ]);
     expect(q(overlay, 'tracking-menu-set').classList).toContain('warn-item');
   });
