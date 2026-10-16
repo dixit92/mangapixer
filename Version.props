@@ -483,7 +483,11 @@
     <!-- 1.43.1 - PATCH over 1.43.0 (2026-10-15), no API / schema change: Check my list no longer marks a series without a known
          tracker id "not on your list" (a row 1.43.0 stored that way reads "No MyAnimeList id" again), and the one-time MyAnimeList id
          catch-up starts after the startup delay instead of at the next nightly refresh (same gate, once per instance, daily budget). -->
-    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
+    <!-- 1.43.2 - PATCH over 1.43.1 (2026-10-16): Tracking page multi-select replaces Send all (batch route POST {slug}/entries/batch,
+         ids route GET {slug}/series/ids; send-all route removed), a link to the series on MyAnimeList / MangaUpdates (new tab, no
+         referrer), "Set today" in Set dates; a listed chapter 0 counts only when a file numbered 0 is here. No migration, no consent
+         change. -->
+    <MangaPixerVersionPatch>2</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
