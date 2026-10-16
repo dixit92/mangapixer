@@ -313,11 +313,13 @@ test.describe('tracker sync web (1.43.0)', () => {
       await check('tracking page', size.width);
       // 1.43.2 Select mode: a tick per row and the bar at the bottom with every action, their counts and the reasons; then its confirm.
       await list.getByTestId('tracking-select-mal').click();
-      for (const id of ['s1', 's3', 's6', 's8']) await list.getByTestId(`tracking-pick-box-${id}`).click();
-      await expect(list.getByTestId('tracking-selected-count')).toHaveText('4 selected');
-      await expect(list.getByTestId('tracking-batch-why')).toBeVisible();
+      // Left as is, no id and in sync: both Set-progress actions and Sync again apply to none - three reason lines.
+      for (const id of ['s3', 's4', 's5']) await list.getByTestId(`tracking-pick-box-${id}`).click();
+      await expect(list.getByTestId('tracking-selected-count')).toHaveText('3 selected');
+      await expect(list.getByTestId('tracking-batch-why-FromTracker')).toBeVisible();
+      await expect(list.getByTestId('tracking-batch-why-SyncAgain')).toBeVisible();
       await check('tracking select mode', size.width);
-      await list.getByTestId('tracking-batch-ToTracker').click();
+      await list.getByTestId('tracking-batch-DontSync').click();
       await expect(list.getByTestId('tracking-batch-confirm')).toBeVisible();
       await check('tracking select confirm', size.width);
       await list.getByTestId('tracking-batch-no').click();
