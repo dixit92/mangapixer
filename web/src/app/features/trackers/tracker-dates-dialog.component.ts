@@ -11,16 +11,18 @@ export interface TrackerDatesDialogData {
   row: TrackerSeriesRowDto;
 }
 
-/** Today's date as `yyyy-MM-dd` in the browser's own calendar (the server allows up to tomorrow, for time zones). */
+/**
+ * Today's date as `yyyy-MM-dd` in the browser's own time zone - never the UTC date: a late-evening click in the Americas is still
+ * today, not tomorrow (the server allows up to tomorrow, for time zones). The local day is the instant moved by the zone's offset.
+ */
 export function todayIso(now: Date = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 }
 
 /**
  * "Set dates…" on the Tracking page (1.43.0, owner A1): the start / finish dates MangaPixer sends to MyAnimeList for one series.
  * Each date is the user's own or automatic (the first counted read, the day MangaPixer set Completed); "Automatic" clears the
- * user's date. Saved with `PUT .../dates` (both dates replaced; nothing is sent to the tracker until the next write) and closes
+ * user's date, "Set today" (1.43.2) fills it with today's date in the browser's time zone (nothing is sent until Save). Saved with `PUT .../dates` (both dates replaced; nothing is sent to the tracker until the next write) and closes
  * with the updated row.
  */
 @Component({
@@ -40,8 +42,12 @@ export function todayIso(now: Date = new Date()): string {
           <div class="line">
             <input id="tracker-started-on" type="date" name="startedOn" min="1900-01-01" [max]="maxDate" [disabled]="busy()"
                    [ngModel]="started()" (ngModelChange)="started.set($event || null)" data-testid="tracker-dates-start" />
-            <button mat-button type="button" [disabled]="busy() || started() === null" (click)="started.set(null)"
-                    data-testid="tracker-dates-start-auto">Automatic</button>
+            <span class="btns">
+              <button mat-button type="button" [disabled]="busy() || started() === null" (click)="started.set(null)"
+                      data-testid="tracker-dates-start-auto">Automatic</button>
+              <button mat-button type="button" [disabled]="busy()" (click)="started.set(today())"
+                      data-testid="tracker-dates-start-today">Set today</button>
+            </span>
           </div>
           <span class="muted small">{{ started() === null ? 'Automatic: ' + autoStart : 'Your date' }}</span>
         </div>
@@ -50,8 +56,12 @@ export function todayIso(now: Date = new Date()): string {
           <div class="line">
             <input id="tracker-finished-on" type="date" name="finishedOn" min="1900-01-01" [max]="maxDate" [disabled]="busy()"
                    [ngModel]="finished()" (ngModelChange)="finished.set($event || null)" data-testid="tracker-dates-finish" />
-            <button mat-button type="button" [disabled]="busy() || finished() === null" (click)="finished.set(null)"
-                    data-testid="tracker-dates-finish-auto">Automatic</button>
+            <span class="btns">
+              <button mat-button type="button" [disabled]="busy() || finished() === null" (click)="finished.set(null)"
+                      data-testid="tracker-dates-finish-auto">Automatic</button>
+              <button mat-button type="button" [disabled]="busy()" (click)="finished.set(today())"
+                      data-testid="tracker-dates-finish-today">Set today</button>
+            </span>
           </div>
           <span class="muted small">{{ finished() === null ? 'Automatic: ' + autoFinish : 'Your date' }}</span>
         </div>
@@ -72,6 +82,8 @@ export function todayIso(now: Date = new Date()): string {
     .series { margin: 0 0 6px; font-weight: 500; overflow-wrap: anywhere; color: var(--mp-text); }
     .field { display: flex; flex-direction: column; gap: 4px; margin: 12px 0; font-size: 13px; color: var(--mp-text-secondary); min-width: 0; }
     .line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    /* Automatic + Set today stay on one row together; on a phone they wrap under the field as a pair. */
+    .btns { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 4px; }
     .field input { font: inherit; font-size: 14px; padding: 6px 8px; min-width: 0; box-sizing: border-box; color: var(--mp-text);
                    background: var(--mp-surface); border: 1px solid rgb(var(--mp-ink-rgb) / 0.2); border-radius: 4px; }
     .muted { color: var(--mp-text-muted); margin: 4px 0; overflow-wrap: anywhere; }
@@ -87,6 +99,8 @@ export class TrackerDatesDialogComponent {
   readonly row = this.data.row;
   readonly name = trackerName(this.row.tracker);
   readonly maxDate = todayIso();
+  /** Today in the browser's time zone, read at the click (the dialog may stay open past midnight). */
+  readonly today = () => todayIso();
   readonly date = dateText;
 
   /** The user's own dates (null = automatic). */

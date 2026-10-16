@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 
 /// <summary>
 /// A user's tracker list (1.43.0): the stored entries with their states, the per-series actions (Sync now, Send a held jump, "Set the
-/// tracker to N", Don't sync), the first-connect preview (reads only - no automatic backfill), Send all, and the user's sync switches on
+/// tracker to N", Don't sync), the first-connect preview (reads only - no automatic backfill), and the user's sync switches on
 /// folders / series (owner Q3). Every action is the user's own and touches only the user's own rows.
 /// </summary>
 public sealed class TrackerEntriesService(
@@ -160,39 +160,6 @@ public sealed class TrackerEntriesService(
             Remaining = Math.Max(0, unread.Count - read),
             CapReached = capReached,
         }, null);
-    }
-
-    /// <summary>"Send all": every series of the user's list with a held jump, until the daily cap.</summary>
-    public async Task<(TrackerSendAllResultDto? Result, TrackerProblem? Problem)> SendAllAsync(long userId, string tracker, CancellationToken ct)
-    {
-        var account = await ConnectedAsync(userId, tracker, ct);
-        if (account.Problem is not null)
-            return (null, account.Problem);
-        var held = await db.TrackerEntries.AsNoTracking()
-            .Where(e => e.UserId == userId && e.Tracker == tracker && !e.DontSync && (e.HeldChapters != null || e.HeldVolumes != null))
-            .Select(e => new { e.RecordId, e.LastSentAt }).ToListAsync(ct);
-        int sent = 0, skipped = 0, failed = 0;
-        var capReached = false;
-        foreach (var (recordId, sentBefore) in held.Select(h => (h.RecordId, h.LastSentAt)))
-        {
-            var entry = await sync.SyncAsync(userId, tracker, recordId, TrackerSyncMode.SendAll, TrackerSyncTrigger.User, null, ct);
-            if (entry is null)
-                break;
-            if (entry.ErrorCode == "daily_cap")
-            {
-                capReached = true;
-                break;
-            }
-            if (entry.State == (int)TrackerEntryState.Error)
-                failed++;
-            else if (entry.LastSentAt != sentBefore)
-                sent++;
-            else
-                skipped++;
-        }
-        logger.LogInformation(LogEvents.Trackers.SendAll, "Tracker send-all for user {UserId} on {Tracker}: {Sent} sent, {Skipped} skipped, {Failed} failed",
-            userId, tracker, sent, skipped, failed);
-        return (new TrackerSendAllResultDto { Sent = sent, Skipped = skipped, Failed = failed, CapReached = capReached }, null);
     }
 
     public async Task<IReadOnlyList<TrackerNodeOverrideDto>> ListOverridesAsync(long userId, CancellationToken ct)

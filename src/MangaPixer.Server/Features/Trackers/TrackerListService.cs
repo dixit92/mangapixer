@@ -26,6 +26,55 @@ public sealed class TrackerListService(
     public async Task<(TrackerSeriesPageDto? Page, TrackerProblem? Problem)> PageAsync(long userId, string tracker, int? page, string? filter,
         string? search, CancellationToken ct)
     {
+        var number = page ?? 1;
+        if (number < 1)
+            return (null, TrackerProblem.Bad("invalid_page", "Pages start at 1."));
+        var watch = Stopwatch.StartNew();
+        var (listed, problem) = await FilteredAsync(userId, tracker, filter, search, ct);
+        if (problem is not null)
+            return (null, problem);
+        var (ordered, counts, context) = listed!.Value;
+        var items = ordered.Skip((number - 1) * TrackerFacts.ListPageSize).Take(TrackerFacts.ListPageSize)
+            .Select(r => RowOf(r.Entry, context)).ToList();
+        logger.LogDebug(LogEvents.Trackers.ListRead, "Tracker list for user {UserId} on {Tracker}: {Rows} row(s), page {Page}, {ElapsedMs} ms",
+            userId, tracker, ordered.Count, number, watch.ElapsedMilliseconds);
+        return (new TrackerSeriesPageDto
+        {
+            Items = items,
+            Page = number,
+            PageSize = TrackerFacts.ListPageSize,
+            TotalCount = ordered.Count,
+            Counts = counts,
+        }, null);
+    }
+
+    /// <summary>
+    /// 1.43.2 "Select all in this chip": the series ids matching the chip and the search - the same rows, in the same order, as
+    /// <see cref="PageAsync"/> pages through - with which batch actions apply to each, at most <see cref="TrackerFacts.MaxSelectableSeries"/>.
+    /// </summary>
+    public async Task<(TrackerSelectableSeriesListDto? List, TrackerProblem? Problem)> SelectableAsync(long userId, string tracker, string? filter,
+        string? search, CancellationToken ct)
+    {
+        var watch = Stopwatch.StartNew();
+        var (listed, problem) = await FilteredAsync(userId, tracker, filter, search, ct);
+        if (problem is not null)
+            return (null, problem);
+        var (ordered, _, context) = listed!.Value;
+        var items = ordered.Take(TrackerFacts.MaxSelectableSeries).Select(r => SelectableOf(r.Entry, context)).ToList();
+        logger.LogDebug(LogEvents.Trackers.ListRead, "Tracker selectable ids for user {UserId} on {Tracker}: {Rows} row(s), {ElapsedMs} ms",
+            userId, tracker, ordered.Count, watch.ElapsedMilliseconds);
+        return (new TrackerSelectableSeriesListDto
+        {
+            Items = items,
+            TotalCount = ordered.Count,
+            Truncated = ordered.Count > items.Count,
+        }, null);
+    }
+
+    /// <summary>The caller's rows of a tracker matching the chip and the search, ordered by title; the chip counts over the whole list.</summary>
+    private async Task<((List<(TrackerEntryEntity Entry, TrackerListBucket Bucket)> Ordered, TrackerListCountsDto Counts, RowContext Context)? Listed,
+        TrackerProblem? Problem)> FilteredAsync(long userId, string tracker, string? filter, string? search, CancellationToken ct)
+    {
         if (!TrackerFacts.IsKnown(tracker))
             return (null, TrackerProblem.UnknownTracker);
         TrackerListBucket? bucket = null;
@@ -39,14 +88,10 @@ public sealed class TrackerListService(
             else
                 return (null, TrackerProblem.Bad("invalid_filter", "Unknown filter."));
         }
-        var number = page ?? 1;
-        if (number < 1)
-            return (null, TrackerProblem.Bad("invalid_page", "Pages start at 1."));
         var text = search?.Trim();
         if (text is { Length: > TrackerFacts.MaxSearchLength })
             return (null, TrackerProblem.Bad("invalid_search", "The search text is too long."));
 
-        var watch = Stopwatch.StartNew();
         var entries = await db.TrackerEntries.AsNoTracking().Where(e => e.UserId == userId && e.Tracker == tracker).ToListAsync(ct);
         var context = await ContextAsync(userId, tracker, entries.Select(e => e.RecordId).Distinct().ToList(), ct);
         // Only series the user can still open (a linked folder in one of their libraries): no title from a library they lost.
@@ -65,18 +110,7 @@ public sealed class TrackerListService(
             .OrderBy(r => context.Titles[r.Entry.RecordId], StringComparer.OrdinalIgnoreCase)
             .ThenBy(r => r.Entry.RecordId)
             .ToList();
-        var items = ordered.Skip((number - 1) * TrackerFacts.ListPageSize).Take(TrackerFacts.ListPageSize)
-            .Select(r => RowOf(r.Entry, context)).ToList();
-        logger.LogDebug(LogEvents.Trackers.ListRead, "Tracker list for user {UserId} on {Tracker}: {Rows} row(s), page {Page}, {ElapsedMs} ms",
-            userId, tracker, ordered.Count, number, watch.ElapsedMilliseconds);
-        return (new TrackerSeriesPageDto
-        {
-            Items = items,
-            Page = number,
-            PageSize = TrackerFacts.ListPageSize,
-            TotalCount = ordered.Count,
-            Counts = counts,
-        }, null);
+        return ((ordered, counts, context), null);
     }
 
     /// <summary>
@@ -174,6 +208,28 @@ public sealed class TrackerListService(
         return entries.Where(e => context.Titles.ContainsKey(e.RecordId)).Select(e => RowOf(e, context)).ToList();
     }
 
+    /// <summary>
+    /// 1.43.2 (batch): the caller's stored entries on this tracker for the given series records, only those the caller can still open
+    /// (the list's own rule), with the facts the list rules read.
+    /// </summary>
+    internal async Task<IReadOnlyDictionary<long, (TrackerEntryEntity Entry, TrackerRowFacts Facts)>> ListedEntriesAsync(long userId, string tracker,
+        IReadOnlyList<long> recordIds, CancellationToken ct)
+    {
+        var entries = new List<TrackerEntryEntity>();
+        foreach (var chunk in recordIds.Distinct().Chunk(500))
+        {
+            entries.AddRange(await db.TrackerEntries.AsNoTracking()
+                .Where(e => e.UserId == userId && e.Tracker == tracker && chunk.Contains(e.RecordId)).ToListAsync(ct));
+        }
+        var context = await ContextAsync(userId, tracker, entries.Select(e => e.RecordId).Distinct().ToList(), ct);
+        return entries.Where(e => context.Titles.ContainsKey(e.RecordId) && context.Nodes.ContainsKey(e.RecordId))
+            .ToDictionary(e => e.RecordId, e => (e, FactsOf(e, context.AddStartedSeries)));
+    }
+
+    /// <summary>"Sync now" can reach the tracker for a row: sync not turned off and a known id (the row's "No id" chip says otherwise).</summary>
+    internal static bool CanSync(TrackerEntryEntity e, TrackerRowFacts facts) =>
+        !e.DontSync && e.RemoteId is not null && TrackerListRules.BucketOf(facts) != TrackerListBucket.NoId;
+
     /// <summary>What a row needs beyond the entry: the titles, the first folder the caller can open, the record totals, the user setting.</summary>
     private sealed record RowContext(
         IReadOnlyDictionary<long, string> Titles,
@@ -262,6 +318,21 @@ public sealed class TrackerListService(
             LastSyncAt = e.RemoteSeenAt,
             LastSentAt = e.LastSentAt,
             UpdatedAt = e.UpdatedAt,
+        };
+    }
+
+    private static TrackerSelectableSeriesDto SelectableOf(TrackerEntryEntity e, RowContext context)
+    {
+        var facts = FactsOf(e, context.AddStartedSeries);
+        var fromBlock = TrackerListRules.FromTrackerBlock(facts);
+        var toBlock = TrackerListRules.ToTrackerBlock(facts);
+        return new TrackerSelectableSeriesDto
+        {
+            SeriesId = context.SeriesIds[e.RecordId],
+            FromTracker = new TrackerActionDto { Possible = fromBlock == TrackerActionBlock.None, Block = fromBlock },
+            ToTracker = new TrackerActionDto { Possible = toBlock == TrackerActionBlock.None, Block = toBlock },
+            CanSync = CanSync(e, facts),
+            DontSync = e.DontSync,
         };
     }
 

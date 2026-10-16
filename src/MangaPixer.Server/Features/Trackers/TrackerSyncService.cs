@@ -22,7 +22,7 @@ public enum TrackerSyncTrigger
     /// <summary>A new read mark (the relay): the tracker is read only when MangaPixer may be ahead of what it last sent or saw.</summary>
     ReadMark = 0,
 
-    /// <summary>The user's own click (Sync now, Send, Set, Send all) or a retry: always reads the tracker first.</summary>
+    /// <summary>The user's own click (Sync now, Send, Set - one series or a Select-mode batch) or a retry: always reads the tracker first.</summary>
     User = 1,
 
     /// <summary>The first-connect preview: reads the tracker, NEVER writes; a series MangaPixer is ahead on waits for "Send".</summary>

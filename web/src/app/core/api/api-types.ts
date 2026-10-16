@@ -3386,14 +3386,6 @@ export interface TrackerPreviewDto {
   created?: number | null;
 }
 
-/** `POST /api/v1/trackers/{slug}/entries/send-all`. */
-export interface TrackerSendAllResultDto {
-  sent: number;
-  skipped: number;
-  failed: number;
-  capReached: boolean;
-}
-
 /** The caller's sync switch on a folder or series: on (also inside a Private library, or for doujinshi) or off. */
 export interface TrackerNodeOverrideDto {
   nodeId: string;
@@ -3601,4 +3593,66 @@ export interface TrackerDatesRequest {
 export interface TrackerSeriesSummaryDto {
   seriesId?: string | null;
   rows: TrackerSeriesRowDto[];
+}
+
+// ---- 1.43.2: the Tracking list's Select mode (replaces "Send all") ----
+
+/** What a batch applies to each selected series. */
+export type TrackerBatchAction = 'FromTracker' | 'ToTracker' | 'SyncNow' | 'DontSync' | 'SyncAgain';
+
+/** Why a batch left a selected series as it is. */
+export type TrackerBatchSkip =
+  | 'NotChecked'
+  | 'NotAhead'
+  | 'NoId'
+  | 'DontSync'
+  | 'LeftAsIs'
+  | 'NotOnList'
+  | 'NotListed'
+  | 'AlreadyOff'
+  | 'AlreadyOn'
+  | 'RetryLater';
+
+/** `POST /api/v1/trackers/{slug}/entries/batch`: one action for up to 100 of the caller's series. */
+export interface TrackerBatchRequest {
+  action: TrackerBatchAction;
+  seriesIds: string[];
+}
+
+export interface TrackerBatchSkipCountDto {
+  reason: TrackerBatchSkip;
+  count: number;
+}
+
+/** The answer of a batch: counts, and the rows of the series it was given that the caller can open. */
+export interface TrackerBatchResultDto {
+  done: number;
+  skipped: number;
+  failed: number;
+  capReached: boolean;
+  /** Series not reached because the batch stopped (the daily cap, or the account can no longer sync). */
+  notReached: number;
+  /** "Set progress from <tracker>" only: archives marked read now / already read. */
+  marked: number;
+  alreadyRead: number;
+  /** The account cannot sync any more: why the batch stopped. */
+  stoppedCode?: string | null;
+  skips: TrackerBatchSkipCountDto[];
+  rows: TrackerSeriesRowDto[];
+}
+
+/** One series of "Select all in this chip" and which batch actions apply to it. */
+export interface TrackerSelectableSeriesDto {
+  seriesId: string;
+  fromTracker: TrackerActionDto;
+  toTracker: TrackerActionDto;
+  canSync: boolean;
+  dontSync: boolean;
+}
+
+/** `GET /api/v1/trackers/{slug}/series/ids?filter=&q=`: every series matching the chip + search (at most 2000). */
+export interface TrackerSelectableSeriesListDto {
+  items: TrackerSelectableSeriesDto[];
+  totalCount: number;
+  truncated: boolean;
 }
