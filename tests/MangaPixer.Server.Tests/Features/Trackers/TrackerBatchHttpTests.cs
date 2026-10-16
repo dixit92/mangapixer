@@ -1,6 +1,5 @@
 namespace com.lifepixer.mangapixer.Tests.Server.Features.Trackers;
 
-using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using com.lifepixer.mangapixer.Core.Api;
@@ -306,7 +305,7 @@ public sealed class TrackerBatchHttpTests
                 {
                     PublicId = $"sel-{i:0000}",
                     Provider = "mangaupdates",
-                    ExternalId = (60000 + i).ToString(CultureInfo.InvariantCulture),
+                    ExternalId = (60000 + i).ToString(System.Globalization.CultureInfo.InvariantCulture),
                     Title = title,
                     FetchedAt = now,
                 });
