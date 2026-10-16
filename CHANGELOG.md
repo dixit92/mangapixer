@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.43.1] - 2026-10-15
+
+### Fixed
+
+- **"Not on your list" for series MangaPixer could not look up.** Before the one-time MyAnimeList id refresh had run, **Check my list on MyAnimeList** marked every series you read here that had no MyAnimeList id yet as "Not on your list". Such a series now reads **No MyAnimeList id** (also the rows 1.43.0 stored that way), and only a series whose id is known can be "Not on your list".
+- **The MyAnimeList ids arrive the same day.** The one-time refresh that learns them from MangaDex records now starts shortly after the server starts, instead of at the next nightly series information refresh - still only with automatic matching on, inside the daily budget and its pacing. Press **Check my list on MyAnimeList** again once they are in.
+
 ## [1.43.0] - 2026-10-15
 
 ### Added

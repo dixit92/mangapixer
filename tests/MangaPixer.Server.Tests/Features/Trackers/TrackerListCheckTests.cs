@@ -75,6 +75,44 @@ public sealed class TrackerListCheckTests
     }
 
     [Fact]
+    public async Task ASeriesWithoutATrackerId_IsNoId_NeverNotOnYourList_AndA143StaleFlagIsCleared()
+    {
+        // 1.43.1 (owner, after the 1.43.0 deploy): before the MAL id catch-up had run, the whole-list read marked every series read here
+        // "not on your list" - also the ones it could not look up. A series without a known id stays "No <tracker> id".
+        var (h, admin, userId) = await MalAsync();
+        await using var _ = h;
+        var noId = await h.SeedSeriesAsync(3);
+        var notOnList = await h.SeedSeriesAsync(3);
+        await h.DbAsync(async db =>
+        {
+            var companion = await db.MetadataCompanions.SingleAsync(c => c.RecordId == noId.RecordId);
+            var record = await db.MetadataRecords.SingleAsync(r => r.Id == companion.CompanionRecordId);
+            record.CrossIdsJson = "{}";
+            foreach (var seed in new[] { noId, notOnList })
+                db.ReadMarks.Add(new ReadMarkEntity { UserId = userId, ItemId = seed.Archives[0].Id, MarkedAt = DateTimeOffset.UtcNow, Source = "import" });
+            return await db.SaveChangesAsync();
+        });
+        await h.IdleAsync();
+
+        await CheckAsync(admin);
+
+        var rows = (await PageAsync(admin)).Items.ToDictionary(r => r.SeriesId);
+        Assert.Equal((TrackerListBucket.NoId, false), (rows[noId.RecordPublicId].Bucket, rows[noId.RecordPublicId].RemoteMissing));
+        Assert.True(rows[notOnList.RecordPublicId].RemoteMissing); // its id is known and it is on none of the lists
+
+        // A row 1.43.0 stored as "missing" without an id reads as "No <tracker> id" (no new check needed).
+        await h.DbAsync(async db =>
+        {
+            var entry = await db.TrackerEntries.SingleAsync(e => e.UserId == userId && e.RecordId == noId.RecordId);
+            entry.RemoteMissing = true;
+            entry.RemoteId = null;
+            return await db.SaveChangesAsync();
+        });
+        var again = (await PageAsync(admin)).Items.Single(r => r.SeriesId == noId.RecordPublicId);
+        Assert.Equal((TrackerListBucket.NoId, false), (again.Bucket, again.RemoteMissing));
+    }
+
+    [Fact]
     public async Task AnEntryWithNoSeriesHere_LeavesNothingStored()
     {
         var (h, admin, userId) = await MalAsync();

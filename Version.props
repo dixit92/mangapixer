@@ -480,7 +480,10 @@
     <!-- 1.37.1 - PATCH (2026-10-09, integrator-direct, owner live check of 1.37.0 on a phone): the review page's Undo snackbar opens
          above the phone bottom bar (its overlay pane lifted by the bar's measured height). Web only; no migration, API or dependency
          change. -->
-    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
+    <!-- 1.43.1 - PATCH over 1.43.0 (2026-10-15), no API / schema change: Check my list no longer marks a series without a known
+         tracker id "not on your list" (a row 1.43.0 stored that way reads "No MyAnimeList id" again), and the one-time MyAnimeList id
+         catch-up starts after the startup delay instead of at the next nightly refresh (same gate, once per instance, daily budget). -->
+    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->

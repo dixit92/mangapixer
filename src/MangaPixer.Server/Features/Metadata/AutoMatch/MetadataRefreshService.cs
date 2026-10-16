@@ -335,6 +335,31 @@ public sealed class MetadataRefreshService
     /// A record MangaDex lists no <c>mal</c> for is refreshed once and moves past the watermark; the run is marked done when no series record
     /// is left. Returns the series record ids still to catch up.
     /// </summary>
+    /// <summary>
+    /// 1.43.1 (owner, after the 1.43.0 deploy): starts the one-time MAL id catch-up right after the server starts, instead of at the next
+    /// nightly refresh - only while the same gate as the refresh pass is open (fetch on, both consents current); the companions it makes due
+    /// are re-checked by the volume-cover pass within the daily budget and its pacing, as before. Once per instance (the job row). Returns
+    /// the companions made due, or null when the gate is closed or the catch-up had already started.
+    /// </summary>
+    public async Task<int?> StartMalCatchUpAsync(CancellationToken ct)
+    {
+        if (await _autoMatch.CheckGlobalGateAsync(ct) is not null)
+            return null;
+        if (await _db.JobRuns.AnyAsync(j => j.Key == MalCatchUpKey, ct))
+            return null;
+        return await BeginMalCatchUpAsync(_time.GetUtcNow(), ct);
+    }
+
+    private async Task<int> BeginMalCatchUpAsync(DateTimeOffset now, CancellationToken ct)
+    {
+        _db.JobRuns.Add(new JobRunEntity { Key = MalCatchUpKey, LastStartedAt = now, LastDetail = "mal ids catch-up started" });
+        await _db.SaveChangesAsync(ct);
+        var pulled = await PullInMangaDexCompanionsWithoutMalAsync(now, ct);
+        _logger.LogInformation(LogEvents.Trackers.MalCatchUp, "Tracker MAL id catch-up started: {Companions} MangaDex companions due for their re-check",
+            pulled);
+        return pulled;
+    }
+
     private async Task<IReadOnlySet<long>> MalCatchUpAsync(DateTimeOffset now, CancellationToken ct)
     {
         var run = await _db.JobRuns.FirstOrDefaultAsync(j => j.Key == MalCatchUpKey, ct);
@@ -342,12 +367,8 @@ public sealed class MetadataRefreshService
             return new HashSet<long>();
         if (run is null)
         {
-            run = new JobRunEntity { Key = MalCatchUpKey, LastStartedAt = now, LastDetail = "mal ids catch-up started" };
-            _db.JobRuns.Add(run);
-            await _db.SaveChangesAsync(ct);
-            var pulled = await PullInMangaDexCompanionsWithoutMalAsync(now, ct);
-            _logger.LogInformation(LogEvents.Trackers.MalCatchUp, "Tracker MAL id catch-up started: {Companions} MangaDex companions due for their re-check",
-                pulled);
+            await BeginMalCatchUpAsync(now, ct);
+            run = await _db.JobRuns.FirstAsync(j => j.Key == MalCatchUpKey, ct);
         }
         var watermark = run.LastStartedAt ?? now;
         var mangaDex = MetadataProviderAllowlist.MangaDex;
