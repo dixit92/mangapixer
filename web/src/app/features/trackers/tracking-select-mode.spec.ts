@@ -155,7 +155,7 @@ describe('TrackingSeriesListComponent - Select mode (1.43.2)', () => {
     }
   });
 
-  it('"Select all N in this chip" selects every matching series from the server\\'s ids, also beyond the loaded page', () => {
+  it('"Select all N in this chip" selects every matching series from the server\'s ids, also beyond the loaded page', () => {
     const rows = Array.from({ length: 50 }, (_, i) => FROM({ seriesId: `t${i}`, title: `Ahead ${String(i).padStart(2, '0')}` }));
     const { fixture, http, el } = create(seriesPage(rows, { totalCount: 51, counts: listCounts({ trackerAhead: 51 }) }));
     q(el, 'tracking-chip-TrackerAhead').click();
@@ -319,7 +319,7 @@ describe('TrackingSeriesListComponent - Select mode (1.43.2)', () => {
     expect(q(el, 'tracking-notice-mal')).toBeNull();
   });
 
-  it('the tracker column opens the series on the tracker\\'s site (new tab, no referrer), also from "⋯"; none without an id', () => {
+  it('the tracker column opens the series on the tracker\'s site (new tab, no referrer), also from "⋯"; none without an id', () => {
     const { fixture, el } = create(seriesPage([SYNCED({ remoteId: '2' }), SYNCED({ seriesId: 'n', title: 'No id', remoteId: null, bucket: 'NoId', state: 'NoId' })]));
     const link = q(el, 'tracking-remote-link-c') as HTMLAnchorElement;
     expect(link.getAttribute('href')).toBe('https://myanimelist.net/manga/2');
@@ -340,7 +340,7 @@ describe('TrackingSeriesListComponent - Select mode (1.43.2)', () => {
     expect(item.textContent).toContain('Open on MyAnimeList');
   });
 
-  it('MangaUpdates links use the site\\'s base36 series address', () => {
+  it('MangaUpdates links use the site\'s base36 series address', () => {
     const { el } = create(seriesPage([SYNCED({ tracker: 'mangaupdates', remoteId: '51239621230' })]), { slug: 'mangaupdates' });
     expect(q(el, 'tracking-remote-link-c').getAttribute('href')).toBe(`https://www.mangaupdates.com/series/${(51239621230).toString(36)}`);
   });
