@@ -65,6 +65,7 @@ public sealed class MetadataAutoMatchHostedService : BackgroundService
         {
             if (_options.StartupDelay > TimeSpan.Zero)
                 await Task.Delay(_options.StartupDelay, _time, stoppingToken);
+            await StartMalCatchUpAsync(stoppingToken);
             while (!stoppingToken.IsCancellationRequested)
             {
                 await RunPassAsync(stoppingToken);
@@ -76,6 +77,24 @@ public sealed class MetadataAutoMatchHostedService : BackgroundService
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
+        }
+    }
+
+    /// <summary>
+    /// 1.43.1: the one-time MAL id catch-up starts after the startup delay, not at the next nightly refresh (an upgrade gets its MyAnimeList
+    /// ids the same day). Gated and once per instance in <see cref="MetadataRefreshService.StartMalCatchUpAsync"/>; a failure is logged and
+    /// the nightly refresh starts it instead.
+    /// </summary>
+    public async Task StartMalCatchUpAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            await scope.ServiceProvider.GetRequiredService<MetadataRefreshService>().StartMalCatchUpAsync(ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            _logger.LogWarning(LogEvents.Trackers.MalCatchUp, "Tracker MAL id catch-up could not start at startup: {Error}", ex.GetType().Name);
         }
     }
 

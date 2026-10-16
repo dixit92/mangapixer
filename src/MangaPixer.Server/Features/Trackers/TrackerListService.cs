@@ -215,7 +215,9 @@ public sealed class TrackerListService(
             e.DontSync,
             HasRemoteId: e.RemoteId is not null || state == TrackerEntryState.Pending,
             RemoteSeen: e.RemoteSeenAt is not null,
-            e.RemoteMissing,
+            // 1.43.1: "on none of your lists" only for a series whose tracker id is known - without one nobody could look (an entry stored
+            // that way by 1.43.0's whole-list read reads as "No <tracker> id" again).
+            e.RemoteMissing && e.RemoteId is not null,
             (TrackerEntryStatus?)e.RemoteStatus,
             automatic,
             all,
@@ -253,7 +255,7 @@ public sealed class TrackerListService(
             RemoteChapters = e.RemoteChapters,
             RemoteVolumes = e.RemoteVolumes,
             RemoteStatus = (TrackerEntryStatus?)e.RemoteStatus,
-            RemoteMissing = e.RemoteMissing,
+            RemoteMissing = e.RemoteMissing && e.RemoteId is not null,
             Dates = DatesOf(e),
             FromTracker = new TrackerActionDto { Possible = fromBlock == TrackerActionBlock.None, Block = fromBlock },
             ToTracker = new TrackerActionDto { Possible = toBlock == TrackerActionBlock.None, Block = toBlock },
