@@ -40,25 +40,6 @@ internal sealed class ShiftableTimeProvider : TimeProvider
             timer.Fire();
     }
 
-    /// <summary>
-    /// Waits until a one-shot timer whose original delay matches <paramref name="dueTime"/> is pending - the code under test may create its
-    /// timer on another thread after the call that scheduled it returned; advancing before that would move the clock under it.
-    /// </summary>
-    public async Task<bool> WaitForPendingAsync(Func<TimeSpan, bool> dueTime, TimeSpan timeout)
-    {
-        var deadline = DateTime.UtcNow + timeout;
-        while (DateTime.UtcNow < deadline)
-        {
-            lock (_gate)
-            {
-                if (_timers.Any(t => t.DueAt is not null && dueTime(t.DueTime)))
-                    return true;
-            }
-            await Task.Delay(20);
-        }
-        return false;
-    }
-
     private void Track(ShiftTimer timer, bool tracked)
     {
         lock (_gate)
@@ -77,16 +58,12 @@ internal sealed class ShiftableTimeProvider : TimeProvider
         /// <summary>When a one-shot timer is due on the shifted clock; null for a periodic or stopped timer.</summary>
         public DateTimeOffset? DueAt { get; private set; }
 
-        /// <summary>The delay it was created (or last changed) with.</summary>
-        public TimeSpan DueTime { get; private set; }
-
         public bool Change(TimeSpan dueTime, TimeSpan period)
         {
             _inner?.Dispose();
             Interlocked.Exchange(ref _fired, 0);
             var oneShot = dueTime != Timeout.InfiniteTimeSpan && period == Timeout.InfiniteTimeSpan;
             DueAt = oneShot ? owner.GetUtcNow() + dueTime : null;
-            DueTime = dueTime;
             owner.Track(this, oneShot);
             _inner = TimeProvider.System.CreateTimer(_ => Fire(), null, dueTime, period);
             return true;

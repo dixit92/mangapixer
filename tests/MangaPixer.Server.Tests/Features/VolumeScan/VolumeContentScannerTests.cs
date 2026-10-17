@@ -4,6 +4,7 @@ using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.WorkerProtocol;
+using com.lifepixer.mangapixer.Server.Features.Auth;
 using com.lifepixer.mangapixer.Server.Features.Catalog;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Reach;
 using com.lifepixer.mangapixer.Server.Features.VolumeScan;
@@ -337,7 +338,7 @@ public sealed class VolumeContentScannerTests : IDisposable
         var answer = progress.Result.Answer;
         var user = await VolumeTestData.AddUserAsync(db);
 
-        var browse = new CatalogBrowseService(db, new Server.Features.Auth.LibraryAuthorizationService(db));
+        var browse = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
         var page = await browse.BrowseAsync(user.Id, lib.Id, null, null, completion: answer);
         Assert.Equal(1, page.LinkedSeries);
         Assert.Equal(series.PublicId, Assert.Single(page.Items).Id);

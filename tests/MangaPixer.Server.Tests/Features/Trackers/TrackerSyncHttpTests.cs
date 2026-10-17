@@ -352,12 +352,15 @@ public sealed class TrackerSyncHttpTests
         Assert.Empty(h.MangaUpdates.Writes);
         Assert.Equal(TrackerEntryState.Waiting, (TrackerEntryState)(await h.EntryAsync(userId, TrackerSlugs.MangaUpdates, series.RecordId))!.State);
 
-        Assert.True(await h.Time.WaitForPendingAsync(d => d > TimeSpan.FromSeconds(50) && d <= TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(20)),
-            "the relay never scheduled the retry");
-        h.Time.Advance(TimeSpan.FromSeconds(61));
-        var deadline = DateTime.UtcNow.AddSeconds(20);
+        // Move the clock past the delay until the retry has written. One move is not enough: the relay creates its retry timer on another
+        // thread after the relay went idle, and a timer created after a move is due 60 s after the moved clock (1.44.0: failed once in a
+        // loaded verify - another 50-60 s timer had satisfied the earlier wait for "the relay's" timer).
+        var deadline = DateTime.UtcNow.AddSeconds(30);
         while (h.MangaUpdates.Writes.IsEmpty && DateTime.UtcNow < deadline)
-            await Task.Delay(50);
+        {
+            h.Time.Advance(TimeSpan.FromSeconds(61));
+            await Task.Delay(200);
+        }
         await h.IdleAsync();
         Assert.Equal(4, Assert.Single(h.MangaUpdates.Writes).Write.ChaptersRead);
         Assert.Equal(0, await h.DbAsync(db => db.TrackerRetries.CountAsync()));
