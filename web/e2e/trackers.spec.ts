@@ -486,7 +486,7 @@ test.describe('tracker sync web (1.43.0)', () => {
     await expect(list.getByTestId('tracking-state-s1')).toHaveText('In sync');
 
     await list.getByTestId('tracking-to-s2').click();
-    await expect(list.getByTestId('tracking-notice-mal')).toContainText('up to date');
+    await expect(list.getByTestId('tracking-notice-mal')).toContainText('Up to date');
     await expect(list.getByTestId('tracking-state-s2')).toHaveText('In sync');
     expect(posts).toEqual(['POST from-tracker s1', 'POST send s2']);
     expect(outside).toEqual([]);
