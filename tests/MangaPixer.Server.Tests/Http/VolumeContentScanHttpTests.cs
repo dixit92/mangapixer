@@ -114,7 +114,16 @@ public sealed class VolumeContentScanHttpTests : IDisposable
             }
         }
 
-        Assert.True(stack.HasValue, "no stack with chapters found inside the volume file");
+        if (!stack.HasValue)
+        {
+            // Diagnostics for a failure: counts and states only.
+            var status0 = await client.GetStringAsync("/api/v1/admin/volume-contents");
+            var files = folderId is null ? "no folder" : await client.GetStringAsync($"/api/v1/libraries/{libraryId}/browse?parentId={folderId}&group=flat");
+            var pages = string.Join(",", System.Text.RegularExpressions.Regex.Matches(files, "\"pageCount\":(\\d+|null)").Select(m => m.Groups[1].Value));
+            var jobs = await client.GetStringAsync("/api/v1/admin/jobs");
+            var job = System.Text.RegularExpressions.Regex.Match(jobs, "\\{[^{}]*\"key\":\"volume-contents\"[^{}]*\\}").Value;
+            Assert.Fail($"no stack with chapters found inside the volume file; status {status0}; pages {pages}; job {job}");
+        }
         var line = stack.Value.GetProperty("inVolumeFile");
         Assert.Equal(("9", "10", 2), (line.GetProperty("from").GetString(), line.GetProperty("to").GetString(), line.GetProperty("count").GetInt32()));
         Assert.Equal("Volume 2", stack.Value.GetProperty("label").GetString());
