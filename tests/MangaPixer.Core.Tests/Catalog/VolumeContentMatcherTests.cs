@@ -294,4 +294,22 @@ public sealed class VolumeContentMatcherTests
 
         Assert.Same(chaptersOnly, map);
     }
+
+    [Fact]
+    public void TheMinimumRun_CountsTheRunBeforeItIsExtended()
+    {
+        // 1.44.0 integrator (merge review of lane V): the owner's minimum of 5 in-order pages was set on gate-1 measurements of the run
+        // WITHOUT the edge extension (the worst stray run on the live library was 4). A 4-page core must not reach 5 through Extend: here
+        // chapter page 0 matches a far volume page (the chain's tie pick, cut off by the jump split) and one right before the 4-page run.
+        ulong H(int n) => 0x9E3779B97F4A7C15UL * (ulong)(n + 1); // far apart from each other
+        var chapter = Enumerable.Range(0, 7).Select(i => (ulong?)H(100 + i)).ToList();
+        var volume = Enumerable.Range(0, 30).Select(j => (ulong?)H(500 + j)).ToList();
+        volume[0] = chapter[0];
+        volume[20] = chapter[0];
+        for (var k = 1; k <= 4; k++)
+            volume[21 + k] = chapter[k];
+
+        var run = VolumeContentMatcher.BestRun(chapter, volume);
+        Assert.False(VolumeContentMatcher.Proves(run.Count, chapter.Count), $"a 4-page core proved a 7-page chapter as {run.Count} pages");
+    }
 }

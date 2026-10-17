@@ -126,7 +126,10 @@ public static class VolumeContentMatcher
                 best = (start, k - start);
             start = k;
         }
-        return Extend(chain.GetRange(best.Start, best.Length), chapter, volume);
+        // 1.44.0 (integrator, merge review): only a run that already has the minimum is extended at its edges - the owner's minimum of
+        // 5 pages rests on gate-1 measurements of the unextended run (worst stray run 4), so a shorter core never reaches it through Extend.
+        var core = chain.GetRange(best.Start, best.Length);
+        return core.Count >= MinRunPages ? Extend(core, chapter, volume) : core;
     }
 
     /// <summary>
