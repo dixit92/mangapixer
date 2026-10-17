@@ -121,8 +121,16 @@ public sealed class CompletionFilterScaleProbe : IDisposable
             var id = "p" + Guid.NewGuid().ToString("N")[..12];
             return new CatalogNodeEntity
             {
-                PublicId = id, LibraryId = libraryId, ParentId = parent, Kind = (int)kind, DisplayName = name, RelativePath = id, PathKey = id,
-                SortKey = SortKey.ForNode(kind, name), Availability = (int)CatalogNodeAvailability.Available, CreatedAt = now,
+                PublicId = id,
+                LibraryId = libraryId,
+                ParentId = parent,
+                Kind = (int)kind,
+                DisplayName = name,
+                RelativePath = id,
+                PathKey = id,
+                SortKey = SortKey.ForNode(kind, name),
+                Availability = (int)CatalogNodeAvailability.Available,
+                CreatedAt = now,
             };
         }
 
@@ -194,8 +202,12 @@ public sealed class CompletionFilterScaleProbe : IDisposable
         await db.SaveChangesAsync();
         db.NodeSeriesLinks.AddRange(folders.Select((f, i) => new NodeSeriesLinkEntity
         {
-            NodeId = f.Id, LibraryId = libraryId, State = (int)(i % 2 == 0 ? SeriesLinkState.Confirmed : SeriesLinkState.Auto),
-            RecordId = records[i].Id, CreatedAt = now, UpdatedAt = now,
+            NodeId = f.Id,
+            LibraryId = libraryId,
+            State = (int)(i % 2 == 0 ? SeriesLinkState.Confirmed : SeriesLinkState.Auto),
+            RecordId = records[i].Id,
+            CreatedAt = now,
+            UpdatedAt = now,
         }));
         db.SeriesVolumeMaps.AddRange(records.Select((r, i) => new SeriesVolumeMapEntity
         {
