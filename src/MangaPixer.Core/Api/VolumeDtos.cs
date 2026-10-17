@@ -98,6 +98,10 @@ public sealed record VolumeStackSummaryDto
     /// <see cref="ExtraCount"/> count each such chapter once.
     /// </summary>
     public IReadOnlyList<DuplicateUnitDto> Duplicates { get; init; } = [];
+
+    /// <summary>1.44.0: the chapter files the volume contents scan found inside this stack's volume file; null (left out) when none.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public InVolumeFileDto? InVolumeFile { get; init; }
 }
 
 /// <summary>The stack view (<c>GET /nodes/{folderId}/volumes/{key}</c>).</summary>
@@ -133,6 +137,10 @@ public sealed record VolumeStackDto
 
     /// <summary>1.31.0: see <see cref="VolumeStackSummaryDto.Duplicates"/>. Each such chapter has one item slot per file.</summary>
     public IReadOnlyList<DuplicateUnitDto> Duplicates { get; init; } = [];
+
+    /// <summary>1.44.0: the chapter files the volume contents scan found inside this stack's volume file; null (left out) when none.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public InVolumeFileDto? InVolumeFile { get; init; }
 }
 
 /// <summary>One slot of a stack view: a present item, or a missing chapter's placeholder.</summary>

@@ -325,5 +325,6 @@ public sealed partial class CatalogBrowseService
         ChaptersPresent = stack.ChaptersPresent,
         OfficialRelease = stack.OfficialRelease,
         Duplicates = stack.Duplicates.Select(DuplicateUnits.ToDto).ToList(),
+        InVolumeFile = VolumeScan.VolumeContentLine.Of(stack),
     };
 }

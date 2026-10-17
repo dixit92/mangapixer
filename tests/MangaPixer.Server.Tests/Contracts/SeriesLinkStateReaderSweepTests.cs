@@ -78,6 +78,7 @@ public sealed class SeriesLinkStateReaderSweepTests
         ["src/MangaPixer.Server/Features/Trackers/TrackerAdminService.cs"] = "1.43.0: a node's tracker ids need its nearest Confirmed / Auto link (CoverLinks.IsLinked); an artist folder, Don't match or collection gives none",
         ["src/MangaPixer.Server/Features/Trackers/TrackerEntriesService.cs"] = "1.43.0: a user's series = records of OWN Confirmed / Auto rows in libraries they can open; no other state",
         ["src/MangaPixer.Server/Features/Trackers/TrackerSeriesResolver.cs"] = "1.43.0: a read mark syncs only under a nearest Confirmed / Auto link; artist folder / Don't match / collection / review never sync; progress over own Confirmed / Auto rows",
+        ["src/MangaPixer.Server/Features/VolumeScan/VolumeContentScanner.cs"] = "1.44.0: a Don't match row on the folder or above stops the scan (owner); a doujinshi record counts only under an own Confirmed / Auto link; an artist folder / collection / review row is just unlinked (names only, never a record)",
         ["src/MangaPixer.Server/Persistence/Entities.cs"] = "the column (no constraint; value 5, RecordId null)",
         ["src/MangaPixer.Server/Persistence/MangaPixerDbContext.cs"] = "index (LibraryId, State) - no migration",
         ["src/MangaPixer.Server/Scanning/LibraryScanCoordinator.cs"] = "rows of any state follow a cross-library move",

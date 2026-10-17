@@ -23,6 +23,9 @@ public static class ExportVocabulary
     /// <summary>1.42.0: a volume row the Volumes view estimates from the folder's files (<c>chaptersEstimated</c>), not from a list.</summary>
     public const string Estimate = "estimate";
 
+    /// <summary>1.44.0: a volume row the volume contents scan read from the files (the chapter files proven inside the volume file).</summary>
+    public const string Scan = "scan";
+
     public const string Released = "released";
     public const string Announced = "announced";
 

@@ -17,14 +17,48 @@ public sealed class WorkerProtocolTests
     };
 
     [Fact]
-    public void WorkerProtocolVersion_IsFive()
+    public void WorkerProtocolVersion_IsSix()
     {
         // v2 added on-demand page extraction (extract/extract_result/extract_error);
         // v3 (1.24.0) added the ComicInfo read (comicinfo/comicinfo_result/comicinfo_error
         // and the optional AnalyzeResult.ComicInfo); v4 (1.28.0) the cover hash for automatic
         // matching (image_hash/image_hash_result/image_hash_error); v5 (1.29.0) the cover
-        // render for the cover layer (cover_render/cover_render_result/cover_render_error).
-        Assert.Equal(5, WorkerProtocolVersion.Current);
+        // render for the cover layer (cover_render/cover_render_result/cover_render_error); v6 (1.44.0) the page hashes of
+        // the volume contents scan (page_hash/page_hash_result/page_hash_error).
+        Assert.Equal(6, WorkerProtocolVersion.Current);
+    }
+
+    [Fact]
+    public void PageHashMessages_RoundTrip_WithCamelCase_ChunkFields_AndTheFullUnsignedRange()
+    {
+        var request = new PageHashRequest
+        {
+            JobId = "p1",
+            ArchivePath = "/media/x.cbz",
+            ExpectedLastWriteTicks = 5,
+            ExpectedByteLength = 6,
+            Deadline = DateTimeOffset.UnixEpoch,
+            FromOrdinal = 48,
+            Count = PageHashLimits.ChunkPages,
+        };
+        var requestJson = JsonSerializer.Serialize(request, s_options);
+        Assert.Contains("\"fromOrdinal\":48", requestJson, StringComparison.Ordinal);
+        var restoredRequest = JsonSerializer.Deserialize<PageHashRequest>(requestJson, s_options)!;
+        Assert.Equal((48, 48, PageHashLimits.MaxPages), (restoredRequest.FromOrdinal, restoredRequest.Count, restoredRequest.MaxPages));
+
+        var result = new PageHashResult
+        {
+            JobId = "p1",
+            PageCount = 120,
+            Pages = [new PageHashEntry { Ordinal = 48, Hash = ulong.MaxValue - 1 }, new PageHashEntry { Ordinal = 49, Error = PageHashErrors.DecodeFailed }],
+            ObservedLastWriteTicks = 5,
+            ObservedByteLength = 6,
+        };
+        var restored = JsonSerializer.Deserialize<PageHashResult>(JsonSerializer.Serialize(result, s_options), s_options)!;
+        Assert.Equal(ulong.MaxValue - 1, restored.Pages[0].Hash);
+        Assert.Null(restored.Pages[1].Hash);
+        Assert.Equal(PageHashErrors.DecodeFailed, restored.Pages[1].Error);
+        Assert.Equal(120, restored.PageCount);
     }
 
     [Fact]

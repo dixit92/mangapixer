@@ -494,6 +494,122 @@
         }
       }
     },
+    "/api/v1/admin/volume-contents": {
+      "get": {
+        "tags": [
+          "VolumeScan"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolumeScanStatusDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolumeScanStatusDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolumeScanStatusDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "VolumeScan"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UpdateVolumeScanRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UpdateVolumeScanRequest"
+                  }
+                ]
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UpdateVolumeScanRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolumeScanStatusDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolumeScanStatusDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolumeScanStatusDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/trash": {
       "get": {
         "tags": [
@@ -13642,6 +13758,12 @@
             "items": {
               "$ref": "#/components/schemas/ExportDuplicateFileDto"
             }
+          },
+          "inVolume": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -13673,6 +13795,25 @@
         "type": "object",
         "properties": {
           "error": {
+            "type": "string"
+          }
+        }
+      },
+      "ExportFileInsideDto": {
+        "required": [
+          "nodeId",
+          "name",
+          "number"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "number": {
             "type": "string"
           }
         }
@@ -14301,6 +14442,15 @@
               "null",
               "boolean"
             ]
+          },
+          "filesInside": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ExportFileInsideDto"
+            }
           }
         }
       },
@@ -15393,6 +15543,30 @@
       "IFormFile": {
         "type": "string",
         "format": "binary"
+      },
+      "InVolumeFileDto": {
+        "required": [
+          "from",
+          "to",
+          "count"
+        ],
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
       },
       "JumpIndexBucketDto": {
         "required": [
@@ -22603,6 +22777,17 @@
           }
         }
       },
+      "UpdateVolumeScanRequest": {
+        "required": [
+          "enabled"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
       "UserPreferencesDto": {
         "type": "object",
         "properties": {
@@ -22640,6 +22825,61 @@
       },
       "VolumeListSource": {
         "type": "integer"
+      },
+      "VolumeScanStatusDto": {
+        "required": [
+          "enabled",
+          "configDisabled",
+          "volumesChecked",
+          "volumesWithChapters",
+          "chaptersInside",
+          "running"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "configDisabled": {
+            "type": "boolean"
+          },
+          "volumesChecked": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "volumesWithChapters": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "chaptersInside": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "foldersWaiting": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "running": {
+            "type": "boolean"
+          }
+        }
       },
       "VolumeSlotDto": {
         "required": [
@@ -22793,6 +23033,16 @@
             "items": {
               "$ref": "#/components/schemas/DuplicateUnitDto"
             }
+          },
+          "inVolumeFile": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/InVolumeFileDto"
+              }
+            ]
           }
         }
       },
@@ -22888,6 +23138,16 @@
             "items": {
               "$ref": "#/components/schemas/DuplicateUnitDto"
             }
+          },
+          "inVolumeFile": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/InVolumeFileDto"
+              }
+            ]
           }
         }
       },
@@ -23301,6 +23561,9 @@
     },
     {
       "name": "PerformanceSettings"
+    },
+    {
+      "name": "VolumeScan"
     },
     {
       "name": "Trash"

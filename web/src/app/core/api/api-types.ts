@@ -2223,6 +2223,32 @@ export interface VolumeStackSummaryDto {
   officialRelease?: string | null;
   /** 1.31.0: chapters of this volume that more than one file states; `presentCount` / `extraCount` count each once. */
   duplicates?: DuplicateUnitDto[];
+  /** 1.44.0: the chapter files the volume contents scan found inside this volume's file; left out when none. */
+  inVolumeFile?: InVolumeFileDto | null;
+}
+
+/** 1.44.0: "Chapters 51-58 are inside the volume file" - the first and last chapter number and how many files. */
+export interface InVolumeFileDto {
+  from: string;
+  to: string;
+  count: number;
+}
+
+/** GET/PUT /admin/volume-contents (1.44.0): "Find the chapters inside volume files" - the switch and counts only. */
+export interface VolumeScanStatusDto {
+  enabled: boolean;
+  /** Configuration (MangaPixer:VolumeScan:Enabled=false) switches the scan off whatever the switch says. */
+  configDisabled: boolean;
+  volumesChecked: number;
+  volumesWithChapters: number;
+  chaptersInside: number;
+  /** Folders the current or last sweep still had to check; null before the first sweep. */
+  foldersWaiting?: number | null;
+  running: boolean;
+}
+
+export interface UpdateVolumeScanRequest {
+  enabled: boolean;
 }
 
 export type VolumeSlotKind = 'Item' | 'Missing';
@@ -2258,6 +2284,8 @@ export interface VolumeStackDto {
   officialRelease?: string | null;
   /** 1.31.0: see `VolumeStackSummaryDto.duplicates`; each such chapter has one item slot per file. */
   duplicates?: DuplicateUnitDto[];
+  /** 1.44.0: see `VolumeStackSummaryDto.inVolumeFile`. */
+  inVolumeFile?: InVolumeFileDto | null;
 }
 
 /** A stack of stories collected in one volume as a browse entry (CatalogNodeDto.collectionStack, 1.37.0). No volume / missing counts. */
@@ -2923,6 +2951,8 @@ export interface ExportDuplicateDto {
   kind: string;
   number: string;
   files: ExportDuplicateFileDto[];
+  /** 1.44.0: a chapter file found inside a volume file - the volume's number (files: the chapter file, the volume file). */
+  inVolume?: string | null;
 }
 
 /** 1.38.0: one file of a duplicate - open it at /reader/{nodeId}. */
@@ -3015,6 +3045,15 @@ export interface ExportVolumeDto {
   isbn?: string | null;
   sources: string[];
   chaptersEstimated?: boolean | null;
+  /** 1.44.0: the chapter files the volume contents scan found inside this volume's file (sources then has "scan"). */
+  filesInside?: ExportFileInsideDto[] | null;
+}
+
+/** 1.44.0: a chapter file inside a volume file. */
+export interface ExportFileInsideDto {
+  nodeId: string;
+  name: string;
+  number: string;
 }
 
 export interface ExportChapterRangeDto {

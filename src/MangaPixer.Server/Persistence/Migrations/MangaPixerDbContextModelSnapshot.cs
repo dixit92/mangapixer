@@ -329,6 +329,43 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.ToTable("archive_items", (string)null);
                 });
 
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.ArchivePageHashEntity", b =>
+                {
+                    b.Property<long>("NodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Algorithm")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ContentVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("HashedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("HashedPages")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<byte[]>("Hashes")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.Property<int>("PageCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<byte[]>("Unhashed")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.HasKey("NodeId");
+
+                    b.ToTable("archive_page_hashes", (string)null);
+                });
+
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.ArchiveSpreadLayoutEntity", b =>
                 {
                     b.Property<long>("NodeId")
@@ -2920,6 +2957,52 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.VolumeContentEntity", b =>
+                {
+                    b.Property<long>("VolumeNodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CandidatesKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ChaptersJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("CoveredPages")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("FolderId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("NearMisses")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ScannedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("State")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("Volume")
+                        .HasColumnType("REAL");
+
+                    b.Property<long>("VolumeContentVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("VolumeNodeId");
+
+                    b.HasIndex("FolderId");
+
+                    b.ToTable("volume_contents", (string)null);
+                });
+
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.VolumeCoverEntity", b =>
                 {
                     b.Property<long>("Id")
@@ -2997,6 +3080,19 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.ToTable("volume_covers", (string)null);
                 });
 
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.VolumeScanStateEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("volume_scan_state", (string)null);
+                });
+
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.WikipediaListEntity", b =>
                 {
                     b.Property<long>("Id")
@@ -3060,6 +3156,15 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Node");
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.ArchivePageHashEntity", b =>
+                {
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.ArchiveItemEntity", null)
+                        .WithMany()
+                        .HasForeignKey("NodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.ArchiveSpreadLayoutEntity", b =>
@@ -3629,6 +3734,21 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", null)
                         .WithMany()
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.VolumeContentEntity", b =>
+                {
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.CatalogNodeEntity", null)
+                        .WithMany()
+                        .HasForeignKey("FolderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.ArchiveItemEntity", null)
+                        .WithMany()
+                        .HasForeignKey("VolumeNodeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

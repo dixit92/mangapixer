@@ -37,6 +37,30 @@ A folder that has no list and no linked series groups by names alone, and only w
 - **Three decimals.** `Ch.014.125` is chapter 14.125, no longer chapter 14 (which made it a copy of chapter 14). A three-digit part padded like the chapter number is that part: `Ch.014.005` is chapter 14.5 and `Ch.021.010` chapter 21.1.
 - **A site's watermark at the end of a name** - `Series 001 Read Online`, `... Read Manga Online Free`, `... Online Free` - is left out before the name is read, and from the name automatic matching searches for. One such word alone is part of the title (`Sword Art Online`).
 
+## Chapters found inside a volume file
+
+*New in 1.44.0.* When a folder holds a volume file that no volume list maps (a series without a list, or a volume after the end of
+the list) next to chapter files no list places, MangaPixer can tell which of those chapters the volume file holds: in the background it
+reads the pages of the volume file and of the chapter files and compares them - a chapter is **inside** the volume when its pages appear
+in the volume file, in the same order (another release of the same pages counts: other cleaning, lettering, size or compression). Then:
+
+- the chapter files found go into the volume file's stack, and the volume's stack page says **Chapters 51-58 are inside the volume
+  file.** - those chapter files are copies of part of the volume;
+- when the chapters found fill the volume from end to end (at most a few cover, contents or afterword pages are left), the volume's range
+  is **known**: it is shown as **Volume 8**, not **~ Volume 8**, and the volumes around it are placed from it (a volume between a listed
+  volume and a known one is no longer an estimate);
+- when room is left at its start, its end or between the chapters found (a chapter that is not here, for example), the chapters found
+  still join its stack, but its range stays estimated.
+
+What it never does: it never reads a folder marked **Don't match** (or anything inside one), a folder whose **Content** is
+"Doujinshi & adult one-shots", a series whose record is a doujinshi, or a webtoon / manhwa / manhua listed as chapters; it never changes a
+volume that a volume list maps (the list stays the authority); a chapter with fewer than 5 pages, or one whose pages differ too much from
+the volume's (redrawn, censored, coloured), is never found - it simply stays where the list or the estimate put it. Nothing is moved,
+renamed or deleted, and nothing leaves the server: the files are only read. The work runs on the background helper processes and
+follows **Background work while someone reads** (Pause / Slow / Normal); a library scan that adds or changes files starts it, and it
+checks again every hour. A folder you open in the Volumes view goes first. Admins can switch it off on the **Volume contents** card in
+**MangaPixer Administration** (see [Configuration](configuration.md#volume-contents)).
+
 ## What the list shows
 
 Entries are ordered **by volume**, not by file name: a chapter named `Series c019` no longer sorts before `Series v01`. The order is:

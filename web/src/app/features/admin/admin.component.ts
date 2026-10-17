@@ -33,6 +33,7 @@ import { DebugLogCardComponent } from './debug-log-card.component';
 import { AuditTrailCardComponent } from './audit-trail-card.component';
 import { UpdateCheckCardComponent } from './update-check-card.component';
 import { PerformanceCardComponent } from './performance-card.component';
+import { VolumeScanCardComponent } from './volume-scan-card.component';
 import { BackupSettingsCardComponent } from './backup-settings-card.component';
 import { LibraryIconComponent } from '../../shared/library-icon/library-icon.component';
 import { LibraryIconPickerComponent } from './library-icon-picker/library-icon-picker.component';
@@ -64,6 +65,7 @@ import { AdminTrackersCardComponent } from '../trackers/admin-trackers-card.comp
     AuditTrailCardComponent,
     UpdateCheckCardComponent,
     PerformanceCardComponent,
+    VolumeScanCardComponent,
     MoveConflictsLinkComponent,
     ReadingModeSuggestionsLinkComponent,
     TrashCardComponent, ScheduledJobsComponent,
@@ -554,6 +556,8 @@ import { AdminTrackersCardComponent } from '../trackers/admin-trackers-card.comp
     <div class="col">
       <!-- Performance (1.42.0): media workers, page cache size, background work while someone reads -->
       <app-performance-card />
+      <!-- Volume contents (1.44.0): the switch of the volume contents scan, next to Performance -->
+      <app-volume-scan-card />
       <app-trash-card #trash />
       <!-- Admin Analytics dashboard v1 (1.22.0 lane E) -->
       <app-analytics-card />

@@ -90,6 +90,8 @@ import {
   UpdateCheckSettingsRequest,
   PerformanceSettingsDto,
   UpdatePerformanceSettingsRequest,
+  UpdateVolumeScanRequest,
+  VolumeScanStatusDto,
   UpdateCheckStatusDto,
   BackupSettingsDto,
   BackupSettingsUpdateResultDto,
@@ -647,6 +649,16 @@ export class ApiService {
   /** Changes the performance settings (partial; `reset` returns fields to their default). Applies live. */
   updatePerformanceSettings(request: UpdatePerformanceSettingsRequest): Observable<PerformanceSettingsDto> {
     return this.put<PerformanceSettingsDto>('/admin/performance', request);
+  }
+
+  /** 1.44.0 (admin): "Find the chapters inside volume files" - the volume contents scan's switch and counts. */
+  getVolumeScanStatus(): Observable<VolumeScanStatusDto> {
+    return this.get<VolumeScanStatusDto>('/admin/volume-contents');
+  }
+
+  /** 1.44.0 (admin): turns the volume contents scan on or off (applies at once). */
+  setVolumeScanEnabled(enabled: boolean): Observable<VolumeScanStatusDto> {
+    return this.put<VolumeScanStatusDto>('/admin/volume-contents', { enabled } as UpdateVolumeScanRequest);
   }
 
   /** Admin analytics overview: library/content/processing/engagement counts. */

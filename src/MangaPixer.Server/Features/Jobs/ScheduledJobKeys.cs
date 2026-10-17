@@ -13,6 +13,9 @@ public static class ScheduledJobKeys
     public const string VolumeCovers = "volume-covers";
     public const string CoverDecisions = "cover-decisions";
     public const string ContentSignatures = "content-signatures";
+
+    /// <summary>1.44.0: the volume contents scan (which chapter files a volume file holds).</summary>
+    public const string VolumeContents = "volume-contents";
     public const string Thumbnails = "thumbnails";
     public const string UpdateCheck = "update-check";
 
@@ -20,7 +23,7 @@ public static class ScheduledJobKeys
     public static IReadOnlyList<string> Ordered { get; } =
     [
         LibraryScan, MetadataRefresh, Backup, Trash, CacheEviction, AutoMatch, VolumeCovers, CoverDecisions, ContentSignatures,
-        SessionCleanup, Thumbnails, UpdateCheck,
+        VolumeContents, SessionCleanup, Thumbnails, UpdateCheck,
     ];
 }
 

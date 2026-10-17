@@ -21,7 +21,9 @@ public enum GroupingRowKind
 /// of the unit subfolder the row came from (null = the browsed folder itself): in a <c>Volumes</c> folder a bare
 /// <c>01.cbz</c> is volume 1, elsewhere a bare number is a chapter (as the Missing report reads it). <see cref="SeriesHead"/>
 /// (1.42.0): the series head its container's archives share in front of a varying number (<see cref="AutoMatchText.SeriesHeadOf"/>),
-/// set by <see cref="VolumeGrouping.WithSeriesHeads"/> only on a row whose reading it changes.
+/// set by <see cref="VolumeGrouping.WithSeriesHeads"/> only on a row whose reading it changes. <see cref="InVolumeFile"/> (1.44.0): the
+/// number of the volume whose FILE in this folder holds this chapter file, as the volume contents scan proved it
+/// (<see cref="VolumeContents.Apply"/>) - the chapter then sits in that volume's stack (<see cref="VolumePlacement.Scanned"/>).
 /// </summary>
 public sealed record GroupingRow(
     string Id,
@@ -31,7 +33,8 @@ public sealed record GroupingRow(
     string? ContainerName = null,
     int? ComicInfoVolume = null,
     string? ComicInfoNumber = null,
-    string? SeriesHead = null);
+    string? SeriesHead = null,
+    decimal? InVolumeFile = null);
 
 /// <summary>One volume of a stored map: its number and the chapters the provider places in it (ascending, extras included).</summary>
 public sealed record VolumeMapVolume(decimal Volume, IReadOnlyList<decimal> Chapters);
@@ -82,6 +85,12 @@ public enum VolumePlacement
     /// Between two adjacent known volumes (the list places it in neither): the end of the previous volume (owner, 1.29.0 RC).
     /// </summary>
     Adjacent = 4,
+
+    /// <summary>
+    /// 1.44.0: the volume contents scan found this chapter file's pages inside the volume's file in this folder (read from the files,
+    /// never an estimate).
+    /// </summary>
+    Scanned = 5,
 }
 
 /// <summary>
@@ -117,6 +126,12 @@ public sealed record VolumeStack(
 {
     /// <summary>The chapter numbers more than one member file states (never a split chapter's parts or a range); empty when none.</summary>
     public IReadOnlyList<DuplicateUnit> Duplicates { get; init; } = [];
+
+    /// <summary>
+    /// 1.44.0: the numbers of the chapter files the volume contents scan found inside this volume's file (ascending; empty when none) -
+    /// "Chapters 51-58 are inside the volume file".
+    /// </summary>
+    public IReadOnlyList<decimal> InVolumeFile { get; init; } = [];
 }
 
 public enum VolumeEntryKind
@@ -376,6 +391,12 @@ public static class VolumeGrouping
         foreach (var (row, u) in chapters)
         {
             var chapter = u.Chapter!.Value;
+            // 1.44.0: proven inside a volume file of this folder (the volume contents scan) - wins over any estimate.
+            if (row.InVolumeFile is { } inVolume && u.Volume is null)
+            {
+                Bucket(inVolume).Chapters.Add(new StackMember(row, false, chapter, u.IsExtra, VolumePlacement.Scanned));
+                continue;
+            }
             if (localEligible && u.Volume is { } stated)
             {
                 Bucket(stated).Chapters.Add(new StackMember(row, false, chapter, u.IsExtra, VolumePlacement.Local));
@@ -633,8 +654,9 @@ public static class VolumeGrouping
         var extraSurplus = duplicates.Where(d => chapterMembers.Any(m => m.IsExtra && m.Chapter == d.Number)).Sum(d => d.Files - 1);
         var extras = chapterMembers.Count(m => m.IsExtra) + bonusMembers.Count - extraSurplus;
         var chapterNumbers = chapterMembers.Where(m => m.Chapter is not null).Select(m => m.Chapter!.Value).Order().ToList();
-        var usesMap = required is not null || chapterMembers.Any(m => m.Placement != VolumePlacement.Local);
-        var usesLocal = hasVolumeArchive || bonusMembers.Count > 0 || chapterMembers.Any(m => m.Placement == VolumePlacement.Local);
+        // 1.44.0: a chapter the volume contents scan found inside the volume file was read from the files, not from a list.
+        var usesMap = required is not null || chapterMembers.Any(m => m.Placement is not (VolumePlacement.Local or VolumePlacement.Scanned));
+        var usesLocal = hasVolumeArchive || bonusMembers.Count > 0 || chapterMembers.Any(m => m.Placement is VolumePlacement.Local or VolumePlacement.Scanned);
         var source = usesMap && usesLocal ? VolumeListSource.Mixed : usesMap ? map.Source : VolumeListSource.FileNames;
         return new VolumeStack(
             Key: Canonical(volume),
@@ -654,6 +676,8 @@ public static class VolumeGrouping
             OfficialRelease: OfficialReleaseOf(volume, hasVolumeArchive, map))
         {
             Duplicates = duplicates,
+            InVolumeFile = chapterMembers.Where(m => m.Placement == VolumePlacement.Scanned && m.Chapter is not null)
+                .Select(m => m.Chapter!.Value).Distinct().Order().ToList(),
         };
     }
 

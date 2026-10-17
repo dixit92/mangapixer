@@ -25,6 +25,11 @@
 // And <outDir>-jump (1.41.0, the smart jump rail e2e spec; offline, no ComicInfo):
 //   Jump Saga/Jump Saga - Ch. 001.cbz .. Ch. 064.cbz   numbered chapters behind a common prefix -> number ranges 0, 10 ... 60
 //   Jump Saga/Jump Saga - Oneshot.cbz                  an extra without a number -> its own "Other" chip after the ranges
+// And <outDir>-volume-contents (1.44.0, the volume contents scan e2e spec; offline, no ComicInfo; patterned pages so each page has its
+// own perceptual hash):
+//   Contents Saga/Contents Saga v02.cbz            2 cover pages, the pages of chapters 9 and 10, 2 back pages
+//   Contents Saga/Contents Saga - Chapter 009.cbz, - Chapter 010.cbz   the same pages from "another release" (lightly changed pixels)
+//   Contents Saga/Contents Saga - Chapter 011.cbz  pages that are not in the volume
 // Register <outDir> as a library, scan, and let analysis run; the spec does that itself
 // when E2E_SERIES_FIXTURE_ROOT names the path as the SERVER sees it.
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -178,4 +183,47 @@ for (let c = 1; c <= 64; c++) {
   archive('Jump Saga', `Jump Saga - Ch. ${String(c).padStart(3, '0')}.cbz`, [40 + (c * 3) % 200, 120, 220 - (c * 2) % 200], null, jumpDir);
 }
 archive('Jump Saga', 'Jump Saga - Oneshot.cbz', [220, 180, 60], null, jumpDir);
-console.log(`Series fixtures written to ${outDir} (and ${volumesDir}, ${readingModesDir}, ${jumpDir})`);
+
+// 1.44.0: the volume contents scan. A patterned page (seeded grey blocks on white) - unlike the solid-colour pages above, every page
+// has its own perceptual hash; `jitter` changes the pixels slightly (another release of the same page: other bytes, the same picture).
+function patternPng(width, height, seed, jitter) {
+  let state = seed * 2654435761 >>> 0;
+  const next = () => (state = (state * 1103515245 + 12345) >>> 0) / 4294967296;
+  const pixels = new Uint8Array(width * height).fill(255);
+  for (let k = 0; k < 10; k++) {
+    const x0 = Math.floor(next() * width), y0 = Math.floor(next() * height);
+    const x1 = Math.min(width, x0 + 10 + Math.floor(next() * width / 2)), y1 = Math.min(height, y0 + 10 + Math.floor(next() * height / 2));
+    const grey = Math.floor(next() * 160);
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) pixels[y * width + x] = grey;
+  }
+  const rows = [];
+  for (let y = 0; y < height; y++) {
+    const row = Buffer.alloc(1 + width * 3);
+    for (let x = 0; x < width; x++) {
+      const v = Math.max(0, Math.min(255, pixels[y * width + x] + (jitter && (x + y) % 7 === 0 ? 6 : 0)));
+      row.set([v, v, v], 1 + x * 3);
+    }
+    rows.push(row);
+  }
+  const chunk = (type, data) => {
+    const td = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+    return Buffer.concat([u32(data.length), td, u32(crc32(td))]);
+  };
+  const ihdr = Buffer.concat([u32(width), u32(height), Buffer.from([8, 2, 0, 0, 0])]);
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', deflateSync(Buffer.concat(rows))),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+const contentsDir = join(`${outDir}-volume-contents`, 'Contents Saga');
+mkdirSync(contentsDir, { recursive: true });
+const pagesOf = (seeds, jitter) => seeds.map((seed, i) => ({ name: `page${String(i + 1).padStart(3, '0')}.png`, data: patternPng(120, 180, seed, jitter) }));
+const chapter9 = [91, 92, 93, 94, 95, 96];
+const chapter10 = [101, 102, 103, 104, 105, 106];
+writeFileSync(join(contentsDir, 'Contents Saga v02.cbz'), zip(pagesOf([1, 2, ...chapter9, ...chapter10, 3, 4], false)));
+writeFileSync(join(contentsDir, 'Contents Saga - Chapter 009.cbz'), zip(pagesOf(chapter9, true)));
+writeFileSync(join(contentsDir, 'Contents Saga - Chapter 010.cbz'), zip(pagesOf(chapter10, true)));
+writeFileSync(join(contentsDir, 'Contents Saga - Chapter 011.cbz'), zip(pagesOf([111, 112, 113, 114, 115, 116], true)));
+console.log(`Series fixtures written to ${outDir} (and ${volumesDir}, ${readingModesDir}, ${jumpDir}, ${outDir}-volume-contents)`);

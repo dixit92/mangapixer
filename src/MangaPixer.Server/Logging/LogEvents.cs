@@ -286,7 +286,13 @@ public static class LogEvents
         public const int PerformanceSettingsLoadFailed = 4203;
         public const int PerformanceConfigInvalid = 4204;
 
-        // Reserved, 1.43.0: 4300-4399 volume contents scan (lane V).
+        // 1.44.0 volume contents scan (4300-4399, lane V): ids, counts, timings and codes only.
+        public const int VolumeScanFolderScanned = 4300;
+        public const int VolumeScanArchiveFailed = 4301;
+        public const int VolumeScanStopped = 4302;
+        public const int VolumeScanSweep = 4303;
+        public const int VolumeScanSweepFailed = 4304;
+        public const int VolumeScanSwitchChanged = 4305;
     }
 
     /// <summary>Derived-cache lifecycle: hits, publishes, eviction, budget pressure.</summary>

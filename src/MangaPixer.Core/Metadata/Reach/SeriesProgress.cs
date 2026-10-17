@@ -52,6 +52,12 @@ public sealed record ProgressFacts(
 /// <summary>A volume the Volumes view estimates (1.42.0): its number and the first / last chapter the estimate places in it (exact strings).</summary>
 public sealed record EstimatedVolume(decimal Volume, string FirstChapter, string LastChapter, bool HasVolumeFile);
 
+/// <summary>
+/// A volume file the volume contents scan read (1.44.0): its number, its row, whether its range is known (the stack is not estimated) and
+/// the chapter rows proven inside it with their numbers, ascending.
+/// </summary>
+public sealed record ScannedVolumeContents(decimal Volume, GroupingRow? VolumeFile, bool Known, IReadOnlyList<(GroupingRow Row, decimal Chapter)> Chapters);
+
 /// <summary>What <see cref="SeriesProgress.Evaluate"/> found.</summary>
 public sealed record ProgressResult
 {
@@ -70,6 +76,9 @@ public sealed record ProgressResult
     /// last chapter the estimate places in it. Empty when nothing is estimated or no grouping was made.
     /// </summary>
     public IReadOnlyList<EstimatedVolume> EstimatedVolumes { get; init; } = [];
+
+    /// <summary>1.44.0: the stacks whose volume file the volume contents scan found chapter files inside (empty when none).</summary>
+    public IReadOnlyList<ScannedVolumeContents> ScannedVolumes { get; init; } = [];
 
     /// <summary>Missing volumes above the highest volume here (released after it).</summary>
     public int VolumesBehind { get; init; }
@@ -243,6 +252,7 @@ public static class SeriesProgress
             Reach = reach,
             MissingVolumes = missingVolumes,
             EstimatedVolumes = EstimatedOf(grouping),
+            ScannedVolumes = ScannedOf(grouping),
             VolumesBehind = volumesBehind,
             ChapterHoles = holes,
             ChaptersBehind = behind,
@@ -269,6 +279,21 @@ public static class SeriesProgress
             .Where(s => s is { Confidence: VolumeStackConfidence.Estimated, FirstChapter: not null, LastChapter: not null })
             .Select(s => new EstimatedVolume(s!.Volume, s.FirstChapter!, s.LastChapter!, s.HasVolumeArchive))
             .OrderBy(e => e.Volume)
+            .ToList();
+
+    /// <summary>1.44.0: the stacks with chapter files proven inside their volume file, in volume order.</summary>
+    private static List<ScannedVolumeContents> ScannedOf(VolumeGroupingResult grouping) =>
+        grouping.Entries
+            .Select(e => e.Stack)
+            .OfType<VolumeStack>()
+            .Where(s => s.InVolumeFile.Count > 0)
+            .Select(s => new ScannedVolumeContents(
+                s.Volume,
+                s.Members.FirstOrDefault(m => m.IsVolumeArchive)?.Row,
+                s.Confidence == VolumeStackConfidence.Exact,
+                s.Members.Where(m => m.Placement == VolumePlacement.Scanned && m.Chapter is not null)
+                    .Select(m => (m.Row, m.Chapter!.Value)).OrderBy(c => c.Value).ToList()))
+            .OrderBy(s => s.Volume)
             .ToList();
 
     private static (int? Total, MissingTotalSource? Source) VolumeTotal(ProgressFacts facts)
