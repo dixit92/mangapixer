@@ -43,7 +43,8 @@ import { NodeRowComponent, directionShort as directionChip } from '../../shared/
 import { SelectionBarComponent } from '../../shared/selection/selection-bar.component';
 import { NodeSelection } from '../../shared/selection/node-selection';
 import { JumpRailComponent, bucketOwners } from './jump-rail.component';
-import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, LibraryReadStateFilter, LibraryViewPreferencesDto, FolderReadRollup, JumpIndexBucketDto, JumpIndexMode, ReadMarkDto, ReadingProgressDto } from '../../core/api/api-types';
+import { COMPLETION_OPTIONS, CompletionOption, completionLabel, completionOptionLabel } from './completion-filter';
+import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, LibraryReadStateFilter, LibraryViewPreferencesDto, SeriesAnswer, BrowseCompletionCountsDto, FolderReadRollup, JumpIndexBucketDto, JumpIndexMode, ReadMarkDto, ReadingProgressDto } from '../../core/api/api-types';
 
 /**
  * Library browse component. Shows the actual folder/archive tree with keyset
@@ -333,6 +334,27 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
             <mat-icon>{{ favoritesOnly() ? 'star' : 'star_border' }}</mat-icon>
             Favorites only
           </button>
+          <!-- Completion (1.44.0, lane C): keep only the series folders with this Completion answer (the Completion tab's). Shown only
+               where the level holds linked series; the counts appear once the server answered the level (while the filter is on). -->
+          @if (linkedSeries() > 0) {
+            <span class="menu-caption">Completion</span>
+            <button mat-menu-item role="menuitemradio" data-testid="completion-any"
+                    [class.selected-option]="completionFilter() === null"
+                    [attr.aria-checked]="completionFilter() === null"
+                    (click)="setCompletionFilter(null, $event)">
+              <mat-icon>filter_list</mat-icon>
+              Any
+            </button>
+            @for (opt of completionOptions; track opt.value) {
+              <button mat-menu-item role="menuitemradio" [attr.data-testid]="'completion-' + opt.value"
+                      [class.selected-option]="completionFilter() === opt.value"
+                      [attr.aria-checked]="completionFilter() === opt.value"
+                      (click)="setCompletionFilter(opt.value, $event)">
+                <mat-icon>{{ opt.icon }}</mat-icon>
+                {{ completionOptionText(opt) }}
+              </button>
+            }
+          }
         </mat-menu>
         <button mat-stroked-button class="select-toggle" (click)="toggleSelectMode()">
           <mat-icon>checklist</mat-icon> Select
@@ -816,15 +838,40 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
    */
   readonly favoritesOnly = signal(false);
 
-  /** True when ANY browse filter narrows the listing (read-state, hide-empty, favorites). */
-  readonly filterActive = computed(() =>
-    this.readStateFilter() !== 'all' || this.hideEmptyFolders() || this.favoritesOnly());
+  /**
+   * Completion filter (1.44.0, lane C): keep only the series folders whose Completion answer is this one. Server-side (the `completion`
+   * browse param), so it composes with the other filters and the keyset paging. Like them a transient view control kept while moving
+   * between folders, never saved; it applies only where the level holds linked series (`linkedSeries`), elsewhere the server ignores it.
+   */
+  readonly completionFilter = signal<SeriesAnswer | null>(null);
+  readonly completionOptions: readonly CompletionOption[] = COMPLETION_OPTIONS;
+  /** How many linked series the browsed level holds (the server's `linkedSeries`); the Completion section shows only above 0. */
+  readonly linkedSeries = signal(0);
+  /** The level's answers counted by the server while the Completion filter applies; null before. */
+  readonly completionCounts = signal<BrowseCompletionCountsDto | null>(null);
+  /** The Completion filter is chosen AND narrows this level. */
+  readonly completionApplies = computed(() => this.completionFilter() !== null && this.linkedSeries() > 0);
 
-  /** Toolbar button label: "Filter" when inactive, else the active read-state option's label. */
-  readonly readStateLabel = computed(() =>
-    this.readStateFilter() === 'all'
-      ? (this.hideEmptyFolders() || this.favoritesOnly() ? 'Filtered' : 'Filter')
-      : this.readStateOptions.find((o) => o.value === this.readStateFilter())?.label ?? 'Filter');
+  /** True when ANY browse filter narrows the listing (read-state, hide-empty, favorites, completion). */
+  readonly filterActive = computed(() =>
+    this.readStateFilter() !== 'all' || this.hideEmptyFolders() || this.favoritesOnly() || this.completionApplies());
+
+  /** Toolbar button label: "Filter" when inactive, the one active choice's label, else "Filtered". */
+  readonly readStateLabel = computed(() => {
+    const completion = this.completionApplies() ? this.completionFilter() : null;
+    const others = this.hideEmptyFolders() || this.favoritesOnly();
+    if (this.readStateFilter() === 'all') {
+      if (completion && !others) return completionLabel(completion);
+      return others || completion ? 'Filtered' : 'Filter';
+    }
+    if (completion) return 'Filtered';
+    return this.readStateOptions.find((o) => o.value === this.readStateFilter())?.label ?? 'Filter';
+  });
+
+  /** A Completion menu item's text: "Missing some (42)" once the level's answers are counted. */
+  completionOptionText(option: CompletionOption): string {
+    return completionOptionLabel(option, this.completionCounts());
+  }
 
   /**
    * Volumes view (1.29.0): whether this folder has one (`available`) and whether it is on for the viewer (`active`), read
@@ -1161,6 +1208,9 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
       // Forget the previous folder's Volumes view before loading the list: its default would otherwise pick the new folder's
       // `group` (1.30.0 soak test - a category folder's "flat" made its series open without the missing-volume cards).
       this.volumeView.set(null);
+      // 1.44.0: the new level's linked series come with its first page (the Completion section waits for them).
+      this.linkedSeries.set(0);
+      this.completionCounts.set(null);
       this.loadNodes();
       // The jump rail is a name-sort navigation aid over the UNFILTERED listing (1.10.0); since 1.41.0 in folders and both
       // directions too (the index is built for this folder and direction).
@@ -1188,6 +1238,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
       next: (res) => {
         // A response for a level / direction the user has already left is dropped.
         if (this.libraryId() !== libId || this.parentId() !== parentId || this.sortDirection() !== direction) return;
+        if (this.completionApplies()) return; // 1.44.0: the Completion filter narrows this level
         this.jumpMode.set(res.mode ?? 'letters');
         this.jumpBuckets.set(res.buckets);
       },
@@ -1451,6 +1502,22 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     this.scrollToTop('auto');
   }
 
+  /**
+   * Choose the Completion answer (1.44.0), or null for Any: reload from the top. Like the other filters it narrows the listing, so the
+   * jump rail hides while it applies. `$event` is swallowed so the menu stays open. Not persisted.
+   */
+  setCompletionFilter(answer: SeriesAnswer | null, event?: Event): void {
+    event?.stopPropagation();
+    if (this.completionFilter() === answer) return;
+    this.completionFilter.set(answer);
+    if (answer === null) this.completionCounts.set(null);
+    this.resetList();
+    this.loadNodes();
+    if (this.shouldShowJumpRail()) this.loadJumpIndex(this.libraryId());
+    else this.jumpBuckets.set([]);
+    this.scrollToTop('auto');
+  }
+
   /** Whether `?favorites=1` (a favorites stack tap, 1.27.0) turned the filter on. */
   private favoritesFromQuery = false;
 
@@ -1477,7 +1544,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     return this.sort() === 'name'
       && this.readStateFilter() === 'all'
       && !this.hideEmptyFolders()
-      && !this.favoritesOnly();
+      && !this.favoritesOnly()
+      && !this.completionApplies();
   }
 
   /** The hover-summary zone id (1.27.0): only items that show the (i), never in select mode. */
@@ -1998,7 +2066,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     const gen = ++this.loadGen;
     this.loadingMore.set(true);
     const preferVolumes = initial && this.preferVolumesOnce;
-    this.api.browseLibrary(libId, this.parentId(), this.cursor, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders(), null, this.favoritesOnly(), this.groupParam(), preferVolumes).subscribe({
+    this.api.browseLibrary(libId, this.parentId(), this.cursor, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders(), null, this.favoritesOnly(), this.groupParam(), preferVolumes, this.completionFilter()).subscribe({
       next: (response: PageResponse<CatalogNodeDto>) => {
         if (gen !== this.loadGen) return;
         if (preferVolumes) {
@@ -2014,6 +2082,12 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
         this.cursor = response.nextCursor;
         this.loadingMore.set(false);
         if (initial) this.nextUnread.set(response.nextUnread ?? null);
+        // 1.44.0: whether this level holds linked series (the Completion section) and, while the filter applies, its answer counts.
+        if (initial) {
+          this.linkedSeries.set(response.linkedSeries ?? 0);
+          this.completionCounts.set(response.completionCounts ?? null);
+          if (this.completionApplies()) this.jumpBuckets.set([]);
+        }
         if (!isAppend) {
           // Window-top backward-paging state: a jump lands mid-list (hasPrevious true),
           // a load from the start has nothing above it (hasPrevious false).
@@ -2043,7 +2117,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     const container = this.scrollParent();
     const prevHeight = this.scrollHeightOf(container);
     this.loadingPrevious.set(true);
-    this.api.browseLibrary(libId, this.parentId(), null, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders(), before, this.favoritesOnly(), this.groupParam()).subscribe({
+    this.api.browseLibrary(libId, this.parentId(), null, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders(), before, this.favoritesOnly(), this.groupParam(), false, this.completionFilter()).subscribe({
       next: (response: PageResponse<CatalogNodeDto>) => {
         if (gen !== this.loadGen) { this.loadingPrevious.set(false); return; }
         if (response.items.length > 0) {

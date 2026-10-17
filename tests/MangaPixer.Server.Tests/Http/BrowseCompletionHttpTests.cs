@@ -28,11 +28,11 @@ public sealed class BrowseCompletionHttpTests : IClassFixture<MangaPixerWebAppli
         _factory = factory;
     }
 
-    private sealed record Node(string Id, string DisplayName, string Kind);
+    private sealed record Item(string Id, string DisplayName, string Kind);
 
     private sealed record Counts(int HaveItAll, int FinishedMissing, int UpToDate, int MissingSome, int CantTell);
 
-    private sealed record Page(List<Node> Items, int TotalCount, string? NextCursor, bool HasMore, int? LinkedSeries, Counts? CompletionCounts);
+    private sealed record Page(List<Item> Items, int TotalCount, string? NextCursor, bool HasMore, int? LinkedSeries, Counts? CompletionCounts);
 
     // Root: five answered series + one with tracking off, a plain folder with two files, a loose file, and a category folder ("Shelf")
     // holding one series and one plain folder.
