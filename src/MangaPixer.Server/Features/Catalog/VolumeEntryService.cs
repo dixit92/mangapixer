@@ -416,8 +416,10 @@ public sealed class VolumeEntryService
         // 1.44.0: the volumes the series' list maps (the volume contents scan never scans those), then the scan's answers for the
         // archives of this view: chapter files proven inside a volume file join its stack, a Known volume joins the map.
         var listedVolumes = map is { ChaptersOnly: false } ? map.Volumes.Select(v => v.Volume).ToHashSet() : [];
-        var scans = await VolumeScan.VolumeContentReader.LoadAsync(_db,
-            byId.Values.Where(r => r.Kind != (int)CatalogNodeKind.Folder).ToDictionary(r => r.InternalId, r => r.Id), ct);
+        var scans = VolumeContents.MayApply(rows)
+            ? await VolumeScan.VolumeContentReader.LoadAsync(_db,
+                byId.Values.Where(r => r.Kind != (int)CatalogNodeKind.Folder).ToDictionary(r => r.InternalId, r => r.Id), ct)
+            : [];
         IReadOnlyList<GroupingRow> scannedRows = rows;
         (scannedRows, map) = VolumeContents.Apply(rows, map, scans);
         // The series' progress over its whole scope (1.30.0): the same engine and rows as the Missing report.

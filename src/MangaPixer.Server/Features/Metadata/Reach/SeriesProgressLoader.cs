@@ -123,7 +123,7 @@ public sealed class SeriesProgressLoader(MangaPixerDbContext db)
                 editions.GetValueOrDefault(target.NodeId));
             // 1.44.0: the volume contents scan's answers, as the Volumes view reads them (VolumeContentReader, VolumeContents.Apply).
             var (rows, scannedMap) = VolumeContents.Apply(built, listMap,
-                await VolumeScan.VolumeContentReader.LoadAsync(db, archiveIds, ct));
+                VolumeContents.MayApply(built) ? await VolumeScan.VolumeContentReader.LoadAsync(db, archiveIds, ct) : []);
             var map = scannedMap ?? listMap;
             var progress = SeriesProgress.Evaluate(rows, map, facts, restarts);
             var units = rows.Select(VolumeGrouping.UnitsOf).ToList();

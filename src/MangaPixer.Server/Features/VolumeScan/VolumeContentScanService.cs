@@ -78,6 +78,7 @@ public sealed class VolumeContentScanService(
     public const string ConfigEnabledKey = "MangaPixer:VolumeScan:Enabled";
     public const string InitialDelayKey = "MangaPixer:VolumeScan:InitialDelaySeconds";
     public const string PollKey = "MangaPixer:VolumeScan:PollSeconds";
+    public const string RetryKey = "MangaPixer:VolumeScan:RetrySeconds";
 
     /// <summary>The hourly sweep (also after every library scan that changed something).</summary>
     public static readonly TimeSpan SweepInterval = TimeSpan.FromHours(1);
@@ -87,6 +88,7 @@ public sealed class VolumeContentScanService(
     private volatile int _waiting = -1;
     private DateTimeOffset? _lastSweepStart;
     private DateTimeOffset? _lastLibraryScan;
+    private readonly Dictionary<long, DateTimeOffset> _retry = [];
 
     /// <summary>False when configuration switches the scan off (whatever the admin switch says).</summary>
     public bool ConfigEnabled => configuration.GetValue(ConfigEnabledKey, true);
@@ -149,7 +151,15 @@ public sealed class VolumeContentScanService(
         var front = new List<long>();
         while (queue.TryDequeue(out var folder))
         {
-            if (folder != 0)
+            if (folder != 0 && !front.Contains(folder))
+                front.Add(folder);
+        }
+        // Folders put off by a file waiting for its analysis or changing: again after a short wait, not only at the next sweep.
+        var retryAt = time.GetUtcNow();
+        foreach (var (folder, at) in _retry.Where(r => r.Value <= retryAt).ToList())
+        {
+            _retry.Remove(folder);
+            if (!front.Contains(folder))
                 front.Add(folder);
         }
         var lastScan = await LastLibraryScanAsync(ct);
@@ -220,7 +230,10 @@ public sealed class VolumeContentScanService(
     {
         using var scope = scopes.CreateScope();
         var scanner = scope.ServiceProvider.GetRequiredService<VolumeContentScanner>();
-        return await scanner.ScanFolderAsync(folderId, () => Enabled, ct);
+        var outcome = await scanner.ScanFolderAsync(folderId, () => Enabled, ct);
+        if (outcome == FolderScanOutcome.Deferred)
+            _retry[folderId] = time.GetUtcNow() + TimeSpan.FromSeconds(Math.Clamp(configuration.GetValue(RetryKey, 60), 1, 3600));
+        return outcome;
     }
 
     private async Task RefreshSwitchAsync(CancellationToken ct)

@@ -16,6 +16,13 @@ public sealed record ScannedChapter(string RowId, decimal? Number);
 /// </summary>
 public static class VolumeContents
 {
+    /// <summary>True when one of the rows reads as a volume file: only then can a stored scan answer apply (readers skip the lookup).</summary>
+    public static bool MayApply(IReadOnlyList<GroupingRow> rows)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        return rows.Any(r => r.Kind == GroupingRowKind.Archive && VolumeGrouping.UnitsOf(r) is { Chapter: null, Volume: not null });
+    }
+
     /// <summary>
     /// (a) Every chapter row proven inside a volume file carries that volume (<see cref="GroupingRow.InVolumeFile"/>): it sits in that
     /// volume's stack (<see cref="VolumePlacement.Scanned"/>). (b) A <see cref="VolumeContentState.Known"/> volume joins a map that

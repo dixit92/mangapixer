@@ -108,7 +108,7 @@ public sealed class VolumeContentScanner(
     }
 
     /// <summary>The volume files and candidate chapter files of a folder in scope, or null when the folder is out of scope.</summary>
-    internal sealed record FolderScope(long FolderId, List<Target> Volumes, List<Target> Chapters, List<long> OutOfScopeVolumes);
+    internal sealed record FolderScope(long FolderId, List<Target> Volumes, List<Target> Chapters, List<long> OutOfScopeVolumes, bool AnalysisPending = false);
 
     internal sealed record Target(long NodeId, decimal Number, long ContentVersion, int PageCount, string ArchivePath, long ModificationTicks,
         long ByteLength);
@@ -122,6 +122,9 @@ public sealed class VolumeContentScanner(
         if (scope is null)
             return FolderScanOutcome.OutOfScope;
         await ForgetAsync(scope.OutOfScopeVolumes, ct);
+        // A file still waiting for its analysis (a scan just found it): try the folder again soon, with every file known.
+        if (scope.AnalysisPending)
+            return FolderScanOutcome.Deferred;
         if (scope.Volumes.Count == 0 || scope.Chapters.Count == 0)
             return FolderScanOutcome.OutOfScope;
 
@@ -252,6 +255,7 @@ public sealed class VolumeContentScanner(
 
         var internalOf = view.Rows.ToDictionary(p => p.Key, p => p.Value.InternalId, StringComparer.Ordinal);
         var ids = volumeRows.Concat(chapterRows).Select(r => internalOf[r.Id]).ToList();
+        var pending = await db.ArchiveItems.AsNoTracking().AnyAsync(a => ids.Contains(a.NodeId) && a.AnalysisState == 1, ct);
         var items = await db.ArchiveItems.AsNoTracking()
             .Where(a => ids.Contains(a.NodeId) && a.AnalysisState == 0 && a.PageCount > 0)
             .Join(db.CatalogNodes, a => a.NodeId, n => n.Id, (a, n) => new { a.NodeId, a.ContentVersion, a.PageCount, a.ModificationTicks, a.ByteLength, n.LibraryId, n.RelativePath })
@@ -265,7 +269,8 @@ public sealed class VolumeContentScanner(
             folderId,
             volumeRows.Select(TargetOf).OfType<Target>().OrderBy(t => t.Number).ThenBy(t => t.NodeId).ToList(),
             chapterRows.Select(TargetOf).OfType<Target>().OrderBy(t => t.Number).ThenBy(t => t.NodeId).ToList(),
-            outOfScope.Select(id => internalOf[id]).ToList());
+            outOfScope.Select(id => internalOf[id]).ToList(),
+            pending);
     }
 
     /// <summary>Drops stored answers of volume files a list maps now (the list is the authority).</summary>

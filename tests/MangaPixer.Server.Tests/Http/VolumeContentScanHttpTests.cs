@@ -22,6 +22,7 @@ public sealed class VolumeContentScanHttpTests : IDisposable
             ["MangaPixer:VolumeScan:Enabled"] = "true",
             ["MangaPixer:VolumeScan:InitialDelaySeconds"] = "0",
             ["MangaPixer:VolumeScan:PollSeconds"] = "1",
+            ["MangaPixer:VolumeScan:RetrySeconds"] = "1",
         });
 
     private readonly string _root = Path.Combine(Path.GetTempPath(), "mangapixer-volscan-http-" + Guid.NewGuid().ToString("N")[..8]);

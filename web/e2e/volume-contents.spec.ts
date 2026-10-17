@@ -69,15 +69,16 @@ test('the chapters inside a volume file join its stack, and the volume says so',
   const [libraryId, folderId] = await ensureLibrary(page);
 
   // The owner's path: the folder's Volumes view (opening it puts the folder first in the scan) -> the volume -> the line.
+  // Before the scan nothing groups (one volume file, loose chapters): the folder lists its files.
   await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
   const volume = page.locator('.node-wrap', { hasText: 'Volume 2' });
-  await expect(volume).toBeVisible();
   // The scan runs in the background: reload until the volume file and the chapters found inside are one stack.
   await expect.poll(async () => {
     await page.reload();
-    await expect(page.locator('.node-wrap', { hasText: 'Volume 2' })).toBeVisible();
+    await page.locator('.node-wrap').first().waitFor();
     return page.locator('app-stack-card').count();
   }, { timeout: 120_000, intervals: [2000, 3000, 5000] }).toBe(1);
+  await expect(volume).toBeVisible();
   await expect(volume.locator('.node-sub')).toContainText('2 chapters');
   // Chapter 11 is not inside: it stays a loose chapter after the volumes.
   await expect(page.locator('.node-wrap', { hasText: 'Chapter 011' })).toBeVisible();
