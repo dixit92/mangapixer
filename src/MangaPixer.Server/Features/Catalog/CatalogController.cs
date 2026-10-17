@@ -197,11 +197,6 @@ public sealed class CatalogController : ControllerBase
     }
 
     /// <summary>
-    /// Parses the read-state filter query param (1.10.0). Tolerant of the wire values
-    /// "reading"/"read"/"unread" (case-insensitive); anything else — including null and
-    /// "all" — disables the filter, so older clients and omitted params behave as before.
-    /// </summary>
-    /// <summary>
     /// 1.44.0 lane C: the Completion filter query param - a <see cref="SeriesAnswer"/> name ("HaveItAll", "FinishedMissing", "UpToDate",
     /// "MissingSome", "CantTell"; case-insensitive). Anything else, numbers included, means no filter (tolerant, like the read state).
     /// </summary>
@@ -211,6 +206,11 @@ public sealed class CatalogController : ControllerBase
             ? answer
             : null;
 
+    /// <summary>
+    /// Parses the read-state filter query param (1.10.0). Tolerant of the wire values
+    /// "reading"/"read"/"unread" (case-insensitive); anything else — including null and
+    /// "all" — disables the filter, so older clients and omitted params behave as before.
+    /// </summary>
     private static BrowseReadStateFilter ParseReadState(string? value)
     {
         if (string.IsNullOrEmpty(value))

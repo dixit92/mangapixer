@@ -321,4 +321,29 @@ public sealed class VolumeContentScannerTests : IDisposable
         await PagesOfAsync(db, lib, volume, [.. Pages(3), .. c9, .. c10, .. Pages(4)]);
         return folder;
     }
+
+    [Fact]
+    public async Task TheBrowseCompletionFilter_ReadsTheSameAnswer_AsTheScanAwareProgress()
+    {
+        // 1.44.0 merge seam (lanes V + C): the browse filter answers a level with the same SeriesProgressLoader that now carries the scan's
+        // results. By design the scan never changes the answer itself (SeriesAnswers reads held vs released numbers; the scan only places
+        // chapters and makes a volume's range known) - this proves the two paths agree on a scanned series and the filter keeps it.
+        var (db, lib) = await SetupAsync();
+        using var _ = db;
+        var (series, _, _, record) = await SeedLinkedAsync(db, lib);
+        await Scanner(db).ScanFolderAsync(series.Id, () => true, default);
+        var progress = (await new SeriesProgressLoader(db).LoadAsync([new SeriesProgressTarget(series.Id, record.Id)], default))[series.Id];
+        Assert.True(Assert.Single(progress.Result.ScannedVolumes).Known);
+        var answer = progress.Result.Answer;
+        var user = await VolumeTestData.AddUserAsync(db);
+
+        var browse = new CatalogBrowseService(db, new Server.Features.Auth.LibraryAuthorizationService(db));
+        var page = await browse.BrowseAsync(user.Id, lib.Id, null, null, completion: answer);
+        Assert.Equal(1, page.LinkedSeries);
+        Assert.Equal(series.PublicId, Assert.Single(page.Items).Id);
+        var counts = page.CompletionCounts!;
+        Assert.Equal(1, counts.HaveItAll + counts.FinishedMissing + counts.UpToDate + counts.MissingSome + counts.CantTell);
+        var other = Enum.GetValues<SeriesAnswer>().First(a => a != answer);
+        Assert.Empty((await browse.BrowseAsync(user.Id, lib.Id, null, null, completion: other)).Items);
+    }
 }

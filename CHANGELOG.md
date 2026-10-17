@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Find the chapters inside volume files.** When no volume list says which chapters a volume file holds, MangaPixer now reads the pages of the volume file and of the chapter files next to it, in the background, and compares them (another release of the same pages counts). The chapter files it finds join the volume's stack, and the volume's page says "Chapters 51-58 are inside the volume file"; when they fill the volume, it shows "Volume 8" instead of "~ Volume 8" and the volumes around it are placed from it. It never reads folders marked "Don't match", doujinshi folders or series, or webtoons listed as chapters, and never changes a volume a list maps. Files are only read; nothing leaves the server. The work follows "Background work while someone reads", and folders you open in the Volumes view go first.
+- **Administration > Volume contents** has the switch "Find the chapters inside volume files" (on by default) and its counts; **Scheduled jobs** has a **Volume contents** row (hourly and after library scans). `MangaPixer:VolumeScan:Enabled=false` turns it off.
+- **Metadata export:** a volume read from the files lists the chapter files inside it (`filesInside`, `sources: ["scan"]`; the proven range when the volume is known), and those chapter files are listed as `duplicates` with `inVolume`. Left out when there are none.
+- **A Completion filter** in a library's **Filter** menu: pick **Have it all**, **Finished, missing some**, **Everything so far**, **Missing some** or **Can't tell** - the answers of the Completion tab - to see only the series folders with that answer; each answer shows how many series in the folder have it. It appears in folders that hold linked series, works for everyone who can open the folder, and combines with **Show**, **Hide empty folders** and **Favorites only**. While it is on, other folders and loose files are hidden and the **Filter** button shows the answer's icon.
+- **Set *tracker*'s volumes to N.** When MyAnimeList's or MangaUpdates' own chapter count finishes more volumes than it lists (for example 271 chapters finish volume 27, but the list says 25), the Tracking page, the series' **Tracking** button and Select mode offer to raise the tracker's volume count to match, by the series' volume list from MangaDex or Wikipedia. Only on your click, only the volume count - never the chapters or the status - and only for a series you are reading or plan to read.
+- **The series' Tracking button says why a folder is not synced** - in one of your Private libraries, doujinshi, or sync turned off for it - instead of "nothing read", and offers **Turn sync on** right there (the same setting as **Select** > **Sync** > **On**; nothing is sent by the switch itself).
+
+### Changed
+
+- **A running library scan shows on its row** in **Administration** > **Libraries**: a ring around its icon, a thin line along the bottom of the row, and **Scanning…** with **Cancel scan** in its line. The icons on the right stay where they are; **Scan now** is greyed out until the scan ends.
+- **A volume's incomplete mark says "5 of 6 ch"** instead of "5/6", and its tooltip says how many chapters are missing.
+- **On a phone, the Tracking page's select bar folds the reasons** why an action does not apply behind one "Why N actions are off" line; a tap opens them.
+- **The media worker speaks protocol 6** (the new page-hash request); server and worker must be the same version, as always.
+- **Magick.NET 15**, SharpCompress 0.50.5, Angular 22.2.2 and Playwright 1.64 (dependency updates; image hashes are unchanged).
+
+### Fixed
+
+- **Split chapters count toward your trackers.** A series whose newest chapters are split files (33.1 + 33.2 ... 37.1 + 37.2) counted only up to its last whole chapter, so the Tracking page said the tracker was ahead. A split chapter now counts once all its parts are read - for the sync, the gold ring, and **Set progress from *tracker* to MangaPixer**, which marks the parts too.
+- **The gold ring shows on a virtual volume's own page** - the chapter cards inside a volume of the Volumes view now carry it like everywhere else.
+- **The Tracking page never shows a total below what MangaPixer counts** ("130 of 129 ch" reads "130 ch").
+
 ## [1.43.2] - 2026-10-16
 
 ### Added
