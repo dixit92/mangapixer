@@ -40,8 +40,8 @@ The ASP.NET Core and .NET runtime assemblies themselves come from the base image
 
 ### 1a. Application runtime (51)
 
-- `Magick.NET-Q8-AnyCPU` - 14.17.2 - Apache-2.0 - https://github.com/dlemstra/Magick.NET
-- `Magick.NET.Core` - 14.17.2 - Apache-2.0 - https://github.com/dlemstra/Magick.NET
+- `Magick.NET-Q8-AnyCPU` - 15.0.0 - Apache-2.0 - https://github.com/dlemstra/Magick.NET
+- `Magick.NET.Core` - 15.0.0 - Apache-2.0 - https://github.com/dlemstra/Magick.NET
 - `Microsoft.AspNetCore.Identity.EntityFrameworkCore` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.AspNetCore.OpenApi` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.Data.Sqlite.Core` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
@@ -123,26 +123,26 @@ which is under the ImageMagick License, an Apache-2.0-derived license
 (https://imagemagick.org/license/; Copyright 1999 ImageMagick Studio LLC).
 The native `Magick.Native-Q8` library contains the components below. Full license
 texts and copyright notices for all of them are in `Notice.txt` at the root of
-the `Magick.NET-Q8-AnyCPU` 14.17.2 NuGet package. Versions and licenses below are
+the `Magick.NET-Q8-AnyCPU` 15.0.0 NuGet package. Versions and licenses below are
 taken from that file. The notice gives upstream URLs only for ImageMagick and
 FreeType; for the rest, the package's `Notice.txt` is the reference.
 
-- `ImageMagick` - 7.1.2-32 - ImageMagick (Apache-2.0-derived) - https://imagemagick.org
+- `ImageMagick` - 7.1.2-33 - ImageMagick (Apache-2.0-derived) - https://imagemagick.org
 - `aom` - 3.15.1 - BSD-2-Clause - see Notice.txt
 - `brotli` - 1.2.0 - MIT - see Notice.txt
 - `libbzip2` - 1.0.8 - bzip2-1.0.6 - see Notice.txt
 - `cairo` - 1.18.6 - MPL-1.1 (text reproduced in the notice; upstream cairo is LGPL-2.1 OR MPL-1.1) - see Notice.txt
 - `libcroco` - 0.6.13 - LGPL-2.0 (GNU Library GPL v2 text) - see Notice.txt
 - `libde265` - 1.1.3 - LGPL-3.0 (library; sample applications MIT) - see Notice.txt
-- `openexr` - 3.5.1 - BSD-3-Clause - see Notice.txt
+- `openexr` - 3.5.2 - BSD-3-Clause - see Notice.txt
 - `libffi` - 3.8.0 - MIT - see Notice.txt
 - `fontconfig` - 2.18.3 - MIT-style (fontconfig license) incl. Unicode data terms - see Notice.txt
 - `freetype` - 2.14.3 - FTL - https://freetype.org
 - `fribidi` - 1.0.17 - LGPL-2.1-or-later - see Notice.txt
 - `gdk-pixbuf` - 2.44.8 - LGPL-2.1-or-later - see Notice.txt
 - `glib` - 2.64.3 - LGPL-2.1-or-later - see Notice.txt
-- `harfbuzz` - 14.5.0 - MIT-style ("Old MIT") - see Notice.txt
-- `libheif` - 1.23.5 - LGPL-3.0 (library; samples and wrappers MIT) - see Notice.txt
+- `harfbuzz` - 14.6.0 - MIT-style ("Old MIT") - see Notice.txt
+- `libheif` - 1.23.6 - LGPL-3.0 (library; samples and wrappers MIT) - see Notice.txt
 - `libhwy` - 1.4.0 - Apache-2.0 OR BSD-3-Clause - see Notice.txt
 - `imath` - 3.2.3 - BSD-3-Clause - see Notice.txt
 - `libjpeg-turbo` - 3.2.0 - IJG AND BSD-3-Clause (its Zlib-licensed parts are subsumed, per the notice) - see Notice.txt
@@ -155,7 +155,7 @@ FreeType; for the rest, the package's `Notice.txt` is the reference.
 - `openjph` - 0.32.0 - BSD-2-Clause - see Notice.txt
 - `pango` - 1.45.3 - LGPL-2.0 (GNU Library GPL v2 text) - see Notice.txt
 - `pixman` - 0.46.4 - MIT - see Notice.txt
-- `libpng` - 1.6.58 - libpng-2.0 - see Notice.txt
+- `libpng` - 1.6.59 - libpng-2.0 - see Notice.txt
 - `libraqm` - 0.11.0 - MIT - see Notice.txt
 - `libraw` - 0.22.2 - LGPL-2.1 (as reproduced in the notice) - see Notice.txt
 - `librsvg` - 2.40.20 - LGPL-2.0 (GNU Library GPL v2 text) - see Notice.txt
@@ -1174,7 +1174,7 @@ The Windows package (`scripts/Publish-Windows.ps1` stages it; `installer/MangaPi
 - `.NET runtime` - 10.0.12 (win-x64, self-contained: `coreclr.dll`, `clrjit.dll`, `hostfxr.dll`, `hostpolicy.dll`, `msquic.dll`, `System.IO.Compression.Native.dll`, the `System.*` assemblies and the diagnostics helpers, published into `server\` and `worker\`) - MIT - https://github.com/dotnet/runtime. Microsoft's own third-party notices for the runtime are in that repository's `THIRD-PARTY-NOTICES.TXT`; `dotnet publish` does not copy that file.
 - `ASP.NET Core runtime` - 10.0.12 (`Microsoft.AspNetCore.*` assemblies, server only) - MIT - https://github.com/dotnet/aspnetcore
 - `.NET Windows Desktop runtime` (Windows Forms) - 10.0.12, inside the single-file `MangaPixer.Tray.exe` - MIT - https://github.com/dotnet/winforms. The tray project references no NuGet packages; the framework is all it ships.
-- `Magick.Native-Q8-x64.dll` - the Windows build of the native library described in section 1c: the same bundled components and licenses, from the same `Magick.NET-Q8-AnyCPU` 14.17.1 package. Its `Notice.txt` ships as `Magick.NET-Notice.txt` next to the tray executable.
+- `Magick.Native-Q8-x64.dll` - the Windows build of the native library described in section 1c: the same bundled components and licenses, from the same `Magick.NET-Q8-AnyCPU` 15.0.0 package. Its `Notice.txt` ships as `Magick.NET-Notice.txt` next to the tray executable.
 - `e_sqlite3.dll` - SQLite 3.53.4 (win-x64, from `SQLitePCLRaw.bundle_e_sqlite3`, section 1a) - blessing (SQLite public-domain dedication) - https://sqlite.org/
 - `WiX Toolset` - 6.0.2 (`WixToolset.Sdk`, `WixToolset.UI.wixext`, `WixToolset.Util.wixext`, restored as the pinned `wix` .NET tool by `scripts/Build-Installer.ps1`) - MS-RL (Microsoft Reciprocal License) for the source; the prebuilt packages are provided under the WiX Open Source Maintenance Fee agreement, whose fee applies only to revenue-generating use and which leaves redistribution of built output governed by MS-RL - https://github.com/wixtoolset/wix. The MSI embeds the two extensions' custom-action libraries (the WixUI and WixUtil custom actions) in its `Binary` table; nothing else from the toolset reaches users. `License.rtf`, shown by the installer, is the MIT text of `LICENSE`.
 

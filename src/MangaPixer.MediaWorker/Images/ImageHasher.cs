@@ -73,7 +73,7 @@ public static class ImageHasher
             using var image = new MagickImage(bytes, settings);
             var (width, height) = ((int)image.Width, (int)image.Height);
             image.BackgroundColor = MagickColors.White;
-            image.Alpha(AlphaOption.Remove);
+            image.Alpha(AlphaAction.Remove);
             image.Grayscale(PixelIntensityMethod.Rec709Luma);
             image.FilterType = FilterType.Lanczos;
             image.Resize(new MagickGeometry(CoverHash.Side, CoverHash.Side) { IgnoreAspectRatio = true });
