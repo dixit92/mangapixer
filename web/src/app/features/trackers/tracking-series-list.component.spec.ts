@@ -81,6 +81,19 @@ describe('TrackingSeriesListComponent', () => {
     expect(q(el, 'tracking-dates-s2').textContent).toContain('Start Oct 15, 2026 (auto)');
   });
 
+  it('1.44.0 (UX review): "Set volumes" says what it did; the offer is hidden for a series not synced', () => {
+    const offered = seriesRow({ seriesId: 's1', nodeId: 'n1', remoteChapters: 271, remoteVolumes: 25, volumesFromChapters: 27 });
+    const off = seriesRow({ seriesId: 's2', nodeId: 'n2', title: 'Synthetic Off', dontSync: true, remoteChapters: 271, remoteVolumes: 25,
+      volumesFromChapters: 27 });
+    const { fixture, http, el } = create(seriesPage([offered, off]));
+    expect(q(el, 'tracking-volumes-s2')).toBeNull();
+    q(el, 'tracking-volumes-set-s1').click();
+    http.expectOne(`${BASE}/entries/s1/volumes-from-chapters`).flush({});
+    http.expectOne('/api/v1/trackers/nodes/n1/summary').flush({ seriesId: 's1', rows: [{ ...offered, remoteVolumes: 27, volumesFromChapters: null }] });
+    fixture.detectChanges();
+    expect(q(el, 'tracking-notice-mal').textContent).toBe("Synthetic Saga: MyAnimeList's volumes set to 27.");
+  });
+
   it('shows the rows with both sides, the chips with counts and the paging line', () => {
     const { el, firstReq } = create(seriesPage([AHEAD(), seriesRow({ seriesId: 's2', title: 'Second Story' })], {
       totalCount: 120, counts: listCounts({ inSync: 100, trackerAhead: 20 }),
@@ -180,7 +193,7 @@ describe('TrackingSeriesListComponent', () => {
     http.expectOne(`${BASE}/entries/s1/send`).flush(entry({ localChapters: 40, lastSentChapters: 40, remoteChapters: 40 }));
     http.expectOne('/api/v1/trackers/nodes/n1/summary').flush({ seriesId: 's1', rows: [seriesRow({ allChapters: 40, remoteChapters: 40 })] });
     fixture.detectChanges();
-    expect(q(el, 'tracking-notice-mal').textContent).toContain('Synthetic Saga: up to date.');
+    expect(q(el, 'tracking-notice-mal').textContent).toContain('Synthetic Saga: Up to date.'); // 1.44.0: the state text keeps its capitals
     expect(q(el, 'tracking-remote-s1').textContent).toContain('40 ch');
   });
 

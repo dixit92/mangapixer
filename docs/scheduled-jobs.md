@@ -38,6 +38,7 @@ These are listed so you can see that they run, but they have no time to choose: 
 | **Volume covers and volume lists** | Continuous, together with automatic matching; each series on its refresh schedule. |
 | **Cover choices** | Every 10 minutes. Nothing is sent anywhere. |
 | **Content signatures** | Every 6 hours while older archives have no fingerprint yet. |
+| **Volume contents** *(1.44.0)* | Hourly and after library scans, while **Find the chapters inside volume files** is on (Administration > **Volume contents**): reads volume files and the chapter files next to them to tell which chapters a volume file holds. Only reads files; nothing leaves the server. See [Volumes view](volumes.md#chapters-found-inside-a-volume-file). |
 | **Sign-in session clean-up** | Hourly. |
 | **Thumbnails** | Once after start-up. |
 | **Update check** | When an admin opens Administration, at most once a day, while the [Update Checker](configuration.md#settings-stored-in-the-app) is on. |

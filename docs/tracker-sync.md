@@ -62,9 +62,10 @@ The requests come from the **server**, not from your browser: your browser only 
 
 - **While you read.** Finishing an archive in the reader, or marking one archive read, updates the tracker right away.
 - **Folders marked read at once, and imported reading, wait for you.** A jump like that shows in your list as **Waiting for you**: press **Set progress from MangaPixer to *tracker*** for one series, or select them all in that chip and apply it to every one at once (see [Select several series](#select-several-series)).
-- **Nothing happens while nobody reads**, except what you start yourself: **Sync now**, the two **Set progress** buttons (for one series or for the series you selected), or **Check my list**.
+- **Nothing happens while nobody reads**, except what you start yourself: **Sync now**, the two **Set progress** buttons (for one series or for the series you selected), **Set *tracker*'s volumes to N** (*new in 1.44.0*), or **Check my list**.
 - **When a series' volume list changes** (MangaPixer refreshed it), the series is checked again, so volumes it now knows count.
 - **Marking something unread never lowers the tracker.**
+- **Split chapters count** (*new in 1.44.0*). A chapter split into parts (33.1 and 33.2) counts as read once every part of it here is read - for the sync, the gold border, and **Set progress from *tracker* to MangaPixer** (which marks the parts too). Before, a series whose newest chapters were split files counted only up to its last whole chapter.
 
 MangaPixer counts the highest whole chapter you have read (extras and half chapters do not count) and the volumes you have read - as volume files, or as chapter files when you read every chapter of that volume. Volumes are counted only for series whose volume list MangaPixer knows exactly.
 
@@ -97,6 +98,8 @@ You can change that for a folder or for chosen series:
 
 A folder's setting **covers everything inside it**. When a series and a folder above it both have a setting, the nearest one wins. The **Sync** button shows only when you have a connected account. These settings are yours: other users are not affected.
 
+*New in 1.44.0:* a series that does not sync for one of these reasons says so in its **Tracking** button - MangaPixer **not synced**, and why (*this folder is in one of your Private libraries*, *this series is doujinshi*, or *you turned sync off for this folder*) - with **Turn sync on**, the same setting as **Select** > **Sync** > **On** for that folder. Turning it on sends nothing by itself: the folder counts the next time you read in it, or with **Sync now**.
+
 ## Which series sync
 
 A series syncs when the tracker's own number for it is known:
@@ -122,7 +125,7 @@ Below the cards, the **Tracking** page lists your series on each tracker you con
 | Not synced | You pressed **Don't sync this series**, or the series is not on your list and **Add series I start reading** is off. |
 | In sync, Not checked yet, Sync problem | Shown when they hold a series: both sides agree; MangaPixer has not read the tracker for it yet; the last attempt failed (the reason is shown). |
 
-Each row shows the series' cover and title (open it to go to the series), its state, **MangaPixer**'s chapters and volumes read (of how many, when known), the **tracker**'s numbers and status as MangaPixer last read them, and for MyAnimeList the start and finish dates. The tracker's numbers are a link (with an external-link icon) that opens the series on MyAnimeList or MangaUpdates in a new tab; it is there only when the tracker's number for the series is known. Your browser opens that page itself, without telling the site which address you came from (no referrer), and MangaPixer makes no request for it.
+Each row shows the series' cover and title (open it to go to the series), its state, **MangaPixer**'s chapters and volumes read (of how many, when known - a total below what MangaPixer counts is left out), the **tracker**'s numbers and status as MangaPixer last read them, and for MyAnimeList the start and finish dates. The tracker's numbers are a link (with an external-link icon) that opens the series on MyAnimeList or MangaUpdates in a new tab; it is there only when the tracker's number for the series is known. Your browser opens that page itself, without telling the site which address you came from (no referrer), and MangaPixer makes no request for it.
 
 ### Bring the two sides in line
 
@@ -130,6 +133,10 @@ Each row has two buttons; the one that cannot move anything is greyed out, and a
 
 - **Set progress from *tracker* to MangaPixer** - marks chapters and volumes **read here** up to the tracker's numbers, for example after you read elsewhere. MangaPixer first asks (*Mark chapters 1-51 read in MangaPixer?*), then says how many files it marked. It only marks - nothing is unmarked - and these marks are not sent back to the tracker.
 - **Set progress from MangaPixer to *tracker*** - sends MangaPixer's numbers, including a jump waiting for you. It never lowers the tracker.
+
+And when the tracker's own chapter count finishes more volumes than it lists, the row offers one more button (*new in 1.44.0*):
+
+- **Set *tracker*'s volumes to *N*** - for example *MyAnimeList's 271 chapters finish volume 27; its list says 25.* MangaPixer reads the series' volume list (from MangaDex or Wikipedia - never an estimate) to tell which volume the tracker's chapters finish, reads your entry again when you click, and changes **only the volume count** there - never the chapters or the status. It is offered only for a series you are reading or plan to read, and never above the tracker's own number of volumes. The series' **Tracking** button and **Select** mode offer it too.
 
 The **⋯** menu of a row has more:
 

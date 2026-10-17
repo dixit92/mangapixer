@@ -43,6 +43,22 @@ export interface PageResponse<T> {
    * `preferVolumes` (the home "New chapters" tap) opened a linked series' Volumes view. Null otherwise. Optional (additive).
    */
   effectiveSort?: string | null;
+  /**
+   * 1.44.0 (the Completion filter): how many child folders of the browsed level are linked series, before any filter. The Filter
+   * menu's Completion section shows only when this is above 0. Folder-list browse only; null elsewhere. Optional (additive).
+   */
+  linkedSeries?: number | null;
+  /** 1.44.0: while the Completion filter applies, how many linked series of the level have each answer; null otherwise. */
+  completionCounts?: BrowseCompletionCountsDto | null;
+}
+
+/** 1.44.0: the linked series of a browse level per Completion answer (the Completion tab's answers). */
+export interface BrowseCompletionCountsDto {
+  haveItAll: number;
+  finishedMissing: number;
+  upToDate: number;
+  missingSome: number;
+  cantTell: number;
 }
 
 /** 'VolumeStack' (1.29.0): a virtual volume stack of the Volumes view - a browse entry only, never a stored node. */
@@ -2223,6 +2239,32 @@ export interface VolumeStackSummaryDto {
   officialRelease?: string | null;
   /** 1.31.0: chapters of this volume that more than one file states; `presentCount` / `extraCount` count each once. */
   duplicates?: DuplicateUnitDto[];
+  /** 1.44.0: the chapter files the volume contents scan found inside this volume's file; left out when none. */
+  inVolumeFile?: InVolumeFileDto | null;
+}
+
+/** 1.44.0: "Chapters 51-58 are inside the volume file" - the first and last chapter number and how many files. */
+export interface InVolumeFileDto {
+  from: string;
+  to: string;
+  count: number;
+}
+
+/** GET/PUT /admin/volume-contents (1.44.0): "Find the chapters inside volume files" - the switch and counts only. */
+export interface VolumeScanStatusDto {
+  enabled: boolean;
+  /** Configuration (MangaPixer:VolumeScan:Enabled=false) switches the scan off whatever the switch says. */
+  configDisabled: boolean;
+  volumesChecked: number;
+  volumesWithChapters: number;
+  chaptersInside: number;
+  /** Folders the current or last sweep still had to check; null before the first sweep. */
+  foldersWaiting?: number | null;
+  running: boolean;
+}
+
+export interface UpdateVolumeScanRequest {
+  enabled: boolean;
 }
 
 export type VolumeSlotKind = 'Item' | 'Missing';
@@ -2258,6 +2300,8 @@ export interface VolumeStackDto {
   officialRelease?: string | null;
   /** 1.31.0: see `VolumeStackSummaryDto.duplicates`; each such chapter has one item slot per file. */
   duplicates?: DuplicateUnitDto[];
+  /** 1.44.0: see `VolumeStackSummaryDto.inVolumeFile`. */
+  inVolumeFile?: InVolumeFileDto | null;
 }
 
 /** A stack of stories collected in one volume as a browse entry (CatalogNodeDto.collectionStack, 1.37.0). No volume / missing counts. */
@@ -2923,6 +2967,8 @@ export interface ExportDuplicateDto {
   kind: string;
   number: string;
   files: ExportDuplicateFileDto[];
+  /** 1.44.0: a chapter file found inside a volume file - the volume's number (files: the chapter file, the volume file). */
+  inVolume?: string | null;
 }
 
 /** 1.38.0: one file of a duplicate - open it at /reader/{nodeId}. */
@@ -3015,6 +3061,15 @@ export interface ExportVolumeDto {
   isbn?: string | null;
   sources: string[];
   chaptersEstimated?: boolean | null;
+  /** 1.44.0: the chapter files the volume contents scan found inside this volume's file (sources then has "scan"). */
+  filesInside?: ExportFileInsideDto[] | null;
+}
+
+/** 1.44.0: a chapter file inside a volume file. */
+export interface ExportFileInsideDto {
+  nodeId: string;
+  name: string;
+  number: string;
 }
 
 export interface ExportChapterRangeDto {
@@ -3534,6 +3589,8 @@ export interface TrackerSeriesRowDto {
   fromTracker: TrackerActionDto;
   /** "Set progress from MangaPixer to <tracker>" (`POST .../send`). */
   toTracker: TrackerActionDto;
+  /** 1.44.0: the volume count the tracker's own chapters complete on the exact volume list, when above its volume count. */
+  volumesFromChapters?: number | null;
   lastSyncAt?: string | null;
   lastSentAt?: string | null;
   updatedAt: string;
@@ -3593,12 +3650,17 @@ export interface TrackerDatesRequest {
 export interface TrackerSeriesSummaryDto {
   seriesId?: string | null;
   rows: TrackerSeriesRowDto[];
+  /** 1.44.0: why reading in this folder is not synced for the caller, or null when it is. */
+  notSynced?: TrackerNotSynced | null;
 }
+
+/** 1.44.0: why a folder's reading does not reach the caller's trackers. */
+export type TrackerNotSynced = 'PrivateLibrary' | 'Doujinshi' | 'SwitchedOff';
 
 // ---- 1.43.2: the Tracking list's Select mode (replaces "Send all") ----
 
 /** What a batch applies to each selected series. */
-export type TrackerBatchAction = 'FromTracker' | 'ToTracker' | 'SyncNow' | 'DontSync' | 'SyncAgain';
+export type TrackerBatchAction = 'FromTracker' | 'ToTracker' | 'SyncNow' | 'DontSync' | 'SyncAgain' | 'VolumesFromChapters';
 
 /** Why a batch left a selected series as it is. */
 export type TrackerBatchSkip =
@@ -3611,7 +3673,8 @@ export type TrackerBatchSkip =
   | 'NotListed'
   | 'AlreadyOff'
   | 'AlreadyOn'
-  | 'RetryLater';
+  | 'RetryLater'
+  | 'VolumesUpToDate';
 
 /** `POST /api/v1/trackers/{slug}/entries/batch`: one action for up to 100 of the caller's series. */
 export interface TrackerBatchRequest {
@@ -3648,6 +3711,8 @@ export interface TrackerSelectableSeriesDto {
   toTracker: TrackerActionDto;
   canSync: boolean;
   dontSync: boolean;
+  /** 1.44.0: as the row's. */
+  volumesFromChapters?: number | null;
 }
 
 /** `GET /api/v1/trackers/{slug}/series/ids?filter=&q=`: every series matching the chip + search (at most 2000). */

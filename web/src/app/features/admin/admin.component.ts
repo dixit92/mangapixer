@@ -9,7 +9,6 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
@@ -34,6 +33,7 @@ import { DebugLogCardComponent } from './debug-log-card.component';
 import { AuditTrailCardComponent } from './audit-trail-card.component';
 import { UpdateCheckCardComponent } from './update-check-card.component';
 import { PerformanceCardComponent } from './performance-card.component';
+import { VolumeScanCardComponent } from './volume-scan-card.component';
 import { BackupSettingsCardComponent } from './backup-settings-card.component';
 import { LibraryIconComponent } from '../../shared/library-icon/library-icon.component';
 import { LibraryIconPickerComponent } from './library-icon-picker/library-icon-picker.component';
@@ -52,7 +52,7 @@ import { AdminTrackersCardComponent } from '../trackers/admin-trackers-card.comp
  * Admin component. Shows library and user administration.
  * No file delete/rename controls are provided.
  *
- * Scan controls (audit defect D39): each library shows a live status chip;
+ * Scan controls (audit defect D39; 1.44.0 row state): a scanning library shows it on its row;
  * while a scan runs, the row polls library state and offers a Cancel control.
  * User rows expose an inline library-access (grants) panel.
  */
@@ -65,6 +65,7 @@ import { AdminTrackersCardComponent } from '../trackers/admin-trackers-card.comp
     AuditTrailCardComponent,
     UpdateCheckCardComponent,
     PerformanceCardComponent,
+    VolumeScanCardComponent,
     MoveConflictsLinkComponent,
     ReadingModeSuggestionsLinkComponent,
     TrashCardComponent, ScheduledJobsComponent,
@@ -79,7 +80,6 @@ import { AdminTrackersCardComponent } from '../trackers/admin-trackers-card.comp
     MatInputModule,
     MatCheckboxModule,
     MatTooltipModule,
-    MatProgressSpinnerModule,
     MatSelectModule,
     LibraryIconComponent,
     LibraryIconPickerComponent,
@@ -124,11 +124,22 @@ import { AdminTrackersCardComponent } from '../trackers/admin-trackers-card.comp
         } @else {
           <mat-list>
             @for (lib of libraries(); track lib.id) {
-              <mat-list-item>
-                <span matListItemIcon><app-library-icon [name]="lib.name" [icon]="lib.icon" [size]="24" /></span>
+              <!-- 1.44.0 (owner mockup): a running scan shows on the row itself - a ring around its icon, a bar along its foot,
+                   "Scanning…" and Cancel scan in its line - while the icons on the right stay where they are (the scan one greyed). -->
+              <mat-list-item class="lib-item" [class.scanning]="lib.isScanning">
+                <span matListItemIcon class="lib-icon" [class.scanning]="lib.isScanning">
+                  <app-library-icon [name]="lib.name" [icon]="lib.icon" [size]="24" />
+                </span>
                 <div matListItemTitle>{{ lib.name }}</div>
                 <div matListItemLine class="lib-line">
                   @if (lib.itemCount !== null) { {{ lib.itemCount }} items }
+                  @if (lib.isScanning) {
+                    · <span class="scan-label" role="status">Scanning…</span>
+                    <span class="scan-cancel-wrap">· <button type="button" class="scan-cancel" data-testid="lib-cancel-scan"
+                            [disabled]="!scanRunId(lib.id) || cancelling().has(lib.id)" (click)="cancelScan(lib.id)">
+                      {{ cancelling().has(lib.id) ? 'Cancelling…' : 'Cancel scan' }}
+                    </button></span>
+                  }
                   @if (lib.lastScanCompleted && !lib.isScanning) {
                     · last scan {{ lib.lastScanCompleted | date:'short' }}
                     @if (lib.lastScanStartedBy; as by) {
@@ -160,21 +171,11 @@ import { AdminTrackersCardComponent } from '../trackers/admin-trackers-card.comp
                       <mat-icon>sync_alt</mat-icon>
                     </button>
                   }
-                  @if (lib.isScanning) {
-                    <span class="chip scanning">
-                      <mat-spinner diameter="14"></mat-spinner> Scanning…
-                    </span>
-                    <button mat-stroked-button color="warn" type="button"
-                            [disabled]="!scanRunId(lib.id) || cancelling().has(lib.id)"
-                            (click)="cancelScan(lib.id)">
-                      Cancel
-                    </button>
-                  } @else {
-                    <button mat-icon-button type="button" (click)="triggerScan(lib.id)"
-                            matTooltip="Scan now" aria-label="Scan now">
-                      <mat-icon>refresh</mat-icon>
-                    </button>
-                  }
+                  <button mat-icon-button type="button" (click)="!lib.isScanning && triggerScan(lib.id)" [disabled]="lib.isScanning" disabledInteractive data-testid="lib-scan"
+                          [matTooltip]="lib.isScanning ? 'Scan in progress' : 'Scan now'"
+                          [attr.aria-label]="lib.isScanning ? 'Scan in progress' : 'Scan now'">
+                    <mat-icon>refresh</mat-icon>
+                  </button>
                   <button mat-icon-button type="button" (click)="openIconPicker(lib)"
                           matTooltip="Change icon" aria-label="Change icon">
                     <mat-icon>palette</mat-icon>
@@ -190,6 +191,7 @@ import { AdminTrackersCardComponent } from '../trackers/admin-trackers-card.comp
                     <mat-icon>delete_outline</mat-icon>
                   </button>
                 </span>
+                @if (lib.isScanning) { <span class="scan-bar" aria-hidden="true" data-testid="lib-scan-bar"></span> }
               </mat-list-item>
               <app-library-scan-schedule [library]="lib" [summary]="true" />
               <app-library-declared-facts [library]="lib" />
@@ -554,6 +556,8 @@ import { AdminTrackersCardComponent } from '../trackers/admin-trackers-card.comp
     <div class="col">
       <!-- Performance (1.42.0): media workers, page cache size, background work while someone reads -->
       <app-performance-card />
+      <!-- Volume contents (1.44.0): the switch of the volume contents scan, next to Performance -->
+      <app-volume-scan-card />
       <app-trash-card #trash />
       <!-- Admin Analytics dashboard v1 (1.22.0 lane E) -->
       <app-analytics-card />
@@ -656,12 +660,30 @@ import { AdminTrackersCardComponent } from '../trackers/admin-trackers-card.comp
     .lib-panel-msg mat-icon { color: var(--mp-error); flex: 0 0 auto; }
     .lib-panel-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
     .rename-field { width: 320px; max-width: 100%; }
-    .chip {
-      display: inline-flex; align-items: center; gap: 6px;
-      font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 12px;
+    /* 1.44.0: a running scan on its row (owner mockup). The ring and the bar move slower for a reader who asks for less motion. */
+    .lib-item { position: relative; transition: background-color .3s; }
+    .lib-item.scanning { background: rgb(var(--mp-accent-strong-rgb) / 0.05); }
+    .lib-icon { position: relative; overflow: visible; }
+    .lib-icon.scanning::after {
+      content: ''; position: absolute; inset: -5px; border-radius: 50%; border: 2px solid transparent; pointer-events: none;
+      border-top-color: var(--mp-accent); border-right-color: var(--mp-accent); animation: lib-scan-spin .9s linear infinite;
     }
-    .chip.scanning { background: rgb(var(--mp-accent-strong-rgb) / 0.18); color: var(--mp-accent); }
-    .chip mat-spinner { display: inline-block; }
+    .scan-label { color: var(--mp-accent); font-weight: 500; }
+    .scan-cancel-wrap { white-space: nowrap; }
+    .scan-cancel { border: 0; background: none; padding: 4px 6px; margin: -4px 0; border-radius: 6px; font: inherit; font-weight: 500;
+                   color: var(--mp-accent); cursor: pointer; }
+    .scan-cancel:hover:not(:disabled) { background: rgb(var(--mp-accent-strong-rgb) / 0.1); }
+    .scan-cancel:disabled { color: var(--mp-text-faint); cursor: default; }
+    .scan-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; overflow: hidden; pointer-events: none;
+                background: rgb(var(--mp-accent-strong-rgb) / 0.12); }
+    .scan-bar::after { content: ''; position: absolute; top: 0; bottom: 0; background: var(--mp-accent);
+                       animation: lib-scan-bar 1.6s ease-in-out infinite; }
+    @keyframes lib-scan-spin { to { transform: rotate(360deg); } }
+    @keyframes lib-scan-bar { 0% { left: -30%; width: 30%; } 70% { left: 100%; width: 12%; } 100% { left: 100%; width: 12%; } }
+    @media (prefers-reduced-motion: reduce) {
+      .lib-icon.scanning::after { animation-duration: 2.5s; }
+      .scan-bar::after { animation-duration: 4s; }
+    }
     .grants {
       padding: 8px 16px 16px 72px;
       display: flex; flex-direction: column; gap: 4px;
@@ -1209,7 +1231,7 @@ export class AdminComponent implements OnInit, OnDestroy {
     this.api.triggerScan(libraryId).subscribe({
       next: (res) => {
         this.runningScans.update(m => new Map(m).set(libraryId, res.scanRunId));
-        // Optimistically flip the row to scanning so the chip appears immediately;
+        // Optimistically flip the row to scanning so its scan state appears immediately;
         // the poll loop keeps it accurate from here.
         this.libraries.update(libs =>
           libs.map(l => l.id === libraryId ? { ...l, isScanning: true } : l));
@@ -1223,7 +1245,7 @@ export class AdminComponent implements OnInit, OnDestroy {
   /**
    * Trigger a scan for every registered library at once (1.8.0). Libraries
    * already scanning are skipped server-side; surface the started/skipped
-   * counts, then refresh the rows so the scanning chips reflect server state.
+   * counts, then refresh the rows so their scan state reflects the server.
    * Scan-run ids are backfilled per newly-scanning library so Cancel works.
    */
   scanAll(): void {

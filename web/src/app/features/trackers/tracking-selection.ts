@@ -12,6 +12,8 @@ export interface SelectFlags {
   /** "Sync now" reaches the tracker: a known id and sync not turned off. */
   canSync: boolean;
   dontSync: boolean;
+  /** 1.44.0: the tracker's own chapters complete more volumes than it lists (the row offers to raise them). */
+  volumesFromChapters: boolean;
 }
 
 /** A loaded row's flags (the same rule as the row's own "Sync now" item). */
@@ -21,11 +23,13 @@ export function flagsOfRow(r: TrackerSeriesRowDto): SelectFlags {
     toTracker: r.toTracker,
     canSync: !r.dontSync && r.bucket !== 'NoId' && !!r.remoteId,
     dontSync: r.dontSync,
+    volumesFromChapters: r.volumesFromChapters != null && !r.dontSync,
   };
 }
 
 export function flagsOfSelectable(s: TrackerSelectableSeriesDto): SelectFlags {
-  return { fromTracker: s.fromTracker, toTracker: s.toTracker, canSync: s.canSync, dontSync: s.dontSync };
+  return { fromTracker: s.fromTracker, toTracker: s.toTracker, canSync: s.canSync, dontSync: s.dontSync,
+    volumesFromChapters: s.volumesFromChapters != null && !s.dontSync };
 }
 
 /** Whether a batch action applies to a series (the server checks again on its own stored state). */
@@ -36,13 +40,14 @@ export function applies(action: TrackerBatchAction, f: SelectFlags): boolean {
     case 'SyncNow': return f.canSync;
     case 'DontSync': return !f.dontSync;
     case 'SyncAgain': return f.dontSync;
+    case 'VolumesFromChapters': return f.volumesFromChapters;
     default: return false;
   }
 }
 
 /** Whether an action contacts the tracker (then it needs an account that can sync, and it is sent in small chunks). */
 export function reachesTracker(action: TrackerBatchAction): boolean {
-  return action === 'FromTracker' || action === 'ToTracker' || action === 'SyncNow';
+  return action === 'FromTracker' || action === 'ToTracker' || action === 'SyncNow' || action === 'VolumesFromChapters';
 }
 
 /** The most frequent block among the series an action does not apply to. */
@@ -82,6 +87,8 @@ export function noneReason(action: TrackerBatchAction, flags: readonly SelectFla
       return 'Every selected series is already not synced';
     case 'SyncAgain':
       return 'None of the selected is turned off';
+    case 'VolumesFromChapters':
+      return `None of the selected (${name}'s volumes already match its chapters)`;
     default:
       return null;
   }

@@ -8,6 +8,7 @@ using com.lifepixer.mangapixer.Server.Features.Admin;
 using com.lifepixer.mangapixer.Server.Features.Export;
 using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Volumes;
+using com.lifepixer.mangapixer.Server.Features.VolumeScan;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using com.lifepixer.mangapixer.Tests.Server.Features.Metadata;
 using Microsoft.EntityFrameworkCore;
@@ -546,6 +547,68 @@ public sealed class ExportRebuildServiceTests
         var listedRows = items[listed.PublicId].GetProperty("volumes").GetProperty("items").EnumerateArray().ToList();
         Assert.Equal(["1", "2"], listedRows.Select(r => r.GetProperty("volume").GetString()));
         Assert.All(listedRows, r => Assert.False(r.TryGetProperty("chaptersEstimated", out _)));
+    }
+
+    [Fact]
+    public async Task ScannedVolumes_ListTheChapterFilesInside_AsTheProvenRange_AndAsDuplicatesOfTheVolume()
+    {
+        // 1.44.0 (MangaList, owner Q4 / Q5): volume 3's file holds chapters 11-13 (the volume contents scan proved it): its row is read
+        // from the files - the proven range, sources ["scan"], filesInside - and each chapter file is a duplicate "inVolume" 3.
+        await using var kit = await ExportTestKit.CreateAsync();
+        var series = await kit.Db.AddFolderAsync(null, "Synthetic Saga");
+        var nodes = new Dictionary<string, CatalogNodeEntity>();
+        foreach (var name in new[] { "Synthetic Saga v01.cbz", "Synthetic Saga v02.cbz", "Synthetic Saga v03.cbz",
+                     "Synthetic Saga c011.cbz", "Synthetic Saga c012.cbz", "Synthetic Saga c013.cbz", "Synthetic Saga c016.cbz" })
+            nodes[name] = await kit.Db.AddArchiveAsync(series, name);
+        var record = await kit.Db.AddRecordAsync("9311", "Synthetic Saga");
+        await kit.Db.AddLinkAsync(series, record);
+        kit.Db.Db.SeriesVolumeMaps.Add(new SeriesVolumeMapEntity
+        {
+            RecordId = record.Id,
+            Source = (int)VolumeMapSource.MangaDexAggregate,
+            State = (int)VolumeMapState.Ok,
+            VolumesJson = "[{\"v\":\"1\",\"c\":[\"1\",\"2\",\"3\",\"4\",\"5\"]},{\"v\":\"2\",\"c\":[\"6\",\"7\",\"8\",\"9\",\"10\"]}]",
+            ChaptersPerVolume = 5,
+            KnownVolumeCount = 4,
+            ContentHash = "h" + record.Id,
+            FetchedAt = ExportTestKit.Start,
+        });
+        long Version(CatalogNodeEntity n) => kit.Db.Db.ArchiveItems.Single(a => a.NodeId == n.Id).ContentVersion;
+        var inside = new[] { 11, 12, 13 }.Select(c => nodes[$"Synthetic Saga c0{c}.cbz"]).ToList();
+        kit.Db.Db.VolumeContents.Add(new VolumeContentEntity
+        {
+            VolumeNodeId = nodes["Synthetic Saga v03.cbz"].Id,
+            VolumeContentVersion = Version(nodes["Synthetic Saga v03.cbz"]),
+            Volume = 3,
+            FolderId = series.Id,
+            State = (int)VolumeContentRowState.Known,
+            ChaptersJson = System.Text.Json.JsonSerializer.Serialize(inside.Select((n, i) =>
+                new StoredFoundChapter(n.Id, Version(n), 11 + i, 2 + i * 10, 11 + i * 10, 10, 10)), VolumeContentReader.Json),
+            CandidatesKey = "k",
+            ScannedAt = ExportTestKit.Start,
+        });
+        await kit.Db.Db.SaveChangesAsync();
+
+        await kit.RebuildAsync();
+
+        var item = (await kit.PageAsync()).GetProperty("items").EnumerateArray().Single(i => i.GetProperty("nodeId").GetString() == series.PublicId);
+        var rows = item.GetProperty("volumes").GetProperty("items").EnumerateArray().ToList();
+        Assert.Equal(["1", "2", "3", "4"], rows.Select(r => r.GetProperty("volume").GetString()));
+        Assert.False(rows[0].TryGetProperty("filesInside", out _));
+        var scanned = rows[2];
+        Assert.False(scanned.TryGetProperty("chaptersEstimated", out _));
+        Assert.Equal(["scan"], scanned.GetProperty("sources").EnumerateArray().Select(s => s.GetString()));
+        Assert.Equal(("11", "13"), (scanned.GetProperty("chapters").GetProperty("from").GetString(), scanned.GetProperty("chapters").GetProperty("to").GetString()));
+        Assert.Equal(inside.Select(n => n.PublicId), scanned.GetProperty("filesInside").EnumerateArray().Select(f => f.GetProperty("nodeId").GetString()));
+        Assert.Equal(["11", "12", "13"], scanned.GetProperty("filesInside").EnumerateArray().Select(f => f.GetProperty("number").GetString()));
+        // Volume 4 stays the estimate (chapter 16 is not inside a volume file).
+        Assert.True(rows[3].GetProperty("chaptersEstimated").GetBoolean());
+
+        var duplicates = item.GetProperty("duplicates").EnumerateArray().ToList();
+        Assert.Equal(3, duplicates.Count);
+        Assert.All(duplicates, d => Assert.Equal("3", d.GetProperty("inVolume").GetString()));
+        Assert.Equal([inside[0].PublicId, nodes["Synthetic Saga v03.cbz"].PublicId],
+            duplicates[0].GetProperty("files").EnumerateArray().Select(f => f.GetProperty("nodeId").GetString()));
     }
 
     [Fact]

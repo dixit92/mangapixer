@@ -146,6 +146,9 @@ public sealed class MoveRulesTests
             ["node_auto_covers"] = "regenerated",
             ["metadata_match_queue"] = "regenerated",
             ["metadata_match_candidates"] = "regenerated",
+            // 1.44.0 volume contents scan: derived from the files (page hashes, the answer) - the new copy is hashed / matched again.
+            ["archive_page_hashes"] = "regenerated",
+            ["volume_contents"] = "regenerated",
             // History / bookkeeping that stays where it happened.
             ["catalog_nodes"] = "the node itself",
             ["jobs"] = "history",

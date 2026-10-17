@@ -93,7 +93,8 @@ public sealed class TrackerSyncService(
         entry.AutoStartedOn = TrackerListService.DayOf(progress.StartedOn);
         entry.UpdatedAt = now;
 
-        if (entry.DontSync && mode != TrackerSyncMode.SetTo)
+        // The user's explicit numbers (SetTo, 1.44.0 volumes from chapters) go out also for a series they turned sync off for.
+        if (entry.DontSync && mode is not (TrackerSyncMode.SetTo or TrackerSyncMode.VolumesFromChapters))
             return await DoneAsync(entry, TrackerEntryState.DontSync, null, "dont_sync", userId, tracker, ct);
 
         var remoteId = await resolver.RemoteIdAsync(recordId, tracker, ct);
@@ -150,9 +151,11 @@ public sealed class TrackerSyncService(
             }
             StoreRemote(entry, remote, now);
 
+            // 1.44.0: the series' volume list, only for "volumes from chapters" (the offer is taken from the entry as just read).
+            var exactMap = mode == TrackerSyncMode.VolumesFromChapters ? (await resolver.MapAsync(recordId, ct)).Map : null;
             var decision = TrackerSyncRules.Decide(new TrackerSyncInput(mode, local, progress.Numbers.All, remote, account.AddStartedSeries,
                 PrivateEntry(account), progress.StartedOn, today, entry.LastSentChapters, entry.LastSentVolumes,
-                dates.Start, dates.Finish, DatesPending: trigger != TrackerSyncTrigger.Preview && entry.DatesPending));
+                dates.Start, dates.Finish, DatesPending: trigger != TrackerSyncTrigger.Preview && entry.DatesPending, ExactMap: exactMap));
 
             if (decision.Write is { } write && trigger == TrackerSyncTrigger.Preview)
             {

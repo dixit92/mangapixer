@@ -133,6 +133,13 @@ public sealed record ExportDuplicateDto
 
     /// <summary>The files that state it, in the folder's name order (the first 20).</summary>
     public required IReadOnlyList<ExportDuplicateFileDto> Files { get; init; }
+
+    /// <summary>
+    /// 1.44.0: set when the duplicate is a chapter file found inside a volume file by the volume contents scan - the volume's number;
+    /// <see cref="Files"/> is then the chapter file and the volume file. Left out on the same-number duplicates.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? InVolume { get; init; }
 }
 
 /// <summary>One file of a duplicate: open it in the reader at <c>/reader/{nodeId}</c>.</summary>
@@ -316,7 +323,8 @@ public sealed record ExportVolumeDto
 
     public string? Isbn { get; init; }
 
-    /// <summary>Where this volume's data came from: <c>mangadex</c>, <c>wikipedia</c>; 1.42.0: <c>estimate</c>.</summary>
+    /// <summary>Where this volume's data came from: <c>mangadex</c>, <c>wikipedia</c>; 1.42.0: <c>estimate</c>; 1.44.0: <c>scan</c> (read from
+    /// the files by the volume contents scan).</summary>
     public required IReadOnlyList<string> Sources { get; init; }
 
     /// <summary>
@@ -325,6 +333,25 @@ public sealed record ExportVolumeDto
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? ChaptersEstimated { get; init; }
+
+    /// <summary>
+    /// 1.44.0: the chapter files the volume contents scan found inside this volume's file (<see cref="Sources"/> then has <c>scan</c>):
+    /// each file's node id, name and chapter number; left out when there are none.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<ExportFileInsideDto>? FilesInside { get; init; }
+}
+
+/// <summary>1.44.0: a chapter file found inside a volume file (open it in the reader at <c>/reader/{nodeId}</c>).</summary>
+public sealed record ExportFileInsideDto
+{
+    public required string NodeId { get; init; }
+
+    /// <summary>The file name on disk.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>The chapter number as an exact string.</summary>
+    public required string Number { get; init; }
 }
 
 /// <summary>A chapter range; numbers are exact strings.</summary>

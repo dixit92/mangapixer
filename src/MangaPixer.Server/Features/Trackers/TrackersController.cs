@@ -131,6 +131,17 @@ public sealed class TrackersController(
     public Task<IActionResult> SetProgress(string slug, string seriesId, [FromBody] TrackerSetProgressRequest request, CancellationToken ct) =>
         ActAsync(slug, seriesId, TrackerSyncMode.SetTo, new TrackerNumbers(request.Chapters, request.Volumes), ct);
 
+    /// <summary>
+    /// 1.44.0: "Set &lt;tracker&gt;'s volumes to N" - reads the caller's entry and raises ONLY its volume count to what its own chapters
+    /// complete on the series' exact volume list (nothing else is written; nothing when there is no such offer any more).
+    /// </summary>
+    [HttpPost("{slug}/entries/{seriesId}/volumes-from-chapters")]
+    [ProducesResponseType<TrackerEntryDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status409Conflict)]
+    public Task<IActionResult> VolumesFromChapters(string slug, string seriesId, CancellationToken ct) =>
+        ActAsync(slug, seriesId, TrackerSyncMode.VolumesFromChapters, null, ct);
+
     /// <summary>"Don't sync this series" on this tracker (or sync it again).</summary>
     [HttpPut("{slug}/entries/{seriesId}/dont-sync")]
     [ProducesResponseType<TrackerEntryDto>(StatusCodes.Status200OK)]

@@ -170,6 +170,39 @@ public sealed class ArchiveReader : IDisposable
         return ms.ToArray();
     }
 
+    /// <summary>
+    /// Visits every file entry ONCE, in the archive's stored order, with a stream of its decompressed bytes (1.43.0 page hashing).
+    /// A random-access archive opens each entry in turn; a solid one is decompressed front to back in a single pass (the only
+    /// cheap way through it), so this also serves solid 7z / RAR. Directory entries are skipped. The visitor decides what to read.
+    /// </summary>
+    public async Task ForEachEntryAsync(Func<string, long, Stream, Task> visit, CancellationToken ct = default)
+    {
+        ObjectDisposedException.ThrowIf(_archive is null, this);
+        ArgumentNullException.ThrowIfNull(visit);
+        if (_archive.IsSolid)
+        {
+            using var sequential = _archive.ExtractAllEntries();
+            while (sequential.MoveToNextEntry())
+            {
+                ct.ThrowIfCancellationRequested();
+                var entry = sequential.Entry;
+                if (entry.IsDirectory)
+                    continue;
+                using var stream = sequential.OpenEntryStream();
+                await visit(entry.Key ?? string.Empty, entry.Size, stream).ConfigureAwait(false);
+            }
+            return;
+        }
+        foreach (var entry in _archive.Entries)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (entry.IsDirectory)
+                continue;
+            using var stream = entry.OpenEntryStream();
+            await visit(entry.Key ?? string.Empty, entry.Size, stream).ConfigureAwait(false);
+        }
+    }
+
     public void Dispose()
     {
         _archive?.Dispose();

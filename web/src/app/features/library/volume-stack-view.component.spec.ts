@@ -128,6 +128,19 @@ describe('VolumeStackViewComponent', () => {
     expect(badges).toEqual(['✓ Read', 'Reading']);
   });
 
+  for (const viewMode of ['card', 'list']) {
+    it(`1.44.0: rings a chapter card its trackers count as read (${viewMode} mode)`, () => {
+      const ringed = stack({ slots: [
+        { kind: 'Item', chapter: '37', item: item('c37', 'Series c037', { trackerRead: ['mal', 'mangaupdates'] }) },
+        { kind: 'Item', chapter: '38', item: item('c38', 'Series c038') },
+      ] });
+      const { el } = setup(ringed, { viewMode, stackViewMode: viewMode });
+      const marks = Array.from(el.querySelectorAll('[data-testid="tracker-read-mark"]'));
+      expect(marks.length).toBe(1);
+      expect(marks[0].getAttribute('aria-label')).toBe('Read on MyAnimeList and MangaUpdates');
+    });
+  }
+
   it('links previous and next volume inside the same folder', () => {
     const { el } = setup(stack());
 
@@ -146,6 +159,21 @@ describe('VolumeStackViewComponent', () => {
     const { el } = setup(stack({ confidence: 'Estimated', source: 'AniList', label: '~ Volume 5' }));
     expect(el.querySelector('[data-testid="stack-source"]')!.textContent).toContain('Volumes estimated from the published totals');
     expect(el.querySelector('[data-testid="stack-source"]')!.textContent).toContain('Volume boundaries are estimated');
+  });
+
+  it('1.44.0: says which chapters the volume contents scan found inside the volume file', () => {
+    const { el } = setup(stack({ inVolumeFile: { from: '57', to: '64', count: 8 } }));
+    expect(el.querySelector('[data-testid="stack-in-volume-file"]')!.textContent).toBe('Chapters 57-64 are inside the volume file.');
+  });
+
+  it('1.44.0: one chapter inside the volume file reads in the singular', () => {
+    const { el } = setup(stack({ inVolumeFile: { from: '9', to: '9', count: 1 } }));
+    expect(el.querySelector('[data-testid="stack-in-volume-file"]')!.textContent).toBe('Chapter 9 is inside the volume file.');
+  });
+
+  it('1.44.0: no line when the scan found nothing inside the volume file', () => {
+    const { el } = setup(stack());
+    expect(el.querySelector('[data-testid="stack-in-volume-file"]')).toBeNull();
   });
 
   it('describes a merged volume file + chapters, and a file-name grouping without a total', () => {

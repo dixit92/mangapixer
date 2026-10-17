@@ -32,6 +32,9 @@ public enum MediaSlotKind
 
     /// <summary>A reader page the web reader marked as a prefetch (1.42.0): served after current pages.</summary>
     PagePrefetch = 7,
+
+    /// <summary>A chunk of page hashes for the volume contents scan (1.44.0, worker protocol v6): background work.</summary>
+    PageHash = 8,
 }
 
 /// <summary>
@@ -129,6 +132,7 @@ public sealed class MediaMetrics : IDisposable
         MediaSlotKind.CoverRenderArchive => "cover_render_archive",
         MediaSlotKind.CoverRenderImage => "cover_render_image",
         MediaSlotKind.PagePrefetch => "page_prefetch",
+        MediaSlotKind.PageHash => "page_hash",
         _ => "other",
     };
 

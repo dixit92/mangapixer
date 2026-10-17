@@ -419,6 +419,12 @@ public sealed record TrackerSeriesRowDto
     /// <summary>"Set progress from MangaPixer to &lt;tracker&gt;" (the route <c>.../send</c>: every mark, never lowers the tracker).</summary>
     public required TrackerActionDto ToTracker { get; init; }
 
+    /// <summary>
+    /// 1.44.0: the volume count the tracker's own chapters complete on the series' exact volume list, when it is above the tracker's volume
+    /// count (as last read; <see cref="TrackerVolumeCatchUp"/>) - offered as "Set &lt;tracker&gt;'s volumes to N"; null = nothing to offer.
+    /// </summary>
+    public int? VolumesFromChapters { get; init; }
+
     /// <summary>When the tracker was last read for this series, or null (never).</summary>
     public DateTimeOffset? LastSyncAt { get; init; }
 
@@ -519,6 +525,20 @@ public sealed record TrackerSeriesSummaryDto
     public string? SeriesId { get; init; }
 
     public required IReadOnlyList<TrackerSeriesRowDto> Rows { get; init; }
+
+    /// <summary>
+    /// 1.44.0: why reading in this folder is not synced for the caller (the outbound rule: a Private library of theirs or a doujinshi record
+    /// without their sync switch on, or their switch off), or null when it is.
+    /// </summary>
+    public TrackerNotSynced? NotSynced { get; init; }
+}
+
+/// <summary>1.44.0: why a folder's reading does not reach the caller's trackers (values travel as names; append-only).</summary>
+public enum TrackerNotSynced
+{
+    PrivateLibrary = 0,
+    Doujinshi = 1,
+    SwitchedOff = 2,
 }
 
 // ---- 1.43.2 (owner, 2026-10-16): the Tracking list's Select mode - one shared multi-select with an apply action for every chip
@@ -541,6 +561,9 @@ public enum TrackerBatchAction
 
     /// <summary>"Sync this series again" (no request).</summary>
     SyncAgain = 4,
+
+    /// <summary>1.44.0: "Set &lt;tracker&gt;'s volumes from its chapters" (the per-series <c>.../volumes-from-chapters</c>).</summary>
+    VolumesFromChapters = 5,
 }
 
 /// <summary>Why a batch left a selected series as it is (values travel as names; append-only).</summary>
@@ -575,6 +598,9 @@ public enum TrackerBatchSkip
 
     /// <summary>The tracker asked MangaPixer to slow down: the write is tried again shortly on its own.</summary>
     RetryLater = 10,
+
+    /// <summary>1.44.0: the tracker's volumes already match its chapters (or no exact volume list, or an entry left as the user put it).</summary>
+    VolumesUpToDate = 11,
 }
 
 /// <summary>
@@ -641,6 +667,9 @@ public sealed record TrackerSelectableSeriesDto
     public required bool CanSync { get; init; }
 
     public required bool DontSync { get; init; }
+
+    /// <summary>1.44.0: as the row's <see cref="TrackerSeriesRowDto.VolumesFromChapters"/>.</summary>
+    public int? VolumesFromChapters { get; init; }
 }
 
 /// <summary>

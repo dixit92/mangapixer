@@ -21,14 +21,14 @@ describe('volume stack pieces', () => {
 
     it('shows whole chapters present of whole chapters held, with an accessible label', () => {
       const badge = render(summary()).querySelector('[data-testid="stack-incomplete"]')!;
-      expect(badge.textContent?.trim()).toBe('8/9');
-      expect(badge.getAttribute('aria-label')).toBe('8 of 9 chapters');
+      expect(badge.textContent?.trim()).toBe('8 of 9 ch');
+      expect(badge.getAttribute('aria-label')).toBe('8 of the 9 chapters of this volume are here; 1 is missing');
     });
 
     it('never counts an extra as a present chapter', () => {
       // 9 members = 8 whole chapters + the extra 45.5; 10 chapters held, 2 missing.
       const badge = render(summary({ presentCount: 9, extraCount: 1, chapterCount: 10, missingCount: 2 })).querySelector('[data-testid="stack-incomplete"]')!;
-      expect(badge.textContent?.trim()).toBe('8/10');
+      expect(badge.textContent?.trim()).toBe('8 of 10 ch');
     });
 
     it('moves to the bottom-left corner while its card is being selected (the check owns the top-left one)', () => {
@@ -47,7 +47,7 @@ describe('volume stack pieces', () => {
 
     it('falls back to present + missing when the volume\'s chapter count is unknown', () => {
       const badge = render(summary({ chapterCount: null, presentCount: 5, missingCount: 2 })).querySelector('[data-testid="stack-incomplete"]')!;
-      expect(badge.textContent?.trim()).toBe('5/7');
+      expect(badge.textContent?.trim()).toBe('5 of 7 ch');
     });
   });
 
@@ -80,7 +80,7 @@ describe('volume stack pieces', () => {
       // 7 members (3, 4.1, 4.2, 5.1, 5.3, 6 and a volume-less extra) - 3 of 4 chapters complete, 5.2 missing.
       fixture.componentRef.setInput('summary', summary({ presentCount: 7, extraCount: 1, chapterCount: 4, chaptersPresent: 3, missingCount: 1 }));
       fixture.detectChanges();
-      expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="stack-incomplete"]')!.textContent?.trim()).toBe('3/4');
+      expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="stack-incomplete"]')!.textContent?.trim()).toBe('3 of 4 ch');
     });
 
     it('a missing volume card reads "Volume N" and names itself "Volume N, missing"', () => {
@@ -136,7 +136,7 @@ describe('volume stack pieces', () => {
       expect(chip.textContent!.trim()).toBe('2 duplicates');
       expect(chip.classList).toContain('below');
       expect(chip.getAttribute('title')).toContain('Chapter 1: 2 files, Chapter 2: 2 files');
-      expect(el.querySelector('[data-testid="stack-incomplete"]')!.textContent!.trim()).toBe('8/9');
+      expect(el.querySelector('[data-testid="stack-incomplete"]')!.textContent!.trim()).toBe('8 of 9 ch');
     });
 
     it('takes the top-left corner alone when nothing is missing, and moves with the selection check', () => {

@@ -68,7 +68,7 @@ export function directionShort(mode: ReaderMode): string {
           }
           <mat-icon class="cover-fallback">{{ icon() }}</mat-icon>
           @if (node().volumeStack; as stack) {
-            <app-volume-incomplete-badge [summary]="stack" />
+            <app-volume-incomplete-badge [summary]="stack" [compact]="true" />
           }
           @if (rangePrompt()) {
             <div class="range-prompt">

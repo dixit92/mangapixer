@@ -11,7 +11,8 @@ import { TrackerSeriesRowDto, TrackerSeriesSummaryDto } from '../../core/api/api
 import { TrackerStateService } from './tracker-state.service';
 import { TrackersApiService } from './trackers-api.service';
 import {
-  TRACKER_RING_LEGEND, TRACKING_PATH, bucketText, bucketTone, dateText, numbersText, ofText, statusText, trackerName, trackerSeriesUrl,
+  SYNC_TURNED_ON_TEXT, TRACKER_RING_LEGEND, TRACKING_PATH, bucketText, bucketTone, dateText, failureText, notSyncedText, numbersText, ofText, statusText,
+  trackerName, trackerSeriesUrl, volumesFromChaptersLabel, volumesFromChaptersText,
 } from './tracker-texts';
 import { provideTrackerTooltips } from './tracker-tooltips';
 
@@ -86,12 +87,36 @@ const POSITIONS: ConnectedPosition[] = [
                   Start {{ date(row.dates.startedOn) }} · Finish {{ date(row.dates.finishedOn) }}
                 </p>
               }
+              <!-- 1.44.0 (owner): the tracker's own chapters finish more volumes than it lists - raise them on the user's click. -->
+              @if (!summary()?.notSynced && volumesOffer(row); as offer) {
+                <div class="vol-offer" [attr.data-testid]="'series-tracking-volumes-' + row.tracker">
+                  <p>{{ offer }}</p>
+                  <button mat-stroked-button type="button" [disabled]="raising()" (click)="raiseVolumes(row)"
+                          [attr.data-testid]="'series-tracking-volumes-set-' + row.tracker">
+                    {{ raising() ? 'Setting…' : volumesLabel(row) }}</button>
+                </div>
+              }
               <a mat-flat-button color="primary" class="open" [routerLink]="trackingPath"
                  [queryParams]="{ tracker: row.tracker, series: row.seriesId }" [state]="{ title: row.title }"
                  (click)="open.set(false)" [attr.data-testid]="'series-tracking-open-' + row.tracker">
                 Open in Tracking <mat-icon iconPositionEnd>arrow_forward</mat-icon>
               </a>
             </div>
+          }
+          <!-- 1.44.0 (UX review): a failed action says so in the popover (announced), focus stays in the dialog. -->
+          @if (actionError(); as e) {
+            <p class="pop-error" role="alert" tabindex="-1" data-testid="series-tracking-error">{{ e }}</p>
+          }
+          <!-- 1.44.0 (owner, 2026-10-17): say WHY nothing here counts, and offer the switch (the same one as Select -> Sync -> On). -->
+          @if (summary()?.notSynced; as reason) {
+            <div class="not-synced" role="note" data-testid="series-tracking-not-synced">
+              <p>{{ notSynced(reason) }}</p>
+              <button mat-stroked-button type="button" [disabled]="turningOn()" (click)="turnSyncOn()" data-testid="series-tracking-sync-on">
+                <mat-icon>sync</mat-icon> {{ turningOn() ? 'Turning sync on…' : 'Turn sync on' }}
+              </button>
+            </div>
+          } @else if (syncTurnedOn()) {
+            <p class="not-synced done" role="status" tabindex="-1" data-testid="series-tracking-sync-on-done">{{ syncTurnedOnText }}</p>
           }
           <p class="legend" data-testid="series-tracking-ring-legend"><span class="ring-swatch" aria-hidden="true"></span>{{ ringLegend }}</p>
         </section>
@@ -136,6 +161,13 @@ const POSITIONS: ConnectedPosition[] = [
     a.ext mat-icon { font-size: 16px; width: 16px; height: 16px; flex: none; }
     .dates { margin: 0; font-size: 13px; color: var(--mp-text-secondary); }
     .open { align-self: flex-start; }
+    .vol-offer { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; font-size: 13px; color: var(--mp-text-secondary); }
+    .vol-offer p { margin: 0; }
+    .not-synced { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 0; padding: 10px 12px; border-radius: 8px;
+                  background: rgb(var(--mp-warn-strong-rgb) / 0.1); font-size: 13px; line-height: 1.4; color: var(--mp-text); }
+    .not-synced p { margin: 0; }
+    .pop-error { margin: 0; font-size: 13px; color: var(--mp-error); }
+    .not-synced.done { background: rgb(var(--mp-success-strong-rgb) / 0.12); }
     .legend { display: flex; align-items: center; gap: 8px; margin: 0; padding-top: 10px; border-top: 1px solid rgb(var(--mp-ink-rgb) / 0.1);
       font-size: 12px; color: var(--mp-text-secondary); }
     .ring-swatch {
@@ -163,6 +195,17 @@ export class SeriesTrackingButtonComponent implements OnDestroy {
 
   readonly name = trackerName;
   readonly date = dateText;
+  readonly notSynced = notSyncedText;
+  readonly syncTurnedOnText = SYNC_TURNED_ON_TEXT;
+  readonly volumesOffer = volumesFromChaptersText;
+  readonly volumesLabel = volumesFromChaptersLabel;
+  /** "Set <tracker>'s volumes to N" is on its way (1.44.0). */
+  readonly raising = signal(false);
+  /** 1.44.0 (UX review): the last action's failure, shown in the popover. */
+  readonly actionError = signal<string | null>(null);
+  /** "Turn sync on" is on its way / done for this folder (1.44.0). */
+  readonly turningOn = signal(false);
+  readonly syncTurnedOn = signal(false);
 
   private requested: string | null = null;
 
@@ -172,7 +215,11 @@ export class SeriesTrackingButtonComponent implements OnDestroy {
     // review on an iPad: it reopened by itself on the next series).
     effect(() => {
       const id = this.nodeId();
-      untracked(() => this.open.set(false));
+      untracked(() => {
+        this.open.set(false);
+        this.syncTurnedOn.set(false);
+        this.actionError.set(null);
+      });
       if (!this.state.hasConnected()) {
         this.summary.set(null);
         return;
@@ -235,7 +282,62 @@ export class SeriesTrackingButtonComponent implements OnDestroy {
     return bucketTone(row.bucket);
   }
 
+  /** 1.44.0: the folder's sync switch on (no tracker request - the next read here, or Sync now, counts it); then the numbers again. */
+  turnSyncOn(): void {
+    const id = this.nodeId();
+    this.turningOn.set(true);
+    this.actionError.set(null);
+    this.api.setSyncOverrides([id], true).subscribe({
+      next: () => {
+        this.turningOn.set(false);
+        if (this.nodeId() !== id) return;
+        this.syncTurnedOn.set(true);
+        this.load(id, true);
+        this.focusAfterAction();
+      },
+      error: () => {
+        this.turningOn.set(false);
+        this.actionError.set('Sync could not be turned on. Try again.');
+        this.focusAfterAction();
+      },
+    });
+  }
+
+  /** 1.44.0: "Set <tracker>'s volumes to N" (read again on the server first; only the volume count is written); then the numbers again. */
+  raiseVolumes(row: TrackerSeriesRowDto): void {
+    const id = this.nodeId();
+    this.raising.set(true);
+    this.actionError.set(null);
+    this.api.volumesFromChapters(row.tracker, row.seriesId).subscribe({
+      next: () => {
+        this.raising.set(false);
+        if (this.nodeId() === id) this.load(id, true);
+        this.focusAfterAction();
+      },
+      error: (err) => {
+        this.raising.set(false);
+        this.actionError.set(failureText(err, row.tracker));
+        this.focusAfterAction();
+      },
+    });
+  }
+
+  /**
+   * 1.44.0 (UX review): the pressed button may be gone after an action - keep the focus in the dialog: on the error line, the
+   * "sync is on" line, or the dialog itself (never on the page's body behind the focus trap).
+   */
+  private focusAfterAction(): void {
+    setTimeout(() => {
+      const pane = this.connected()?.overlayRef?.overlayElement;
+      const target = pane?.querySelector<HTMLElement>('[data-testid="series-tracking-error"], [data-testid="series-tracking-sync-on-done"]')
+        ?? pane?.querySelector<HTMLElement>('[role="dialog"]');
+      target?.focus({ preventScroll: true });
+    });
+  }
+
   here(row: TrackerSeriesRowDto): string {
+    // 1.44.0: a folder whose reading is not synced says so - "nothing read" next to read chapters looked like a bug (owner).
+    if (this.summary()?.notSynced) return 'not synced';
     const parts = [ofText(row.allChapters ?? row.chapters, row.totalChapters, 'ch'), ofText(row.allVolumes ?? row.volumes, row.totalVolumes, 'vol')]
       .filter((p): p is string => !!p);
     return parts.length ? parts.join(' · ') : 'nothing read';

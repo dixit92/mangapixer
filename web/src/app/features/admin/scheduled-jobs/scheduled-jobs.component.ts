@@ -33,6 +33,7 @@ export const JOB_TEXT: Record<string, { name: string; what: string }> = {
   'volume-covers': { name: 'Volume covers and volume lists', what: 'Reads volume lists and covers of linked series.' },
   'cover-decisions': { name: 'Cover choices', what: 'Picks the cover of each series and volume from what is stored.' },
   'content-signatures': { name: 'Content signatures', what: 'Fingerprints older archives so moves and renames are recognised.' },
+  'volume-contents': { name: 'Volume contents', what: 'Finds the chapter files a volume file holds, by reading both (nothing leaves the server).' },
   'session-cleanup': { name: 'Sign-in session clean-up', what: 'Removes expired sign-in sessions.' },
   thumbnails: { name: 'Thumbnails', what: 'Makes the thumbnails that are missing.' },
   'update-check': { name: 'Update check', what: 'Asks GitHub whether a newer MangaPixer is out, when the Update Checker is on.' },
@@ -88,7 +89,7 @@ export function serverTime(iso: string | null | undefined, zone: string, withDat
 /** The groups the jobs are shown in (1.35.0), by job key; a key not listed goes to Maintenance. */
 export const JOB_GROUPS: readonly { key: string; title: string; jobs: readonly string[] }[] = [
   { key: 'web', title: 'Web information', jobs: ['auto-match', 'metadata-refresh', 'volume-covers', 'update-check'] },
-  { key: 'upkeep', title: 'Library upkeep', jobs: ['thumbnails', 'content-signatures', 'cover-decisions'] },
+  { key: 'upkeep', title: 'Library upkeep', jobs: ['thumbnails', 'content-signatures', 'volume-contents', 'cover-decisions'] },
   { key: 'maintenance', title: 'Maintenance', jobs: ['backup', 'trash', 'cache-eviction', 'session-cleanup'] },
 ];
 
@@ -119,6 +120,7 @@ function rhythm(job: ScheduledJobDto): string {
     case 'volume-covers': return 'Continuous, with automatic matching; each series on its refresh cadence';
     case 'cover-decisions': return `Every ${Math.round((job.intervalHours ?? 1 / 6) * 60)} minutes (nothing is sent)`;
     case 'content-signatures': return 'Every 6 hours while archives lack one';
+    case 'volume-contents': return 'Hourly and after library scans, while switched on (Admin > Volume contents)';
     case 'session-cleanup': return 'Hourly';
     case 'thumbnails': return 'Once after start-up';
     case 'update-check': return job.enabled ? 'When an admin opens Administration, at most once a day' : 'Off';

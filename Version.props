@@ -466,7 +466,7 @@
          Enhance black-output guard; "Official Volume Available". Migrations AddTrackerSync, AddTrackingPage,
          AddVolumeMapReadableChapters (additive); tracker consents v1 (new third privacy exception, AGENTS.md); metadata consents
          unchanged (main 6 / automatic 5); worker protocol unchanged (5). -->
-    <MangaPixerVersionMinor>43</MangaPixerVersionMinor>
+    <MangaPixerVersionMinor>44</MangaPixerVersionMinor>
     <!-- 1.31.1 - PATCH (2026-10-01, integrator-direct, owner live check of 1.31.0): content signatures backfilled for archives
          analysed before 1.5.0 (their moves were never recognised); Re-attach to a folder in another library; "Episode N" next
          to a volume is a part label, not a chapter; the review list shows the file's own page 1, never the cover layer's;
@@ -487,7 +487,13 @@
          ids route GET {slug}/series/ids; send-all route removed), a link to the series on MyAnimeList / MangaUpdates (new tab, no
          referrer), "Set today" in Set dates; a listed chapter 0 counts only when a file numbered 0 is here. No migration, no consent
          change. -->
-    <MangaPixerVersionPatch>2</MangaPixerVersionPatch>
+    <!-- 1.44.0 - MINOR over 1.43.2 (2026-10-17): the volume contents scan (worker protocol 6 page_hash, background on the Background
+         slot, switch on by default; which chapter files a volume file holds -> the Volumes view, progress, export filesInside /
+         duplicates inVolume), a browse filter by series completion (60 s memo, no migration), tracker changes (split chapters count,
+         the popover's "not synced" + Turn sync on, "Set <tracker>'s volumes to N" on the user's click), the admin scan row, review-list
+         links to MangaUpdates / MangaDex, Magick.NET 15. Migration AddVolumeContentScan (additive); consent unchanged (main 6 /
+         automatic 5). -->
+    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->

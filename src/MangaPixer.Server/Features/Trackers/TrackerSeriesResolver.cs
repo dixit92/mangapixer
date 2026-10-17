@@ -89,6 +89,22 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
         return result;
     }
 
+    /// <summary>
+    /// 1.44.0: why reading below <paramref name="nodeId"/> does not sync for <paramref name="userId"/> - the rule of <see cref="EligibleAsync"/>
+    /// for that folder: its nearest switch off; or no switch and a Private library of the user, or a doujinshi record - else null.
+    /// </summary>
+    public async Task<TrackerNotSynced?> NotSyncedAsync(long userId, long nodeId, long recordId, CancellationToken ct)
+    {
+        if ((await NearestSwitchAsync(userId, [nodeId], ct)).TryGetValue(nodeId, out var on))
+            return on ? null : TrackerNotSynced.SwitchedOff;
+        var library = await db.CatalogNodes.AsNoTracking().Where(n => n.Id == nodeId).Select(n => n.LibraryId).FirstAsync(ct);
+        if (await db.PrivateLibraries.AsNoTracking().AnyAsync(p => p.UserId == userId && p.LibraryId == library, ct))
+            return TrackerNotSynced.PrivateLibrary;
+        if (await db.MetadataRecords.AsNoTracking().AnyAsync(r => r.Id == recordId && r.Format == (int)MetadataFormat.Doujinshi, ct))
+            return TrackerNotSynced.Doujinshi;
+        return null;
+    }
+
     /// <summary>The user's nearest sync switch (self -> ancestors, bounded 64) of each node, when one exists.</summary>
     public async Task<Dictionary<long, bool>> NearestSwitchAsync(long userId, IReadOnlyCollection<long> nodeIds, CancellationToken ct)
     {
@@ -481,6 +497,30 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
         var language = await ReleasedInLanguage.PreferredAsync(db, ct);
         var (map, _) = SeriesProgressLoader.MapAndFacts(maps, record, language);
         return (map, record);
+    }
+
+    /// <summary>1.44.0: <see cref="MapAsync"/> for many records at once (the Tracking list's "volumes from chapters" offers), by record id.</summary>
+    public static async Task<Dictionary<long, VolumeMapInput>> MapsAsync(MangaPixerDbContext db, IReadOnlyCollection<long> recordIds, CancellationToken ct)
+    {
+        var result = new Dictionary<long, VolumeMapInput>();
+        if (recordIds.Count == 0)
+            return result;
+        var language = await ReleasedInLanguage.PreferredAsync(db, ct);
+        foreach (var chunk in recordIds.Distinct().Chunk(Batch))
+        {
+            var maps = (await db.SeriesVolumeMaps.AsNoTracking().Where(m => chunk.Contains(m.RecordId)).ToListAsync(ct)).ToLookup(m => m.RecordId);
+            var records = await db.MetadataRecords.AsNoTracking().Where(r => chunk.Contains(r.Id))
+                .Select(r => new SeriesProgressLoader.RecordRow(r.Id, r.Origin, r.OriginStatus, r.OriginVolumes, r.StatusText, r.LatestChapter,
+                    r.PublishersJson, r.LicensedEn, r.TranslationComplete, r.Webtoon))
+                .ToDictionaryAsync(r => r.Id, ct);
+            foreach (var id in chunk)
+            {
+                if (!maps.Contains(id))
+                    continue;
+                result[id] = SeriesProgressLoader.MapAndFacts(maps[id].ToList(), records.GetValueOrDefault(id), language).Map;
+            }
+        }
+        return result;
     }
 
     /// <summary>

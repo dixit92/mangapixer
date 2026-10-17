@@ -66,7 +66,10 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
             return null;
 
         var rows = stack.Members.Select(m => view.Rows[m.Row.Id]).ToList();
-        var cards = (await browse.EnrichAsync(rows, userId, view.LibraryId, ct)).ToDictionary(n => n.Id, StringComparer.Ordinal);
+        var enriched = await browse.EnrichAsync(rows, userId, view.LibraryId, ct);
+        // 1.44.0 (owner, 2026-10-15): the chapter cards ring like the folder list's and the Volumes view's (same folder, same rule).
+        enriched = await browse.WithTrackerReadAsync(enriched, userId, view.FolderId, ct);
+        var cards = enriched.ToDictionary(n => n.Id, StringComparer.Ordinal);
         var slots = VolumeGrouping.Slots(stack)
             .Select(s => new VolumeSlotDto
             {
@@ -100,6 +103,7 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
             Slots = slots,
             OfficialRelease = stack.OfficialRelease,
             Duplicates = stack.Duplicates.Select(DuplicateUnits.ToDto).ToList(),
+            InVolumeFile = VolumeScan.VolumeContentLine.Of(stack),
         };
     }
 

@@ -32,12 +32,12 @@
     <!-- Testing -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.12" />
 
     <!-- Archive and image processing (versions vetted for compatibility) -->
-    <PackageVersion Include="SharpCompress" Version="0.50.4" />
-    <PackageVersion Include="Magick.NET-Q8-AnyCPU" Version="14.17.2" />
+    <PackageVersion Include="SharpCompress" Version="0.50.5" />
+    <PackageVersion Include="Magick.NET-Q8-AnyCPU" Version="15.0.0" />
 
     <!-- Transitive security pins: override vulnerable transitive versions -->
     <!-- SQLitePCLRaw: use 3.x bundle for FTS5/trigram support and security fixes -->

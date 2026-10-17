@@ -41,6 +41,12 @@ public sealed record FolderVolumeEntries(
     /// </summary>
     public bool ChaptersOnly { get; init; }
 
+    /// <summary>1.44.0: the volumes the series' own list maps (empty without a list) - the volume contents scan leaves them alone.</summary>
+    public IReadOnlySet<decimal> ListedVolumes { get; init; } = new HashSet<decimal>();
+
+    /// <summary>1.44.0: the folder belongs to a linked series (its own link or its series folder's).</summary>
+    public bool Linked { get; init; }
+
     /// <summary>
     /// The Volumes view differs from the folder list: a stack, merged unit subfolders, a missing-volume placeholder, or (1.29.0 RC)
     /// a folder with its own link that holds volumes - its header shows the series status - or (1.34.0) a linked folder in chapter mode
@@ -111,11 +117,13 @@ public sealed class VolumeEntryService
 
     private readonly MangaPixerDbContext _db;
     private readonly IMemoryCache? _cache;
+    private readonly VolumeScan.VolumeScanQueue? _scanQueue;
 
-    public VolumeEntryService(MangaPixerDbContext db, IMemoryCache? cache = null)
+    public VolumeEntryService(MangaPixerDbContext db, IMemoryCache? cache = null, VolumeScan.VolumeScanQueue? scanQueue = null)
     {
         _db = db;
         _cache = cache;
+        _scanQueue = scanQueue;
     }
 
     private sealed record NodeInfo(long Id, string PublicId, long LibraryId, string LibraryPublicId, string Name, long? ParentId);
@@ -162,12 +170,16 @@ public sealed class VolumeEntryService
         // 1.37.0: the archive links of a folder of stories are part of the key - a story linked or unlinked regroups at once (a link
         // change does not move the catalog revision).
         var stories = context.StoriesQualify ? await StoryLinksAsync(info.Id, ct) : [];
-        var key = $"volview:{info.Id}:{revision}:{context.Key}:{language}:{mapKey}:{StoriesKey(stories)}";
+        // 1.44.0: the volume contents scan's answers are part of the key (a stored answer regroups at once).
+        var key = $"volview:{info.Id}:{revision}:{context.Key}:{language}:{mapKey}:{StoriesKey(stories)}:{VolumeScan.VolumeContentReader.Generation}";
         if (_cache is not null && _cache.TryGetValue(key, out FolderVolumeEntries? cached) && cached is not null)
             return cached;
 
         var built = await BuildAsync(info, context, language, stories, ct);
         _cache?.Set(key, built, s_ttl);
+        // 1.44.0: a folder with a volume file next to chapter files no list places goes to the front of the volume contents scan.
+        if (_scanQueue is not null && MayHoldScanTarget(built))
+            _scanQueue.Enqueue(info.Id);
         return built;
     }
 
@@ -401,6 +413,15 @@ public sealed class VolumeEntryService
         }
 
         var (map, release, status, facts) = await LoadMapAsync(context.RecordId, language, ct);
+        // 1.44.0: the volumes the series' list maps (the volume contents scan never scans those), then the scan's answers for the
+        // archives of this view: chapter files proven inside a volume file join its stack, a Known volume joins the map.
+        var listedVolumes = map is { ChaptersOnly: false } ? map.Volumes.Select(v => v.Volume).ToHashSet() : [];
+        var scans = VolumeContents.MayApply(rows)
+            ? await VolumeScan.VolumeContentReader.LoadAsync(_db,
+                byId.Values.Where(r => r.Kind != (int)CatalogNodeKind.Folder).ToDictionary(r => r.InternalId, r => r.Id), ct)
+            : [];
+        IReadOnlyList<GroupingRow> scannedRows = rows;
+        (scannedRows, map) = VolumeContents.Apply(rows, map, scans);
         // The series' progress over its whole scope (1.30.0): the same engine and rows as the Missing report.
         var progress = context.Own && context.RecordId is { } linkedRecord
             ? (await new SeriesProgressLoader(_db).LoadAsync([new SeriesProgressTarget(folder.Id, linkedRecord)], ct)).GetValueOrDefault(folder.Id)
@@ -412,7 +433,7 @@ public sealed class VolumeEntryService
         if (declared?.TrackingOff == true && map is not null)
             map = map with { ReleasedChapters = null, ReleasedVolumeCount = null };
         // Missing-volume placeholders only at the folder with its own link: a Season / Part subfolder holds part of the run.
-        var grouping = VolumeGrouping.Group(rows, map,
+        var grouping = VolumeGrouping.Group(scannedRows, map,
             markMissingVolumes: context.Own && declared?.VolumeOverride is null && declared?.TrackingOff != true);
         var statusInfo = context.Own && release is not null
             ? new SeriesStatusInfo(status is MetadataOriginStatus.Unknown ? null : status, grouping.MissingVolumeCount, grouping.MissingChapterCount,
@@ -436,7 +457,21 @@ public sealed class VolumeEntryService
         {
             AlsoInVolume = progress?.Result.Reach.AlsoInVolume ?? new Dictionary<string, string>(StringComparer.Ordinal),
             ChaptersOnly = map?.ChaptersOnly == true,
+            ListedVolumes = listedVolumes,
+            Linked = context.RecordId is not null,
         };
+    }
+
+    /// <summary>A volume file the list does not map (a lone card, or in an estimated stack) and a chapter not placed by a list.</summary>
+    private static bool MayHoldScanTarget(FolderVolumeEntries built)
+    {
+        if (built.ChaptersOnly)
+            return false;
+        var volume = built.Entries.Any(e => (e.Kind == VolumeEntryKind.Archive && e.Rank == 0 && e.Volume is not null && !built.ListedVolumes.Contains(e.Volume.Value))
+            || (e.Stack is { HasVolumeArchive: true } s && !built.ListedVolumes.Contains(s.Volume)));
+        var chapter = built.Entries.Any(e => (e.Kind == VolumeEntryKind.Archive && e.Rank != 0 && e.Row is not null && VolumeGrouping.UnitsOf(e.Row).Chapter is not null)
+            || (e.Stack is { } s && s.Members.Any(m => !m.IsVolumeArchive && m.Placement is not (VolumePlacement.Exact or VolumePlacement.Local))));
+        return volume && chapter;
     }
 
     private static FolderVolumeEntries Empty(NodeInfo folder, SeriesContext context) =>

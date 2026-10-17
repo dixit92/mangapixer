@@ -173,6 +173,34 @@ describe('ReviewRowComponent', () => {
     expect(rowActions('Unmatched', reviewItem()).some((a) => a.action === 'later')).toBe(false);
   });
 
+  it('1.44.0: the current match and each candidate open on their site - a new tab, no referrer', () => {
+    const linked = reviewItem({ candidates: [], link: { state: 'Auto', provider: 'mangaupdates', externalId: '42', title: 'Synthetic Saga',
+      matchScore: 0.95, updatedAt: '2026-09-24T00:00:00Z' } });
+    const { el } = create(linked, 'AutoLinked');
+    const a = el.querySelector('[data-testid="review-link-site"]') as HTMLAnchorElement;
+    expect(a.getAttribute('href')).toBe('https://www.mangaupdates.com/series/16');
+    expect(a.getAttribute('target')).toBe('_blank');
+    expect(a.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(a.getAttribute('aria-label')).toBe('Open on MangaUpdates: Synthetic Saga');
+    TestBed.resetTestingModule();
+
+    const base = reviewItem();
+    const [first, second] = base.candidates!;
+    const { all } = create(reviewItem({ candidates: [
+      { ...first, provider: 'mangaupdates', externalId: '42' },
+      { ...second, provider: 'mangadex', externalId: '5E1A7C00-0000-4000-8000-00000000D001' },
+    ] }));
+    expect(all('[data-testid="review-candidate-site"]').map((x) => x.getAttribute('href'))).toEqual([
+      'https://www.mangaupdates.com/series/16', 'https://mangadex.org/title/5e1a7c00-0000-4000-8000-00000000d001']);
+    TestBed.resetTestingModule();
+
+    // Another site, or an id that is not one: no link (the title stays plain text).
+    const plain = create(reviewItem({ candidates: [], link: { state: 'Confirmed', provider: 'gcd', externalId: '7', title: 'Synthetic Comic',
+      updatedAt: '2026-09-24T00:00:00Z' } }), 'Confirmed');
+    expect(plain.el.querySelector('[data-testid="review-link-site"]')).toBeNull();
+    expect(plain.el.querySelector('[data-testid="review-link"]')!.textContent).toContain('Synthetic Comic');
+  });
+
   it('shows the current link on the Auto-linked tab and hides inline actions on phone', () => {
     const item = reviewItem({ candidates: [], link: { state: 'Auto', title: 'Synthetic Saga', matchScore: 0.95,
       updatedAt: '2026-09-24T00:00:00Z', imageUrl: '/api/v1/metadata/images/x' } });

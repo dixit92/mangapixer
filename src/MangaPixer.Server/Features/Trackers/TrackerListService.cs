@@ -2,6 +2,7 @@ namespace com.lifepixer.mangapixer.Server.Features.Trackers;
 
 using System.Diagnostics;
 using System.Globalization;
+using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Trackers;
 using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Persistence;
@@ -197,7 +198,9 @@ public sealed class TrackerListService(
             if (context.Titles.ContainsKey(recordId))
                 rows.Add(RowOf(entry, context));
         }
-        return (new TrackerSeriesSummaryDto { SeriesId = seriesId, Rows = rows }, null);
+        // 1.44.0: the popover says why nothing here counts, instead of "nothing read" (owner, 2026-10-17).
+        var notSynced = rows.Count > 0 ? await resolver.NotSyncedAsync(userId, node.Value.NodeId, recordId, ct) : null;
+        return (new TrackerSeriesSummaryDto { SeriesId = seriesId, Rows = rows, NotSynced = notSynced }, null);
     }
 
     /// <summary>The rows of stored entries (for the per-series actions' answers).</summary>
@@ -236,7 +239,8 @@ public sealed class TrackerListService(
         IReadOnlyDictionary<long, string> SeriesIds,
         IReadOnlyDictionary<long, string> Nodes,
         IReadOnlyDictionary<long, (int? Chapters, int? Volumes)> RecordTotals,
-        bool AddStartedSeries);
+        bool AddStartedSeries,
+        IReadOnlyDictionary<long, VolumeMapInput> Maps);
 
     private async Task<RowContext> ContextAsync(long userId, string tracker, IReadOnlyList<long> recordIds, CancellationToken ct)
     {
@@ -256,7 +260,9 @@ public sealed class TrackerListService(
         var nodes = await resolver.FirstNodesAsync(userId, recordIds, ct);
         var addStarted = await db.TrackerAccounts.AsNoTracking().Where(a => a.UserId == userId && a.Tracker == tracker)
             .Select(a => (bool?)a.AddStartedSeries).FirstOrDefaultAsync(ct) ?? true;
-        return new RowContext(titles, seriesIds, nodes, totals, addStarted);
+        // 1.44.0: the volume lists for the "volumes from chapters" offers (one batched read for the page).
+        var maps = await TrackerSeriesResolver.MapsAsync(db, recordIds, ct);
+        return new RowContext(titles, seriesIds, nodes, totals, addStarted, maps);
     }
 
     /// <summary>The list rules' view of a stored entry.</summary>
@@ -315,6 +321,7 @@ public sealed class TrackerListService(
             Dates = DatesOf(e),
             FromTracker = new TrackerActionDto { Possible = fromBlock == TrackerActionBlock.None, Block = fromBlock },
             ToTracker = new TrackerActionDto { Possible = toBlock == TrackerActionBlock.None, Block = toBlock },
+            VolumesFromChapters = VolumesFromChaptersOf(e, context),
             LastSyncAt = e.RemoteSeenAt,
             LastSentAt = e.LastSentAt,
             UpdatedAt = e.UpdatedAt,
@@ -333,8 +340,19 @@ public sealed class TrackerListService(
             ToTracker = new TrackerActionDto { Possible = toBlock == TrackerActionBlock.None, Block = toBlock },
             CanSync = CanSync(e, facts),
             DontSync = e.DontSync,
+            VolumesFromChapters = VolumesFromChaptersOf(e, context),
         };
     }
+
+    /// <summary>
+    /// 1.44.0: the volumes the tracker's own chapters complete (as last read), when above its volume count - only for an entry it lists,
+    /// with a known id (<see cref="TrackerVolumeCatchUp"/>).
+    /// </summary>
+    private static int? VolumesFromChaptersOf(TrackerEntryEntity e, RowContext context) =>
+        e.RemoteSeenAt is null || e.RemoteMissing || e.RemoteId is null
+            ? null
+            : TrackerVolumeCatchUp.Offer((TrackerEntryStatus?)e.RemoteStatus, e.RemoteChapters, e.RemoteVolumes, e.RemoteTotalVolumes,
+                context.Maps.GetValueOrDefault(e.RecordId));
 
     internal static TrackerDatesDto DatesOf(TrackerEntryEntity e)
     {

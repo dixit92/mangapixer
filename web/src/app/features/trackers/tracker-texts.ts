@@ -1,5 +1,6 @@
 import {
   TrackerAccountDto,
+  TrackerNotSynced,
   TrackerActionBlock,
   TrackerBatchAction,
   TrackerBatchSkip,
@@ -394,10 +395,36 @@ export function actionBlockText(block: TrackerActionBlock, direction: 'from' | '
   }
 }
 
+/** 1.44.0: why reading in a folder is not sent to the user's trackers (the series popover; owner, 2026-10-17). */
+export function notSyncedText(reason: TrackerNotSynced): string {
+  switch (reason) {
+    case 'PrivateLibrary': return 'Reading here is not sent to your trackers: this folder is in one of your Private libraries.';
+    case 'Doujinshi': return 'Reading here is not sent to your trackers: this series is doujinshi.';
+    case 'SwitchedOff': return 'Reading here is not sent to your trackers: you turned sync off for this folder.';
+  }
+}
+
+/** 1.44.0: the offer line - "MyAnimeList's 271 chapters finish volume 27; its list says 25." */
+export function volumesFromChaptersText(row: TrackerSeriesRowDto): string | null {
+  if (row.volumesFromChapters == null || row.remoteChapters == null) return null;
+  const name = trackerName(row.tracker);
+  const listed = row.remoteVolumes ? `its list says ${row.remoteVolumes}` : 'its list has no volumes';
+  return `${name}'s ${row.remoteChapters} chapters finish volume ${row.volumesFromChapters}; ${listed}.`;
+}
+
+/** 1.44.0: the offer's button. */
+export function volumesFromChaptersLabel(row: TrackerSeriesRowDto): string {
+  return `Set ${trackerName(row.tracker)}'s volumes to ${row.volumesFromChapters}`;
+}
+
+/** After "Turn sync on": when the folder's reading is counted (nothing is sent by the switch itself). */
+export const SYNC_TURNED_ON_TEXT = 'Sync is on for this folder. MangaPixer counts it the next time you read here, or with Sync now on the Tracking page.';
+
 /** "45 of 51 ch · 4 of 10 vol", "12 ch", or null when neither side is known. */
 export function ofText(read: number | null | undefined, total: number | null | undefined, unit: 'ch' | 'vol'): string | null {
   if (read == null) return null;
-  return total != null && total > 0 ? `${read} of ${total} ${unit}` : `${read} ${unit}`;
+  // 1.44.0: a stored total below the count (an old record, a total that counts differently) is left out - never "130 of 129 ch".
+  return total != null && total > 0 && total >= read ? `${read} of ${total} ${unit}` : `${read} ${unit}`;
 }
 
 /**
@@ -424,7 +451,7 @@ export function dateText(value: string | null | undefined): string {
 // ---- 1.43.2: the Tracking list's Select mode (one multi-select for every chip; it replaces "Send all") ----
 
 /** The bar's actions in their default order. */
-export const BATCH_ACTIONS: readonly TrackerBatchAction[] = ['FromTracker', 'ToTracker', 'SyncNow', 'DontSync', 'SyncAgain'];
+export const BATCH_ACTIONS: readonly TrackerBatchAction[] = ['FromTracker', 'ToTracker', 'SyncNow', 'DontSync', 'SyncAgain', 'VolumesFromChapters'];
 
 /**
  * The bar's actions for a chip: the chip's natural action first (MyAnimeList ahead -> from the tracker; Waiting for you / MangaPixer
@@ -446,6 +473,7 @@ export function batchActionLabel(action: TrackerBatchAction, slug: string, short
     case 'SyncNow': return 'Sync now';
     case 'DontSync': return "Don't sync";
     case 'SyncAgain': return 'Sync again';
+    case 'VolumesFromChapters': return short ? 'Volumes from chapters' : `Set ${name}'s volumes from its chapters`;
     default: return action;
   }
 }
@@ -458,6 +486,7 @@ export function batchConfirmLabel(action: TrackerBatchAction): string {
     case 'SyncNow': return 'Sync now';
     case 'DontSync': return "Don't sync";
     case 'SyncAgain': return 'Sync again';
+    case 'VolumesFromChapters': return 'Set volumes';
     default: return action;
   }
 }
@@ -489,6 +518,10 @@ export function batchQuestion(action: TrackerBatchAction, slug: string, applies:
     case 'SyncAgain':
       text = `Sync ${seriesCount(applies)} with ${name} again? They sync the next time you read them, or with Sync now.`;
       break;
+    case 'VolumesFromChapters':
+      text = `Set ${name}'s volumes to what its own chapters complete, for ${seriesCount(applies)}? Only the volume count changes; `
+        + 'the chapters and the status stay as they are.';
+      break;
     default:
       text = '';
   }
@@ -509,6 +542,7 @@ export function batchSkipText(reason: TrackerBatchSkip, slug: string): string {
     case 'AlreadyOff': return 'already off';
     case 'AlreadyOn': return 'already on';
     case 'RetryLater': return `${name} asked to slow down - tried again shortly`;
+    case 'VolumesUpToDate': return 'volumes already match';
     default: return reason;
   }
 }
@@ -560,6 +594,10 @@ export function batchSummary(action: TrackerBatchAction, slug: string, t: BatchT
     case 'DontSync':
       lead = `Turned sync off for ${seriesCount(processed)}`;
       parts.push(`${t.done} turned off`);
+      break;
+    case 'VolumesFromChapters':
+      lead = `Set ${name}'s volumes from its chapters for ${seriesCount(processed)}`;
+      parts.push(`${t.done} raised`);
       break;
     default:
       lead = `Turned sync on again for ${seriesCount(processed)}`;

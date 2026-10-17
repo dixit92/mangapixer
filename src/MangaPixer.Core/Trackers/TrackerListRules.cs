@@ -3,6 +3,7 @@ namespace com.lifepixer.mangapixer.Core.Trackers;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
+using com.lifepixer.mangapixer.Core.Metadata.Missing;
 
 // 1.43.0 tracking redesign (lane G, owner 2026-10-15): the Tracking page's filter chips, the two "Set progress" actions' availability,
 // and "read on <tracker>" for a file. PURE - stored numbers in, answers out; no database, no clock, no request.
@@ -181,7 +182,12 @@ public static class TrackerListRules
 /// </summary>
 public static class TrackerReadOn
 {
-    public static bool Covers(UnitNumbers units, TrackerNumbers remote, VolumeMapInput? exactMap, bool declaredEdition, bool oneShot = false)
+    /// <param name="splitParts">
+    /// 1.44.0: the split parts of the series scope (<see cref="SplitPartsOf"/>) - a part (37.1 of 37.1 + 37.2) is read when its whole chapter
+    /// is. Null = no part known (a part then counts as its own number, as before).
+    /// </param>
+    public static bool Covers(UnitNumbers units, TrackerNumbers remote, VolumeMapInput? exactMap, bool declaredEdition, bool oneShot = false,
+        IReadOnlySet<decimal>? splitParts = null)
     {
         // 1.43.0: a one-shot (TrackerUnits) is chapter 1 / volume 1 - read when the tracker has either.
         if (oneShot)
@@ -189,6 +195,8 @@ public static class TrackerReadOn
         if (units.Chapter is { } start)
         {
             var end = units.ChapterEnd is { } e && e > start ? e : start;
+            if (units.ChapterEnd is null && splitParts is not null && splitParts.Contains(start))
+                end = decimal.Truncate(start);
             return remote.Chapters is > 0 and var chapters && end <= chapters;
         }
         if (units.Volume is not { } volume || declaredEdition)
@@ -198,6 +206,16 @@ public static class TrackerReadOn
             return true;
         return remote.Chapters is > 0 and var read && exactMap is { } map && IsExact(map)
             && ListedWholes(map, volume, volumeEnd) is { Count: > 0 } wholes && wholes.Max() <= read;
+    }
+
+    /// <summary>
+    /// 1.44.0: the split parts among <paramref name="units"/> (the series scope's chapter files), as the Volumes view, the Missing report and the
+    /// tracker progress read them (<see cref="MissingUnits.SplitsOf"/>).
+    /// </summary>
+    public static IReadOnlySet<decimal> SplitPartsOf(IEnumerable<UnitNumbers> units)
+    {
+        ArgumentNullException.ThrowIfNull(units);
+        return MissingUnits.SplitsOf(units.Where(u => u.Chapter is not null).ToList()).Parts;
     }
 
     /// <summary>

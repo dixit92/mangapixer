@@ -91,7 +91,7 @@ describe('LibraryBrowseComponent Volumes view (1.29.0)', () => {
 
     const first = el.querySelectorAll('.node-wrap')[0];
     expect(first.querySelector('app-stack-card')).not.toBeNull();
-    expect(first.querySelector('[data-testid="stack-incomplete"]')!.textContent?.trim()).toBe('8/9');
+    expect(first.querySelector('[data-testid="stack-incomplete"]')!.textContent?.trim()).toBe('8 of 9 ch');
     expect(first.querySelector('app-star-toggle')).toBeNull();
     expect(first.querySelector('app-info-toggle')).toBeNull();
     expect(first.querySelector('.node-title')!.textContent).toBe('Volume 1');
@@ -482,7 +482,7 @@ describe('LibraryBrowseComponent Volumes view (1.29.0)', () => {
     const first = el.querySelectorAll('.node-wrap')[0];
     expect(first.querySelector('[data-testid="stack-star"]')).not.toBeNull();
     expect(first.querySelector('.node-sub')!.textContent?.trim()).toBe('3 of 4 chapters');
-    expect(first.querySelector('[data-testid="stack-incomplete"]')!.textContent?.trim()).toBe('3/4');
+    expect(first.querySelector('[data-testid="stack-incomplete"]')!.textContent?.trim()).toBe('3 of 4 ch');
     expect(el.querySelectorAll('.node-wrap')[1].querySelector('[data-testid="stack-star"]')).toBeNull();
   });
 });
