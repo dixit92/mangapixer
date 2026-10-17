@@ -3534,6 +3534,8 @@ export interface TrackerSeriesRowDto {
   fromTracker: TrackerActionDto;
   /** "Set progress from MangaPixer to <tracker>" (`POST .../send`). */
   toTracker: TrackerActionDto;
+  /** 1.44.0: the volume count the tracker's own chapters complete on the exact volume list, when above its volume count. */
+  volumesFromChapters?: number | null;
   lastSyncAt?: string | null;
   lastSentAt?: string | null;
   updatedAt: string;
@@ -3603,7 +3605,7 @@ export type TrackerNotSynced = 'PrivateLibrary' | 'Doujinshi' | 'SwitchedOff';
 // ---- 1.43.2: the Tracking list's Select mode (replaces "Send all") ----
 
 /** What a batch applies to each selected series. */
-export type TrackerBatchAction = 'FromTracker' | 'ToTracker' | 'SyncNow' | 'DontSync' | 'SyncAgain';
+export type TrackerBatchAction = 'FromTracker' | 'ToTracker' | 'SyncNow' | 'DontSync' | 'SyncAgain' | 'VolumesFromChapters';
 
 /** Why a batch left a selected series as it is. */
 export type TrackerBatchSkip =
@@ -3616,7 +3618,8 @@ export type TrackerBatchSkip =
   | 'NotListed'
   | 'AlreadyOff'
   | 'AlreadyOn'
-  | 'RetryLater';
+  | 'RetryLater'
+  | 'VolumesUpToDate';
 
 /** `POST /api/v1/trackers/{slug}/entries/batch`: one action for up to 100 of the caller's series. */
 export interface TrackerBatchRequest {
@@ -3653,6 +3656,8 @@ export interface TrackerSelectableSeriesDto {
   toTracker: TrackerActionDto;
   canSync: boolean;
   dontSync: boolean;
+  /** 1.44.0: as the row's. */
+  volumesFromChapters?: number | null;
 }
 
 /** `GET /api/v1/trackers/{slug}/series/ids?filter=&q=`: every series matching the chip + search (at most 2000). */

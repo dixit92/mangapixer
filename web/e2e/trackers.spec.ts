@@ -705,6 +705,39 @@ test.describe('tracker sync web (1.43.0)', () => {
     expect(outside).toEqual([]);
   });
 
+  test('the popover offers MyAnimeList\'s volumes from its own chapters and sets them on the click (1.44.0)', async ({ page }) => {
+    // The owner's path (2026-10-17): MyAnimeList at 271 chapters / 25 volumes - its chapters finish volume 27.
+    test.skip(!VOLUMES_ROOT, 'E2E_SERIES_FIXTURE_ROOT not set: no synthetic library available');
+    test.setTimeout(180_000);
+    const outside = await guardOutside(page);
+    await login(page);
+    const [libraryId, folderId] = await volumeLibrary(page);
+    let raised = false;
+    const posts: string[] = [];
+    const row = () => trackingRow('s9', 'TrackerAhead', { nodeId: folderId, allChapters: null, chapters: null, remoteChapters: 271,
+      remoteVolumes: raised ? 27 : 25, volumesFromChapters: raised ? null : 27 });
+    await page.route(/\/api\/v1\/trackers$/, (r) => r.fulfill({ json: { trackers: [connectedMal()] } }));
+    await page.route(/\/api\/v1\/trackers\/attention$/, (r) => r.fulfill({ json: { total: 0, trackers: [] } }));
+    await page.route(new RegExp(`/api/v1/trackers/nodes/${folderId}/summary$`), (r) => r.fulfill({ json: { seriesId: 's9', rows: [row()] } }));
+    await page.route(/\/api\/v1\/trackers\/mal\/entries\/s9\/volumes-from-chapters$/, (r) => {
+      posts.push(r.request().method());
+      raised = true;
+      return r.fulfill({ json: {} });
+    });
+    await page.setViewportSize({ width: 820, height: 1180 });
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+    await page.getByTestId('series-tracking-button').click();
+    const pop = page.getByTestId('series-tracking-popover');
+    await expect(pop.getByTestId('series-tracking-volumes-mal')).toContainText("MyAnimeList's 271 chapters finish volume 27; its list says 25.");
+    const set = pop.getByTestId('series-tracking-volumes-set-mal');
+    await expect(set).toHaveText("Set MyAnimeList's volumes to 27");
+    await set.click();
+    await expect(pop.getByTestId('series-tracking-volumes-mal')).toHaveCount(0);
+    await expect(pop.getByTestId('series-tracking-remote-mal')).toContainText('27 vol');
+    expect(posts).toEqual(['POST']);
+    expect(outside).toEqual([]);
+  });
+
   test('the series header\'s Tracking popover opens the series\' row on the Tracking page', async ({ page }) => {
     test.skip(!VOLUMES_ROOT, 'E2E_SERIES_FIXTURE_ROOT not set: no synthetic library available');
     test.setTimeout(180_000);

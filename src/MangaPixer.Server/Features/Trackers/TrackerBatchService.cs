@@ -42,7 +42,8 @@ public sealed class TrackerBatchService(
         var seriesIds = (request.SeriesIds ?? []).Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToList();
         if (seriesIds.Count is 0 or > TrackerFacts.MaxBatchSeries || seriesIds.Any(id => id.Length > 64))
             return (null, TrackerProblem.Bad("invalid_series", $"Select 1 to {TrackerFacts.MaxBatchSeries} series per request."));
-        var reaches = request.Action is TrackerBatchAction.FromTracker or TrackerBatchAction.ToTracker or TrackerBatchAction.SyncNow;
+        var reaches = request.Action is TrackerBatchAction.FromTracker or TrackerBatchAction.ToTracker or TrackerBatchAction.SyncNow
+            or TrackerBatchAction.VolumesFromChapters;
         if (reaches)
         {
             // As the per-series routes: the account must be able to sync before anything is tried.
@@ -72,6 +73,7 @@ public sealed class TrackerBatchService(
                 TrackerBatchAction.FromTracker => await FromTrackerAsync(userId, tracker, seriesId, row.Facts, tally, ct),
                 TrackerBatchAction.ToTracker => await ToTrackerAsync(userId, tracker, recordId, row.Entry, row.Facts, tally, ct),
                 TrackerBatchAction.SyncNow => await SyncNowAsync(userId, tracker, recordId, row.Entry, row.Facts, tally, ct),
+                TrackerBatchAction.VolumesFromChapters => await VolumesFromChaptersAsync(userId, tracker, recordId, row.Entry, tally, ct),
                 _ => await SwitchAsync(userId, tracker, seriesId, row.Entry, request.Action == TrackerBatchAction.DontSync, tally, ct),
             };
             if (stop)
@@ -171,6 +173,37 @@ public sealed class TrackerBatchService(
         db.ChangeTracker.Clear();
         // Sync now is done once the tracker was read (whether or not it had to write).
         return Outcome(entry, written: entry is not null && entry.RemoteSeenAt != before.RemoteSeenAt, tally);
+    }
+
+    /// <summary>
+    /// 1.44.0: "Set &lt;tracker&gt;'s volumes from its chapters" for one series - only where the stored entry offers it (the engine reads the
+    /// entry again and decides from that); true = stop the batch.
+    /// </summary>
+    private async Task<bool> VolumesFromChaptersAsync(long userId, string tracker, long recordId, TrackerEntryEntity before, Tally tally,
+        CancellationToken ct)
+    {
+        if (before.DontSync || before.RemoteId is null || before.RemoteSeenAt is null || before.RemoteMissing)
+        {
+            tally.Skip(before.DontSync ? TrackerBatchSkip.DontSync : before.RemoteId is null ? TrackerBatchSkip.NoId : TrackerBatchSkip.NotChecked);
+            return false;
+        }
+        var (map, _) = await TrackerSeriesResolver.MapAsync(db, recordId, ct);
+        if (TrackerVolumeCatchUp.Offer((TrackerEntryStatus?)before.RemoteStatus, before.RemoteChapters, before.RemoteVolumes, before.RemoteTotalVolumes,
+                map) is null)
+        {
+            tally.Skip(TrackerBatchSkip.VolumesUpToDate);
+            return false;
+        }
+        var entry = await sync.SyncAsync(userId, tracker, recordId, TrackerSyncMode.VolumesFromChapters, TrackerSyncTrigger.User, null, ct);
+        db.ChangeTracker.Clear();
+        var written = entry is not null && entry.LastSentAt != before.LastSentAt;
+        if (entry is not null && !written && entry.State is not ((int)TrackerEntryState.Error or (int)TrackerEntryState.Waiting))
+        {
+            // Read again, nothing to raise any more (the tracker changed since the list was read).
+            tally.Skip(TrackerBatchSkip.VolumesUpToDate);
+            return false;
+        }
+        return Outcome(entry, written, tally);
     }
 
     /// <summary>The result of one engine sync in the batch's counts; true = stop the batch.</summary>

@@ -103,6 +103,28 @@ describe('SeriesTrackingButtonComponent', () => {
     expect(q(pop, 'series-tracking-here-mal')!.textContent!.trim()).toBe('nothing read');
   });
 
+  it('1.44.0: offers "Set MyAnimeList\'s volumes to 27" when its own chapters finish more volumes, and sends it on the click', () => {
+    const { fixture, el, http } = create([summary({ account: trackerAccount() })]);
+    const row = seriesRow({ remoteChapters: 271, remoteVolumes: 25, volumesFromChapters: 27 });
+    http.expectOne('/api/v1/trackers/nodes/n1/summary').flush({ seriesId: 's1', rows: [row] });
+    fixture.detectChanges();
+    (q(el, 'series-tracking-button') as HTMLButtonElement).click();
+    http.expectOne('/api/v1/trackers/nodes/n1/summary').flush({ seriesId: 's1', rows: [row] });
+    fixture.detectChanges();
+    const pop = q(overlay(), 'series-tracking-popover')!;
+    expect(q(pop, 'series-tracking-volumes-mal')!.textContent).toContain("MyAnimeList's 271 chapters finish volume 27; its list says 25.");
+    const set = q(pop, 'series-tracking-volumes-set-mal') as HTMLButtonElement;
+    expect(set.textContent!.trim()).toBe("Set MyAnimeList's volumes to 27");
+
+    set.click();
+    const post = http.expectOne('/api/v1/trackers/mal/entries/s1/volumes-from-chapters');
+    expect(post.request.method).toBe('POST');
+    post.flush({});
+    http.expectOne('/api/v1/trackers/nodes/n1/summary').flush({ seriesId: 's1', rows: [{ ...row, remoteVolumes: 27, volumesFromChapters: null }] });
+    fixture.detectChanges();
+    expect(q(pop, 'series-tracking-volumes-mal')).toBeNull();
+  });
+
   it('shows one block per connected tracker and no dates for MangaUpdates', () => {
     const { fixture, el, http } = create([summary({ account: trackerAccount() }),
       summary({ slug: 'mangaupdates', name: 'MangaUpdates', account: trackerAccount({ tracker: 'mangaupdates' }) })]);

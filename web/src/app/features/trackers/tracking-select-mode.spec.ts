@@ -83,7 +83,7 @@ describe('TrackingSeriesListComponent - Select mode (1.43.2)', () => {
     expect(el.querySelectorAll('[data-testid^="tracking-pick-box-"]').length).toBe(4);
     expect(text(el, 'tracking-selected-count')).toBe('0 selected');
     expect(text(el, 'tracking-batch-why')).toContain('Tick series with the boxes');
-    expect(actionOrder(el)).toEqual(['FromTracker', 'ToTracker', 'SyncNow', 'DontSync', 'SyncAgain']);
+    expect(actionOrder(el)).toEqual(['FromTracker', 'ToTracker', 'SyncNow', 'DontSync', 'SyncAgain', 'VolumesFromChapters']);
     for (const a of actionOrder(el)) expect((q(el, `tracking-batch-${a}`) as HTMLButtonElement).disabled).toBe(true);
 
     for (const id of ['a', 'b', 'c']) tick(el, id);

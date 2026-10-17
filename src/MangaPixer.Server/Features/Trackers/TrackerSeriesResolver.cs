@@ -499,6 +499,30 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
         return (map, record);
     }
 
+    /// <summary>1.44.0: <see cref="MapAsync"/> for many records at once (the Tracking list's "volumes from chapters" offers), by record id.</summary>
+    public static async Task<Dictionary<long, VolumeMapInput>> MapsAsync(MangaPixerDbContext db, IReadOnlyCollection<long> recordIds, CancellationToken ct)
+    {
+        var result = new Dictionary<long, VolumeMapInput>();
+        if (recordIds.Count == 0)
+            return result;
+        var language = await ReleasedInLanguage.PreferredAsync(db, ct);
+        foreach (var chunk in recordIds.Distinct().Chunk(Batch))
+        {
+            var maps = (await db.SeriesVolumeMaps.AsNoTracking().Where(m => chunk.Contains(m.RecordId)).ToListAsync(ct)).ToLookup(m => m.RecordId);
+            var records = await db.MetadataRecords.AsNoTracking().Where(r => chunk.Contains(r.Id))
+                .Select(r => new SeriesProgressLoader.RecordRow(r.Id, r.Origin, r.OriginStatus, r.OriginVolumes, r.StatusText, r.LatestChapter,
+                    r.PublishersJson, r.LicensedEn, r.TranslationComplete, r.Webtoon))
+                .ToDictionaryAsync(r => r.Id, ct);
+            foreach (var id in chunk)
+            {
+                if (!maps.Contains(id))
+                    continue;
+                result[id] = SeriesProgressLoader.MapAndFacts(maps[id].ToList(), records.GetValueOrDefault(id), language).Map;
+            }
+        }
+        return result;
+    }
+
     /// <summary>
     /// The series totals a tracker's entry lacks, from the stored record (MangaUpdates list entries carry none): finished only when the
     /// record's origin status is Complete; the chapter total from its status text, the volume total from its origin volumes.

@@ -12,7 +12,7 @@ import { TrackerStateService } from './tracker-state.service';
 import { TrackersApiService } from './trackers-api.service';
 import {
   SYNC_TURNED_ON_TEXT, TRACKER_RING_LEGEND, TRACKING_PATH, bucketText, bucketTone, dateText, notSyncedText, numbersText, ofText, statusText,
-  trackerName, trackerSeriesUrl,
+  trackerName, trackerSeriesUrl, volumesFromChaptersLabel, volumesFromChaptersText,
 } from './tracker-texts';
 import { provideTrackerTooltips } from './tracker-tooltips';
 
@@ -87,6 +87,15 @@ const POSITIONS: ConnectedPosition[] = [
                   Start {{ date(row.dates.startedOn) }} · Finish {{ date(row.dates.finishedOn) }}
                 </p>
               }
+              <!-- 1.44.0 (owner): the tracker's own chapters finish more volumes than it lists - raise them on the user's click. -->
+              @if (volumesOffer(row); as offer) {
+                <div class="vol-offer" [attr.data-testid]="'series-tracking-volumes-' + row.tracker">
+                  <p>{{ offer }}</p>
+                  <button mat-stroked-button type="button" [disabled]="raising()" (click)="raiseVolumes(row)"
+                          [attr.data-testid]="'series-tracking-volumes-set-' + row.tracker">
+                    {{ raising() ? 'Setting…' : volumesLabel(row) }}</button>
+                </div>
+              }
               <a mat-flat-button color="primary" class="open" [routerLink]="trackingPath"
                  [queryParams]="{ tracker: row.tracker, series: row.seriesId }" [state]="{ title: row.title }"
                  (click)="open.set(false)" [attr.data-testid]="'series-tracking-open-' + row.tracker">
@@ -148,6 +157,8 @@ const POSITIONS: ConnectedPosition[] = [
     a.ext mat-icon { font-size: 16px; width: 16px; height: 16px; flex: none; }
     .dates { margin: 0; font-size: 13px; color: var(--mp-text-secondary); }
     .open { align-self: flex-start; }
+    .vol-offer { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; font-size: 13px; color: var(--mp-text-secondary); }
+    .vol-offer p { margin: 0; }
     .not-synced { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 0; padding: 10px 12px; border-radius: 8px;
                   background: rgb(var(--mp-warn-strong-rgb) / 0.1); font-size: 13px; line-height: 1.4; color: var(--mp-text); }
     .not-synced p { margin: 0; }
@@ -181,6 +192,10 @@ export class SeriesTrackingButtonComponent implements OnDestroy {
   readonly date = dateText;
   readonly notSynced = notSyncedText;
   readonly syncTurnedOnText = SYNC_TURNED_ON_TEXT;
+  readonly volumesOffer = volumesFromChaptersText;
+  readonly volumesLabel = volumesFromChaptersLabel;
+  /** "Set <tracker>'s volumes to N" is on its way (1.44.0). */
+  readonly raising = signal(false);
   /** "Turn sync on" is on its way / done for this folder (1.44.0). */
   readonly turningOn = signal(false);
   readonly syncTurnedOn = signal(false);
@@ -271,6 +286,19 @@ export class SeriesTrackingButtonComponent implements OnDestroy {
         this.load(id, true);
       },
       error: () => this.turningOn.set(false),
+    });
+  }
+
+  /** 1.44.0: "Set <tracker>'s volumes to N" (read again on the server first; only the volume count is written); then the numbers again. */
+  raiseVolumes(row: TrackerSeriesRowDto): void {
+    const id = this.nodeId();
+    this.raising.set(true);
+    this.api.volumesFromChapters(row.tracker, row.seriesId).subscribe({
+      next: () => {
+        this.raising.set(false);
+        if (this.nodeId() === id) this.load(id, true);
+      },
+      error: () => this.raising.set(false),
     });
   }
 

@@ -16,6 +16,7 @@ import { TrackersApiService } from './trackers-api.service';
 import {
   BatchTotals, actionBlockText, batchActionLabel, batchActionsFor, batchConfirmLabel, batchQuestion, batchSummary, bucketText, bucketTone,
   dateText, emptyBatchTotals, entryStateText, failureText, fromTrackerQuestion, movedCounts, numbersText, ofText, previewNotice, statusText,
+  volumesFromChaptersLabel, volumesFromChaptersText,
   trackerName, trackerSeriesUrl, trackingChips,
 } from './tracker-texts';
 import { SelectFlags, applies, flagsOfRow, flagsOfSelectable, noneReason, reachesTracker } from './tracking-selection';
@@ -207,6 +208,14 @@ const SEARCH_DELAY_MS = 300;
                         @for (line of why; track $index) { <span>{{ line }}</span> }
                       </p>
                     }
+                    <!-- 1.44.0 (owner): the tracker's own chapters finish more volumes than it lists - raise them on the user's click. -->
+                    @if (volumesOffer(r); as offer) {
+                      <div class="vol-offer" [attr.data-testid]="'tracking-volumes-' + r.seriesId">
+                        <span>{{ offer }}</span>
+                        <button mat-stroked-button type="button" [disabled]="busy() || !canSync() || r.dontSync" (click)="raiseVolumes(r)"
+                                [attr.data-testid]="'tracking-volumes-set-' + r.seriesId">{{ volumesLabel(r) }}</button>
+                      </div>
+                    }
                   </div>
                 }
               </div>
@@ -388,6 +397,7 @@ const SEARCH_DELAY_MS = 300;
     .select-bar .why { margin: 0; display: flex; flex-direction: column; gap: 2px; font-size: 12px; line-height: 1.3; color: var(--mp-text-muted);
                        overflow-wrap: anywhere; }
     .select-bar .why b { font-weight: 500; color: var(--mp-text-secondary); }
+    .vol-offer { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 13px; color: var(--mp-text-secondary); }
     .why-toggle { display: none; align-self: flex-start; align-items: center; gap: 4px; min-height: 40px; padding: 0 4px; border: 0;
                   background: none; font: inherit; font-size: 12px; color: var(--mp-text-muted); cursor: pointer; }
     .why-toggle mat-icon { font-size: 18px; width: 18px; height: 18px; }
@@ -792,6 +802,15 @@ export class TrackingSeriesListComponent implements OnInit, OnChanges, OnDestroy
   toTracker(r: TrackerSeriesRowDto): void {
     if (this.busy() || !this.canSync() || !r.toTracker.possible) return;
     this.runEntry(r, this.api.send(this.slug(), r.seriesId));
+  }
+
+  readonly volumesOffer = volumesFromChaptersText;
+  readonly volumesLabel = volumesFromChaptersLabel;
+
+  /** 1.44.0: "Set <tracker>'s volumes to N" (the server reads the entry again first; only the volume count is written). */
+  raiseVolumes(r: TrackerSeriesRowDto): void {
+    if (this.busy() || !this.canSync() || r.volumesFromChapters == null) return;
+    this.runEntry(r, this.api.volumesFromChapters(this.slug(), r.seriesId));
   }
 
   syncNow(r: TrackerSeriesRowDto): void {

@@ -309,6 +309,8 @@ public sealed class ApiTokenHttpTests
         "POST api/v1/trackers/{slug}/entries/{seriesId}/send",
         "POST api/v1/trackers/{slug}/entries/{seriesId}/set",
         "POST api/v1/trackers/{slug}/entries/{seriesId}/sync",
+        // 1.44.0: "Set <tracker>'s volumes to N" (the user's click; cookie + CSRF like every tracker route).
+        "POST api/v1/trackers/{slug}/entries/{seriesId}/volumes-from-chapters",
         "POST api/v1/trackers/{slug}/preview",
         "PUT api/v1/admin/trackers/nodes/{nodeId}/ids/{slug}",
         "PUT api/v1/admin/trackers/{slug}",
