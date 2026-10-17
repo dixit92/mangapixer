@@ -316,6 +316,16 @@ test.describe('tracker sync web (1.43.0)', () => {
       // Left as is, no id and in sync: both Set-progress actions and Sync again apply to none - three reason lines.
       for (const id of ['s3', 's4', 's5']) await list.getByTestId(`tracking-pick-box-${id}`).click();
       await expect(list.getByTestId('tracking-selected-count')).toHaveText('3 selected');
+      if (size.width < 600) {
+        // 1.44.0 (owner, lane P): on a phone the reason lines fold behind one toggle - folded first, a tap opens them in place.
+        await expect(list.getByTestId('tracking-batch-why-FromTracker')).toBeHidden();
+        const toggle = list.getByTestId('tracking-batch-why-toggle');
+        const box = (await toggle.boundingBox())!;
+        expect(await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('[data-testid="tracking-batch-why-toggle"]'),
+          [box.x + box.width / 2, box.y + box.height / 2])).toBe(true);
+        await toggle.click();
+        await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+      }
       await expect(list.getByTestId('tracking-batch-why-FromTracker')).toBeVisible();
       await expect(list.getByTestId('tracking-batch-why-SyncAgain')).toBeVisible();
       await check('tracking select mode', size.width);

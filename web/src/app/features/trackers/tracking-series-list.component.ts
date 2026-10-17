@@ -503,7 +503,14 @@ export class TrackingSeriesListComponent implements OnInit, OnChanges, OnDestroy
     const rows = new Map(this.items().map((r) => [r.seriesId, r]));
     return [...this.selected()].map(([id, f]) => { const r = rows.get(id); return r ? flagsOfRow(r) : f; });
   });
-  readonly batchActions = computed(() => batchActionsFor(this.filter()));
+  /**
+   * The bar's actions for the chip. 1.44.0: "Set <tracker>'s volumes from its chapters" shows only while a selected series has that offer - it
+   * rarely applies, and a greyed button with its own reason line for every selection made the bar tall enough to cover rows.
+   */
+  readonly batchActions = computed(() => {
+    const offers = this.selectedFlags().some((f) => f.volumesFromChapters);
+    return batchActionsFor(this.filter()).filter((a) => a !== 'VolumesFromChapters' || offers);
+  });
   private readonly actionCounts = computed(() => {
     const flags = this.selectedFlags();
     const sync = this.canSync();
