@@ -15,4 +15,9 @@
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- 1.44.0: fixed image files for the hash golden test (ImageHasherGoldenTests). -->
+    <None Include="Images\HashGolden\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

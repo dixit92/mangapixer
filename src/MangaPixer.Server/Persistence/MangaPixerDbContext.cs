@@ -111,6 +111,11 @@ public sealed class MangaPixerDbContext : DbContext
     public DbSet<TrackerIdOverrideEntity> TrackerIdOverrides => Set<TrackerIdOverrideEntity>();
     public DbSet<TrackerOAuthStateEntity> TrackerOAuthStates => Set<TrackerOAuthStateEntity>();
 
+    // 1.44.0 volume contents scan (lane V, migration AddVolumeContentScan; configured in VolumeScanModel).
+    public DbSet<ArchivePageHashEntity> ArchivePageHashes => Set<ArchivePageHashEntity>();
+    public DbSet<VolumeContentEntity> VolumeContents => Set<VolumeContentEntity>();
+    public DbSet<VolumeScanStateEntity> VolumeScanState => Set<VolumeScanStateEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

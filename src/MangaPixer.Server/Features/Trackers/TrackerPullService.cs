@@ -103,7 +103,9 @@ public sealed class TrackerPullService(
         // Mark every covered archive the user has not marked yet (one save; the relay ignores source "tracker").
         var remoteNumbers = new TrackerNumbers(remote.ChaptersRead, remote.VolumesRead);
         var (archives, map) = await resolver.ArchivesAsync(userId, recordId, ct);
-        var covered = archives.Where(a => TrackerReadOn.Covers(a.Units, remoteNumbers, map, a.DeclaredEdition, a.OneShot)).ToList();
+        // 1.44.0: a split part is covered when its whole chapter is (37.1 and 37.2 when the tracker has 37).
+        var parts = TrackerReadOn.SplitPartsOf(archives.Select(a => a.Units));
+        var covered = archives.Where(a => TrackerReadOn.Covers(a.Units, remoteNumbers, map, a.DeclaredEdition, a.OneShot, parts)).ToList();
         var already = covered.Count(a => a.Read);
         var toMark = covered.Where(a => !a.Read).Select(a => a.NodeId).ToList();
         var marked = 0;

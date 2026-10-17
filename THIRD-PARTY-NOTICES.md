@@ -40,8 +40,8 @@ The ASP.NET Core and .NET runtime assemblies themselves come from the base image
 
 ### 1a. Application runtime (51)
 
-- `Magick.NET-Q8-AnyCPU` - 14.17.2 - Apache-2.0 - https://github.com/dlemstra/Magick.NET
-- `Magick.NET.Core` - 14.17.2 - Apache-2.0 - https://github.com/dlemstra/Magick.NET
+- `Magick.NET-Q8-AnyCPU` - 15.0.0 - Apache-2.0 - https://github.com/dlemstra/Magick.NET
+- `Magick.NET.Core` - 15.0.0 - Apache-2.0 - https://github.com/dlemstra/Magick.NET
 - `Microsoft.AspNetCore.Identity.EntityFrameworkCore` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.AspNetCore.OpenApi` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.Data.Sqlite.Core` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
@@ -84,7 +84,7 @@ The ASP.NET Core and .NET runtime assemblies themselves come from the base image
 - `Serilog.Sinks.Console` - 6.1.1 - Apache-2.0 - https://github.com/serilog/serilog-sinks-console
 - `Serilog.Sinks.File` - 7.0.0 - Apache-2.0 - https://github.com/serilog/serilog-sinks-file
 - `Serilog` - 4.3.0 - Apache-2.0 - https://github.com/serilog/serilog
-- `SharpCompress` - 0.50.4 - MIT - https://github.com/adamhathcock/sharpcompress
+- `SharpCompress` - 0.50.5 - MIT - https://github.com/adamhathcock/sharpcompress
 - `SQLite` - 3.53.4 - blessing (SQLite public-domain dedication; the nuspec has no SPDX expression and points to https://sqlite.org/copyright.html) - https://sqlite.org/
 - `SQLitePCLRaw.bundle_e_sqlite3` - 3.0.5 - Apache-2.0 - https://github.com/ericsink/SQLitePCL.raw
 - `SQLitePCLRaw.config.e_sqlite3` - 3.0.5 - Apache-2.0 - https://github.com/ericsink/SQLitePCL.raw
@@ -123,26 +123,26 @@ which is under the ImageMagick License, an Apache-2.0-derived license
 (https://imagemagick.org/license/; Copyright 1999 ImageMagick Studio LLC).
 The native `Magick.Native-Q8` library contains the components below. Full license
 texts and copyright notices for all of them are in `Notice.txt` at the root of
-the `Magick.NET-Q8-AnyCPU` 14.17.2 NuGet package. Versions and licenses below are
+the `Magick.NET-Q8-AnyCPU` 15.0.0 NuGet package. Versions and licenses below are
 taken from that file. The notice gives upstream URLs only for ImageMagick and
 FreeType; for the rest, the package's `Notice.txt` is the reference.
 
-- `ImageMagick` - 7.1.2-32 - ImageMagick (Apache-2.0-derived) - https://imagemagick.org
+- `ImageMagick` - 7.1.2-33 - ImageMagick (Apache-2.0-derived) - https://imagemagick.org
 - `aom` - 3.15.1 - BSD-2-Clause - see Notice.txt
 - `brotli` - 1.2.0 - MIT - see Notice.txt
 - `libbzip2` - 1.0.8 - bzip2-1.0.6 - see Notice.txt
 - `cairo` - 1.18.6 - MPL-1.1 (text reproduced in the notice; upstream cairo is LGPL-2.1 OR MPL-1.1) - see Notice.txt
 - `libcroco` - 0.6.13 - LGPL-2.0 (GNU Library GPL v2 text) - see Notice.txt
 - `libde265` - 1.1.3 - LGPL-3.0 (library; sample applications MIT) - see Notice.txt
-- `openexr` - 3.5.1 - BSD-3-Clause - see Notice.txt
+- `openexr` - 3.5.2 - BSD-3-Clause - see Notice.txt
 - `libffi` - 3.8.0 - MIT - see Notice.txt
 - `fontconfig` - 2.18.3 - MIT-style (fontconfig license) incl. Unicode data terms - see Notice.txt
 - `freetype` - 2.14.3 - FTL - https://freetype.org
 - `fribidi` - 1.0.17 - LGPL-2.1-or-later - see Notice.txt
 - `gdk-pixbuf` - 2.44.8 - LGPL-2.1-or-later - see Notice.txt
 - `glib` - 2.64.3 - LGPL-2.1-or-later - see Notice.txt
-- `harfbuzz` - 14.5.0 - MIT-style ("Old MIT") - see Notice.txt
-- `libheif` - 1.23.5 - LGPL-3.0 (library; samples and wrappers MIT) - see Notice.txt
+- `harfbuzz` - 14.6.0 - MIT-style ("Old MIT") - see Notice.txt
+- `libheif` - 1.23.6 - LGPL-3.0 (library; samples and wrappers MIT) - see Notice.txt
 - `libhwy` - 1.4.0 - Apache-2.0 OR BSD-3-Clause - see Notice.txt
 - `imath` - 3.2.3 - BSD-3-Clause - see Notice.txt
 - `libjpeg-turbo` - 3.2.0 - IJG AND BSD-3-Clause (its Zlib-licensed parts are subsumed, per the notice) - see Notice.txt
@@ -155,7 +155,7 @@ FreeType; for the rest, the package's `Notice.txt` is the reference.
 - `openjph` - 0.32.0 - BSD-2-Clause - see Notice.txt
 - `pango` - 1.45.3 - LGPL-2.0 (GNU Library GPL v2 text) - see Notice.txt
 - `pixman` - 0.46.4 - MIT - see Notice.txt
-- `libpng` - 1.6.58 - libpng-2.0 - see Notice.txt
+- `libpng` - 1.6.59 - libpng-2.0 - see Notice.txt
 - `libraqm` - 0.11.0 - MIT - see Notice.txt
 - `libraw` - 0.22.2 - LGPL-2.1 (as reproduced in the notice) - see Notice.txt
 - `librsvg` - 2.40.20 - LGPL-2.0 (GNU Library GPL v2 text) - see Notice.txt
@@ -232,7 +232,7 @@ shared framework.
 - `xunit.extensibility.core` - 2.9.3 - Apache-2.0 - https://github.com/xunit/xunit
 - `xunit.extensibility.execution` - 2.9.3 - Apache-2.0 - https://github.com/xunit/xunit
 - `xunit` - 2.9.3 - Apache-2.0 - https://github.com/xunit/xunit
-- `xunit.runner.visualstudio` - 4.0.0 - Apache-2.0 - https://github.com/xunit/visualstudio.xunit
+- `xunit.runner.visualstudio` - 4.0.1 - Apache-2.0 - https://github.com/xunit/visualstudio.xunit
 
 ## 3. Web runtime packages - npm (20)
 
@@ -247,15 +247,15 @@ and Enhance where WebGPU is missing) is another such chunk; it carries shader co
 ported or copied from two upstream projects, attributed under "Ported shader code"
 below.
 
-- `@angular/animations` - 22.2.1 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/cdk` - 22.2.1 - MIT - https://github.com/angular/components *(bundled)*
-- `@angular/common` - 22.2.1 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/compiler` - 22.2.1 - MIT - https://github.com/angular/angular
-- `@angular/core` - 22.2.1 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/forms` - 22.2.1 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/material` - 22.2.1 - MIT - https://github.com/angular/components *(bundled)*
-- `@angular/platform-browser` - 22.2.1 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/router` - 22.2.1 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/animations` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/cdk` - 22.2.2 - MIT - https://github.com/angular/components *(bundled)*
+- `@angular/common` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/compiler` - 22.2.2 - MIT - https://github.com/angular/angular
+- `@angular/core` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/forms` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/material` - 22.2.2 - MIT - https://github.com/angular/components *(bundled)*
+- `@angular/platform-browser` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/router` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
 - `@fontsource/roboto` - 5.3.0 - OFL-1.1 - https://github.com/fontsource/font-files *(bundled)*
 - `@standard-schema/spec` - 1.1.0 - MIT - https://github.com/standard-schema/standard-schema
 - `@webgpu/types` - 0.1.72 - BSD-3-Clause - https://github.com/gpuweb/types
@@ -379,23 +379,23 @@ places in `node_modules`. Platform-specific optional binaries such as
 
 - `@ampproject/remapping` - 2.3.0 - Apache-2.0 - https://github.com/ampproject/remapping
 - `@angular-devkit/architect` - 0.2202.0 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/architect` - 0.2202.1 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/architect` - 0.2202.2 - MIT - https://github.com/angular/angular-cli
 - `@angular-devkit/build-angular` - 22.2.0 - MIT - https://github.com/angular/angular-cli
 - `@angular-devkit/build-webpack` - 0.2202.0 - MIT - https://github.com/angular/angular-cli
 - `@angular-devkit/core` - 22.2.0 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/core` - 22.2.1 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/schematics` - 22.2.1 - MIT - https://github.com/angular/angular-cli
-- `@angular-eslint/builder` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular-eslint/bundled-angular-compiler` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular-eslint/eslint-plugin-template` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular-eslint/eslint-plugin` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular-eslint/schematics` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular-eslint/template-parser` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular-eslint/utils` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `@angular-devkit/core` - 22.2.2 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/schematics` - 22.2.2 - MIT - https://github.com/angular/angular-cli
+- `@angular-eslint/builder` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `@angular-eslint/bundled-angular-compiler` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `@angular-eslint/eslint-plugin-template` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `@angular-eslint/eslint-plugin` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `@angular-eslint/schematics` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `@angular-eslint/template-parser` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `@angular-eslint/utils` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular/build` - 22.2.0 - MIT - https://github.com/angular/angular-cli
-- `@angular/build` - 22.2.1 - MIT - https://github.com/angular/angular-cli
-- `@angular/cli` - 22.2.1 - MIT - https://github.com/angular/angular-cli
-- `@angular/compiler-cli` - 22.2.1 - MIT - https://github.com/angular/angular
+- `@angular/build` - 22.2.2 - MIT - https://github.com/angular/angular-cli
+- `@angular/cli` - 22.2.2 - MIT - https://github.com/angular/angular-cli
+- `@angular/compiler-cli` - 22.2.2 - MIT - https://github.com/angular/angular
 - `@asamuzakjp/css-color` - 7.1.3 - MIT - https://github.com/asamuzaK/cssColor
 - `@asamuzakjp/dom-selector` - 9.2.4 - MIT - https://github.com/asamuzaK/domSelector
 - `@babel/code-frame` - 7.29.7 - MIT - https://github.com/babel/babel
@@ -578,8 +578,8 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `@leichtgewicht/ip-codec` - 2.0.5 - MIT - https://github.com/martinheidegger/ip-codec
 - `@listr2/prompt-adapter-inquirer` - 4.2.7 - MIT - https://github.com/listr2/listr2
 - `@lmdb/lmdb-linux-x64` - 3.5.6 - MIT - https://github.com/kriszyp/lmdb-js
-- `@modelcontextprotocol/core` - 2.0.0 - MIT - https://github.com/modelcontextprotocol/typescript-sdk
-- `@modelcontextprotocol/server` - 2.0.0 - MIT - https://github.com/modelcontextprotocol/typescript-sdk
+- `@modelcontextprotocol/core` - 2.3.1 - Apache-2.0 - https://github.com/modelcontextprotocol/typescript-sdk
+- `@modelcontextprotocol/server` - 2.3.1 - Apache-2.0 - https://github.com/modelcontextprotocol/typescript-sdk
 - `@msgpackr-extract/msgpackr-extract-linux-x64` - 3.0.4 - MIT - https://github.com/kriszyp/msgpackr-extract
 - `@napi-rs/nice-linux-x64-gnu` - 1.1.1 - MIT - https://github.com/Brooooooklyn/nice
 - `@napi-rs/nice` - 1.1.1 - MIT - https://github.com/Brooooooklyn/nice
@@ -602,10 +602,10 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `@peculiar/asn1-x509` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
 - `@peculiar/utils` - 2.0.3 - MIT - https://github.com/PeculiarVentures/pvtsutils
 - `@peculiar/x509` - 1.14.3 - MIT - https://github.com/PeculiarVentures/x509
-- `@playwright/test` - 1.63.0 - Apache-2.0 - https://github.com/microsoft/playwright
+- `@playwright/test` - 1.64.0 - Apache-2.0 - https://github.com/microsoft/playwright
 - `@rolldown/binding-linux-x64-gnu` - 1.2.8 - MIT - https://github.com/rolldown/rolldown
 - `@rolldown/pluginutils` - 1.0.1 - MIT - https://github.com/rolldown/plugins
-- `@schematics/angular` - 22.2.1 - MIT - https://github.com/angular/angular-cli
+- `@schematics/angular` - 22.2.2 - MIT - https://github.com/angular/angular-cli
 - `@types/body-parser` - 1.19.6 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/bonjour` - 3.5.13 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/chai` - 5.2.3 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
@@ -621,7 +621,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `@types/jsesc` - 2.5.1 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/json-schema` - 7.0.15 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/less` - 3.0.8 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
-- `@types/node` - 24.19.1 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
+- `@types/node` - 24.19.2 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/qs` - 6.15.1 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/range-parser` - 1.2.7 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/send` - 1.2.1 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
@@ -673,7 +673,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `ajv-keywords` - 5.1.0 - MIT - https://github.com/epoberezkin/ajv-keywords
 - `ajv` - 6.15.0 - MIT - https://github.com/ajv-validator/ajv
 - `ajv` - 8.20.0 - MIT - https://github.com/ajv-validator/ajv
-- `angular-eslint` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `angular-eslint` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `ansi-colors` - 4.1.3 - MIT - https://github.com/doowb/ansi-colors
 - `ansi-escapes` - 7.3.0 - MIT - https://github.com/sindresorhus/ansi-escapes
 - `ansi-html-community` - 0.0.8 - Apache-2.0 - https://github.com/mahdyar/ansi-html-community
@@ -849,7 +849,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `iconv-lite` - 0.7.3 - MIT - https://github.com/pillarjs/iconv-lite
 - `icss-utils` - 5.1.0 - ISC - https://github.com/css-modules/icss-utils
 - `ignore` - 5.3.2 - MIT - https://github.com/kaelzhang/node-ignore
-- `ignore` - 7.0.8 - MIT - https://github.com/kaelzhang/node-ignore
+- `ignore` - 7.0.12 - MIT - https://github.com/kaelzhang/node-ignore
 - `immutable` - 5.1.9 - MIT - https://github.com/immutable-js/immutable-js
 - `import-fresh` - 3.3.1 - MIT - https://github.com/sindresorhus/import-fresh
 - `import-meta-resolve` - 4.2.0 - MIT - https://github.com/wooorm/import-meta-resolve
@@ -984,8 +984,8 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `picomatch` - 4.0.7 - MIT - https://github.com/micromatch/picomatch
 - `piscina` - 5.3.2 - MIT - https://github.com/piscinajs/piscina
 - `pkijs` - 3.4.1 - BSD-3-Clause - https://github.com/PeculiarVentures/PKI.js
-- `playwright-core` - 1.63.0 - Apache-2.0 - https://github.com/microsoft/playwright
-- `playwright` - 1.63.0 - Apache-2.0 - https://github.com/microsoft/playwright
+- `playwright-core` - 1.64.0 - Apache-2.0 - https://github.com/microsoft/playwright
+- `playwright` - 1.64.0 - Apache-2.0 - https://github.com/microsoft/playwright
 - `postcss-loader` - 8.2.1 - MIT - https://github.com/webpack/postcss-loader
 - `postcss-media-query-parser` - 0.2.3 - MIT - https://github.com/dryoma/postcss-media-query-parser
 - `postcss-modules-extract-imports` - 3.1.0 - ISC - https://github.com/css-modules/postcss-modules-extract-imports
@@ -1174,7 +1174,7 @@ The Windows package (`scripts/Publish-Windows.ps1` stages it; `installer/MangaPi
 - `.NET runtime` - 10.0.12 (win-x64, self-contained: `coreclr.dll`, `clrjit.dll`, `hostfxr.dll`, `hostpolicy.dll`, `msquic.dll`, `System.IO.Compression.Native.dll`, the `System.*` assemblies and the diagnostics helpers, published into `server\` and `worker\`) - MIT - https://github.com/dotnet/runtime. Microsoft's own third-party notices for the runtime are in that repository's `THIRD-PARTY-NOTICES.TXT`; `dotnet publish` does not copy that file.
 - `ASP.NET Core runtime` - 10.0.12 (`Microsoft.AspNetCore.*` assemblies, server only) - MIT - https://github.com/dotnet/aspnetcore
 - `.NET Windows Desktop runtime` (Windows Forms) - 10.0.12, inside the single-file `MangaPixer.Tray.exe` - MIT - https://github.com/dotnet/winforms. The tray project references no NuGet packages; the framework is all it ships.
-- `Magick.Native-Q8-x64.dll` - the Windows build of the native library described in section 1c: the same bundled components and licenses, from the same `Magick.NET-Q8-AnyCPU` 14.17.1 package. Its `Notice.txt` ships as `Magick.NET-Notice.txt` next to the tray executable.
+- `Magick.Native-Q8-x64.dll` - the Windows build of the native library described in section 1c: the same bundled components and licenses, from the same `Magick.NET-Q8-AnyCPU` 15.0.0 package. Its `Notice.txt` ships as `Magick.NET-Notice.txt` next to the tray executable.
 - `e_sqlite3.dll` - SQLite 3.53.4 (win-x64, from `SQLitePCLRaw.bundle_e_sqlite3`, section 1a) - blessing (SQLite public-domain dedication) - https://sqlite.org/
 - `WiX Toolset` - 6.0.2 (`WixToolset.Sdk`, `WixToolset.UI.wixext`, `WixToolset.Util.wixext`, restored as the pinned `wix` .NET tool by `scripts/Build-Installer.ps1`) - MS-RL (Microsoft Reciprocal License) for the source; the prebuilt packages are provided under the WiX Open Source Maintenance Fee agreement, whose fee applies only to revenue-generating use and which leaves redistribution of built output governed by MS-RL - https://github.com/wixtoolset/wix. The MSI embeds the two extensions' custom-action libraries (the WixUI and WixUtil custom actions) in its `Binary` table; nothing else from the toolset reaches users. `License.rtf`, shown by the installer, is the MIT text of `LICENSE`.
 

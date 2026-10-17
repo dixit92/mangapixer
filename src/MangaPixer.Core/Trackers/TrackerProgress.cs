@@ -36,7 +36,8 @@ public static class TrackerProgress
     /// Computes the numbers of one series for one user.
     /// <list type="bullet">
     /// <item>Chapters read = the highest WHOLE chapter whose archive (or range end) is marked; an extra or a <c>.5</c> chapter never raises
-    /// it; a hole on disk does not hold it back (not "contiguous").</item>
+    /// it; a hole on disk does not hold it back (not "contiguous"). 1.44.0: a split chapter counts once every part here is marked (the split
+    /// rule below).</item>
     /// <item>A marked VOLUME archive counts its chapters only through an EXACT list (<paramref name="map"/> from MangaDex / Wikipedia), and
     /// raises volumes read only then - never from an estimate or the AniList ratio.</item>
     /// <item>1.43.0 (owner E1): a volume also counts as read when EVERY whole chapter the exact list gives it is marked read in chapter
@@ -77,11 +78,17 @@ public static class TrackerProgress
                 autoVolumes = Max(autoVolumes, volume);
             }
         }
+        // 1.44.0 (owner, 2026-10-17): a split chapter whose parts here are all marked counts as read - a part alone holds no whole chapter,
+        // so a folder whose newest chapters are split files counted only up to its last whole file.
+        var markedAuto = ChaptersMarked(rows, units, includeHeld: false);
+        var markedAll = ChaptersMarked(rows, units, includeHeld: true);
+        autoChapters = Max(autoChapters, Highest(markedAuto));
+        allChapters = Max(allChapters, Highest(markedAll));
         if (volumesAllowed)
         {
             // E1: volumes whose every listed whole chapter is marked in chapter files.
-            autoVolumes = Max(autoVolumes, CompleteVolume(map, ChaptersMarked(rows, units, includeHeld: false)));
-            allVolumes = Max(allVolumes, CompleteVolume(map, ChaptersMarked(rows, units, includeHeld: true)));
+            autoVolumes = Max(autoVolumes, CompleteVolume(map, markedAuto));
+            allVolumes = Max(allVolumes, CompleteVolume(map, markedAll));
         }
         return new TrackerProgressResult(new TrackerNumbers(autoChapters, autoVolumes), new TrackerNumbers(allChapters, allVolumes));
     }
@@ -163,6 +170,15 @@ public static class TrackerProgress
             (start, end) = (end, start);
         var whole = decimal.Floor(end);
         return whole >= start ? ToCount(whole) : null;
+    }
+
+    /// <summary>The highest countable chapter of <paramref name="marked"/> (chapter 0 never counts), or null.</summary>
+    private static int? Highest(IReadOnlySet<int> marked)
+    {
+        int? highest = null;
+        foreach (var c in marked)
+            highest = Max(highest, ToCount(c));
+        return highest;
     }
 
     private static int? ToCount(decimal value) => value is >= 1 and <= 100_000 ? (int)value : null;

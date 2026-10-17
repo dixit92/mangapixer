@@ -80,6 +80,32 @@ public sealed record PageResponse<T>
     /// Volumes view is available and active for the viewer. Null when the requested sort was used. Additive.
     /// </summary>
     public string? EffectiveSort { get; init; }
+
+    /// <summary>
+    /// 1.44.0 (lane C, the Completion filter): how many child folders of the browsed level are linked series - their own Confirmed or
+    /// Auto link to a record - before any filter. The web shows the Filter menu's Completion section only when this is above 0. Set by
+    /// the folder list of catalog browse only; null for the Volumes view and every other page response. Additive.
+    /// </summary>
+    public int? LinkedSeries { get; init; }
+
+    /// <summary>
+    /// 1.44.0 (lane C): while the Completion filter applies, how many linked series of the level have each answer (after the other
+    /// filters, before the Completion filter itself); null otherwise. Additive.
+    /// </summary>
+    public BrowseCompletionCountsDto? CompletionCounts { get; init; }
+}
+
+/// <summary>
+/// 1.44.0 (lane C): the number of linked series of a browse level per Completion answer (<see cref="SeriesAnswer"/>) - the same answers
+/// as the Completion tab. A folder whose tracking an admin turned off has no answer and is in none of them.
+/// </summary>
+public sealed record BrowseCompletionCountsDto
+{
+    public required int HaveItAll { get; init; }
+    public required int FinishedMissing { get; init; }
+    public required int UpToDate { get; init; }
+    public required int MissingSome { get; init; }
+    public required int CantTell { get; init; }
 }
 
 /// <summary>

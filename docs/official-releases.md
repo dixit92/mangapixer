@@ -48,6 +48,7 @@ A volume that is out officially in your language, but that you have only as chap
 - **Edition** (shown with the two Finished answers) narrows them to one edition.
 - Each row shows the folder (it opens the series page), the answer and its edition, why, the linked record and library, the trackers - the original run, the official release in your language with its publisher and status, and the released chapters - and what you have. The folder button browses the folder. A series linked by automatic matching says **automatic link**: check the link before you move it.
 - Have it all and Everything so far are sorted by name; the two missing answers list the series closest to whole first.
+- *New in 1.44.0:* the same answers filter a library while you browse it: **Filter** > **Completion** keeps only the series folders with the answer you pick (see [Browse sort, order and filters](library-layout.md#browse-sort-order-and-filters)). Unlike this tab, it is there for every user, not only admins.
 
 ## Moving a finished series
 

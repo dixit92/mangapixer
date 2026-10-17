@@ -1,5 +1,7 @@
 namespace com.lifepixer.mangapixer.Core.Trackers;
 
+using com.lifepixer.mangapixer.Core.Catalog;
+
 // 1.43.0 tracker sync (lane E): compare before write. PURE - MangaPixer's numbers and the tracker's entry in, at most one write out.
 // Owner rules (2026-10-13): write only when MangaPixer is ahead; never lower a tracker's number without the user's click; never touch
 // an entry the user set on hold / dropped / completed / rereading on the tracker; Completed only when the tracker's own total is known
@@ -16,6 +18,12 @@ public enum TrackerSyncMode
 
     /// <summary>"Set the tracker to N": the user's explicit numbers, which may lower the tracker (the UI asks first).</summary>
     SetTo = 2,
+
+    /// <summary>
+    /// 1.44.0: the user's "Set &lt;tracker&gt;'s volumes to N" - only the volume count the tracker's OWN chapters complete on the exact list
+    /// (<see cref="TrackerVolumeCatchUp"/>), from the entry as just read; the chapters and the status stay as the tracker has them.
+    /// </summary>
+    VolumesFromChapters = 3,
 }
 
 /// <summary>Everything one decision reads.</summary>
@@ -31,6 +39,7 @@ public enum TrackerSyncMode
 /// write (also on its own while <paramref name="DatesPending"/>). Null = automatic. Only for a tracker that keeps dates.</param>
 /// <param name="FinishedOverride">The user's own finish date, sent when the entry turns Completed (instead of today).</param>
 /// <param name="DatesPending">A date the user set has not reached the tracker yet.</param>
+/// <param name="ExactMap">1.44.0: the series' volume list, for <see cref="TrackerSyncMode.VolumesFromChapters"/> (only an exact one counts).</param>
 public sealed record TrackerSyncInput(
     TrackerSyncMode Mode,
     TrackerNumbers Local,
@@ -44,7 +53,8 @@ public sealed record TrackerSyncInput(
     int? LastSentVolumes = null,
     DateOnly? StartedOverride = null,
     DateOnly? FinishedOverride = null,
-    bool DatesPending = false);
+    bool DatesPending = false,
+    VolumeMapInput? ExactMap = null);
 
 /// <summary>The outcome: the entry state, the one write to make (or null), and the jump still held for "Send".</summary>
 public sealed record TrackerSyncDecision(TrackerEntryState State, TrackerEntryWrite? Write, TrackerNumbers Held);
@@ -65,6 +75,8 @@ public static class TrackerSyncRules
 
         if (input.Mode == TrackerSyncMode.SetTo)
             return SetTo(input, remote);
+        if (input.Mode == TrackerSyncMode.VolumesFromChapters)
+            return VolumesFromChapters(input, remote);
 
         if (remote is null && !input.AddStartedSeries)
         {
@@ -154,6 +166,24 @@ public static class TrackerSyncRules
             completed ? FinishOf(input, remote!) : null,
             remote is null && input.PrivateEntry ? true : null);
         return new TrackerSyncDecision(TrackerEntryState.Ok, write, TrackerNumbers.None);
+    }
+
+    /// <summary>
+    /// 1.44.0: only the volumes, raised to what the tracker's own chapters complete (nothing else in the write - the status is the tracker's
+    /// own, so never Completed, never on hold / dropped / re-read: those are left as is above). No offer, nothing written. The state is what
+    /// the list shows next: the tracker ahead of MangaPixer's automatic numbers, or in step.
+    /// </summary>
+    private static TrackerSyncDecision VolumesFromChapters(TrackerSyncInput input, TrackerEntry? remote)
+    {
+        if (remote is null)
+            return new TrackerSyncDecision(TrackerEntryState.NotOnList, null, TrackerNumbers.None);
+        var remoteNumbers = new TrackerNumbers(remote.ChaptersRead, remote.VolumesRead);
+        if (TrackerVolumeCatchUp.Offer(remote, input.ExactMap) is not { } volumes)
+            return new TrackerSyncDecision(remoteNumbers.IsAheadOf(input.Local) ? TrackerEntryState.TrackerAhead : TrackerEntryState.Ok, null,
+                TrackerNumbers.None);
+        var write = new TrackerEntryWrite(remote.Status, null, volumes, null, null, null);
+        var after = remoteNumbers with { Volumes = volumes };
+        return new TrackerSyncDecision(after.IsAheadOf(input.Local) ? TrackerEntryState.TrackerAhead : TrackerEntryState.Ok, write, TrackerNumbers.None);
     }
 
     /// <summary>

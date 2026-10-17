@@ -286,7 +286,13 @@ public static class LogEvents
         public const int PerformanceSettingsLoadFailed = 4203;
         public const int PerformanceConfigInvalid = 4204;
 
-        // Reserved, 1.43.0: 4300-4399 volume contents scan (lane V).
+        // 1.44.0 volume contents scan (4300-4399, lane V): ids, counts, timings and codes only.
+        public const int VolumeScanFolderScanned = 4300;
+        public const int VolumeScanArchiveFailed = 4301;
+        public const int VolumeScanStopped = 4302;
+        public const int VolumeScanSweep = 4303;
+        public const int VolumeScanSweepFailed = 4304;
+        public const int VolumeScanSwitchChanged = 4305;
     }
 
     /// <summary>Derived-cache lifecycle: hits, publishes, eviction, budget pressure.</summary>
@@ -558,5 +564,17 @@ public static class LogEvents
 
         // 1.43.2 (Select mode, replaces Send all): one line per batch request - user id, slug, action, counts and timing only.
         public const int BatchApplied = 10807;
+    }
+
+    /// <summary>
+    /// 1.44.0 lane C: catalog browse (3200-3249, inside the 3xxx range; reserved for lane C). Counts and timings only.
+    /// </summary>
+    public static class Catalog
+    {
+        public const int Min = 3200;
+        public const int Max = 3249;
+
+        /// <summary>The completion filter answered a browse level: linked series, kept, milliseconds.</summary>
+        public const int CompletionFilterApplied = 3200;
     }
 }

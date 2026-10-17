@@ -90,6 +90,8 @@ import {
   UpdateCheckSettingsRequest,
   PerformanceSettingsDto,
   UpdatePerformanceSettingsRequest,
+  UpdateVolumeScanRequest,
+  VolumeScanStatusDto,
   UpdateCheckStatusDto,
   BackupSettingsDto,
   BackupSettingsUpdateResultDto,
@@ -102,6 +104,7 @@ import {
   UserGrantsDto,
   UserPreferencesDto,
   AppearancePreferencesDto,
+  SeriesAnswer,
 } from './api-types';
 
 /**
@@ -174,6 +177,7 @@ export class ApiService {
     favoritesOnly = false,
     group: 'volumes' | 'flat' | null = null,
     preferVolumes = false,
+    completion: SeriesAnswer | null = null,
   ): Observable<PageResponse<CatalogNodeDto>> {
     let params = new HttpParams().set('pageSize', pageSize.toString());
     if (cursor) params = params.set('cursor', cursor);
@@ -198,6 +202,8 @@ export class ApiService {
     // 1.31.0 (home "New chapters" tap): prefer the Volumes view - the server answers with Name sort (`effectiveSort`) when the
     // folder is a linked series whose Volumes view is available and active for the viewer, else it keeps the requested sort.
     if (preferVolumes) params = params.set('preferVolumes', 'true');
+    // 1.44.0: the Completion filter - keep only the linked series with this answer; the server ignores it where the level holds none.
+    if (completion) params = params.set('completion', completion);
     return this.get<PageResponse<CatalogNodeDto>>(
       `/libraries/${libraryId}/browse`,
       params,
@@ -647,6 +653,16 @@ export class ApiService {
   /** Changes the performance settings (partial; `reset` returns fields to their default). Applies live. */
   updatePerformanceSettings(request: UpdatePerformanceSettingsRequest): Observable<PerformanceSettingsDto> {
     return this.put<PerformanceSettingsDto>('/admin/performance', request);
+  }
+
+  /** 1.44.0 (admin): "Find the chapters inside volume files" - the volume contents scan's switch and counts. */
+  getVolumeScanStatus(): Observable<VolumeScanStatusDto> {
+    return this.get<VolumeScanStatusDto>('/admin/volume-contents');
+  }
+
+  /** 1.44.0 (admin): turns the volume contents scan on or off (applies at once). */
+  setVolumeScanEnabled(enabled: boolean): Observable<VolumeScanStatusDto> {
+    return this.put<VolumeScanStatusDto>('/admin/volume-contents', { enabled } as UpdateVolumeScanRequest);
   }
 
   /** Admin analytics overview: library/content/processing/engagement counts. */

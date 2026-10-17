@@ -72,6 +72,21 @@ describe('TrackingSeriesListComponent - Select mode (1.43.2)', () => {
     http.verify();
   });
 
+  it('1.44.0: "Set MyAnimeList\'s volumes from its chapters" joins the bar only while a selected series offers it', () => {
+    const { fixture, el } = create(seriesPage([FROM({ volumesFromChapters: 27 }), SYNCED()], { counts: listCounts({ trackerAhead: 1, inSync: 1 }) }));
+    q(el, 'tracking-select-mal').click();
+    fixture.detectChanges();
+    tick(el, 'c');
+    fixture.detectChanges();
+    expect(actionOrder(el)).not.toContain('VolumesFromChapters');
+    expect(q(el, 'tracking-batch-why-VolumesFromChapters')).toBeNull();
+
+    tick(el, 'a');
+    fixture.detectChanges();
+    expect(actionOrder(el).at(-1)).toBe('VolumesFromChapters');
+    expect(q(el, 'tracking-batch-VolumesFromChapters').getAttribute('aria-label')).toBe("Set MyAnimeList's volumes from its chapters (1)");
+  });
+
   it('Select shows a tick per row and the bar; each action says how many of the selected it applies to, and why one applies to none', () => {
     const { fixture, el } = create(seriesPage([FROM(), TO(), SYNCED(), OFF()], { counts: listCounts({ trackerAhead: 1, mangaPixerAhead: 1, inSync: 1, notSynced: 1 }) }));
     expect(q(el, 'tracking-pick-a')).toBeNull();
@@ -83,6 +98,7 @@ describe('TrackingSeriesListComponent - Select mode (1.43.2)', () => {
     expect(el.querySelectorAll('[data-testid^="tracking-pick-box-"]').length).toBe(4);
     expect(text(el, 'tracking-selected-count')).toBe('0 selected');
     expect(text(el, 'tracking-batch-why')).toContain('Tick series with the boxes');
+    // 1.44.0: the volumes action shows only while a selected series offers it (none here).
     expect(actionOrder(el)).toEqual(['FromTracker', 'ToTracker', 'SyncNow', 'DontSync', 'SyncAgain']);
     for (const a of actionOrder(el)) expect((q(el, `tracking-batch-${a}`) as HTMLButtonElement).disabled).toBe(true);
 
@@ -103,6 +119,16 @@ describe('TrackingSeriesListComponent - Select mode (1.43.2)', () => {
     fixture.detectChanges();
     expect(text(el, 'tracking-batch-why-FromTracker')).toContain('None of the selected (MyAnimeList is not ahead of MangaPixer - nothing to bring in)');
     expect(text(el, 'tracking-batch-why-ToTracker')).toContain('MangaPixer is not ahead of MyAnimeList - nothing to send');
+
+    // 1.44.0 (owner): on a phone the reason lines fold behind one toggle (the CSS hides them below 600 px until it is opened).
+    const toggle = q(el, 'tracking-batch-why-toggle') as HTMLButtonElement;
+    expect(toggle.textContent).toMatch(/Why \d+ actions are off/);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(q(el, 'tracking-batch-why').classList).not.toContain('open');
+    toggle.click();
+    fixture.detectChanges();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(q(el, 'tracking-batch-why').classList).toContain('open');
 
     // Clear empties it; Done leaves Select mode.
     q(el, 'tracking-select-clear').click();

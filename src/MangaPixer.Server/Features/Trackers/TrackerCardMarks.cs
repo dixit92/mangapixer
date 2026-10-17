@@ -106,9 +106,10 @@ public sealed class TrackerCardMarks(MangaPixerDbContext db, TrackerSettingsServ
         {
             SeriesWalked++;
             var (archives, map) = await resolver.ArchivesAsync(userId, recordId, ct);
+            var parts = TrackerReadOn.SplitPartsOf(archives.Select(a => a.Units));
             rings[recordId] = archives.Count == 0
                 ? null
-                : ReadOnEvery(synced[recordId], numbers => archives.All(a => TrackerReadOn.Covers(a.Units, numbers, map, a.DeclaredEdition, a.OneShot)));
+                : ReadOnEvery(synced[recordId], numbers => archives.All(a => TrackerReadOn.Covers(a.Units, numbers, map, a.DeclaredEdition, a.OneShot, parts)));
         }
         return nodes.Select(node =>
         {
@@ -148,6 +149,8 @@ public sealed class TrackerCardMarks(MangaPixerDbContext db, TrackerSettingsServ
         var units = new Dictionary<string, TrackerUnit>(StringComparer.Ordinal);
         for (var i = 0; i < distinct.Count; i++)
             units[distinct[i].Id] = trackerUnits[i];
+        // 1.44.0: a split part rings when its whole chapter is read (the folder's parts, as its Volumes view reads them).
+        var parts = TrackerReadOn.SplitPartsOf(trackerUnits.Where(u => !u.OneShot).Select(u => u.Units));
 
         // A declared edition numbers its own volumes; an exact list lets a volume file count by its chapters.
         var editionFolder = view?.SeriesFolderId ?? folderId;
@@ -161,7 +164,7 @@ public sealed class TrackerCardMarks(MangaPixerDbContext db, TrackerSettingsServ
         {
             var read = ReadOnEvery(seen, numbers => node.Kind == CatalogNodeKind.Archive
                 ? units.TryGetValue(node.Id, out var u)
-                    ? TrackerReadOn.Covers(u.Units, numbers, map, declared, u.OneShot)
+                    ? TrackerReadOn.Covers(u.Units, numbers, map, declared, u.OneShot, parts)
                     : TrackerReadOn.Covers(VolumeGrouping.UnitsOf(new GroupingRow(node.Id, GroupingRowKind.Archive, node.DisplayName, string.Empty)),
                         numbers, map, declared)
                 : node.VolumeStack is { } summary && stacks.TryGetValue(summary.Key, out var stack)

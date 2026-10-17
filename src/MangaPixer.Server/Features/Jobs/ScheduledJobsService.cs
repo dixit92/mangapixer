@@ -196,6 +196,12 @@ public sealed class ScheduledJobsService
         var covers = _services.GetServices<IHostedService>().OfType<CoverDecisionHostedService>().FirstOrDefault();
         jobs.Add(Interval(ScheduledJobKeys.CoverDecisions, covers?.SweepInterval ?? TimeSpan.FromMinutes(10), covers?.SweepEnabled ?? false));
         jobs.Add(Interval(ScheduledJobKeys.ContentSignatures, ContentSignatureBackfillHostedService.PassInterval, true));
+        // 1.44.0: the volume contents scan - hourly and after library scans, while its switch is on.
+        var volumeScan = _services.GetServices<IHostedService>().OfType<VolumeScan.VolumeContentScanService>().FirstOrDefault();
+        jobs.Add(Interval(ScheduledJobKeys.VolumeContents, VolumeScan.VolumeContentScanService.SweepInterval, volumeScan?.Enabled ?? false) with
+        {
+            Running = volumeScan?.Running ?? false,
+        });
         jobs.Add(Interval(ScheduledJobKeys.SessionCleanup, MaintenanceHostedService.SessionInterval, true));
         jobs.Add(WithRun(new ScheduledJobDto { Key = ScheduledJobKeys.Thumbnails, Kind = "startup", Enabled = true, Configurable = false }));
         jobs.Add(new ScheduledJobDto

@@ -26,6 +26,7 @@ import { SeriesSelectionActionsComponent } from '../metadata/series-selection-ac
 import { OfficialReleaseBadgeComponent } from '../../shared/volume-stack/official-release-badge.component';
 import { AlsoInVolumeBadgeComponent } from '../../shared/volume-stack/also-in-volume-badge.component';
 import { ListCreditComponent } from '../../shared/list-credit.component';
+import { TrackerReadMarkComponent } from '../trackers/tracker-read-mark.component';
 
 /**
  * The stack view of one virtual volume (1.29.0): `/libraries/:libraryId/browse/:nodeId/volume/:key`. A header (cover,
@@ -47,6 +48,7 @@ import { ListCreditComponent } from '../../shared/list-credit.component';
     RouterLink, MatButtonModule, MatIconModule, CoverImageDirective, InfoToggleComponent, StarToggleComponent,
     MissingChapterCardComponent, NodeRowComponent, SelectionBarComponent, SeriesSelectionActionsComponent,
     CoverSelectionActionComponent, OfficialReleaseBadgeComponent, AlsoInVolumeBadgeComponent, ListCreditComponent,
+    TrackerReadMarkComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -115,6 +117,10 @@ import { ListCreditComponent } from '../../shared/list-credit.component';
             <!-- 1.31.0: the same chapter in more than one file (uploaded twice); every file keeps its own card. -->
             <p class="dups" [title]="dupTip" data-testid="stack-duplicates">{{ dup }}</p>
           }
+          @if (insideText(); as inside) {
+            <!-- 1.44.0: the chapter files the volume contents scan found inside the volume file (they duplicate it). -->
+            <p class="inside" data-testid="stack-in-volume-file">{{ inside }}</p>
+          }
           <p class="source" data-testid="stack-source">{{ sourceText() }}</p>
           <app-list-credit [credit]="s.listCredit" />
         </div>
@@ -151,6 +157,8 @@ import { ListCreditComponent } from '../../shared/list-credit.component';
                   <div class="cover">
                     @if (item.coverUrl) { <img appCover [src]="item.coverUrl" alt="" loading="lazy"> }
                     <mat-icon class="fallback">menu_book</mat-icon>
+                    <!-- 1.44.0: the gold ring when every synced tracker counts this chapter as read (as on the folder list's cards). -->
+                    <app-tracker-read-mark [trackers]="item.trackerRead" />
                     <app-also-in-volume-badge [volume]="item.alsoInVolume" />
                     @if (item.isRead) {
                       <span class="badge read">✓ Read</span>
@@ -214,6 +222,7 @@ import { ListCreditComponent } from '../../shared/list-credit.component';
     .counts { margin: 0 0 4px; color: var(--mp-text); }
     .source { margin: 0; color: var(--mp-text-dim); font-size: 13px; }
     .dups { margin: 4px 0 0; color: var(--mp-warn); font-size: 13px; overflow-wrap: anywhere; }
+    .inside { margin: 4px 0 0; color: var(--mp-text); font-size: 13px; overflow-wrap: anywhere; }
     .slots { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
     /* List view: the shared row, one column on a phone and the viewer's list-column count from 960px (as in browse). */
     .slots.list { grid-template-columns: minmax(0, 1fr); gap: 8px; }
@@ -329,6 +338,15 @@ export class VolumeStackViewComponent implements OnInit {
   readonly dupTip = DUPLICATE_TIP;
   private readonly duplicateFiles = computed(() =>
     new Map((this.stack()?.duplicates ?? []).filter((d) => d.kind === 'Chapter').map((d): [string, number] => [d.number, d.files])));
+
+  /** 1.44.0 (owner): "Chapters 51-58 are inside the volume file." - read from the files by the volume contents scan; '' when none. */
+  readonly insideText = computed(() => {
+    const inside = this.stack()?.inVolumeFile;
+    if (!inside || inside.count === 0) return '';
+    return inside.count === 1 && inside.from === inside.to
+      ? `Chapter ${inside.from} is inside the volume file.`
+      : `Chapters ${inside.from}-${inside.to} are inside the volume file.`;
+  });
 
   /** Where the grouping came from, without naming a provider (the credit lives in Metadata Manager and the docs). */
   readonly sourceText = computed(() => {

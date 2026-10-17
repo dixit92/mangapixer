@@ -140,6 +140,13 @@ public sealed class WorkerLoop
                     await HandleCoverRenderAsync(envelope.CorrelationId, request);
                     break;
                 }
+            case "page_hash":
+                {
+                    var request = WorkerProtocolFraming.GetPayload<PageHashRequest>(envelope)
+                        ?? throw new InvalidDataException("Missing page_hash request payload");
+                    await HandlePageHashAsync(envelope.CorrelationId, request);
+                    break;
+                }
             case "cancel":
                 {
                     // Cancellation is handled by the CancellationToken in the caller
@@ -558,6 +565,33 @@ public sealed class WorkerLoop
             && GetSourceStamp(request.ArchivePath!) != (request.ExpectedLastWriteTicks, request.ExpectedByteLength))
             return RenderedCover.Failed(CoverRenderErrors.SourceChanged);
         return rendered;
+    }
+
+    /// <summary>
+    /// Hashes a range of the pages of one archive (worker protocol v6, 1.44.0 volume contents scan): <see cref="PageHashOperation"/>. An unreadable
+    /// archive is an error code; a page that cannot be hashed is an entry with an error, never a failed op.
+    /// </summary>
+    private async Task HandlePageHashAsync(string correlationId, PageHashRequest request)
+    {
+        PageHashOperation.Outcome outcome;
+        try
+        {
+            outcome = await PageHashOperation.RunAsync(request, _shutdownToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return; // shutdown - no response needed
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            outcome = new PageHashOperation.Outcome(null, PageHashErrors.ReadFailed);
+        }
+
+        var envelope = outcome.Result is { } result
+            ? WorkerProtocolFraming.CreateEnvelope("page_hash_result", correlationId, result)
+            : WorkerProtocolFraming.CreateEnvelope("page_hash_error", correlationId,
+                new PageHashError { JobId = request.JobId, ErrorType = outcome.Error ?? PageHashErrors.ReadFailed });
+        await WorkerProtocolFraming.WriteEnvelopeAsync(_stdout, envelope, _shutdownToken);
     }
 
     private async Task SendComicInfoErrorAsync(string correlationId, string errorType, string message)

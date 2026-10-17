@@ -140,6 +140,7 @@ A few server-wide settings are changed by an admin in **MangaPixer Administratio
 - **Trackers** (*new in 1.43.0*, **Administration** > **Trackers**): allow MyAnimeList or MangaUpdates sync for the server, after its consent text. `Trackers__NetworkDisabled=true` (config key `Trackers:NetworkDisabled`) turns tracker sync off regardless of the admin setting. See [Tracker setup](tracker-setup.md).
 - **Library icons and reading directions**, set per library on the **Libraries** card, and **automatic scan schedules**, set per library in **Scheduled jobs**.
 - **Performance** (*1.42.0*): media workers, page cache size and background work while someone reads - see [Performance](#performance).
+- **Volume contents** (*1.44.0*): find the chapters inside volume files - see [Volume contents](#volume-contents).
 - **Scheduled jobs** (*1.32.0*): the hours of the daily jobs (series information refresh, backups, trash, cache clean-up), each library's scan time and how often series information is refreshed. See [Scheduled jobs](scheduled-jobs.md).
 
 ## Performance
@@ -163,6 +164,20 @@ set in the configuration is shown on the card as **Set by the server configurati
 - **More workers** open pages faster when several people read and finish a library scan sooner, but each helper process takes some
   memory (about 150-250 MB while busy) and the processor time of the others on the same machine.
 - **A smaller cache** frees its space at once (the least recently read pages go first). The cache always starts empty after a restart.
+
+## Volume contents
+
+*1.44.0.* The **Volume contents** card in **MangaPixer Administration**, next to **Performance**, has one switch: **Find the
+chapters inside volume files** (on by default). While it is on, MangaPixer reads volume files that no volume list maps and the chapter
+files next to them, in the background, to tell which chapters a volume file holds (see [Volumes view](volumes.md#chapters-found-inside-a-volume-file)).
+The card shows how many volume files were checked and in how many chapters were found. The work runs one request at a time on the
+background helper processes, so **Background work while someone reads** applies to it. Files are only read; nothing leaves the server.
+
+| Configuration key | Default | Effect |
+|---|---|---|
+| `MangaPixer:VolumeScan:Enabled` (`MangaPixer__VolumeScan__Enabled`) | `true` | `false` switches the scan off whatever the card says (the card then shows it as switched off by the server configuration). |
+
+**Scheduled jobs** lists it as **Volume contents**: hourly and after library scans, while it is switched on.
 
 ## Fixed behavior
 

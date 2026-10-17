@@ -16,6 +16,7 @@ import { TrackersApiService } from './trackers-api.service';
 import {
   BatchTotals, actionBlockText, batchActionLabel, batchActionsFor, batchConfirmLabel, batchQuestion, batchSummary, bucketText, bucketTone,
   dateText, emptyBatchTotals, entryStateText, failureText, fromTrackerQuestion, movedCounts, numbersText, ofText, previewNotice, statusText,
+  volumesFromChaptersLabel, volumesFromChaptersText,
   trackerName, trackerSeriesUrl, trackingChips,
 } from './tracker-texts';
 import { SelectFlags, applies, flagsOfRow, flagsOfSelectable, noneReason, reachesTracker } from './tracking-selection';
@@ -207,6 +208,14 @@ const SEARCH_DELAY_MS = 300;
                         @for (line of why; track $index) { <span>{{ line }}</span> }
                       </p>
                     }
+                    <!-- 1.44.0 (owner): the tracker's own chapters finish more volumes than it lists - raise them on the user's click. -->
+                    @if (!r.dontSync && volumesOffer(r); as offer) {
+                      <div class="vol-offer" [attr.data-testid]="'tracking-volumes-' + r.seriesId">
+                        <span>{{ offer }}</span>
+                        <button mat-stroked-button type="button" [disabled]="busy() || !canSync() || r.dontSync" (click)="raiseVolumes(r)"
+                                [attr.data-testid]="'tracking-volumes-set-' + r.seriesId">{{ volumesLabel(r) }}</button>
+                      </div>
+                    }
                   </div>
                 }
               </div>
@@ -290,7 +299,12 @@ const SEARCH_DELAY_MS = 300;
             @if (selectedCount() === 0) {
               <p class="why" data-testid="tracking-batch-why">Tick series with the boxes{{ selectAllLabel() ? ', or select all in this chip' : '' }}.</p>
             } @else if (whyLines().length) {
-              <p class="why" data-testid="tracking-batch-why">
+              <!-- 1.44.0 (owner, lane P question): on a phone the reason lines fold behind one line; a tap opens them in place. -->
+              <button type="button" class="why-toggle" [attr.aria-expanded]="whyOpen()" aria-controls="tracking-batch-why-lines"
+                      (click)="whyOpen.set(!whyOpen())" data-testid="tracking-batch-why-toggle">
+                <mat-icon>{{ whyOpen() ? 'expand_less' : 'info_outline' }}</mat-icon>{{ whyToggleLabel() }}
+              </button>
+              <p class="why why-lines" id="tracking-batch-why-lines" [class.open]="whyOpen()" data-testid="tracking-batch-why">
                 @for (line of whyLines(); track line.action) {
                   <span [attr.data-testid]="'tracking-batch-why-' + line.action"><b>{{ actionLabel(line.action, true) }}:</b> {{ line.text }}</span>
                 }
@@ -383,6 +397,10 @@ const SEARCH_DELAY_MS = 300;
     .select-bar .why { margin: 0; display: flex; flex-direction: column; gap: 2px; font-size: 12px; line-height: 1.3; color: var(--mp-text-muted);
                        overflow-wrap: anywhere; }
     .select-bar .why b { font-weight: 500; color: var(--mp-text-secondary); }
+    .vol-offer { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 13px; color: var(--mp-text-secondary); }
+    .why-toggle { display: none; align-self: flex-start; align-items: center; gap: 4px; min-height: 40px; padding: 0 4px; border: 0;
+                  background: none; font: inherit; font-size: 12px; color: var(--mp-text-muted); cursor: pointer; }
+    .why-toggle mat-icon { font-size: 18px; width: 18px; height: 18px; }
     .progress { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; color: var(--mp-text); }
     .sub { font-size: 12px; color: var(--mp-text-muted); }
     .held { font-size: 12px; color: var(--mp-warn); }
@@ -415,6 +433,8 @@ const SEARCH_DELAY_MS = 300;
     @container (max-width: 600px) {
       .sel-act .lbl-long { display: none; }
       .sel-act .lbl-short { display: inline; }
+      .why-toggle { display: inline-flex; }
+      .select-bar .why-lines:not(.open) { display: none; }
     }
     @container (max-width: 900px) {
       .row, .rows.with-dates .row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
@@ -483,11 +503,25 @@ export class TrackingSeriesListComponent implements OnInit, OnChanges, OnDestroy
     const rows = new Map(this.items().map((r) => [r.seriesId, r]));
     return [...this.selected()].map(([id, f]) => { const r = rows.get(id); return r ? flagsOfRow(r) : f; });
   });
-  readonly batchActions = computed(() => batchActionsFor(this.filter()));
+  /**
+   * The bar's actions for the chip. 1.44.0: "Set <tracker>'s volumes from its chapters" shows only while a selected series has that offer - it
+   * rarely applies, and a greyed button with its own reason line for every selection made the bar tall enough to cover rows.
+   */
+  readonly batchActions = computed(() => {
+    const offers = this.selectedFlags().some((f) => f.volumesFromChapters);
+    return batchActionsFor(this.filter()).filter((a) => a !== 'VolumesFromChapters' || offers);
+  });
   private readonly actionCounts = computed(() => {
     const flags = this.selectedFlags();
     const sync = this.canSync();
     return new Map(this.batchActions().map((a) => [a, !sync && reachesTracker(a) ? 0 : flags.filter((f) => applies(a, f)).length]));
+  });
+  /** 1.44.0: the folded reason lines are open (a phone only; on a wider screen they always show). */
+  readonly whyOpen = signal(false);
+  /** "Why 2 actions are off" / "Why one action is off". */
+  readonly whyToggleLabel = computed(() => {
+    const n = this.whyLines().length;
+    return n === 1 ? 'Why one action is off' : `Why ${n} actions are off`;
   });
   readonly whyLines = computed(() => {
     const flags = this.selectedFlags();
@@ -777,6 +811,17 @@ export class TrackingSeriesListComponent implements OnInit, OnChanges, OnDestroy
     this.runEntry(r, this.api.send(this.slug(), r.seriesId));
   }
 
+  readonly volumesOffer = volumesFromChaptersText;
+  readonly volumesLabel = volumesFromChaptersLabel;
+
+  /** 1.44.0: "Set <tracker>'s volumes to N" (the server reads the entry again first; only the volume count is written). */
+  raiseVolumes(r: TrackerSeriesRowDto): void {
+    if (this.busy() || !this.canSync() || r.volumesFromChapters == null) return;
+    const volumes = r.volumesFromChapters;
+    this.runEntry(r, this.api.volumesFromChapters(this.slug(), r.seriesId), undefined,
+      () => `${r.title}: ${this.name()}'s volumes set to ${volumes}.`);
+  }
+
   syncNow(r: TrackerSeriesRowDto): void {
     if (!this.canAct(r)) return;
     this.runEntry(r, this.api.syncNow(this.slug(), r.seriesId));
@@ -977,10 +1022,11 @@ export class TrackingSeriesListComponent implements OnInit, OnChanges, OnDestroy
   }
 
   /** An action answering the old per-series entry: say what happened, then re-read the row in the list's shape. */
-  private runEntry(r: TrackerSeriesRowDto, call: Observable<TrackerEntryDto>, done?: () => void): void {
+  private runEntry(r: TrackerSeriesRowDto, call: Observable<TrackerEntryDto>, done?: () => void, noticeText?: () => string): void {
     this.run(call, (updated) => {
       done?.();
-      this.notice.set(`${r.title}: ${entryStateText(updated).toLowerCase()}.`);
+      // 1.44.0 (UX review): an action may word its own notice; the state text keeps the tracker's name as written (no lowercasing).
+      this.notice.set(noticeText ? noticeText() : `${r.title}: ${entryStateText(updated)}.`);
       this.refreshRow(r);
       this.changed.emit();
     });

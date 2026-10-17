@@ -116,6 +116,59 @@ public static partial class ExportVolumes
             : volumes with { Items = rows };
     }
 
+    /// <summary>
+    /// 1.44.0 (MangaList, owner Q4): the volume files the volume contents scan read. A volume whose range is known gets the proven range
+    /// (the first and last chapter file found inside), <c>sources: ["scan"]</c> and no <c>chaptersEstimated</c>; a partial one keeps the
+    /// estimate's range with <c>scan</c> added. Both list the chapter files inside (<c>filesInside</c>). A list's row is never changed.
+    /// Unchanged (the same instance) when nothing was scanned.
+    /// </summary>
+    public static ExportVolumesDto? WithScans(ExportVolumesDto? volumes, IReadOnlyList<ScannedVolumeContents> scanned)
+    {
+        ArgumentNullException.ThrowIfNull(scanned);
+        if (scanned.Count == 0)
+            return volumes;
+        var rows = (volumes?.Items ?? []).Select(v => (Number: VolumeMapJson.Parse(v.Volume) ?? decimal.MaxValue, Row: v)).ToList();
+        var changed = false;
+        foreach (var scan in scanned.Where(s => s.Chapters.Count > 0))
+        {
+            var inside = scan.Chapters
+                .Select(c => new ExportFileInsideDto { NodeId = c.Row.Id, Name = c.Row.Name, Number = VolumeGrouping.Canonical(c.Chapter) })
+                .ToList();
+            var proven = new ExportChapterRangeDto
+            {
+                From = VolumeGrouping.Canonical(scan.Chapters[0].Chapter),
+                To = VolumeGrouping.Canonical(scan.Chapters[^1].Chapter),
+            };
+            var index = rows.FindIndex(r => r.Number == scan.Volume);
+            if (index < 0)
+            {
+                rows.Add((scan.Volume, new ExportVolumeDto
+                {
+                    Volume = VolumeGrouping.Canonical(scan.Volume),
+                    Chapters = proven,
+                    Sources = [ExportVocabulary.Scan],
+                    ChaptersEstimated = scan.Known ? null : true,
+                    FilesInside = inside,
+                }));
+                changed = true;
+                continue;
+            }
+            var row = rows[index].Row;
+            if (row.ChaptersEstimated != true)
+                continue; // a list's row stays as the list says
+            rows[index] = (scan.Volume, scan.Known
+                ? row with { Chapters = proven, Sources = [ExportVocabulary.Scan], ChaptersEstimated = null, FilesInside = inside }
+                : row with { Sources = [.. row.Sources, ExportVocabulary.Scan], FilesInside = inside });
+            changed = true;
+        }
+        if (!changed)
+            return volumes;
+        var items = rows.OrderBy(r => r.Number).Select(r => r.Row).ToList();
+        return volumes is null
+            ? new ExportVolumesDto { Source = ExportVocabulary.Scan, FetchedAt = null, Items = items }
+            : volumes with { Items = items };
+    }
+
     private static ExportVolumeDto Row(
         string volume, ExportChapterRangeDto? chapters, WikipediaVolumeService.StoredDetail? detail, List<string> sources, DateOnly today)
     {

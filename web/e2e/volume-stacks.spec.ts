@@ -122,6 +122,28 @@ test('a stack opens its chapters, with previous / next volume', async ({ page })
   await expect(page.locator('.node-wrap')).toHaveCount(3);
 });
 
+test('a stack page rings the chapter cards the trackers count as read (1.44.0)', async ({ page }) => {
+  // The owner's path: the series folder in the Volumes view -> a volume -> its chapter cards. The server side (the stack page carries
+  // trackerRead) is TrackerCardRingTests; here the stack answer is given a tracker state (no tracker is reachable in this suite).
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  await setSwitch(page, null);
+  await page.route(/\/api\/v1\/nodes\/[^/]+\/volumes\/[^/?]+$/, async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.slots = body.slots.map((s: { item?: Record<string, unknown> }, i: number) => s.item && i < 2 ? { ...s, item: { ...s.item, trackerRead: ['mal'] } } : s);
+    await route.fulfill({ response, json: body });
+  });
+  await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+  await page.locator('.node-wrap', { hasText: 'Volume 1' }).locator('a.node-card').click();
+
+  await expect(page.getByTestId('stack-item')).toHaveCount(3);
+  const rings = page.getByTestId('stack-item').getByTestId('tracker-read-mark');
+  await expect(rings).toHaveCount(2);
+  await expect(rings.first()).toHaveAttribute('aria-label', 'Read on MyAnimeList');
+  await expect(page.getByTestId('stack-item').nth(2).getByTestId('tracker-read-mark')).toHaveCount(0);
+});
+
 /** The next save of the viewer's browse preferences (the Volumes | Folders choice). */
 function savedPreferences(page: Page) {
   return page.waitForResponse((r) => r.url().includes('/api/v1/reading/library-preferences') && r.request().method() === 'PUT');

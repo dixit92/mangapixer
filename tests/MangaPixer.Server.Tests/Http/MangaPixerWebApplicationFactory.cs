@@ -123,6 +123,8 @@ public sealed class MangaPixerWebApplicationFactory : WebApplicationFactory<Prog
             ["Metadata:AutoMatch:WorkerEnabled"] = "false",
             // Cover layer (1.29.0): tests drive decisions directly; the background sweep never races a test.
             ["Covers:SweepEnabled"] = "false",
+            // Volume contents scan (1.44.0): tests drive it directly or switch it on themselves; the hourly sweep never races a test.
+            ["MangaPixer:VolumeScan:Enabled"] = "false",
         };
         if (extra is not null)
         {

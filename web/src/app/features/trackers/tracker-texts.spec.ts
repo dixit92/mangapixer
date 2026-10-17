@@ -2,6 +2,7 @@ import {
   TRACKER_ADMIN_CONSENT_VERSION, TRACKER_USER_CONSENT_VERSION, accountProblem, actionBlockText, bucketText, dateText, decodeBase36,
   entryStateText, errorText, failureText, fromTrackerQuestion, numbersText, ofText, parseTrackerId, previewNotice, proposedRedirectUri,
   revokeHint, trackerName, trackingChips, encodeBase36, trackerSeriesUrl, batchActionsFor, batchQuestion, batchSummary, emptyBatchTotals,
+  volumesFromChaptersLabel, volumesFromChaptersText,
 } from './tracker-texts';
 import { listCounts, seriesRow } from './trackers.testing';
 import { TrackerAccountDto } from '../../core/api/api-types';
@@ -138,6 +139,17 @@ describe('tracker texts', () => {
     expect(ofText(45, 51, 'ch')).toBe('45 of 51 ch');
     expect(ofText(4, null, 'vol')).toBe('4 vol');
     expect(ofText(null, 51, 'ch')).toBeNull();
+    // 1.44.0 (owner screenshot, live 1.43.0): a stored total below what MangaPixer counts is not shown ("130 of 129 ch", "19 of 1 ch").
+    expect(ofText(130, 129, 'ch')).toBe('130 ch');
+    expect(ofText(19, 1, 'ch')).toBe('19 ch');
+    expect(ofText(129, 129, 'ch')).toBe('129 of 129 ch');
+    // 1.44.0: the volume offer (MyAnimeList's own chapters finish more volumes than it lists).
+    expect(volumesFromChaptersText(seriesRow({ remoteChapters: 271, remoteVolumes: 25, volumesFromChapters: 27 })))
+      .toBe("MyAnimeList's 271 chapters finish volume 27; its list says 25.");
+    expect(volumesFromChaptersText(seriesRow({ remoteChapters: 271, remoteVolumes: null, volumesFromChapters: 27 })))
+      .toBe("MyAnimeList's 271 chapters finish volume 27; its list has no volumes.");
+    expect(volumesFromChaptersText(seriesRow({ volumesFromChapters: null }))).toBeNull();
+    expect(volumesFromChaptersLabel(seriesRow({ volumesFromChapters: 27 }))).toBe("Set MyAnimeList's volumes to 27");
     expect(dateText('2026-10-14')).toBe('Oct 14, 2026');
     expect(dateText(null)).toBe('—');
   });
@@ -185,8 +197,8 @@ describe('tracker texts', () => {
     expect(batchActionsFor('Held')[0]).toBe('ToTracker');
     expect(batchActionsFor('MangaPixerAhead')[0]).toBe('ToTracker');
     expect(batchActionsFor('NotSynced')[0]).toBe('SyncAgain');
-    expect(batchActionsFor('All')).toEqual(['FromTracker', 'ToTracker', 'SyncNow', 'DontSync', 'SyncAgain']);
-    expect(new Set(batchActionsFor('NotSynced')).size).toBe(5);
+    expect(batchActionsFor('All')).toEqual(['FromTracker', 'ToTracker', 'SyncNow', 'DontSync', 'SyncAgain', 'VolumesFromChapters']);
+    expect(new Set(batchActionsFor('NotSynced')).size).toBe(6);
   });
 
   it('words the one confirmation of an apply with its counts', () => {

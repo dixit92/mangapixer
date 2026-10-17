@@ -343,16 +343,24 @@ public sealed class TrackerSyncHttpTests
     {
         var (h, admin, userId, series) = await ConnectedAsync();
         await using var _ = h;
-        h.MangaUpdates.WriteFailures.Enqueue(new TrackerException(TrackerFailure.RateLimited, 412, TimeSpan.FromSeconds(1)));
+        // 1.44.0: a long delay on the host's shiftable clock - the retry can no longer fire (in real time) before the Waiting check below,
+        // which flaked on a loaded box with a 1-second delay; the test moves the clock past it instead of sleeping.
+        h.MangaUpdates.WriteFailures.Enqueue(new TrackerException(TrackerFailure.RateLimited, 412, TimeSpan.FromSeconds(60)));
 
         await MarkReadAsync(admin, series.Archives[3].PublicId);
         await h.IdleAsync();
         Assert.Empty(h.MangaUpdates.Writes);
         Assert.Equal(TrackerEntryState.Waiting, (TrackerEntryState)(await h.EntryAsync(userId, TrackerSlugs.MangaUpdates, series.RecordId))!.State);
 
-        var deadline = DateTime.UtcNow.AddSeconds(20);
+        // Move the clock past the delay until the retry has written. One move is not enough: the relay creates its retry timer on another
+        // thread after the relay went idle, and a timer created after a move is due 60 s after the moved clock (1.44.0: failed once in a
+        // loaded verify - another 50-60 s timer had satisfied the earlier wait for "the relay's" timer).
+        var deadline = DateTime.UtcNow.AddSeconds(30);
         while (h.MangaUpdates.Writes.IsEmpty && DateTime.UtcNow < deadline)
-            await Task.Delay(100);
+        {
+            h.Time.Advance(TimeSpan.FromSeconds(61));
+            await Task.Delay(200);
+        }
         await h.IdleAsync();
         Assert.Equal(4, Assert.Single(h.MangaUpdates.Writes).Write.ChaptersRead);
         Assert.Equal(0, await h.DbAsync(db => db.TrackerRetries.CountAsync()));

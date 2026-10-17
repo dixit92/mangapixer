@@ -85,7 +85,7 @@ public sealed class ImageHasherTests : IDisposable
         using var transparent = Cover(transparentBackground: true);
         using var white = Cover(transparentBackground: true);
         white.BackgroundColor = MagickColors.White;
-        white.Alpha(AlphaOption.Remove);
+        white.Alpha(AlphaAction.Remove);
 
         var a = ImageHasher.Hash(Encode(transparent, MagickFormat.Png), ImageHashLimits.MaxDimension);
         var b = ImageHasher.Hash(Encode(white, MagickFormat.Png), ImageHashLimits.MaxDimension);
