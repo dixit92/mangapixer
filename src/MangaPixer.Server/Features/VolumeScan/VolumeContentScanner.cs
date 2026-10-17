@@ -45,6 +45,12 @@ public enum FolderScanOutcome
 
     /// <summary>Stopped before it finished (switched off, the worker busy or unavailable, shutting down): resumes next time.</summary>
     Stopped = 3,
+
+    /// <summary>
+    /// Put off: an archive of the folder is changing or waits for its re-analysis (missing, changed while read, a page count that no
+    /// longer matches, a deadline): the folder is tried again on the next sweep; the sweep goes on with the next folder.
+    /// </summary>
+    Deferred = 4,
 }
 
 /// <summary>
@@ -131,9 +137,9 @@ public sealed class VolumeContentScanner(
         var errors = new Dictionary<long, string>();
         foreach (var target in scope.Volumes.Concat(scope.Chapters))
         {
-            var (pages, error, stop) = await EnsureHashedAsync(target, enabled, ct);
-            if (stop)
-                return FolderScanOutcome.Stopped;
+            var (pages, error, halt) = await EnsureHashedAsync(target, enabled, ct);
+            if (halt is { } outcome)
+                return outcome;
             if (pages is not null)
                 hashes[target.NodeId] = pages;
             else if (error is not null)
@@ -277,7 +283,7 @@ public sealed class VolumeContentScanner(
     /// every chunk). Returns the pages, or an error code (the archive cannot be hashed until it changes), or stop (switched off, the
     /// worker unavailable, a file changing under us, shutting down).
     /// </summary>
-    private async Task<(IReadOnlyList<ulong?>? Pages, string? Error, bool Stop)> EnsureHashedAsync(Target target, Func<bool> enabled, CancellationToken ct)
+    private async Task<(IReadOnlyList<ulong?>? Pages, string? Error, FolderScanOutcome? Halt)> EnsureHashedAsync(Target target, Func<bool> enabled, CancellationToken ct)
     {
         var row = await db.ArchivePageHashes.FirstOrDefaultAsync(h => h.NodeId == target.NodeId, ct);
         if (row is null || row.ContentVersion != target.ContentVersion || row.Algorithm != HashAlgorithm || row.PageCount != target.PageCount)
@@ -296,12 +302,12 @@ public sealed class VolumeContentScanner(
             row.Error = null;
         }
         if (row.Error is not null)
-            return (null, row.Error, false);
+            return (null, row.Error, null);
 
         while (row.HashedPages < row.PageCount)
         {
             if (!enabled() || ct.IsCancellationRequested)
-                return (null, null, true);
+                return (null, null, FolderScanOutcome.Stopped);
             var outcome = await hasher.HashAsync(new PageHashRequest
             {
                 JobId = "volume-scan",
@@ -322,17 +328,19 @@ public sealed class VolumeContentScanner(
                     row.HashedAt = time.GetUtcNow();
                     await db.SaveChangesAsync(ct);
                     logger.LogInformation(LogEvents.Worker.VolumeScanArchiveFailed, "Volume contents: archive {ItemId} not hashable: {Code}", target.NodeId, code);
-                    return (null, code, false);
+                    return (null, code, null);
                 }
-                // missing / source_changed (a rescan follows), deadline, busy, cancelled, unavailable, timeout: try again later.
-                logger.LogDebug(LogEvents.Worker.VolumeScanStopped, "Volume contents: archive {ItemId} paused: {Code}", target.NodeId, code);
                 await db.SaveChangesAsync(CancellationToken.None);
-                return (null, null, true);
+                // busy / cancelled / unavailable / timeout: the worker pool - stop the sweep; missing / source_changed (a rescan
+                // follows) / deadline: this archive - put the folder off and go on.
+                var halt = code is "busy" or "cancelled" or "unavailable" or "timeout" ? FolderScanOutcome.Stopped : FolderScanOutcome.Deferred;
+                logger.LogDebug(LogEvents.Worker.VolumeScanStopped, "Volume contents: archive {ItemId} paused: {Code}", target.NodeId, code);
+                return (null, null, halt);
             }
             if (result.PageCount != row.PageCount || result.Pages.Count == 0)
             {
                 // The stored analysis no longer matches the file: wait for its re-analysis (a new content version).
-                return (null, null, true);
+                return (null, null, FolderScanOutcome.Deferred);
             }
             foreach (var page in result.Pages)
             {
@@ -351,7 +359,7 @@ public sealed class VolumeContentScanner(
             // Yield between chunks: the scan never holds a worker longer than one chunk.
             await Task.Yield();
         }
-        return (PagesOf(row), null, false);
+        return (PagesOf(row), null, null);
     }
 
     internal static IReadOnlyList<ulong?> PagesOf(ArchivePageHashEntity row)

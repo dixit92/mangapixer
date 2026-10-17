@@ -40,7 +40,6 @@ internal static class VolumeScanModel
             e.ToTable("volume_scan_state");
             e.HasKey(x => x.Id);
             e.Property(x => x.Id).ValueGeneratedNever();
-            e.Property(x => x.Enabled).HasDefaultValue(true);
         });
     }
 }

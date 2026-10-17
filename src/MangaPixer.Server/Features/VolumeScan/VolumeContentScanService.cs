@@ -114,7 +114,10 @@ public sealed class VolumeContentScanService(
         var poll = TimeSpan.FromSeconds(Math.Clamp(configuration.GetValue(PollKey, 30), 1, 3600));
         try
         {
-            await Task.Delay(TimeSpan.FromSeconds(Math.Clamp(configuration.GetValue(InitialDelayKey, 120), 0, 3600)), time, stoppingToken);
+            // A quiet start: the first sweep waits a while after start-up - unless someone opens a folder in the Volumes view first.
+            var initial = TimeSpan.FromSeconds(Math.Clamp(configuration.GetValue(InitialDelayKey, 120), 0, 3600));
+            if (initial > TimeSpan.Zero)
+                await queue.WaitAsync(initial, stoppingToken);
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
@@ -190,7 +193,8 @@ public sealed class VolumeContentScanService(
                 }
                 if (result == FolderScanOutcome.Scanned)
                     scanned++;
-                _waiting--;
+                if (result != FolderScanOutcome.Deferred)
+                    _waiting--;
             }
             outcome = JobOutcomes.Ok;
             detail = string.Create(CultureInfo.InvariantCulture,
