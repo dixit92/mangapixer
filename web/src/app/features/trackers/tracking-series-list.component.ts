@@ -290,7 +290,12 @@ const SEARCH_DELAY_MS = 300;
             @if (selectedCount() === 0) {
               <p class="why" data-testid="tracking-batch-why">Tick series with the boxes{{ selectAllLabel() ? ', or select all in this chip' : '' }}.</p>
             } @else if (whyLines().length) {
-              <p class="why" data-testid="tracking-batch-why">
+              <!-- 1.44.0 (owner, lane P question): on a phone the reason lines fold behind one line; a tap opens them in place. -->
+              <button type="button" class="why-toggle" [attr.aria-expanded]="whyOpen()" aria-controls="tracking-batch-why-lines"
+                      (click)="whyOpen.set(!whyOpen())" data-testid="tracking-batch-why-toggle">
+                <mat-icon>{{ whyOpen() ? 'expand_less' : 'info_outline' }}</mat-icon>{{ whyToggleLabel() }}
+              </button>
+              <p class="why why-lines" id="tracking-batch-why-lines" [class.open]="whyOpen()" data-testid="tracking-batch-why">
                 @for (line of whyLines(); track line.action) {
                   <span [attr.data-testid]="'tracking-batch-why-' + line.action"><b>{{ actionLabel(line.action, true) }}:</b> {{ line.text }}</span>
                 }
@@ -383,6 +388,9 @@ const SEARCH_DELAY_MS = 300;
     .select-bar .why { margin: 0; display: flex; flex-direction: column; gap: 2px; font-size: 12px; line-height: 1.3; color: var(--mp-text-muted);
                        overflow-wrap: anywhere; }
     .select-bar .why b { font-weight: 500; color: var(--mp-text-secondary); }
+    .why-toggle { display: none; align-self: flex-start; align-items: center; gap: 4px; min-height: 40px; padding: 0 4px; border: 0;
+                  background: none; font: inherit; font-size: 12px; color: var(--mp-text-muted); cursor: pointer; }
+    .why-toggle mat-icon { font-size: 18px; width: 18px; height: 18px; }
     .progress { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; color: var(--mp-text); }
     .sub { font-size: 12px; color: var(--mp-text-muted); }
     .held { font-size: 12px; color: var(--mp-warn); }
@@ -415,6 +423,8 @@ const SEARCH_DELAY_MS = 300;
     @container (max-width: 600px) {
       .sel-act .lbl-long { display: none; }
       .sel-act .lbl-short { display: inline; }
+      .why-toggle { display: inline-flex; }
+      .select-bar .why-lines:not(.open) { display: none; }
     }
     @container (max-width: 900px) {
       .row, .rows.with-dates .row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
@@ -488,6 +498,13 @@ export class TrackingSeriesListComponent implements OnInit, OnChanges, OnDestroy
     const flags = this.selectedFlags();
     const sync = this.canSync();
     return new Map(this.batchActions().map((a) => [a, !sync && reachesTracker(a) ? 0 : flags.filter((f) => applies(a, f)).length]));
+  });
+  /** 1.44.0: the folded reason lines are open (a phone only; on a wider screen they always show). */
+  readonly whyOpen = signal(false);
+  /** "Why 2 actions are off" / "Why one action is off". */
+  readonly whyToggleLabel = computed(() => {
+    const n = this.whyLines().length;
+    return n === 1 ? 'Why one action is off' : `Why ${n} actions are off`;
   });
   readonly whyLines = computed(() => {
     const flags = this.selectedFlags();

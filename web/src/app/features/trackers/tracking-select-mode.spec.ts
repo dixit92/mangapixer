@@ -104,6 +104,16 @@ describe('TrackingSeriesListComponent - Select mode (1.43.2)', () => {
     expect(text(el, 'tracking-batch-why-FromTracker')).toContain('None of the selected (MyAnimeList is not ahead of MangaPixer - nothing to bring in)');
     expect(text(el, 'tracking-batch-why-ToTracker')).toContain('MangaPixer is not ahead of MyAnimeList - nothing to send');
 
+    // 1.44.0 (owner): on a phone the reason lines fold behind one toggle (the CSS hides them below 600 px until it is opened).
+    const toggle = q(el, 'tracking-batch-why-toggle') as HTMLButtonElement;
+    expect(toggle.textContent).toMatch(/Why \d+ actions are off/);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(q(el, 'tracking-batch-why').classList).not.toContain('open');
+    toggle.click();
+    fixture.detectChanges();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(q(el, 'tracking-batch-why').classList).toContain('open');
+
     // Clear empties it; Done leaves Select mode.
     q(el, 'tracking-select-clear').click();
     fixture.detectChanges();
