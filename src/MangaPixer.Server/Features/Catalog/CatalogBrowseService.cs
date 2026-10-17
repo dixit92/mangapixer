@@ -34,11 +34,20 @@ public sealed partial class CatalogBrowseService
     private readonly StackCoverService _stackCovers;
     private readonly CollectionStackCoverService _collectionCovers;
     private readonly Trackers.TrackerCardMarks? _trackerMarks;
+    private readonly ILogger<CatalogBrowseService>? _logger;
+    private readonly Microsoft.Extensions.Caching.Memory.IMemoryCache? _cache;
+    private readonly TimeProvider _time;
 
     public CatalogBrowseService(MangaPixerDbContext db, LibraryAuthorizationService auth, SeriesInfoFlagService? seriesInfoFlags = null,
         ICoverResolver? covers = null, VolumeEntryService? volumes = null, StackCoverService? stackCovers = null,
-        CollectionStackCoverService? collectionCovers = null, Trackers.TrackerCardMarks? trackerMarks = null)
+        CollectionStackCoverService? collectionCovers = null, Trackers.TrackerCardMarks? trackerMarks = null,
+        ILogger<CatalogBrowseService>? logger = null, Microsoft.Extensions.Caching.Memory.IMemoryCache? cache = null,
+        TimeProvider? time = null)
     {
+        // 1.44.0 lane C: the Completion filter's log line, its 60 s memo of a level's answers and the clock that ages it.
+        _logger = logger;
+        _cache = cache;
+        _time = time ?? TimeProvider.System;
         _trackerMarks = trackerMarks;
         _db = db;
         _auth = auth;
@@ -77,6 +86,7 @@ public sealed partial class CatalogBrowseService
         bool favoritesOnly = false,
         string? group = null,
         bool preferVolumes = false,
+        SeriesAnswer? completion = null, // 1.44.0 lane C: keep only the linked series folders with this Completion answer
         CancellationToken ct = default)
     {
         // Validate sort — unknown values fall back to "name" (tolerant, like the DTO).
@@ -143,6 +153,9 @@ public sealed partial class CatalogBrowseService
             baseQuery = baseQuery.Where(n => n.ParentId == null);
         else
             baseQuery = baseQuery.Where(n => n.ParentId == parentId);
+
+        // 1.44.0 lane C: the level's linked series, before any filter - the Completion section shows only where there are some.
+        var linkedSeries = await LinkedSeriesOfLevelAsync(baseQuery, ct);
 
         // Favorites-only filter (1.21.0): keep only nodes the user has starred. Applied
         // to the base query BEFORE counting/pagination so it composes with the read-state
@@ -226,6 +239,15 @@ public sealed partial class CatalogBrowseService
                         || keptFolderIds.Contains(n.Id));
                     break;
             }
+        }
+
+        // 1.44.0 lane C: the Completion filter, last (over what the other filters kept), folded in before counting. It applies only
+        // where the level holds linked series - elsewhere it does nothing (never an empty list); other folders and files drop.
+        BrowseCompletionCountsDto? completionCounts = null;
+        if (completion is { } wanted && linkedSeries.Count > 0)
+        {
+            (baseQuery, completionCounts) = await ApplyCompletionAsync(baseQuery, linkedSeries, libraryId, parentId, wanted,
+                continuation: !string.IsNullOrEmpty(cursor) || !string.IsNullOrEmpty(before), ct);
         }
 
         // Total count from the base query (before cursor — fixes the decreasing-count bug
@@ -315,6 +337,8 @@ public sealed partial class CatalogBrowseService
             PrevCursor = prevCursor,
             HasPrevious = hasPrevious,
             NextUnread = nextUnread,
+            LinkedSeries = linkedSeries.Count,
+            CompletionCounts = completionCounts,
         };
     }
 

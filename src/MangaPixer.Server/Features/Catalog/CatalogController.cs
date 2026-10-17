@@ -152,6 +152,7 @@ public sealed class CatalogController : ControllerBase
         [FromQuery] bool favoritesOnly = false,
         [FromQuery] string? group = null,
         [FromQuery] bool preferVolumes = false,
+        [FromQuery] string? completion = null,
         CancellationToken ct = default)
     {
         var userId = GetUserId();
@@ -190,7 +191,7 @@ public sealed class CatalogController : ControllerBase
             direction: ParseDirection(direction, storedDirection, effectiveSort),
             sort: effectiveSort, incognito: _incognito.IsIncognito,
             readState: ParseReadState(readState), hideEmpty: hideEmpty, before: before,
-            favoritesOnly: favoritesOnly, group: group, preferVolumes: preferVolumes, ct: ct);
+            favoritesOnly: favoritesOnly, group: group, preferVolumes: preferVolumes, completion: ParseCompletion(completion), ct: ct);
 
         return Ok(result);
     }
@@ -200,6 +201,16 @@ public sealed class CatalogController : ControllerBase
     /// "reading"/"read"/"unread" (case-insensitive); anything else — including null and
     /// "all" — disables the filter, so older clients and omitted params behave as before.
     /// </summary>
+    /// <summary>
+    /// 1.44.0 lane C: the Completion filter query param - a <see cref="SeriesAnswer"/> name ("HaveItAll", "FinishedMissing", "UpToDate",
+    /// "MissingSome", "CantTell"; case-insensitive). Anything else, numbers included, means no filter (tolerant, like the read state).
+    /// </summary>
+    private static SeriesAnswer? ParseCompletion(string? value) =>
+        !string.IsNullOrEmpty(value) && value.All(char.IsAsciiLetter)
+            && Enum.TryParse<SeriesAnswer>(value, ignoreCase: true, out var answer) && Enum.IsDefined(answer)
+            ? answer
+            : null;
+
     private static BrowseReadStateFilter ParseReadState(string? value)
     {
         if (string.IsNullOrEmpty(value))

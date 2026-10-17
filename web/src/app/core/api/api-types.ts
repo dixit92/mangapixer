@@ -43,6 +43,22 @@ export interface PageResponse<T> {
    * `preferVolumes` (the home "New chapters" tap) opened a linked series' Volumes view. Null otherwise. Optional (additive).
    */
   effectiveSort?: string | null;
+  /**
+   * 1.44.0 (the Completion filter): how many child folders of the browsed level are linked series, before any filter. The Filter
+   * menu's Completion section shows only when this is above 0. Folder-list browse only; null elsewhere. Optional (additive).
+   */
+  linkedSeries?: number | null;
+  /** 1.44.0: while the Completion filter applies, how many linked series of the level have each answer; null otherwise. */
+  completionCounts?: BrowseCompletionCountsDto | null;
+}
+
+/** 1.44.0: the linked series of a browse level per Completion answer (the Completion tab's answers). */
+export interface BrowseCompletionCountsDto {
+  haveItAll: number;
+  finishedMissing: number;
+  upToDate: number;
+  missingSome: number;
+  cantTell: number;
 }
 
 /** 'VolumeStack' (1.29.0): a virtual volume stack of the Volumes view - a browse entry only, never a stored node. */

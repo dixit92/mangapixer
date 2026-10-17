@@ -104,6 +104,7 @@ import {
   UserGrantsDto,
   UserPreferencesDto,
   AppearancePreferencesDto,
+  SeriesAnswer,
 } from './api-types';
 
 /**
@@ -176,6 +177,7 @@ export class ApiService {
     favoritesOnly = false,
     group: 'volumes' | 'flat' | null = null,
     preferVolumes = false,
+    completion: SeriesAnswer | null = null,
   ): Observable<PageResponse<CatalogNodeDto>> {
     let params = new HttpParams().set('pageSize', pageSize.toString());
     if (cursor) params = params.set('cursor', cursor);
@@ -200,6 +202,8 @@ export class ApiService {
     // 1.31.0 (home "New chapters" tap): prefer the Volumes view - the server answers with Name sort (`effectiveSort`) when the
     // folder is a linked series whose Volumes view is available and active for the viewer, else it keeps the requested sort.
     if (preferVolumes) params = params.set('preferVolumes', 'true');
+    // 1.44.0: the Completion filter - keep only the linked series with this answer; the server ignores it where the level holds none.
+    if (completion) params = params.set('completion', completion);
     return this.get<PageResponse<CatalogNodeDto>>(
       `/libraries/${libraryId}/browse`,
       params,
