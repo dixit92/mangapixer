@@ -86,12 +86,12 @@ async function openFilter(page: Page): Promise<void> {
 
 /** The new item is what a tap at its centre hits (not covered by the menu's scroller or anything else). */
 async function expectOnTop(page: Page, testId: string): Promise<void> {
-  const hit = await page.getByTestId(testId).evaluate((el) => {
+  // Polled on the settled menu: Material ignores pointer events while the panel still animates in (1.41.0 lesson).
+  await expect.poll(() => page.getByTestId(testId).evaluate((el) => {
     const r = el.getBoundingClientRect();
     const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
     return !!top && (top === el || el.contains(top));
-  });
-  expect(hit, `${testId} is the top element at its centre`).toBe(true);
+  }), { message: `${testId} is the top element at its centre`, timeout: 5000 }).toBe(true);
 }
 
 test('library -> Filter -> Completion -> only the series with that answer; Any brings the rest back', async ({ page }) => {
