@@ -65,6 +65,7 @@ async function shot(page: Page, name: string): Promise<void> {
 }
 
 test('the chapters inside a volume file join its stack, and the volume says so', async ({ page }) => {
+  test.setTimeout(300_000); // the library scan, its analysis and the background volume scan, each polled for up to 120 s
   await login(page);
   const [libraryId, folderId] = await ensureLibrary(page);
 
@@ -95,6 +96,7 @@ test('the chapters inside a volume file join its stack, and the volume says so',
 });
 
 test('the stack page with the line fits a phone', async ({ page }) => {
+  test.setTimeout(240_000); // run alone (a retry), it waits for the library scan and the volume scan itself
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page);
   const [libraryId, folderId] = await ensureLibrary(page);
