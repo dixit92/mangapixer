@@ -10528,6 +10528,13 @@
               "type": "boolean",
               "default": false
             }
+          },
+          {
+            "name": "completion",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
