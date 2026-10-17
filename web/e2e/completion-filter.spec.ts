@@ -7,7 +7,7 @@ import { expectFitsScreen } from './layout';
  * -> only the series with that answer remain; Any brings the rest back. The synthetic volume library (`<E2E_SERIES_FIXTURE_ROOT>-volumes`)
  * has no linked series offline (no provider is reachable), so the browse answers are the REAL server's, with the linked-series count and
  * the server's filtering stood in by a route (`linkedSeries`, `completionCounts`, and only `Stacked Saga` for "Have it all"). Checks the
- * request carries `completion`, the menu's counts, the button label, the phone and tablet fit with the menu open, and that the new
+ * request carries `completion`, the menu's counts, the button label and icon, the phone and tablet fit with the menu open, and that the new
  * items are the top element where they are drawn.
  */
 const ADMIN_USER = process.env['E2E_ADMIN_USER'] ?? 'admin';
@@ -117,7 +117,8 @@ test('library -> Filter -> Completion -> only the series with that answer; Any b
   await page.keyboard.press('Escape');
   await expect(page.getByText('Stacked Saga').first()).toBeVisible();
   await expect(page.getByText('Doubled Saga')).toHaveCount(0);
-  await expect(page.locator('.filter-toggle')).toContainText('Have it all');
+  await expect(page.locator('.filter-toggle')).toContainText('Filtered');
+  await expect(page.locator('.filter-toggle mat-icon')).toHaveText('workspace_premium'); // the answer's icon
   expect(sent.at(-1)).toBe('HaveItAll');
 
   // The counts the server returned for the level, in the menu.

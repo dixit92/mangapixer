@@ -117,7 +117,9 @@ describe('LibraryBrowseComponent Completion filter (1.44.0)', () => {
     expect(last[COMPLETION_ARG]).toBe('MissingSome');
     expect(comp.completionFilter()).toBe('MissingSome');
     expect(comp.filterActive()).toBe(true);
-    expect(comp.readStateLabel()).toBe('Missing some');
+    expect(comp.readStateLabel()).toBe('Filtered');
+    expect(comp.filterIcon()).toBe('error_outline');
+    expect(comp.filterTooltip()).toContain('Completion: Missing some');
     expect(comp.jumpBuckets().length).toBe(0);
     expect(item('completion-MissingSome')?.getAttribute('aria-checked')).toBe('true');
   });
@@ -138,14 +140,15 @@ describe('LibraryBrowseComponent Completion filter (1.44.0)', () => {
     expect(comp.readStateLabel()).toBe('Filter');
   });
 
-  it('with other filters on too, the button says Filtered', () => {
+  it('with other filters on too, the button still says Filtered with the answer icon', () => {
     const { comp } = setup(3);
     comp.setCompletionFilter('CantTell');
-    comp.toggleFavoritesOnly();
-    expect(comp.readStateLabel()).toBe('Filtered');
-    comp.toggleFavoritesOnly();
     comp.setReadStateFilter('unread');
     expect(comp.readStateLabel()).toBe('Filtered');
+    expect(comp.filterIcon()).toBe('help_outline');
+    comp.setCompletionFilter(null);
+    expect(comp.readStateLabel()).toBe('Unread');
+    expect(comp.filterIcon()).toBe('filter_list');
   });
 
   it('where the level holds no linked series the kept choice changes nothing on screen (label, rail)', () => {
@@ -154,6 +157,7 @@ describe('LibraryBrowseComponent Completion filter (1.44.0)', () => {
     expect(comp.completionApplies()).toBe(false);
     expect(comp.filterActive()).toBe(false);
     expect(comp.readStateLabel()).toBe('Filter');
+    expect(comp.filterIcon()).toBe('filter_list');
     expect(comp.jumpBuckets().length).toBe(1);
   });
 

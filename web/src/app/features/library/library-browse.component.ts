@@ -300,8 +300,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
              glance; it applies at all sizes (not a layout-breaking change). -->
         <button mat-stroked-button class="filter-toggle" [matMenuTriggerFor]="filterMenu"
                 [class.filter-active]="filterActive()"
-                matTooltip="Filter by read state" aria-label="Filter by read state">
-          <mat-icon>filter_list</mat-icon> {{ readStateLabel() }}
+                [matTooltip]="filterTooltip()" aria-label="Filter by read state">
+          <mat-icon>{{ filterIcon() }}</mat-icon> {{ readStateLabel() }}
         </button>
         <mat-menu #filterMenu="matMenu" class="view-options-menu">
           <span class="menu-caption">Show</span>
@@ -856,16 +856,27 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   readonly filterActive = computed(() =>
     this.readStateFilter() !== 'all' || this.hideEmptyFolders() || this.favoritesOnly() || this.completionApplies());
 
-  /** Toolbar button label: "Filter" when inactive, the one active choice's label, else "Filtered". */
+  /**
+   * Toolbar button label: "Filter" when inactive, else the active read-state option's label. 1.44.0: with the Completion filter on, the
+   * button says "Filtered" and shows the answer's icon (its long labels would wrap the button on a phone); the tooltip names it.
+   */
   readonly readStateLabel = computed(() => {
-    const completion = this.completionApplies() ? this.completionFilter() : null;
-    const others = this.hideEmptyFolders() || this.favoritesOnly();
-    if (this.readStateFilter() === 'all') {
-      if (completion && !others) return completionLabel(completion);
-      return others || completion ? 'Filtered' : 'Filter';
-    }
-    if (completion) return 'Filtered';
-    return this.readStateOptions.find((o) => o.value === this.readStateFilter())?.label ?? 'Filter';
+    if (this.completionApplies()) return 'Filtered';
+    return this.readStateFilter() === 'all'
+      ? (this.hideEmptyFolders() || this.favoritesOnly() ? 'Filtered' : 'Filter')
+      : this.readStateOptions.find((o) => o.value === this.readStateFilter())?.label ?? 'Filter';
+  });
+
+  /** The Filter button's icon: the Completion answer's while that filter applies (1.44.0). */
+  readonly filterIcon = computed(() => {
+    const answer = this.completionApplies() ? this.completionFilter() : null;
+    return answer ? this.completionOptions.find((o) => o.value === answer)?.icon ?? 'filter_list' : 'filter_list';
+  });
+
+  /** The Filter button's tooltip: "Completion: Have it all" while that filter applies (1.44.0). */
+  readonly filterTooltip = computed(() => {
+    const answer = this.completionApplies() ? this.completionFilter() : null;
+    return answer ? `Filter by read state - Completion: ${completionLabel(answer)}` : 'Filter by read state';
   });
 
   /** A Completion menu item's text: "Missing some (42)" once the level's answers are counted. */
