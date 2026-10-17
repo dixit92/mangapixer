@@ -1,7 +1,6 @@
 namespace com.lifepixer.mangapixer.Tests.Server.Features.Catalog;
 
 using System.Diagnostics;
-using System.Globalization;
 using System.Text;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
@@ -191,7 +190,7 @@ public sealed class CompletionFilterScaleProbe : IDisposable
         {
             PublicId = "r" + Guid.NewGuid().ToString("N")[..12],
             Provider = "mangaupdates",
-            ExternalId = "x" + i.ToString(CultureInfo.InvariantCulture),
+            ExternalId = "x" + i.ToString(System.Globalization.CultureInfo.InvariantCulture),
             Title = $"Synthetic Record {i:0000}",
             OriginVolumes = volumesOf[i],
             OriginStatus = (int)(i % 3 == 0 ? MetadataOriginStatus.Complete : MetadataOriginStatus.Ongoing),
@@ -218,7 +217,7 @@ public sealed class CompletionFilterScaleProbe : IDisposable
                 $"{{\"v\":\"{v}\",\"c\":[{string.Join(",", Enumerable.Range((v - 1) * 8 + 1, 8).Select(c => $"\"{c}\""))}]}}")) + "]",
             ChaptersPerVolume = 8,
             KnownVolumeCount = volumesOf[i],
-            ContentHash = "h" + i.ToString(CultureInfo.InvariantCulture),
+            ContentHash = "h" + i.ToString(System.Globalization.CultureInfo.InvariantCulture),
             Version = 1,
             FetchedAt = now,
         }));
