@@ -128,6 +128,19 @@ describe('VolumeStackViewComponent', () => {
     expect(badges).toEqual(['✓ Read', 'Reading']);
   });
 
+  for (const viewMode of ['card', 'list']) {
+    it(`1.44.0: rings a chapter card its trackers count as read (${viewMode} mode)`, () => {
+      const ringed = stack({ slots: [
+        { kind: 'Item', chapter: '37', item: item('c37', 'Series c037', { trackerRead: ['mal', 'mangaupdates'] }) },
+        { kind: 'Item', chapter: '38', item: item('c38', 'Series c038') },
+      ] });
+      const { el } = setup(ringed, { viewMode, stackViewMode: viewMode });
+      const marks = Array.from(el.querySelectorAll('[data-testid="tracker-read-mark"]'));
+      expect(marks.length).toBe(1);
+      expect(marks[0].getAttribute('aria-label')).toBe('Read on MyAnimeList and MangaUpdates');
+    });
+  }
+
   it('links previous and next volume inside the same folder', () => {
     const { el } = setup(stack());
 

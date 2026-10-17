@@ -168,4 +168,49 @@ public sealed class TrackerCardRingTests
         Assert.Equal("mal,mangaupdates", rings["Volume 1"]);
         Assert.Null(rings["Volume 2"]); // MangaUpdates read it, MyAnimeList did not
     }
+
+    [Fact]
+    public async Task TheStackPage_ChapterCards_FollowTheSameRule()
+    {
+        // 1.44.0 (owner, 2026-10-15): the chapter cards on a virtual volume's own page ring like the folder list's - the stack page built
+        // its cards without the tracker marks, so they never had a ring.
+        var (h, admin, series) = await BothAsync(chapters: 8);
+        await using var _ = h;
+        h.MangaUpdates.Entries[series.MangaUpdatesId] = Reading(8);
+        h.Mal.Entries[series.MalId] = Reading(4);
+        using (var scope = h.Factory.Services.CreateScope())
+        {
+            var record = await scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>().MetadataRecords.SingleAsync(r => r.Id == series.RecordId);
+            await scope.ServiceProvider.GetRequiredService<VolumeMapService>().StoreAsync(record, VolumeMapSource.MangaDexAggregate, VolumeMapState.Ok,
+                """[{"v":"1","c":["1","2","3","4"]},{"v":"2","c":["5","6","7","8"]}]""", null, 4.0, 2, CancellationToken.None);
+        }
+        await h.IdleAsync();
+        await ReadBothAsync(h, admin, series);
+
+        var volume1 = await StackRingsAsync(admin, series, "Volume 1");
+        Assert.Equal(4, volume1.Count);
+        Assert.All(volume1.Values, ring => Assert.Equal("mal,mangaupdates", ring));
+        var volume2 = await StackRingsAsync(admin, series, "Volume 2");
+        Assert.Equal(4, volume2.Count);
+        Assert.All(volume2.Values, Assert.Null); // MangaUpdates read them, MyAnimeList did not
+    }
+
+    /// <summary>The ring of each chapter card on one stack's page (by the stack card's name in the Volumes view).</summary>
+    private static async Task<Dictionary<string, string?>> StackRingsAsync(HttpClient client, TrackerSeriesSeed series, string stackName)
+    {
+        var browse = await client.GetAsync($"/api/v1/libraries/{series.LibraryPublicId}/browse?parentId={series.FolderPublicId}&pageSize=50&group=volumes");
+        using var cards = JsonDocument.Parse(await browse.Content.ReadAsStringAsync());
+        var key = cards.RootElement.GetProperty("items").EnumerateArray()
+            .Single(e => e.GetProperty("displayName").GetString() == stackName).GetProperty("volumeStack").GetProperty("key").GetString();
+        var response = await client.GetAsync($"/api/v1/nodes/{series.FolderPublicId}/volumes/{Uri.EscapeDataString(key!)}");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return json.RootElement.GetProperty("slots").EnumerateArray()
+            .Where(s => s.TryGetProperty("item", out var item) && item.ValueKind == JsonValueKind.Object)
+            .Select(s => s.GetProperty("item"))
+            .ToDictionary(
+                e => e.GetProperty("displayName").GetString()!,
+                e => e.TryGetProperty("trackerRead", out var r) && r.ValueKind == JsonValueKind.Array
+                    ? string.Join(",", r.EnumerateArray().Select(x => x.GetString())) : null);
+    }
 }

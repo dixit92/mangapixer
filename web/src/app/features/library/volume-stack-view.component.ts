@@ -26,6 +26,7 @@ import { SeriesSelectionActionsComponent } from '../metadata/series-selection-ac
 import { OfficialReleaseBadgeComponent } from '../../shared/volume-stack/official-release-badge.component';
 import { AlsoInVolumeBadgeComponent } from '../../shared/volume-stack/also-in-volume-badge.component';
 import { ListCreditComponent } from '../../shared/list-credit.component';
+import { TrackerReadMarkComponent } from '../trackers/tracker-read-mark.component';
 
 /**
  * The stack view of one virtual volume (1.29.0): `/libraries/:libraryId/browse/:nodeId/volume/:key`. A header (cover,
@@ -47,6 +48,7 @@ import { ListCreditComponent } from '../../shared/list-credit.component';
     RouterLink, MatButtonModule, MatIconModule, CoverImageDirective, InfoToggleComponent, StarToggleComponent,
     MissingChapterCardComponent, NodeRowComponent, SelectionBarComponent, SeriesSelectionActionsComponent,
     CoverSelectionActionComponent, OfficialReleaseBadgeComponent, AlsoInVolumeBadgeComponent, ListCreditComponent,
+    TrackerReadMarkComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -151,6 +153,8 @@ import { ListCreditComponent } from '../../shared/list-credit.component';
                   <div class="cover">
                     @if (item.coverUrl) { <img appCover [src]="item.coverUrl" alt="" loading="lazy"> }
                     <mat-icon class="fallback">menu_book</mat-icon>
+                    <!-- 1.44.0: the gold ring when every synced tracker counts this chapter as read (as on the folder list's cards). -->
+                    <app-tracker-read-mark [trackers]="item.trackerRead" />
                     <app-also-in-volume-badge [volume]="item.alsoInVolume" />
                     @if (item.isRead) {
                       <span class="badge read">✓ Read</span>

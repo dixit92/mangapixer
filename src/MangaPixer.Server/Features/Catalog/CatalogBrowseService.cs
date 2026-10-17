@@ -318,8 +318,11 @@ public sealed partial class CatalogBrowseService
         };
     }
 
-    /// <summary>1.43.0 (tracker sync): the cards' "read on &lt;tracker&gt;" flag, when tracker sync is registered (the app; not bare tests).</summary>
-    private async Task<List<CatalogNodeDto>> WithTrackerReadAsync(List<CatalogNodeDto> nodes, long userId, long? folderId, CancellationToken ct) =>
+    /// <summary>
+    /// 1.43.0 (tracker sync): the cards' "read on &lt;tracker&gt;" flag, when tracker sync is registered (the app; not bare tests). 1.44.0: also
+    /// for a stack page's chapter cards (<see cref="VolumeStackService.GetStackAsync"/>).
+    /// </summary>
+    internal async Task<List<CatalogNodeDto>> WithTrackerReadAsync(List<CatalogNodeDto> nodes, long userId, long? folderId, CancellationToken ct) =>
         _trackerMarks is null ? nodes : await _trackerMarks.DecorateAsync(nodes, userId, folderId, _volumes, ct);
 
     /// <summary>
