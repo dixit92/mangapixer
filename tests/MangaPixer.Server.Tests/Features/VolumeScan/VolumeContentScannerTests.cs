@@ -286,7 +286,8 @@ public sealed class VolumeContentScannerTests : IDisposable
         var folder = await SeedUnlinkedPairAsync(db, lib, null);
         var record = await VolumeTestData.AddRecordAsync(db);
         await VolumeTestData.LinkAsync(db, folder, record.Id);
-        await VolumeTestData.AddMapAsync(db, record.Id, 1, null, null, VolumeMapState.Ok, VolumeMapSource.MangaDexAggregate, (1, 1, 8), (2, 9, 16));
+        // The list maps volume 2 (chapters 5-8): its file is never scanned, even though chapters 9-11 are after the list (candidates).
+        await VolumeTestData.AddMapAsync(db, record.Id, 1, null, null, VolumeMapState.Ok, VolumeMapSource.MangaDexAggregate, (1, 1, 4), (2, 5, 8));
 
         Assert.Equal(FolderScanOutcome.OutOfScope, await Scanner(db).ScanFolderAsync(folder.Id, () => true, default));
         Assert.Empty(_hasher.Calls);
