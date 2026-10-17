@@ -280,6 +280,8 @@ public sealed class VolumeContentMatcherTests
         var stack = after.Entries.Single(e => e.Kind == VolumeEntryKind.Stack).Stack!;
         Assert.Equal("Volume 8", stack.Label);
         Assert.Equal(9, stack.Members.Count);
+        // Read from the files: the stack's source is the file names, not a list.
+        Assert.Equal(VolumeListSource.FileNames, stack.Source);
         // The other chapters stay loose: nothing estimates them without a list.
         Assert.Equal(12, after.Entries.Count(e => e.Kind == VolumeEntryKind.Archive && e.Rank != 0));
     }

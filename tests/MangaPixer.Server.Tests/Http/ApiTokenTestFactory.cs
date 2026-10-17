@@ -51,6 +51,8 @@ public sealed class ApiTokenTestFactory : WebApplicationFactory<Program>
             ["MangaPixer:Scanning:Scheduler:Enabled"] = "false",
             ["Metadata:AutoMatch:WorkerEnabled"] = "false",
             ["Covers:SweepEnabled"] = "false",
+            // 1.44.0: the volume contents scan runs only where a test switches it on.
+            ["MangaPixer:VolumeScan:Enabled"] = "false",
         };
         foreach (var (key, value) in configuration ?? new Dictionary<string, string?>())
             extra[key] = value;

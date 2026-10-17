@@ -654,8 +654,9 @@ public static class VolumeGrouping
         var extraSurplus = duplicates.Where(d => chapterMembers.Any(m => m.IsExtra && m.Chapter == d.Number)).Sum(d => d.Files - 1);
         var extras = chapterMembers.Count(m => m.IsExtra) + bonusMembers.Count - extraSurplus;
         var chapterNumbers = chapterMembers.Where(m => m.Chapter is not null).Select(m => m.Chapter!.Value).Order().ToList();
-        var usesMap = required is not null || chapterMembers.Any(m => m.Placement != VolumePlacement.Local);
-        var usesLocal = hasVolumeArchive || bonusMembers.Count > 0 || chapterMembers.Any(m => m.Placement == VolumePlacement.Local);
+        // 1.44.0: a chapter the volume contents scan found inside the volume file was read from the files, not from a list.
+        var usesMap = required is not null || chapterMembers.Any(m => m.Placement is not (VolumePlacement.Local or VolumePlacement.Scanned));
+        var usesLocal = hasVolumeArchive || bonusMembers.Count > 0 || chapterMembers.Any(m => m.Placement is VolumePlacement.Local or VolumePlacement.Scanned);
         var source = usesMap && usesLocal ? VolumeListSource.Mixed : usesMap ? map.Source : VolumeListSource.FileNames;
         return new VolumeStack(
             Key: Canonical(volume),
