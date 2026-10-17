@@ -84,7 +84,7 @@ The ASP.NET Core and .NET runtime assemblies themselves come from the base image
 - `Serilog.Sinks.Console` - 6.1.1 - Apache-2.0 - https://github.com/serilog/serilog-sinks-console
 - `Serilog.Sinks.File` - 7.0.0 - Apache-2.0 - https://github.com/serilog/serilog-sinks-file
 - `Serilog` - 4.3.0 - Apache-2.0 - https://github.com/serilog/serilog
-- `SharpCompress` - 0.50.4 - MIT - https://github.com/adamhathcock/sharpcompress
+- `SharpCompress` - 0.50.5 - MIT - https://github.com/adamhathcock/sharpcompress
 - `SQLite` - 3.53.4 - blessing (SQLite public-domain dedication; the nuspec has no SPDX expression and points to https://sqlite.org/copyright.html) - https://sqlite.org/
 - `SQLitePCLRaw.bundle_e_sqlite3` - 3.0.5 - Apache-2.0 - https://github.com/ericsink/SQLitePCL.raw
 - `SQLitePCLRaw.config.e_sqlite3` - 3.0.5 - Apache-2.0 - https://github.com/ericsink/SQLitePCL.raw
@@ -232,7 +232,7 @@ shared framework.
 - `xunit.extensibility.core` - 2.9.3 - Apache-2.0 - https://github.com/xunit/xunit
 - `xunit.extensibility.execution` - 2.9.3 - Apache-2.0 - https://github.com/xunit/xunit
 - `xunit` - 2.9.3 - Apache-2.0 - https://github.com/xunit/xunit
-- `xunit.runner.visualstudio` - 4.0.0 - Apache-2.0 - https://github.com/xunit/visualstudio.xunit
+- `xunit.runner.visualstudio` - 4.0.1 - Apache-2.0 - https://github.com/xunit/visualstudio.xunit
 
 ## 3. Web runtime packages - npm (20)
 
@@ -247,15 +247,15 @@ and Enhance where WebGPU is missing) is another such chunk; it carries shader co
 ported or copied from two upstream projects, attributed under "Ported shader code"
 below.
 
-- `@angular/animations` - 22.2.1 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/cdk` - 22.2.1 - MIT - https://github.com/angular/components *(bundled)*
-- `@angular/common` - 22.2.1 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/compiler` - 22.2.1 - MIT - https://github.com/angular/angular
-- `@angular/core` - 22.2.1 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/forms` - 22.2.1 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/material` - 22.2.1 - MIT - https://github.com/angular/components *(bundled)*
-- `@angular/platform-browser` - 22.2.1 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/router` - 22.2.1 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/animations` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/cdk` - 22.2.2 - MIT - https://github.com/angular/components *(bundled)*
+- `@angular/common` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/compiler` - 22.2.2 - MIT - https://github.com/angular/angular
+- `@angular/core` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/forms` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/material` - 22.2.2 - MIT - https://github.com/angular/components *(bundled)*
+- `@angular/platform-browser` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/router` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
 - `@fontsource/roboto` - 5.3.0 - OFL-1.1 - https://github.com/fontsource/font-files *(bundled)*
 - `@standard-schema/spec` - 1.1.0 - MIT - https://github.com/standard-schema/standard-schema
 - `@webgpu/types` - 0.1.72 - BSD-3-Clause - https://github.com/gpuweb/types
@@ -379,23 +379,23 @@ places in `node_modules`. Platform-specific optional binaries such as
 
 - `@ampproject/remapping` - 2.3.0 - Apache-2.0 - https://github.com/ampproject/remapping
 - `@angular-devkit/architect` - 0.2202.0 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/architect` - 0.2202.1 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/architect` - 0.2202.2 - MIT - https://github.com/angular/angular-cli
 - `@angular-devkit/build-angular` - 22.2.0 - MIT - https://github.com/angular/angular-cli
 - `@angular-devkit/build-webpack` - 0.2202.0 - MIT - https://github.com/angular/angular-cli
 - `@angular-devkit/core` - 22.2.0 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/core` - 22.2.1 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/schematics` - 22.2.1 - MIT - https://github.com/angular/angular-cli
-- `@angular-eslint/builder` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular-eslint/bundled-angular-compiler` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular-eslint/eslint-plugin-template` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular-eslint/eslint-plugin` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular-eslint/schematics` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular-eslint/template-parser` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular-eslint/utils` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `@angular-devkit/core` - 22.2.2 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/schematics` - 22.2.2 - MIT - https://github.com/angular/angular-cli
+- `@angular-eslint/builder` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `@angular-eslint/bundled-angular-compiler` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `@angular-eslint/eslint-plugin-template` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `@angular-eslint/eslint-plugin` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `@angular-eslint/schematics` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `@angular-eslint/template-parser` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `@angular-eslint/utils` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular/build` - 22.2.0 - MIT - https://github.com/angular/angular-cli
-- `@angular/build` - 22.2.1 - MIT - https://github.com/angular/angular-cli
-- `@angular/cli` - 22.2.1 - MIT - https://github.com/angular/angular-cli
-- `@angular/compiler-cli` - 22.2.1 - MIT - https://github.com/angular/angular
+- `@angular/build` - 22.2.2 - MIT - https://github.com/angular/angular-cli
+- `@angular/cli` - 22.2.2 - MIT - https://github.com/angular/angular-cli
+- `@angular/compiler-cli` - 22.2.2 - MIT - https://github.com/angular/angular
 - `@asamuzakjp/css-color` - 7.1.3 - MIT - https://github.com/asamuzaK/cssColor
 - `@asamuzakjp/dom-selector` - 9.2.4 - MIT - https://github.com/asamuzaK/domSelector
 - `@babel/code-frame` - 7.29.7 - MIT - https://github.com/babel/babel
@@ -578,8 +578,8 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `@leichtgewicht/ip-codec` - 2.0.5 - MIT - https://github.com/martinheidegger/ip-codec
 - `@listr2/prompt-adapter-inquirer` - 4.2.7 - MIT - https://github.com/listr2/listr2
 - `@lmdb/lmdb-linux-x64` - 3.5.6 - MIT - https://github.com/kriszyp/lmdb-js
-- `@modelcontextprotocol/core` - 2.0.0 - MIT - https://github.com/modelcontextprotocol/typescript-sdk
-- `@modelcontextprotocol/server` - 2.0.0 - MIT - https://github.com/modelcontextprotocol/typescript-sdk
+- `@modelcontextprotocol/core` - 2.3.1 - Apache-2.0 - https://github.com/modelcontextprotocol/typescript-sdk
+- `@modelcontextprotocol/server` - 2.3.1 - Apache-2.0 - https://github.com/modelcontextprotocol/typescript-sdk
 - `@msgpackr-extract/msgpackr-extract-linux-x64` - 3.0.4 - MIT - https://github.com/kriszyp/msgpackr-extract
 - `@napi-rs/nice-linux-x64-gnu` - 1.1.1 - MIT - https://github.com/Brooooooklyn/nice
 - `@napi-rs/nice` - 1.1.1 - MIT - https://github.com/Brooooooklyn/nice
@@ -602,10 +602,10 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `@peculiar/asn1-x509` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
 - `@peculiar/utils` - 2.0.3 - MIT - https://github.com/PeculiarVentures/pvtsutils
 - `@peculiar/x509` - 1.14.3 - MIT - https://github.com/PeculiarVentures/x509
-- `@playwright/test` - 1.63.0 - Apache-2.0 - https://github.com/microsoft/playwright
+- `@playwright/test` - 1.64.0 - Apache-2.0 - https://github.com/microsoft/playwright
 - `@rolldown/binding-linux-x64-gnu` - 1.2.8 - MIT - https://github.com/rolldown/rolldown
 - `@rolldown/pluginutils` - 1.0.1 - MIT - https://github.com/rolldown/plugins
-- `@schematics/angular` - 22.2.1 - MIT - https://github.com/angular/angular-cli
+- `@schematics/angular` - 22.2.2 - MIT - https://github.com/angular/angular-cli
 - `@types/body-parser` - 1.19.6 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/bonjour` - 3.5.13 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/chai` - 5.2.3 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
@@ -621,7 +621,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `@types/jsesc` - 2.5.1 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/json-schema` - 7.0.15 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/less` - 3.0.8 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
-- `@types/node` - 24.19.1 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
+- `@types/node` - 24.19.2 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/qs` - 6.15.1 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/range-parser` - 1.2.7 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/send` - 1.2.1 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
@@ -673,7 +673,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `ajv-keywords` - 5.1.0 - MIT - https://github.com/epoberezkin/ajv-keywords
 - `ajv` - 6.15.0 - MIT - https://github.com/ajv-validator/ajv
 - `ajv` - 8.20.0 - MIT - https://github.com/ajv-validator/ajv
-- `angular-eslint` - 22.5.0 - MIT - https://github.com/angular-eslint/angular-eslint
+- `angular-eslint` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `ansi-colors` - 4.1.3 - MIT - https://github.com/doowb/ansi-colors
 - `ansi-escapes` - 7.3.0 - MIT - https://github.com/sindresorhus/ansi-escapes
 - `ansi-html-community` - 0.0.8 - Apache-2.0 - https://github.com/mahdyar/ansi-html-community
@@ -849,7 +849,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `iconv-lite` - 0.7.3 - MIT - https://github.com/pillarjs/iconv-lite
 - `icss-utils` - 5.1.0 - ISC - https://github.com/css-modules/icss-utils
 - `ignore` - 5.3.2 - MIT - https://github.com/kaelzhang/node-ignore
-- `ignore` - 7.0.8 - MIT - https://github.com/kaelzhang/node-ignore
+- `ignore` - 7.0.12 - MIT - https://github.com/kaelzhang/node-ignore
 - `immutable` - 5.1.9 - MIT - https://github.com/immutable-js/immutable-js
 - `import-fresh` - 3.3.1 - MIT - https://github.com/sindresorhus/import-fresh
 - `import-meta-resolve` - 4.2.0 - MIT - https://github.com/wooorm/import-meta-resolve
@@ -984,8 +984,8 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `picomatch` - 4.0.7 - MIT - https://github.com/micromatch/picomatch
 - `piscina` - 5.3.2 - MIT - https://github.com/piscinajs/piscina
 - `pkijs` - 3.4.1 - BSD-3-Clause - https://github.com/PeculiarVentures/PKI.js
-- `playwright-core` - 1.63.0 - Apache-2.0 - https://github.com/microsoft/playwright
-- `playwright` - 1.63.0 - Apache-2.0 - https://github.com/microsoft/playwright
+- `playwright-core` - 1.64.0 - Apache-2.0 - https://github.com/microsoft/playwright
+- `playwright` - 1.64.0 - Apache-2.0 - https://github.com/microsoft/playwright
 - `postcss-loader` - 8.2.1 - MIT - https://github.com/webpack/postcss-loader
 - `postcss-media-query-parser` - 0.2.3 - MIT - https://github.com/dryoma/postcss-media-query-parser
 - `postcss-modules-extract-imports` - 3.1.0 - ISC - https://github.com/css-modules/postcss-modules-extract-imports
