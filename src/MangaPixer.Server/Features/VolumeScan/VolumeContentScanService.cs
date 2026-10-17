@@ -208,7 +208,7 @@ public sealed class VolumeContentScanService(
             }
             outcome = JobOutcomes.Ok;
             detail = string.Create(CultureInfo.InvariantCulture,
-                $"{ordered.Count} folders to check, {scanned} scanned{(stopped > 0 ? ", paused" : string.Empty)}");
+                $"{ordered.Count} {(ordered.Count == 1 ? "folder" : "folders")} to check, {scanned} scanned{(stopped > 0 ? ", paused" : string.Empty)}");
             if (scanned > 0)
                 logger.LogInformation(LogEvents.Worker.VolumeScanSweep, "Volume contents sweep: {Folders} folders to check, {Scanned} scanned",
                     ordered.Count, scanned);

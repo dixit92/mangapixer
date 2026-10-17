@@ -48,5 +48,13 @@ describe('VolumeScanCardComponent', () => {
     expect(el.textContent).toContain('Switched off by the server configuration.');
     expect(el.querySelector('[data-testid="volume-scan-counts"]')!.textContent).toBe('0 volume files checked.');
     expect(el.querySelector('mat-slide-toggle button')!.hasAttribute('disabled')).toBe(true);
+    // 1.44.0 (UX review): the switch reads OFF when the configuration turned the scan off (it showed on, greyed).
+    expect(el.querySelector('mat-slide-toggle button')!.getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('1.44.0: large counts carry thousands separators', () => {
+    const { el } = setup(status({ volumesChecked: 123456, volumesWithChapters: 1200, chaptersInside: 1234567, foldersWaiting: 1500 }));
+    expect(el.querySelector('[data-testid="volume-scan-counts"]')!.textContent)
+      .toBe('123,456 volume files checked - chapters found inside 1,200 of them (1,234,567 chapter files). 1,500 folders waiting.');
   });
 });

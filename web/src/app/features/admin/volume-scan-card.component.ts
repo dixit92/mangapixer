@@ -25,7 +25,7 @@ import { ApiError, VolumeScanStatusDto } from '../../core/api/api-types';
         @if (loading()) {
           <p class="muted">Loading…</p>
         } @else if (status(); as s) {
-          <mat-slide-toggle [checked]="s.enabled" [disabled]="saving() || s.configDisabled" (change)="setEnabled($event.checked)"
+          <mat-slide-toggle [checked]="s.enabled && !s.configDisabled" [disabled]="saving() || s.configDisabled" (change)="setEnabled($event.checked)"
                             data-testid="volume-scan-toggle">
             Find the chapters inside volume files
           </mat-slide-toggle>
@@ -49,7 +49,7 @@ import { ApiError, VolumeScanStatusDto } from '../../core/api/api-types';
     mat-card { margin: 0; }
     .hint { color: var(--mp-text-muted); font-size: 13px; margin: 8px 0 0; }
     .counts { color: var(--mp-text); font-size: 13px; margin: 8px 0 0; overflow-wrap: anywhere; }
-    .pinned { color: var(--mp-warn-strong); font-weight: 500; }
+    .pinned { color: var(--mp-warn); font-weight: 500; }
     .muted { color: var(--mp-text-muted); font-size: 14px; }
     .error { color: var(--mp-error-strong); font-size: 14px; margin: 8px 0; }
   `],
@@ -77,13 +77,14 @@ export class VolumeScanCardComponent implements OnInit {
 
   /** "12 volume files checked - chapters found inside 3 of them (24 chapter files). 2 folders waiting." (counts only). */
   countsText(s: VolumeScanStatusDto): string {
-    const files = (n: number) => `${n} volume file${n === 1 ? '' : 's'}`;
+    const num = (n: number) => n.toLocaleString('en-US');
+    const files = (n: number) => `${num(n)} volume file${n === 1 ? '' : 's'}`;
     let text = `${files(s.volumesChecked)} checked`;
     if (s.volumesWithChapters > 0)
-      text += ` - chapters found inside ${s.volumesWithChapters} of them (${s.chaptersInside} chapter file${s.chaptersInside === 1 ? '' : 's'})`;
+      text += ` - chapters found inside ${num(s.volumesWithChapters)} of them (${num(s.chaptersInside)} chapter file${s.chaptersInside === 1 ? '' : 's'})`;
     text += '.';
     if (s.running) text += ' Checking now.';
-    else if (s.foldersWaiting) text += ` ${s.foldersWaiting} folder${s.foldersWaiting === 1 ? '' : 's'} waiting.`;
+    else if (s.foldersWaiting) text += ` ${num(s.foldersWaiting)} folder${s.foldersWaiting === 1 ? '' : 's'} waiting.`;
     return text;
   }
 

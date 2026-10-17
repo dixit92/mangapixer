@@ -209,7 +209,7 @@ const SEARCH_DELAY_MS = 300;
                       </p>
                     }
                     <!-- 1.44.0 (owner): the tracker's own chapters finish more volumes than it lists - raise them on the user's click. -->
-                    @if (volumesOffer(r); as offer) {
+                    @if (!r.dontSync && volumesOffer(r); as offer) {
                       <div class="vol-offer" [attr.data-testid]="'tracking-volumes-' + r.seriesId">
                         <span>{{ offer }}</span>
                         <button mat-stroked-button type="button" [disabled]="busy() || !canSync() || r.dontSync" (click)="raiseVolumes(r)"
@@ -817,7 +817,9 @@ export class TrackingSeriesListComponent implements OnInit, OnChanges, OnDestroy
   /** 1.44.0: "Set <tracker>'s volumes to N" (the server reads the entry again first; only the volume count is written). */
   raiseVolumes(r: TrackerSeriesRowDto): void {
     if (this.busy() || !this.canSync() || r.volumesFromChapters == null) return;
-    this.runEntry(r, this.api.volumesFromChapters(this.slug(), r.seriesId));
+    const volumes = r.volumesFromChapters;
+    this.runEntry(r, this.api.volumesFromChapters(this.slug(), r.seriesId), undefined,
+      () => `${r.title}: ${this.name()}'s volumes set to ${volumes}.`);
   }
 
   syncNow(r: TrackerSeriesRowDto): void {
@@ -1020,10 +1022,11 @@ export class TrackingSeriesListComponent implements OnInit, OnChanges, OnDestroy
   }
 
   /** An action answering the old per-series entry: say what happened, then re-read the row in the list's shape. */
-  private runEntry(r: TrackerSeriesRowDto, call: Observable<TrackerEntryDto>, done?: () => void): void {
+  private runEntry(r: TrackerSeriesRowDto, call: Observable<TrackerEntryDto>, done?: () => void, noticeText?: () => string): void {
     this.run(call, (updated) => {
       done?.();
-      this.notice.set(`${r.title}: ${entryStateText(updated).toLowerCase()}.`);
+      // 1.44.0 (UX review): an action may word its own notice; the state text keeps the tracker's name as written (no lowercasing).
+      this.notice.set(noticeText ? noticeText() : `${r.title}: ${entryStateText(updated)}.`);
       this.refreshRow(r);
       this.changed.emit();
     });

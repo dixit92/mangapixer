@@ -300,7 +300,7 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
              glance; it applies at all sizes (not a layout-breaking change). -->
         <button mat-stroked-button class="filter-toggle" [matMenuTriggerFor]="filterMenu"
                 [class.filter-active]="filterActive()"
-                [matTooltip]="filterTooltip()" aria-label="Filter by read state">
+                [matTooltip]="filterTooltip()" [attr.aria-label]="filterTooltip()">
           <mat-icon>{{ filterIcon() }}</mat-icon> {{ readStateLabel() }}
         </button>
         <mat-menu #filterMenu="matMenu" class="view-options-menu">

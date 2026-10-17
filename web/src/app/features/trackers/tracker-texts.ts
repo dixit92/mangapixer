@@ -473,7 +473,7 @@ export function batchActionLabel(action: TrackerBatchAction, slug: string, short
     case 'SyncNow': return 'Sync now';
     case 'DontSync': return "Don't sync";
     case 'SyncAgain': return 'Sync again';
-    case 'VolumesFromChapters': return short ? `${name} volumes` : `Set ${name}'s volumes from its chapters`;
+    case 'VolumesFromChapters': return short ? 'Volumes from chapters' : `Set ${name}'s volumes from its chapters`;
     default: return action;
   }
 }

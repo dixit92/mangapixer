@@ -150,8 +150,14 @@ describe('AdminComponent directory browser row', () => {
     // The same icons in the same places: only the scan button's state differs.
     expect(labels(scanning)).toEqual(['Regenerate thumbnails', 'Scan in progress', 'Change icon', 'Rename library', 'Remove library']);
     expect(labels(idle)).toEqual(['Regenerate thumbnails', 'Scan now', 'Change icon', 'Rename library', 'Remove library']);
-    expect((scanning.querySelector('[data-testid="lib-scan"]') as HTMLButtonElement).disabled).toBe(true);
-    expect((idle.querySelector('[data-testid="lib-scan"]') as HTMLButtonElement).disabled).toBe(false);
+    // 1.44.0 (UX review): disabledInteractive so the greyed button still shows its "Scan in progress" tooltip - aria-disabled, and a
+    // click on it starts nothing.
+    const busy = scanning.querySelector('[data-testid="lib-scan"]') as HTMLButtonElement;
+    expect(busy.getAttribute('aria-disabled')).toBe('true');
+    const scan = vi.spyOn(fixture.componentInstance, 'triggerScan');
+    busy.click();
+    expect(scan).not.toHaveBeenCalled();
+    expect(idle.querySelector('[data-testid="lib-scan"]')!.getAttribute('aria-disabled')).not.toBe('true');
     expect(scanning.querySelector('.chip')).toBeNull();
 
     // The row itself shows the scan: a spinning ring on its icon, a bar along its foot, "Scanning…" and Cancel scan in its line.

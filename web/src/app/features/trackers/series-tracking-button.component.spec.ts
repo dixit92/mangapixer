@@ -125,6 +125,36 @@ describe('SeriesTrackingButtonComponent', () => {
     expect(q(pop, 'series-tracking-volumes-mal')).toBeNull();
   });
 
+  it('1.44.0 (UX review): a failed action says so in the popover and the focus stays in the dialog', async () => {
+    const { fixture, el, http } = create([summary({ account: trackerAccount() })]);
+    const row = seriesRow({ remoteChapters: 271, remoteVolumes: 25, volumesFromChapters: 27 });
+    http.expectOne('/api/v1/trackers/nodes/n1/summary').flush({ seriesId: 's1', rows: [row] });
+    fixture.detectChanges();
+    (q(el, 'series-tracking-button') as HTMLButtonElement).click();
+    http.expectOne('/api/v1/trackers/nodes/n1/summary').flush({ seriesId: 's1', rows: [row] });
+    fixture.detectChanges();
+    const pop = q(overlay(), 'series-tracking-popover')!;
+    (q(pop, 'series-tracking-volumes-set-mal') as HTMLButtonElement).click();
+    http.expectOne('/api/v1/trackers/mal/entries/s1/volumes-from-chapters').flush({ error: 'unavailable' }, { status: 503, statusText: 'Unavailable' });
+    fixture.detectChanges();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const error = q(pop, 'series-tracking-error')!;
+    expect(error.getAttribute('role')).toBe('alert');
+    expect(error.textContent).toContain('MyAnimeList could not be reached');
+    expect(document.activeElement).toBe(error);
+  });
+
+  it('1.44.0 (UX review): no volume offer while the folder is not synced', () => {
+    const { fixture, el, http } = create([summary({ account: trackerAccount() })]);
+    const row = seriesRow({ remoteChapters: 271, remoteVolumes: 25, volumesFromChapters: 27 });
+    http.expectOne('/api/v1/trackers/nodes/n1/summary').flush({ seriesId: 's1', rows: [row], notSynced: 'PrivateLibrary' });
+    fixture.detectChanges();
+    (q(el, 'series-tracking-button') as HTMLButtonElement).click();
+    http.expectOne('/api/v1/trackers/nodes/n1/summary').flush({ seriesId: 's1', rows: [row], notSynced: 'PrivateLibrary' });
+    fixture.detectChanges();
+    expect(q(q(overlay(), 'series-tracking-popover'), 'series-tracking-volumes-mal')).toBeNull();
+  });
+
   it('shows one block per connected tracker and no dates for MangaUpdates', () => {
     const { fixture, el, http } = create([summary({ account: trackerAccount() }),
       summary({ slug: 'mangaupdates', name: 'MangaUpdates', account: trackerAccount({ tracker: 'mangaupdates' }) })]);

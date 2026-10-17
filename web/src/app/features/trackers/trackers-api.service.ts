@@ -100,13 +100,13 @@ export class TrackersApiService {
     return this.http.get<TrackerNodeOverrideDto[]>(`${this.base}/sync-overrides`, { withCredentials: true });
   }
 
-  /** true = sync on (also inside a Private library or for doujinshi), false = off, null = as default (removes the switch). */
   /** 1.44.0: "Set <tracker>'s volumes to N" - only the volume count its own chapters complete (read again on the server first). */
   volumesFromChapters(slug: string, seriesId: string): Observable<TrackerEntryDto> {
     return this.http.post<TrackerEntryDto>(`${this.base}/${slug}/entries/${encodeURIComponent(seriesId)}/volumes-from-chapters`, null,
       { withCredentials: true });
   }
 
+  /** true = sync on (also inside a Private library or for doujinshi), false = off, null = as default (removes the switch). */
   setSyncOverrides(nodeIds: string[], enabled: boolean | null): Observable<TrackerNodeOverrideDto[]> {
     return this.http.put<TrackerNodeOverrideDto[]>(`${this.base}/sync-overrides`, { nodeIds, enabled }, { withCredentials: true });
   }

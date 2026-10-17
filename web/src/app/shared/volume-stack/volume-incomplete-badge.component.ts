@@ -19,7 +19,7 @@ import { DUPLICATE_TIP, duplicateListText, duplicatesLabel } from '../duplicate-
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (shown()) {
-      <span class="incomplete" [class.moved]="moved()" [attr.aria-label]="label()" [title]="label()" data-testid="stack-incomplete">{{ have() }} of {{ total() }} ch</span>
+      <span class="incomplete" [class.moved]="moved()" [attr.aria-label]="label()" [title]="label()" data-testid="stack-incomplete">{{ compact() ? have() + '/' + total() : have() + ' of ' + total() + ' ch' }}</span>
     }
     @if (dupCount() > 0) {
       <span class="dup" [class.below]="shown()" [class.moved]="moved()" [attr.aria-label]="dupTitle()" [title]="dupTitle()"
@@ -49,6 +49,9 @@ export class VolumeIncompleteBadgeComponent {
 
   /** Sit in the bottom-left corner: the card is in select mode and the select check takes the top-left one. */
   readonly moved = input(false);
+
+  /** 1.44.0 (UX review): the list row's small thumbnail shows "8/9" (its subtitle spells it out); cards show "8 of 9 ch". */
+  readonly compact = input(false);
 
   readonly shown = computed(() => this.summary().missingCount > 0);
   /** Whole chapters the volume holds (the provider's list or the estimated range). */

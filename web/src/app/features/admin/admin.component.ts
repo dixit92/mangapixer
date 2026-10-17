@@ -134,11 +134,11 @@ import { AdminTrackersCardComponent } from '../trackers/admin-trackers-card.comp
                 <div matListItemLine class="lib-line">
                   @if (lib.itemCount !== null) { {{ lib.itemCount }} items }
                   @if (lib.isScanning) {
-                    · <span class="scan-label" role="status">Scanning…</span> ·
-                    <button type="button" class="scan-cancel" data-testid="lib-cancel-scan"
+                    · <span class="scan-label" role="status">Scanning…</span>
+                    <span class="scan-cancel-wrap">· <button type="button" class="scan-cancel" data-testid="lib-cancel-scan"
                             [disabled]="!scanRunId(lib.id) || cancelling().has(lib.id)" (click)="cancelScan(lib.id)">
                       {{ cancelling().has(lib.id) ? 'Cancelling…' : 'Cancel scan' }}
-                    </button>
+                    </button></span>
                   }
                   @if (lib.lastScanCompleted && !lib.isScanning) {
                     · last scan {{ lib.lastScanCompleted | date:'short' }}
@@ -171,7 +171,7 @@ import { AdminTrackersCardComponent } from '../trackers/admin-trackers-card.comp
                       <mat-icon>sync_alt</mat-icon>
                     </button>
                   }
-                  <button mat-icon-button type="button" (click)="triggerScan(lib.id)" [disabled]="lib.isScanning" data-testid="lib-scan"
+                  <button mat-icon-button type="button" (click)="!lib.isScanning && triggerScan(lib.id)" [disabled]="lib.isScanning" disabledInteractive data-testid="lib-scan"
                           [matTooltip]="lib.isScanning ? 'Scan in progress' : 'Scan now'"
                           [attr.aria-label]="lib.isScanning ? 'Scan in progress' : 'Scan now'">
                     <mat-icon>refresh</mat-icon>
@@ -669,6 +669,7 @@ import { AdminTrackersCardComponent } from '../trackers/admin-trackers-card.comp
       border-top-color: var(--mp-accent); border-right-color: var(--mp-accent); animation: lib-scan-spin .9s linear infinite;
     }
     .scan-label { color: var(--mp-accent); font-weight: 500; }
+    .scan-cancel-wrap { white-space: nowrap; }
     .scan-cancel { border: 0; background: none; padding: 4px 6px; margin: -4px 0; border-radius: 6px; font: inherit; font-weight: 500;
                    color: var(--mp-accent); cursor: pointer; }
     .scan-cancel:hover:not(:disabled) { background: rgb(var(--mp-accent-strong-rgb) / 0.1); }
