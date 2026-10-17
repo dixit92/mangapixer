@@ -38,6 +38,9 @@ internal sealed class TrackerTestHarness : IAsyncDisposable
             services.RemoveAll<ITrackerClient>();
             services.AddSingleton<ITrackerClient>(Mal);
             services.AddSingleton<ITrackerClient>(MangaUpdates);
+            // 1.44.0: the system clock until a test moves it (rate-limited retries without a race on a loaded box).
+            services.RemoveAll<TimeProvider>();
+            services.AddSingleton<TimeProvider>(Time);
             configureServices?.Invoke(services);
         });
     }
@@ -45,6 +48,9 @@ internal sealed class TrackerTestHarness : IAsyncDisposable
     public FakeTrackerClient Mal { get; } = new(TrackerSlugs.MyAnimeList, TrackerConnectKind.OAuthPkce);
     public FakeTrackerClient MangaUpdates { get; } = new(TrackerSlugs.MangaUpdates, TrackerConnectKind.Password);
     public ApiTokenTestFactory Factory { get; }
+
+    /// <summary>The host's clock: the system clock until <see cref="ShiftableTimeProvider.Advance"/> moves it.</summary>
+    public ShiftableTimeProvider Time { get; } = new();
 
     public Task<HttpClient> AdminAsync() => Factory.AdminAsync();
 
