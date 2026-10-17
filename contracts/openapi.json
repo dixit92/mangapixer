@@ -21135,6 +21135,9 @@
           }
         }
       },
+      "TrackerNotSynced": {
+        "type": "integer"
+      },
       "TrackerPreviewDto": {
         "required": [
           "entries",
@@ -21558,6 +21561,16 @@
             "items": {
               "$ref": "#/components/schemas/TrackerSeriesRowDto"
             }
+          },
+          "notSynced": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TrackerNotSynced"
+              }
+            ]
           }
         }
       },

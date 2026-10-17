@@ -197,7 +197,9 @@ public sealed class TrackerListService(
             if (context.Titles.ContainsKey(recordId))
                 rows.Add(RowOf(entry, context));
         }
-        return (new TrackerSeriesSummaryDto { SeriesId = seriesId, Rows = rows }, null);
+        // 1.44.0: the popover says why nothing here counts, instead of "nothing read" (owner, 2026-10-17).
+        var notSynced = rows.Count > 0 ? await resolver.NotSyncedAsync(userId, node.Value.NodeId, recordId, ct) : null;
+        return (new TrackerSeriesSummaryDto { SeriesId = seriesId, Rows = rows, NotSynced = notSynced }, null);
     }
 
     /// <summary>The rows of stored entries (for the per-series actions' answers).</summary>

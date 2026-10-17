@@ -669,6 +669,42 @@ test.describe('tracker sync web (1.43.0)', () => {
     expect(outside).toEqual([]);
   });
 
+  test('the popover of a Private-library folder says why nothing counts and turns sync on (1.44.0)', async ({ page }) => {
+    // The owner's path (2026-10-17): a read series in a Private library showed "MangaPixer: nothing read" next to read chapters.
+    test.skip(!VOLUMES_ROOT, 'E2E_SERIES_FIXTURE_ROOT not set: no synthetic library available');
+    test.setTimeout(180_000);
+    const outside = await guardOutside(page);
+    await login(page);
+    const [libraryId, folderId] = await volumeLibrary(page);
+    const row = trackingRow('s8', 'TrackerAhead', { nodeId: folderId, allChapters: null, chapters: null, remoteChapters: 60, remoteVolumes: 10 });
+    let switchedOn = false;
+    const puts: unknown[] = [];
+    await page.route(/\/api\/v1\/trackers$/, (r) => r.fulfill({ json: { trackers: [connectedMal()] } }));
+    await page.route(/\/api\/v1\/trackers\/attention$/, (r) => r.fulfill({ json: { total: 0, trackers: [] } }));
+    await page.route(new RegExp(`/api/v1/trackers/nodes/${folderId}/summary$`),
+      (r) => r.fulfill({ json: { seriesId: 's8', rows: [row], notSynced: switchedOn ? null : 'PrivateLibrary' } }));
+    await page.route(/\/api\/v1\/trackers\/sync-overrides$/, (r) => {
+      puts.push(r.request().postDataJSON());
+      switchedOn = true;
+      return r.fulfill({ json: [] });
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+    await page.getByTestId('series-tracking-button').click();
+    const pop = page.getByTestId('series-tracking-popover');
+    await expect(pop.getByTestId('series-tracking-here-mal')).toHaveText('not synced');
+    await expect(pop.getByTestId('series-tracking-not-synced')).toContainText('this folder is in one of your Private libraries');
+    const turnOn = pop.getByTestId('series-tracking-sync-on');
+    const box = (await turnOn.boundingBox())!;
+    expect(await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('[data-testid="series-tracking-sync-on"]'),
+      [box.x + box.width / 2, box.y + box.height / 2])).toBe(true);
+    await turnOn.click();
+    await expect(pop.getByTestId('series-tracking-sync-on-done')).toContainText('the next time you read here');
+    await expect(pop.getByTestId('series-tracking-not-synced')).toHaveCount(0);
+    expect(puts).toEqual([{ nodeIds: [folderId], enabled: true }]);
+    expect(outside).toEqual([]);
+  });
+
   test('the series header\'s Tracking popover opens the series\' row on the Tracking page', async ({ page }) => {
     test.skip(!VOLUMES_ROOT, 'E2E_SERIES_FIXTURE_ROOT not set: no synthetic library available');
     test.setTimeout(180_000);

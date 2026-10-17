@@ -3593,7 +3593,12 @@ export interface TrackerDatesRequest {
 export interface TrackerSeriesSummaryDto {
   seriesId?: string | null;
   rows: TrackerSeriesRowDto[];
+  /** 1.44.0: why reading in this folder is not synced for the caller, or null when it is. */
+  notSynced?: TrackerNotSynced | null;
 }
+
+/** 1.44.0: why a folder's reading does not reach the caller's trackers. */
+export type TrackerNotSynced = 'PrivateLibrary' | 'Doujinshi' | 'SwitchedOff';
 
 // ---- 1.43.2: the Tracking list's Select mode (replaces "Send all") ----
 

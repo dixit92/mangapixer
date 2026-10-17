@@ -89,6 +89,22 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
         return result;
     }
 
+    /// <summary>
+    /// 1.44.0: why reading below <paramref name="nodeId"/> does not sync for <paramref name="userId"/> - the rule of <see cref="EligibleAsync"/>
+    /// for that folder: its nearest switch off; or no switch and a Private library of the user, or a doujinshi record - else null.
+    /// </summary>
+    public async Task<TrackerNotSynced?> NotSyncedAsync(long userId, long nodeId, long recordId, CancellationToken ct)
+    {
+        if ((await NearestSwitchAsync(userId, [nodeId], ct)).TryGetValue(nodeId, out var on))
+            return on ? null : TrackerNotSynced.SwitchedOff;
+        var library = await db.CatalogNodes.AsNoTracking().Where(n => n.Id == nodeId).Select(n => n.LibraryId).FirstAsync(ct);
+        if (await db.PrivateLibraries.AsNoTracking().AnyAsync(p => p.UserId == userId && p.LibraryId == library, ct))
+            return TrackerNotSynced.PrivateLibrary;
+        if (await db.MetadataRecords.AsNoTracking().AnyAsync(r => r.Id == recordId && r.Format == (int)MetadataFormat.Doujinshi, ct))
+            return TrackerNotSynced.Doujinshi;
+        return null;
+    }
+
     /// <summary>The user's nearest sync switch (self -> ancestors, bounded 64) of each node, when one exists.</summary>
     public async Task<Dictionary<long, bool>> NearestSwitchAsync(long userId, IReadOnlyCollection<long> nodeIds, CancellationToken ct)
     {

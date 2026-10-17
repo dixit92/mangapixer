@@ -519,6 +519,20 @@ public sealed record TrackerSeriesSummaryDto
     public string? SeriesId { get; init; }
 
     public required IReadOnlyList<TrackerSeriesRowDto> Rows { get; init; }
+
+    /// <summary>
+    /// 1.44.0: why reading in this folder is not synced for the caller (the outbound rule: a Private library of theirs or a doujinshi record
+    /// without their sync switch on, or their switch off), or null when it is.
+    /// </summary>
+    public TrackerNotSynced? NotSynced { get; init; }
+}
+
+/// <summary>1.44.0: why a folder's reading does not reach the caller's trackers (values travel as names; append-only).</summary>
+public enum TrackerNotSynced
+{
+    PrivateLibrary = 0,
+    Doujinshi = 1,
+    SwitchedOff = 2,
 }
 
 // ---- 1.43.2 (owner, 2026-10-16): the Tracking list's Select mode - one shared multi-select with an apply action for every chip

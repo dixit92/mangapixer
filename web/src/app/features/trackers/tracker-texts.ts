@@ -1,5 +1,6 @@
 import {
   TrackerAccountDto,
+  TrackerNotSynced,
   TrackerActionBlock,
   TrackerBatchAction,
   TrackerBatchSkip,
@@ -393,6 +394,18 @@ export function actionBlockText(block: TrackerActionBlock, direction: 'from' | '
     default: return block;
   }
 }
+
+/** 1.44.0: why reading in a folder is not sent to the user's trackers (the series popover; owner, 2026-10-17). */
+export function notSyncedText(reason: TrackerNotSynced): string {
+  switch (reason) {
+    case 'PrivateLibrary': return 'Reading here is not sent to your trackers: this folder is in one of your Private libraries.';
+    case 'Doujinshi': return 'Reading here is not sent to your trackers: this series is doujinshi.';
+    case 'SwitchedOff': return 'Reading here is not sent to your trackers: you turned sync off for this folder.';
+  }
+}
+
+/** After "Turn sync on": when the folder's reading is counted (nothing is sent by the switch itself). */
+export const SYNC_TURNED_ON_TEXT = 'Sync is on for this folder. MangaPixer counts it the next time you read here, or with Sync now on the Tracking page.';
 
 /** "45 of 51 ch · 4 of 10 vol", "12 ch", or null when neither side is known. */
 export function ofText(read: number | null | undefined, total: number | null | undefined, unit: 'ch' | 'vol'): string | null {

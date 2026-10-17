@@ -79,6 +79,30 @@ describe('SeriesTrackingButtonComponent', () => {
     expect(open.getAttribute('href')).not.toContain('Synthetic');
   });
 
+  it('1.44.0: a folder whose reading is not synced says why (not "nothing read") and turns sync on in place', () => {
+    const { fixture, el, http } = create([summary({ account: trackerAccount() })]);
+    const row = seriesRow({ allChapters: null, chapters: null, allVolumes: null, volumes: null, remoteChapters: 60, remoteVolumes: 10 });
+    http.expectOne('/api/v1/trackers/nodes/n1/summary').flush({ seriesId: 's1', rows: [row], notSynced: 'PrivateLibrary' });
+    fixture.detectChanges();
+    (q(el, 'series-tracking-button') as HTMLButtonElement).click();
+    http.expectOne('/api/v1/trackers/nodes/n1/summary').flush({ seriesId: 's1', rows: [row], notSynced: 'PrivateLibrary' });
+    fixture.detectChanges();
+    const pop = q(overlay(), 'series-tracking-popover')!;
+    expect(q(pop, 'series-tracking-here-mal')!.textContent!.trim()).toBe('not synced');
+    expect(q(pop, 'series-tracking-not-synced')!.textContent).toContain('this folder is in one of your Private libraries');
+
+    (q(pop, 'series-tracking-sync-on') as HTMLButtonElement).click();
+    const put = http.expectOne('/api/v1/trackers/sync-overrides');
+    expect(put.request.method).toBe('PUT');
+    expect(put.request.body).toEqual({ nodeIds: ['n1'], enabled: true });
+    put.flush([]);
+    http.expectOne('/api/v1/trackers/nodes/n1/summary').flush({ seriesId: 's1', rows: [row], notSynced: null });
+    fixture.detectChanges();
+    expect(q(pop, 'series-tracking-not-synced')).toBeNull();
+    expect(q(pop, 'series-tracking-sync-on-done')!.textContent).toContain('the next time you read here');
+    expect(q(pop, 'series-tracking-here-mal')!.textContent!.trim()).toBe('nothing read');
+  });
+
   it('shows one block per connected tracker and no dates for MangaUpdates', () => {
     const { fixture, el, http } = create([summary({ account: trackerAccount() }),
       summary({ slug: 'mangaupdates', name: 'MangaUpdates', account: trackerAccount({ tracker: 'mangaupdates' }) })]);
