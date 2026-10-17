@@ -397,7 +397,8 @@ export function actionBlockText(block: TrackerActionBlock, direction: 'from' | '
 /** "45 of 51 ch · 4 of 10 vol", "12 ch", or null when neither side is known. */
 export function ofText(read: number | null | undefined, total: number | null | undefined, unit: 'ch' | 'vol'): string | null {
   if (read == null) return null;
-  return total != null && total > 0 ? `${read} of ${total} ${unit}` : `${read} ${unit}`;
+  // 1.44.0: a stored total below the count (an old record, a total that counts differently) is left out - never "130 of 129 ch".
+  return total != null && total > 0 && total >= read ? `${read} of ${total} ${unit}` : `${read} ${unit}`;
 }
 
 /**
