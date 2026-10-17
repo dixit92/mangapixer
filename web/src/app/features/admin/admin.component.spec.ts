@@ -134,6 +134,35 @@ describe('AdminComponent directory browser row', () => {
     expect(shown[1]).toBe('Vertical');
   });
 
+  it('1.44.0: a scanning library keeps its icon row - the scan button greyed, the row spins, Cancel scan in its line', () => {
+    const { fixture, apiSpy } = setup({ name: 'x', path: '/library-root/x', hasChildren: false });
+    Object.assign(apiSpy, { getLibrary: vi.fn((id: string) => of({ id, name: id, scanSchedule: 'Daily' } as unknown as LibraryDto)) });
+    fixture.componentInstance.libraries.set([
+      { id: 'l1', name: 'Shelf', itemCount: 3, defaultReaderMode: null, isScanning: true } as unknown as LibraryDto,
+      { id: 'l2', name: 'Strips', itemCount: 2, defaultReaderMode: null, isScanning: false } as unknown as LibraryDto,
+    ]);
+    fixture.detectChanges();
+    const [scanning, idle] = [...(fixture.nativeElement as HTMLElement).querySelectorAll('mat-list-item')] as HTMLElement[];
+    const labels = (row: HTMLElement) => [...row.querySelectorAll('.lib-meta button')].map((b) => b.getAttribute('aria-label'));
+
+    // The same icons in the same places: only the scan button's state differs.
+    expect(labels(scanning)).toEqual(['Regenerate thumbnails', 'Scan in progress', 'Change icon', 'Rename library', 'Remove library']);
+    expect(labels(idle)).toEqual(['Regenerate thumbnails', 'Scan now', 'Change icon', 'Rename library', 'Remove library']);
+    expect((scanning.querySelector('[data-testid="lib-scan"]') as HTMLButtonElement).disabled).toBe(true);
+    expect((idle.querySelector('[data-testid="lib-scan"]') as HTMLButtonElement).disabled).toBe(false);
+    expect(scanning.querySelector('.chip')).toBeNull();
+
+    // The row itself shows the scan: a spinning ring on its icon, a bar along its foot, "Scanning…" and Cancel scan in its line.
+    expect(scanning.classList).toContain('scanning');
+    expect(scanning.querySelector('.lib-icon.scanning')).not.toBeNull();
+    expect(scanning.querySelector('[data-testid="lib-scan-bar"]')).not.toBeNull();
+    expect(scanning.querySelector('.lib-line')!.textContent).toContain('Scanning…');
+    expect(scanning.querySelector('.lib-line [data-testid="lib-cancel-scan"]')!.textContent!.trim()).toBe('Cancel scan');
+    expect(idle.classList).not.toContain('scanning');
+    expect(idle.querySelector('[data-testid="lib-scan-bar"]')).toBeNull();
+    expect(idle.querySelector('[data-testid="lib-cancel-scan"]')).toBeNull();
+  });
+
   it('renders the row as a real, natively-focusable <button> (not a bare <div>)', () => {
     const { row } = setup({ name: 'Folder A', path: '/library-root/Folder A', hasChildren: false });
     expect(row).not.toBeNull();
