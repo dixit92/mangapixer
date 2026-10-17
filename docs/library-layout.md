@@ -178,7 +178,7 @@ Favorites belong to your account and follow you to every device. They respect Pr
 - **Auto-scan** sets how often a library is rescanned: **Off**, **Hourly**, **Every 6 hours**, **Daily** (the default) or **Weekly**. It is set in the library's row of **Scheduled jobs**; under each library's row on the **Libraries** card a line shows the schedule with a **Change in Scheduled jobs** link. Next to it, **Last scan** shows when the library was last scanned and **Next scan (approx.)** when the next automatic scan is expected. The library's line on the **Libraries** card also says who started the last scan: **by schedule**, **by admin** with the admin's name, or **by token** with the API token's name (a token or account removed since then shows as "a removed token" / "a removed admin"). Only admins see this. See [Automatic scans](#automatic-scans).
 - **Scan now** (the circular-arrow icon) on a library's row scans that library.
 - **Scan all libraries** scans every library. Libraries that are already scanning are skipped.
-- **Cancel** stops a running scan.
+- While a library scans, its row shows it: a spinning ring around its icon, a thin moving line along the bottom of the row, and **Scanning…** with **Cancel scan** in its line - **Cancel scan** stops the scan. The icons on the right stay where they are; **Scan now** is greyed out until the scan ends (*changed in 1.44.0*).
 - The palette icon opens an **icon picker** so you can give a library a distinct glyph instead of a name-derived default badge.
 
 After a scan, new archives are analyzed in the background. Their page counts and covers fill in over the next moments.
