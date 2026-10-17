@@ -107,7 +107,7 @@ test('library -> Filter -> Completion -> only the series with that answer; Any b
 
   await openFilter(page);
   for (const label of ['Have it all', 'Finished, missing some', 'Everything so far', 'Missing some', 'Can\'t tell'])
-    await expect(page.getByRole('menuitemradio', { name: label })).toBeVisible();
+    await expect(page.getByRole('menuitemradio', { name: label, exact: true })).toBeVisible();
   await expectOnTop(page, 'completion-HaveItAll');
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/completion-menu-1280.png` });
 
