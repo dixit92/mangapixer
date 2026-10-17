@@ -5,6 +5,7 @@ using System.Text;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
+using com.lifepixer.mangapixer.Core.Metadata.Reach;
 using com.lifepixer.mangapixer.Core.Ordering;
 using com.lifepixer.mangapixer.Server.Features.Auth;
 using com.lifepixer.mangapixer.Server.Features.Catalog;
@@ -81,6 +82,39 @@ public sealed class CompletionFilterScaleProbe : IDisposable
                 }
                 Line($"loader {n} series: {string.Join(" / ", times)} ms; answers {string.Join(", ", answers.OrderBy(a => a.Key).Select(a => $"{a.Key}={a.Value}"))}");
             }
+
+            // Where the time goes: the loader's two big stored-row reads for the whole level (children of the series folders, ComicInfo).
+            for (var run = 0; run < 3; run++)
+            {
+                await using var fresh = new MangaPixerDbContext(_options);
+                var t = Stopwatch.StartNew();
+                var kids = await fresh.CatalogNodes.AsNoTracking().Where(c => c.ParentId != null && folders.Contains(c.ParentId.Value) && c.Availability != 5)
+                    .OrderBy(c => c.SortKey).Select(c => new { c.Id, c.ParentId, c.Kind, c.DisplayName, c.PublicId, c.SortKey }).ToListAsync();
+                var childrenMs = t.ElapsedMilliseconds;
+                t.Restart();
+                var parents = folders.Concat(kids.Where(k => k.Kind == 0).Select(k => k.Id)).ToList();
+                var ci = await (from e in fresh.EmbeddedMetadata.AsNoTracking()
+                                join c in fresh.CatalogNodes.AsNoTracking() on e.NodeId equals c.Id
+                                where c.ParentId != null && parents.Contains(c.ParentId.Value) && e.State == 1
+                                select new { e.NodeId, e.Volume, e.Number }).ToListAsync();
+                Line($"level reads: children {kids.Count} rows {childrenMs} ms, comicinfo {ci.Count} rows {t.ElapsedMilliseconds} ms");
+            }
+        }
+
+        // CPU only: the pure evaluation over rows already in memory (what a memo of the stored reads would leave).
+        await using (var db = new MangaPixerDbContext(_options))
+        {
+            var folders = await db.CatalogNodes.AsNoTracking().Where(n => n.ParentId == null && n.Kind == 0).Select(n => n.Id).ToListAsync();
+            var links = await db.NodeSeriesLinks.AsNoTracking().ToDictionaryAsync(l => l.NodeId, l => l.RecordId!.Value);
+            var entries = await new SeriesProgressLoader(db).LoadAsync(folders.Select(f => new SeriesProgressTarget(f, links[f])).ToList(), default);
+            var maps = (await db.SeriesVolumeMaps.AsNoTracking().ToListAsync()).ToLookup(m => m.RecordId);
+            var t = Stopwatch.StartNew();
+            foreach (var f in folders)
+            {
+                var (map, facts) = SeriesProgressLoader.MapAndFacts(maps[links[f]].ToList(), null, "en");
+                _ = SeriesProgress.Evaluate(entries[f].Rows, map, facts, false);
+            }
+            Line($"pure evaluation of {folders.Count} series (rows in memory): {t.ElapsedMilliseconds} ms");
         }
 
         foreach (var (label, completion) in new (string, SeriesAnswer?)[]
