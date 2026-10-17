@@ -8,6 +8,7 @@ using com.lifepixer.mangapixer.Core.Reading;
 using com.lifepixer.mangapixer.Server.Features.Auth;
 using com.lifepixer.mangapixer.Server.Features.Covers;
 using com.lifepixer.mangapixer.Server.Features.Metadata;
+using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -34,11 +35,14 @@ public sealed partial class CatalogBrowseService
     private readonly StackCoverService _stackCovers;
     private readonly CollectionStackCoverService _collectionCovers;
     private readonly Trackers.TrackerCardMarks? _trackerMarks;
+    private readonly ILogger<CatalogBrowseService>? _logger;
 
     public CatalogBrowseService(MangaPixerDbContext db, LibraryAuthorizationService auth, SeriesInfoFlagService? seriesInfoFlags = null,
         ICoverResolver? covers = null, VolumeEntryService? volumes = null, StackCoverService? stackCovers = null,
-        CollectionStackCoverService? collectionCovers = null, Trackers.TrackerCardMarks? trackerMarks = null)
+        CollectionStackCoverService? collectionCovers = null, Trackers.TrackerCardMarks? trackerMarks = null,
+        ILogger<CatalogBrowseService>? logger = null)
     {
+        _logger = logger;
         _trackerMarks = trackerMarks;
         _db = db;
         _auth = auth;
@@ -77,7 +81,8 @@ public sealed partial class CatalogBrowseService
         bool favoritesOnly = false,
         string? group = null,
         bool preferVolumes = false,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        SeriesAnswer? completion = null) // 1.44.0 lane C (prototype): keep only linked series folders with this answer
     {
         // Validate sort — unknown values fall back to "name" (tolerant, like the DTO).
         sort = sort switch
@@ -226,6 +231,17 @@ public sealed partial class CatalogBrowseService
                         || keptFolderIds.Contains(n.Id));
                     break;
             }
+        }
+
+        // 1.44.0 lane C (prototype): the completion filter - the level's linked series folders answered once, folded in before counting.
+        if (completion is { } wanted)
+        {
+            var level = await CompletionOfLevelAsync(baseQuery, ct);
+            var kept = level.Answers.Where(a => a.Value == wanted).Select(a => a.Key).ToList();
+            baseQuery = baseQuery.Where(n => kept.Contains(n.Id));
+            _logger?.LogInformation(LogEvents.Catalog.CompletionFilterApplied,
+                "Completion filter: {Linked} linked series, {Kept} kept, links {LinkMs} ms, answers {LoadMs} ms",
+                level.Folders, kept.Count, level.LinkMs, level.LoadMs);
         }
 
         // Total count from the base query (before cursor — fixes the decreasing-count bug

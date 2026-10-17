@@ -559,4 +559,16 @@ public static class LogEvents
         // 1.43.2 (Select mode, replaces Send all): one line per batch request - user id, slug, action, counts and timing only.
         public const int BatchApplied = 10807;
     }
+
+    /// <summary>
+    /// 1.44.0 lane C: catalog browse (3200-3249, inside the 3xxx range; reserved for lane C). Counts and timings only.
+    /// </summary>
+    public static class Catalog
+    {
+        public const int Min = 3200;
+        public const int Max = 3249;
+
+        /// <summary>The completion filter answered a browse level: linked series, kept, milliseconds.</summary>
+        public const int CompletionFilterApplied = 3200;
+    }
 }

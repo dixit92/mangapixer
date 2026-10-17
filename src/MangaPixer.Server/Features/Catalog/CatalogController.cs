@@ -152,6 +152,7 @@ public sealed class CatalogController : ControllerBase
         [FromQuery] bool favoritesOnly = false,
         [FromQuery] string? group = null,
         [FromQuery] bool preferVolumes = false,
+        [FromQuery] string? completion = null,
         CancellationToken ct = default)
     {
         var userId = GetUserId();
@@ -190,7 +191,8 @@ public sealed class CatalogController : ControllerBase
             direction: ParseDirection(direction, storedDirection, effectiveSort),
             sort: effectiveSort, incognito: _incognito.IsIncognito,
             readState: ParseReadState(readState), hideEmpty: hideEmpty, before: before,
-            favoritesOnly: favoritesOnly, group: group, preferVolumes: preferVolumes, ct: ct);
+            favoritesOnly: favoritesOnly, group: group, preferVolumes: preferVolumes, ct: ct,
+            completion: Enum.TryParse<SeriesAnswer>(completion, ignoreCase: true, out var answer) && Enum.IsDefined(answer) ? answer : null);
 
         return Ok(result);
     }
