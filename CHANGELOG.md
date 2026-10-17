@@ -6,8 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.44.0] - 2026-10-17
+
 ### Added
 
+- **Open the current match on MangaUpdates or MangaDex from Metadata Manager's review lists.** A linked series' title, and an icon beside each candidate in **Needs review**, open the series' page on its site in a new tab, without telling the site which address you came from; MangaPixer itself makes no request for it.
 - **Find the chapters inside volume files.** When no volume list says which chapters a volume file holds, MangaPixer now reads the pages of the volume file and of the chapter files next to it, in the background, and compares them (another release of the same pages counts). The chapter files it finds join the volume's stack, and the volume's page says "Chapters 51-58 are inside the volume file"; when they fill the volume, it shows "Volume 8" instead of "~ Volume 8" and the volumes around it are placed from it. It never reads folders marked "Don't match", doujinshi folders or series, or webtoons listed as chapters, and never changes a volume a list maps. Files are only read; nothing leaves the server. The work follows "Background work while someone reads", and folders you open in the Volumes view go first.
 - **Administration > Volume contents** has the switch "Find the chapters inside volume files" (on by default) and its counts; **Scheduled jobs** has a **Volume contents** row (hourly and after library scans). `MangaPixer:VolumeScan:Enabled=false` turns it off.
 - **Metadata export:** a volume read from the files lists the chapter files inside it (`filesInside`, `sources: ["scan"]`; the proven range when the volume is known), and those chapter files are listed as `duplicates` with `inVolume`. Left out when there are none.
