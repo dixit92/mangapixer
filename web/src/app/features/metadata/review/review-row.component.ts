@@ -24,6 +24,7 @@ import { artistFolderLabel } from '../artist-folder/artist-folder-labels';
 import { CoverCompareDirective } from './cover-compare/cover-compare.directive';
 import { QueuedImageDirective, QueuedImageState } from './queued-image.directive';
 import { candidateBlocks, FAMILY_REASONS, familyRoleLabel, SERIES_FAMILY_NOTE } from './series-family';
+import { providerRecordUrl, providerSiteName } from '../provider-links';
 
 /** A row action; `rank` for Accept (the chosen stored candidate). */
 export type ReviewRowAction =
@@ -284,7 +285,15 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
         } @else if (link.state !== 'NeedsReview' && link.state !== 'DontMatch') {
           <p class="link" data-testid="review-link">
             <mat-icon inline>link</mat-icon>
-            {{ link.title || link.externalId }}
+            <!-- 1.44.0 (owner): the current match opens on its site (a new tab, no referrer), like the trackers' links. -->
+            @if (recordUrl(link.provider, link.externalId); as url) {
+              <a class="ext" [href]="url" target="_blank" rel="noopener noreferrer" (click)="$event.stopPropagation()"
+                 [attr.aria-label]="'Open on ' + siteName(link.provider) + ': ' + (link.title || link.externalId)"
+                 [matTooltip]="'Open on ' + siteName(link.provider)" data-testid="review-link-site"><span>{{ link.title || link.externalId }}</span><mat-icon
+                 aria-hidden="true">open_in_new</mat-icon></a>
+            } @else {
+              {{ link.title || link.externalId }}
+            }
             <span class="muted">· {{ link.state === 'Auto' ? 'auto' : 'confirmed' }}
               @if (link.matchScore !== null && link.matchScore !== undefined) { · Overall {{ scoreLabel(link.matchScore) }} }
               · {{ link.updatedAt | date: 'mediumDate' }}</span>
@@ -315,6 +324,12 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
                   <span class="cand-title">{{ c.title }}</span>
                   <span class="muted">{{ line(c) }}</span>
                 </span>
+                @if (recordUrl(c.provider, c.externalId); as url) {
+                  <!-- 1.44.0 (owner): the candidate's page on its site, to check it before accepting (a new tab, no referrer). -->
+                  <a mat-icon-button class="cand-site" [href]="url" target="_blank" rel="noopener noreferrer" (click)="$event.stopPropagation()"
+                     [attr.aria-label]="'Open on ' + siteName(c.provider) + ': ' + c.title" [matTooltip]="'Open on ' + siteName(c.provider)"
+                     data-testid="review-candidate-site"><mat-icon>open_in_new</mat-icon></a>
+                }
                 @if (c.provider === 'mangadex') {
                   <!-- 1.42.0: found on MangaDex (MangaUpdates found nothing close) - never linked on its own. -->
                   <span class="tag site" data-testid="review-site-mangadex" matTooltip="Found on MangaDex: MangaUpdates found nothing close"
@@ -422,6 +437,10 @@ export function rowActions(tab: MetadataReviewTab, item: MetadataReviewItemDto):
     .chip.group .glabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 26ch; }
     .expand, .open { flex: none; }
     .link { margin: 6px 0 0; font-size: 13px; }
+    .link .ext { display: inline-flex; align-items: center; gap: 2px; color: var(--mp-accent); text-decoration: none; }
+    .link .ext:hover span, .link .ext:focus-visible span { text-decoration: underline; }
+    .link .ext mat-icon { font-size: 14px; width: 14px; height: 14px; }
+    .cand-site { flex: none; color: var(--mp-text-secondary); }
     .note { margin: 6px 0 0; font-size: 12px; color: var(--mp-text-muted); }
     .muted { color: var(--mp-text-muted); }
     .cands { display: flex; flex-direction: column; margin: 6px 0 0 -8px; }
@@ -522,6 +541,9 @@ export class ReviewRowComponent {
   readonly scoreLabel = scorePercentLabel;
   readonly overallTip = overallScoreTip;
   readonly line = reviewCandidateLine;
+  /** 1.44.0: a record's page on its site (MangaUpdates / MangaDex), or null. */
+  readonly recordUrl = providerRecordUrl;
+  readonly siteName = providerSiteName;
   /**
    * A short delay before a reason/score chip's tooltip shows, with an immediate hide:
    * sweeping the mouse across several adjacent chips (a candidate's reasons, then the
