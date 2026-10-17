@@ -39,7 +39,12 @@ public static class WorkerProtocolVersion
     // archive page or a server-owned image, optionally cropped to one half, hashed in
     // the same decode. Bumped for the v3 / v4 reason: a v4 worker would answer
     // `unknown_message_type` and the layer would silently never crop or store a cover.
-    public const int Current = 5;
+    //
+    // v6 (1.44.0): volume contents scan - the new `page_hash` / `page_hash_result` /
+    // `page_hash_error` messages (PageHashMessages.cs): the perceptual hashes of a range
+    // of the pages of one archive, read-only. Bumped for the v3 / v4 / v5 reason: a v5
+    // worker would answer `unknown_message_type` and the scan would silently never run.
+    public const int Current = 6;
 }
 
 /// <summary>

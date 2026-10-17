@@ -3,7 +3,6 @@ namespace com.lifepixer.mangapixer.MediaWorker.Images;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Core.WorkerProtocol;
 using ImageMagick;
-using ImageMagick.Drawing;
 
 /// <summary>The outcome of hashing one image: the hash and the decoded size, or an <see cref="ImageHashErrors"/> code.</summary>
 public sealed record HashedImage(ulong Hash, int Width, int Height, string? Error)
@@ -58,14 +57,17 @@ public static class ImageHasher
     public static HashedImage Hash(byte[] bytes, int maxDimension) => Hash(bytes, maxDimension, reducedDecode: false);
 
     /// <summary>
-    /// The longest edge a reduced JPEG decode keeps at least (1.43.0 page hashing): libjpeg's DCT scaling decodes at 1/2, 1/4 or 1/8
+    /// The longest edge a reduced JPEG decode keeps at least (1.44.0 page hashing, worker protocol v6): libjpeg's DCT scaling decodes at 1/2, 1/4 or 1/8
     /// of the size while staying at or above this, well above the 32x32 square the hash is computed on.
     /// </summary>
     public const int ReducedDecodeSide = 128;
 
+    private const string ReducedDecodeSize = "128x128";
+
     /// <summary>
     /// <see cref="Hash(byte[], int)"/>, optionally decoding a JPEG at a reduced scale (<see cref="ReducedDecodeSide"/>) - the same
-    /// 32x32 reduction afterwards. Other formats always decode fully. The reported size is the image's own (from its header).
+    /// 32x32 reduction afterwards. Other formats always decode fully. A reduced decode reports the image's own size (from its header);
+    /// the full decode (covers, <c>image_hash</c>) is unchanged: the decoded size, and the hash the golden test pins.
     /// </summary>
     public static HashedImage Hash(byte[] bytes, int maxDimension, bool reducedDecode)
     {
@@ -84,9 +86,10 @@ public static class ImageHasher
                 return HashedImage.Failed(ImageHashErrors.TooLarge);
 
             if (reducedDecode && sniffed == MagickFormat.Jpeg)
-                settings.SetDefine(MagickFormat.Jpeg, "size", ReducedDecodeSide.ToString(System.Globalization.CultureInfo.InvariantCulture) + "x" + ReducedDecodeSide.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                settings.SetDefine(MagickFormat.Jpeg, "size", ReducedDecodeSize);
             using var image = new MagickImage(bytes, settings);
-            return new HashedImage(HashOf(image), (int)probe.Width, (int)probe.Height, null);
+            var (width, height) = reducedDecode ? ((int)probe.Width, (int)probe.Height) : ((int)image.Width, (int)image.Height);
+            return new HashedImage(HashOf(image), width, height, null);
         }
         catch (MagickException)
         {
@@ -113,56 +116,5 @@ public static class ImageHasher
         for (var i = 0; i < luma.Length; i++)
             luma[i] = gray[i * 3];
         return CoverHash.Compute(luma);
-    }
-
-    /// <summary>
-    /// PROTOTYPE (1.43.0 lane V measurement): a re-encoded copy of the image - scaled by <paramref name="scale"/>, cropped by
-    /// <paramref name="cropShare"/> of each edge, saved as JPEG at <paramref name="quality"/> - to see how far its hash lands from the
-    /// original's (another release of the same scan). Null when the image cannot be decoded.
-    /// </summary>
-    public static byte[]? Reencoded(byte[] bytes, double scale, int quality, double cropShare, double blankShare = 0)
-    {
-        if (SniffFormat(bytes) is not { } sniffed)
-            return null;
-        try
-        {
-            using var image = new MagickImage(bytes, new MagickReadSettings { Format = sniffed });
-            var (w, h) = ((int)image.Width, (int)image.Height);
-            var (dx, dy) = ((int)(w * cropShare), (int)(h * cropShare));
-            if (dx > 0 || dy > 0)
-            {
-                image.Crop(new MagickGeometry(dx, dy, (uint)Math.Max(1, w - 2 * dx), (uint)Math.Max(1, h - 2 * dy)));
-                image.ResetPage();
-            }
-            if (blankShare > 0)
-            {
-                // Another translation / cleaning: white boxes (speech bubbles re-lettered) over about blankShare of the page,
-                // placed by a seed taken from the bytes so a run is repeatable.
-                var random = new Random(bytes.Length);
-                var (iw, ih) = ((int)image.Width, (int)image.Height);
-                var boxes = 6;
-                var side = Math.Sqrt(blankShare * iw * ih / boxes);
-                var drawables = new Drawables().FillColor(MagickColors.White).StrokeColor(MagickColors.White);
-                for (var i = 0; i < boxes; i++)
-                {
-                    var bw = side * (0.6 + random.NextDouble() * 0.8);
-                    var bh = side * side / bw;
-                    var x = random.NextDouble() * Math.Max(1, iw - bw);
-                    var y = random.NextDouble() * Math.Max(1, ih - bh);
-                    drawables.Ellipse(x + bw / 2, y + bh / 2, bw / 2, bh / 2, 0, 360);
-                }
-                drawables.Draw(image);
-            }
-            image.FilterType = FilterType.Triangle;
-            image.Resize(new MagickGeometry((uint)Math.Max(1, (int)(image.Width * scale)), (uint)Math.Max(1, (int)(image.Height * scale))) { IgnoreAspectRatio = true });
-            image.BackgroundColor = MagickColors.White;
-            image.Alpha(AlphaAction.Remove);
-            image.Quality = (uint)quality;
-            return image.ToByteArray(MagickFormat.Jpeg);
-        }
-        catch (MagickException)
-        {
-            return null;
-        }
     }
 }

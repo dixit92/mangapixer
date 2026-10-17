@@ -568,7 +568,7 @@ public sealed class WorkerLoop
     }
 
     /// <summary>
-    /// Hashes every page of one archive (1.43.0 volume contents scan, PROTOTYPE): <see cref="PageHashOperation"/>. An unreadable
+    /// Hashes a range of the pages of one archive (worker protocol v6, 1.44.0 volume contents scan): <see cref="PageHashOperation"/>. An unreadable
     /// archive is an error code; a page that cannot be hashed is an entry with an error, never a failed op.
     /// </summary>
     private async Task HandlePageHashAsync(string correlationId, PageHashRequest request)

@@ -1150,6 +1150,98 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     internal static readonly TimeSpan CoverRenderTimeout = TimeSpan.FromSeconds(30);
 
     /// <summary>
+    /// Hashes a range of the pages of one SOURCE archive in a worker (protocol v6 <c>page_hash</c>, 1.44.0 volume contents scan): the
+    /// worker opens the archive read-only by its private validated locator and returns one 64-bit perceptual hash per page. Always a
+    /// <see cref="MediaSlotKind.PageHash"/> slot - background work: it waits while readers need the workers (Pause / Slow / Normal of
+    /// "Background work while someone reads") and never times out while waiting. The request's <c>JobId</c> and deadline are the
+    /// pool's own. Never throws for worker-side problems: every failure is a <see cref="PageHashOutcome"/> error type.
+    /// </summary>
+    public async Task<PageHashOutcome> HashPagesAsync(PageHashRequest request, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (_isShuttingDown)
+            return PageHashOutcome.Failed("unavailable");
+
+        var slot = await AcquireSlotAsync(MediaSlotKind.PageHash, ct);
+        if (slot is null)
+            return PageHashOutcome.Failed(ct.IsCancellationRequested ? "cancelled" : "busy");
+
+        var jobId = "pagehash-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            var tcs = new TaskCompletionSource<PageHashOutcome>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            Task HandleMessage(WorkerEnvelope envelope)
+            {
+                if (envelope.CorrelationId != jobId) return Task.CompletedTask;
+                switch (envelope.Type)
+                {
+                    case "page_hash_result":
+                        {
+                            var r = WorkerProtocolFraming.GetPayload<PageHashResult>(envelope);
+                            tcs.TrySetResult(r is null ? PageHashOutcome.Failed(PageHashErrors.ReadFailed) : PageHashOutcome.Ok(r));
+                            break;
+                        }
+                    case "page_hash_error":
+                        {
+                            var e = WorkerProtocolFraming.GetPayload<PageHashError>(envelope);
+                            tcs.TrySetResult(PageHashOutcome.Failed(e?.ErrorType ?? PageHashErrors.ReadFailed));
+                            break;
+                        }
+                    case "analyze_error":
+                        {
+                            // A worker-level error for this correlation id (e.g. an unknown message type from an older worker).
+                            var e = WorkerProtocolFraming.GetPayload<AnalyzeError>(envelope);
+                            tcs.TrySetResult(PageHashOutcome.Failed(e?.ErrorType ?? PageHashErrors.ReadFailed));
+                            break;
+                        }
+                }
+                return Task.CompletedTask;
+            }
+
+            slot.Supervisor.OnMessageReceived += HandleMessage;
+            try
+            {
+                var sent = Stopwatch.GetTimestamp();
+                var deadline = DateTimeOffset.UtcNow + PageHashTimeout;
+                await slot.Supervisor.SendMessageAsync(
+                    WorkerProtocolFraming.CreateEnvelope("page_hash", jobId, request with { JobId = jobId, Deadline = deadline }), ct);
+                // A little longer than the worker's own deadline, so the worker answers "deadline" before the pool gives up.
+                var timeout = Task.Delay(PageHashTimeout + TimeSpan.FromSeconds(10), ct);
+                var done = await Task.WhenAny(tcs.Task, timeout);
+                RecordWorkerCall(slot, MediaSlotKind.PageHash, sent, completed: done == tcs.Task, ct);
+                if (done == tcs.Task)
+                    return await tcs.Task;
+                ct.ThrowIfCancellationRequested();
+                return PageHashOutcome.Failed("timeout");
+            }
+            finally
+            {
+                slot.Supervisor.OnMessageReceived -= HandleMessage;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            return PageHashOutcome.Failed("cancelled");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(LogEvents.Worker.ExtractDispatchFailed, ex, "Page hash dispatch failed: {Error}", ex.GetType().Name);
+            return PageHashOutcome.Failed(PageHashErrors.ReadFailed);
+        }
+        finally
+        {
+            ReleaseDirectSlot(slot, MediaSlotKind.PageHash);
+        }
+    }
+
+    /// <summary>
+    /// Deadline for one page-hash request: a 48-page chunk takes ~2 s at the measured 30-45 ms per page; a solid archive (one pass, at
+    /// most 600 MB) can take a few minutes on a slow disk.
+    /// </summary>
+    internal static readonly TimeSpan PageHashTimeout = TimeSpan.FromMinutes(5);
+
+    /// <summary>
     /// Gets a worker slot for a direct request of <paramref name="kind"/> (1.42.0: reader-first hand-off). A free slot
     /// is taken at once when no request of the same or a higher priority waits and - for background work - the
     /// background limit allows it; under the cap a worker is started for it; otherwise the request queues and is handed
@@ -1960,6 +2052,18 @@ public sealed record ImageHashOutcome
     public static ImageHashOutcome Ok(ulong hash) => new() { Success = true, Hash = hash };
 
     public static ImageHashOutcome Failed(string errorType) => new() { Success = false, ErrorType = errorType };
+}
+
+/// <summary>The outcome of <see cref="MediaWorkerPool.HashPagesAsync"/>: the worker's page hashes, or an error type.</summary>
+public sealed record PageHashOutcome
+{
+    public required bool Success { get; init; }
+    public PageHashResult? Result { get; init; }
+    public string? ErrorType { get; init; }
+
+    public static PageHashOutcome Ok(PageHashResult result) => new() { Success = true, Result = result };
+
+    public static PageHashOutcome Failed(string errorType) => new() { Success = false, ErrorType = errorType };
 }
 
 public sealed record PageExtractionOutcome
