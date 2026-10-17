@@ -6,6 +6,7 @@ using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.Missing;
+using com.lifepixer.mangapixer.Core.Metadata.Reach;
 using com.lifepixer.mangapixer.Server.Features.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Missing;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MangaDex;
@@ -120,14 +121,16 @@ public sealed class ExportItemBuilder(MangaPixerDbContext db)
                 // 1.42.0: plus the volumes the Volumes view estimates for this folder (its own progress grouping), flagged as estimated.
                 Volumes = record is null || !isSeries
                     ? null
-                    : ExportVolumes.WithEstimates(
+                    : ExportVolumes.WithScans(ExportVolumes.WithEstimates(
                         ExportVolumes.Project(maps[record.Id].ToList(), WikipediaVolumeService.ReadDetails(details?.DetailsJson), details?.CheckedAt, today),
                         progress.TryGetValue(link.NodeId, out var estimated) ? estimated.Result.EstimatedVolumes : []),
+                        // 1.44.0: the volume files the volume contents scan read (filesInside, sources "scan").
+                        progress.TryGetValue(link.NodeId, out var scanned) ? scanned.Result.ScannedVolumes : []),
                 // 1.39.0: tracking off - no Completion block (null, as for any item without an answer) and the item says tracking "off".
                 Completion = progress.TryGetValue(link.NodeId, out var entry) && !entry.Result.Facts.TrackingOff ? Completion(entry) : null,
                 Tracking = progress.TryGetValue(link.NodeId, out var tracked) && tracked.Result.Facts.TrackingOff ? ExportVocabulary.TrackingOff : null,
                 Refresh = record is null || !isSeries ? null : Refresh(record),
-                Duplicates = progress.TryGetValue(link.NodeId, out var series) ? Duplicates(series.Rows) : null,
+                Duplicates = progress.TryGetValue(link.NodeId, out var series) ? Duplicates(series.Rows, series.Result.ScannedVolumes) : null,
             };
             result.Add(new ExportBuiltItem(link.NodeId, link.PublicId, item));
         }
@@ -203,12 +206,10 @@ public sealed class ExportItemBuilder(MangaPixerDbContext db)
     /// 1.38.0: the duplicate numbers of a linked series folder with each file's node id and name - the same rules as the Missing report
     /// (<see cref="DuplicateUnits.GroupsIn"/>), from the rows the Completion answer was computed from; null when there are none.
     /// </summary>
-    private static List<ExportDuplicateDto>? Duplicates(IReadOnlyList<GroupingRow> rows)
+    private static List<ExportDuplicateDto>? Duplicates(IReadOnlyList<GroupingRow> rows, IReadOnlyList<ScannedVolumeContents> scanned)
     {
         var groups = DuplicateUnits.GroupsIn(rows);
-        if (groups.Count == 0)
-            return null;
-        return groups.Take(MissingUnits.MaxListed).Select(g => new ExportDuplicateDto
+        var result = groups.Take(MissingUnits.MaxListed).Select(g => new ExportDuplicateDto
         {
             Kind = g.Unit.Kind == MissingUnitKind.Volume ? "Volume" : "Chapter",
             Number = VolumeGrouping.Canonical(g.Unit.Number),
@@ -216,6 +217,25 @@ public sealed class ExportItemBuilder(MangaPixerDbContext db)
                 .Select(r => new ExportDuplicateFileDto { NodeId = r.Id, Name = r.Name, Folder = r.ContainerName })
                 .ToList(),
         }).ToList();
+        // 1.44.0 (owner Q4 / Q5): a chapter file found inside a volume file is a duplicate of it - MangaList can remove the chapter file.
+        foreach (var volume in scanned.Where(v => v.VolumeFile is not null))
+        {
+            foreach (var (row, chapter) in volume.Chapters)
+            {
+                result.Add(new ExportDuplicateDto
+                {
+                    Kind = "Chapter",
+                    Number = VolumeGrouping.Canonical(chapter),
+                    Files =
+                    [
+                        new ExportDuplicateFileDto { NodeId = row.Id, Name = row.Name, Folder = row.ContainerName },
+                        new ExportDuplicateFileDto { NodeId = volume.VolumeFile!.Id, Name = volume.VolumeFile.Name, Folder = volume.VolumeFile.ContainerName },
+                    ],
+                    InVolume = VolumeGrouping.Canonical(volume.Volume),
+                });
+            }
+        }
+        return result.Count == 0 ? null : result;
     }
 
     private static ExportCompletionDto Completion(SeriesProgressEntry entry)

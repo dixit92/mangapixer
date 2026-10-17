@@ -86,6 +86,8 @@ describe('AdminComponent directory browser row', () => {
       listApiTokens: vi.fn().mockReturnValue(NEVER),
       // The Performance card (1.42.0) loads its own settings; it stays loading here too.
       getPerformanceSettings: vi.fn().mockReturnValue(NEVER),
+      // The Volume contents card (1.44.0) loads its own status; it stays loading here too.
+      getVolumeScanStatus: vi.fn().mockReturnValue(NEVER),
       getAnalyticsOverview: vi.fn().mockReturnValue(of(analyticsOverview)),
       getAnalyticsUsers: vi.fn().mockReturnValue(of([])),
       getBackupSettings: vi.fn().mockReturnValue(of(backupSettings)),

@@ -97,7 +97,7 @@ folder's declared creator in MangaPixer (not part of the export).
 | `completion` | The Completion answer (below), or `null` - only folders with a Confirmed or Auto link have one, and (1.39.0) not a folder whose completion tracking is off. |
 | `refresh` | `lastFetchedAt`, `intervalDays`, `nextDueAt`: when MangaPixer read the record and looks at it again; `null` without a record and for `CollectionAbout` (its record is not refreshed automatically). `officialLinks` is `[]` and `volumes` / `completion` are `null` for `CollectionAbout` too. |
 | `tracking` | (1.39.0) `"off"` when an admin turned **Track completion** off for the folder (see [below](#completion-tracking-off)); the key is **left out** otherwise. |
-| `duplicates` | (1.38.0) Chapter or volume numbers that more than one file states - the same duplicates the Missing report lists - each with its files: `{ kind, number, files: [{ nodeId, name, folder }] }`. Open a file in the reader at `/reader/{nodeId}`. `kind` is `Volume` or `Chapter`; `number` is exact (`"12.5"`); `folder` is the unit subfolder (`Volumes`, `Season 2`) or `null` in the series folder itself (a number is a duplicate only within one folder). Only folders with a Confirmed or Auto link have it, and the key is **left out** when there are none. At most 50 numbers, 20 files each. |
+| `duplicates` | (1.38.0) Chapter or volume numbers that more than one file states - the same duplicates the Missing report lists - each with its files: `{ kind, number, files: [{ nodeId, name, folder }] }`. Open a file in the reader at `/reader/{nodeId}`. `kind` is `Volume` or `Chapter`; `number` is exact (`"12.5"`); `folder` is the unit subfolder (`Volumes`, `Season 2`) or `null` in the series folder itself (a number is a duplicate only within one folder). Only folders with a Confirmed or Auto link have it, and the key is **left out** when there are none. At most 50 numbers, 20 files each. *1.44.0:* a chapter file the volume contents scan found inside a volume file is listed too, with `inVolume` (the volume's number) and `files: [the chapter file, the volume file]` - the chapter file is a copy of part of the volume, so a client may offer to remove it; `inVolume` is left out on the other entries. |
 
 ### Volumes
 
@@ -118,6 +118,13 @@ not map, its chapters placed by MangaDex's average chapters per volume), that vo
 places in that volume - for a held volume file, the chapter files it most likely contains - so a client can offer "replace these chapters
 with the volume" for a person to confirm; never act on it automatically. A volume the list maps never gets an estimated row, and the key
 `chaptersEstimated` is left out on every other row. When there is no list at all but estimated volumes exist, `source` is `estimate`.
+
+**Volumes read from the files (1.44.0).** When the [volume contents scan](volumes.md#chapters-found-inside-a-volume-file) found chapter
+files inside a volume file of the folder, that volume's row lists them in `filesInside`: `[{ "nodeId", "name", "number" }]` (open one at
+`/reader/{nodeId}`), and its `sources` has `scan`. When the chapters found fill the volume (its range is known), `chapters` is the first and
+last chapter found, `sources` is `["scan"]` and `chaptersEstimated` is left out; otherwise the row keeps the estimate's range and
+`chaptersEstimated: true`, with `scan` added to `sources`. A row of the volume list is never changed. `filesInside` is left out when the scan
+found nothing, so an item without scanned volumes keeps its exact form. When there is no list at all, `source` is `scan`.
 
 ### Completion
 

@@ -661,6 +661,12 @@ public sealed class MetadataReviewService
             if (chapters + volumes > 0)
                 result[byRoot.Key] = (chapters, volumes);
         }
+        // 1.44.0: a chapter file the volume contents scan found inside a volume file of the folder is a duplicate chapter too.
+        foreach (var (folder, inside) in await VolumeScan.VolumeContentCounts.ChaptersInsideAsync(_db, folderIds, ct))
+        {
+            var (c, v) = result.GetValueOrDefault(folder);
+            result[folder] = (c + inside, v);
+        }
         return result;
     }
 

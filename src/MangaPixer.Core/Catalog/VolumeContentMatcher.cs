@@ -65,7 +65,7 @@ public static class VolumeContentMatcher
     public const int MaxPairs = 20_000;
 
     /// <summary>The run of one chapter inside one volume: (chapter page, volume page) pairs, ascending on both sides.</summary>
-    public static IReadOnlyList<(int Chapter, int Volume)> BestRun(IReadOnlyList<ulong?> chapter, IReadOnlyList<ulong?> volume)
+    public static List<(int Chapter, int Volume)> BestRun(IReadOnlyList<ulong?> chapter, IReadOnlyList<ulong?> volume)
     {
         ArgumentNullException.ThrowIfNull(chapter);
         ArgumentNullException.ThrowIfNull(volume);
@@ -126,7 +126,56 @@ public static class VolumeContentMatcher
                 best = (start, k - start);
             start = k;
         }
-        return chain.GetRange(best.Start, best.Length);
+        return Extend(chain.GetRange(best.Start, best.Length), chapter, volume);
+    }
+
+    /// <summary>
+    /// Grows a piece by the chapter pages right before and after it that match a volume page close before / after it (the longest chain
+    /// may have taken a twin page far away for a tie, which the jump split then cut off).
+    /// </summary>
+    private static List<(int Chapter, int Volume)> Extend(List<(int Chapter, int Volume)> piece, IReadOnlyList<ulong?> chapter, IReadOnlyList<ulong?> volume)
+    {
+        bool Matches(int i, int j) =>
+            chapter[i] is { } a && volume[j] is { } b && BitOperations.PopCount(a ^ b) <= PageMaxDistance;
+        while (true)
+        {
+            var (ci, vj) = piece[0];
+            var grown = false;
+            for (var i = ci - 1; i >= Math.Max(0, ci - MaxJump - 1) && !grown; i--)
+            {
+                for (var j = vj - 1; j >= Math.Max(0, vj - MaxJump - 1); j--)
+                {
+                    if (Matches(i, j))
+                    {
+                        piece.Insert(0, (i, j));
+                        grown = true;
+                        break;
+                    }
+                }
+            }
+            if (!grown)
+                break;
+        }
+        while (true)
+        {
+            var (ci, vj) = piece[^1];
+            var grown = false;
+            for (var i = ci + 1; i <= Math.Min(chapter.Count - 1, ci + MaxJump + 1) && !grown; i++)
+            {
+                for (var j = vj + 1; j <= Math.Min(volume.Count - 1, vj + MaxJump + 1); j++)
+                {
+                    if (Matches(i, j))
+                    {
+                        piece.Add((i, j));
+                        grown = true;
+                        break;
+                    }
+                }
+            }
+            if (!grown)
+                break;
+        }
+        return piece;
     }
 
     /// <summary>True when <paramref name="matched"/> in-order pages prove a chapter of <paramref name="pages"/> pages.</summary>

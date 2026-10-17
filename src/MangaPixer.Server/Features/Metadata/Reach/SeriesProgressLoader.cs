@@ -103,8 +103,9 @@ public sealed class SeriesProgressLoader(MangaPixerDbContext db)
         var bySeries = folders.Values.ToLookup(f => f.Series);
         foreach (var target in targets.DistinctBy(t => t.NodeId))
         {
-            var rows = new List<GroupingRow>();
+            var built = new List<GroupingRow>();
             var missingFolders = new List<MissingFolder>();
+            var archiveIds = new Dictionary<long, string>();
             foreach (var folder in bySeries[target.NodeId])
             {
                 var archives = archivesIn.GetValueOrDefault(folder.Id) ?? [];
@@ -112,13 +113,18 @@ public sealed class SeriesProgressLoader(MangaPixerDbContext db)
                 foreach (var a in archives)
                 {
                     var ci = comicInfo.GetValueOrDefault(a.Id);
-                    rows.Add(new GroupingRow(a.PublicId, GroupingRowKind.Archive, a.Name, a.SortKey, folder.Name, ci.Volume, ci.Number));
+                    built.Add(new GroupingRow(a.PublicId, GroupingRowKind.Archive, a.Name, a.SortKey, folder.Name, ci.Volume, ci.Number));
+                    archiveIds[a.Id] = a.PublicId;
                 }
             }
             var restarts = MissingUnits.Evaluate(missingFolders, new PublishedTotals()).Verdict == MissingVerdict.Restarts;
             var record = records.GetValueOrDefault(target.RecordId);
-            var (map, facts) = MapAndFacts(maps[target.RecordId].ToList(), record, language, target.ChaptersPerVolume,
+            var (listMap, facts) = MapAndFacts(maps[target.RecordId].ToList(), record, language, target.ChaptersPerVolume,
                 editions.GetValueOrDefault(target.NodeId));
+            // 1.44.0: the volume contents scan's answers, as the Volumes view reads them (VolumeContentReader, VolumeContents.Apply).
+            var (rows, scannedMap) = VolumeContents.Apply(built, listMap,
+                await VolumeScan.VolumeContentReader.LoadAsync(db, archiveIds, ct));
+            var map = scannedMap ?? listMap;
             var progress = SeriesProgress.Evaluate(rows, map, facts, restarts);
             var units = rows.Select(VolumeGrouping.UnitsOf).ToList();
             result[target.NodeId] = new SeriesProgressEntry(progress, rows,

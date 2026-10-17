@@ -209,7 +209,7 @@ public sealed class VolumeContentMatcherTests
 
     private static VolumeMapInput SixListedVolumes() =>
         new(Enumerable.Range(1, 6).Select(v => new VolumeMapVolume(v, Enumerable.Range((v - 1) * 10 + 1, 10).Select(c => (decimal)c).ToList())).ToList(),
-            10, null, true, VolumeListSource.MangaDex);
+            10, 10, true, VolumeListSource.MangaDex);
 
     private static ScannedVolume Scan(string volumeRow, decimal volume, VolumeContentState state, int from, int to) =>
         new(volumeRow, volume, state, Enumerable.Range(from, to - from + 1).Select(c => new ScannedChapter($"id:Series - Chapter {c:000}", c)).ToList());

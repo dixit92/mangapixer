@@ -103,6 +103,7 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
             Slots = slots,
             OfficialRelease = stack.OfficialRelease,
             Duplicates = stack.Duplicates.Select(DuplicateUnits.ToDto).ToList(),
+            InVolumeFile = VolumeScan.VolumeContentLine.Of(stack),
         };
     }
 

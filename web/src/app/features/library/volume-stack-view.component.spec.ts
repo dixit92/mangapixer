@@ -161,6 +161,21 @@ describe('VolumeStackViewComponent', () => {
     expect(el.querySelector('[data-testid="stack-source"]')!.textContent).toContain('Volume boundaries are estimated');
   });
 
+  it('1.44.0: says which chapters the volume contents scan found inside the volume file', () => {
+    const { el } = setup(stack({ inVolumeFile: { from: '57', to: '64', count: 8 } }));
+    expect(el.querySelector('[data-testid="stack-in-volume-file"]')!.textContent).toBe('Chapters 57-64 are inside the volume file.');
+  });
+
+  it('1.44.0: one chapter inside the volume file reads in the singular', () => {
+    const { el } = setup(stack({ inVolumeFile: { from: '9', to: '9', count: 1 } }));
+    expect(el.querySelector('[data-testid="stack-in-volume-file"]')!.textContent).toBe('Chapter 9 is inside the volume file.');
+  });
+
+  it('1.44.0: no line when the scan found nothing inside the volume file', () => {
+    const { el } = setup(stack());
+    expect(el.querySelector('[data-testid="stack-in-volume-file"]')).toBeNull();
+  });
+
   it('describes a merged volume file + chapters, and a file-name grouping without a total', () => {
     const merged = stack({
       chapterCount: 2, missingCount: 0, extraCount: 0, presentCount: 3, source: 'FileNames',

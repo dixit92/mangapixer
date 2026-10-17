@@ -115,4 +115,41 @@ public sealed class PageHashProcessTests(WorkerProcessFixture fixture) : IClassF
             await pool.DisposeAsync();
         }
     }
+
+    [Fact]
+    public async Task PageHash_IsBackgroundWork_NothingIsHashedWhilePausedAndSomeoneReads()
+    {
+        var options = fixture.CreatePoolOptions();
+        options.MaxConcurrentJobs = 2;
+        var pool = new MediaWorkerPool(options, new JobScheduler(options), new ScratchWorkspaceManager(fixture.ScratchRoot),
+            NullLogger<MediaWorkerPool>.Instance, NullLoggerFactory.Instance);
+        pool.BackgroundWhileReading = BackgroundWhileReading.Pause;
+        await pool.StartAsync();
+        try
+        {
+            var path = Archive(3, out _);
+            // A reader page makes "someone is reading" true for the next 30 s.
+            var zip = fixture.CreateValidImageZip("ph-pause.zip");
+            var fi = new FileInfo(zip);
+            var output = Path.Combine(fixture.ScratchRoot, "ph-" + Guid.NewGuid().ToString("N")[..8] + ".webp");
+            var read = await pool.ExtractPageAsync(zip, "page001.png", "webp", fi.LastWriteTimeUtc.Ticks, fi.Length, output, 200, 80, default,
+                slotKind: MediaSlotKind.Page);
+            Assert.True(read.Success);
+
+            // A free worker exists, but the scan's request waits while someone reads.
+            var hashing = pool.HashPagesAsync(Request(path, 0, 0));
+            await Task.Delay(1500);
+            Assert.False(hashing.IsCompleted, "Pages were hashed while background work is paused for a reader");
+
+            pool.BackgroundWhileReading = BackgroundWhileReading.Normal;
+            var done = await hashing.WaitAsync(TimeSpan.FromSeconds(20));
+            Assert.True(done.Success, done.ErrorType);
+            Assert.Equal(3, done.Result!.Pages.Count);
+        }
+        finally
+        {
+            await pool.StopAsync();
+            await pool.DisposeAsync();
+        }
+    }
 }
