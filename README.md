@@ -68,7 +68,7 @@ In every case, add your libraries under **Administration** after signing in. In 
 
 ## Features
 
-- **Folder-native library:** card and list views, sorting, read-state filters, an A-Z rail, bulk read marks and full-text search.
+- **Folder-native library:** card and list views, sorting, read-state filters, a filter by series completion (*new in 1.44.0*), an A-Z rail, bulk read marks and full-text search.
 - **A reader for every screen:** paged (left-to-right or manga), double-page spreads and vertical webtoon, with touch and keyboard controls and on-device upscaling (**Crisp** and **Enhance**).
 - **Per-user reading state:** progress, read marks, "Continue reading" and "New chapters" for every user - and, *new in 1.40.0*, your own theme: Dark, Light, Black, Sepia or System, with an accent colour.
 - **Series information:** read from `ComicInfo.xml`, and optionally from MangaUpdates, linked by hand or automatically, with volume covers and volume lists from MangaDex - also the series record of a series MangaUpdates does not list yet - and chapters per volume from AniList (all off by default). A linked series shows what you have, what is missing in your language and when it is finished; webtoons and manhwa are counted in chapters, not guessed volumes. An omnibus or other edition can declare its own volume count, and a series you do not collect to the end can stop being tracked without unlinking it.
