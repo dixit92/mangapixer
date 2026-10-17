@@ -62,7 +62,7 @@ The requests come from the **server**, not from your browser: your browser only 
 
 - **While you read.** Finishing an archive in the reader, or marking one archive read, updates the tracker right away.
 - **Folders marked read at once, and imported reading, wait for you.** A jump like that shows in your list as **Waiting for you**: press **Set progress from MangaPixer to *tracker*** for one series, or select them all in that chip and apply it to every one at once (see [Select several series](#select-several-series)).
-- **Nothing happens while nobody reads**, except what you start yourself: **Sync now**, the two **Set progress** buttons (for one series or for the series you selected), or **Check my list**.
+- **Nothing happens while nobody reads**, except what you start yourself: **Sync now**, the two **Set progress** buttons (for one series or for the series you selected), **Set *tracker*'s volumes to N** (*new in 1.44.0*), or **Check my list**.
 - **When a series' volume list changes** (MangaPixer refreshed it), the series is checked again, so volumes it now knows count.
 - **Marking something unread never lowers the tracker.**
 - **Split chapters count** (*new in 1.44.0*). A chapter split into parts (33.1 and 33.2) counts as read once every part of it here is read - for the sync, the gold border, and **Set progress from *tracker* to MangaPixer** (which marks the parts too). Before, a series whose newest chapters were split files counted only up to its last whole chapter.
