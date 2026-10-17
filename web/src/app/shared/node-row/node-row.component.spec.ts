@@ -80,7 +80,7 @@ describe('NodeRowComponent', () => {
       }),
     });
 
-    expect(el.querySelector('[data-testid="stack-incomplete"]')!.textContent!.trim()).toBe('8/9');
+    expect(el.querySelector('[data-testid="stack-incomplete"]')!.textContent!.trim()).toBe('8 of 9 ch');
     expect(el.querySelector('app-star-toggle')).toBeNull();
     expect(el.querySelector('app-info-toggle')).toBeNull();
     expect(el.querySelector('.row-select')).not.toBeNull();

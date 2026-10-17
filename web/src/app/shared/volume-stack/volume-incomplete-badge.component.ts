@@ -4,7 +4,7 @@ import { VolumeStackSummaryDto } from '../../core/api/api-types';
 import { DUPLICATE_TIP, duplicateListText, duplicatesLabel } from '../duplicate-units';
 
 /**
- * The incomplete mark of a virtual volume stack (1.29.0): a small amber corner badge "8/10" - whole chapters present of
+ * The incomplete mark of a virtual volume stack (1.29.0): a small amber corner badge "8 of 10 ch" (1.44.0; was "8/10") - whole chapters present of
  * whole chapters the volume holds - shown only while chapters are missing. Extras (45.5) are never counted, so they never
  * make a volume look incomplete. Its own styles keep the near-budget browse CSS untouched; the badge sits in the cover's
  * top-left corner, and moves to the bottom-left while its card is being selected (`moved`, 1.30.0: the select check owns
@@ -19,7 +19,7 @@ import { DUPLICATE_TIP, duplicateListText, duplicatesLabel } from '../duplicate-
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (shown()) {
-      <span class="incomplete" [class.moved]="moved()" [attr.aria-label]="label()" [title]="label()" data-testid="stack-incomplete">{{ have() }}/{{ total() }}</span>
+      <span class="incomplete" [class.moved]="moved()" [attr.aria-label]="label()" [title]="label()" data-testid="stack-incomplete">{{ have() }} of {{ total() }} ch</span>
     }
     @if (dupCount() > 0) {
       <span class="dup" [class.below]="shown()" [class.moved]="moved()" [attr.aria-label]="dupTitle()" [title]="dupTitle()"
@@ -58,7 +58,11 @@ export class VolumeIncompleteBadgeComponent {
    * minus the extras.
    */
   readonly have = computed(() => this.summary().chaptersPresent ?? Math.max(0, this.summary().presentCount - this.summary().extraCount));
-  readonly label = computed(() => `${this.have()} of ${this.total()} chapters`);
+  /** 1.44.0 (owner): what the two numbers are - "8 of 9 ch" alone read like a file count. */
+  readonly label = computed(() => {
+    const missing = this.summary().missingCount;
+    return `${this.have()} of the ${this.total()} chapters of this volume are here; ${missing} ${missing === 1 ? 'is' : 'are'} missing`;
+  });
   readonly dupCount = computed(() => this.summary().duplicates?.length ?? 0);
   readonly dupTitle = computed(() => `${duplicatesLabel(this.summary().duplicates)}: ${duplicateListText(this.summary().duplicates)}. ${DUPLICATE_TIP}`);
 }
