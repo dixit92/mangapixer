@@ -103,6 +103,24 @@ public sealed class FacetTree
         return (type, creators ?? []);
     }
 
+    /// <summary>
+    /// The provider references credited on the work a node belongs to (creator rule R2's scope): the credits of the record of the nearest
+    /// linked series at or above the node, and the authors an admin picked for the declared creators in effect there.
+    /// </summary>
+    public IReadOnlyCollection<string> ContextRefs(long nodeId, Func<long, IReadOnlyCollection<string>> recordRefs)
+    {
+        ArgumentNullException.ThrowIfNull(recordRefs);
+        var refs = new HashSet<string>(StringComparer.Ordinal);
+        if (NearestSeriesRecord(nodeId) is { } recordId)
+            refs.UnionWith(recordRefs(recordId));
+        foreach (var fact in EffectiveDeclared(nodeId).Creators)
+        {
+            if (FacetText.ParseProviderRef(fact.ExternalRef) is not null)
+                refs.Add(fact.ExternalRef!);
+        }
+        return refs;
+    }
+
     private static void Take(List<FacetDeclaredFact> facts, ref FacetDeclaredFact? type, ref IReadOnlyList<FacetDeclaredFact>? creators)
     {
         type ??= facts.FirstOrDefault(f => string.Equals(f.Key, DeclaredFactKeys.Type, StringComparison.Ordinal));

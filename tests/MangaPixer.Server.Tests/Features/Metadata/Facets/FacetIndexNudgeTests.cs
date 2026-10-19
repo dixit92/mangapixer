@@ -212,10 +212,15 @@ public sealed class FacetIndexNudgeTests : IDisposable
     }
 
     [Fact]
-    public void TheApp_RegistersTheNoOpNudge_AndEveryCallSiteClassGetsTheRegisteredOne()
+    public void TheApp_RegistersTheBuildersQueue_AndEveryCallSiteClassGetsTheRegisteredOne()
     {
+        // 1.45.0 lane F: the builder's queue replaced the seam's no-op as the app's nudge.
         using (var plain = new ApiTokenTestFactory())
-            Assert.IsType<NoFacetIndexNudge>(plain.Services.GetRequiredService<IFacetIndexNudge>());
+        {
+            var nudge = plain.Services.GetRequiredService<IFacetIndexNudge>();
+            Assert.IsType<com.lifepixer.mangapixer.Server.Features.Metadata.Facets.Index.FacetIndexQueue>(nudge);
+            Assert.Same(plain.Services.GetRequiredService<com.lifepixer.mangapixer.Server.Features.Metadata.Facets.Index.FacetIndexQueue>(), nudge);
+        }
 
         var recorder = new RecordingFacetIndexNudge();
         using var factory = Factory(recorder);
