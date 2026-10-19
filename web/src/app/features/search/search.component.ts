@@ -100,10 +100,11 @@ interface FilterChip {
             <button matChipRemove type="button" [attr.aria-label]="'Remove filter ' + chip.label"><mat-icon>cancel</mat-icon></button>
           </mat-chip-row>
         }
-        <input [matChipInputFor]="filterGrid" [(ngModel)]="query" (ngModelChange)="onSearch()"
-               [placeholder]="filterChips().length > 0 ? 'Add search text...' : 'Enter search text...'" aria-label="Search text"
-               data-testid="search-input">
       </mat-chip-grid>
+      <!-- The text field under the chip row (not inside it): a full row scrolls sideways and the text stays in reach. -->
+      <input class="search-text" [matChipInputFor]="filterGrid" [(ngModel)]="query" (ngModelChange)="onSearch()"
+             [placeholder]="filterChips().length > 0 ? 'Add search text...' : 'Enter search text...'" aria-label="Search text"
+             data-testid="search-input">
       <mat-icon matSuffix>search</mat-icon>
     </mat-form-field>
 
@@ -243,7 +244,8 @@ interface FilterChip {
     .search-field { width: 100%; max-width: 600px; }
     /* The filter chips get their own row inside the field; a full row scrolls sideways instead of growing the field (D1 2.6). */
     .filter-chips { display: block; width: 100%; min-width: 0; }
-    .filter-chips input { width: 100%; min-width: 0; }
+    .search-text { display: block; width: 100%; min-width: 0; }
+    .has-filters .search-text { margin-top: 6px; }
     :host ::ng-deep .filter-chips .mdc-evolution-chip-set__chips { flex-wrap: wrap; min-width: 0; max-width: 100%; }
     :host ::ng-deep .has-filters .filter-chips .mdc-evolution-chip-set__chips {
       flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin;
