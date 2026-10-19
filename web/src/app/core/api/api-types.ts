@@ -1721,6 +1721,8 @@ export interface FolderMatchArtistDto {
   matchedName: string;
   provider: string;
   recordCount: number;
+  /** 1.45.0: the MangaUpdates author id when it is the only stored one for the declared name (passed back in the apply item). */
+  authorId?: string | null;
 }
 
 export interface FolderMatchRecordDto {

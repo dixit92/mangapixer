@@ -3,7 +3,7 @@ import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of, throwError } from 'rxjs';
 
-import { AuthorSearchResultDto, FolderMatchPreviewDto, IdentifySearchResultDto } from '../../../core/api/api-types';
+import { AuthorSearchResultDto, FolderMatchArtistDto, FolderMatchPreviewDto, IdentifySearchResultDto } from '../../../core/api/api-types';
 import { AuthorSearchApiService } from '../artist-folder/author-search-api.service';
 import { MetadataApiService } from '../metadata-api.service';
 import { FolderMatchApiService } from './folder-match-api.service';
@@ -159,6 +159,29 @@ describe('match folders by name', () => {
       expect(el.querySelector('[data-testid="folder-match-result-a1"]')!.textContent).toContain('Marked');
       (el.querySelector('[data-testid="folder-match-close"]') as HTMLButtonElement).click();
       expect(ref.close).toHaveBeenCalledWith({ kind: 'Artists', marked: ['a1', 'a2', 'a3'], failed: 0, queued: 6 });
+    });
+
+    it('1.45.0: marks a local match with its MangaUpdates author id when the preview gives one (it sends nothing)', async () => {
+      // The id rides on the matched artist; cast so the preview literal stays a plain FolderMatchArtistDto.
+      const withId = (artist: FolderMatchArtistDto, authorId: string | null) => ({ ...artist, authorId }) as FolderMatchArtistDto;
+      const [a1, a2, a3, a4] = artistsPreview.rows;
+      const { api, c, fixture } = create({ ...artistsPreview, rows: [
+        { ...a1, artists: [withId(a1.artists![0], '501')] },
+        { ...a2, artists: [withId(a2.artists![0], null), withId(a2.artists![1], '602')] },
+        a3, a4,
+      ] });
+      c.choose('Artists');
+      fixture.detectChanges();
+      c.choosePick(c.rows()[1], 1);
+      await c.apply();
+      expect(api.apply).toHaveBeenCalledWith({
+        kind: 'Artists',
+        items: [
+          { nodeId: 'a1', name: 'Qzv Painter', role: 'author', provider: 'mangaupdates', externalId: '501' },
+          { nodeId: 'a2', name: 'Other Person', role: 'artist', provider: 'mangaupdates', externalId: '602' },
+        ],
+        setDoujinContent: true,
+      });
     });
 
     it('ticking a decided folder replaces its state with the listed match', async () => {

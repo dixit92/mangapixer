@@ -141,10 +141,10 @@ public sealed class FolderNameMatcherTests
             Gcd("Comic Writer", "author", 10),
         ]));
         string? IdOf(string folder, string declared) =>
-            index.UniqueMangaUpdatesAuthorIdOf(index.Match(folder).Single(a => a.DeclaredName == declared));
+            index.UniqueMangaUpdatesAuthorIdOf(index.Match(folder).First(a => a.DeclaredName == declared));
 
         Assert.Equal("101", IdOf("Given Family", "Family Given"));
-        Assert.Null(IdOf("Shared Pen", "Shared Pen"));            // two ids, one name: ambiguous (Match keeps one of them)
+        Assert.Null(IdOf("Shared Pen", "Shared Pen"));            // two ids, one name (two roles): ambiguous
         Assert.Null(IdOf("Main Name", "Main Name"));              // 301's name is also a spelling of 302
         Assert.Equal("302", IdOf("Main Name", "Other Main"));     // 302's own main name is its alone
         Assert.Null(IdOf("No Id Person", "No Id Person"));        // no id on the credit
