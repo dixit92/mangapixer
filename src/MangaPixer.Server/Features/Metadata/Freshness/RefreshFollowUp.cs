@@ -28,7 +28,8 @@ public static class RefreshFollowUp
     }
 
     /// <summary>What the cadence of one record is computed from (its observations, oldest first, the volume map's chapters a volume, reading).</summary>
-    public static async Task<RefreshEvidence> EvidenceAsync(MangaPixerDbContext db, MetadataRecordEntity record, DateTimeOffset now, CancellationToken ct)
+    public static async Task<RefreshEvidence> EvidenceAsync(MangaPixerDbContext db, MetadataRecordEntity record, DateTimeOffset now, CancellationToken ct,
+        IReadOnlySet<long>? reading = null)
     {
         var history = await db.MetadataRecordObservations.AsNoTracking()
             .Where(o => o.RecordId == record.Id)
@@ -39,20 +40,21 @@ public static class RefreshFollowUp
             .OrderBy(m => m.Source)
             .Select(m => m.ChaptersPerVolume)
             .FirstOrDefaultAsync(ct);
-        var reading = (await ReadingSeries.RecordIdsAsync(db, now, [record.Id], ct)).Contains(record.Id);
+        var isRead = (reading ?? await ReadingSeries.RecordIdsAsync(db, now, [record.Id], ct)).Contains(record.Id);
         return new RefreshEvidence(record.OriginStatus, record.StartYear, record.OriginVolumes, record.LatestChapter, perVolume,
-            history.Select(RefreshObservations.ToCore).ToList(), reading, record.TranslationComplete);
+            history.Select(RefreshObservations.ToCore).ToList(), isRead, record.TranslationComplete);
     }
 
     /// <summary>
     /// After <paramref name="record"/> was fetched at <paramref name="at"/> (it is saved; <paramref name="latestBefore"/> = its latest chapter
     /// before): the observation, the cadence, the end of its nudge, and the cross-trigger. Returns the record's cadence in days.
+    /// <paramref name="reading"/>: the series being read, when the caller already has them (a pass of many records).
     /// </summary>
     public static async Task<int> AfterRefreshAsync(MangaPixerDbContext db, MetadataRecordEntity record, double? latestBefore, DateTimeOffset at,
-        ILogger logger, CancellationToken ct)
+        ILogger logger, CancellationToken ct, IReadOnlySet<long>? reading = null)
     {
         await RefreshObservations.NoteAsync(db, record, at, ct);
-        var days = RefreshCadence.For(await PolicyAsync(db, ct), await EvidenceAsync(db, record, at, ct), at).Days;
+        var days = RefreshCadence.For(await PolicyAsync(db, ct), await EvidenceAsync(db, record, at, ct, reading), at).Days;
         if (record.RefreshCadenceDays != days)
         {
             record.RefreshCadenceDays = days;

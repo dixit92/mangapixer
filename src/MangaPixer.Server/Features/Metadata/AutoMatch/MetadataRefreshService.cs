@@ -193,6 +193,8 @@ public sealed class MetadataRefreshService
             .Select(r => r.Id)
             .ToList();
 
+        // 1.45.0: who is reading what, once for the pass (each refreshed record's cadence is computed with it).
+        var reading = due.Count == 0 ? new HashSet<long>() : await Freshness.ReadingSeries.RecordIdsAsync(_db, now, null, ct);
         var done = 0;
         string? stopped = null;
         // 1.32.0: a refusal by ONE provider (busy - GCD's slow bucket -, backing off, removed from the allowed sites) skips that
@@ -228,7 +230,7 @@ public sealed class MetadataRefreshService
                     await _db.SaveChangesAsync(ct);
                     // 1.32.0: what the refresh saw, and the record's cadence from it; 1.45.0: the nudge ends, a rise makes the MangaDex
                     // list due now (shared with an admin's Refresh).
-                    await Freshness.RefreshFollowUp.AfterRefreshAsync(_db, record, latestBefore, at, _logger, ct);
+                    await Freshness.RefreshFollowUp.AfterRefreshAsync(_db, record, latestBefore, at, _logger, ct, reading);
                     // 1.30.0 (reach): refreshed totals may contradict an Auto link's reach (never throws).
                     await _reach.TryCheckRecordAsync(record.Id, ct);
                     if (record.ImageRemoteUrl is not null && (record.ImageState != 1 || !string.Equals(oldImage, record.ImageRemoteUrl, StringComparison.Ordinal)))
