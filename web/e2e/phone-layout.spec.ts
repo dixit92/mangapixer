@@ -158,6 +158,71 @@ test('every main page fits a phone and a tablet screen', async ({ page }) => {
   expect(failures, `pages that do not fit the screen:\n${failures.join('\n')}`).toEqual([]);
 });
 
+/** A name with no place to wrap (CJK pen names, long circle names): it must be cut inside its chip, never push past the screen. */
+const UNBROKEN = 'Averyveryverylongsyntheticpennamewithoutanyspacesforthelayoutcheck';
+
+/** The Info panel's tags (lane Q's `GET nodes/{id}/info` shape, 1.45.0), long names and counts on every row. */
+function longPanel(nodeId: string) {
+  const chip = (valueId: string, display: string, extra: Record<string, unknown> = {}) => ({ valueId, display, ...extra });
+  return {
+    nodeId, container: true, works: 40,
+    buckets: [
+      { bucket: 'Creators', more: 9, chips: [
+        chip('fv_l1', UNBROKEN, { role: 'StoryAndArt', count: 12, creatorId: 'cr_l1' }),
+        chip('fv_l2', 'Second Synthetic Author', { role: 'Writer', count: 3, creatorId: 'cr_l2' }),
+        chip('fv_l3', 'Declared Artist', { role: 'Artist', conflict: true, sources: ['Declared'], creatorId: 'cr_l3' }),
+      ] },
+      { bucket: 'Magazine', more: 0, chips: [chip('fv_m1', 'Weekly Synthetic Magazine Of Very Long Serialized Stories', { count: 7 })] },
+      { bucket: 'Genres', more: 20, chips: ['Action', 'Fantasy', 'Comedy', 'Slice of Life', 'Supernatural', 'Drama'].map((g, i) => chip(`fv_g${i}`, g, { count: 20 - i })) },
+      { bucket: 'About', more: 0, chips: [chip('fv_a1', UNBROKEN, { count: 2 })] },
+    ],
+  };
+}
+
+test('the Info sheet with chips and the tag search with two filters fit a phone and a tablet screen (1.45.0)', async ({ page }) => {
+  test.setTimeout(120_000);
+  const failures: string[] = [];
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  // Contract-shaped answers (lanes F / Q build the index; the layout under test is the web's): every folder has these tags.
+  await page.route('**/api/v1/nodes/*/info', (route) =>
+    route.fulfill({ json: longPanel(new URL(route.request().url()).pathname.split('/').at(-2)!) }));
+  await page.route(/\/api\/v1\/search\?.*\bf=/, (route) => route.fulfill({ json: {
+    query: '', items: [], totalCount: 2, nextCursor: null, hasMore: false,
+    filters: [
+      { param: 'creator:fv_l1', bucket: 'Creators', valueId: 'fv_l1', display: UNBROKEN },
+      { param: 'genre:fv_g0', bucket: 'Genres', valueId: 'fv_g0', display: 'Action' },
+    ],
+    works: [
+      { workId: 'w1', title: `${UNBROKEN} The Series`, coverUrl: null, locationCount: 2, locations: [
+        { nodeId: folderId, libraryId, kind: 'Folder', displayName: 'Stacked Saga', trail: [{ id: libraryId, displayName: 'Volume Stacks' }] },
+        { nodeId: 'n_second', libraryId, kind: 'Folder', displayName: UNBROKEN, trail: [{ id: libraryId, displayName: 'Volume Stacks' }, { id: 'x', displayName: UNBROKEN }] },
+      ] },
+      { workId: 'w2', title: 'A One-shot', coverUrl: null, locationCount: 1, locations: [
+        { nodeId: folderId, libraryId, kind: 'Archive', displayName: 'A One-shot', trail: [{ id: libraryId, displayName: 'Volume Stacks' }, { id: 'y', displayName: 'One Shots' }] },
+      ] },
+    ],
+  } }));
+  for (const size of SIZES) {
+    await page.setViewportSize(size);
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+    await page.getByRole('button', { name: 'Info', exact: true }).click();
+    await expect(page.getByTestId('series-overlay').getByTestId('info-chip').first()).toBeVisible();
+    await settle(page);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-info-sheet.png` });
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px Info sheet: ${p.kind}: ${p.what} - ${p.detail}`);
+    await page.keyboard.press('Escape');
+
+    await page.goto('/search?f=creator:fv_l1&f=genre:fv_g0');
+    await expect(page.getByTestId('search-filter-chip')).toHaveCount(2);
+    await page.getByTestId('work-locations-toggle').click();
+    await settle(page);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-tag-search.png` });
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px tag search: ${p.kind}: ${p.what} - ${p.detail}`);
+  }
+  expect(failures, `Info sheet / tag search do not fit the screen:\n${failures.join('\n')}`).toEqual([]);
+});
+
 test('the declared-facts dialog and its type list fit a phone and a tablet screen', async ({ page }) => {
   // 1.30.0: each type names its country of origin ("Manhwa (Korea)") and the dialog explains the type is a hint.
   test.setTimeout(120_000);
