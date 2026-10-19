@@ -215,6 +215,57 @@ public sealed class VolumeCoverPassTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AnEmptyAnswer_KeepsTheLastGoodVolumeList_WhileMangaDexStillListsVolumeCovers()
+    {
+        // 1.45.0 (owner, 2026-10-19): an Ok map and an answer without any volume -> the stored list stays (State Ok, its volumes).
+        await _h.Auto.EnableAutomaticAsync();
+        var (_, record) = await SeriesAsync(MdFixtures.MuBerserk, "Berserk", 43, "Synthetic Shelf v01.cbz");
+        await _h.TickAsync();
+        var before = await _t.Db.SeriesVolumeMaps.AsNoTracking().SingleAsync(m => m.RecordId == record.Id);
+        Assert.Equal((int)VolumeMapState.Ok, before.State);
+        _h.Override = r => r.RequestUri!.AbsolutePath.EndsWith("/aggregate", StringComparison.Ordinal)
+            ? ScriptedHandler.Json("{\"result\":\"ok\",\"volumes\":[]}")
+            : null;
+        var series = await _t.Db.MetadataRecords.SingleAsync(r => r.Id == record.Id);
+        var md = await _t.Db.MetadataRecords.SingleAsync(r => r.Provider == "mangadex");
+
+        var map = await _h.Maps().RefreshListsAsync(series, md, _t.LibraryId, "en", call: null);
+
+        Assert.Equal((int)VolumeMapState.Ok, map.State);
+        Assert.Equal(VolumeMapJson.Read(before.VolumesJson).Count, VolumeMapJson.Read(map.VolumesJson).Count);
+        Assert.Equal(before.KnownVolumeCount, map.KnownVolumeCount);
+        Assert.Contains(_h.Auto.Net.Logs.Lines, l => l.Contains("kept: MangaDex answered no volumes", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AnEmptyAnswer_ReplacesTheList_WhenNoVolumeCoverIsListedAndTheTotalChanged()
+    {
+        await _h.Auto.EnableAutomaticAsync();
+        var (_, record) = await SeriesAsync(MdFixtures.MuBerserk, "Berserk", 43, "Synthetic Shelf v01.cbz");
+        await _h.TickAsync();
+        _h.Override = r => r.RequestUri!.AbsolutePath.EndsWith("/aggregate", StringComparison.Ordinal)
+            ? ScriptedHandler.Json("{\"result\":\"ok\",\"volumes\":[]}")
+            : r.RequestUri.AbsolutePath == "/cover" ? ScriptedHandler.Json("{\"result\":\"ok\",\"data\":[],\"total\":0}") : null;
+        var series = await _t.Db.MetadataRecords.SingleAsync(r => r.Id == record.Id);
+        series.OriginVolumes = 50;
+        var md = await _t.Db.MetadataRecords.SingleAsync(r => r.Provider == "mangadex");
+        md.OriginVolumes = null;
+        await _t.Db.SaveChangesAsync();
+
+        var map = await _h.Maps().RefreshListsAsync(series, md, _t.LibraryId, "en", call: null);
+
+        Assert.Equal((int)VolumeMapState.Empty, map.State);
+        // The pure rule: a usable stored list stays while covers are listed, or the total is unchanged.
+        var stored = new SeriesVolumeMapEntity { State = (int)VolumeMapState.Ok, KnownVolumeCount = 43,
+            VolumesJson = "[{\"v\":\"1\",\"c\":[\"1\",\"2\"]},{\"v\":\"2\",\"c\":[\"3\",\"4\"]}]" };
+        Assert.True(VolumeMapService.KeepsLastGoodList(stored, listsVolumeCovers: true, knownNow: 50));
+        Assert.True(VolumeMapService.KeepsLastGoodList(stored, listsVolumeCovers: false, knownNow: 43));
+        Assert.False(VolumeMapService.KeepsLastGoodList(stored, listsVolumeCovers: false, knownNow: 50));
+        Assert.False(VolumeMapService.KeepsLastGoodList(stored, listsVolumeCovers: false, knownNow: null));
+        Assert.False(VolumeMapService.KeepsLastGoodList(new SeriesVolumeMapEntity { State = (int)VolumeMapState.Empty }, true, 43));
+    }
+
+    [Fact]
     public async Task Pass_FindsTheCompanion_StoresBothLists_AndDownloadsVolume1ThenHeldVolumes()
     {
         await _h.Auto.EnableAutomaticAsync();
