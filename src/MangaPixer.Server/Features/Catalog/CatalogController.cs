@@ -342,11 +342,20 @@ public sealed class CatalogController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>
+    /// Catalog search. 1.45.0 (phase K4): keyset-paged over HTTP (<paramref name="cursor"/> = the previous page's <c>nextCursor</c>;
+    /// <paramref name="pageSize"/> 1 - <see cref="CatalogBrowseService.MaxSearchPageSize"/>, default 50), the results carry the viewer's
+    /// read state, and <paramref name="readState"/> (<c>reading</c> / <c>read</c> / <c>unread</c>, browse's Show filter values; anything
+    /// else = no filter) keeps only those results before the page is cut.
+    /// </summary>
     [HttpGet("search")]
     public async Task<IActionResult> Search(
         [FromQuery] string q,
         [FromQuery] string? libraryId,
-        CancellationToken ct)
+        [FromQuery] string? cursor = null,
+        [FromQuery] int pageSize = 50,
+        [FromQuery] string? readState = null,
+        CancellationToken ct = default)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
@@ -361,7 +370,7 @@ public sealed class CatalogController : ControllerBase
         }
 
         var result = await _browseService.SearchAsync(
-            userId.Value, q, libId, incognito: _incognito.IsIncognito, ct: ct);
+            userId.Value, q, libId, cursor, pageSize, incognito: _incognito.IsIncognito, readState: ParseReadState(readState), ct: ct);
         return Ok(result);
     }
 

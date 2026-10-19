@@ -1,10 +1,10 @@
 import { vi } from 'vitest';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { convertToParamMap, provideRouter, Router } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 
-import { SearchComponent } from './search.component';
+import { SearchComponent, searchParamsFromQuery, searchParamsToQuery } from './search.component';
 import { By } from '@angular/platform-browser';
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { MetadataStateService } from '../metadata/metadata-state.service';
@@ -355,5 +355,199 @@ describe('SearchComponent series matches (1.26.0)', () => {
   it('renders no Series matches row when the response has none', () => {
     setup({ query: 'x', items: [makeNode({ id: 'n1' })], totalCount: 1, nextCursor: null, hasMore: false });
     expect((fixture.nativeElement as HTMLElement).querySelector('.series-matches')).toBeNull();
+  });
+});
+
+/**
+ * 1.45.0 phase K4: the read mark on each result card (as browse), the Read / Reading / Unread filter chip row (sent to the server, which
+ * filters before paging), keyset "Load more", and the URL parameters `q` / `read` (one params model).
+ */
+describe('SearchComponent read state, filter, Load more and URL (1.45.0)', () => {
+  let fixture: ComponentFixture<SearchComponent>;
+  let search: ReturnType<typeof vi.fn>;
+  let navigate: ReturnType<typeof vi.spyOn>;
+
+  function page(items: CatalogNodeDto[], totalCount: number, nextCursor: string | null): SearchResultsDto {
+    return { query: 'q', items, totalCount, nextCursor, hasMore: nextCursor !== null };
+  }
+
+  function setup(...responses: SearchResultsDto[]): void {
+    search = vi.fn();
+    for (const r of responses) search.mockReturnValueOnce(of(r));
+    search.mockReturnValue(of(page([], 0, null)));
+    TestBed.configureTestingModule({
+      imports: [SearchComponent],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        {
+          provide: ApiService,
+          useValue: {
+            search,
+            getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
+          },
+        },
+      ],
+    });
+    navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    fixture = TestBed.createComponent(SearchComponent);
+    fixture.detectChanges();
+  }
+
+  function type(query: string): void {
+    fixture.componentInstance.query = query;
+    fixture.componentInstance.onSearch();
+    vi.advanceTimersByTime(300);
+    fixture.detectChanges();
+  }
+
+  const el = () => fixture.nativeElement as HTMLElement;
+  /** A filter chip's own button (mat-chip-option's primary action, `role="option"`). */
+  const chip = (label: string) =>
+    Array.from(el().querySelectorAll('.read-filter mat-chip-option')).find((c) => c.textContent?.trim() === label)
+      ?.querySelector('button') as HTMLButtonElement;
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); });
+
+  it('marks read and in-progress archives and read / partly read folders as browse cards do', () => {
+    setup(page([
+      makeNode({ id: 'a1', displayName: 'Read One', isRead: true }),
+      makeNode({ id: 'a2', displayName: 'Reading One', readingState: 'InProgress', lastReadPage: 3 }),
+      makeNode({ id: 'a3', displayName: 'Unread One' }),
+      makeNode({ id: 'f1', kind: 'Folder', displayName: 'Read Folder', readRollup: 'Read' }),
+      makeNode({ id: 'f2', kind: 'Folder', displayName: 'Partly Folder', readRollup: 'Reading' }),
+      makeNode({ id: 'f3', kind: 'Folder', displayName: 'Unread Folder', readRollup: 'Unread' }),
+    ], 6, null));
+    type('one');
+
+    const badges = Array.from(el().querySelectorAll('.result-card')).map((c) => c.querySelector('.badge')?.textContent?.trim() ?? '');
+    expect(badges).toEqual(['✓ Read', 'Reading', '', '✓ Read', 'Reading', '']);
+  });
+
+  it('shows the chip row once there is search text and sends the chosen filter, keeping the text', () => {
+    setup(page([makeNode({ id: 'a1' })], 1, null), page([makeNode({ id: 'a2' })], 1, null));
+    expect(el().querySelector('.read-filter')).toBeNull();
+    type('alpha');
+
+    expect(Array.from(el().querySelectorAll('.read-filter mat-chip-option')).map((c) => c.textContent?.trim()))
+      .toEqual(['All', 'Reading', 'Read', 'Unread']);
+    expect(search).toHaveBeenLastCalledWith('alpha', { readState: 'all' });
+
+    chip('Unread').click();
+    fixture.detectChanges();
+
+    expect(search).toHaveBeenLastCalledWith('alpha', { readState: 'unread' });
+    expect(fixture.componentInstance.params()).toEqual({ q: 'alpha', read: 'unread' });
+    expect(navigate).toHaveBeenLastCalledWith([], expect.objectContaining({ queryParams: { q: 'alpha', read: 'unread' }, replaceUrl: true }));
+    expect(fixture.componentInstance.results().map((n) => n.id)).toEqual(['a2']);
+  });
+
+  it('keeps the selected chip selected when it is clicked again, without a new search', () => {
+    setup(page([makeNode({ id: 'a1' })], 1, null));
+    type('alpha');
+    const calls = search.mock.calls.length;
+
+    chip('All').click();
+    fixture.detectChanges();
+
+    expect(search.mock.calls.length).toBe(calls);
+    expect(chip('All').getAttribute('aria-selected')).toBe('true');
+    expect(fixture.componentInstance.params().read).toBe('all');
+  });
+
+  it('says "No results with this filter." when a filter leaves nothing, and keeps the chips to switch back', () => {
+    setup(page([makeNode({ id: 'a1' })], 1, null), page([], 0, null));
+    type('alpha');
+    chip('Read').click();
+    fixture.detectChanges();
+
+    expect(el().querySelector('.no-results')?.textContent?.trim()).toBe('No results with this filter.');
+    expect(chip('All')).toBeTruthy();
+  });
+
+  it('loads the next page with the cursor and the same filter, appends it, and hides Load more on the last page', () => {
+    setup(
+      page([makeNode({ id: 'a1' }), makeNode({ id: 'a2' })], 3, 'k:2:1a2'),
+      page([makeNode({ id: 'a3' })], 3, null),
+    );
+    fixture.componentInstance.setReadFilter('unread');
+    type('alpha');
+
+    const button = () => Array.from(el().querySelectorAll('.load-more button')).find((b) => b.textContent?.includes('Load more')) as
+      HTMLButtonElement | undefined;
+    expect(el().querySelectorAll('.result-card').length).toBe(2);
+    expect(button()).toBeTruthy();
+
+    button()!.click();
+    fixture.detectChanges();
+
+    expect(search).toHaveBeenLastCalledWith('alpha', { cursor: 'k:2:1a2', readState: 'unread' });
+    expect(fixture.componentInstance.results().map((n) => n.id)).toEqual(['a1', 'a2', 'a3']);
+    expect(el().querySelector('.result-count')?.textContent?.trim()).toBe('3 results');
+    expect(button()).toBeUndefined();
+  });
+
+  it('drops a Load more answer that arrives after a new search started', () => {
+    const late = new Subject<SearchResultsDto>();
+    setup(page([makeNode({ id: 'a1' })], 2, 'k:1:1a1'));
+    search.mockReturnValueOnce(late);
+    type('alpha');
+    fixture.componentInstance.loadMore();
+    type('beta');
+
+    late.next(page([makeNode({ id: 'a2' })], 2, null));
+    fixture.detectChanges();
+
+    expect(search).toHaveBeenLastCalledWith('beta', { readState: 'all' });
+    expect(fixture.componentInstance.results()).toEqual([]);
+    expect(fixture.componentInstance.loadingMore()).toBe(false);
+  });
+
+  it('writes the text to the URL and leaves defaults out', () => {
+    setup(page([makeNode({ id: 'a1' })], 1, null));
+    type('alpha');
+    expect(navigate).toHaveBeenLastCalledWith([], expect.objectContaining({ queryParams: { q: 'alpha', read: null } }));
+    type('');
+    expect(navigate).toHaveBeenLastCalledWith([], expect.objectContaining({ queryParams: { q: null, read: null } }));
+  });
+});
+
+describe('SearchComponent opened from a URL (1.45.0)', () => {
+  it('runs the search in the URL at once, with its filter, and shows it in the field and the chips', async () => {
+    const search = vi.fn().mockReturnValue(of({ query: 'Alpha', items: [makeNode({ id: 'a1' })], totalCount: 1, nextCursor: null, hasMore: false }));
+    TestBed.configureTestingModule({
+      imports: [SearchComponent],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        { provide: ApiService, useValue: { search, getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card' })) } },
+      ],
+    });
+    await TestBed.inject(Router).navigateByUrl('/?q=Alpha&read=unread');
+    const fixture = TestBed.createComponent(SearchComponent);
+    fixture.detectChanges();
+    // The listbox applies its value to the chips once they are created (after the results arrived).
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(search).toHaveBeenCalledTimes(1);
+    expect(search).toHaveBeenCalledWith('Alpha', { readState: 'unread' });
+    expect(fixture.componentInstance.query).toBe('Alpha');
+    const selected = (fixture.nativeElement as HTMLElement).querySelector('.read-filter mat-chip-option.mat-mdc-chip-selected');
+    expect(selected?.textContent?.trim()).toBe('Unread');
+  });
+});
+
+describe('search URL parameters (1.45.0)', () => {
+  it('reads q and read, and ignores an unknown read value', () => {
+    expect(searchParamsFromQuery(convertToParamMap({ q: 'x', read: 'reading' }))).toEqual({ q: 'x', read: 'reading' });
+    expect(searchParamsFromQuery(convertToParamMap({ q: 'x', read: 'bogus' }))).toEqual({ q: 'x', read: 'all' });
+    expect(searchParamsFromQuery(convertToParamMap({}))).toEqual({ q: '', read: 'all' });
+  });
+
+  it('round-trips and leaves the defaults out', () => {
+    expect(searchParamsToQuery({ q: 'x', read: 'unread' })).toEqual({ q: 'x', read: 'unread' });
+    expect(searchParamsToQuery({ q: '  ', read: 'all' })).toEqual({ q: null, read: null });
   });
 });

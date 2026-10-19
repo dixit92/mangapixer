@@ -98,6 +98,7 @@ test('every main page fits a phone and a tablet screen', async ({ page }) => {
     ['series - Volumes view', `${browse}/${folderId}`],
     ['volume stack', `${browse}/${folderId}/volume/1`],
     ['search', '/search?q=Stacked'],
+    ['search - read filter chips', '/search?q=Stacked&read=unread'],
     ['favorites', '/favorites'],
     ['library menu', '/library-nav'],
     ['settings', '/settings'],
