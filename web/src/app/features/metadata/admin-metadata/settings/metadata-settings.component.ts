@@ -40,8 +40,10 @@ import { AuthorAliasesCardComponent } from '../../authors/author-aliases-card.co
  * by name; the automatic consent stays 4.
  * 6 (1.42.0): MangaDex can be the series record of a series MangaUpdates does not list - the search text confirmed in Identify is
  * sent to MangaDex when the admin picks it; the automatic consent moves to 5 with it.
+ * 7 (1.45.0): the search text you confirm may also be sent to MangaUpdates' author search when you look for an artist, and the
+ * author numbers of artists you picked; the automatic consent stays 5.
  */
-export const CONSENT_TEXT_VERSION = 6;
+export const CONSENT_TEXT_VERSION = 7;
 
 /**
  * Automatic-lookups consent text version (stage 2, owner decisions 2 + 3); must equal the
@@ -160,8 +162,9 @@ export function validateThresholds(
               <ul>
                 <li><strong>MangaUpdates</strong> (description, authors, genres, publication status, English release totals,
                   cover art): the search text you confirm in the Identify dialog or in Match folders by name (usually a folder or
-                  file name), MangaUpdates record numbers, and, when you ask for artists' other names, the MangaUpdates author
-                  numbers of the creators of series you have stored.</li>
+                  file name) - to find a series, or, when you look for an artist, to find an author -, MangaUpdates record numbers,
+                  and, when you ask for artists' other names, the MangaUpdates author numbers of the creators of series you have
+                  stored and of the artists you picked.</li>
                 <li><strong>Grand Comics Database</strong> (comics and graphic novels: publisher, start year, country, language,
                   format, number of issues or volumes; cover thumbnails shown only while you choose): the search text you confirm
                   in the Identify dialog (usually a folder or file name), a start year when the name has one, and GCD record
@@ -187,7 +190,8 @@ export function validateThresholds(
               <p><strong>What is never sent:</strong> file paths, your file list, user accounts, reading progress, or
                 anything that identifies this server.</p>
               <p><strong>When:</strong> only when an admin runs Identify, Look up, Refresh, Choose cover or a Missing-report
-                lookup in an enabled library, or asks for artists' other names. Nothing happens automatically unless you also turn on Automatic matching.</p>
+                lookup in an enabled library, asks for artists' other names, or searches MangaUpdates for an artist. Nothing happens
+                automatically unless you also turn on Automatic matching.</p>
               <p>Fetched information and covers are stored on this server as-is. You can switch this off at any time; stored
                 information stays until you delete it.</p>
             </div>
