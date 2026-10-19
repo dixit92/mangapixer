@@ -11,16 +11,19 @@ import { MetadataApiService } from './metadata-api.service';
 import { MetadataStateService } from './metadata-state.service';
 import { hasSeriesContent } from './series-info-labels';
 import { SeriesInfoOverlayService } from './series-info-overlay.service';
+import { InfoApiService } from './info/info-api.service';
 
 /** What the top-bar slot shows for the folder being browsed. */
 export type SeriesSlot = 'info' | 'identify' | 'none';
 
 /**
- * Browse top-bar series slot (1.24.0). The current folder's series is usually
- * INHERITED by every chapter card inside it, so instead of an (i) on each of them this
- * one button serves the folder being viewed. The slot rule (owner decision, 1.24.0):
- * - the folder resolves to series information (own or inherited) -> "Series info",
- *   for admins and readers alike (opens the overlay);
+ * Browse top-bar Info slot (1.24.0 "Series info"; "Info" since 1.45.0, owner decision 7
+ * of 2026-09-25). The current folder's series is usually INHERITED by every chapter card
+ * inside it, so instead of an (i) on each of them this one button serves the folder being
+ * viewed. The slot rule:
+ * - the folder resolves to series information (own or inherited), OR the tag index knows
+ *   works at or below it (1.45.0: a library root, an artist's folder, "One Shots") -> "Info",
+ *   for admins and readers alike (opens the overlay with its Tags block);
  * - no information, the viewer is an admin, series information is shown for this
  *   library and Identify is possible (the no-network identify context says
  *   `fetchAvailable`) -> "Identify..." (opens the identify dialog for THIS folder);
@@ -37,10 +40,10 @@ export type SeriesSlot = 'info' | 'identify' | 'none';
     @switch (slot()) {
       @case ('info') {
         <button mat-stroked-button type="button" class="series-btn"
-                matTooltip="Series info for this folder" aria-label="Series info"
+                matTooltip="Information and tags for this folder" aria-label="Info"
                 data-testid="series-info-button"
                 (click)="open()">
-          <mat-icon>info_outline</mat-icon><span class="lbl">Series info</span>
+          <mat-icon>info_outline</mat-icon><span class="lbl">Info</span>
         </button>
       }
       @case ('identify') {
@@ -65,6 +68,7 @@ export type SeriesSlot = 'info' | 'identify' | 'none';
 })
 export class SeriesInfoButtonComponent {
   private readonly api = inject(MetadataApiService);
+  private readonly infoApi = inject(InfoApiService);
   private readonly auth = inject(AuthService);
   private readonly overlayService = inject(SeriesInfoOverlayService);
   private readonly identifyDialog = inject(IdentifyDialogService);
@@ -95,8 +99,16 @@ export class SeriesInfoButtonComponent {
   private resolve(id: string): Observable<SeriesSlot> {
     return this.api.getSeriesInfo(id).pipe(
       catchError(() => of(null)),
-      switchMap((info) => {
-        if (hasSeriesContent(info)) return of<SeriesSlot>('info');
+      // Series information decides at once; only without it is the tag index asked (1.45.0): tags of works at or below this folder
+      // that the viewer may see (no answer, or `mode: None`, = nothing indexed).
+      switchMap((info) => hasSeriesContent(info)
+        ? of({ info, works: 0 })
+        : this.infoApi.getInfo(id).pipe(
+          map((p) => ({ info, works: p.mode !== 'None' && p.buckets.some((b) => b.chips.length > 0) ? 1 : 0 })),
+          catchError(() => of({ info, works: 0 })),
+        )),
+      switchMap(({ info, works }) => {
+        if (hasSeriesContent(info) || works > 0) return of<SeriesSlot>('info');
         if (!info || !this.auth.isAdmin()) return of<SeriesSlot>('none');
         return forkJoin({ ctx: this.api.getIdentifyContext(id), settings: this.api.getSettings() }).pipe(
           map(({ ctx, settings }) => {

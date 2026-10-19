@@ -5,6 +5,8 @@ import { provideRouter } from '@angular/router';
 import { SeriesInfoDto } from '../../core/api/api-types';
 import { SeriesInfoSummaryComponent } from './series-info-summary.component';
 import { seriesInfo } from './series-info.testing';
+import { InfoPanelDto } from './info/info-types';
+import { bucket, chip, panel } from './info/info.testing';
 
 @Component({
   standalone: true,
@@ -85,7 +87,7 @@ describe('SeriesInfoSummaryComponent', () => {
     expect(text(f)).toContain('Story: A Writer');
     expect(text(f)).toContain('Art: An Artist');
     expect(text(f)).toContain('Licensed in English');
-    // Genres are plain text (chips would look clickable before faceted search exists).
+    // Without the Tags block (the hover summary) genres stay plain text; the chips are the Tags block's (1.45.0).
     expect(q(f, '[data-testid="series-genres"]')!.textContent!.trim()).toBe('Action · Drama');
     expect(f.nativeElement.querySelector('.chip')).toBeNull();
   });
@@ -158,5 +160,50 @@ describe('SeriesInfoSummaryComponent', () => {
     expect(link.textContent).toBe('More');
     expect(link.getAttribute('href')).toBe('/series/node42');
     expect(el.querySelector('button.more')).toBeNull();
+  });
+});
+
+/** 1.45.0: the host's Tags block answer (`tagsPanel`) replaces the plain-text credits and genres. */
+describe('SeriesInfoSummaryComponent with tags', () => {
+  function render(info: SeriesInfoDto, tagsPanel: InfoPanelDto | null) {
+    TestBed.configureTestingModule({ imports: [SeriesInfoSummaryComponent], providers: [provideRouter([])] });
+    const f = TestBed.createComponent(SeriesInfoSummaryComponent);
+    f.componentRef.setInput('info', info);
+    f.componentRef.setInput('tagsPanel', tagsPanel);
+    f.detectChanges();
+    return { el: f.nativeElement as HTMLElement };
+  }
+
+  const web = () => seriesInfo({
+    state: 'Web', creators: [{ name: 'A Writer', role: 'writer' }], genres: ['Action', 'Drama'],
+  });
+
+  it('drops the plain-text lines the chips replace', () => {
+    const { el } = render(web(), panel({
+      buckets: [bucket({ chips: [chip({ display: 'A Writer', roles: 'Writer' })] }), bucket({ bucket: 'Genres', chips: [chip({ id: 'fv_g', display: 'Action', filter: 'genre:fv_g' })] })],
+    }));
+    expect(el.querySelector('[data-testid="series-genres"]')).toBeNull();
+    expect(el.querySelector('.credits')).toBeNull();
+  });
+
+  it('keeps a plain-text line when its bucket has no chips, and both lines without tags', () => {
+    const genresOnly = render(web(), panel({ buckets: [bucket({ bucket: 'Genres', chips: [chip({ id: 'fv_g', display: 'Action', filter: 'genre:fv_g' })] })] }));
+    expect(genresOnly.el.querySelector('.credits')!.textContent).toContain('A Writer');
+    expect(genresOnly.el.querySelector('[data-testid="series-genres"]')).toBeNull();
+    TestBed.resetTestingModule();
+    const none = render(web(), null);
+    expect(none.el.querySelector('.credits')).not.toBeNull();
+    expect(none.el.querySelector('[data-testid="series-genres"]')).not.toBeNull();
+  });
+
+  it('names a node without series information that has tags, instead of "No series information"', () => {
+    const { el } = render(seriesInfo({ state: 'None', title: null, anchorDisplayName: 'One Shots' }), panel({ mode: 'Container', worksBelow: 5 }));
+    expect(el.querySelector('[data-testid="series-none"]')).toBeNull();
+    expect(el.querySelector('[data-testid="series-title"]')!.textContent).toBe('One Shots');
+  });
+
+  it('still says "No series information" without tags', () => {
+    const { el } = render(seriesInfo({ state: 'None', title: null }), null);
+    expect(el.querySelector('[data-testid="series-none"]')).not.toBeNull();
   });
 });
