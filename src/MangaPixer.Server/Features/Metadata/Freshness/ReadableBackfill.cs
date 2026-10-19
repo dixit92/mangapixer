@@ -14,7 +14,7 @@ using Microsoft.EntityFrameworkCore;
 public sealed class ReadableBackfill(MangaPixerDbContext db, TimeProvider time, ILogger<ReadableBackfill> logger)
 {
     /// <summary>Lists made due per day (each costs the list's usual requests - about 4).</summary>
-    public const int PerDay = 150;
+    public const int PerDay = 100;
 
     /// <summary>Makes the next lists due when a day has passed since the last batch; returns how many (0 when not due or done).</summary>
     public async Task<int> RunIfDueAsync(CancellationToken ct = default)
