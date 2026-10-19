@@ -108,14 +108,14 @@ public sealed class NewChapterFreshnessTests : IAsyncLifetime
     private sealed record Series(CatalogNodeEntity Folder, MetadataRecordEntity Record, MetadataRecordEntity MangaDex);
 
     /// <summary>A folder linked Confirmed to a MangaUpdates record whose MangaDex companion is <paramref name="mangaId"/>, with an Ok volume list.</summary>
-    private async Task<Series> SeriesAsync(string muId, string mangaId, long? libraryId = null)
+    private async Task<Series> SeriesAsync(string muId, string mangaId, long? libraryId = null, MetadataRecordEntity? sharedMangaDex = null)
     {
         var folder = await _t.AddFolderAsync(null, "Synthetic Shelf " + muId, libraryId);
         await _t.AddArchiveAsync(folder, $"Synthetic Shelf {muId} c001.cbz");
         var record = await _t.AddRecordAsync(muId, "Synthetic Series " + muId);
         record.FetchedAt = Now - TimeSpan.FromDays(1);
         record.LatestChapter = 30;
-        var md = new MetadataRecordEntity
+        var md = sharedMangaDex ?? new MetadataRecordEntity
         {
             PublicId = "md" + muId,
             Provider = MetadataProviderAllowlist.MangaDex,
@@ -123,7 +123,8 @@ public sealed class NewChapterFreshnessTests : IAsyncLifetime
             Title = "Synthetic Series " + muId,
             FetchedAt = Now - TimeSpan.FromDays(1),
         };
-        _t.Db.MetadataRecords.Add(md);
+        if (sharedMangaDex is null)
+            _t.Db.MetadataRecords.Add(md);
         await _t.Db.SaveChangesAsync();
         _t.Db.MetadataCompanions.Add(new MetadataCompanionEntity
         {
@@ -359,8 +360,8 @@ public sealed class NewChapterFreshnessTests : IAsyncLifetime
         var other = await _t.AddLibraryAsync("lib0other2", "Other");
         await _h.Auto.EnableAutomaticAsync();
         await _h.Auto.Net.EnableAsync(other.Id);
-        await SeriesAsync("741", MdA);
-        await SeriesAsync("742", MdA, other.Id); // the same MangaDex record, used by both libraries
+        var first = await SeriesAsync("741", MdA);
+        await SeriesAsync("742", MdA, other.Id, first.MangaDex); // the same MangaDex record, used by both libraries
         await SeriesAsync("743", MdB, other.Id);
         _latest[MdA] = ChapterA1;
         _latest[MdB] = ChapterB1;
