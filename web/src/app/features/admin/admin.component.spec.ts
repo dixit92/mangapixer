@@ -9,6 +9,7 @@ import { NEVER, of } from 'rxjs';
 
 import { AdminComponent } from './admin.component';
 import { ScheduledJobsComponent } from './scheduled-jobs/scheduled-jobs.component';
+import { MatTooltip } from '@angular/material/tooltip';
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import {
@@ -160,15 +161,77 @@ describe('AdminComponent directory browser row', () => {
     expect(idle.querySelector('[data-testid="lib-scan"]')!.getAttribute('aria-disabled')).not.toBe('true');
     expect(scanning.querySelector('.chip')).toBeNull();
 
-    // The row itself shows the scan: a spinning ring on its icon, a bar along its foot, "Scanning…" and Cancel scan in its line.
-    expect(scanning.classList).toContain('scanning');
-    expect(scanning.querySelector('.lib-icon.scanning')).not.toBeNull();
-    expect(scanning.querySelector('[data-testid="lib-scan-bar"]')).not.toBeNull();
+    // The library shows the scan: a spinning ring on its icon, "Scanning…" and Cancel scan in its line, and (1.45.0) the tint and ONE bar
+    // on the whole block - the title row AND its Auto-scan / Declared lines, the bar after them (it was drawn between them).
+    const [scanBlock, idleBlock] = [...(fixture.nativeElement as HTMLElement).querySelectorAll('[data-testid="lib-block"]')] as HTMLElement[];
+    expect(scanBlock.contains(scanning)).toBe(true);
+    expect(scanBlock.classList).toContain('scanning');
+    expect(scanBlock.querySelector('app-library-scan-schedule')).not.toBeNull();
+    expect(scanBlock.querySelector('app-library-declared-facts')).not.toBeNull();
+    expect(scanBlock.querySelectorAll('[data-testid="lib-scan-bar"]')).toHaveLength(1);
+    expect(scanBlock.lastElementChild!.getAttribute('data-testid')).toBe('lib-scan-bar');
+    expect(scanning.querySelector('[data-testid="lib-scan-bar"]')).toBeNull();
+    // The ring sits on the glyph itself (a box of the icon's size), not on the list's icon slot.
+    expect(scanning.querySelector('.lib-glyph [data-testid="lib-scan-ring"]')).not.toBeNull();
     expect(scanning.querySelector('.lib-line')!.textContent).toContain('Scanning…');
     expect(scanning.querySelector('.lib-line [data-testid="lib-cancel-scan"]')!.textContent!.trim()).toBe('Cancel scan');
-    expect(idle.classList).not.toContain('scanning');
-    expect(idle.querySelector('[data-testid="lib-scan-bar"]')).toBeNull();
+    // A real gap: the dot is its own spaced element, never glued to "Scanning…" ("Scanning…·").
+    const label = scanning.querySelector('.lib-line .scan-label')!;
+    expect(label.nextElementSibling!.firstElementChild!.classList).toContain('scan-sep');
+    expect(idleBlock.classList).not.toContain('scanning');
+    expect(idleBlock.querySelector('[data-testid="lib-scan-bar"]')).toBeNull();
+    expect(idleBlock.querySelector('[data-testid="lib-scan-ring"]')).toBeNull();
     expect(idle.querySelector('[data-testid="lib-cancel-scan"]')).toBeNull();
+    // One library scanning: no summary line.
+    expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="lib-scan-summary"]')).toBeNull();
+  });
+
+  it('1.45.0: with several libraries scanning, one line over the list says how many and Cancel all stops each known run once', () => {
+    const { fixture, apiSpy } = setup({ name: 'x', path: '/library-root/x', hasChildren: false });
+    const cancelScan = vi.fn().mockReturnValue(of(undefined));
+    Object.assign(apiSpy, {
+      getLibrary: vi.fn((id: string) => of({ id, name: id, scanSchedule: 'Daily' } as unknown as LibraryDto)),
+      getScanHistory: vi.fn((id: string) => of(id === 'l3' ? [] : [{ id: `run-${id}`, status: 'running' }])),
+      cancelScan,
+    });
+    const c = fixture.componentInstance;
+    c.libraries.set([
+      { id: 'l1', name: 'Shelf', itemCount: 3, isScanning: true } as unknown as LibraryDto,
+      { id: 'l2', name: 'Strips', itemCount: 2, isScanning: true } as unknown as LibraryDto,
+      { id: 'l3', name: 'Comics', itemCount: 1, isScanning: true } as unknown as LibraryDto,
+      { id: 'l4', name: 'Idle', itemCount: 1, isScanning: false } as unknown as LibraryDto,
+    ]);
+    // The runs are learned as on page load (l3's is not known yet).
+    for (const id of ['l1', 'l2', 'l3']) (c as unknown as { backfillScanRunId(id: string): void }).backfillScanRunId(id);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const summary = el.querySelector('[data-testid="lib-scan-summary"]')!;
+    expect(summary.textContent!.replace(/\s+/g, ' ').trim()).toMatch(/^3 libraries scanning ?· ?Cancel all$/);
+    expect(summary.querySelector('.scan-sep')).not.toBeNull();
+    // Over the list, not inside it.
+    expect(summary.nextElementSibling!.tagName.toLowerCase()).toBe('mat-list');
+    // Every scanning block has its own bar and ring; the idle one none.
+    expect(el.querySelectorAll('[data-testid="lib-scan-bar"]')).toHaveLength(3);
+    expect(el.querySelectorAll('[data-testid="lib-scan-ring"]')).toHaveLength(3);
+
+    (summary.querySelector('[data-testid="lib-cancel-all"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(cancelScan.mock.calls.map((a) => a[0])).toEqual(['run-l1', 'run-l2']);
+    // Pressed again: nothing more to cancel (the two are cancelling, l3's run is unknown).
+    expect(c.canCancelAll()).toBe(false);
+    expect((summary.querySelector('[data-testid="lib-cancel-all"]') as HTMLButtonElement).disabled).toBe(true);
+    c.cancelAll();
+    expect(cancelScan).toHaveBeenCalledTimes(2);
+  });
+
+  it('1.45.0: the "Scan all libraries" tooltip opens above the button (below, it covered the first library\'s name)', () => {
+    const { fixture, apiSpy } = setup({ name: 'x', path: '/library-root/x', hasChildren: false });
+    Object.assign(apiSpy, { getLibrary: vi.fn((id: string) => of({ id, name: id, scanSchedule: 'Daily' } as unknown as LibraryDto)) });
+    fixture.componentInstance.libraries.set([{ id: 'l1', name: 'Shelf', itemCount: 3, isScanning: false } as unknown as LibraryDto]);
+    fixture.detectChanges();
+    const button = fixture.debugElement.query(By.css('.lib-actions-bar button'));
+    const tip = button.injector.get(MatTooltip);
+    expect(tip.position).toBe('above');
   });
 
   it('renders the row as a real, natively-focusable <button> (not a bare <div>)', () => {
