@@ -1,6 +1,6 @@
 import { Component, inject, signal, computed, effect, viewChild, ElementRef, NgZone, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, NavigationEnd, Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
@@ -38,6 +38,7 @@ import { FolderViewActionComponent } from './folder-view-action.component';
 import { TrackerSyncActionComponent } from '../trackers/tracker-sync-action.component';
 import { TrackerReadMarkComponent } from '../trackers/tracker-read-mark.component';
 import { SeriesTrackingButtonComponent } from '../trackers/series-tracking-button.component';
+import { TrackerStateService } from '../trackers/tracker-state.service';
 import { FolderCoverPreferenceActionComponent } from './folder-cover-preference-action.component';
 import { NodeRowComponent, directionShort as directionChip } from '../../shared/node-row/node-row.component';
 import { SelectionBarComponent } from '../../shared/selection/selection-bar.component';
@@ -208,6 +209,11 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
              view-options-menu panel class is the styling hook (the menu renders in a
              CDK overlay outside this component's DOM - see the ::ng-deep block). -->
         <mat-menu #viewMenu="matMenu" class="view-options-menu">
+          <!-- 1.45.0 (K7, owner (A)): say why a linked series has no Volumes | Folders switch. -->
+          @if (volumeView()?.unavailableReason === 'NoVolumeList') {
+            <p class="menu-note" role="note" data-testid="volume-view-reason">No Volumes view: no volume list is known for this series yet</p>
+            <mat-divider></mat-divider>
+          }
           @for (opt of viewOptions; track opt.value) {
             <button mat-menu-item role="menuitemradio"
                     [class.selected-option]="viewMode() === opt.value"
@@ -573,6 +579,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
       display: block; padding: 6px 16px 2px; font-size: 11px; font-weight: 600;
       text-transform: uppercase; letter-spacing: 0.5px; color: var(--mp-text-dim);
     }
+    /* 1.45.0 (K7): the View menu's muted "No Volumes view: ..." line. */
+    .menu-note { margin: 0; padding: 8px 16px; max-width: 240px; font-size: 13px; line-height: 1.35; color: var(--mp-text-muted); }
     /* View menu selected-state (1.8.1): accent highlight replaces the per-item
        checkmark in all four submenus. The panel renders in a CDK overlay, so the
        rules are scoped via class="view-options-menu" on <mat-menu> and reach the
@@ -759,7 +767,18 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   private readonly snackBar = inject(MatSnackBar);
   private readonly readState = inject(ReadStateService);
   private readonly favorites = inject(FavoritesStateService);
+  private readonly trackerState = inject(TrackerStateService);
   private stackRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  /** 1.45.0 (K8): a read change was announced; the cards' tracker rings are re-read once this view is shown. */
+  private trackerRefreshDue = false;
+  private trackerRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  /** 1.45.0 (K8): the second look, in case the tracker sync was still in flight at the first one. */
+  static readonly TRACKER_RETRY_MS = 3000;
+  /**
+   * 1.45.0 (K8): the page requests that built the listed cards (the first page, appended pages, prepended pages), so the tracker
+   * refresh can re-ask exactly them. Reset with every fresh window load.
+   */
+  private pageRequests: { cursor: string | null; before: string | null; group: 'volumes' | 'flat' | null; preferVolumes: boolean }[] = [];
   readonly auth = inject(AuthService);
 
   // Per-folder direction override options (1.2.0). null = inherit (clear).
@@ -1071,6 +1090,9 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     // 1.29.0: an admin's cover choice patches the card's (versioned) cover URL in place.
     inject(CoverStateService).changed$.pipe(takeUntilDestroyed())
       .subscribe((c) => this.patchNode(c.nodeId, { coverUrl: c.coverUrl, coverSource: c.coverSource }));
+    // 1.45.0 (K8): back from the reader (or a stack page), the retained instance is re-attached - re-read the rings once it is shown.
+    this.router.events.pipe(filter((e) => e instanceof NavigationEnd), takeUntilDestroyed())
+      .subscribe(() => this.refreshTrackerMarksIfShown());
   }
 
   private patchNode(nodeId: string, patch: Partial<CatalogNodeDto>): void {
@@ -1095,6 +1117,12 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     // the instance). Patches only the affected card; never re-fetches the list
     // or touches scroll.
     this.readState.itemChanged$.subscribe((itemId) => this.refreshNodeStatus(itemId));
+    // 1.45.0 (K8): the gold tracker ring is computed only by the listing (`trackerRead`), and reading may change it on OTHER cards too
+    // (a higher tracker number covers earlier chapters) - so a read change makes every listed card's ring due for a re-read.
+    this.readState.itemChanged$.subscribe(() => {
+      this.trackerRefreshDue = true;
+      this.refreshTrackerMarksIfShown();
+    });
 
     // 1.7.3: the pinned Continue row is purely presentational — it renders
     // whatever `nextUnread` this component hands it and never re-fetches on its
@@ -1140,6 +1168,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     if (this.stackRefreshTimer !== null) clearTimeout(this.stackRefreshTimer);
+    if (this.trackerRetryTimer !== null) clearTimeout(this.trackerRetryTimer);
     this.scrollTarget?.removeEventListener('scroll', this.onScroll);
     this.sentinelObserver?.disconnect();
     this.topSentinelObserver?.disconnect();
@@ -1457,6 +1486,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   private resetList(): void {
     this.cursor = null;
     this.prevCursor = null;
+    this.pageRequests = [];
     this.nodes.set([]);
     this.hasMore.set(false);
     this.hasPrevious.set(false);
@@ -2115,9 +2145,11 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     const gen = ++this.loadGen;
     this.loadingMore.set(true);
     const preferVolumes = initial && this.preferVolumesOnce;
+    const request = { cursor: this.cursor, before: null, group: this.groupParam(), preferVolumes };
     this.api.browseLibrary(libId, this.parentId(), this.cursor, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders(), null, this.favoritesOnly(), this.groupParam(), preferVolumes, this.completionFilter()).subscribe({
       next: (response: PageResponse<CatalogNodeDto>) => {
         if (gen !== this.loadGen) return;
+        this.pageRequests = isAppend ? [...this.pageRequests, request] : [request];
         if (preferVolumes) {
           this.preferVolumesOnce = false;
           // The server opened the Volumes view: Name for THIS visit only (the stored sort is untouched, like the home sort).
@@ -2171,6 +2203,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
         if (gen !== this.loadGen) { this.loadingPrevious.set(false); return; }
         if (response.items.length > 0) {
           this.nodes.update((current) => [...response.items, ...current]);
+          this.pageRequests = [{ cursor: null, before, group: this.groupParam(), preferVolumes: false }, ...this.pageRequests];
         }
         this.prevCursor = response.prevCursor ?? null;
         this.hasPrevious.set(response.hasPrevious ?? false);
@@ -2202,6 +2235,68 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     };
     if (typeof requestAnimationFrame !== 'undefined') requestAnimationFrame(apply);
     else apply();
+  }
+
+  /**
+   * 1.45.0 (K8, owner 2026-10-19): the gold tracker ring stayed stale after Back from the reader until a reload - `refreshNodeStatus`
+   * patches read state only, and `trackerRead` comes only from the listing (`GET /nodes/{id}` has no per-user state). Once a read
+   * change was announced and this view is the one shown, the listed cards' rings are re-read: now, and once more a few seconds later
+   * (the tracker sync may still be in flight - completion syncs at once, but its answer can land after the Back).
+   */
+  private refreshTrackerMarksIfShown(): void {
+    if (!this.trackerRefreshDue || !this.isShown()) return;
+    this.trackerRefreshDue = false;
+    this.refreshTrackerMarks();
+    if (this.trackerRetryTimer !== null) clearTimeout(this.trackerRetryTimer);
+    this.trackerRetryTimer = setTimeout(() => {
+      this.trackerRetryTimer = null;
+      if (this.isShown()) this.refreshTrackerMarks();
+    }, LibraryBrowseComponent.TRACKER_RETRY_MS);
+  }
+
+  /** This instance's folder is the page on screen (not detached behind the reader or a stack page). */
+  private isShown(): boolean {
+    const segments = this.router.parseUrl(this.router.url).root.children['primary']?.segments.map((s) => s.path) ?? [];
+    const parent = this.parentId();
+    if (segments[0] !== 'libraries' || segments[1] !== this.libraryId()) return false;
+    return parent
+      ? segments.length === 4 && segments[2] === 'browse' && segments[3] === parent
+      : segments.length === 2 || (segments.length === 3 && segments[2] === 'browse');
+  }
+
+  /**
+   * Re-asks the pages that built the list (same folder, sort, filters and cursors) and patches ONLY each listed card's `trackerRead`
+   * in place - no list replacement, so the scroll position and the loaded window stay as they are. Chosen over a new "rings for these
+   * ids" endpoint: the listing already computes the ring for every card kind (archives, volume stacks, series folders, the Volumes
+   * view) with the owner's intersection rule, so re-reading it is correct everywhere with no new API surface; it costs one browse
+   * request per loaded page (usually one or two), twice per return, and only for a viewer with a connected tracker.
+   */
+  private refreshTrackerMarks(): void {
+    const libId = this.libraryId();
+    if (!libId || this.pageRequests.length === 0 || this.nodes().length === 0) return;
+    // No connected tracker: no ring can appear (the overview is a local GET, loaded once per session).
+    this.trackerState.ensureLoaded();
+    if (this.trackerState.overview() !== null && !this.trackerState.hasConnected()) return;
+    const gen = this.loadGen;
+    const folder = this.parentId();
+    forkJoin(this.pageRequests.map((r) => this.api.browseLibrary(libId, folder, r.cursor, this.pageSize(), this.sort(), this.sortDirection(),
+      this.readStateFilter(), this.hideEmptyFolders(), r.before, this.favoritesOnly(), r.group, r.preferVolumes, this.completionFilter())
+      .pipe(catchError(() => of(null))))).subscribe((pages) => {
+      if (gen !== this.loadGen || this.parentId() !== folder) return;
+      const rings = new Map<string, string[] | null>();
+      for (const page of pages) for (const n of page?.items ?? []) rings.set(n.id, n.trackerRead ?? null);
+      if (rings.size === 0) return;
+      const same = (a: string[] | null | undefined, b: string[] | null) => (a ?? []).join(',') === (b ?? []).join(',');
+      this.nodes.update((list) => {
+        let changed = false;
+        const next = list.map((n) => {
+          if (!rings.has(n.id) || same(n.trackerRead, rings.get(n.id)!)) return n;
+          changed = true;
+          return { ...n, trackerRead: rings.get(n.id) };
+        });
+        return changed ? next : list;
+      });
+    });
   }
 
   /**

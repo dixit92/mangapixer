@@ -14,6 +14,12 @@ public sealed record VolumeViewDto
     /// <summary>Stacks (or merged unit subfolders) exist here, so the Volumes view differs from the folder list.</summary>
     public required bool Available { get; init; }
 
+    /// <summary>
+    /// 1.45.0: why a folder with its own series link has no Volumes view, when MangaPixer can say (null otherwise, and always null while
+    /// <see cref="Available"/>). Additive: it never changes when the view is available.
+    /// </summary>
+    public VolumeViewUnavailableReason? UnavailableReason { get; init; }
+
     /// <summary>The viewer sees the Volumes view now (the user's switch, else the folder / library / global default).</summary>
     public required bool Active { get; init; }
 
@@ -92,4 +98,14 @@ public sealed record VolumeViewDto
     /// <see cref="HasSeriesStatus"/>; the flat fields above stay filled for older clients.
     /// </summary>
     public SeriesProgressDto? Progress { get; init; }
+}
+
+/// <summary>Why a linked series folder has no Volumes view (<see cref="VolumeViewDto.UnavailableReason"/>, 1.45.0).</summary>
+public enum VolumeViewUnavailableReason
+{
+    /// <summary>
+    /// No volume list is known for the series yet: its stored lists cannot place a chapter in a volume (no MangaDex / Wikipedia volume
+    /// list, no AniList chapters-per-volume figure with a volume total), and the folder holds no volume files or stacks.
+    /// </summary>
+    NoVolumeList = 0,
 }

@@ -2325,9 +2325,17 @@ export interface CollectionStackDto {
 }
 
 /** GET /nodes/{nodeId}/volume-view (lane S): whether a folder has a Volumes view and whether it is on for the viewer. */
+/** Why a linked series folder has no Volumes view (1.45.0, `VolumeViewDto.unavailableReason`). */
+export type VolumeViewUnavailableReason = 'NoVolumeList';
+
 export interface VolumeViewDto {
   nodeId: string;
   available: boolean;
+  /**
+   * 1.45.0: why a folder with its own series link has no Volumes view, when the server can say; null otherwise and while `available`.
+   * `NoVolumeList`: the series' stored lists cannot place a chapter in a volume (no volume list is known yet).
+   */
+  unavailableReason?: VolumeViewUnavailableReason | null;
   active: boolean;
   /** 1.29.0 RC: `active` without the viewer's own switch (folder / library / global default); choosing it clears the switch. */
   defaultActive?: boolean;

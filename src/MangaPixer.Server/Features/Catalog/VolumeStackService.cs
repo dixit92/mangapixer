@@ -32,6 +32,8 @@ public sealed class VolumeStackService(VolumeEntryService entries, CatalogBrowse
         {
             NodeId = view.FolderPublicId,
             Available = view.Available,
+            // 1.45.0 (K7): say why a linked series has no Volumes view (the browse View menu's line); never changes Available.
+            UnavailableReason = !view.Available && view.NoVolumeList ? VolumeViewUnavailableReason.NoVolumeList : null,
             Active = view.Available && await entries.IsActiveAsync(userId, view, null, ct),
             DefaultActive = view.Available && await entries.IsDefaultActiveAsync(view, ct),
             Consolidated = view.Consolidated,

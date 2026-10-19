@@ -211,10 +211,11 @@ describe('ReviewRowComponent', () => {
     const bodies = all('[data-testid="review-candidate"] .cand-body');
     expect(bodies).toHaveLength(2);
     for (const body of bodies) {
-      const kids = [...body.children].map((k) => k.className.split(' ')[0]);
+      const kids = [...body.children];
+      const at = (cls: string) => kids.findIndex((k) => k.classList.contains(cls));
       // The slot is there with or without a link, right after the text and before the score.
-      expect(kids.indexOf('cand-site-slot')).toBe(kids.indexOf('cand-text') + 1);
-      expect(kids.indexOf('cand-site-slot')).toBeLessThan(kids.indexOf('score'));
+      expect(at('cand-site-slot')).toBe(at('cand-text') + 1);
+      expect(at('score')).toBeGreaterThan(at('cand-site-slot'));
     }
     expect(bodies[0].querySelector('[data-testid="review-candidate-site"]')).not.toBeNull();
     expect(bodies[1].querySelector('[data-testid="review-candidate-site"]')).toBeNull();

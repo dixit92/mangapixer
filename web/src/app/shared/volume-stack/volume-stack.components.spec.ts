@@ -162,12 +162,14 @@ describe('volume stack pieces', () => {
     }
     const dup = [{ kind: 'Chapter' as const, number: '1', files: 2 }, { kind: 'Chapter' as const, number: '2', files: 2 }];
 
-    it('shows "2 duplicates" below the incomplete mark, with the chapters in its title', () => {
+    it('shows "2 duplicates" below the incomplete mark, with the chapters in its label and tooltip', () => {
       const el = render(summary({ duplicates: dup }));
       const chip = el.querySelector('[data-testid="stack-duplicates"]')!;
       expect(chip.textContent!.trim()).toBe('2 duplicates');
       expect(chip.classList).toContain('below');
-      expect(chip.getAttribute('title')).toContain('Chapter 1: 2 files, Chapter 2: 2 files');
+      // 1.45.0 (UX review #12): a tooltip (and the accessible name), not a title attribute.
+      expect(chip.getAttribute('aria-label')).toContain('Chapter 1: 2 files, Chapter 2: 2 files');
+      expect(chip.hasAttribute('title')).toBe(false);
       expect(el.querySelector('[data-testid="stack-incomplete"]')!.textContent!.trim()).toBe('8 of 9 ch');
     });
 
