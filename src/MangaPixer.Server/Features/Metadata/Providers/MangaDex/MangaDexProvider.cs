@@ -40,7 +40,16 @@ public interface IMangaDexProvider
 
     /// <summary>1.42.0: the record with this id, with its authors and artists; null when MangaDex says it does not exist.</summary>
     Task<MangaDexManga?> GetRecordAsync(string mangaId, CancellationToken ct);
+
+    /// <summary>
+    /// 1.45.0 (the latest-upload sweep): <c>attributes.latestUploadedChapter</c> of up to <see cref="MangaDexProvider.LatestUploadBatch"/>
+    /// records by id, in one request (<see cref="MangaDexProvider.LatestUploadsUrl"/>). Records MangaDex does not return are left out.
+    /// </summary>
+    Task<IReadOnlyList<MangaDexLatestUpload>> LatestUploadsAsync(IReadOnlyList<string> mangaIds, CancellationToken ct);
 }
+
+/// <summary>1.45.0: one record's latest uploaded chapter (any language) - the chapter's id, or null when MangaDex lists none.</summary>
+public sealed record MangaDexLatestUpload(string MangaId, string? ChapterId);
 
 /// <summary>A MangaDex record, as much of it as the companion needs. Titles are data: bounded, never logged.</summary>
 public sealed record MangaDexManga
@@ -154,6 +163,9 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
     public static readonly IReadOnlyList<string> RecordIncludes = ["cover_art", "author", "artist"];
 
     private static readonly IReadOnlyList<string> CompanionIncludes = ["cover_art"];
+
+    /// <summary>1.45.0: ids per latest-upload request (MangaDex's <c>ids[]</c> and <c>limit</c> maximum).</summary>
+    public const int LatestUploadBatch = 100;
 
     /// <summary>The highest search offset MangaDex accepts with a page of 10 (offset + limit &lt;= 10000; Identify pages 1-100).</summary>
     public const int MaxSearchOffset = 990;
@@ -293,6 +305,29 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
             first = false;
         }
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// 1.45.0: the latest-upload address - exactly <c>GET /manga?ids[]=..&amp;limit=100&amp;contentRating[]=</c>(all four ratings; MangaDex
+    /// leaves erotica and pornographic records out unless asked for), nothing else. Only valid ids, at most <see cref="LatestUploadBatch"/>.
+    /// </summary>
+    public static string LatestUploadsUrl(IReadOnlyList<string> mangaIds)
+    {
+        var sb = new StringBuilder(ApiBase).Append("/manga?");
+        foreach (var id in mangaIds.Where(IsValidId).Distinct(StringComparer.Ordinal).Take(LatestUploadBatch))
+            sb.Append("ids%5B%5D=").Append(id).Append('&');
+        sb.Append("limit=").Append(LatestUploadBatch.ToString(CultureInfo.InvariantCulture));
+        foreach (var rating in ContentRatings)
+            sb.Append("&contentRating%5B%5D=").Append(rating);
+        return sb.ToString();
+    }
+
+    public async Task<IReadOnlyList<MangaDexLatestUpload>> LatestUploadsAsync(IReadOnlyList<string> mangaIds, CancellationToken ct)
+    {
+        if (!mangaIds.Any(IsValidId))
+            return [];
+        using var doc = await GetJsonAsync(LatestUploadsUrl(mangaIds), ct);
+        return doc is null ? [] : ReadLatestUploads(doc.RootElement);
     }
 
     public async Task<IReadOnlyList<MangaDexManga>> SearchAsync(string title, CancellationToken ct)
@@ -503,6 +538,25 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
             LongStrip = longStrip,
             Oneshot = oneshot,
         };
+    }
+
+    /// <summary>1.45.0: <c>data[].id</c> and <c>data[].attributes.latestUploadedChapter</c> (a UUID, or null / missing = none).</summary>
+    internal static IReadOnlyList<MangaDexLatestUpload> ReadLatestUploads(JsonElement root)
+    {
+        if (!root.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
+            throw new MetadataResponseInvalidException("malformed_json");
+        var result = new List<MangaDexLatestUpload>();
+        foreach (var item in data.EnumerateArray())
+        {
+            if (Str(item, "id") is not { } id || !IsValidId(id) || !item.TryGetProperty("attributes", out var attributes)
+                || attributes.ValueKind != JsonValueKind.Object)
+                continue;
+            var chapter = Str(attributes, "latestUploadedChapter")?.Trim().ToLowerInvariant();
+            result.Add(new MangaDexLatestUpload(id, IsValidId(chapter) ? chapter : null));
+            if (result.Count >= LatestUploadBatch)
+                break;
+        }
+        return result;
     }
 
     internal static IReadOnlyList<MangaDexAggregateVolume> ReadAggregate(JsonElement root)

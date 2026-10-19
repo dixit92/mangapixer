@@ -116,6 +116,12 @@ public sealed class MangaPixerDbContext : DbContext
     public DbSet<VolumeContentEntity> VolumeContents => Set<VolumeContentEntity>();
     public DbSet<VolumeScanStateEntity> VolumeScanState => Set<VolumeScanStateEntity>();
 
+    // 1.45.0 new-chapter freshness (lane R, migration AddMangaDexLatestUpload; configured in FreshnessModel).
+    public DbSet<MangaDexLatestUploadEntity> MangaDexLatestUploads => Set<MangaDexLatestUploadEntity>();
+    public DbSet<LibraryFreshnessEntity> LibraryFreshness => Set<LibraryFreshnessEntity>();
+    public DbSet<FreshnessStateEntity> FreshnessState => Set<FreshnessStateEntity>();
+    public DbSet<MetadataRefreshNudgeEntity> MetadataRefreshNudges => Set<MetadataRefreshNudgeEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -154,6 +160,7 @@ public sealed class MangaPixerDbContext : DbContext
         // 1.43.0: each feature configures its own tables in its own file (two lanes, one hot file).
         TrackerModel.Configure(modelBuilder);
         VolumeScanModel.Configure(modelBuilder);
+        FreshnessModel.Configure(modelBuilder);
     }
 
     private static void ConfigureAppSettings(ModelBuilder mb)
