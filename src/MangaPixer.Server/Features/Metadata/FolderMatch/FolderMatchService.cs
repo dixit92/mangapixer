@@ -27,6 +27,10 @@ using Microsoft.EntityFrameworkCore;
 /// ticked folder through the single action (<see cref="ArtistFolderService.SetAsync"/> / <see cref="CollectionAboutService.SetAsync"/>, audit
 /// result <c>folder_match</c>) - a collection only with a STORED record (never the record fetch, never the poster download). The opt-in web
 /// search for the rest is the Identify search (one request per ticked row, driven by the dialog), not this service.
+/// 1.45.0: as artist folders, a row without a local match - and an Artist folder whose declared artist has no MangaUpdates reference yet -
+/// carries the text "Search MangaUpdates for the rest" would send (the author search, <see cref="Authors.AuthorSearchService"/>, driven by
+/// the dialog); an apply item may name the picked author (<c>provider</c> + <c>externalId</c>), stored as the declared artist's reference
+/// with audit result <c>author_search</c> - still no request.
 /// </summary>
 public sealed class FolderMatchService
 {
@@ -82,10 +86,16 @@ public sealed class FolderMatchService
 
         ArtistNameIndex? artistIndex = null;
         TitleIndex? titleIndex = null;
+        HashSet<long> referenced = [];
         if (request.Kind == FolderMatchKind.Artists)
+        {
             artistIndex = await BuildArtistIndexAsync(ct);
+            referenced = await ReferencedFoldersAsync(nodeIds, ct);
+        }
         else
+        {
             titleIndex = await BuildTitleIndexAsync(ct);
+        }
 
         var rows = new List<FolderMatchRowDto>(ids.Count);
         foreach (var id in ids)
@@ -123,7 +133,7 @@ public sealed class FolderMatchService
                 CurrentState = state,
                 Artists = artists,
                 Records = records,
-                SearchText = request.Kind == FolderMatchKind.Collections && records.Count == 0 ? SearchTextOf(node.DisplayName) : null,
+                SearchText = WebSearchable(request.Kind, status, state, records.Count, referenced.Contains(node.Id)) ? SearchTextOf(node.DisplayName) : null,
             });
         }
 
@@ -134,6 +144,28 @@ public sealed class FolderMatchService
             rows.Count(r => r.Status == FolderMatchStatus.Ambiguous), rows.Count(r => r.Status == FolderMatchStatus.NoMatch),
             rows.Count(r => r.Status == FolderMatchStatus.Decided), watch.ElapsedMilliseconds);
         return (null, new FolderMatchPreviewDto { Kind = request.Kind, Rows = rows, Compared = compared });
+    }
+
+    /// <summary>
+    /// Whether a row offers the opt-in web search: collections without a stored record (the series search); artists without a local match,
+    /// or an Artist folder whose declared artist has no MangaUpdates reference yet (1.45.0, the author search).
+    /// </summary>
+    private static bool WebSearchable(FolderMatchKind kind, FolderMatchStatus status, SeriesLinkState? state, int records, bool referenced) => kind switch
+    {
+        FolderMatchKind.Collections => records == 0,
+        FolderMatchKind.Artists => status == FolderMatchStatus.NoMatch
+            || (status == FolderMatchStatus.Decided && state == SeriesLinkState.ArtistFolder && !referenced),
+        _ => false,
+    };
+
+    /// <summary>The folders among <paramref name="nodeIds"/> that declare a creator with a MangaUpdates reference themselves (1.45.0).</summary>
+    private async Task<HashSet<long>> ReferencedFoldersAsync(IReadOnlyList<long> nodeIds, CancellationToken ct)
+    {
+        var rows = await _db.DeclaredFacts.AsNoTracking()
+            .Where(f => f.NodeId != null && nodeIds.Contains(f.NodeId.Value) && f.Key == DeclaredFactKeys.Creator && f.ExternalRef != null)
+            .Select(f => new { NodeId = f.NodeId!.Value, f.ExternalRef })
+            .ToListAsync(ct);
+        return rows.Where(r => AuthorReference.MangaUpdatesIdOf(r.ExternalRef) is not null).Select(r => r.NodeId).ToHashSet();
     }
 
     /// <summary>
@@ -270,7 +302,8 @@ public sealed class FolderMatchService
 
     private async Task<(string Code, int Queued)> ApplyArtistAsync(FolderMatchApplyItem item, string? actor, CancellationToken ct)
     {
-        var outcome = await _artists.SetAsync(item.NodeId, new SetArtistFolderRequest { Name = item.Name, Role = item.Role }, actor, ct, AuditResult);
+        var outcome = await _artists.SetAsync(item.NodeId,
+            new SetArtistFolderRequest { Name = item.Name, Role = item.Role, Provider = item.Provider, ExternalId = item.ExternalId }, actor, ct, AuditResult);
         return outcome switch
         {
             { Code: MetadataLinkResultCode.Ok, Result: { } result } => ("ok", result.Queued),

@@ -1,5 +1,6 @@
 namespace com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MangaUpdates;
 
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 // Wire models for the MangaUpdates API v1 (1.24.0, lane B2): only the fields the
@@ -129,4 +130,96 @@ internal sealed record MuAuthorRecord
 internal sealed record MuAuthorName
 {
     [JsonPropertyName("name")] public string? Name { get; init; }
+}
+
+/// <summary>
+/// The body of <c>POST /v1/authors/search</c> (1.45.0, author search by name - owner-approved 2026-10-19, consent 7): exactly the search
+/// text the admin confirmed, page 1 and 10 per page. A FIXED record type on purpose - no other field of the API's request
+/// (<c>added_by</c>, <c>letter</c>, <c>genre</c>, <c>orderby</c>, <c>pending</c>) can be sent; a test asserts the exact JSON.
+/// </summary>
+internal sealed record MuAuthorSearchRequest(
+    [property: JsonPropertyName("search")] string Search,
+    [property: JsonPropertyName("page")] int Page,
+    [property: JsonPropertyName("perpage")] int PerPage)
+{
+    /// <summary>The only page sent.</summary>
+    public const int FixedPage = 1;
+
+    /// <summary>The only page size sent.</summary>
+    public const int FixedPerPage = 10;
+
+    public static MuAuthorSearchRequest For(string search) => new(search, FixedPage, FixedPerPage);
+}
+
+internal sealed record MuAuthorSearchResponse
+{
+    [JsonPropertyName("total_hits")] public int? TotalHits { get; init; }
+    [JsonPropertyName("results")] public List<MuAuthorSearchResult>? Results { get; init; }
+}
+
+internal sealed record MuAuthorSearchResult
+{
+    [JsonPropertyName("record")] public MuAuthorSearchRecord? Record { get; init; }
+
+    /// <summary>The name (main or other) the search matched.</summary>
+    [JsonPropertyName("hit_name")] public string? HitName { get; init; }
+}
+
+/// <summary>An author in a search answer: only id, name, page address, genres and the series count are read.</summary>
+internal sealed record MuAuthorSearchRecord
+{
+    [JsonPropertyName("id")] public long? Id { get; init; }
+    [JsonPropertyName("name")] public string? Name { get; init; }
+    [JsonPropertyName("url")] public string? Url { get; init; }
+
+    /// <summary>Either plain strings or <c>{"genre": "..."}</c> objects - both are read (<see cref="MuGenreListConverter"/>).</summary>
+    [JsonPropertyName("genres"), JsonConverter(typeof(MuGenreListConverter))] public List<string>? Genres { get; init; }
+
+    [JsonPropertyName("stats")] public MuAuthorStats? Stats { get; init; }
+}
+
+internal sealed record MuAuthorStats
+{
+    [JsonPropertyName("total_series")] public int? TotalSeries { get; init; }
+}
+
+/// <summary>
+/// Reads a genre list written as strings (<c>["Drama"]</c>) or as objects (<c>[{"genre": "Drama", ...}]</c>); anything else in the list is
+/// skipped, a non-list is null. Tolerant on purpose: the wire model must never fail on a shape change of a field shown only as a hint.
+/// </summary>
+internal sealed class MuGenreListConverter : JsonConverter<List<string>?>
+{
+    public override List<string>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType != JsonTokenType.StartArray)
+        {
+            reader.Skip();
+            return null;
+        }
+        var list = new List<string>();
+        while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+        {
+            switch (reader.TokenType)
+            {
+                case JsonTokenType.String:
+                    if (reader.GetString() is { } s)
+                        list.Add(s);
+                    break;
+                case JsonTokenType.StartObject:
+                    using (var doc = JsonDocument.ParseValue(ref reader))
+                    {
+                        if (doc.RootElement.TryGetProperty("genre", out var g) && g.ValueKind == JsonValueKind.String && g.GetString() is { } name)
+                            list.Add(name);
+                    }
+                    break;
+                default:
+                    reader.Skip();
+                    break;
+            }
+        }
+        return list;
+    }
+
+    public override void Write(Utf8JsonWriter writer, List<string>? value, JsonSerializerOptions options) =>
+        JsonSerializer.Serialize(writer, value, options);
 }

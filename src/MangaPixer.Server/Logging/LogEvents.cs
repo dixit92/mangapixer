@@ -510,6 +510,9 @@ public static class LogEvents
         //   9450-9459 tag query: per-viewer counts, the works page, field search (lane Q)
         //   9460-9479 new-chapter freshness, the MangaDex latest-upload sweep, the MangaUpdates releases feed (lane R)
 
+        // Author search by name (1.45.0, lane A, 9430-9439). Library id, hit count, elapsed ms - never the search text or a name.
+        public const int AuthorSearchServed = 9430;
+
         // MangaDex as the series record (1.42.0, lane D, 9500-9599). Ids, counts and codes only - never titles or search text.
         public const int MangaDexSelfCompanion = 9500;
         public const int MangaDexStep = 9501;

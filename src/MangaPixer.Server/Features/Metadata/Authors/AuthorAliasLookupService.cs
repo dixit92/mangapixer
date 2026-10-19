@@ -18,7 +18,9 @@ public sealed record AuthorAliasPlan(int Eligible, int Fetched, IReadOnlyList<Au
 /// <summary>
 /// Artists' other names (1.38.0, owner-approved 2026-10-09): reads MangaUpdates author records - <c>GET /v1/authors/{author_id}</c> -
 /// ONLY when an admin asks. The author ids come only from creators on stored MangaUpdates records (<c>CreatorsJson[].providerId</c>)
-/// that are linked (Confirmed, Auto or Collection about) in a library whose "Fetch from the web" is on; never a name, never a search.
+/// that are linked (Confirmed, Auto or Collection about) in a library whose "Fetch from the web" is on, and (1.45.0) from the authors an
+/// admin picked from an author search (a declared artist's reference <c>mangaupdates:&lt;id&gt;</c>, in such a library); never a name,
+/// never a search.
 /// Every request goes through <see cref="MetadataGateway.DetailCallAsync{T}"/> with the Interactive origin - every switch gate (the
 /// config kill, Fetch with the CURRENT consent, the allowlist, the library), the persisted backoff, the ONE daily budget and the
 /// MangaUpdates bucket - and NOT the automatic consent. Requests run one at a time, paced at one per second on the injected clock
@@ -96,6 +98,23 @@ public sealed class AuthorAliasLookupService
                 if (!libraryOf.TryGetValue(id, out var library) || row.LibraryId < library)
                     libraryOf[id] = row.LibraryId;
             }
+        }
+
+        // 1.45.0: the authors an admin picked from an author search (a declared artist's reference) in a library whose Fetch switch is on.
+        var declared = await (
+                from fact in _db.DeclaredFacts.AsNoTracking()
+                where fact.Key == DeclaredFactKeys.Creator && fact.ExternalRef != null
+                join library in _db.Libraries.AsNoTracking() on fact.LibraryId equals library.Id
+                where library.MetadataEnabled
+                select new { fact.LibraryId, fact.ExternalRef })
+            .Distinct()
+            .ToListAsync(ct);
+        foreach (var row in declared)
+        {
+            if (AuthorReference.MangaUpdatesIdOf(row.ExternalRef) is not { } id)
+                continue;
+            if (!libraryOf.TryGetValue(id, out var library) || row.LibraryId < library)
+                libraryOf[id] = row.LibraryId;
         }
 
         var stored = await _db.MetadataAuthors.AsNoTracking()

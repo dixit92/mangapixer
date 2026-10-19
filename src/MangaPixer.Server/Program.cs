@@ -670,6 +670,8 @@ public sealed partial class Program
         // The look-up behind it (1.38.0, lane U): MangaUpdates author records, ONLY when an admin asks (admin endpoints, one run at a
         // time in the background, 1 request/s through the gateway, counted in the daily budget).
         services.AddScoped<Features.Metadata.Authors.AuthorAliasLookupService>();
+        // Author search by name (1.45.0, lane A): MangaUpdates' author search, ONLY when an admin asks (no background use).
+        services.AddScoped<Features.Metadata.Authors.AuthorSearchService>();
         services.AddScoped<Features.Metadata.Authors.AuthorAliasAdminService>();
         services.AddSingleton<Features.Metadata.Authors.AuthorAliasLookupRunner>();
         // Missing volumes / chapters report (1.28.0): stored data only, no request.

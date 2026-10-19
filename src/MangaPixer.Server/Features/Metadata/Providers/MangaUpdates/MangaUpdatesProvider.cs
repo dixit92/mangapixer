@@ -18,8 +18,9 @@ using com.lifepixer.mangapixer.Core.Metadata;
 /// <c>{"search", "page", "perpage"}</c> (plus the FIXED <c>"filter_types"</c> list
 /// <see cref="HiddenTypes"/> when the admin hides doujinshi and novels), and
 /// <c>GET /v1/series/{id}</c> with the numeric id only, and (1.38.0, artists' other names, only when an admin asks)
-/// <c>GET /v1/authors/{author_id}</c> with the numeric author id a stored record lists for a creator. Nothing else is sent
-/// (headers come from the named client).
+/// <c>GET /v1/authors/{author_id}</c> with the numeric author id a stored record lists for a creator, and (1.45.0, author search by
+/// name, only when an admin asks) <c>POST /v1/authors/search</c> with exactly <c>{"search", "page": 1, "perpage": 10}</c>. Nothing
+/// else is sent (headers come from the named client).
 /// </summary>
 internal sealed class MangaUpdatesProvider : IMetadataProvider
 {
@@ -117,6 +118,22 @@ internal sealed class MangaUpdatesProvider : IMetadataProvider
         MetadataHttp.EnsureSuccess(response);
         var author = Deserialize<MuAuthorRecord>(await MetadataHttp.ReadBoundedAsync(response, MetadataHttp.MaxJsonBytes, ct));
         return MangaUpdatesMapping.ToAuthor(author, authorId);
+    }
+
+    /// <summary>
+    /// An author search by name (1.45.0): <c>POST /v1/authors/search</c> with the FIXED body <see cref="MuAuthorSearchRequest"/> - the
+    /// confirmed text, page 1, 10 per page, nothing else. Called only through <see cref="MetadataGateway.DetailCallAsync{T}"/> (operation
+    /// <c>author_search</c>). Results without a positive id or a name are skipped; the author page address is kept only when it is an HTTPS
+    /// address on MangaUpdates' own site.
+    /// </summary>
+    internal async Task<ProviderAuthorSearchPage> SearchAuthorsAsync(string text, CancellationToken ct)
+    {
+        var client = _httpFactory.CreateClient(MetadataHttp.MangaUpdatesApiClient);
+        using var content = JsonContent.Create(MuAuthorSearchRequest.For(text));
+        using var response = await client.PostAsync(ApiBase + "authors/search", content, ct);
+        MetadataHttp.EnsureSuccess(response);
+        var body = Deserialize<MuAuthorSearchResponse>(await MetadataHttp.ReadBoundedAsync(response, MetadataHttp.MaxJsonBytes, ct));
+        return MangaUpdatesMapping.ToAuthorSearch(body);
     }
 
     private static T Deserialize<T>(byte[] json) where T : class
@@ -372,6 +389,39 @@ public static class MangaUpdatesMapping
         return new ProviderAuthorRecord(requestedId.ToString(CultureInfo.InvariantCulture), name, others);
     }
 
+    /// <summary>At most this many genres are kept per author search hit (1.45.0; the dialogs show three).</summary>
+    public const int MaxAuthorSearchGenres = 10;
+
+    /// <summary>An author search answer -> its hits (1.45.0), in the provider's order; total = the provider's hit count (at least the hits).</summary>
+    internal static ProviderAuthorSearchPage ToAuthorSearch(MuAuthorSearchResponse body)
+    {
+        var hits = new List<ProviderAuthorHit>();
+        var seen = new HashSet<long>();
+        foreach (var result in body.Results ?? [])
+        {
+            var record = result.Record;
+            if (record?.Id is not { } id || id <= 0 || !seen.Add(id))
+                continue;
+            if (MetadataText.Line(record.Name, MaxAuthorNameLength) is not { } name)
+                continue;
+            var hitName = MetadataText.Line(result.HitName, MaxAuthorNameLength);
+            var genres = (record.Genres ?? [])
+                .Select(g => MetadataText.Line(g, 64))
+                .OfType<string>()
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(MaxAuthorSearchGenres)
+                .ToList();
+            hits.Add(new ProviderAuthorHit(
+                id.ToString(CultureInfo.InvariantCulture),
+                name,
+                hitName is not null && !string.Equals(hitName, name, StringComparison.OrdinalIgnoreCase) ? hitName : null,
+                record.Stats?.TotalSeries is >= 0 ? record.Stats.TotalSeries : null,
+                genres,
+                SiteUrl(record.Url)));
+        }
+        return new ProviderAuthorSearchPage(hits, Math.Max(body.TotalHits ?? hits.Count, hits.Count));
+    }
+
     private static int? Max(int? a, int? b) => a is null ? b : b is null ? a : Math.Max(a.Value, b.Value);
 
     private static string? SiteUrl(string? url) =>
@@ -384,3 +434,12 @@ public static class MangaUpdatesMapping
 
 /// <summary>A provider's author record (1.38.0): the main name and the other names, cleaned.</summary>
 public sealed record ProviderAuthorRecord(string ExternalId, string Name, IReadOnlyList<string> OtherNames);
+
+/// <summary>
+/// One author an author search found (1.45.0): the provider's author id, the main name, the name the search matched when it is another,
+/// the number of series the provider lists, its genres and the author's page on the provider's site.
+/// </summary>
+public sealed record ProviderAuthorHit(string ExternalId, string Name, string? HitName, int? TotalSeries, IReadOnlyList<string> Genres, string? SiteUrl);
+
+/// <summary>One page of an author search (1.45.0): the hits in the provider's order and the provider's total hit count.</summary>
+public sealed record ProviderAuthorSearchPage(IReadOnlyList<ProviderAuthorHit> Hits, int Total);

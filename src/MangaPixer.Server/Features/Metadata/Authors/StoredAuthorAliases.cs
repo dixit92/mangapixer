@@ -1,5 +1,6 @@
 namespace com.lifepixer.mangapixer.Server.Features.Metadata.Authors;
 
+using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MangaUpdates;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
@@ -91,8 +92,8 @@ public static class MetadataAuthorStore
     public static Task<int> DeleteAllAsync(MangaPixerDbContext db, CancellationToken ct) => db.MetadataAuthors.ExecuteDeleteAsync(ct);
 
     /// <summary>
-    /// After a per-library purge: removes the author records no remaining stored MangaUpdates record names for a creator. Returns how
-    /// many went.
+    /// After a per-library purge: removes the author records no remaining stored MangaUpdates record names for a creator and (1.45.0) no
+    /// declared artist's reference names. Returns how many went.
     /// </summary>
     public static async Task<int> DeleteUnreferencedAsync(MangaPixerDbContext db, CancellationToken ct)
     {
@@ -108,6 +109,18 @@ public static class MetadataAuthorStore
                 if (creator.ProviderId is { Length: > 0 } id)
                     named.Add(id);
             }
+        }
+
+        // 1.45.0: an author an admin picked (a declared artist's reference) keeps its record - the reference is an admin decision.
+        var references = await db.DeclaredFacts.AsNoTracking()
+            .Where(f => f.Key == DeclaredFactKeys.Creator && f.ExternalRef != null)
+            .Select(f => f.ExternalRef)
+            .Distinct()
+            .ToListAsync(ct);
+        foreach (var reference in references)
+        {
+            if (AuthorReference.MangaUpdatesIdOf(reference) is { } id)
+                named.Add(id);
         }
 
         var stored = await db.MetadataAuthors.AsNoTracking()
