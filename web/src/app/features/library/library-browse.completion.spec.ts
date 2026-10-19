@@ -161,6 +161,42 @@ describe('LibraryBrowseComponent Completion filter (1.44.0)', () => {
     expect(comp.jumpBuckets().length).toBe(1);
   });
 
+  it('1.45.0 (UX review #6): an answer that leaves nothing says so and offers Any - never "This folder is empty"', () => {
+    const { comp, fixture, el, browseLibrary } = setup(3);
+    browseLibrary.mockImplementation((...args: unknown[]) => of({
+      items: args[COMPLETION_ARG] ? [] : [node('a'), node('b')], totalCount: 0, nextCursor: null, hasMore: false,
+      linkedSeries: 3, completionCounts: args[COMPLETION_ARG] ? COUNTS : null,
+    } as PageResponse<CatalogNodeDto>));
+    comp.setCompletionFilter('UpToDate');
+    fixture.detectChanges();
+    const empty = el.querySelector('[data-testid="browse-empty-filtered"]')!;
+    expect(empty.textContent).toContain('No series here match "Everything so far".');
+    expect(el.textContent).not.toContain('This folder is empty.');
+    (el.querySelector('[data-testid="browse-empty-any"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(comp.completionFilter()).toBeNull();
+    expect(browseLibrary.mock.lastCall![COMPLETION_ARG] ?? null).toBeNull();
+    expect(el.querySelectorAll('.node-wrap')).toHaveLength(2);
+  });
+
+  it('1.45.0 (UX review #6): other filters that leave nothing say so and clear every filter in one reload', () => {
+    const { comp, fixture, el, browseLibrary } = setup(0);
+    browseLibrary.mockImplementation((...args: unknown[]) => of({
+      items: args[6] && args[6] !== 'all' || args[9] ? [] : [node('a')], totalCount: 0, nextCursor: null, hasMore: false, linkedSeries: 0,
+    } as PageResponse<CatalogNodeDto>));
+    comp.setReadStateFilter('unread');
+    comp.toggleFavoritesOnly();
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="browse-empty-filtered"]')!.textContent).toContain('Nothing here matches the filter.');
+    const calls = browseLibrary.mock.calls.length;
+    (el.querySelector('[data-testid="browse-empty-clear"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(browseLibrary.mock.calls.length).toBe(calls + 1);
+    expect(comp.filterActive()).toBe(false);
+    expect(el.querySelector('[data-testid="browse-empty-filtered"]')).toBeNull();
+    expect(el.querySelectorAll('.node-wrap')).toHaveLength(1);
+  });
+
   it('labels: the short answer, and the count once counted', () => {
     expect(completionLabel('FinishedMissing')).toBe('Finished, missing some');
     const missing = COMPLETION_OPTIONS.find((o) => o.value === 'MissingSome')!;

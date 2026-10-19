@@ -14,9 +14,11 @@ import { WrongSeriesFlagComponent } from './flag-dialog/wrong-series-flag.compon
 import { ageLabel, precedenceLabel, showsPrecedence } from './series-info-labels';
 import { SeriesInfoOverlayData } from './series-info-overlay.service';
 import { SeriesInfoSummaryComponent } from './series-info-summary.component';
+import { InfoTagsComponent } from './info/info-tags.component';
+import { InfoPanelDto } from './info/info-types';
 
 /**
- * The series-info overlay (1.24.0): a glance at a node's series information without
+ * The Info overlay (1.24.0 series info; 1.45.0 "Info" with the Tags block): a glance at a node's series information and tags without
  * leaving browse. Hosted by a right-side MatDialog (desktop/tablet) or a
  * MatBottomSheet (phone) - see SeriesInfoOverlayService - so it works with either
  * ref/data token. Content = the shared summary + an attribution/sources footer +
@@ -25,12 +27,12 @@ import { SeriesInfoSummaryComponent } from './series-info-summary.component';
 @Component({
   selector: 'app-series-info-overlay',
   standalone: true,
-  imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule, SeriesInfoSummaryComponent, SeriesAdminActionsComponent, WrongSeriesFlagComponent],
+  imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule, SeriesInfoSummaryComponent, SeriesAdminActionsComponent, WrongSeriesFlagComponent, InfoTagsComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="sheet" data-testid="series-overlay">
       <div class="head">
-        <span class="kicker">Series info</span>
+        <span class="kicker">Info</span>
         <button mat-icon-button type="button" class="close" aria-label="Close" (click)="close()">
           <mat-icon>close</mat-icon>
         </button>
@@ -42,7 +44,9 @@ import { SeriesInfoSummaryComponent } from './series-info-summary.component';
         <p class="state error">{{ error() }}</p>
       } @else if (info(); as i) {
         <div class="body">
-          <app-series-info-summary [info]="i" [compact]="true" />
+          <app-series-info-summary [info]="i" [compact]="true" [tagsPanel]="tags()" />
+          <!-- 1.45.0: the Tags block (a chip opens the tag search and closes this overlay). -->
+          <app-info-tags [nodeId]="i.nodeId" (loaded)="tags.set($event)" />
         </div>
 
         <footer class="foot">
@@ -134,6 +138,8 @@ export class SeriesInfoOverlayComponent implements OnInit {
     ?? inject<SeriesInfoOverlayData>(MAT_BOTTOM_SHEET_DATA);
 
   readonly info = signal<SeriesInfoDto | null>(null);
+  /** The Tags block's answer (1.45.0), handed to the summary so its chips replace the plain-text lines. */
+  readonly tags = signal<InfoPanelDto | null>(null);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
 

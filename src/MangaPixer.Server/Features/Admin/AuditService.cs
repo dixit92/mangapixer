@@ -205,6 +205,10 @@ public static class AuditActions
     public const string MetadataPrecedenceClear = "metadata.precedence.clear";
     public const string MetadataPurge = "metadata.purge";
 
+    /// <summary>1.45.0 (reserved by seam I0, written by lane F): an admin merged one creator into another / split a creator (ids only).</summary>
+    public const string MetadataCreatorMerge = "metadata.creator_merge";
+    public const string MetadataCreatorSplit = "metadata.creator_split";
+
     // Series metadata stage 2 (auto-match). Ids only; individual automatic links are
     // counted on their run, not audited one by one.
     public const string MetadataAutoMatchEnable = "metadata.automatch.enable";

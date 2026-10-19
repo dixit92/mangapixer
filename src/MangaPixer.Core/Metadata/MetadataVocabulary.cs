@@ -220,6 +220,8 @@ public static class MetadataConsent
     /// only when an admin asks - and the search text an admin confirms in Match folders by name. The automatic consent stays 4.
     /// 6 (1.42.0): MangaDex can be the series record of a work MangaUpdates does not list - the search text an admin confirms in Identify
     /// (MangaDex as a site) is sent to MangaDex. The automatic consent moves to 5 with it.
+    /// 7 (1.45.0): the search text an admin confirms may also be sent to MangaUpdates' author search when the admin looks for an
+    /// artist, and the author numbers of artists the admin picked (artists' other names). The automatic consent stays 5.
     /// </summary>
-    public const int CurrentVersion = 6;
+    public const int CurrentVersion = 7;
 }

@@ -745,7 +745,7 @@ export class ReviewDashboardComponent implements OnInit, OnDestroy {
    * its row goes, the artist is declared and its works are queued.
    */
   private async markArtistFolder(item: MetadataReviewItemDto): Promise<void> {
-    const artist = await this.artistDialog.open(item.displayName);
+    const artist = await this.artistDialog.open(item.displayName, item.nodeId);
     if (!artist) return;
     this.defer([item], `${artistFolderLabel(artist.name)} - ${item.displayName}`, () => none(this.api.acceptArtist(item.nodeId, artist)));
   }

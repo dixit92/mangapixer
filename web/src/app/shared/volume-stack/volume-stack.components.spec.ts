@@ -41,6 +41,38 @@ describe('volume stack pieces', () => {
       expect(render(summary()).querySelector('[data-testid="stack-incomplete"]')!.classList).not.toContain('moved');
     });
 
+    it('1.45.0 (UX review #12): explains itself in a tooltip, not a title only; a touch tap shows it instead of opening the volume', () => {
+      const fixture = TestBed.createComponent(VolumeIncompleteBadgeComponent);
+      fixture.componentRef.setInput('summary', summary());
+      fixture.detectChanges();
+      const badge = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="stack-incomplete"]') as HTMLElement;
+      expect(badge.hasAttribute('title')).toBe(false);
+      const host = document.createElement('a');
+      host.appendChild(fixture.nativeElement);
+      const opened: string[] = [];
+      host.addEventListener('click', () => opened.push('card'));
+      const tap = (pointerType: string): Event => {
+        const down = new Event('pointerdown', { bubbles: true });
+        Object.defineProperty(down, 'pointerType', { value: pointerType });
+        badge.dispatchEvent(down);
+        const click = new MouseEvent('click', { bubbles: true, cancelable: true });
+        badge.dispatchEvent(click);
+        return click;
+      };
+      // A touch tap: the explanation, and the card does not open.
+      const touch = tap('touch');
+      expect(touch.defaultPrevented).toBe(true);
+      expect(opened).toEqual([]);
+      // A mouse click goes on to the card (the tooltip shows on hover there).
+      expect(tap('mouse').defaultPrevented).toBe(false);
+      expect(opened).toEqual(['card']);
+      // While selecting, a tap toggles the card as before.
+      fixture.componentRef.setInput('moved', true);
+      fixture.detectChanges();
+      expect(tap('touch').defaultPrevented).toBe(false);
+      expect(opened).toEqual(['card', 'card']);
+    });
+
     it('is absent when nothing is missing', () => {
       expect(render(summary({ missingCount: 0 })).querySelector('[data-testid="stack-incomplete"]')).toBeNull();
     });
@@ -130,12 +162,14 @@ describe('volume stack pieces', () => {
     }
     const dup = [{ kind: 'Chapter' as const, number: '1', files: 2 }, { kind: 'Chapter' as const, number: '2', files: 2 }];
 
-    it('shows "2 duplicates" below the incomplete mark, with the chapters in its title', () => {
+    it('shows "2 duplicates" below the incomplete mark, with the chapters in its label and tooltip', () => {
       const el = render(summary({ duplicates: dup }));
       const chip = el.querySelector('[data-testid="stack-duplicates"]')!;
       expect(chip.textContent!.trim()).toBe('2 duplicates');
       expect(chip.classList).toContain('below');
-      expect(chip.getAttribute('title')).toContain('Chapter 1: 2 files, Chapter 2: 2 files');
+      // 1.45.0 (UX review #12): a tooltip (and the accessible name), not a title attribute.
+      expect(chip.getAttribute('aria-label')).toContain('Chapter 1: 2 files, Chapter 2: 2 files');
+      expect(chip.hasAttribute('title')).toBe(false);
       expect(el.querySelector('[data-testid="stack-incomplete"]')!.textContent!.trim()).toBe('8 of 9 ch');
     });
 

@@ -127,6 +127,8 @@ public sealed class ExportHttpTests : IClassFixture<MangaPixerWebApplicationFact
         Assert.Equal(("manga", LibPubId), (first.GetProperty("library").GetProperty("kind").GetString(), first.GetProperty("library").GetProperty("id").GetString()));
         var serverTime = first.GetProperty("serverTime").GetString()!;
         Assert.EndsWith("Z", serverTime, StringComparison.Ordinal);
+        // 1.45.0: the library's latest-upload confirmation next to serverTime on every page - null until a sweep completed.
+        Assert.Equal(JsonValueKind.Null, first.GetProperty("sweeps").GetProperty("mangadexLatestUpload").ValueKind);
         var ids = first.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("nodeId").GetString()!).ToList();
         Assert.Equal(2, ids.Count);
         var cursor = first.GetProperty("nextCursor").GetString();

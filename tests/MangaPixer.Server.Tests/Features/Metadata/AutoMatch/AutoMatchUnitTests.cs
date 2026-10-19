@@ -208,6 +208,27 @@ public sealed class AutoMatchUnitTests
     }
 
     [Fact]
+    public void MapTarget_OnlyTombstonesOfTheMoveWindowCount()
+    {
+        // T=2 was last seen at scan 5 and removed at t0; 3 archives moved to N=3, archive 14 is still tombstoned under T.
+        var t0 = new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero);
+        var moves = new[] { new ScanMove(10, 2), new ScanMove(11, 2), new ScanMove(12, 2) };
+        Dictionary<long, MetadataCarryOverService.TreeRow> Tree(long strayLastSeen, DateTimeOffset? strayTombstoned) => Rows(
+            Folder(1, null), new(2, 1, true, false, 5, t0), Folder(3, 1), Archive(10, 3), Archive(11, 3), Archive(12, 3),
+            new(14, 2, false, false, strayLastSeen, strayTombstoned));
+
+        // Left days before the move (last seen at an earlier scan, tombstoned earlier): no longer one of T's archives - 3 of 3.
+        Assert.Equal(3, MetadataCarryOverService.MapTarget(2, moves, Tree(4, t0.AddDays(-4))));
+        // Left with the move (seen at T's last scan): 3 of 4 = 75%, stays missing.
+        Assert.Null(MetadataCarryOverService.MapTarget(2, moves, Tree(5, t0)));
+        // Tombstoned at the same reconciliation, even when its last sighting is older: counts.
+        Assert.Null(MetadataCarryOverService.MapTarget(2, moves, Tree(4, t0)));
+        // Rows without dates count as before.
+        Assert.Null(MetadataCarryOverService.MapTarget(2, moves, Rows(
+            Folder(1, null), Folder(2, 1, false), Folder(3, 1), Archive(10, 3), Archive(11, 3), Archive(12, 3), Archive(14, 2, false))));
+    }
+
+    [Fact]
     public void MapTarget_UnrelatedMoves_DoNotMapTheFolder()
     {
         var nodes = Rows(Folder(1, null), Folder(2, 1, false), Folder(3, 1), Folder(7, 1), Archive(10, 3));

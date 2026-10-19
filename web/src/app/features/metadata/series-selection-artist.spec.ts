@@ -68,7 +68,7 @@ describe('SeriesSelectionActionsComponent - Artist folder', () => {
     expect(item('bulk-artist-folder').disabled).toBe(false);
     item('bulk-artist-folder').click();
     await flush();
-    expect(artist.open).toHaveBeenCalledWith('Beta Painter');
+    expect(artist.open).toHaveBeenCalledWith('Beta Painter', 'f1');
     expect(api.setArtistFolder).toHaveBeenCalledWith('f1', { name: 'Beta Painter', role: 'author' });
     expect(state.refresh).toHaveBeenCalledWith('f1');
     expect(declaredApi.version()).toBe(1);

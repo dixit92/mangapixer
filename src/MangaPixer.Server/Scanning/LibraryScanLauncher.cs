@@ -1,5 +1,6 @@
 namespace com.lifepixer.mangapixer.Server.Scanning;
 
+using com.lifepixer.mangapixer.Server.Features.Metadata.Facets;
 using com.lifepixer.mangapixer.Server.Logging;
 
 using com.lifepixer.mangapixer.Server.Media;
@@ -166,6 +167,9 @@ public sealed class LibraryScanLauncher
                                 .GetService<com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch.MetadataPostScanHook>() is { } hook)
                             await hook.OnScanCompletedAsync(libraryId, scanStartedAt, result, CancellationToken.None);
                     }
+
+                    // 1.45.0: the tag index learns that this library's tree (and any carried link) changed - a hint, it never blocks.
+                    scope.ServiceProvider.GetService<IFacetIndexNudge>()?.LibraryChanged(libraryId, FacetNudgeReason.ScanFinished);
                 }
             }
             catch (OperationCanceledException)

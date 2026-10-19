@@ -14,6 +14,8 @@ import { SeriesAdminActionsComponent } from './series-admin-actions.component';
 import { WrongSeriesFlagComponent } from './flag-dialog/wrong-series-flag.component';
 import { ageLabel, creditGroups, precedenceLabel, showsPrecedence } from './series-info-labels';
 import { SeriesInfoSummaryComponent } from './series-info-summary.component';
+import { InfoTagsComponent } from './info/info-tags.component';
+import { InfoPanelDto } from './info/info-types';
 import { SeriesMissingLineComponent } from './missing/series-missing-line.component';
 import { SeriesRefreshCadenceComponent } from './series-refresh-cadence/series-refresh-cadence.component';
 
@@ -31,7 +33,7 @@ import { SeriesRefreshCadenceComponent } from './series-refresh-cadence/series-r
 @Component({
   selector: 'app-series-page',
   standalone: true,
-  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressSpinnerModule, SeriesInfoSummaryComponent, SeriesAdminActionsComponent, WrongSeriesFlagComponent, SeriesMissingLineComponent, SeriesRefreshCadenceComponent],
+  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressSpinnerModule, SeriesInfoSummaryComponent, SeriesAdminActionsComponent, WrongSeriesFlagComponent, SeriesMissingLineComponent, SeriesRefreshCadenceComponent, InfoTagsComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page" data-testid="series-page">
@@ -45,7 +47,9 @@ import { SeriesRefreshCadenceComponent } from './series-refresh-cadence/series-r
         </nav>
 
         <header class="hero">
-          <app-series-info-summary [info]="i" [showDescription]="false" [shortAltTitles]="true" />
+          <app-series-info-summary [info]="i" [showDescription]="false" [shortAltTitles]="true" [tagsPanel]="tags()" />
+          <!-- 1.45.0: the Tags block, as in the Info overlay. -->
+          <app-info-tags [nodeId]="i.nodeId" (loaded)="tags.set($event)" />
           <div class="hero-actions">
             @if (i.anchorKind === 'Folder') {
               <a mat-stroked-button [routerLink]="folderLink()" data-testid="browse-folder">
@@ -203,6 +207,8 @@ export class SeriesPageComponent implements OnInit {
   readonly auth = inject(AuthService);
 
   readonly info = signal<SeriesInfoDto | null>(null);
+  /** The Tags block's answer (1.45.0), handed to the summary so its chips replace the plain-text lines. */
+  readonly tags = signal<InfoPanelDto | null>(null);
   readonly loading = signal(true);
   readonly notFound = signal(false);
   readonly continueTarget = signal<CatalogNodeDto | null>(null);

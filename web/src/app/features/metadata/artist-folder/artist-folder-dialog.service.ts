@@ -13,11 +13,12 @@ import { isPhone } from '../series-info-overlay.service';
 export class ArtistFolderDialogService {
   private readonly dialog = inject(MatDialog);
 
-  async open(folderName: string): Promise<SetArtistFolderRequest | undefined> {
+  /** `nodeId` (1.45.0) offers "Find on MangaUpdates" for that folder. */
+  async open(folderName: string, nodeId?: string | null): Promise<SetArtistFolderRequest | undefined> {
     const { ArtistFolderDialogComponent } = await import('./artist-folder-dialog.component');
     const phone = isPhone();
     const ref = this.dialog.open(ArtistFolderDialogComponent, {
-      data: { folderName },
+      data: { folderName, nodeId: nodeId ?? null },
       width: phone ? '100vw' : '480px',
       maxWidth: '100vw',
       maxHeight: phone ? '100vh' : '90vh',

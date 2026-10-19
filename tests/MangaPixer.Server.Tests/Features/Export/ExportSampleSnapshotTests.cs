@@ -104,6 +104,14 @@ public sealed class ExportSampleSnapshotTests
         await db.SaveChangesAsync();
         db.MetadataCompanions.Add(new MetadataCompanionEntity { RecordId = questRecord.Id, Provider = "mangadex", CompanionRecordId = mangadex.Id, State = 0 });
         db.MetadataCompanions.Add(new MetadataCompanionEntity { RecordId = questRecord.Id, Provider = "anilist", CompanionRecordId = aniList.Id, State = 0 });
+        // 1.45.0: MangaDex's latest uploaded chapter of the companion, as the latest-upload sweep stored it.
+        db.MangaDexLatestUploads.Add(new MangaDexLatestUploadEntity
+        {
+            RecordId = mangadex.Id,
+            ChapterId = "00000000-0000-4000-8000-0000000000c1",
+            SeenAt = T0.AddHours(-30),
+            CheckedAt = T0.AddHours(-1),
+        });
         db.SeriesVolumeMaps.Add(new SeriesVolumeMapEntity
         {
             RecordId = questRecord.Id,
@@ -164,6 +172,10 @@ public sealed class ExportSampleSnapshotTests
         {
             db.DeclaredFacts.Add(new DeclaredFactEntity { LibraryId = lib.Id, NodeId = node.Id, Key = key, Value = value, CreatedAt = T0, UpdatedAt = T0 });
         }
+        await db.SaveChangesAsync();
+
+        // 1.45.0: the last latest-upload sweep that confirmed every MangaDex companion of the library (the page envelope's sweeps).
+        db.LibraryFreshness.Add(new LibraryFreshnessEntity { LibraryId = lib.Id, MangaDexSweepAt = T0.AddHours(20) });
         await db.SaveChangesAsync();
 
         var answer = await kit.Export().PageAsync(lib.PublicId, ExportJson.Format(T0), null, null, null);

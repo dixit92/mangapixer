@@ -47,13 +47,15 @@ import { ScheduledJobsComponent } from './scheduled-jobs/scheduled-jobs.componen
 import { TrashCardComponent } from './trash-card/trash-card.component';
 import { ApiTokensCardComponent } from './api-tokens/api-tokens-card.component';
 import { AdminTrackersCardComponent } from '../trackers/admin-trackers-card.component';
+import { ScanPhaseDirective } from './scan-phase.directive';
 
 /**
  * Admin component. Shows library and user administration.
  * No file delete/rename controls are provided.
  *
- * Scan controls (audit defect D39; 1.44.0 row state): a scanning library shows it on its row;
- * while a scan runs, the row polls library state and offers a Cancel control.
+ * Scan controls (audit defect D39; 1.44.0 row state; 1.45.0 several at once): a scanning library shows it on its whole block
+ * (title row + Auto-scan / Declared lines); while a scan runs, the page polls library state and each block offers Cancel, and
+ * with more than one scanning a summary line over the list offers Cancel all.
  * User rows expose an inline library-access (grants) panel.
  */
 @Component({
@@ -88,6 +90,7 @@ import { AdminTrackersCardComponent } from '../trackers/admin-trackers-card.comp
     ConsentRenewalBannerComponent,
     ApiTokensCardComponent,
     AdminTrackersCardComponent,
+    ScanPhaseDirective,
   ],
   template: `
     <div class="page" data-testid="admin-page">
@@ -109,6 +112,7 @@ import { AdminTrackersCardComponent } from '../trackers/admin-trackers-card.comp
             <button mat-stroked-button type="button" (click)="scanAll()"
                     [disabled]="scanAllBusy()"
                     matTooltip="Scan every registered library now; libraries already scanning are skipped"
+                    matTooltipPosition="above"
                     aria-label="Scan all libraries">
               <mat-icon>{{ scanAllBusy() ? 'hourglass_empty' : 'refresh' }}</mat-icon>
               {{ scanAllBusy() ? 'Starting…' : 'Scan all libraries' }}
@@ -122,21 +126,38 @@ import { AdminTrackersCardComponent } from '../trackers/admin-trackers-card.comp
         } @else if (libraries().length === 0) {
           <p>No libraries registered.</p>
         } @else {
+          <!-- 1.45.0 (owner, 2026-10-19): with more than one library scanning, one line over the list says how many and cancels them all. -->
+          @if (scanningCount() > 1) {
+            <p class="scan-summary" data-testid="lib-scan-summary">
+              <span class="scan-label" role="status">{{ scanningCount() }} libraries scanning</span><span class="scan-sep" aria-hidden="true">·</span><button
+                type="button" class="scan-cancel" data-testid="lib-cancel-all" [disabled]="!canCancelAll()" (click)="cancelAll()">
+                {{ cancellingAll() ? 'Cancelling…' : 'Cancel all' }}
+              </button>
+            </p>
+          }
           <mat-list>
             @for (lib of libraries(); track lib.id) {
-              <!-- 1.44.0 (owner mockup): a running scan shows on the row itself - a ring around its icon, a bar along its foot,
-                   "Scanning…" and Cancel scan in its line - while the icons on the right stay where they are (the scan one greyed). -->
-              <mat-list-item class="lib-item" [class.scanning]="lib.isScanning">
-                <span matListItemIcon class="lib-icon" [class.scanning]="lib.isScanning">
-                  <app-library-icon [name]="lib.name" [icon]="lib.icon" [size]="24" />
+              <!-- 1.44.0 (owner mockup): a running scan shows on the library itself - a ring around its icon, a bar along its foot,
+                   "Scanning…" and Cancel scan in its line - while the icons on the right stay where they are (the scan one greyed).
+                   1.45.0 (owner, 2026-10-19): the tint and the bar cover the WHOLE block (title row + its Auto-scan / Declared lines),
+                   the bar sits once at the block's foot, and every ring and bar runs in one phase (ScanPhaseDirective). -->
+              <div class="lib-block" [class.scanning]="lib.isScanning" data-testid="lib-block">
+              <mat-list-item class="lib-item">
+                <span matListItemIcon class="lib-icon">
+                  <span class="lib-glyph">
+                    <app-library-icon [name]="lib.name" [icon]="lib.icon" [size]="24" />
+                    @if (lib.isScanning) { <span class="scan-ring" appScanPhase aria-hidden="true" data-testid="lib-scan-ring"></span> }
+                  </span>
                 </span>
                 <div matListItemTitle>{{ lib.name }}</div>
                 <div matListItemLine class="lib-line">
                   @if (lib.itemCount !== null) { {{ lib.itemCount }} items }
                   @if (lib.isScanning) {
-                    · <span class="scan-label" role="status">Scanning…</span>
-                    <span class="scan-cancel-wrap">· <button type="button" class="scan-cancel" data-testid="lib-cancel-scan"
-                            [disabled]="!scanRunId(lib.id) || cancelling().has(lib.id)" (click)="cancelScan(lib.id)">
+                    <!-- Separators are spans with their own margins: the template's whitespace is stripped, which glued "Scanning…·". -->
+                    @if (lib.itemCount !== null) { <span class="scan-sep" aria-hidden="true">·</span> }<span class="scan-label"
+                      role="status">Scanning…</span><span class="scan-cancel-wrap"><span class="scan-sep" aria-hidden="true">·</span><button
+                      type="button" class="scan-cancel" data-testid="lib-cancel-scan"
+                      [disabled]="!scanRunId(lib.id) || cancelling().has(lib.id)" (click)="cancelScan(lib.id)">
                       {{ cancelling().has(lib.id) ? 'Cancelling…' : 'Cancel scan' }}
                     </button></span>
                   }
@@ -191,10 +212,13 @@ import { AdminTrackersCardComponent } from '../trackers/admin-trackers-card.comp
                     <mat-icon>delete_outline</mat-icon>
                   </button>
                 </span>
-                @if (lib.isScanning) { <span class="scan-bar" aria-hidden="true" data-testid="lib-scan-bar"></span> }
               </mat-list-item>
               <app-library-scan-schedule [library]="lib" [summary]="true" />
               <app-library-declared-facts [library]="lib" />
+              @if (lib.isScanning) {
+                <span class="scan-bar" aria-hidden="true" data-testid="lib-scan-bar"><span class="scan-bar-fill" appScanPhase></span></span>
+              }
+              </div>
 
               @if (iconPickerLibId() === lib.id) {
                 <div class="lib-panel">
@@ -660,29 +684,35 @@ import { AdminTrackersCardComponent } from '../trackers/admin-trackers-card.comp
     .lib-panel-msg mat-icon { color: var(--mp-error); flex: 0 0 auto; }
     .lib-panel-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
     .rename-field { width: 320px; max-width: 100%; }
-    /* 1.44.0: a running scan on its row (owner mockup). The ring and the bar move slower for a reader who asks for less motion. */
-    .lib-item { position: relative; transition: background-color .3s; }
-    .lib-item.scanning { background: rgb(var(--mp-accent-strong-rgb) / 0.05); }
-    .lib-icon { position: relative; overflow: visible; }
-    .lib-icon.scanning::after {
-      content: ''; position: absolute; inset: -5px; border-radius: 50%; border: 2px solid transparent; pointer-events: none;
+    /* 1.44.0: a running scan on its library (owner mockup). The ring and the bar move slower for a reader who asks for less motion.
+       1.45.0: the WHOLE block (title row + Auto-scan / Declared lines) is tinted, the one bar runs along the block's foot, the ring is
+       centred on the glyph itself (it was drawn on the list's icon slot), and every ring / bar shares one phase. */
+    .lib-block { position: relative; padding-bottom: 4px; border-radius: 8px; transition: background-color .3s; }
+    .lib-block.scanning { background: rgb(var(--mp-accent-strong-rgb) / 0.05); }
+    .lib-icon { overflow: visible; }
+    .lib-glyph { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; }
+    .scan-ring {
+      position: absolute; inset: -5px; border-radius: 50%; border: 2px solid transparent; pointer-events: none;
       border-top-color: var(--mp-accent); border-right-color: var(--mp-accent); animation: lib-scan-spin .9s linear infinite;
     }
     .scan-label { color: var(--mp-accent); font-weight: 500; }
+    .scan-sep { margin: 0 6px; }
     .scan-cancel-wrap { white-space: nowrap; }
+    .scan-summary { display: flex; align-items: center; flex-wrap: wrap; margin: 4px 0 0; padding: 6px 16px; font-size: 14px;
+                    border-radius: 8px; background: rgb(var(--mp-accent-strong-rgb) / 0.08); }
     .scan-cancel { border: 0; background: none; padding: 4px 6px; margin: -4px 0; border-radius: 6px; font: inherit; font-weight: 500;
                    color: var(--mp-accent); cursor: pointer; }
     .scan-cancel:hover:not(:disabled) { background: rgb(var(--mp-accent-strong-rgb) / 0.1); }
     .scan-cancel:disabled { color: var(--mp-text-faint); cursor: default; }
     .scan-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; overflow: hidden; pointer-events: none;
-                background: rgb(var(--mp-accent-strong-rgb) / 0.12); }
-    .scan-bar::after { content: ''; position: absolute; top: 0; bottom: 0; background: var(--mp-accent);
-                       animation: lib-scan-bar 1.6s ease-in-out infinite; }
+                border-radius: 0 0 8px 8px; background: rgb(var(--mp-accent-strong-rgb) / 0.12); }
+    .scan-bar-fill { position: absolute; top: 0; bottom: 0; background: var(--mp-accent);
+                     animation: lib-scan-bar 1.6s ease-in-out infinite; }
     @keyframes lib-scan-spin { to { transform: rotate(360deg); } }
     @keyframes lib-scan-bar { 0% { left: -30%; width: 30%; } 70% { left: 100%; width: 12%; } 100% { left: 100%; width: 12%; } }
     @media (prefers-reduced-motion: reduce) {
-      .lib-icon.scanning::after { animation-duration: 2.5s; }
-      .scan-bar::after { animation-duration: 4s; }
+      .scan-ring { animation-duration: 2.5s; }
+      .scan-bar-fill { animation-duration: 4s; }
     }
     .grants {
       padding: 8px 16px 16px 72px;
@@ -798,6 +828,18 @@ export class AdminComponent implements OnInit, OnDestroy {
 
   // Scan-all (1.8.0): in-flight guard for the "Scan all libraries" action.
   readonly scanAllBusy = signal(false);
+
+  /** 1.45.0: how many libraries scan right now (the summary line shows from two). */
+  readonly scanningCount = computed(() => this.libraries().filter((l) => l.isScanning).length);
+  /** The scanning libraries Cancel all can still stop (a known run, not already cancelling). */
+  private readonly cancellable = computed(() =>
+    this.libraries().filter((l) => l.isScanning && this.runningScans().has(l.id) && !this.cancelling().has(l.id)).map((l) => l.id));
+  readonly canCancelAll = computed(() => this.cancellable().length > 0);
+  /** Every scanning library is being cancelled. */
+  readonly cancellingAll = computed(() => {
+    const scanning = this.libraries().filter((l) => l.isScanning);
+    return scanning.length > 0 && scanning.every((l) => this.cancelling().has(l.id));
+  });
 
   /** True while any library is scanning — register is paused then (SQLite single-writer). */
   readonly anyScanning = computed(() =>
@@ -1091,6 +1133,11 @@ export class AdminComponent implements OnInit, OnDestroy {
           this.libraries().filter(l => l.isScanning).map(l => l.id),
         );
         this.libraries.set(libs);
+        // 1.45.0: a library that started scanning since the last poll (a schedule, a token, another tab) gets its run id too, so its
+        // Cancel scan and Cancel all work.
+        for (const lib of libs) {
+          if (lib.isScanning && !previouslyScanning.has(lib.id) && !this.runningScans().get(lib.id)) this.backfillScanRunId(lib.id);
+        }
         // Detect scans that just finished to clear their running state + notify.
         for (const id of previouslyScanning) {
           const now = libs.find(l => l.id === id);
@@ -1282,13 +1329,21 @@ export class AdminComponent implements OnInit, OnDestroy {
     });
   }
 
-  cancelScan(libraryId: string): void {
+  /** 1.45.0: cancels every running scan the page knows the run of (the summary line's Cancel all); one notice for all of them. */
+  cancelAll(): void {
+    const ids = this.cancellable();
+    if (ids.length === 0) return;
+    for (const id of ids) this.cancelScan(id, true);
+    this.snackBar.open(`Cancelling ${ids.length} scan${ids.length === 1 ? '' : 's'}…`, 'Close', { duration: 3000 });
+  }
+
+  cancelScan(libraryId: string, quiet = false): void {
     const runId = this.runningScans().get(libraryId);
     if (!runId) return;
     this.cancelling.update(s => new Set(s).add(libraryId));
     this.api.cancelScan(runId).subscribe({
       next: () => {
-        this.snackBar.open('Cancelling scan…', 'Close', { duration: 3000 });
+        if (!quiet) this.snackBar.open('Cancelling scan…', 'Close', { duration: 3000 });
         // The poll loop will observe isScanning flip to false and clear state.
       },
       error: (err) => {

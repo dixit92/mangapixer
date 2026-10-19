@@ -285,6 +285,52 @@ public sealed class VolumeStackHttpTests : IClassFixture<MangaPixerWebApplicatio
     }
 
     [Fact]
+    public async Task VolumeView_SaysWhyALinkedChapterSeriesHasNoVolumesView_WithoutChangingWhenTheViewIsAvailable()
+    {
+        // 1.45.0 (K7, owner (A) 2026-10-18): a linked chapter-file series whose stored lists cannot place a chapter (here an Empty MangaDex
+        // list - the owner's live case - and no AniList figure) gets an additive reason; read from the raw JSON so the test is red on a
+        // server without the field. The Volumes view itself stays unavailable, and nothing else gets a reason.
+        var admin = await AdminAsync();
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+            if (!await db.CatalogNodes.AnyAsync(n => n.PublicId == "vsNoList"))
+            {
+                var lib = await db.Libraries.SingleAsync(l => l.PublicId == LibPubId);
+                var folder = await VolumeTestData.AddFolderAsync(db, lib.Id, null, "VS No List", "vsNoList");
+                foreach (var n in new[] { 1, 2, 3 })
+                    await VolumeTestData.AddArchiveAsync(db, lib.Id, folder.Id, $"VS No List - Chapter {n:000}", $"vsnl{n}");
+                var record = await VolumeTestData.AddRecordAsync(db, originVolumes: 5);
+                await VolumeTestData.AddMapAsync(db, record.Id, 1, null, null, VolumeMapState.Empty);
+                await VolumeTestData.LinkAsync(db, folder, record.Id);
+            }
+        }
+
+        static async Task<System.Text.Json.JsonElement> ViewAsync(HttpClient client, string id)
+        {
+            var response = await client.GetAsync($"/api/v1/nodes/{id}/volume-view");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            return await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        }
+        static string? Reason(System.Text.Json.JsonElement view) =>
+            view.TryGetProperty("unavailableReason", out var r) && r.ValueKind == System.Text.Json.JsonValueKind.String ? r.GetString() : null;
+
+        var noList = await ViewAsync(admin, "vsNoList");
+        Assert.False(noList.GetProperty("available").GetBoolean());
+        Assert.Equal("NoVolumeList", Reason(noList));
+        // A series with a list has its view and no reason; an unlinked folder has no view and no reason (nothing to say about a list).
+        var series = await ViewAsync(admin, SeriesPubId);
+        Assert.True(series.GetProperty("available").GetBoolean());
+        Assert.Null(Reason(series));
+        var plain = await ViewAsync(admin, PlainPubId);
+        Assert.False(plain.GetProperty("available").GetBoolean());
+        Assert.Null(Reason(plain));
+        // The browse list of that folder is the plain folder list, as before.
+        var page = await OkAsync<PageResponse<CatalogNodeDto>>(await admin.GetAsync($"/api/v1/libraries/{LibPubId}/browse?parentId=vsNoList&group=volumes"));
+        Assert.Equal(["vsnl1", "vsnl2", "vsnl3"], page.Items.Select(n => n.Id));
+    }
+
+    [Fact]
     public async Task AStackShowsTheStar_WhenAnyOfItsArchivesIsStarred()
     {
         var admin = await AdminAsync();

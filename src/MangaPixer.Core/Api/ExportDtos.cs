@@ -55,6 +55,12 @@ public sealed record ExportMetadataPageDto
     /// <summary>The time of the rebuild this page was served from; the FIRST page's value is the next <c>updatedSince</c>.</summary>
     public required DateTimeOffset ServerTime { get; init; }
 
+    /// <summary>
+    /// 1.45.0: when MangaPixer last confirmed the library's new-chapter signals - the same value on every page of a call (taken when the
+    /// snapshot was built).
+    /// </summary>
+    public required ExportSweepsDto Sweeps { get; init; }
+
     public required ExportLibraryRefDto Library { get; init; }
     public required IReadOnlyList<ExportItemDto> Items { get; init; }
 
@@ -62,6 +68,17 @@ public sealed record ExportMetadataPageDto
     public required IReadOnlyList<ExportRemovalDto> Removed { get; init; }
 
     public string? NextCursor { get; init; }
+}
+
+/// <summary>1.45.0: the library-level confirmation times of the new-chapter signals (<see cref="ExportMetadataPageDto.Sweeps"/>).</summary>
+public sealed record ExportSweepsDto
+{
+    /// <summary>
+    /// The START time of the most recent MangaDex latest-upload sweep that completed for EVERY MangaDex companion of the library, or null
+    /// when none has: every item's <c>companions.mangadexLatestUpload</c> was confirmed at least this recently. A sweep stopped by the daily
+    /// budget, a backoff or a switch does not move it.
+    /// </summary>
+    public DateTimeOffset? MangadexLatestUpload { get; init; }
 }
 
 /// <summary>A node that left the export.</summary>
@@ -233,6 +250,26 @@ public sealed record ExportCompanionsDto
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ExportMangaDexReleasedDto? MangadexReleased { get; init; }
+
+    /// <summary>
+    /// 1.45.0 (MangaList's shared chapter signal): MangaDex's latest uploaded chapter of the <see cref="Mangadex"/> record, any language, as
+    /// the latest-upload sweep read it. Left out when it was never read.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ExportMangaDexLatestUploadDto? MangadexLatestUpload { get; init; }
+}
+
+/// <summary>
+/// 1.45.0: MangaDex's <c>latestUploadedChapter</c> of a record. It changes - and with it the item's change stamp (<c>updatedSince</c>) -
+/// only when the chapter id changes; the library's <c>sweeps.mangadexLatestUpload</c> says how recently every value was confirmed.
+/// </summary>
+public sealed record ExportMangaDexLatestUploadDto
+{
+    /// <summary>The chapter's MangaDex id (a UUID), or null when MangaDex lists no chapter for the record.</summary>
+    public required string? ChapterId { get; init; }
+
+    /// <summary>When MangaPixer first read this <see cref="ChapterId"/> (the change as MangaPixer saw it) - not the last confirmation.</summary>
+    public required DateTimeOffset FetchedAt { get; init; }
 }
 
 /// <summary>The chapters MangaDex lists as released in one language (its volume list filtered by that language).</summary>

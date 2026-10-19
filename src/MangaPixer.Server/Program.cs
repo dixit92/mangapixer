@@ -266,6 +266,7 @@ public sealed partial class Program
             // 1.43.0: tracker sync (MyAnimeList, MangaUpdates lists) and the volume contents scan register in their own extensions.
             Features.Trackers.TrackerServicesExtensions.AddTrackers(builder.Services);
             Features.VolumeScan.VolumeScanServicesExtensions.AddVolumeScan(builder.Services);
+            Features.Metadata.Facets.FacetServicesExtensions.AddFacets(builder.Services); // 1.45.0: the tag index (seam I0; lanes F / Q)
             AddMetadataExport(builder.Services);
             Features.Reading.Suggestions.ReadingModeSuggestionServices.AddReadingModeSuggestions(builder.Services); // 1.41.0 lane R
 
@@ -669,6 +670,8 @@ public sealed partial class Program
         // The look-up behind it (1.38.0, lane U): MangaUpdates author records, ONLY when an admin asks (admin endpoints, one run at a
         // time in the background, 1 request/s through the gateway, counted in the daily budget).
         services.AddScoped<Features.Metadata.Authors.AuthorAliasLookupService>();
+        // Author search by name (1.45.0, lane A): MangaUpdates' author search, ONLY when an admin asks (no background use).
+        services.AddScoped<Features.Metadata.Authors.AuthorSearchService>();
         services.AddScoped<Features.Metadata.Authors.AuthorAliasAdminService>();
         services.AddSingleton<Features.Metadata.Authors.AuthorAliasLookupRunner>();
         // Missing volumes / chapters report (1.28.0): stored data only, no request.
@@ -700,6 +703,7 @@ public sealed partial class Program
         services.AddScoped<Features.Metadata.Volumes.MangaDexUpgradeService>();
         // Wikipedia (1.32.0, lane C): ONLY the volume -> chapter list of an already-linked series (a companion step of the volume-cover pass).
         Features.Metadata.Volumes.Wikipedia.WikipediaVolumeListsExtensions.AddWikipediaVolumeLists(services);
+        Features.Metadata.Freshness.FreshnessServicesExtensions.AddNewChapterFreshness(services);
         services.AddScoped<Features.Metadata.IMetadataRecordRemovedHandler, Features.Metadata.Volumes.VolumeCoverRecordCleanup>();
         services.AddScoped<Features.Metadata.Flags.MetadataFlagService>();
         services.AddHostedService<Hosting.MetadataAutoMatchHostedService>();

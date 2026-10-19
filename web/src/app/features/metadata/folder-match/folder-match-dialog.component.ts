@@ -11,11 +11,15 @@ import { MatSelectModule } from '@angular/material/select';
 import { firstValueFrom } from 'rxjs';
 
 import {
+  AuthorSearchCandidateDto,
   FolderMatchApplyItem,
   FolderMatchKind,
   FolderMatchRowDto,
   IdentifyCandidateDto,
 } from '../../../core/api/api-types';
+import { AuthorCandidatesComponent } from '../artist-folder/author-candidates.component';
+import { AuthorSearchApiService } from '../artist-folder/author-search-api.service';
+import { MAX_AUTHOR_CANDIDATES } from '../artist-folder/author-search-labels';
 import { MetadataApiService } from '../metadata-api.service';
 import { FolderMatchApiService } from './folder-match-api.service';
 import {
@@ -59,7 +63,9 @@ export interface FolderMatchRowState {
   webText: string;
   webState: WebState;
   webCandidates: IdentifyCandidateDto[];
-  /** The chosen web candidate, -1 = none (a web result is never chosen automatically). */
+  /** Artists (1.45.0): the authors MangaUpdates' author search found for the folder. */
+  authorCandidates: AuthorSearchCandidateDto[];
+  /** The chosen web candidate (a series, or for artists an author), -1 = none (a web result is never chosen automatically). */
   webPick: number;
   webError?: string;
   /** After Apply: `ok` or an error code / message. */
@@ -76,13 +82,15 @@ const MAX_WEB_CANDIDATES = 8;
  * before Apply), resolves ambiguous rows, and may opt in to an artist folder named after the folder itself. For collections, "Search the
  * web for the rest" sends each ticked folder's search text (shown, editable) to MangaUpdates through the Identify search - one per second,
  * one at a time, at most 50 per run, stopping on the provider's backoff or the daily budget; results are only offered, never linked.
+ * 1.45.0: as artist folders, "Search MangaUpdates for the rest" does the same with MangaUpdates' author search for the folders without a
+ * local match (and Artist folders without a MangaUpdates id yet); a picked author is marked with its MangaUpdates id - that sends nothing.
  */
 @Component({
   selector: 'app-folder-match-dialog',
   standalone: true,
   imports: [
-    FormsModule, MatButtonModule, MatButtonToggleModule, MatCheckboxModule, MatDialogModule, MatFormFieldModule, MatInputModule,
-    MatProgressBarModule, MatSelectModule,
+    AuthorCandidatesComponent, FormsModule, MatButtonModule, MatButtonToggleModule, MatCheckboxModule, MatDialogModule, MatFormFieldModule,
+    MatInputModule, MatProgressBarModule, MatSelectModule,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -140,7 +148,8 @@ const MAX_WEB_CANDIDATES = 8;
                 @if (web() && webEligible(r)) {
                   <div class="web-row">
                     <mat-checkbox [checked]="r.webTicked" [disabled]="busy()" (change)="patch(r, { webTicked: $event.checked })"
-                                  aria-label="Search the web for this folder" [attr.data-testid]="'folder-match-web-tick-' + r.row.nodeId" />
+                                  [aria-label]="kind() === 'Artists' ? 'Search MangaUpdates for this folder' : 'Search the web for this folder'"
+                                  [attr.data-testid]="'folder-match-web-tick-' + r.row.nodeId" />
                     <mat-form-field appearance="outline" class="web-text" subscriptSizing="dynamic">
                       <mat-label>Search text sent to MangaUpdates</mat-label>
                       <input matInput [ngModel]="r.webText" (ngModelChange)="patch(r, { webText: $event })" [disabled]="busy()"
@@ -149,7 +158,13 @@ const MAX_WEB_CANDIDATES = 8;
                   </div>
                   @if (r.webState === 'running') { <div class="small">Searching…</div> }
                   @if (r.webState === 'failed') { <div class="error small">{{ r.webError }}</div> }
-                  @if (r.webState === 'done') {
+                  @if (r.webState === 'done' && kind() === 'Artists') {
+                    @if (r.authorCandidates.length) {
+                      <app-author-candidates [candidates]="r.authorCandidates" [pick]="r.webPick" (picked)="chooseWeb(r, $event)"
+                                             [disabled]="busy()" [label]="r.row.displayName"
+                                             [testId]="'folder-match-author-' + r.row.nodeId" />
+                    } @else { <div class="small">No author found</div> }
+                  } @else if (r.webState === 'done') {
                     @if (r.webCandidates.length) {
                       <mat-form-field appearance="outline" class="pick" subscriptSizing="dynamic">
                         <mat-label>Series from the web ({{ r.webCandidates.length }})</mat-label>
@@ -201,6 +216,27 @@ const MAX_WEB_CANDIDATES = 8;
               }
             </section>
           }
+        } @else if (kind() === 'Artists' && webEligibleCount() > 0) {
+          <section class="web" data-testid="folder-match-web-section">
+            <mat-checkbox [checked]="web()" [disabled]="busy()" (change)="setWeb($event.checked)"
+                          data-testid="folder-match-web">Search MangaUpdates for the rest</mat-checkbox>
+            <p class="small">
+              Sends the search text of each ticked folder above - nothing else - to MangaUpdates' author search: one folder per second, at
+              most {{ maxWeb }} per run, counted in the daily budget. The authors found are only offered: pick one to mark a folder with
+              that author (nothing more is sent).
+            </p>
+            @if (web()) {
+              <div class="web-actions">
+                @if (searching()) {
+                  <button mat-stroked-button type="button" (click)="stop()" data-testid="folder-match-web-stop">Stop</button>
+                } @else {
+                  <button mat-stroked-button type="button" [disabled]="webQueue().length === 0 || applying()" (click)="search()"
+                          data-testid="folder-match-web-search">Search {{ webQueueLabel() }}</button>
+                }
+              </div>
+              @if (webNote(); as n) { <p class="small" role="status" data-testid="folder-match-web-note">{{ n }}</p> }
+            }
+          </section>
         }
       }
     </mat-dialog-content>
@@ -246,6 +282,7 @@ export class FolderMatchDialogComponent implements OnDestroy {
   private readonly ref = inject<MatDialogRef<FolderMatchDialogComponent, FolderMatchDialogResult | undefined>>(MatDialogRef);
   private readonly api = inject(FolderMatchApiService);
   private readonly metadata = inject(MetadataApiService);
+  private readonly authors = inject(AuthorSearchApiService);
 
   /** Pause between two web searches (tests set 0). */
   paceMs = WEB_SEARCH_PACE_MS;
@@ -291,7 +328,7 @@ export class FolderMatchDialogComponent implements OnDestroy {
     return n > MAX_WEB_SEARCHES ? `the first ${MAX_WEB_SEARCHES} of ${n}` : plural(n, 'folder', 'folders');
   });
 
-  readonly applyCount = computed(() => this.localItems().length + this.webPicks().length);
+  readonly applyCount = computed(() => this.localItems().length + this.authorPicks().length + this.webPicks().length);
   readonly applyLabel = computed(() => plural(this.applyCount(), 'folder', 'folders'));
 
   ngOnDestroy(): void {
@@ -347,8 +384,15 @@ export class FolderMatchDialogComponent implements OnDestroy {
     return this.choices(r).length > 0;
   }
 
+  /**
+   * A row offers the web search: collections without a local match; artists (1.45.0) without a local match, or an Artist folder without a
+   * MangaUpdates id yet (the server gives those rows their search text).
+   */
   webEligible(r: FolderMatchRowState): boolean {
-    return this.kind() === 'Collections' && r.row.status === 'NoMatch' && !!r.row.searchText;
+    if (!r.row.searchText) return false;
+    if (this.kind() === 'Collections') return r.row.status === 'NoMatch';
+    if (this.kind() === 'Artists') return r.row.status === 'NoMatch' || (r.row.status === 'Decided' && r.row.currentState === 'ArtistFolder');
+    return false;
   }
 
   patch(r: FolderMatchRowState, change: Partial<FolderMatchRowState>): void {
@@ -408,9 +452,14 @@ export class FolderMatchDialogComponent implements OnDestroy {
       this.patchId(r.row.nodeId, { webState: 'running' });
       sent++;
       try {
-        const page = await firstValueFrom(
-          this.metadata.search(r.row.nodeId, current.webText.trim(), 1, this.hideDoujinshi(), 'mangaupdates'));
-        this.patchId(r.row.nodeId, { webState: 'done', webCandidates: page.candidates.slice(0, MAX_WEB_CANDIDATES), webPick: -1 });
+        if (this.kind() === 'Artists') {
+          const found = await firstValueFrom(this.authors.search(r.row.nodeId, current.webText.trim()));
+          this.patchId(r.row.nodeId, { webState: 'done', authorCandidates: found.candidates.slice(0, MAX_AUTHOR_CANDIDATES), webPick: -1 });
+        } else {
+          const page = await firstValueFrom(
+            this.metadata.search(r.row.nodeId, current.webText.trim(), 1, this.hideDoujinshi(), 'mangaupdates'));
+          this.patchId(r.row.nodeId, { webState: 'done', webCandidates: page.candidates.slice(0, MAX_WEB_CANDIDATES), webPick: -1 });
+        }
       } catch (e) {
         const err = e as { status?: number; message?: string };
         this.patchId(r.row.nodeId, { webState: 'failed', webError: err?.message ?? 'The search failed.' });
@@ -430,20 +479,40 @@ export class FolderMatchDialogComponent implements OnDestroy {
       : `${plural(sent, 'search', 'searches')} sent.${left ? ` ${left} left: search again for the rest.` : ''}`));
   }
 
-  /** The local items to mark, from the ticked rows. */
+  /**
+   * The local items to mark, from the ticked rows (artists: a row with a picked author is marked with that author instead; 1.45.0: a
+   * local match whose MangaUpdates author id the preview gave carries it, stored as the declared artist's reference - nothing is sent).
+   */
   private localItems(): FolderMatchApplyItem[] {
     const kind = this.kind();
     const items: FolderMatchApplyItem[] = [];
+    const authorPicked = new Set(this.authorPicks().map((i) => i.nodeId));
     for (const r of this.rows()) {
-      if (!r.ticked || r.result === 'ok') continue;
+      if (!r.ticked || r.result === 'ok' || authorPicked.has(r.row.nodeId)) continue;
       if (kind === 'Artists') {
         const artist = (r.row.artists ?? [])[r.pick];
-        if (artist) items.push({ nodeId: r.row.nodeId, name: artist.name, role: artist.role });
+        if (artist) {
+          items.push(artist.authorId
+            ? { nodeId: r.row.nodeId, name: artist.name, role: artist.role, provider: 'mangaupdates', externalId: artist.authorId }
+            : { nodeId: r.row.nodeId, name: artist.name, role: artist.role });
+        }
         else if (r.row.status === 'NoMatch' && r.ownName) items.push({ nodeId: r.row.nodeId });
       } else if (kind === 'Collections') {
         const record = (r.row.records ?? [])[r.pick];
         if (record) items.push({ nodeId: r.row.nodeId, provider: record.provider, externalId: record.externalId });
       }
+    }
+    return items;
+  }
+
+  /** Artists (1.45.0): the picked authors, as apply items with the author's MangaUpdates id (marking them sends nothing). */
+  private authorPicks(): FolderMatchApplyItem[] {
+    if (this.kind() !== 'Artists') return [];
+    const items: FolderMatchApplyItem[] = [];
+    for (const r of this.rows()) {
+      if (r.webState !== 'done' || r.webPick < 0 || r.result === 'ok' || !this.webEligible(r)) continue;
+      const author = r.authorCandidates[r.webPick];
+      if (author) items.push({ nodeId: r.row.nodeId, name: author.name, role: 'author', provider: author.provider, externalId: author.externalId });
     }
     return items;
   }
@@ -460,7 +529,7 @@ export class FolderMatchDialogComponent implements OnDestroy {
   async apply(): Promise<void> {
     const kind = this.kind();
     if (!kind || this.busy()) return;
-    const local = this.localItems();
+    const local = [...this.localItems(), ...this.authorPicks()];
     const web = this.webPicks();
     if (local.length + web.length === 0) return;
     this.applying.set(true);
@@ -519,6 +588,7 @@ function initialState(row: FolderMatchRowDto): FolderMatchRowState {
     webText: row.searchText ?? '',
     webState: 'idle',
     webCandidates: [],
+    authorCandidates: [],
     webPick: -1,
   };
 }

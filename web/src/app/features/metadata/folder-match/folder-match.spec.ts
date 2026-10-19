@@ -3,12 +3,14 @@ import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of, throwError } from 'rxjs';
 
-import { FolderMatchPreviewDto, IdentifySearchResultDto } from '../../../core/api/api-types';
+import { AuthorSearchResultDto, FolderMatchArtistDto, FolderMatchPreviewDto, IdentifySearchResultDto } from '../../../core/api/api-types';
+import { AuthorSearchApiService } from '../artist-folder/author-search-api.service';
 import { MetadataApiService } from '../metadata-api.service';
 import { FolderMatchApiService } from './folder-match-api.service';
 import { FolderMatchDialogComponent } from './folder-match-dialog.component';
 import {
   MAX_WEB_SEARCHES,
+  WEB_SEARCH_PACE_MS,
   appliedMessage,
   artistChoiceLabel,
   recordChoiceLabel,
@@ -89,6 +91,15 @@ describe('match folders by name', () => {
         search: vi.fn(() => of(searchResult)),
         setCollection: vi.fn(() => of({ change: { nodeId: 'c2' }, queued: 1 })),
       };
+      const authorResult: AuthorSearchResultDto = {
+        total: 9,
+        candidates: Array.from({ length: 10 }, (_, i) => ({
+          provider: 'mangaupdates', externalId: String(500 + i), name: i === 0 ? 'Nobody Known' : 'Author ' + i,
+          hitName: i === 1 ? 'Nobody K.' : null, totalSeries: 4, genres: ['Drama', 'Romance', 'Comedy', 'Horror'],
+          siteUrl: 'https://www.mangaupdates.com/author/x' + i,
+        })),
+      };
+      const authors = { search: vi.fn(() => of(authorResult)) };
       TestBed.configureTestingModule({
         imports: [FolderMatchDialogComponent],
         providers: [
@@ -97,13 +108,14 @@ describe('match folders by name', () => {
           { provide: MAT_DIALOG_DATA, useValue: { folders: preview.rows.map((r) => ({ id: r.nodeId, displayName: r.displayName })), ignored: 1 } },
           { provide: FolderMatchApiService, useValue: api },
           { provide: MetadataApiService, useValue: metadata },
+          { provide: AuthorSearchApiService, useValue: authors },
         ],
       });
       const fixture = TestBed.createComponent(FolderMatchDialogComponent);
       fixture.componentInstance.paceMs = 0;
       fixture.detectChanges();
       const el = fixture.nativeElement as HTMLElement;
-      return { fixture, el, ref, api, metadata, c: fixture.componentInstance };
+      return { fixture, el, ref, api, metadata, authors, c: fixture.componentInstance };
     }
 
     it('changes nothing before the kind is chosen, then previews with tick boxes', () => {
@@ -147,6 +159,29 @@ describe('match folders by name', () => {
       expect(el.querySelector('[data-testid="folder-match-result-a1"]')!.textContent).toContain('Marked');
       (el.querySelector('[data-testid="folder-match-close"]') as HTMLButtonElement).click();
       expect(ref.close).toHaveBeenCalledWith({ kind: 'Artists', marked: ['a1', 'a2', 'a3'], failed: 0, queued: 6 });
+    });
+
+    it('1.45.0: marks a local match with its MangaUpdates author id when the preview gives one (it sends nothing)', async () => {
+      // The id rides on the matched artist; cast so the preview literal stays a plain FolderMatchArtistDto.
+      const withId = (artist: FolderMatchArtistDto, authorId: string | null) => ({ ...artist, authorId }) as FolderMatchArtistDto;
+      const [a1, a2, a3, a4] = artistsPreview.rows;
+      const { api, c, fixture } = create({ ...artistsPreview, rows: [
+        { ...a1, artists: [withId(a1.artists![0], '501')] },
+        { ...a2, artists: [withId(a2.artists![0], null), withId(a2.artists![1], '602')] },
+        a3, a4,
+      ] });
+      c.choose('Artists');
+      fixture.detectChanges();
+      c.choosePick(c.rows()[1], 1);
+      await c.apply();
+      expect(api.apply).toHaveBeenCalledWith({
+        kind: 'Artists',
+        items: [
+          { nodeId: 'a1', name: 'Qzv Painter', role: 'author', provider: 'mangaupdates', externalId: '501' },
+          { nodeId: 'a2', name: 'Other Person', role: 'artist', provider: 'mangaupdates', externalId: '602' },
+        ],
+        setDoujinContent: true,
+      });
     });
 
     it('ticking a decided folder replaces its state with the listed match', async () => {
@@ -209,6 +244,146 @@ describe('match folders by name', () => {
       expect(metadata.search).toHaveBeenCalledTimes(51);
       expect(c.webNote()).toBe('Stopped: Asked to slow down.');
       expect(c.webQueue().length).toBe(2); // the rest wait for another run
+    });
+
+    describe('1.45.0: "Search MangaUpdates for the rest" as artist folders', () => {
+      const artistsWeb: FolderMatchPreviewDto = {
+        kind: 'Artists',
+        compared: 4,
+        rows: [
+          { nodeId: 'a1', displayName: 'Qzv Painter', status: 'Proposed',
+            artists: [{ name: 'Qzv Painter', role: 'author', matchedName: 'Qzv Painter', provider: 'mangaupdates', recordCount: 3 }] },
+          { nodeId: 'a3', displayName: 'Nobody Known', status: 'NoMatch', searchText: 'Nobody Known' },
+          { nodeId: 'a5', displayName: 'Marked Before', status: 'Decided', currentState: 'ArtistFolder', searchText: 'Marked Before' },
+          { nodeId: 'a6', displayName: 'Referenced', status: 'Decided', currentState: 'ArtistFolder' }, // has an id already: no text
+        ],
+      };
+
+      it('offers the opt-in only for rows without a local match or an id, and sends nothing until it is ticked', async () => {
+        const { el, authors, metadata, c, fixture } = create(artistsWeb);
+        c.choose('Artists');
+        fixture.detectChanges();
+        expect(c.rows().map((r) => c.webEligible(r))).toEqual([false, true, true, false]);
+        const section = el.querySelector('[data-testid="folder-match-web-section"]')!;
+        expect(section.textContent).toContain('Search MangaUpdates for the rest');
+        expect(section.textContent).toContain("MangaUpdates' author search");
+        await c.search();
+        expect(authors.search).not.toHaveBeenCalled();
+
+        c.setWeb(true);
+        fixture.detectChanges();
+        c.patch(c.rows()[2], { webTicked: false });
+        await c.search();
+        fixture.detectChanges();
+        expect(authors.search).toHaveBeenCalledTimes(1);
+        expect(authors.search).toHaveBeenCalledWith('a3', 'Nobody Known');
+        expect(metadata.search).not.toHaveBeenCalled(); // never the series search in this mode
+        // At most 8 candidates, none chosen; the list shows the hit name, the series count, three genres and a no-referrer link.
+        expect(c.rows()[1].authorCandidates.length).toBe(8);
+        expect(c.rows()[1].webPick).toBe(-1);
+        expect(c.applyCount()).toBe(1);
+        const list = el.querySelector('[data-testid="folder-match-author-a3"]')!;
+        expect(list.textContent).toContain('Author 1 (as Nobody K.)');
+        expect(list.textContent).toContain('4 series - Drama, Romance, Comedy');
+        expect(list.textContent).not.toContain('Horror');
+        const link = el.querySelector('[data-testid="folder-match-author-a3-link-0"]') as HTMLAnchorElement;
+        expect(link.href).toBe('https://www.mangaupdates.com/author/x0');
+        expect(link.rel).toBe('noopener noreferrer');
+        expect(link.target).toBe('_blank');
+        expect(el.querySelectorAll('[data-testid="folder-match-author-a3"] img').length).toBe(0);
+      });
+
+      it('marks a picked author with its MangaUpdates id in the one apply call, instead of the own-name opt-in', async () => {
+        const { api, c, fixture } = create(artistsWeb);
+        c.choose('Artists');
+        c.setWeb(true);
+        fixture.detectChanges();
+        c.setOwnName(c.rows()[1], true);
+        await c.search();
+        c.chooseWeb(c.rows()[1], 0);
+        c.chooseWeb(c.rows()[2], 2);
+        fixture.detectChanges();
+        expect(c.applyCount()).toBe(3);
+        await c.apply();
+        expect(api.apply).toHaveBeenCalledTimes(1);
+        expect(api.apply).toHaveBeenCalledWith({
+          kind: 'Artists',
+          items: [
+            { nodeId: 'a1', name: 'Qzv Painter', role: 'author' },
+            { nodeId: 'a3', name: 'Nobody Known', role: 'author', provider: 'mangaupdates', externalId: '500' },
+            { nodeId: 'a5', name: 'Author 2', role: 'author', provider: 'mangaupdates', externalId: '502' },
+          ],
+          setDoujinContent: true,
+        });
+      });
+
+      it('paces the searches at least one second apart, one at a time', async () => {
+        vi.useFakeTimers();
+        try {
+          const { authors, c, fixture } = create(artistsWeb);
+          c.paceMs = WEB_SEARCH_PACE_MS;
+          c.choose('Artists');
+          c.setWeb(true);
+          fixture.detectChanges();
+          const run = c.search();
+          await vi.advanceTimersByTimeAsync(0);
+          expect(authors.search).toHaveBeenCalledTimes(1);
+          await vi.advanceTimersByTimeAsync(WEB_SEARCH_PACE_MS - 1);
+          expect(authors.search).toHaveBeenCalledTimes(1);
+          await vi.advanceTimersByTimeAsync(1);
+          expect(authors.search).toHaveBeenCalledTimes(2);
+          await run;
+          expect(WEB_SEARCH_PACE_MS).toBe(1000);
+        } finally {
+          vi.useRealTimers();
+        }
+      });
+
+      for (const [status, error] of [[409, 'metadata_disabled'], [429, 'budget_exhausted'], [503, 'provider_backoff']] as const) {
+        it(`stops the run on ${status} (${error}); the rest wait for another run`, async () => {
+          const rows = Array.from({ length: 4 }, (_, i) => ({
+            nodeId: 'n' + i, displayName: 'Name ' + i, status: 'NoMatch' as const, searchText: 'Name ' + i,
+          }));
+          const { authors, c, fixture } = create({ kind: 'Artists', compared: 0, rows });
+          c.choose('Artists');
+          c.setWeb(true);
+          fixture.detectChanges();
+          authors.search.mockImplementationOnce(() => of({ total: 0, candidates: [] }))
+            .mockImplementationOnce(() => throwError(() => ({ status, error, message: 'Stop here.' })));
+          await c.search();
+          expect(authors.search).toHaveBeenCalledTimes(2);
+          expect(c.webNote()).toBe('Stopped: Stop here.');
+          expect(c.webQueue().map((r) => r.row.nodeId)).toEqual(['n2', 'n3']);
+        });
+      }
+
+      it('a 400 fails only its row and the run goes on', async () => {
+        const rows = Array.from({ length: 3 }, (_, i) => ({
+          nodeId: 'n' + i, displayName: 'Name ' + i, status: 'NoMatch' as const, searchText: 'Name ' + i,
+        }));
+        const { authors, c, fixture } = create({ kind: 'Artists', compared: 0, rows });
+        c.choose('Artists');
+        c.setWeb(true);
+        fixture.detectChanges();
+        authors.search.mockImplementationOnce(() => throwError(() => ({ status: 400, error: 'invalid_query', message: 'Bad text.' })));
+        await c.search();
+        expect(authors.search).toHaveBeenCalledTimes(3);
+        expect(c.rows()[0].webState).toBe('failed');
+      });
+
+      it('searches at most 50 per run', async () => {
+        const rows = Array.from({ length: 52 }, (_, i) => ({
+          nodeId: 'n' + i, displayName: 'Name ' + i, status: 'NoMatch' as const, searchText: 'Name ' + i,
+        }));
+        const { authors, c, fixture } = create({ kind: 'Artists', compared: 0, rows });
+        c.choose('Artists');
+        c.setWeb(true);
+        fixture.detectChanges();
+        expect(c.webQueueLabel()).toBe('the first 50 of 52');
+        await c.search();
+        expect(authors.search).toHaveBeenCalledTimes(50);
+        expect(c.webQueue().length).toBe(2);
+      });
     });
   });
 });

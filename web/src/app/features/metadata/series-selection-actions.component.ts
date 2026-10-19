@@ -260,7 +260,7 @@ export class SeriesSelectionActionsComponent implements OnInit {
     const folders = this.selectedFolders();
     if (folders.length !== 1 || this.selectedNodes().length !== 1) return;
     const folder = folders[0];
-    const artist = await this.artistDialog.open(folder.displayName);
+    const artist = await this.artistDialog.open(folder.displayName, folder.id);
     if (!artist) return;
     this.busy.set(true);
     this.api.setArtistFolder(folder.id, artist).subscribe({

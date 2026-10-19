@@ -250,6 +250,7 @@ public sealed class ScheduledJobsService
         var refresh = _services.GetService<MetadataRefreshService>();
         var policy = refresh is null ? RefreshCadencePolicy.Default : await refresh.PolicyAsync(ct);
         var (overdue, byDays) = refresh is null ? (0, new Dictionary<int, int>()) : await refresh.SummaryAsync(ct);
+        var state = await Metadata.Freshness.NewChapterChecks.PeekAsync(_db, ct);
         return new RefreshCadenceDto
         {
             OngoingDays = policy.OngoingDays,
@@ -261,6 +262,21 @@ public sealed class ScheduledJobsService
             UsedToday = refresh is null ? 0 : await refresh.UsedTodayAsync(ct),
             Overdue = overdue,
             ByDays = byDays.OrderBy(p => p.Key).Select(p => new RefreshCadenceCountDto { Days = p.Key, Count = p.Value }).ToList(),
+            NewChapterCheckHours = Metadata.Freshness.NewChapterChecks.HoursOf(state?.CheckHours),
+            AllowedNewChapterCheckHours = Metadata.Freshness.NewChapterChecks.AllowedHours,
+            NewChapters = state is null ? null : new NewChapterChecksDto
+            {
+                SweepAt = state.SweepStartedAt,
+                SweepOutcome = state.SweepOutcome,
+                SweepRecords = state.SweepRecords,
+                SweepChanged = state.SweepChanged,
+                SweepRequests = state.SweepRequests,
+                FeedAt = state.FeedAt,
+                FeedOutcome = state.FeedOutcome,
+                FeedMatched = state.FeedMatched,
+                FeedRequests = state.FeedRequests,
+                DuePassAt = state.DuePassAt,
+            },
         };
     }
 
@@ -324,6 +340,8 @@ public sealed class ScheduledJobsService
             return "invalid_cadence";
         if (request.FinishedDays is { } f && !RefreshCadencePolicy.AllowedFinishedDays.Contains(f))
             return "invalid_cadence";
+        if (request.NewChapterCheckHours is { } hours && !Metadata.Freshness.NewChapterChecks.AllowedHours.Contains(hours))
+            return "invalid_cadence";
         RefreshPaceSource? source = null;
         if (request.PaceSource is { } key)
         {
@@ -351,6 +369,19 @@ public sealed class ScheduledJobsService
         var after = RefreshCadencePolicy.FromStored(row.MetadataRefreshOngoingDays, row.MetadataRefreshFinishedDays, row.MetadataRefreshFollowPace,
             row.MetadataRefreshPaceSource);
         await _db.SaveChangesAsync(ct);
+        // 1.45.0: "Check for new chapters every N hours" (the MangaDex latest-upload sweep).
+        if (request.NewChapterCheckHours is { } checkHours)
+        {
+            var freshness = await Metadata.Freshness.NewChapterChecks.StateAsync(_db, ct);
+            if (Metadata.Freshness.NewChapterChecks.HoursOf(freshness.CheckHours) != checkHours)
+            {
+                freshness.CheckHours = checkHours;
+                await _db.SaveChangesAsync(ct);
+                await _audit.RecordAsync(AuditActions.MetadataRefreshCadenceChange,
+                    string.Create(CultureInfo.InvariantCulture, $"new_chapters_h{checkHours}"), actor, ct: ct);
+                _logger.LogInformation(LogEvents.Administration.JobScheduleChanged, "New-chapter check set to every {Hours} hours", checkHours);
+            }
+        }
         if (before == after)
             return null;
 
@@ -387,6 +418,7 @@ public sealed class ScheduledJobsService
                 RefreshCadenceReason.Pace => "pace",
                 RefreshCadenceReason.Paused => "paused",
                 RefreshCadenceReason.PaceUnknown => "pace_unknown",
+                RefreshCadenceReason.Reading => "reading",
                 _ => "choice",
             },
             VolumeIntervalDays = result.VolumeIntervalDays is { } v ? Math.Round(v, 1) : null,

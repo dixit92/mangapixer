@@ -315,6 +315,60 @@ public sealed class CarryOverScanTests : IDisposable
         Assert.Equal("not_found", error); // only removed folders are "missing"
     }
 
+    // --- 1.45.0 phase K2: only tombstones of the move window count against the 80% rule ---
+
+    /// <summary>A series folder of three volumes and one misfiled chapter (the owner's rename test: 3 of 4 = 75%).</summary>
+    private async Task<CatalogNodeEntity> SeriesWithAStrayAsync()
+    {
+        await SetupAsync();
+        WriteArchive(Path.Combine("Stray Saga", "v01.cbz"), 41);
+        WriteArchive(Path.Combine("Stray Saga", "v02.cbz"), 42);
+        WriteArchive(Path.Combine("Stray Saga", "v03.cbz"), 43);
+        WriteArchive(Path.Combine("Stray Saga", "c04 misfiled.cbz"), 44);
+        await ScanAsync();
+        await SignAllAsync();
+        var old = await FolderAsync("Stray Saga");
+        await DecorateAsync(old.Id);
+        return old;
+    }
+
+    [Fact]
+    public async Task Rename_ThreeMoved_AndATombstoneFromAnEarlierScan_IsCarried()
+    {
+        var old = await SeriesWithAStrayAsync();
+        // The stray leaves first (an earlier scan tombstones it), the rename comes later.
+        File.Delete(Path.Combine(_libRoot, "Stray Saga", "c04 misfiled.cbz"));
+        await ScanAsync();
+
+        Directory.Move(Path.Combine(_libRoot, "Stray Saga"), Path.Combine(_libRoot, "Stray Saga Renamed"));
+        var result = await ScanAsync();
+        Assert.Equal(3, result.Moves.Count);
+
+        await using (var db = NewContext())
+            Assert.Equal(1, await CarryOver(db).CarryAsync(_libraryId, result.Moves));
+        var renamed = await FolderAsync("Stray Saga Renamed");
+        Assert.Equal((true, true, true, true), await RowsOnAsync(renamed.Id));
+        Assert.Equal((false, false, false, false), await RowsOnAsync(old.Id));
+    }
+
+    [Fact]
+    public async Task Rename_ThreeMoved_AndOneTombstonedByTheSameScan_StaysMissing()
+    {
+        var old = await SeriesWithAStrayAsync();
+        // The stray disappears in the same scan as the rename: it was part of the folder up to the move - 3 of 4 = 75%.
+        File.Delete(Path.Combine(_libRoot, "Stray Saga", "c04 misfiled.cbz"));
+        Directory.Move(Path.Combine(_libRoot, "Stray Saga"), Path.Combine(_libRoot, "Stray Saga Renamed"));
+        var result = await ScanAsync();
+        Assert.Equal(3, result.Moves.Count);
+
+        await using (var db = NewContext())
+        {
+            Assert.Equal(0, await CarryOver(db).CarryAsync(_libraryId, result.Moves));
+            Assert.Equal([old.Id], await CarryOver(db).StrandedFolderIds(_libraryId).ToListAsync());
+        }
+        Assert.Equal((true, true, true, true), await RowsOnAsync(old.Id));
+    }
+
     [Fact]
     public async Task PerfGuard_NoChangeRescanHasAnEmptyLedger_AndAThousandMovesAreAllRecorded()
     {

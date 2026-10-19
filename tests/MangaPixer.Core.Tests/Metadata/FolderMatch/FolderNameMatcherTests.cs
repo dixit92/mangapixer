@@ -124,6 +124,33 @@ public sealed class FolderNameMatcherTests
         Assert.Equal("Family Given", Assert.Single(index.Match(folder)).DeclaredName);
     }
 
+    /// <summary>Owner, 2026-10-19: a local match stores the MangaUpdates author id only when no other person id shares the declared name.</summary>
+    [Fact]
+    public void ArtistIndex_UniqueMangaUpdatesAuthorId_OnlyWhenNoOtherPersonIdSharesTheDeclaredName()
+    {
+        var index = new ArtistNameIndex(FolderNameMatcher.GroupArtists([
+            Mu("101", "Family Given", "author", 1),
+            Mu("101", "Given Family", "author", 2),  // another spelling of the same person
+            Mu("201", "Shared Pen", "author", 3),
+            Mu("202", "Shared Pen", "artist", 4),    // another person with that name
+            Mu("301", "Main Name", "author", 5),
+            Mu("302", "Other Main", "artist", 6),
+            Mu("302", "Other Main", "artist", 7),
+            Mu("302", "Main Name", "artist", 8),     // a spelling of 302 equals 301's name
+            Mu(null, "No Id Person", "author", 9),
+            Gcd("Comic Writer", "author", 10),
+        ]));
+        string? IdOf(string folder, string declared) =>
+            index.UniqueMangaUpdatesAuthorIdOf(index.Match(folder).First(a => a.DeclaredName == declared));
+
+        Assert.Equal("101", IdOf("Given Family", "Family Given"));
+        Assert.Null(IdOf("Shared Pen", "Shared Pen"));            // two ids, one name (two roles): ambiguous
+        Assert.Null(IdOf("Main Name", "Main Name"));              // 301's name is also a spelling of 302
+        Assert.Equal("302", IdOf("Main Name", "Other Main"));     // 302's own main name is its alone
+        Assert.Null(IdOf("No Id Person", "No Id Person"));        // no id on the credit
+        Assert.Null(IdOf("Comic Writer", "Comic Writer"));        // GCD: no MangaUpdates id
+    }
+
     [Fact]
     public void ArtistIndex_FoldsDiacriticsAndLongVowels()
     {

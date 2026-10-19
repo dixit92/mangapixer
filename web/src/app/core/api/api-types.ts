@@ -176,6 +176,89 @@ export interface SearchResultsDto {
   hasMore: boolean;
   /** Series found through a linked series' alternative titles; first page only (1.26.0). */
   seriesMatches?: SeriesMatchDto[] | null;
+  /** 1.45.0 tag view: the filters (`f=` chips, typed fields in `q`) as the server understood them; absent on a plain search. */
+  filters?: SearchFilterDto[];
+  /** 1.45.0 tag view: with a filter the results are WORK cards (`items` is empty, `totalCount` counts works); absent on a plain search. */
+  works?: FacetWorkDto[];
+}
+
+// ---- 1.45.0 tag buckets (lane Q): Info panel tags and the tag view ----
+
+/** Info panel buckets, in the owner's display order. URL / typed token: creator, series, magazine, publisher, year, genre, type, about, custom. */
+export type FacetBucket = 'Creators' | 'Series' | 'Magazine' | 'Publisher' | 'Year' | 'Genres' | 'Type' | 'About' | 'Custom';
+
+/** A creator's roles on a chip: comma-separated flag names ('Writer', 'Artist', 'Writer, Artist' = Story & art, 'None'). */
+export type FacetRoles = string;
+
+export type InfoPanelMode = 'None' | 'Work' | 'Container';
+
+export interface FacetChipDto {
+  /** The value's public id (`fv_...`). */
+  id: string;
+  display: string;
+  /** Works the viewer may see that carry the value - only when 2 or more (count-of-1 rule). */
+  count?: number | null;
+  /** Container only: works below this node that carry it ("12 here"). */
+  here?: number | null;
+  roles: FacetRoles;
+  conflict: boolean;
+  /** One `f` query parameter value for the search (`creator:fv_...`). */
+  filter: string;
+}
+
+export interface FacetBucketDto {
+  bucket: FacetBucket;
+  chips: FacetChipDto[];
+  /** Further values beyond `chips` (container: top 12 per bucket). */
+  more: number;
+}
+
+export interface FacetLocationDto {
+  nodeId: string;
+  libraryId: string;
+  libraryName: string;
+  /** From the library's top-level folder down to the location node itself (display names only). */
+  trail: BreadcrumbEntry[];
+}
+
+export interface FacetWorkSummaryDto {
+  title: string;
+  locationCount: number;
+  locations: FacetLocationDto[];
+}
+
+/** `GET /api/v1/nodes/{nodeId}/info` and `GET /api/v1/libraries/{libraryId}/info`. */
+export interface InfoPanelDto {
+  nodeId: string;
+  mode: InfoPanelMode;
+  buckets: FacetBucketDto[];
+  worksBelow?: number | null;
+  work?: FacetWorkSummaryDto | null;
+}
+
+/** A work card of the tag view. */
+export interface FacetWorkDto {
+  title: string;
+  /** The first visible location as a normal card (cover, read state) - what the card opens. */
+  node: CatalogNodeDto;
+  coverUrl?: string | null;
+  locationCount: number;
+  /** At most 5 visible locations; the first is `node`. */
+  locations: FacetLocationDto[];
+}
+
+export type SearchFilterSource = 'Chip' | 'Typed';
+
+/** A filter as the server understood it. Not matched = unknown or not visible to the viewer (answered alike). */
+export interface SearchFilterDto {
+  bucket: FacetBucket;
+  source: SearchFilterSource;
+  id?: string;
+  text?: string;
+  display?: string;
+  matched: boolean;
+  valueIds: string[];
+  redirectedFrom?: string;
 }
 
 export interface SeriesMatchDto {
@@ -1575,6 +1658,10 @@ export interface MetadataReviewAcceptCollectionRequest {
 export interface SetArtistFolderRequest {
   name?: string | null;
   role?: string | null;
+  /** 1.45.0: `mangaupdates` when the admin picked an author from an author search (stored as a reference; nothing is sent). */
+  provider?: string | null;
+  /** 1.45.0: the picked MangaUpdates author id. */
+  externalId?: string | null;
 }
 
 /** 1.37.0: what marking a folder an artist's folder did. */
@@ -1586,6 +1673,32 @@ export interface ArtistFolderResultDto {
   creatorAdded?: boolean;
   /** Works at and below the folder queued for automatic matching now (0 while automatic matching is off). */
   queued?: number;
+  /** 1.45.0: the declared artist's reference (`mangaupdates:<author id>`) when the admin picked an author. */
+  authorRef?: string | null;
+}
+
+/** 1.45.0: an author search by name - the text the admin confirms is the only thing sent (page 1, 10 per page). */
+export interface AuthorSearchRequest {
+  text?: string | null;
+}
+
+/** 1.45.0: one author an author search found - only offered, nothing is stored or marked until the admin picks it. */
+export interface AuthorSearchCandidateDto {
+  provider: string;
+  externalId: string;
+  /** The author's main name on MangaUpdates. */
+  name: string;
+  /** The other name the search matched, when it is not the main name. */
+  hitName?: string | null;
+  totalSeries?: number | null;
+  genres?: string[];
+  /** The author's page on MangaUpdates. */
+  siteUrl?: string | null;
+}
+
+export interface AuthorSearchResultDto {
+  candidates: AuthorSearchCandidateDto[];
+  total: number;
 }
 
 // --- Match folders by name (1.38.0): stored data only ---
@@ -1608,6 +1721,8 @@ export interface FolderMatchArtistDto {
   matchedName: string;
   provider: string;
   recordCount: number;
+  /** 1.45.0: the MangaUpdates author id when it is the only stored one for the declared name (passed back in the apply item). */
+  authorId?: string | null;
 }
 
 export interface FolderMatchRecordDto {
@@ -2325,9 +2440,17 @@ export interface CollectionStackDto {
 }
 
 /** GET /nodes/{nodeId}/volume-view (lane S): whether a folder has a Volumes view and whether it is on for the viewer. */
+/** Why a linked series folder has no Volumes view (1.45.0, `VolumeViewDto.unavailableReason`). */
+export type VolumeViewUnavailableReason = 'NoVolumeList';
+
 export interface VolumeViewDto {
   nodeId: string;
   available: boolean;
+  /**
+   * 1.45.0: why a folder with its own series link has no Volumes view, when the server can say; null otherwise and while `available`.
+   * `NoVolumeList`: the series' stored lists cannot place a chapter in a volume (no volume list is known yet).
+   */
+  unavailableReason?: VolumeViewUnavailableReason | null;
   active: boolean;
   /** 1.29.0 RC: `active` without the viewer's own switch (folder / library / global default); choosing it clears the switch. */
   defaultActive?: boolean;
@@ -2865,6 +2988,26 @@ export interface RefreshCadenceDto {
   usedToday: number;
   overdue: number;
   byDays: RefreshCadenceCountDto[];
+  /** "Check for new chapters every N hours" - the MangaDex latest-upload sweep, 1-6 (1.45.0). */
+  newChapterCheckHours?: number;
+  allowedNewChapterCheckHours?: number[];
+  /** The last new-chapter checks (1.45.0), or null before the first. */
+  newChapters?: NewChapterChecksDto | null;
+}
+
+/** The last runs of the new-chapter checks (1.45.0): times and counts only. */
+export interface NewChapterChecksDto {
+  sweepAt?: string | null;
+  /** `ok`, or why the last sweep stopped (`budget_exhausted`, `provider_backoff`, ...). */
+  sweepOutcome?: string | null;
+  sweepRecords?: number;
+  sweepChanged?: number;
+  sweepRequests?: number;
+  feedAt?: string | null;
+  feedOutcome?: string | null;
+  feedMatched?: number;
+  feedRequests?: number;
+  duePassAt?: string | null;
 }
 
 export interface RefreshCadenceCountDto {
@@ -2883,12 +3026,14 @@ export interface UpdateRefreshCadenceRequest {
   finishedDays?: number | null;
   followPace?: boolean | null;
   paceSource?: RefreshPaceSource | null;
+  /** 1-6 (1.45.0). */
+  newChapterCheckHours?: number | null;
 }
 
 /** GET /admin/jobs/metadata-refresh/series/{nodeId}: one linked series' refresh cadence (admin only). */
 export interface SeriesRefreshCadenceDto {
   days: number;
-  reason: 'finished' | 'choice' | 'pace' | 'paused' | 'pace_unknown';
+  reason: 'finished' | 'choice' | 'pace' | 'paused' | 'pace_unknown' | 'reading';
   volumeIntervalDays?: number | null;
   /** Days between two new chapters, when the chapter pace was read (1.35.0). */
   chapterIntervalDays?: number | null;
@@ -2930,6 +3075,8 @@ export interface ExportLibraryRefDto {
 export interface ExportMetadataPageDto {
   schemaVersion: number;
   serverTime: string;
+  /** 1.45.0: the library's new-chapter confirmation times (the same on every page). */
+  sweeps: ExportSweepsDto;
   library: ExportLibraryRefDto;
   items: ExportItemDto[];
   removed: ExportRemovalDto[];
@@ -3017,6 +3164,19 @@ export interface ExportCompanionsDto {
   mangadex?: string | null;
   anilist?: ExportAniListDto | null;
   mangadexReleased?: ExportMangaDexReleasedDto | null;
+  /** 1.45.0: MangaDex's latest uploaded chapter (left out when never read). */
+  mangadexLatestUpload?: ExportMangaDexLatestUploadDto | null;
+}
+
+/** 1.45.0: changes only when `chapterId` changes; `fetchedAt` = when that value was first read. */
+export interface ExportMangaDexLatestUploadDto {
+  chapterId: string | null;
+  fetchedAt: string;
+}
+
+/** 1.45.0: the start of the last latest-upload sweep that completed for every MangaDex companion of the library. */
+export interface ExportSweepsDto {
+  mangadexLatestUpload?: string | null;
 }
 
 export interface ExportMangaDexReleasedDto {
@@ -3720,4 +3880,57 @@ export interface TrackerSelectableSeriesListDto {
   items: TrackerSelectableSeriesDto[];
   totalCount: number;
   truncated: boolean;
+}
+
+// --- 1.45.0 lane F: the admin creator API (`/api/v1/admin/metadata/creators`, admin only, cookie + CSRF) ---
+
+/** One spelling of a canonical creator and where it came from. */
+export interface CreatorNameDto {
+  name: string;
+  /** record, providerAuthor, comicInfo, declared or admin. */
+  source: string;
+  /** latin, cjk, hangul or other. */
+  script: string;
+}
+
+/**
+ * A canonical creator (`GET /api/v1/admin/metadata/creators/{id}`). Asked by a merged creator's id, the answer is the creator it was
+ * merged into with `redirectedFrom` = the id asked for (replace the URL).
+ */
+export interface CreatorDto {
+  /** cr_... */
+  id: string;
+  displayName: string;
+  /** provider, mostUsed or admin. */
+  displayNameSource: string;
+  names?: CreatorNameDto[];
+  /** mangaupdates:<author id>, sorted; empty for a name-only creator. */
+  providerIds?: string[];
+  mergedFrom?: string[];
+  /** The creator's tag value (fv_...) for `/search?f=creators:<id>`, null while no work is indexed. */
+  valueId?: string | null;
+  /** Indexed works crediting it (all libraries). */
+  works?: number;
+  redirectedFrom?: string | null;
+}
+
+/** `GET /api/v1/admin/metadata/creators?q=&limit=`: live creators whose spellings contain the query. */
+export interface CreatorSearchResultDto {
+  items?: CreatorDto[];
+}
+
+/** `POST /api/v1/admin/metadata/creators/{id}/merge`. */
+export interface MergeCreatorRequest {
+  intoId?: string | null;
+}
+
+/** `POST /api/v1/admin/metadata/creators/{id}/split`: the chosen provider ids and spellings move to a new creator. */
+export interface SplitCreatorRequest {
+  providerIds?: string[] | null;
+  names?: string[] | null;
+}
+
+/** `PUT /api/v1/admin/metadata/creators/{id}/display-name`: null or blank clears the admin name. */
+export interface SetCreatorDisplayNameRequest {
+  displayName?: string | null;
 }

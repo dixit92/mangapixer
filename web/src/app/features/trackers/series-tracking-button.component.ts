@@ -29,7 +29,7 @@ const POSITIONS: ConnectedPosition[] = [
  * chip, MangaPixer's numbers against the tracker's, the dates, and "Open in Tracking" to that series' row on the Tracking page.
  * Hidden without a connected tracker (the shared overview, loaded by the app shell at sign-in), and for a folder that is not a
  * linked series. Reads `GET /trackers/nodes/{id}/summary` (stored state only - nothing is sent to a tracker). Phone: icon only.
- * The popover is a small dialog (UX review UX5 / UX10): opening moves the focus into it (its first link) and Tab stays inside;
+ * The popover is a small dialog (UX review UX5 / UX10): opening moves the focus into it (the dialog itself, 1.45.0) and Tab stays inside;
  * Escape or a press outside closes it and puts the focus back on the button. A transparent backdrop takes that outside press, so a
  * tap beside the popover only closes it - it never also opens the card under the finger.
  */
@@ -265,13 +265,15 @@ export class SeriesTrackingButtonComponent implements OnDestroy {
     if (event.key === 'Escape') this.dismiss(origin);
   }
 
-  /** Just opened: the focus moves into the popover - its first link ("Open in Tracking"), else the dialog itself. */
+  /**
+   * Just opened: the focus moves into the popover - onto the dialog itself (it has `tabindex="-1"` and its name), so Tab then walks
+   * its controls in the order they are shown (1.45.0, UX review #16: starting on "Open in Tracking" put the tracker-site link and the
+   * volumes button before it, reachable only after wrapping round). The 1.43.2 rule - the focus never STARTS on the tracker-site link -
+   * still holds.
+   */
   focusIn(): void {
     const pane = this.connected()?.overlayRef?.overlayElement;
-    // "Open in Tracking" first (1.43.2: the tracker-site link before it in the tile is not where the focus starts).
-    const target = pane?.querySelector<HTMLElement>('a.open') ?? pane?.querySelector<HTMLElement>('a[href], button:not([disabled])')
-      ?? pane?.querySelector<HTMLElement>('[role="dialog"]');
-    target?.focus({ preventScroll: true });
+    pane?.querySelector<HTMLElement>('[role="dialog"]')?.focus({ preventScroll: true });
   }
 
   chip(row: TrackerSeriesRowDto): string {

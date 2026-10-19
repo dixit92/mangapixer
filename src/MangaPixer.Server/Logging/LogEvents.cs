@@ -503,6 +503,43 @@ public static class LogEvents
         // Edition override and stop tracking (1.39.0, 9420-9429). Ids and flags only - never folder names or titles.
         public const int DeclaredEditionChanged = 9420;
 
+        // Reserved, 1.45.0 (seam I0; each lane adds its own constants inside its range). Ids, counts, codes and timings only - never
+        // search text, creator names, titles or tag values:
+        //   9430-9439 author search by name (lane A)
+        //   9440-9449 tag index: builder, creator resolution, creator merge / split (lane F)
+        //   9450-9459 tag query: per-viewer counts, the works page, field search (lane Q)
+        //   9460-9479 new-chapter freshness, the MangaDex latest-upload sweep, the MangaUpdates releases feed (lane R)
+        // New-chapter freshness (1.45.0, lane R, 9460-9479). Ids, counts, codes and timings only - never titles (the releases feed's
+        // titles are never read into a log) or search text.
+        public const int LatestUploadSweep = 9460;
+        public const int LatestUploadChanged = 9461;
+        public const int ReleasesFeedPoll = 9462;
+        public const int RefreshNudged = 9463;
+        public const int RefreshDuePass = 9464;
+        public const int ReadableBackfill = 9465;
+        public const int VolumeListKept = 9466;
+        public const int FreshnessFailed = 9467;
+        public const int CrossTrigger = 9468;
+        public const int LatestUploadMissing = 9469; // owner follow-up 2026-10-19: records MangaDex left out of the sweep answer
+
+        // Tag query (1.45.0, lane Q, 9450-9459). Counts, ids and timings only - never search text, tag values or names.
+        public const int FacetCountsComputed = 9450;
+        public const int InfoPanelServed = 9451;
+        public const int FacetSearchServed = 9452;
+
+        // Tag index (1.45.0 lane F, 9440-9449). Library / creator ids, counts and timings only - never names, titles or tag values.
+        public const int FacetIndexRebuilt = 9440;
+        public const int FacetIndexSkippedScan = 9441;
+        public const int FacetIndexFailed = 9442;
+        public const int FacetCreatorsSynced = 9443;
+        public const int FacetCreatorMerged = 9444;
+        public const int FacetCreatorSplit = 9445;
+        public const int FacetCreatorRenamed = 9446;
+        public const int FacetIndexSweep = 9447;
+
+        // Author search by name (1.45.0, lane A, 9430-9439). Library id, hit count, elapsed ms - never the search text or a name.
+        public const int AuthorSearchServed = 9430;
+
         // MangaDex as the series record (1.42.0, lane D, 9500-9599). Ids, counts and codes only - never titles or search text.
         public const int MangaDexSelfCompanion = 9500;
         public const int MangaDexStep = 9501;

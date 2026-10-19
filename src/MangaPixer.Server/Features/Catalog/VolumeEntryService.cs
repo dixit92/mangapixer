@@ -48,6 +48,14 @@ public sealed record FolderVolumeEntries(
     public bool Linked { get; init; }
 
     /// <summary>
+    /// 1.45.0 (K7, owner (A) 2026-10-18): the folder has its own link and the linked record's lists cannot place a chapter in a volume -
+    /// no exact volume list (MangaDex / Wikipedia) and no chapters-per-volume ratio with a volume total
+    /// (<see cref="VolumeMapInput.HasData"/> false; never for a chapter-mode series). Says WHY a series has no Volumes view; it never
+    /// decides <see cref="Available"/>.
+    /// </summary>
+    public bool NoVolumeList { get; init; }
+
+    /// <summary>
     /// The Volumes view differs from the folder list: a stack, merged unit subfolders, a missing-volume placeholder, or (1.29.0 RC)
     /// a folder with its own link that holds volumes - its header shows the series status - or (1.34.0) a linked folder in chapter mode
     /// that holds archives (its chapter list, with the series status).
@@ -413,6 +421,8 @@ public sealed class VolumeEntryService
         }
 
         var (map, release, status, facts) = await LoadMapAsync(context.RecordId, language, ct);
+        // 1.45.0 (K7): the record's own lists, before the volume contents scan's answers join them.
+        var noVolumeList = context.Own && context.RecordId is not null && map?.ChaptersOnly != true && map?.HasData != true;
         // 1.44.0: the volumes the series' list maps (the volume contents scan never scans those), then the scan's answers for the
         // archives of this view: chapter files proven inside a volume file join its stack, a Known volume joins the map.
         var listedVolumes = map is { ChaptersOnly: false } ? map.Volumes.Select(v => v.Volume).ToHashSet() : [];
@@ -459,6 +469,7 @@ public sealed class VolumeEntryService
             ChaptersOnly = map?.ChaptersOnly == true,
             ListedVolumes = listedVolumes,
             Linked = context.RecordId is not null,
+            NoVolumeList = noVolumeList,
         };
     }
 
