@@ -54,25 +54,23 @@ public sealed class ReleasesFeedPoll(
         var call = MetadataCallContext.Automatic();
         string? stopped = null;
         var releases = new List<MangaUpdatesRelease>();
+        var library = linked.Min(l => l.LibraryId);
+        for (var page = 1; page <= MangaUpdatesReleasesFeed.MaxPages; page++)
         {
-            var library = linked.Min(l => l.LibraryId);
-            for (var page = 1; page <= MangaUpdatesReleasesFeed.MaxPages; page++)
+            MangaUpdatesReleasesPage answer;
+            try
             {
-                MangaUpdatesReleasesPage answer;
-                try
-                {
-                    var at = page;
-                    answer = await gateway.DetailCallAsync(mangaUpdates, "releases", library, c => feed.PageAsync(at, c), call, ct);
-                }
-                catch (MetadataGatewayException ex)
-                {
-                    stopped = ex.Code;
-                    break;
-                }
-                releases.AddRange(answer.Releases);
-                if (!answer.HasMore(page))
-                    break;
+                var at = page;
+                answer = await gateway.DetailCallAsync(mangaUpdates, "releases", library, c => feed.PageAsync(at, c), call, ct);
             }
+            catch (MetadataGatewayException ex)
+            {
+                stopped = ex.Code;
+                break;
+            }
+            releases.AddRange(answer.Releases);
+            if (!answer.HasMore(page))
+                break;
         }
 
         // The highest chapter of each series' releases (null when one of them states none: always worth a look).
