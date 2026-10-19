@@ -180,14 +180,14 @@ describe('SeriesInfoSummaryComponent with tags', () => {
 
   it('drops the plain-text lines the chips replace', () => {
     const { el } = render(web(), panel({
-      buckets: [bucket({ chips: [chip({ display: 'A Writer', role: 'Writer' })] }), bucket({ bucket: 'Genres', chips: [chip({ valueId: 'fv_g', display: 'Action' })] })],
+      buckets: [bucket({ chips: [chip({ display: 'A Writer', roles: 'Writer' })] }), bucket({ bucket: 'Genres', chips: [chip({ id: 'fv_g', display: 'Action', filter: 'genre:fv_g' })] })],
     }));
     expect(el.querySelector('[data-testid="series-genres"]')).toBeNull();
     expect(el.querySelector('.credits')).toBeNull();
   });
 
   it('keeps a plain-text line when its bucket has no chips, and both lines without tags', () => {
-    const genresOnly = render(web(), panel({ buckets: [bucket({ bucket: 'Genres', chips: [chip({ valueId: 'fv_g', display: 'Action' })] })] }));
+    const genresOnly = render(web(), panel({ buckets: [bucket({ bucket: 'Genres', chips: [chip({ id: 'fv_g', display: 'Action', filter: 'genre:fv_g' })] })] }));
     expect(genresOnly.el.querySelector('.credits')!.textContent).toContain('A Writer');
     expect(genresOnly.el.querySelector('[data-testid="series-genres"]')).toBeNull();
     TestBed.resetTestingModule();
