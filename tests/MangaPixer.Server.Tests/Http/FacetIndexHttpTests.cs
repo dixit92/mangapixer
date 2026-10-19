@@ -43,9 +43,15 @@ public sealed class FacetIndexHttpTests
         await db.SaveChangesAsync();
         var folder = new CatalogNodeEntity
         {
-            PublicId = "fxFolder", LibraryId = library.Id, Kind = (int)CatalogNodeKind.Folder, DisplayName = "Series Alpha",
-            RelativePath = "Series Alpha", PathKey = "series alpha", SortKey = "0series alpha",
-            Availability = (int)CatalogNodeAvailability.Available, CreatedAt = DateTimeOffset.UtcNow,
+            PublicId = "fxFolder",
+            LibraryId = library.Id,
+            Kind = (int)CatalogNodeKind.Folder,
+            DisplayName = "Series Alpha",
+            RelativePath = "Series Alpha",
+            PathKey = "series alpha",
+            SortKey = "0series alpha",
+            Availability = (int)CatalogNodeAvailability.Available,
+            CreatedAt = DateTimeOffset.UtcNow,
         };
         db.CatalogNodes.Add(folder);
         await db.SaveChangesAsync();
@@ -53,17 +59,30 @@ public sealed class FacetIndexHttpTests
         {
             var archive = new CatalogNodeEntity
             {
-                PublicId = "fxArc" + i, LibraryId = library.Id, ParentId = folder.Id, Kind = (int)CatalogNodeKind.Archive,
-                DisplayName = $"Series Alpha v0{i}.cbz", RelativePath = $"Series Alpha/v0{i}.cbz", PathKey = $"series alpha/v0{i}.cbz",
-                SortKey = $"1series alpha v0{i}.cbz", Availability = (int)CatalogNodeAvailability.Available, CreatedAt = DateTimeOffset.UtcNow,
+                PublicId = "fxArc" + i,
+                LibraryId = library.Id,
+                ParentId = folder.Id,
+                Kind = (int)CatalogNodeKind.Archive,
+                DisplayName = $"Series Alpha v0{i}.cbz",
+                RelativePath = $"Series Alpha/v0{i}.cbz",
+                PathKey = $"series alpha/v0{i}.cbz",
+                SortKey = $"1series alpha v0{i}.cbz",
+                Availability = (int)CatalogNodeAvailability.Available,
+                CreatedAt = DateTimeOffset.UtcNow,
             };
             db.CatalogNodes.Add(archive);
         }
         var record = new MetadataRecordEntity
         {
-            PublicId = "fxrec1", Provider = "mangaupdates", ExternalId = "777001", Title = "Series Alpha",
+            PublicId = "fxrec1",
+            Provider = "mangaupdates",
+            ExternalId = "777001",
+            Title = "Series Alpha",
             CreatorsJson = "[{\"name\":\"Tanaka Hiroshi\",\"role\":\"author\",\"providerId\":\"7\"}]",
-            GenresJson = "[\"Action\"]", StartYear = 2001, Origin = 0, FetchedAt = DateTimeOffset.UtcNow,
+            GenresJson = "[\"Action\"]",
+            StartYear = 2001,
+            Origin = 0,
+            FetchedAt = DateTimeOffset.UtcNow,
         };
         db.MetadataRecords.Add(record);
         await db.SaveChangesAsync();

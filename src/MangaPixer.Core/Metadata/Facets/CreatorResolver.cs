@@ -126,7 +126,7 @@ public sealed class CreatorResolver
         // R3: exactly one provider-backed creator anywhere, for a name of two or more words.
         if (AutoMatchText.IsAuthorLike(name, requireTwoTokens: true))
         {
-            var anywhere = Distinct(keys.SelectMany(k => _refsByKey.TryGetValue(k, out var refs) ? refs : (IEnumerable<string>)[]));
+            var anywhere = Distinct(keys.SelectMany(k => _refsByKey.TryGetValue(k, out var refs) ? refs : Enumerable.Empty<string>()));
             if (anywhere.Count == 1)
                 return anywhere[0];
         }

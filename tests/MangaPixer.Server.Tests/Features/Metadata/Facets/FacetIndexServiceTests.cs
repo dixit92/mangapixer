@@ -276,7 +276,12 @@ public sealed class FacetIndexServiceTests
         var elsewhere = await kit.Meta.AddFolderAsync(null, "Elsewhere", other.Id);
         kit.Meta.Db.DeclaredFacts.Add(new DeclaredFactEntity
         {
-            LibraryId = other.Id, NodeId = elsewhere.Id, Key = DeclaredFactKeys.Type, Value = "manhwa", CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
+            LibraryId = other.Id,
+            NodeId = elsewhere.Id,
+            Key = DeclaredFactKeys.Type,
+            Value = "manhwa",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
         });
         await kit.Meta.Db.SaveChangesAsync();
         Assert.Equal(key, await index.InputsKeyAsync(kit.Meta.LibraryId, default));
@@ -284,7 +289,12 @@ public sealed class FacetIndexServiceTests
         // A declared fact, a ComicInfo row and a link of this library each move it.
         kit.Meta.Db.DeclaredFacts.Add(new DeclaredFactEntity
         {
-            LibraryId = kit.Meta.LibraryId, NodeId = folder.Id, Key = DeclaredFactKeys.Type, Value = "manhwa", CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
+            LibraryId = kit.Meta.LibraryId,
+            NodeId = folder.Id,
+            Key = DeclaredFactKeys.Type,
+            Value = "manhwa",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
         });
         await kit.Meta.Db.SaveChangesAsync();
         var afterDeclared = await index.InputsKeyAsync(kit.Meta.LibraryId, default);
@@ -304,7 +314,12 @@ public sealed class FacetIndexServiceTests
         var (folder, _) = await LinkedSeriesAsync(kit);
         kit.Meta.Db.DeclaredFacts.Add(new DeclaredFactEntity
         {
-            LibraryId = kit.Meta.LibraryId, NodeId = folder.Id, Key = DeclaredFactKeys.Type, Value = "manhwa", CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
+            LibraryId = kit.Meta.LibraryId,
+            NodeId = folder.Id,
+            Key = DeclaredFactKeys.Type,
+            Value = "manhwa",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
         });
         await kit.Meta.Db.SaveChangesAsync();
 
@@ -384,17 +399,25 @@ public sealed class FacetIndexServiceTests
         {
             db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
             {
-                NodeId = folderNodes[f].Id, LibraryId = kit.Meta.LibraryId, State = (int)SeriesLinkState.Confirmed,
-                RecordId = records[f % records.Count].Id, CreatedAt = now, UpdatedAt = now,
+                NodeId = folderNodes[f].Id,
+                LibraryId = kit.Meta.LibraryId,
+                State = (int)SeriesLinkState.Confirmed,
+                RecordId = records[f % records.Count].Id,
+                CreatedAt = now,
+                UpdatedAt = now,
             });
         }
         for (var f = 700; f < folders; f++)
         {
-            foreach (var a in archives.Where(x => x.ParentId == folderNodes[f].Id).Take(2))
+            foreach (var a in archives.Skip(f * archivesPerFolder).Take(2))
             {
                 db.EmbeddedMetadata.Add(new EmbeddedMetadataEntity
                 {
-                    NodeId = a.Id, ContentVersion = 1, State = 1, Series = "Synthetic Saga " + (f % 150), Year = 2000 + (f % 20),
+                    NodeId = a.Id,
+                    ContentVersion = 1,
+                    State = 1,
+                    Series = "Synthetic Saga " + (f % 150),
+                    Year = 2000 + (f % 20),
                     CreatorsJson = $"[{{\"name\":\"Writer {f % 300} Name\",\"role\":\"writer\"}},{{\"name\":\"Solo{f % 97}\",\"role\":\"penciller\"}}]",
                     GenresJson = "[\"action\",\"Slice of Life\"]",
                     ReadAt = now,

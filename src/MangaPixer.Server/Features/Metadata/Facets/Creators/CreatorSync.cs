@@ -416,7 +416,7 @@ public sealed class CreatorSync
             names[creator.Id] = creator.DisplayName;
             if (creator.MergedIntoId is not null)
                 continue;
-            var spellings = (uses.GetValueOrDefault(creator.Id) ?? [])
+            var spellings = (uses.GetValueOrDefault(creator.Id) ?? new Dictionary<string, Use>())
                 .Select(kv => new CreatorSpellingUse(kv.Key, kv.Value.Count,
                     firstSeen.TryGetValue((creator.Id, Cap(kv.Key, FacetModel.NameLength)), out var seen) ? seen : long.MaxValue))
                 .ToList();
