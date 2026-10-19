@@ -10,7 +10,7 @@ import { AuthService } from '../../../core/auth/auth.service';
 import { CreatorAdminService } from './creator-admin/creator-admin.service';
 import { InfoApiService } from './info-api.service';
 import { bucketLabel, bucketRank, chipCount, chipText, chipTitle, filterParam, roleLabel } from './info-labels';
-import { FacetBucketDto, FacetBucketName, FacetChipDto, InfoPanelDto } from './info-types';
+import { FacetBucketName, FacetChipDto, InfoPanelDto } from './info-types';
 
 /**
  * The Info panel's Tags block (1.45.0, D1 2.6): one row per bucket in the owner's order - a label and wrapping chips. A chip opens the
