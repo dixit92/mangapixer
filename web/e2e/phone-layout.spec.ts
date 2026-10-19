@@ -211,6 +211,20 @@ test('the Info sheet with chips and the tag search with two filters fit a phone 
     await settle(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-info-sheet.png` });
     for (const p of await layoutProblems(page)) failures.push(`${size.width} px Info sheet: ${p.kind}: ${p.what} - ${p.detail}`);
+    // The sheet's body scrolls (so the generic check treats it as a sideways scroller): a chip must still fit its width - a long name is
+    // cut inside the chip, the sheet never scrolls sideways - and every chip is 32 px tall (D1 2.6).
+    const sheet = await page.getByTestId('series-overlay').locator('.body').evaluate((body) => {
+      const width = body.getBoundingClientRect().right;
+      const chips = Array.from(body.querySelectorAll('[data-testid="info-chip"], [data-testid="info-chip-menu"], [data-testid="info-more"]'));
+      return {
+        sideways: body.scrollWidth > body.clientWidth + 1,
+        past: chips.filter((c) => c.getBoundingClientRect().right > width + 1).map((c) => (c.textContent ?? '').trim().slice(0, 30)),
+        heights: [...new Set(chips.map((c) => Math.round(c.getBoundingClientRect().height)))],
+      };
+    });
+    if (sheet.sideways) failures.push(`${size.width} px Info sheet: the sheet scrolls sideways`);
+    for (const c of sheet.past) failures.push(`${size.width} px Info sheet: chip past the sheet edge: "${c}"`);
+    if (sheet.heights.join() !== '32') failures.push(`${size.width} px Info sheet: chip heights ${sheet.heights.join(', ')} (want 32)`);
     await page.keyboard.press('Escape');
 
     await page.goto('/search?f=creator:fv_l1&f=genre:fv_g0');
