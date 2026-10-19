@@ -466,7 +466,7 @@
          Enhance black-output guard; "Official Volume Available". Migrations AddTrackerSync, AddTrackingPage,
          AddVolumeMapReadableChapters (additive); tracker consents v1 (new third privacy exception, AGENTS.md); metadata consents
          unchanged (main 6 / automatic 5); worker protocol unchanged (5). -->
-    <MangaPixerVersionMinor>44</MangaPixerVersionMinor>
+    <MangaPixerVersionMinor>45</MangaPixerVersionMinor>
     <!-- 1.31.1 - PATCH (2026-10-01, integrator-direct, owner live check of 1.31.0): content signatures backfilled for archives
          analysed before 1.5.0 (their moves were never recognised); Re-attach to a folder in another library; "Episode N" next
          to a volume is a part label, not a chapter; the review list shows the file's own page 1, never the cover layer's;
@@ -493,6 +493,12 @@
          the popover's "not synced" + Turn sync on, "Set <tracker>'s volumes to N" on the user's click), the admin scan row, review-list
          links to MangaUpdates / MangaDex, Magick.NET 15. Migration AddVolumeContentScan (additive); consent unchanged (main 6 /
          automatic 5). -->
+    <!-- 1.45.0 - MINOR over 1.44.0 (2026-10-19): the tag buckets - a background tag index (works, canonical creators with admin merge /
+         split / rename, magazines, publishers, years, genres, types), the Info panel with tag chips counting only the viewer's visible
+         works, tag search (filters + typed fields, work cards); author search by name on MangaUpdates (admin only, on demand); new chapters
+         noticed sooner (MangaDex latest-upload sweep, MangaUpdates releases feed, reading fast lane, half-interval pace) with the export's
+         shared chapter signal; search paging + read status; phase K fixes. Migrations AddFacetIndex, AddMangaDexLatestUpload,
+         AddLatestUploadMissing (additive); main consent 7 (automatic stays 5). -->
     <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 

@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.45.0] - 2026-10-19
+
 ### Added
 
 - **Info panel with clickable tags.** The browse button over a folder now reads **Info**. Its panel - and the series page - shows the folder's tags in rows: **Creators** (with "Story", "Art" or "Story & art"), **Series**, **Magazine**, **Publisher**, **Year started**, **Genres**, **Type** and, for works in a "Collection about" folder, **About** ("Fan works of <series>"). A tag shows how many works you can see carry it once that is 2 or more. On a folder that holds many works (an artist's folder, "One Shots") the panel shows the tags of the works below ("12 here"), the 12 most common per row and "+N more". A declared type or creator that disagrees with the web record is shown next to it in amber, marked as a conflict. Info also appears on folders without series information of their own when works below them have tags.
