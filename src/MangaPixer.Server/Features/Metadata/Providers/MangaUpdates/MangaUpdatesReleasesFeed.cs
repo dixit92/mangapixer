@@ -15,8 +15,11 @@ public sealed class MangaUpdatesReleasesFeed
 {
     private const string ApiBase = "https://" + MetadataHttp.MangaUpdatesApiHost + "/v1/";
 
-    /// <summary>Pages read per poll at most (a day's list is a few pages).</summary>
-    public const int MaxPages = 10;
+    /// <summary>
+    /// Pages read per poll at most. A page holds several hundred releases (the review instance, 2026-10-19: 10 pages, 6727 releases, the
+    /// list longer still), newest first, so three pages every 6 hours cover what came out since the last poll.
+    /// </summary>
+    public const int MaxPages = 3;
 
     private readonly IHttpClientFactory _httpFactory;
 
