@@ -38,7 +38,7 @@ public sealed class AuthorSearchProviderTests : IAsyncLifetime
         var sent = Assert.Single(_h.Handler.Seen);
         Assert.Equal((HttpMethod.Post, "https://api.mangaupdates.com/v1/authors/search"), (sent.Method, sent.Uri.AbsoluteUri));
         // The whole body, byte for byte: no added_by, letter, genre, orderby or pending - ever.
-        Assert.Equal("""{"search":"Beta "Painter"","page":1,"perpage":10}""", sent.Body);
+        Assert.Equal("{\"search\":\"Beta \\u0022Painter\\u0022\",\"page\":1,\"perpage\":10}", sent.Body);
         using var doc = JsonDocument.Parse(sent.Body!);
         Assert.Equal(["search", "page", "perpage"], doc.RootElement.EnumerateObject().Select(p => p.Name).ToArray());
     }

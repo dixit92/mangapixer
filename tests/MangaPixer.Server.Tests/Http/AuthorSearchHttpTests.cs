@@ -136,7 +136,8 @@ public sealed class AuthorSearchHttpTests
 
         // Logs: the gateway line and AuthorSearchServed (ids, counts, timings) - never the text or a name.
         Assert.Contains(sink.Events, e => e.MessageTemplate.Text.StartsWith("Author search for library", StringComparison.Ordinal));
-        Assert.Contains(sink.Events, e => e.RenderMessage().Contains("mangaupdates author_search (Interactive)", StringComparison.Ordinal));
+        Assert.Contains(sink.Events, e => e.MessageTemplate.Text.StartsWith("Metadata {Provider} {Operation} ({Origin})", StringComparison.Ordinal)
+            && e.Properties["Operation"].ToString() == "\"author_search\"" && e.Properties["Origin"].ToString().Contains("Interactive", StringComparison.Ordinal));
         foreach (var e in sink.Events)
         {
             var rendered = e.RenderMessage() + " " + string.Join(" ", e.Properties.Select(p => p.Value.ToString())) + " " + e.Exception;
