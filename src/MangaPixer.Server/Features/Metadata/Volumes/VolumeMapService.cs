@@ -128,11 +128,41 @@ public sealed class VolumeMapService
         var foreign = IsForeignNumbering(built.HighestVolume, series.OriginVolumes, coverMax, HasFinalTotal(series));
         var state = foreign || built.Volumes.Count == 0 ? VolumeMapState.Empty : VolumeMapState.Ok;
         var known = coverMax ?? mangaDexRecord.OriginVolumes ?? series.OriginVolumes;
+
+        // 1.45.0 (owner, 2026-10-19 - keep the last good volume list): an answer without any volume replaces a stored usable list only
+        // when MangaDex no longer lists volume covers for the record AND the volume total changed; otherwise the stored list stays (State
+        // Ok, its volumes, unassigned chapters, average and total) and only the released / readable chapters are taken from the answer.
+        if (!foreign && built.Volumes.Count == 0 && await FindAsync(series.Id, VolumeMapSource.MangaDexAggregate, ct) is { } previous
+            && KeepsLastGoodList(previous, await ListsVolumeCoversAsync(mangaDexRecord.Id, ct), known))
+        {
+            _logger.LogInformation(LogEvents.Metadata.VolumeListKept,
+                "Volume list of record {RecordId} kept: MangaDex answered no volumes, {Volumes} stored volumes stay ({Covers} volume covers listed, total {Known})",
+                series.Id, VolumeMapJson.Read(previous.VolumesJson).Count, await CountListedVolumeCoversAsync(mangaDexRecord.Id, ct), known);
+            return await StoreAsync(series, VolumeMapSource.MangaDexAggregate, VolumeMapState.Ok, previous.VolumesJson, previous.UnassignedJson,
+                previous.ChaptersPerVolume, previous.KnownVolumeCount, ct, releasedLanguage, releasedJson, readableJson);
+        }
         return await StoreAsync(series, VolumeMapSource.MangaDexAggregate, state,
             state == VolumeMapState.Ok ? VolumeMapJson.Write(built.Volumes) : null,
             built.Unassigned.Count > 0 ? VolumeMapJson.WriteChapters(built.Unassigned) : null,
             state == VolumeMapState.Ok ? built.ChaptersPerVolume : null, known, ct, releasedLanguage, releasedJson, readableJson);
     }
+
+    /// <summary>
+    /// 1.45.0, the decision rule of "keep the last good volume list": a stored map that is usable (<see cref="IsUsable"/>, so Ok with real
+    /// volumes) stays when an answer without volumes comes while MangaDex still lists volume covers for the record
+    /// (<paramref name="listsVolumeCovers"/>) or the volume total is unchanged (<paramref name="knownNow"/> = the stored total). Pure.
+    /// </summary>
+    public static bool KeepsLastGoodList(SeriesVolumeMapEntity previous, bool listsVolumeCovers, int? knownNow) =>
+        IsUsable(previous) && (listsVolumeCovers || (knownNow is not null && knownNow == previous.KnownVolumeCount));
+
+    /// <summary>True when the record's cover list (as just read) still names at least one volume cover.</summary>
+    private Task<bool> ListsVolumeCoversAsync(long mangaDexRecordId, CancellationToken ct) =>
+        _db.VolumeCovers.AsNoTracking().AnyAsync(c => c.ProviderRecordId == mangaDexRecordId && c.Kind == (int)VolumeCoverKind.Volume
+            && c.Volume != null && c.State != (int)VolumeCoverState.Gone, ct);
+
+    private Task<int> CountListedVolumeCoversAsync(long mangaDexRecordId, CancellationToken ct) =>
+        _db.VolumeCovers.AsNoTracking().CountAsync(c => c.ProviderRecordId == mangaDexRecordId && c.Kind == (int)VolumeCoverKind.Volume
+            && c.Volume != null && c.State != (int)VolumeCoverState.Gone, ct);
 
     private static IReadOnlyList<VolumeListBuilder.RawVolume> Raw(IReadOnlyList<MangaDexAggregateVolume> volumes) =>
         volumes.Select(v => new VolumeListBuilder.RawVolume(v.Volume, v.Chapters.Select(c => (c.Chapter, c.Count)).ToList())).ToList();

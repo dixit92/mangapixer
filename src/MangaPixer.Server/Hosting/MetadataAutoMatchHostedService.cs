@@ -71,6 +71,7 @@ public sealed class MetadataAutoMatchHostedService : BackgroundService
                 await RunPassAsync(stoppingToken);
                 if (await RefreshDueAsync(stoppingToken))
                     await RunRefreshAsync(stoppingToken);
+                await RunNewChapterChecksAsync(stoppingToken);
                 await RunVolumeCoversAsync(stoppingToken);
                 await _state.WaitAsync(_options.TickInterval, stoppingToken);
             }
@@ -174,6 +175,28 @@ public sealed class MetadataAutoMatchHostedService : BackgroundService
         catch (Exception ex)
         {
             _logger.LogWarning(LogEvents.Metadata.VolumeCoverPass, "Volume cover pass failed: {Error}", ex.GetType().Name);
+        }
+    }
+
+    /// <summary>
+    /// 1.45.0 (lane R): one tick of the new-chapter checks (<see cref="Features.Metadata.Freshness.NewChapterChecksRunner"/> - the MangaDex
+    /// latest-upload sweep, MangaUpdates' releases feed, the readable backfill, the refresh of due records between the daily passes). Each
+    /// step decides whether it is due and passes the automatic gate itself; failures are logged by type only.
+    /// </summary>
+    public async Task RunNewChapterChecksAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            await scope.ServiceProvider.GetRequiredService<Features.Metadata.Freshness.NewChapterChecksRunner>().RunTickAsync(ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(LogEvents.Metadata.FreshnessFailed, "New-chapter checks failed: {Error}", ex.GetType().Name);
         }
     }
 
