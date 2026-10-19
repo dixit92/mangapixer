@@ -452,3 +452,41 @@ test('the reader shows the archive name: a row under the bar on phones and table
   }
   expect(failures, `the reader with its archive name does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
 });
+
+test('Match folders by name as artists, with MangaUpdates authors offered, fits a phone and a tablet screen', async ({ page }) => {
+  // 1.45.0 (lane A): "Search MangaUpdates for the rest" with a full candidate list (long names, the other name, genres, the page link).
+  // Contract-shaped answers; the author search is answered here, so nothing is sent.
+  test.setTimeout(120_000);
+  const failures: string[] = [];
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  await page.route('**/api/v1/admin/metadata/folder-match/preview', (r) => r.fulfill({
+    json: { kind: 'Artists', compared: 0, rows: [
+      { nodeId: folderId, displayName: 'Stacked Saga', status: 'NoMatch', searchText: 'Stacked Saga A Synthetic Artist Name Long Enough To Wrap' },
+    ] },
+  }));
+  await page.route(/\/api\/v1\/admin\/metadata\/nodes\/[^/]+\/author-search$/, (r) => r.fulfill({
+    json: { total: 10, candidates: Array.from({ length: 10 }, (_, i) => ({
+      provider: 'mangaupdates', externalId: String(900 + i), name: `Synthetic Artist With A Rather Long Pen Name Number ${i}`,
+      hitName: i % 2 ? `Another Spelling Of The Same Synthetic Artist ${i}` : null, totalSeries: 30 - i,
+      genres: ['Drama', 'Psychological', 'Supernatural', 'Horror'], siteUrl: `https://www.mangaupdates.com/author/syn${i}/synthetic`,
+    })) },
+  }));
+  for (const size of SIZES) {
+    await page.setViewportSize(size);
+    await page.goto(`/libraries/${libraryId}/browse`);
+    await page.locator('.select-toggle').click();
+    await page.locator('.node-wrap', { hasText: 'Stacked Saga' }).first().click();
+    await page.getByTestId('series-selection-menu').click();
+    await page.getByTestId('bulk-folder-match').click();
+    await page.getByTestId('folder-match-artists').click();
+    await page.getByTestId('folder-match-web').click();
+    await page.getByTestId('folder-match-web-search').click();
+    await expect(page.getByTestId(`folder-match-author-${folderId}`).locator('mat-radio-button')).toHaveCount(9);
+    await settle(page);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-folder-match-authors.png` });
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px folder match authors: ${p.kind}: ${p.what} - ${p.detail}`);
+    await page.getByTestId('folder-match-close').click();
+  }
+  expect(failures, `the folder match dialog with authors does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
+});

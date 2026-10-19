@@ -79,8 +79,8 @@ export function outcomeLabel(run: AuthorAliasRunDto): string {
   template: `
     <section class="card" aria-labelledby="md-authors-h" data-testid="md-authors">
       <h3 id="md-authors-h"><mat-icon aria-hidden="true">badge</mat-icon> Artists' other names</h3>
-      <p class="note">Pen names, other spellings and other scripts of the creators of your linked series, from their MangaUpdates
-        author pages. <strong>Match folders by name</strong> uses them to recognise an artist's folder. Looked up only when you ask:
+      <p class="note">Pen names, other spellings and other scripts of the creators of your linked series (and of the artists you picked
+        from a MangaUpdates author search), from their MangaUpdates author pages. <strong>Match folders by name</strong> uses them to recognise an artist's folder. Looked up only when you ask:
         one request per second, counted in the daily budget, sending only MangaUpdates author numbers.</p>
       @if (status(); as st) {
         <p class="status" data-testid="md-authors-status">
