@@ -5,7 +5,6 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, ParamMap, Params, Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatChipListbox, MatChipsModule } from '@angular/material/chips';
@@ -80,7 +79,6 @@ interface FilterChip {
     RouterLink,
     MatIconModule,
     MatFormFieldModule,
-    MatInputModule,
     MatButtonModule,
     MatTooltipModule,
     MatChipsModule,
