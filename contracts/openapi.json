@@ -13685,6 +13685,16 @@
                 "$ref": "#/components/schemas/ExportMangaDexReleasedDto"
               }
             ]
+          },
+          "mangadexLatestUpload": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ExportMangaDexLatestUploadDto"
+              }
+            ]
           }
         }
       },
@@ -14054,6 +14064,25 @@
           }
         }
       },
+      "ExportMangaDexLatestUploadDto": {
+        "required": [
+          "chapterId",
+          "fetchedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "chapterId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "fetchedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "ExportMangaDexReadableDto": {
         "required": [
           "chapters"
@@ -14121,6 +14150,7 @@
         "required": [
           "schemaVersion",
           "serverTime",
+          "sweeps",
           "library",
           "items",
           "removed"
@@ -14138,6 +14168,9 @@
           "serverTime": {
             "type": "string",
             "format": "date-time"
+          },
+          "sweeps": {
+            "$ref": "#/components/schemas/ExportSweepsDto"
           },
           "library": {
             "$ref": "#/components/schemas/ExportLibraryRefDto"
@@ -14390,6 +14423,18 @@
           },
           "at": {
             "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ExportSweepsDto": {
+        "type": "object",
+        "properties": {
+          "mangadexLatestUpload": {
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "date-time"
           }
         }
@@ -18448,6 +18493,84 @@
       "MoveProgressState": {
         "type": "integer"
       },
+      "NewChapterChecksDto": {
+        "type": "object",
+        "properties": {
+          "sweepAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "sweepOutcome": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sweepRecords": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "sweepChanged": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "sweepRequests": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "feedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "feedOutcome": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "feedMatched": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "feedRequests": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "duePassAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
       "NodeDeclaredFactsDto": {
         "required": [
           "nodeId",
@@ -19297,6 +19420,35 @@
             "items": {
               "$ref": "#/components/schemas/RefreshCadenceCountDto"
             }
+          },
+          "newChapterCheckHours": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "allowedNewChapterCheckHours": {
+            "type": "array",
+            "items": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          "newChapters": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/NewChapterChecksDto"
+              }
+            ]
           }
         }
       },
@@ -22640,6 +22792,15 @@
               "null",
               "string"
             ]
+          },
+          "newChapterCheckHours": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
