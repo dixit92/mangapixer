@@ -15,8 +15,23 @@ public static class RefreshCadence
     public static readonly TimeSpan OngoingAge = TimeSpan.FromDays(30);
     public static readonly TimeSpan FinishedAge = TimeSpan.FromDays(90);
 
-    /// <summary>Never more often than this, whatever the pace.</summary>
+    /// <summary>Never more often than this from the volume pace (and, before 1.45.0, from any pace).</summary>
     public const int FastestDays = 7;
+
+    /// <summary>
+    /// 1.45.0 (MangaList's new-chapter detection, recommendation 4): a series paced by its chapters is checked at about half its chapter
+    /// interval - a check at or above the interval found a monthly chapter half a month late on average - but never more often than this.
+    /// </summary>
+    public const int ChapterPaceFastestDays = 3;
+
+    /// <summary>
+    /// 1.45.0 (recommendation 3, the reading fast lane): a series someone is reading - a read mark in the last <see cref="ReadingWindowDays"/>
+    /// days, or a tracker entry with status Reading - is checked this often, below <see cref="FastestDays"/> for these series only.
+    /// </summary>
+    public const int ReadingDays = 2;
+
+    /// <summary>A read mark this recent makes a series "being read" (<see cref="ReadingDays"/>).</summary>
+    public const int ReadingWindowDays = 14;
 
     /// <summary>Nothing new for this long (with a history at least this long) = paused: checked like a finished series.</summary>
     public const int QuietDays = 180;
@@ -28,10 +43,6 @@ public static class RefreshCadence
 
     /// <summary>The observed interval needs at least two volume increases this far apart.</summary>
     public const double MinObservedSpanDays = 120;
-
-    /// <summary>A chapter interval below this is checked weekly; below <see cref="ChaptersEveryTwoWeeksBelowDays"/> every 2 weeks (1.35.0).</summary>
-    public const double ChaptersWeeklyBelowDays = 14;
-    public const double ChaptersEveryTwoWeeksBelowDays = 30;
 
     /// <summary>The observed chapter interval needs at least two chapter increases this far apart (1.35.0).</summary>
     public const double MinObservedChapterSpanDays = 28;
@@ -56,6 +67,10 @@ public static class RefreshCadence
     /// <summary>The cadence of one series under the admin's policy at <paramref name="now"/>.</summary>
     public static RefreshCadenceResult For(RefreshCadencePolicy policy, RefreshEvidence evidence, DateTimeOffset now)
     {
+        // 1.45.0: the reading fast lane wins over every other rule - except a finished series whose translation is complete too (nothing
+        // new can come).
+        if (evidence.Reading && !(IsFinished(evidence.OriginStatus) && evidence.TranslationComplete == true))
+            return new(ReadingDays, RefreshCadenceReason.Reading, null);
         if (IsFinished(evidence.OriginStatus))
             return new(policy.FinishedDays, RefreshCadenceReason.Finished, null);
         if (!policy.FollowPace)
@@ -67,7 +82,7 @@ public static class RefreshCadence
         var observed = policy.PaceSource == RefreshPaceSource.Volumes ? null : ObservedChapterInterval(evidence.History);
         var chapters = observed ?? (policy.PaceSource == RefreshPaceSource.Volumes ? null : LifetimeChapterInterval(evidence, now));
         int? volumeDays = volumes is { } v ? (v < WeeklyBelowDays ? FastestDays : v < EveryTwoWeeksBelowDays ? 14 : 30) : null;
-        int? chapterDays = chapters is { } c ? (c < ChaptersWeeklyBelowDays ? FastestDays : c < ChaptersEveryTwoWeeksBelowDays ? 14 : 30) : null;
+        int? chapterDays = chapters is { } c ? ChapterPaceDays(c) : null;
         if (volumeDays is null && chapterDays is null)
             return new(RefreshCadencePolicy.DefaultOngoingDays, RefreshCadenceReason.PaceUnknown, null);
         var days = Math.Min(volumeDays ?? int.MaxValue, chapterDays ?? int.MaxValue);
@@ -79,6 +94,16 @@ public static class RefreshCadence
             ChapterIntervalEstimated = chapters is not null && observed is null,
         };
     }
+
+    /// <summary>
+    /// 1.45.0: the check interval for a chapter interval - about half of it, at least <see cref="ChapterPaceFastestDays"/> and at most the
+    /// default ongoing rhythm (<see cref="RefreshCadencePolicy.DefaultOngoingDays"/>). Before 1.45.0 the buckets below 14 / 30 days gave 7 /
+    /// 14 / 30, at or above the interval.
+    /// </summary>
+    public static int ChapterPaceDays(double chapterIntervalDays) =>
+        double.IsFinite(chapterIntervalDays)
+            ? (int)Math.Clamp(Math.Floor(chapterIntervalDays / 2), ChapterPaceFastestDays, RefreshCadencePolicy.DefaultOngoingDays)
+            : RefreshCadencePolicy.DefaultOngoingDays;
 
     /// <summary>
     /// The average days between two new chapters since the series began (1.35.1): the stored latest chapter - which follows scanlation
@@ -231,6 +256,9 @@ public enum RefreshCadenceReason
 
     /// <summary>Following the pace, but none is known yet (1.35.0): every <see cref="RefreshCadencePolicy.DefaultOngoingDays"/> days.</summary>
     PaceUnknown = 4,
+
+    /// <summary>1.45.0: someone is reading the series (the reading fast lane): every <see cref="RefreshCadence.ReadingDays"/> days.</summary>
+    Reading = 5,
 }
 
 /// <summary>
@@ -244,14 +272,20 @@ public readonly record struct RefreshCadenceResult(int Days, RefreshCadenceReaso
     public bool ChapterIntervalEstimated { get; init; }
 }
 
-/// <summary>What the stored record says about a series' pace, plus its observations (oldest first).</summary>
+/// <summary>
+/// What the stored record says about a series' pace, plus its observations (oldest first). 1.45.0: <see cref="Reading"/> - someone is
+/// reading it (a read mark in the last <see cref="RefreshCadence.ReadingWindowDays"/> days, or a tracker entry with status Reading);
+/// <see cref="TranslationComplete"/> - the record says the translation is complete.
+/// </summary>
 public sealed record RefreshEvidence(
     int? OriginStatus,
     int? StartYear,
     int? OriginVolumes,
     double? LatestChapter,
     double? ChaptersPerVolume,
-    IReadOnlyList<RefreshObservation> History);
+    IReadOnlyList<RefreshObservation> History,
+    bool Reading = false,
+    bool? TranslationComplete = null);
 
 /// <summary>One stored observation of a record (written when a refresh left different values).</summary>
 public readonly record struct RefreshObservation(DateTimeOffset At, double? LatestChapter, int? OriginVolumes);

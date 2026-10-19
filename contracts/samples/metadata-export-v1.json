@@ -1,6 +1,9 @@
 {
   "schemaVersion": 1,
   "serverTime": "2026-10-04T12:00:00.000Z",
+  "sweeps": {
+    "mangadexLatestUpload": "2026-10-04T08:00:00.000Z"
+  },
   "library": {
     "id": "lib0manga",
     "displayName": "Manga",
@@ -159,6 +162,10 @@
           "id": 100001,
           "chapters": 41,
           "volumes": 5
+        },
+        "mangadexLatestUpload": {
+          "chapterId": "00000000-0000-4000-8000-0000000000c1",
+          "fetchedAt": "2026-10-02T06:00:00.000Z"
         }
       },
       "officialLinks": [
@@ -403,6 +410,10 @@
           "id": 100001,
           "chapters": 41,
           "volumes": 5
+        },
+        "mangadexLatestUpload": {
+          "chapterId": "00000000-0000-4000-8000-0000000000c1",
+          "fetchedAt": "2026-10-02T06:00:00.000Z"
         }
       },
       "officialLinks": [

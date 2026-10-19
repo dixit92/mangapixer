@@ -24,7 +24,8 @@ export const JOB_TEXT: Record<string, { name: string; what: string }> = {
   'library-scan': { name: 'Library scan', what: 'Looks for new, changed and removed files in the library.' },
   'metadata-refresh': {
     name: 'Series information refresh',
-    what: 'Fetches the series you have linked again from MangaUpdates, by record number. Needs Automatic matching.',
+    what: 'Fetches the series you have linked again from MangaUpdates, by record number, and between the daily runs the ones that are '
+      + 'due; checks MangaDex and MangaUpdates for new chapters of them every few hours. Needs Automatic matching.',
   },
   backup: { name: 'Database backup', what: 'Takes a copy of the database and keeps the newest ones.' },
   trash: { name: 'Empty trash and clean bundles', what: 'Empties the trash and removes unused files once a day, when automatic cleaning is on. Libraries with a hold are skipped.' },
@@ -109,8 +110,49 @@ export function cadenceHint(refresh: RefreshCadenceDto): string {
   const by = refresh.paceSource === 'chapters' ? 'new chapters (the latest chapter MangaUpdates lists, which follows scanlation releases)'
     : refresh.paceSource === 'volumes' ? 'new volumes of the original release'
     : 'new chapters or new volumes, whichever comes more often';
-  return `Each ongoing series is checked every week, every 2 weeks or every month, by how often it gets ${by}. A series on hiatus `
-    + 'or with nothing new for six months is checked like a finished one; one whose pace is not known yet, every month.';
+  return `Each ongoing series is checked by how often it gets ${by}: at about half the time between two new chapters (every 3 days at `
+    + 'the most) or every week to every month by its volumes. A series on hiatus or with nothing new for six months is checked like a '
+    + 'finished one; one whose pace is not known yet, every month. A series someone is reading (read in the last 2 weeks, or Reading on '
+    + 'a tracker) is checked every 2 days.';
+}
+
+/** A cadence of the breakdown line (1.45.0): the usual cadences by name, the days between them as ranges. */
+export function breakdownLabel(days: number): string {
+  if (days > 2 && days < 7) return 'every 3-6 days';
+  if (days > 7 && days < 14) return 'every 8-13 days';
+  if (days > 14 && days < 30) return 'every 15-29 days';
+  return cadenceLabel(days).toLowerCase();
+}
+
+/** "Check for new chapters" (1.45.0): every N hours. */
+export function everyHoursLabel(hours: number): string {
+  return hours === 1 ? 'Every hour' : `Every ${hours} hours`;
+}
+
+/**
+ * The line on the last new-chapter checks (1.45.0): the MangaDex latest-upload sweep and MangaUpdates' releases feed, counts only;
+ * '' before the first. `time` formats a server time.
+ */
+export function newChaptersText(refresh: RefreshCadenceDto, time: (iso: string) => string): string {
+  const n = refresh.newChapters;
+  if (!n) return '';
+  const mangaDex: Record<string, string> = {
+    ...WAITING_TEXT,
+    provider_backoff: 'MangaDex asked MangaPixer to wait',
+    provider_busy: 'MangaDex is busy',
+    provider_not_allowed: 'MangaDex is not on the allowed sites',
+  };
+  const parts: string[] = [];
+  if (n.sweepAt) {
+    const outcome = n.sweepOutcome && n.sweepOutcome !== 'ok' ? ` - stopped: ${mangaDex[n.sweepOutcome] ?? n.sweepOutcome}` : '';
+    parts.push(`MangaDex checked ${time(n.sweepAt)}: ${n.sweepRecords ?? 0} series, ${n.sweepChanged ?? 0} with a new chapter `
+      + `(${n.sweepRequests ?? 0} requests)${outcome}.`);
+  }
+  if (n.feedAt) {
+    const outcome = n.feedOutcome && n.feedOutcome !== 'ok' ? ` - stopped: ${WAITING_TEXT[n.feedOutcome] ?? n.feedOutcome}` : '';
+    parts.push(`MangaUpdates releases read ${time(n.feedAt)}: ${n.feedMatched ?? 0} series due now (${n.feedRequests ?? 0} requests)${outcome}.`);
+  }
+  return parts.join(' ');
 }
 
 /** The fixed rhythm of a read-only job. */
@@ -226,6 +268,17 @@ function rhythm(job: ScheduledJobDto): string {
                                   }
                                 </select>
                               </div>
+                              @if (j.refresh.allowedNewChapterCheckHours?.length) {
+                                <div class="row">
+                                  <label for="job-refresh-new-chapters">Check for new chapters</label>
+                                  <select id="job-refresh-new-chapters" data-testid="job-cadence-new-chapters" [disabled]="busy()"
+                                          (change)="setCadence({ newChapterCheckHours: +$any($event.target).value })">
+                                    @for (h of j.refresh.allowedNewChapterCheckHours; track h) {
+                                      <option [value]="h" [selected]="h === j.refresh.newChapterCheckHours">{{ everyHours(h) }}</option>
+                                    }
+                                  </select>
+                                </div>
+                              }
                             </div>
                             <div class="notes">
                               <p class="hint" data-testid="job-cadence-hint">{{ cadenceHint(j.refresh) }}</p>
@@ -233,6 +286,7 @@ function rhythm(job: ScheduledJobDto): string {
                                 Due now: {{ j.refresh.overdue }} · checked today: {{ j.refresh.usedToday }}
                               </p>
                               @if (breakdown(j.refresh); as b) { <p class="status">{{ b }}</p> }
+                              @if (newChapters(j.refresh); as n) { <p class="status" data-testid="job-new-chapters">{{ n }}</p> }
                             </div>
                           </div>
                         }
@@ -388,6 +442,7 @@ export class ScheduledJobsComponent implements OnInit {
   readonly offset = computed(() => offsetLabel(this.jobs()?.utcOffsetMinutes ?? 0));
   readonly paceSources = PACE_SOURCES;
   readonly cadenceHint = cadenceHint;
+  readonly everyHours = everyHoursLabel;
 
   /** The library scan rows (one table). */
   readonly scans = computed(() => (this.jobs()?.jobs ?? []).filter(j => j.key === 'library-scan'));
@@ -465,10 +520,21 @@ export class ScheduledJobsComponent implements OnInit {
     return Date.parse(job.nextRunAt) <= Date.parse(this.jobs()?.serverTime ?? '') ? 'shortly' : this.time(job.nextRunAt);
   }
 
+  /** The last new-chapter checks (1.45.0). */
+  newChapters(refresh: RefreshCadenceDto): string {
+    return newChaptersText(refresh, iso => this.time(iso));
+  }
+
   /** "Checked every week: 41, every 2 weeks: 120, ..." (only cadences in use). */
   breakdown(refresh: RefreshCadenceDto): string {
     if (refresh.byDays.length === 0) return '';
-    return 'Checked ' + refresh.byDays.map(c => `${cadenceLabel(c.days).toLowerCase()}: ${c.count}`).join(', ') + '.';
+    // 1.45.0: half the chapter interval gives any number of days from 3 to 30 - the days between the usual ones are shown as ranges.
+    const counts = new Map<string, number>();
+    for (const c of refresh.byDays) {
+      const label = breakdownLabel(c.days);
+      counts.set(label, (counts.get(label) ?? 0) + c.count);
+    }
+    return 'Checked ' + [...counts].map(([label, count]) => `${label}: ${count}`).join(', ') + '.';
   }
 
   setHour(key: string, hour: number): void {

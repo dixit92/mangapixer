@@ -125,6 +125,11 @@ public sealed class MangaPixerDbContext : DbContext
     public DbSet<FacetValueEntity> FacetValues => Set<FacetValueEntity>();
     public DbSet<FacetEntryEntity> FacetEntries => Set<FacetEntryEntity>();
     public DbSet<FacetIndexLibraryEntity> FacetIndexLibraries => Set<FacetIndexLibraryEntity>();
+    // 1.45.0 new-chapter freshness (lane R, migration AddMangaDexLatestUpload; configured in FreshnessModel).
+    public DbSet<MangaDexLatestUploadEntity> MangaDexLatestUploads => Set<MangaDexLatestUploadEntity>();
+    public DbSet<LibraryFreshnessEntity> LibraryFreshness => Set<LibraryFreshnessEntity>();
+    public DbSet<FreshnessStateEntity> FreshnessState => Set<FreshnessStateEntity>();
+    public DbSet<MetadataRefreshNudgeEntity> MetadataRefreshNudges => Set<MetadataRefreshNudgeEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -165,6 +170,7 @@ public sealed class MangaPixerDbContext : DbContext
         TrackerModel.Configure(modelBuilder);
         VolumeScanModel.Configure(modelBuilder);
         FacetModel.Configure(modelBuilder);
+        FreshnessModel.Configure(modelBuilder);
     }
 
     private static void ConfigureAppSettings(ModelBuilder mb)

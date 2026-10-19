@@ -509,6 +509,17 @@ public static class LogEvents
         //   9440-9449 tag index: builder, creator resolution, creator merge / split (lane F)
         //   9450-9459 tag query: per-viewer counts, the works page, field search (lane Q)
         //   9460-9479 new-chapter freshness, the MangaDex latest-upload sweep, the MangaUpdates releases feed (lane R)
+        // New-chapter freshness (1.45.0, lane R, 9460-9479). Ids, counts, codes and timings only - never titles (the releases feed's
+        // titles are never read into a log) or search text.
+        public const int LatestUploadSweep = 9460;
+        public const int LatestUploadChanged = 9461;
+        public const int ReleasesFeedPoll = 9462;
+        public const int RefreshNudged = 9463;
+        public const int RefreshDuePass = 9464;
+        public const int ReadableBackfill = 9465;
+        public const int VolumeListKept = 9466;
+        public const int FreshnessFailed = 9467;
+        public const int CrossTrigger = 9468;
 
         // MangaDex as the series record (1.42.0, lane D, 9500-9599). Ids, counts and codes only - never titles or search text.
         public const int MangaDexSelfCompanion = 9500;

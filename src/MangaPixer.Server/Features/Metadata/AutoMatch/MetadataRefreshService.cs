@@ -56,41 +56,22 @@ public sealed class MetadataRefreshService
     }
 
     /// <summary>The admin's cadence choice.</summary>
-    public async Task<RefreshCadencePolicy> PolicyAsync(CancellationToken ct = default)
-    {
-        var row = await _db.AppSettings.AsNoTracking()
-            .Where(s => s.Id == AppSettingsEntity.SingletonId)
-            .Select(s => new { s.MetadataRefreshOngoingDays, s.MetadataRefreshFinishedDays, s.MetadataRefreshFollowPace, s.MetadataRefreshPaceSource })
-            .FirstOrDefaultAsync(ct);
-        return row is null
-            ? RefreshCadencePolicy.Default
-            : RefreshCadencePolicy.FromStored(row.MetadataRefreshOngoingDays, row.MetadataRefreshFinishedDays, row.MetadataRefreshFollowPace,
-                row.MetadataRefreshPaceSource);
-    }
+    public Task<RefreshCadencePolicy> PolicyAsync(CancellationToken ct = default) => Freshness.RefreshFollowUp.PolicyAsync(_db, ct);
 
     /// <summary>A linked record's cadence inputs.</summary>
     private sealed record LinkedRecord(long Id, DateTimeOffset FetchedAt, int FetchState, int? OriginStatus, int? StartYear, int? OriginVolumes,
-        double? LatestChapter, int? RefreshCadenceDays);
+        double? LatestChapter, int? RefreshCadenceDays, bool? TranslationComplete);
 
     private IQueryable<MetadataRecordEntity> LinkedRecords() =>
         _db.MetadataRecords.Where(r => _db.NodeSeriesLinks.Any(l => l.RecordId == r.Id && Linked.Contains(l.State)
             && _db.Libraries.Any(lib => lib.Id == l.LibraryId && lib.MetadataEnabled)));
 
-    /// <summary>What the cadence of one record is computed from (its observations, oldest first, and the volume map's chapters a volume).</summary>
-    public async Task<RefreshEvidence> EvidenceAsync(MetadataRecordEntity record, CancellationToken ct = default)
-    {
-        var history = await _db.MetadataRecordObservations.AsNoTracking()
-            .Where(o => o.RecordId == record.Id)
-            .OrderBy(o => o.ObservedAt).ThenBy(o => o.Id)
-            .ToListAsync(ct);
-        var perVolume = await _db.SeriesVolumeMaps.AsNoTracking()
-            .Where(m => m.RecordId == record.Id && m.ChaptersPerVolume != null)
-            .OrderBy(m => m.Source)
-            .Select(m => m.ChaptersPerVolume)
-            .FirstOrDefaultAsync(ct);
-        return new RefreshEvidence(record.OriginStatus, record.StartYear, record.OriginVolumes, record.LatestChapter, perVolume,
-            history.Select(RefreshObservations.ToCore).ToList());
-    }
+    /// <summary>
+    /// What the cadence of one record is computed from (its observations, oldest first, the volume map's chapters a volume, and - 1.45.0 -
+    /// whether someone is reading it).
+    /// </summary>
+    public Task<RefreshEvidence> EvidenceAsync(MetadataRecordEntity record, CancellationToken ct = default) =>
+        Freshness.RefreshFollowUp.EvidenceAsync(_db, record, _time.GetUtcNow(), ct);
 
     /// <summary>
     /// Recomputes and stores the cadence of every linked record (no request): writes a baseline observation for a record that
@@ -101,8 +82,11 @@ public sealed class MetadataRefreshService
         var policy = await PolicyAsync(ct);
         var now = _time.GetUtcNow();
         var records = await LinkedRecords().AsNoTracking()
-            .Select(r => new LinkedRecord(r.Id, r.FetchedAt, r.FetchState, r.OriginStatus, r.StartYear, r.OriginVolumes, r.LatestChapter, r.RefreshCadenceDays))
+            .Select(r => new LinkedRecord(r.Id, r.FetchedAt, r.FetchState, r.OriginStatus, r.StartYear, r.OriginVolumes, r.LatestChapter, r.RefreshCadenceDays,
+                r.TranslationComplete))
             .ToListAsync(ct);
+        // 1.45.0: the reading fast lane (a read mark of the last 14 days, a tracker entry Reading).
+        var reading = await Freshness.ReadingSeries.RecordIdsAsync(_db, now, null, ct);
         var ids = records.Select(r => r.Id).ToList();
         var observations = (await _db.MetadataRecordObservations.AsNoTracking()
                 .Where(o => ids.Contains(o.RecordId))
@@ -136,7 +120,7 @@ public sealed class MetadataRefreshService
                 baselines++;
             }
             var evidence = new RefreshEvidence(r.OriginStatus, r.StartYear, r.OriginVolumes, r.LatestChapter, perVolume.GetValueOrDefault(r.Id),
-                history.Select(RefreshObservations.ToCore).ToList());
+                history.Select(RefreshObservations.ToCore).ToList(), reading.Contains(r.Id), r.TranslationComplete);
             var days = RefreshCadence.For(policy, evidence, now).Days;
             cadences[r.Id] = days;
             if (r.RefreshCadenceDays != days)
@@ -198,6 +182,8 @@ public sealed class MetadataRefreshService
             .Select(r => new { r.Id, r.FetchedAt, r.OriginStatus })
             .ToListAsync(ct);
         var catchUp = new HashSet<long>(await PublisherCatchUpAsync(now, ct));
+        // 1.45.0: records a new-chapter signal made due now (MangaUpdates' releases feed).
+        catchUp.UnionWith(await _db.MetadataRefreshNudges.AsNoTracking().Select(n => n.RecordId).ToListAsync(ct));
         // 1.43.0 (tracker sync, lane G - owner A2): the one-time links.mal catch-up, under the same gate and budget.
         catchUp.UnionWith(await MalCatchUpAsync(now, ct));
         var due = candidates
@@ -207,6 +193,8 @@ public sealed class MetadataRefreshService
             .Select(r => r.Id)
             .ToList();
 
+        // 1.45.0: who is reading what, once for the pass (each refreshed record's cadence is computed with it).
+        var reading = due.Count == 0 ? new HashSet<long>() : await Freshness.ReadingSeries.RecordIdsAsync(_db, now, null, ct);
         var done = 0;
         string? stopped = null;
         // 1.32.0: a refusal by ONE provider (busy - GCD's slow bucket -, backing off, removed from the allowed sites) skips that
@@ -232,20 +220,17 @@ public sealed class MetadataRefreshService
                     record.FetchState = 1;
                     record.FetchedAt = at;
                     await _db.SaveChangesAsync(ct);
+                    await Freshness.RefreshFollowUp.ClearNudgeAsync(_db, record.Id, ct);
                 }
                 else
                 {
                     var oldImage = record.ImageRemoteUrl;
+                    var latestBefore = record.LatestChapter;
                     MetadataIdentifyService.Apply(record, fetched, at);
                     await _db.SaveChangesAsync(ct);
-                    // 1.32.0: what the refresh saw, and the record's cadence from it.
-                    await RefreshObservations.NoteAsync(_db, record, at, ct);
-                    var days = RefreshCadence.For(await PolicyAsync(ct), await EvidenceAsync(record, ct), at).Days;
-                    if (record.RefreshCadenceDays != days)
-                    {
-                        record.RefreshCadenceDays = days;
-                        await _db.SaveChangesAsync(ct);
-                    }
+                    // 1.32.0: what the refresh saw, and the record's cadence from it; 1.45.0: the nudge ends, a rise makes the MangaDex
+                    // list due now (shared with an admin's Refresh).
+                    await Freshness.RefreshFollowUp.AfterRefreshAsync(_db, record, latestBefore, at, _logger, ct, reading);
                     // 1.30.0 (reach): refreshed totals may contradict an Auto link's reach (never throws).
                     await _reach.TryCheckRecordAsync(record.Id, ct);
                     if (record.ImageRemoteUrl is not null && (record.ImageState != 1 || !string.Equals(oldImage, record.ImageRemoteUrl, StringComparison.Ordinal)))
@@ -267,6 +252,7 @@ public sealed class MetadataRefreshService
             {
                 record.FetchState = 2;
                 await _db.SaveChangesAsync(ct);
+                await Freshness.RefreshFollowUp.ClearNudgeAsync(_db, record.Id, ct);
                 _logger.LogInformation(LogEvents.Metadata.RefreshFailed, "Metadata refresh of record {RecordId} failed: {Code}", recordId, ex.Code);
             }
         }

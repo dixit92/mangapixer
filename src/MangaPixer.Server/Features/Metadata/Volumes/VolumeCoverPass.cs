@@ -711,10 +711,14 @@ public sealed class VolumeCoverPass
             .ToList();
     }
 
-    /// <summary>The nodes (of <paramref name="nodes"/>) that have a "Don't match" folder somewhere above them.</summary>
-    private async Task<HashSet<long>> UnderDontMatchAsync(IReadOnlyList<(long NodeId, long? ParentId)> nodes, CancellationToken ct)
+    private Task<HashSet<long>> UnderDontMatchAsync(IReadOnlyList<(long NodeId, long? ParentId)> nodes, CancellationToken ct) =>
+        UnderDontMatchAsync(_db, nodes, ct);
+
+    /// <summary>The nodes (of <paramref name="nodes"/>) that have a "Don't match" folder somewhere above them (1.45.0: shared with the sweep).</summary>
+    internal static async Task<HashSet<long>> UnderDontMatchAsync(MangaPixerDbContext db, IReadOnlyList<(long NodeId, long? ParentId)> nodes,
+        CancellationToken ct)
     {
-        var dontMatch = (await _db.NodeSeriesLinks.AsNoTracking()
+        var dontMatch = (await db.NodeSeriesLinks.AsNoTracking()
             .Where(l => l.State == (int)SeriesLinkState.DontMatch)
             .Select(l => l.NodeId)
             .ToListAsync(ct)).ToHashSet();
@@ -729,7 +733,7 @@ public sealed class VolumeCoverPass
         for (var depth = 0; depth < 64 && frontier.Count > 0; depth++)
         {
             var batch = frontier;
-            var rows = await _db.CatalogNodes.AsNoTracking().Where(n => batch.Contains(n.Id)).Select(n => new { n.Id, n.ParentId }).ToListAsync(ct);
+            var rows = await db.CatalogNodes.AsNoTracking().Where(n => batch.Contains(n.Id)).Select(n => new { n.Id, n.ParentId }).ToListAsync(ct);
             foreach (var row in rows)
                 parentOf[row.Id] = row.ParentId;
             frontier = rows.Select(r => r.ParentId).OfType<long>().Distinct().Where(p => !parentOf.ContainsKey(p)).ToList();
