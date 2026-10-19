@@ -27,6 +27,10 @@ public sealed record ArtistFolderOutcome(MetadataLinkResultCode Code, ArtistFold
 /// validated, never fetched): it is stored on the declared artist as its provider reference <c>mangaupdates:&lt;id&gt;</c>
 /// (<c>declared_facts.ExternalRef</c>) and the audit result is <c>author_search</c>. Still no request: the author's other names come later
 /// through "Artists' other names", whose eligible ids include declared references.
+/// 1.45.0 (owner, 2026-10-19: "attempt to relink"): marked from the Artist folder dialog without a picked author (none picked, or the
+/// name edited away from the pick), an artist whose row carries no reference yet gets the MangaUpdates id of the one provider-backed
+/// creator known here by that name (<see cref="LocalAuthorRelink"/>; audit result <c>local_relink</c>) - stored data only. Match folders
+/// by name decides its own ids (its audit result is passed in) and is not relinked here.
 /// </summary>
 public sealed class ArtistFolderService
 {
@@ -80,6 +84,12 @@ public sealed class ArtistFolderService
             return new(MetadataLinkResultCode.InvalidRequest, Error: refError);
         if (authorRef is not null)
             auditResult = AuthorSearchAuditResult;
+        else if (auditResult is null && !await HasReferenceAsync(node.LibraryId, node.Id, name, role, ct)
+            && await LocalAuthorRelink.FindAsync(_db, name, ct) is { } relinkId)
+        {
+            authorRef = AuthorReference.MangaUpdates(relinkId);
+            auditResult = LocalAuthorRelink.AuditResult;
+        }
 
         // The folder's OWN facts (its type and other creators stay); the artist goes first unless it is declared already.
         var scope = await _declared.GetFolderAsync(nodePublicId, ct);
@@ -119,6 +129,18 @@ public sealed class ArtistFolderService
             Queued = queued,
             AuthorRef = authorRef,
         });
+    }
+
+    /// <summary>Whether the folder's own declared creator of that name and role already carries a MangaUpdates reference (kept then).</summary>
+    private async Task<bool> HasReferenceAsync(long libraryId, long nodeId, string name, string role, CancellationToken ct)
+    {
+        var key = DeclaredFactsComparer.NameKey(name);
+        var refs = await _db.DeclaredFacts.AsNoTracking()
+            .Where(f => f.LibraryId == libraryId && f.NodeId == nodeId && f.Key == DeclaredFactKeys.Creator && f.ExternalRef != null)
+            .Select(f => new { f.Value, f.Role, f.ExternalRef })
+            .ToListAsync(ct);
+        return refs.Any(f => DeclaredFactsComparer.NameKey(f.Value) == key && string.Equals(f.Role ?? string.Empty, role, StringComparison.Ordinal)
+            && AuthorReference.MangaUpdatesIdOf(f.ExternalRef) is not null);
     }
 
     /// <summary>
