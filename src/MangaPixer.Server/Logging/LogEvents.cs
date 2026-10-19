@@ -526,6 +526,16 @@ public static class LogEvents
         public const int InfoPanelServed = 9451;
         public const int FacetSearchServed = 9452;
 
+        // Tag index (1.45.0 lane F, 9440-9449). Library / creator ids, counts and timings only - never names, titles or tag values.
+        public const int FacetIndexRebuilt = 9440;
+        public const int FacetIndexSkippedScan = 9441;
+        public const int FacetIndexFailed = 9442;
+        public const int FacetCreatorsSynced = 9443;
+        public const int FacetCreatorMerged = 9444;
+        public const int FacetCreatorSplit = 9445;
+        public const int FacetCreatorRenamed = 9446;
+        public const int FacetIndexSweep = 9447;
+
         // MangaDex as the series record (1.42.0, lane D, 9500-9599). Ids, counts and codes only - never titles or search text.
         public const int MangaDexSelfCompanion = 9500;
         public const int MangaDexStep = 9501;

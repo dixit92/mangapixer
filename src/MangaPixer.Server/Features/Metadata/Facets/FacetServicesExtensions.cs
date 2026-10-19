@@ -1,5 +1,6 @@
 namespace com.lifepixer.mangapixer.Server.Features.Metadata.Facets;
 
+using com.lifepixer.mangapixer.Server.Features.Metadata.Facets.Index;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -12,6 +13,7 @@ public static class FacetServicesExtensions
 {
     public static IServiceCollection AddFacets(this IServiceCollection services)
     {
+        services.AddFacetIndex(); // Lane F: the index builder; its queue is the app's nudge (before the default below).
         services.TryAddSingleton<IFacetIndexNudge, NoFacetIndexNudge>();
         services.AddFacetQuery(); // lane Q: counts, the Info panel, the tag view
         return services;

@@ -3849,3 +3849,56 @@ export interface TrackerSelectableSeriesListDto {
   totalCount: number;
   truncated: boolean;
 }
+
+// --- 1.45.0 lane F: the admin creator API (`/api/v1/admin/metadata/creators`, admin only, cookie + CSRF) ---
+
+/** One spelling of a canonical creator and where it came from. */
+export interface CreatorNameDto {
+  name: string;
+  /** record, providerAuthor, comicInfo, declared or admin. */
+  source: string;
+  /** latin, cjk, hangul or other. */
+  script: string;
+}
+
+/**
+ * A canonical creator (`GET /api/v1/admin/metadata/creators/{id}`). Asked by a merged creator's id, the answer is the creator it was
+ * merged into with `redirectedFrom` = the id asked for (replace the URL).
+ */
+export interface CreatorDto {
+  /** cr_... */
+  id: string;
+  displayName: string;
+  /** provider, mostUsed or admin. */
+  displayNameSource: string;
+  names?: CreatorNameDto[];
+  /** mangaupdates:<author id>, sorted; empty for a name-only creator. */
+  providerIds?: string[];
+  mergedFrom?: string[];
+  /** The creator's tag value (fv_...) for `/search?f=creators:<id>`, null while no work is indexed. */
+  valueId?: string | null;
+  /** Indexed works crediting it (all libraries). */
+  works?: number;
+  redirectedFrom?: string | null;
+}
+
+/** `GET /api/v1/admin/metadata/creators?q=&limit=`: live creators whose spellings contain the query. */
+export interface CreatorSearchResultDto {
+  items?: CreatorDto[];
+}
+
+/** `POST /api/v1/admin/metadata/creators/{id}/merge`. */
+export interface MergeCreatorRequest {
+  intoId?: string | null;
+}
+
+/** `POST /api/v1/admin/metadata/creators/{id}/split`: the chosen provider ids and spellings move to a new creator. */
+export interface SplitCreatorRequest {
+  providerIds?: string[] | null;
+  names?: string[] | null;
+}
+
+/** `PUT /api/v1/admin/metadata/creators/{id}/display-name`: null or blank clears the admin name. */
+export interface SetCreatorDisplayNameRequest {
+  displayName?: string | null;
+}

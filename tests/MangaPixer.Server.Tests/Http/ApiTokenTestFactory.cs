@@ -51,6 +51,8 @@ public sealed class ApiTokenTestFactory : WebApplicationFactory<Program>
             ["MangaPixer:Scanning:Scheduler:Enabled"] = "false",
             ["Metadata:AutoMatch:WorkerEnabled"] = "false",
             ["Covers:SweepEnabled"] = "false",
+            // Tag index builder (1.45.0 lane F): tests rebuild directly or switch it on; it never races a test.
+            ["Facets:Index:Enabled"] = "false",
             // 1.44.0: the volume contents scan runs only where a test switches it on.
             ["MangaPixer:VolumeScan:Enabled"] = "false",
         };
