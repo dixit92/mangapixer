@@ -43,7 +43,8 @@ public sealed class LatestUploadSweep(
     }
 
     /// <summary>
-    /// One sweep. Null when the automatic gate for MangaDex is closed (nothing sent, nothing recorded - the sweep waits for it to open).
+    /// One sweep. Null when the automatic gate for MangaDex is closed, or no linked series has a MangaDex record yet (nothing sent, nothing
+    /// recorded - the sweep waits).
     /// </summary>
     public async Task<LatestUploadSweepResult?> RunAsync(CancellationToken ct = default)
     {
@@ -51,6 +52,9 @@ public sealed class LatestUploadSweep(
             return null;
         var started = time.GetUtcNow();
         var targets = await TargetsAsync(ct);
+        // Nothing to read yet (no linked series has a MangaDex record): wait - the first one found is read on the next tick.
+        if (targets.Count == 0)
+            return null;
         var libraries = await db.Libraries.AsNoTracking().Where(l => l.MetadataEnabled).Select(l => l.Id).OrderBy(id => id).ToListAsync(ct);
         var call = MetadataCallContext.Automatic();
         string? stopped = null;
@@ -121,7 +125,8 @@ public sealed class LatestUploadSweep(
         var advanced = 0;
         if (stopped is null)
         {
-            // Every MangaDex record of each of these libraries was asked for in this sweep (a library without any is covered too).
+            // Every MangaDex record of each of these libraries was asked for in this sweep (a library without any is covered too, once
+            // any library has one).
             var rows = await db.LibraryFreshness.Where(f => libraries.Contains(f.LibraryId)).ToDictionaryAsync(f => f.LibraryId, ct);
             foreach (var library in libraries)
             {

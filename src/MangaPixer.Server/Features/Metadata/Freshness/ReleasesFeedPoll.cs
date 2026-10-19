@@ -31,7 +31,7 @@ public sealed class ReleasesFeedPoll(
         return NewChapterChecks.IsDue(state?.FeedAt, state?.FeedOutcome, NewChapterChecks.FeedInterval, time.GetUtcNow());
     }
 
-    /// <summary>One poll. Null when the automatic gate for MangaUpdates is closed (nothing sent, nothing recorded).</summary>
+    /// <summary>One poll. Null when the automatic gate for MangaUpdates is closed or no MangaUpdates record is linked (nothing sent or recorded).</summary>
     public async Task<ReleasesFeedResult?> RunAsync(CancellationToken ct = default)
     {
         // The refresh needs no matcher, but everything else of the gate (as MetadataRefreshService).
@@ -48,10 +48,12 @@ public sealed class ReleasesFeedPoll(
             where lib.MetadataEnabled
             select new { r.Id, r.ExternalId, r.LatestChapter, r.FetchedAt, l.LibraryId })
             .ToListAsync(ct);
+        // Nothing to look for (no linked MangaUpdates record yet): wait, nothing sent or recorded.
+        if (linked.Count == 0)
+            return null;
         var call = MetadataCallContext.Automatic();
         string? stopped = null;
         var releases = new List<MangaUpdatesRelease>();
-        if (linked.Count > 0)
         {
             var library = linked.Min(l => l.LibraryId);
             for (var page = 1; page <= MangaUpdatesReleasesFeed.MaxPages; page++)

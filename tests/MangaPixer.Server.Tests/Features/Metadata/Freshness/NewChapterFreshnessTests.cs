@@ -233,6 +233,16 @@ public sealed class NewChapterFreshnessTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Sweep_AndFeed_WaitWhileNothingIsLinked()
+    {
+        await _h.Auto.EnableAutomaticAsync();
+        Assert.Null(await Sweep().RunAsync());
+        Assert.Null(await Feed().RunAsync());
+        Assert.Empty(_h.Handler.Seen);
+        Assert.Null(await NewChapterChecks.PeekAsync(_t.Db, default)); // the first linked series is looked at on the next tick
+    }
+
+    [Fact]
     public async Task Sweep_IsDueOnTheAdminsInterval_1To6Hours_AndRetriedSoonAfterAStop()
     {
         await _h.Auto.EnableAutomaticAsync();
