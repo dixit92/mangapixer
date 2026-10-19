@@ -16,7 +16,7 @@ import { SeriesInfoOverlayData } from './series-info-overlay.service';
 import { SeriesInfoSummaryComponent } from './series-info-summary.component';
 
 /**
- * The series-info overlay (1.24.0): a glance at a node's series information without
+ * The Info overlay (1.24.0 series info; 1.45.0 "Info" with the Tags block): a glance at a node's series information and tags without
  * leaving browse. Hosted by a right-side MatDialog (desktop/tablet) or a
  * MatBottomSheet (phone) - see SeriesInfoOverlayService - so it works with either
  * ref/data token. Content = the shared summary + an attribution/sources footer +
@@ -30,7 +30,7 @@ import { SeriesInfoSummaryComponent } from './series-info-summary.component';
   template: `
     <div class="sheet" data-testid="series-overlay">
       <div class="head">
-        <span class="kicker">Series info</span>
+        <span class="kicker">Info</span>
         <button mat-icon-button type="button" class="close" aria-label="Close" (click)="close()">
           <mat-icon>close</mat-icon>
         </button>
@@ -42,7 +42,7 @@ import { SeriesInfoSummaryComponent } from './series-info-summary.component';
         <p class="state error">{{ error() }}</p>
       } @else if (info(); as i) {
         <div class="body">
-          <app-series-info-summary [info]="i" [compact]="true" />
+          <app-series-info-summary [info]="i" [compact]="true" [tags]="true" />
         </div>
 
         <footer class="foot">

@@ -113,6 +113,8 @@ export interface SearchOptions {
   cursor?: string | null;
   pageSize?: number;
   readState?: LibraryReadStateFilter;
+  /** Tag filters (1.45.0, lane P): each `<bucket>:<value id>` is sent as one `f` parameter; all must match (AND). */
+  filters?: readonly string[];
 }
 
 /**
@@ -258,6 +260,7 @@ export class ApiService {
     if (options.cursor) params = params.set('cursor', options.cursor);
     if (options.pageSize) params = params.set('pageSize', options.pageSize.toString());
     if (options.readState && options.readState !== 'all') params = params.set('readState', options.readState);
+    for (const f of options.filters ?? []) params = params.append('f', f);
     return this.get<SearchResultsDto>('/search', params);
   }
 
