@@ -24,10 +24,12 @@ using Xunit;
 /// </summary>
 public sealed class FacetIndexServiceTests
 {
-    private sealed class Observer : IFacetIndexObserver
+    /// <summary>Lane Q's seam as the tests see it: counts the bumps.</summary>
+    private sealed class Generation : IFacetIndexGeneration
     {
-        public List<long> Changed { get; } = [];
-        public void IndexChanged(long libraryId) => Changed.Add(libraryId);
+        private long _current;
+        public long Current => Interlocked.Read(ref _current);
+        public void Bump() => Interlocked.Increment(ref _current);
     }
 
     private sealed class Kit : IAsyncDisposable
@@ -38,16 +40,17 @@ public sealed class FacetIndexServiceTests
         public ScanRunRegistry Scans { get; } = new();
         public CreatorStateCache Cache { get; } = new();
         public FacetIndexLock Lock { get; } = new();
-        public Observer Observer { get; } = new();
+        public Generation Generation { get; } = new();
         public RecordingFacetIndexNudge Nudges { get; } = new();
 
         public static async Task<Kit> CreateAsync() => new(await MetadataTestDb.CreateAsync());
 
-        public FacetIndexService Index() => new(Meta.Db, new CreatorSync(Meta.Db, Cache, TimeProvider.System, NullLogger<CreatorSync>.Instance),
-            Cache, Lock, [Observer], TimeProvider.System, NullLogger<FacetIndexService>.Instance, Scans);
+        public FacetIndexService Index() => new(Meta.Db,
+            new CreatorSync(Meta.Db, Cache, TimeProvider.System, NullLogger<CreatorSync>.Instance, Generation),
+            Cache, Lock, TimeProvider.System, NullLogger<FacetIndexService>.Instance, Scans, generation: Generation);
 
         public CreatorAdminService Admin() => new(Meta.Db, new AuditService(Meta.Db), Nudges, Cache, Lock, TimeProvider.System,
-            NullLogger<CreatorAdminService>.Instance);
+            NullLogger<CreatorAdminService>.Instance, Generation);
 
         public Task<FacetRebuildResult> RebuildAsync(bool force = true) => Index().RebuildLibraryAsync(Meta.LibraryId, default, force);
 
@@ -111,7 +114,7 @@ public sealed class FacetIndexServiceTests
         Assert.Equal(new[] { folder.Id }, await db.FacetEntries.Where(e => e.WorkId == recordWork.Id).Select(e => e.LocationNodeId).Distinct().ToArrayAsync());
         var state = await db.FacetIndexLibraries.AsNoTracking().SingleAsync();
         Assert.Equal((2, first.Entries), (state.Works, state.Entries));
-        Assert.Equal(new[] { kit.Meta.LibraryId }, kit.Observer.Changed);
+        Assert.True(kit.Generation.Current > 0);
 
         var entryIds = await db.FacetEntries.AsNoTracking().OrderBy(e => e.Id).Select(e => e.Id).ToListAsync();
         var second = await kit.RebuildAsync();
@@ -119,6 +122,24 @@ public sealed class FacetIndexServiceTests
         Assert.Equal(entryIds, await db.FacetEntries.AsNoTracking().OrderBy(e => e.Id).Select(e => e.Id).ToListAsync());
         Assert.Equal(FacetRebuildOutcome.Unchanged, (await kit.RebuildAsync(force: false)).Outcome);
         _ = loose;
+    }
+
+    [Fact]
+    public async Task EveryCommittedIndexWrite_BumpsLaneQsGeneration_ASkippedPassDoesNot()
+    {
+        await using var kit = await Kit.CreateAsync();
+        await LinkedSeriesAsync(kit);
+
+        Assert.Equal(FacetRebuildOutcome.Rebuilt, (await kit.RebuildAsync()).Outcome);
+        var afterRebuild = kit.Generation.Current;
+        Assert.True(afterRebuild > 0, "a rebuild that wrote entries must bump the generation");
+
+        Assert.Equal(FacetRebuildOutcome.Unchanged, (await kit.RebuildAsync(force: false)).Outcome);
+        Assert.Equal(afterRebuild, kit.Generation.Current);
+
+        var creator = await kit.Meta.Db.Creators.AsNoTracking().SingleAsync();
+        await kit.Admin().SetDisplayNameAsync(creator.PublicId, "Renamed", null, default);
+        Assert.True(kit.Generation.Current > afterRebuild, "a creator rename must bump the generation");
     }
 
     [Fact]
@@ -248,7 +269,7 @@ public sealed class FacetIndexServiceTests
         Assert.False(await kit.Meta.Db.FacetWorks.AnyAsync());
         Assert.False(await kit.Meta.Db.Creators.AnyAsync());
         Assert.False(await kit.Meta.Db.FacetIndexLibraries.AnyAsync());
-        Assert.Empty(kit.Observer.Changed);
+        Assert.Equal(0, kit.Generation.Current);
 
         // Another library's scan does not hold this one back.
         var other = await kit.Meta.AddLibraryAsync("otherlib", "Other");

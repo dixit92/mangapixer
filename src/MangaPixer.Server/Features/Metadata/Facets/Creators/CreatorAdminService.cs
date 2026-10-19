@@ -35,10 +35,12 @@ public sealed class CreatorAdminService
     private readonly FacetIndexLock _lock;
     private readonly TimeProvider _time;
     private readonly ILogger<CreatorAdminService> _logger;
+    private readonly IFacetIndexGeneration? _generation;
 
     public CreatorAdminService(MangaPixerDbContext db, AuditService audit, IFacetIndexNudge nudge, CreatorStateCache cache, FacetIndexLock gate,
-        TimeProvider time, ILogger<CreatorAdminService> logger)
+        TimeProvider time, ILogger<CreatorAdminService> logger, IFacetIndexGeneration? generation = null)
     {
+        _generation = generation;
         _db = db;
         _audit = audit;
         _nudge = nudge;
@@ -251,6 +253,7 @@ public sealed class CreatorAdminService
 
     private void Changed()
     {
+        _generation?.Bump(); // A merge / split / rename changes what the chips show (display names, redirects) at once.
         _cache.Invalidate();
         _nudge.AllChanged(FacetNudgeReason.CreatorOverrideChanged);
     }

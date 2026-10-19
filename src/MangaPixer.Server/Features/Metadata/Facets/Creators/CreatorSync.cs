@@ -62,9 +62,12 @@ public sealed class CreatorSync
     private readonly CreatorStateCache _cache;
     private readonly TimeProvider _time;
     private readonly ILogger<CreatorSync> _logger;
+    private readonly IFacetIndexGeneration? _generation;
 
-    public CreatorSync(MangaPixerDbContext db, CreatorStateCache cache, TimeProvider time, ILogger<CreatorSync> logger)
+    public CreatorSync(MangaPixerDbContext db, CreatorStateCache cache, TimeProvider time, ILogger<CreatorSync> logger,
+        IFacetIndexGeneration? generation = null)
     {
+        _generation = generation;
         _db = db;
         _cache = cache;
         _time = time;
@@ -434,8 +437,9 @@ public sealed class CreatorSync
                 .SetProperty(c => c.DisplayName, choice.Name)
                 .SetProperty(c => c.DisplayNameSource, (int)choice.Source)
                 .SetProperty(c => c.UpdatedAt, now), ct);
-            await _db.FacetValues.Where(v => v.CreatorId == creator.Id && v.Display != choice.Name)
-                .ExecuteUpdateAsync(s => s.SetProperty(v => v.Display, choice.Name), ct);
+            if (await _db.FacetValues.Where(v => v.CreatorId == creator.Id && v.Display != choice.Name)
+                    .ExecuteUpdateAsync(s => s.SetProperty(v => v.Display, choice.Name), ct) > 0)
+                _generation?.Bump(); // A chip's text changed.
         }
         return (changed, names);
     }

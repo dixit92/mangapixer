@@ -16,15 +16,6 @@ using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using com.lifepixer.mangapixer.Server.Scanning;
 using Microsoft.EntityFrameworkCore;
 
-/// <summary>
-/// Told after every tag-index write of a library (1.45.0): lane Q's per-viewer count cache bumps its generation here
-/// (<c>IFacetIndexGeneration</c> - the integrator wires it at merge). Must be fast and must not throw.
-/// </summary>
-public interface IFacetIndexObserver
-{
-    void IndexChanged(long libraryId);
-}
-
 /// <summary>One index pass at a time (the builder, an admin creator change): rebuilds never interleave their writes.</summary>
 public sealed class FacetIndexLock
 {
@@ -70,20 +61,20 @@ public sealed class FacetIndexService
     private readonly CreatorStateCache _creatorCache;
     private readonly FacetIndexLock _lock;
     private readonly ScanRunRegistry? _scans;
-    private readonly IEnumerable<IFacetIndexObserver> _observers;
+    private readonly IFacetIndexGeneration? _generation;
     private readonly TimeProvider _time;
     private readonly ILogger<FacetIndexService> _logger;
     private readonly IWorkDetector _detector;
 
     public FacetIndexService(MangaPixerDbContext db, CreatorSync creators, CreatorStateCache creatorCache, FacetIndexLock gate,
-        IEnumerable<IFacetIndexObserver> observers, TimeProvider time, ILogger<FacetIndexService> logger,
-        ScanRunRegistry? scans = null, IWorkDetector? detector = null)
+        TimeProvider time, ILogger<FacetIndexService> logger, ScanRunRegistry? scans = null, IWorkDetector? detector = null,
+        IFacetIndexGeneration? generation = null)
     {
         _db = db;
         _creators = creators;
         _creatorCache = creatorCache;
         _lock = gate;
-        _observers = observers;
+        _generation = generation;
         _time = time;
         _logger = logger;
         _scans = scans;
@@ -179,14 +170,6 @@ public sealed class FacetIndexService
             try
             {
                 var result = await BuildAsync(libraryId, key, yieldAsync, watch, ct);
-                foreach (var observer in _observers)
-                {
-                    try { observer.IndexChanged(libraryId); }
-                    catch (Exception ex) when (ex is not OperationCanceledException)
-                    {
-                        _logger.LogDebug(LogEvents.Metadata.FacetIndexFailed, "Tag index observer failed: {Error}", ex.GetType().Name);
-                    }
-                }
                 _logger.LogInformation(LogEvents.Metadata.FacetIndexRebuilt,
                     "Tag index of library {LibraryId} rebuilt: {Works} work(s), {Entries} entries; {Inserted} inserted, {Updated} updated, {Deleted} deleted in {ElapsedMs} ms",
                     libraryId, result.Works, result.Entries, result.Inserted, result.Updated, result.Deleted, result.ElapsedMs);
@@ -338,6 +321,7 @@ public sealed class FacetIndexService
             await _db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
             _db.ChangeTracker.Clear();
+            _generation?.Bump(); // Lane Q's count cache: every committed index write is a new generation.
         }
 
         // 6a. Works (insert new keys; update changed titles / kinds).
