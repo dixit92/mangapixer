@@ -188,6 +188,58 @@ public sealed partial class CatalogBrowseService
         }
     }
 
+    /// <summary>
+    /// 1.45.0 (tag view, lane Q): search cards for nodes by internal id - the first visible location of each work card - with the same
+    /// enrichment as search results (folder covers, favourite star, the viewer's read state, the (i) flag). The caller has already
+    /// limited <paramref name="nodeIds"/> to locations the viewer may see; tombstoned nodes are left out here too.
+    /// </summary>
+    public async Task<Dictionary<long, CatalogNodeDto>> SearchCardsAsync(long userId, IReadOnlyCollection<long> nodeIds, CancellationToken ct = default)
+    {
+        var byInternal = new Dictionary<long, CatalogNodeDto>();
+        if (nodeIds.Count == 0)
+            return byInternal;
+
+        var connection = _db.Database.GetDbConnection();
+        var wasOpen = connection.State == System.Data.ConnectionState.Open;
+        if (!wasOpen) await connection.OpenAsync(ct);
+        var nodes = new List<CatalogNodeDto>();
+        var internalIds = new Dictionary<string, long>(StringComparer.Ordinal);
+        try
+        {
+            foreach (var chunk in nodeIds.Distinct().Chunk(500))
+            {
+                using var command = connection.CreateCommand();
+                command.CommandText = $"""
+                    SELECT cn.Id, cn.PublicId, cn.Kind, cn.DisplayName, cn.Availability,
+                           parent.PublicId AS ParentPublicId,
+                           lib.PublicId AS LibraryPublicId
+                    FROM catalog_nodes cn
+                    LEFT JOIN catalog_nodes parent ON cn.ParentId = parent.Id
+                    JOIN libraries lib ON cn.LibraryId = lib.Id
+                    WHERE cn.Id IN ({string.Join(",", chunk.Select(id => id.ToString(CultureInfo.InvariantCulture)))})
+                    AND cn.Availability != 5
+                    """;
+                using var reader = await command.ExecuteReaderAsync(ct);
+                while (await reader.ReadAsync(ct))
+                {
+                    var node = ReadSearchNode(reader);
+                    nodes.Add(node);
+                    internalIds[node.Id] = reader.GetInt64(reader.GetOrdinal("Id"));
+                }
+            }
+        }
+        finally
+        {
+            if (!wasOpen) await connection.CloseAsync();
+        }
+
+        nodes = await EnrichSearchNodesAsync(nodes, internalIds, userId, ct);
+        nodes = await ApplyHasSeriesInfoByPublicIdAsync(nodes, ct);
+        foreach (var node in nodes)
+            byInternal[internalIds[node.Id]] = node;
+        return byInternal;
+    }
+
     private static SearchResultsDto EmptySearch(string query) => new()
     {
         Query = query,

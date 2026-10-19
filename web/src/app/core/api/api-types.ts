@@ -176,6 +176,89 @@ export interface SearchResultsDto {
   hasMore: boolean;
   /** Series found through a linked series' alternative titles; first page only (1.26.0). */
   seriesMatches?: SeriesMatchDto[] | null;
+  /** 1.45.0 tag view: the filters (`f=` chips, typed fields in `q`) as the server understood them; absent on a plain search. */
+  filters?: SearchFilterDto[];
+  /** 1.45.0 tag view: with a filter the results are WORK cards (`items` is empty, `totalCount` counts works); absent on a plain search. */
+  works?: FacetWorkDto[];
+}
+
+// ---- 1.45.0 tag buckets (lane Q): Info panel tags and the tag view ----
+
+/** Info panel buckets, in the owner's display order. URL / typed token: creator, series, magazine, publisher, year, genre, type, about, custom. */
+export type FacetBucket = 'Creators' | 'Series' | 'Magazine' | 'Publisher' | 'Year' | 'Genres' | 'Type' | 'About' | 'Custom';
+
+/** A creator's roles on a chip: comma-separated flag names ('Writer', 'Artist', 'Writer, Artist' = Story & art, 'None'). */
+export type FacetRoles = string;
+
+export type InfoPanelMode = 'None' | 'Work' | 'Container';
+
+export interface FacetChipDto {
+  /** The value's public id (`fv_...`). */
+  id: string;
+  display: string;
+  /** Works the viewer may see that carry the value - only when 2 or more (count-of-1 rule). */
+  count?: number | null;
+  /** Container only: works below this node that carry it ("12 here"). */
+  here?: number | null;
+  roles: FacetRoles;
+  conflict: boolean;
+  /** One `f` query parameter value for the search (`creator:fv_...`). */
+  filter: string;
+}
+
+export interface FacetBucketDto {
+  bucket: FacetBucket;
+  chips: FacetChipDto[];
+  /** Further values beyond `chips` (container: top 12 per bucket). */
+  more: number;
+}
+
+export interface FacetLocationDto {
+  nodeId: string;
+  libraryId: string;
+  libraryName: string;
+  /** From the library's top-level folder down to the location node itself (display names only). */
+  trail: BreadcrumbEntry[];
+}
+
+export interface FacetWorkSummaryDto {
+  title: string;
+  locationCount: number;
+  locations: FacetLocationDto[];
+}
+
+/** `GET /api/v1/nodes/{nodeId}/info` and `GET /api/v1/libraries/{libraryId}/info`. */
+export interface InfoPanelDto {
+  nodeId: string;
+  mode: InfoPanelMode;
+  buckets: FacetBucketDto[];
+  worksBelow?: number | null;
+  work?: FacetWorkSummaryDto | null;
+}
+
+/** A work card of the tag view. */
+export interface FacetWorkDto {
+  title: string;
+  /** The first visible location as a normal card (cover, read state) - what the card opens. */
+  node: CatalogNodeDto;
+  coverUrl?: string | null;
+  locationCount: number;
+  /** At most 5 visible locations; the first is `node`. */
+  locations: FacetLocationDto[];
+}
+
+export type SearchFilterSource = 'Chip' | 'Typed';
+
+/** A filter as the server understood it. Not matched = unknown or not visible to the viewer (answered alike). */
+export interface SearchFilterDto {
+  bucket: FacetBucket;
+  source: SearchFilterSource;
+  id?: string;
+  text?: string;
+  display?: string;
+  matched: boolean;
+  valueIds: string[];
+  redirectedFrom?: string;
 }
 
 export interface SeriesMatchDto {

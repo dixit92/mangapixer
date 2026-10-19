@@ -521,6 +521,11 @@ public static class LogEvents
         public const int FreshnessFailed = 9467;
         public const int CrossTrigger = 9468;
 
+        // Tag query (1.45.0, lane Q, 9450-9459). Counts, ids and timings only - never search text, tag values or names.
+        public const int FacetCountsComputed = 9450;
+        public const int InfoPanelServed = 9451;
+        public const int FacetSearchServed = 9452;
+
         // MangaDex as the series record (1.42.0, lane D, 9500-9599). Ids, counts and codes only - never titles or search text.
         public const int MangaDexSelfCompanion = 9500;
         public const int MangaDexStep = 9501;
