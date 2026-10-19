@@ -149,6 +149,8 @@ public sealed class MoveRulesTests
             // 1.44.0 volume contents scan: derived from the files (page hashes, the answer) - the new copy is hashed / matched again.
             ["archive_page_hashes"] = "regenerated",
             ["volume_contents"] = "regenerated",
+            // 1.45.0 tag index: derived per location; the index rebuild writes the new copy's entries (the old node's go with it).
+            ["facet_entries"] = "regenerated",
             // History / bookkeeping that stays where it happened.
             ["catalog_nodes"] = "the node itself",
             ["jobs"] = "history",

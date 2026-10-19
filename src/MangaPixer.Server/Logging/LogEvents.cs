@@ -503,6 +503,13 @@ public static class LogEvents
         // Edition override and stop tracking (1.39.0, 9420-9429). Ids and flags only - never folder names or titles.
         public const int DeclaredEditionChanged = 9420;
 
+        // Reserved, 1.45.0 (seam I0; each lane adds its own constants inside its range). Ids, counts, codes and timings only - never
+        // search text, creator names, titles or tag values:
+        //   9430-9439 author search by name (lane A)
+        //   9440-9449 tag index: builder, creator resolution, creator merge / split (lane F)
+        //   9450-9459 tag query: per-viewer counts, the works page, field search (lane Q)
+        //   9460-9479 new-chapter freshness, the MangaDex latest-upload sweep, the MangaUpdates releases feed (lane R)
+
         // MangaDex as the series record (1.42.0, lane D, 9500-9599). Ids, counts and codes only - never titles or search text.
         public const int MangaDexSelfCompanion = 9500;
         public const int MangaDexStep = 9501;

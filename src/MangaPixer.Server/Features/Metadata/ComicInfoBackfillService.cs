@@ -35,6 +35,7 @@ public sealed class ComicInfoBackfillService
     private readonly MediaWorkerPool _workerPool;
     private readonly ILogger<ComicInfoBackfillService> _logger;
     private readonly CancellationToken _stopping;
+    private readonly Facets.IFacetIndexNudge _facetNudge;
     private readonly object _gate = new();
     private Task? _running;
     private bool _rerunRequested;
@@ -43,11 +44,13 @@ public sealed class ComicInfoBackfillService
         IServiceScopeFactory scopeFactory,
         MediaWorkerPool workerPool,
         ILogger<ComicInfoBackfillService> logger,
-        IHostApplicationLifetime? lifetime = null)
+        IHostApplicationLifetime? lifetime = null,
+        Facets.IFacetIndexNudge? facetNudge = null)
     {
         _scopeFactory = scopeFactory;
         _workerPool = workerPool;
         _logger = logger;
+        _facetNudge = facetNudge ?? Facets.NoFacetIndexNudge.Instance;
         // Every pass (startup or post-scan kick) stops with the host.
         _stopping = lifetime?.ApplicationStopping ?? CancellationToken.None;
     }
@@ -112,7 +115,8 @@ public sealed class ComicInfoBackfillService
             () => _workerPool.IsSaturated,
             () => _workerPool.SchedulerPendingCount,
             BackoffMs,
-            ct);
+            ct,
+            () => _facetNudge.AllChanged(Facets.FacetNudgeReason.ComicInfoStored));
 
         if (counts.Attempted > 0)
             _logger.LogInformation(LogEvents.Metadata.ComicInfoBackfillCompleted,
@@ -124,7 +128,8 @@ public sealed class ComicInfoBackfillService
     /// <summary>
     /// Delegate-driven pass (unit-testable without a pool, DB or filesystem): keyset
     /// batches by node id, yield before every item while the pool is saturated or
-    /// analysis is pending, attempt each item once.
+    /// analysis is pending, attempt each item once. <paramref name="batchStored"/> (1.45.0: the tag index nudge) runs after each batch
+    /// that stored at least one row.
     /// </summary>
     internal static async Task<ComicInfoBackfillCounts> RunPassCoreAsync(
         Func<long, int, CancellationToken, Task<IReadOnlyList<ComicInfoBackfillCandidate>>> selectBatchAsync,
@@ -132,7 +137,8 @@ public sealed class ComicInfoBackfillService
         Func<bool> isSaturated,
         Func<int> schedulerPendingCount,
         int backoffMs,
-        CancellationToken ct)
+        CancellationToken ct,
+        Action? batchStored = null)
     {
         var counts = new ComicInfoBackfillCounts();
         long afterNodeId = 0;
@@ -142,6 +148,7 @@ public sealed class ComicInfoBackfillService
             var batch = await selectBatchAsync(afterNodeId, BatchSize, ct);
             if (batch.Count == 0)
                 break;
+            var storedBefore = counts.Stored;
 
             foreach (var candidate in batch)
             {
@@ -177,6 +184,8 @@ public sealed class ComicInfoBackfillService
                         break;
                 }
             }
+            if (counts.Stored > storedBefore)
+                batchStored?.Invoke();
         }
 
         return counts;

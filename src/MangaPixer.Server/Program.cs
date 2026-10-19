@@ -266,6 +266,7 @@ public sealed partial class Program
             // 1.43.0: tracker sync (MyAnimeList, MangaUpdates lists) and the volume contents scan register in their own extensions.
             Features.Trackers.TrackerServicesExtensions.AddTrackers(builder.Services);
             Features.VolumeScan.VolumeScanServicesExtensions.AddVolumeScan(builder.Services);
+            Features.Metadata.Facets.FacetServicesExtensions.AddFacets(builder.Services); // 1.45.0: the tag index (seam I0; lanes F / Q)
             AddMetadataExport(builder.Services);
             Features.Reading.Suggestions.ReadingModeSuggestionServices.AddReadingModeSuggestions(builder.Services); // 1.41.0 lane R
 

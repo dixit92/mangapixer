@@ -29,10 +29,11 @@ public sealed class MetadataConsentFiveTests : IAsyncLifetime
     }
 
     [Fact]
-    public void TheMainConsentIsVersion6_AndTheAutomaticConsentIs5()
+    public void TheMainConsentIsVersion7_AndTheAutomaticConsentIs5()
     {
-        // 1.42.0 (lane D): MangaDex as the series record moves both (main 5 -> 6, automatic 4 -> 5).
-        Assert.Equal(6, MetadataConsent.CurrentVersion);
+        // 1.42.0 (lane D): MangaDex as the series record moved both (main 5 -> 6, automatic 4 -> 5); 1.45.0 (seam I0): author search by
+        // name moves the main consent 6 -> 7, the automatic consent stays 5.
+        Assert.Equal(7, MetadataConsent.CurrentVersion);
         Assert.Equal(5, MetadataAutoConsent.CurrentVersion);
     }
 

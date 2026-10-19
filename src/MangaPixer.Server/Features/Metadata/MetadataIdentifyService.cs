@@ -64,6 +64,7 @@ public sealed class MetadataIdentifyService
     private readonly Declared.IDeclaredFactsReader? _declared;
     private readonly MetadataAutoMatchState? _autoState;
     private readonly GcdDetails? _gcd;
+    private readonly Facets.IFacetIndexNudge _facetNudge;
 
     public MetadataIdentifyService(
         MangaPixerDbContext db,
@@ -81,7 +82,8 @@ public sealed class MetadataIdentifyService
         ICoverResolver? covers = null,
         Declared.IDeclaredFactsReader? declared = null,
         MetadataAutoMatchState? autoState = null,
-        GcdDetails? gcd = null)
+        GcdDetails? gcd = null,
+        Facets.IFacetIndexNudge? facetNudge = null)
     {
         _db = db;
         _gateway = gateway;
@@ -99,6 +101,7 @@ public sealed class MetadataIdentifyService
         _declared = declared;
         _autoState = autoState;
         _gcd = gcd;
+        _facetNudge = facetNudge ?? Facets.NoFacetIndexNudge.Instance;
     }
 
     /// <summary>Whether the comics site is registered (it is in the app; a test host may leave it out).</summary>
@@ -473,6 +476,7 @@ public sealed class MetadataIdentifyService
             var oldImageUrl = record.ImageRemoteUrl;
             Apply(record, fetched, now);
             await _db.SaveChangesAsync(ct);
+            _facetNudge.AllChanged(Facets.FacetNudgeReason.RecordStored);
             state = "Ok";
             if (record.ImageRemoteUrl is not null && (record.ImageState != 1 || !string.Equals(oldImageUrl, record.ImageRemoteUrl, StringComparison.Ordinal)))
                 imageUpdated = await TryStoreImageAsync(record, node.LibraryId, ct);
@@ -567,6 +571,7 @@ public sealed class MetadataIdentifyService
         }
         Apply(record, fetched, now);
         await _db.SaveChangesAsync(ct);
+        _facetNudge.AllChanged(Facets.FacetNudgeReason.RecordStored);
         _logger.LogInformation(LogEvents.Metadata.RecordStored, "Metadata record {RecordId} stored ({Provider} {ExternalId})",
             record.Id, record.Provider, record.ExternalId);
         return record;
