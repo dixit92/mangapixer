@@ -175,9 +175,12 @@ public sealed class RefreshCadenceTests
     {
         // Lifetime says ~164 days a volume (monthly); observed: 3 volumes in the 150 days after the first increase -> 50 days -> weekly.
         var history = new[] { Seen(400, 100, 20), Seen(200, 110, 21), Seen(150, 115, 22), Seen(100, 120, 23), Seen(50, 125, 24) };
-        var result = RefreshCadence.For(RefreshCadencePolicy.Default, Evidence(startYear: 2016, volumes: 24, history: history), Now);
+        var volumes = RefreshCadencePolicy.Default with { PaceSource = RefreshPaceSource.Volumes };
+        var result = RefreshCadence.For(volumes, Evidence(startYear: 2016, volumes: 24, history: history), Now);
         Assert.Equal(7, result.Days);
         Assert.Equal(50, result.VolumeIntervalDays!.Value, 3);
+        // 1.45.0: the same history's chapters (15 in the 150 days after the first rise: one every 10 days) check every 5 days - the faster.
+        Assert.Equal(5, RefreshCadence.For(RefreshCadencePolicy.Default, Evidence(startYear: 2016, volumes: 24, history: history), Now).Days);
     }
 
     [Fact]

@@ -328,8 +328,11 @@ public sealed class NewChapterFreshnessTests : IAsyncLifetime
         Assert.False(await _t.Db.LibraryFreshness.AnyAsync(f => f.MangaDexSweepAt != null));
         Assert.Equal("budget_exhausted", (await NewChapterChecks.PeekAsync(_t.Db, default))!.SweepOutcome);
 
-        // The next budget day: the sweep completes and confirms the libraries whose fetching is on - not the one with it off.
+        // The next budget day (with room for both requests): the sweep completes and confirms the libraries whose fetching is on - not the
+        // one with it off.
         _h.Time.Advance(TimeSpan.FromDays(1));
+        _t.Db.ChangeTracker.Clear();
+        await _t.Db.AppSettings.ExecuteUpdateAsync(u => u.SetProperty(x => x.MetadataDailyBudget, (int?)100));
         _h.ResetRequests();
         var done = await Sweep().RunAsync();
         Assert.Equal((null, 2, 2), (done!.StoppedCode, done.Requests, done.Libraries));
