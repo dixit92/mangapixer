@@ -23362,6 +23362,16 @@
           "available": {
             "type": "boolean"
           },
+          "unavailableReason": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/VolumeViewUnavailableReason"
+              }
+            ]
+          },
           "active": {
             "type": "boolean"
           },
@@ -23496,6 +23506,9 @@
             ]
           }
         }
+      },
+      "VolumeViewUnavailableReason": {
+        "type": "integer"
       },
       "WebCoverDto": {
         "required": [

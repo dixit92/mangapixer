@@ -116,6 +116,29 @@ describe('LibraryBrowseComponent Volumes view (1.29.0)', () => {
     expect(el.querySelector('.node-sub')!.textContent?.trim()).toBe('Volume + 4 chapters');
   });
 
+  it('1.45.0 (K7): the View menu says why a linked series has no Volumes view, and only then', () => {
+    const open = (fixture: ReturnType<typeof setup>['fixture'], el: HTMLElement) => {
+      (el.querySelector('.view-toggle') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      return document.querySelector('[data-testid="volume-view-reason"]');
+    };
+    const none = setup({ view: { available: false, active: false, stackCount: 0, unavailableReason: 'NoVolumeList' } });
+    const line = open(none.fixture, none.el);
+    expect(line!.textContent!.trim()).toBe('No Volumes view: no volume list is known for this series yet');
+    expect(none.el.querySelector('app-volume-view-switch')).toBeNull();
+    document.querySelectorAll('.cdk-overlay-container').forEach((c) => (c.innerHTML = ''));
+    TestBed.resetTestingModule();
+
+    // A series with its Volumes view, or a folder the server gives no reason for: no line.
+    const withView = setup();
+    expect(open(withView.fixture, withView.el)).toBeNull();
+    document.querySelectorAll('.cdk-overlay-container').forEach((c) => (c.innerHTML = ''));
+    TestBed.resetTestingModule();
+    const plain = setup({ view: { available: false, active: false, stackCount: 0, unavailableReason: null } });
+    expect(open(plain.fixture, plain.el)).toBeNull();
+    document.querySelectorAll('.cdk-overlay-container').forEach((c) => (c.innerHTML = ''));
+  });
+
   it('shows the Volumes | Folders switch only where a Volumes view exists', () => {
     expect(setup().el.querySelector('[data-testid="volume-view-switch"]')).not.toBeNull();
     TestBed.resetTestingModule();

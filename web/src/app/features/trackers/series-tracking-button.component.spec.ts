@@ -248,7 +248,10 @@ describe('SeriesTrackingButtonComponent', () => {
     openOn(fixture, el, http, 'n1');
     const pop = q(overlay(), 'series-tracking-popover')!;
     expect(pop.contains(document.activeElement)).toBe(true);
-    expect(document.activeElement).toBe(q(pop, 'series-tracking-open-mal'));
+    // 1.45.0 (UX review #16): the dialog itself takes the focus, so Tab walks its controls in the order they are shown (the
+    // tracker-site link and the volumes button came before "Open in Tracking" and were reached only after wrapping round).
+    expect(document.activeElement).toBe(pop);
+    expect(pop.getAttribute('tabindex')).toBe('-1');
     expect(pop.getAttribute('role')).toBe('dialog');
     expect(document.getElementById(pop.getAttribute('aria-labelledby') ?? '')?.textContent).toBe('Tracking for this series');
 
