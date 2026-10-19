@@ -5,7 +5,7 @@ import { RouterLink } from '@angular/router';
 import { SeriesInfoDto } from '../../core/api/api-types';
 import { creditGroups, itemLine, metaLine } from './series-info-labels';
 import { DeclaredFactsLineComponent } from './declared/declared-facts-line.component';
-import { FacetBucketName, InfoPanelDto } from './info/info-types';
+import { FacetBucket, InfoPanelDto } from './info/info-types';
 
 /**
  * Presentational series summary (1.24.0) shared by the overlay and the series page,
@@ -177,7 +177,7 @@ export class SeriesInfoSummaryComponent {
   readonly facts = computed(() => metaLine(this.info()));
 
   /** Whether the Tags block shows this bucket (its chips then replace the plain-text line). */
-  hasChips(bucket: FacetBucketName): boolean {
+  hasChips(bucket: FacetBucket): boolean {
     return !!this.tagsPanel()?.buckets.some((b) => b.bucket === bucket && b.chips.length > 0);
   }
   readonly itemFacts = computed(() => itemLine(this.info().item));
