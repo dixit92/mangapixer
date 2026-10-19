@@ -81,14 +81,15 @@ public sealed class RefreshCadenceTests
         Assert.Equal(58 / 8.0, RefreshCadence.ObservedChapterInterval(WeeklyChapters)!.Value, 3);
         var chapters = RefreshCadencePolicy.Default with { PaceSource = RefreshPaceSource.Chapters };
         var result = RefreshCadence.For(chapters, Evidence(startYear: 2000, volumes: 5, history: WeeklyChapters), Now);
-        Assert.Equal((7, RefreshCadenceReason.Pace), (result.Days, result.Reason));
+        // 1.45.0: about half the ~7-day interval, at least 3 days (before: weekly).
+        Assert.Equal((3, RefreshCadenceReason.Pace), (result.Days, result.Reason));
         Assert.Null(result.VolumeIntervalDays);
         Assert.NotNull(result.ChapterIntervalDays);
     }
 
     [Theory]
-    [InlineData(RefreshPaceSource.Faster, 7)]   // chapters weekly, volumes slow: the faster wins
-    [InlineData(RefreshPaceSource.Chapters, 7)]
+    [InlineData(RefreshPaceSource.Faster, 3)]   // chapters weekly (checked every 3 days since 1.45.0), volumes slow: the faster wins
+    [InlineData(RefreshPaceSource.Chapters, 3)]
     [InlineData(RefreshPaceSource.Volumes, 30)] // ~5,000 days a volume
     public void PaceSource_ChoosesWhatThePaceFollows(RefreshPaceSource source, int days) =>
         Assert.Equal(days, RefreshCadence.For(RefreshCadencePolicy.Default with { PaceSource = source },
@@ -102,7 +103,7 @@ public sealed class RefreshCadenceTests
         // 1.35.1: no observed pace yet -> the latest chapter over the days since the start year (~1,005 days / 200 = ~5 days).
         var chapters = RefreshCadencePolicy.Default with { PaceSource = RefreshPaceSource.Chapters };
         var result = RefreshCadence.For(chapters, Evidence(startYear: 2024, chapter: 200), Now);
-        Assert.Equal((7, RefreshCadenceReason.Pace, RefreshPaceSource.Chapters, true), (result.Days, result.Reason, result.PaceFrom, result.ChapterIntervalEstimated));
+        Assert.Equal((3, RefreshCadenceReason.Pace, RefreshPaceSource.Chapters, true), (result.Days, result.Reason, result.PaceFrom, result.ChapterIntervalEstimated));
         // Nothing to average: no start year, a start this year, or fewer than two chapters.
         Assert.Equal(RefreshCadenceReason.PaceUnknown, RefreshCadence.For(chapters, Evidence(chapter: 200), Now).Reason);
         Assert.Equal(RefreshCadenceReason.PaceUnknown, RefreshCadence.For(chapters, Evidence(startYear: 2026, chapter: 30), Now).Reason);
@@ -113,7 +114,8 @@ public sealed class RefreshCadenceTests
     public void OwnerExample_ChapterFiles_EightVolumesSince2022_IsEveryTwoWeeksFromTheChapters()
     {
         // 1.35.1 (owner: "checked every month (Volume) when it has chapters as files?"): 58 chapters and 8 volumes since 2022, one
-        // observed rise. Volumes: ~217 days each -> monthly; chapters: ~30 days each on average -> every 2 weeks; the faster wins.
+        // observed rise. Volumes: ~217 days each -> monthly; chapters: ~30 days each on average -> every 2 weeks (1.45.0: half of ~29.9
+        // days, 14); the faster wins.
         var history = new[] { Seen(12, 57, 7), Seen(6, 58, 8) };
         var result = RefreshCadence.For(RefreshCadencePolicy.Default, Evidence(startYear: 2022, volumes: 8, chapter: 58, history: history), Now);
         Assert.Equal((14, RefreshPaceSource.Chapters, true), (result.Days, result.PaceFrom, result.ChapterIntervalEstimated));
@@ -126,7 +128,7 @@ public sealed class RefreshCadenceTests
         // Since 2000, 52 chapters: ~180 days each on average (monthly); observed: a chapter about every week.
         var chapters = RefreshCadencePolicy.Default with { PaceSource = RefreshPaceSource.Chapters };
         var result = RefreshCadence.For(chapters, Evidence(startYear: 2000, chapter: 52, history: WeeklyChapters), Now);
-        Assert.Equal((7, false), (result.Days, result.ChapterIntervalEstimated));
+        Assert.Equal((3, false), (result.Days, result.ChapterIntervalEstimated));
         Assert.Equal(58 / 8.0, result.ChapterIntervalDays!.Value, 3);
         // The volumes alone never read the chapters.
         var volumes = RefreshCadencePolicy.Default with { PaceSource = RefreshPaceSource.Volumes };
@@ -139,16 +141,21 @@ public sealed class RefreshCadenceTests
         RefreshObservation[] Every(int days) =>
             [Seen(5 * days, 10, 1), Seen(4 * days, 11, 1), Seen(3 * days, 12, 1), Seen(2 * days, 13, 1), Seen(days, 14, 1)];
         var chapters = RefreshCadencePolicy.Default with { PaceSource = RefreshPaceSource.Chapters };
-        Assert.Equal(7, RefreshCadence.For(chapters, Evidence(history: Every(10)), Now).Days);
-        Assert.Equal(14, RefreshCadence.For(chapters, Evidence(history: Every(20)), Now).Days);
-        Assert.Equal(30, RefreshCadence.For(chapters, Evidence(history: Every(40)), Now).Days);
+        // 1.45.0 (recommendation 4): about half the chapter interval instead of buckets at or above it.
+        Assert.Equal(5, RefreshCadence.For(chapters, Evidence(history: Every(10)), Now).Days);
+        Assert.Equal(10, RefreshCadence.For(chapters, Evidence(history: Every(20)), Now).Days);
+        Assert.Equal(20, RefreshCadence.For(chapters, Evidence(history: Every(40)), Now).Days);
+        Assert.Equal(30, RefreshCadence.For(chapters, Evidence(history: Every(90)), Now).Days); // never slower than the monthly default
     }
 
     [Fact]
     public void WithoutVolumes_TheChapterRateTimesAVolumesChapters()
     {
-        // Started 2024 (~1,005 days), 200 chapters: a chapter every ~5 days, 10 chapters a volume -> ~50 days -> weekly.
-        Assert.Equal(7, RefreshCadence.For(RefreshCadencePolicy.Default, Evidence(startYear: 2024, chapter: 200), Now).Days);
+        // Started 2024 (~1,005 days), 200 chapters: a chapter every ~5 days, 10 chapters a volume -> ~50 days -> weekly by the volumes;
+        // 1.45.0: the chapter pace (every ~5 days -> every 3 days) is faster.
+        Assert.Equal(3, RefreshCadence.For(RefreshCadencePolicy.Default, Evidence(startYear: 2024, chapter: 200), Now).Days);
+        Assert.Equal(7, RefreshCadence.For(RefreshCadencePolicy.Default with { PaceSource = RefreshPaceSource.Volumes },
+            Evidence(startYear: 2024, chapter: 200), Now).Days);
         // The volume map's average (25 chapters a volume) -> ~126 days -> monthly (the volume pace alone: the chapter pace is weekly).
         var volumes = RefreshCadencePolicy.Default with { PaceSource = RefreshPaceSource.Volumes };
         Assert.Equal(30, RefreshCadence.For(volumes, Evidence(startYear: 2024, chapter: 200, perVolume: 25), Now).Days);
@@ -168,9 +175,12 @@ public sealed class RefreshCadenceTests
     {
         // Lifetime says ~164 days a volume (monthly); observed: 3 volumes in the 150 days after the first increase -> 50 days -> weekly.
         var history = new[] { Seen(400, 100, 20), Seen(200, 110, 21), Seen(150, 115, 22), Seen(100, 120, 23), Seen(50, 125, 24) };
-        var result = RefreshCadence.For(RefreshCadencePolicy.Default, Evidence(startYear: 2016, volumes: 24, history: history), Now);
+        var volumes = RefreshCadencePolicy.Default with { PaceSource = RefreshPaceSource.Volumes };
+        var result = RefreshCadence.For(volumes, Evidence(startYear: 2016, volumes: 24, history: history), Now);
         Assert.Equal(7, result.Days);
         Assert.Equal(50, result.VolumeIntervalDays!.Value, 3);
+        // 1.45.0: the same history's chapters (15 in the 150 days after the first rise: one every 10 days) check every 5 days - the faster.
+        Assert.Equal(5, RefreshCadence.For(RefreshCadencePolicy.Default, Evidence(startYear: 2016, volumes: 24, history: history), Now).Days);
     }
 
     [Fact]
@@ -208,5 +218,41 @@ public sealed class RefreshCadenceTests
         Assert.Equal(RefreshPaceSource.Faster, RefreshCadencePolicy.FromStored(7, 180, true, 9).PaceSource);
         Assert.Equal(TimeSpan.FromDays(14), RefreshCadence.AgeFor(14, (int)MetadataOriginStatus.Complete));
         Assert.Equal(TimeSpan.FromDays(90), RefreshCadence.AgeFor(null, (int)MetadataOriginStatus.Complete));
+    }
+
+    // 1.45.0 lane R: half the chapter interval, the reading fast lane.
+
+    [Theory]
+    [InlineData(1.0, 3)]
+    [InlineData(6.9, 3)]
+    [InlineData(7.0, 3)]
+    [InlineData(8.0, 4)]
+    [InlineData(29.9, 14)]
+    [InlineData(30.0, 15)]
+    [InlineData(59.0, 29)]
+    [InlineData(400.0, 30)]
+    [InlineData(double.PositiveInfinity, 30)]
+    public void ChapterPaceDays_IsHalfTheInterval_Floor3_Cap30(double interval, int days) =>
+        Assert.Equal(days, RefreshCadence.ChapterPaceDays(interval));
+
+    [Fact]
+    public void Reading_IsCheckedEveryTwoDays_WhateverTheChoiceOrPace()
+    {
+        static RefreshEvidence Read(RefreshEvidence e) => e with { Reading = true };
+        var expected = new RefreshCadenceResult(RefreshCadence.ReadingDays, RefreshCadenceReason.Reading, null);
+        Assert.Equal(2, RefreshCadence.ReadingDays);
+        Assert.True(RefreshCadence.ReadingDays < RefreshCadence.FastestDays);
+        Assert.Equal(expected, RefreshCadence.For(RefreshCadencePolicy.Default, Read(Evidence(startYear: 2000, volumes: 5)), Now));
+        Assert.Equal(expected, RefreshCadence.For(RefreshCadencePolicy.Default with { FollowPace = false }, Read(Evidence()), Now));
+        Assert.Equal(expected, RefreshCadence.For(RefreshCadencePolicy.Default, Read(Evidence(MetadataOriginStatus.Hiatus)), Now));
+        // A finished series still being translated (or not known to be complete) too ...
+        Assert.Equal(expected, RefreshCadence.For(RefreshCadencePolicy.Default, Read(Evidence(MetadataOriginStatus.Complete)), Now));
+        Assert.Equal(expected, RefreshCadence.For(RefreshCadencePolicy.Default,
+            Read(Evidence(MetadataOriginStatus.Complete)) with { TranslationComplete = false }, Now));
+        // ... but not a finished series whose translation is complete: nothing new can come.
+        Assert.Equal(RefreshCadenceReason.Finished, RefreshCadence.For(RefreshCadencePolicy.Default,
+            Read(Evidence(MetadataOriginStatus.Complete)) with { TranslationComplete = true }, Now).Reason);
+        // Not read: the pace as before.
+        Assert.Equal(RefreshCadenceReason.PaceUnknown, RefreshCadence.For(RefreshCadencePolicy.Default, Evidence(), Now).Reason);
     }
 }

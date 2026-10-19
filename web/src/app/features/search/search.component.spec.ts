@@ -1,15 +1,16 @@
 import { vi } from 'vitest';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { convertToParamMap, provideRouter, Router } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 
-import { SearchComponent } from './search.component';
+import { SearchComponent, searchParamsFromQuery, searchParamsToQuery } from './search.component';
 import { By } from '@angular/platform-browser';
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { MetadataStateService } from '../metadata/metadata-state.service';
 import { ApiService } from '../../core/api/api.service';
 import { CatalogNodeDto, SearchResultsDto } from '../../core/api/api-types';
+import { FacetLocationDto, FacetSearchFields, FacetWorkDto, SearchFilterDto } from '../metadata/info/info-types';
 
 /**
  * Search component tests. Covers the 1.8.1 fix: folder results render the
@@ -355,5 +356,342 @@ describe('SearchComponent series matches (1.26.0)', () => {
   it('renders no Series matches row when the response has none', () => {
     setup({ query: 'x', items: [makeNode({ id: 'n1' })], totalCount: 1, nextCursor: null, hasMore: false });
     expect((fixture.nativeElement as HTMLElement).querySelector('.series-matches')).toBeNull();
+  });
+});
+
+/**
+ * 1.45.0 phase K4: the read mark on each result card (as browse), the Read / Reading / Unread filter chip row (sent to the server, which
+ * filters before paging), keyset "Load more", and the URL parameters `q` / `read` (one params model).
+ */
+describe('SearchComponent read state, filter, Load more and URL (1.45.0)', () => {
+  let fixture: ComponentFixture<SearchComponent>;
+  let search: ReturnType<typeof vi.fn>;
+  let navigate: ReturnType<typeof vi.spyOn>;
+
+  function page(items: CatalogNodeDto[], totalCount: number, nextCursor: string | null): SearchResultsDto {
+    return { query: 'q', items, totalCount, nextCursor, hasMore: nextCursor !== null };
+  }
+
+  function setup(...responses: SearchResultsDto[]): void {
+    search = vi.fn();
+    for (const r of responses) search.mockReturnValueOnce(of(r));
+    search.mockReturnValue(of(page([], 0, null)));
+    TestBed.configureTestingModule({
+      imports: [SearchComponent],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        {
+          provide: ApiService,
+          useValue: {
+            search,
+            getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
+          },
+        },
+      ],
+    });
+    navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    fixture = TestBed.createComponent(SearchComponent);
+    fixture.detectChanges();
+  }
+
+  function type(query: string): void {
+    fixture.componentInstance.query = query;
+    fixture.componentInstance.onSearch();
+    vi.advanceTimersByTime(300);
+    fixture.detectChanges();
+  }
+
+  const el = () => fixture.nativeElement as HTMLElement;
+  /** A filter chip's own button (mat-chip-option's primary action, `role="option"`). */
+  const chip = (label: string) =>
+    Array.from(el().querySelectorAll('.read-filter mat-chip-option')).find((c) => c.textContent?.trim() === label)
+      ?.querySelector('button') as HTMLButtonElement;
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); });
+
+  it('marks read and in-progress archives and read / partly read folders as browse cards do', () => {
+    setup(page([
+      makeNode({ id: 'a1', displayName: 'Read One', isRead: true }),
+      makeNode({ id: 'a2', displayName: 'Reading One', readingState: 'InProgress', lastReadPage: 3 }),
+      makeNode({ id: 'a3', displayName: 'Unread One' }),
+      makeNode({ id: 'f1', kind: 'Folder', displayName: 'Read Folder', readRollup: 'Read' }),
+      makeNode({ id: 'f2', kind: 'Folder', displayName: 'Partly Folder', readRollup: 'Reading' }),
+      makeNode({ id: 'f3', kind: 'Folder', displayName: 'Unread Folder', readRollup: 'Unread' }),
+    ], 6, null));
+    type('one');
+
+    const badges = Array.from(el().querySelectorAll('.result-card')).map((c) => c.querySelector('.badge')?.textContent?.trim() ?? '');
+    expect(badges).toEqual(['✓ Read', 'Reading', '', '✓ Read', 'Reading', '']);
+  });
+
+  it('shows the chip row once there is search text and sends the chosen filter, keeping the text', () => {
+    setup(page([makeNode({ id: 'a1' })], 1, null), page([makeNode({ id: 'a2' })], 1, null));
+    expect(el().querySelector('.read-filter')).toBeNull();
+    type('alpha');
+
+    expect(Array.from(el().querySelectorAll('.read-filter mat-chip-option')).map((c) => c.textContent?.trim()))
+      .toEqual(['All', 'Reading', 'Read', 'Unread']);
+    expect(search).toHaveBeenLastCalledWith('alpha', { readState: 'all' });
+
+    chip('Unread').click();
+    fixture.detectChanges();
+
+    expect(search).toHaveBeenLastCalledWith('alpha', { readState: 'unread' });
+    expect(fixture.componentInstance.params()).toEqual({ q: 'alpha', read: 'unread', f: [] });
+    expect(navigate).toHaveBeenLastCalledWith([], expect.objectContaining({ queryParams: { q: 'alpha', read: 'unread', f: null }, replaceUrl: true }));
+    expect(fixture.componentInstance.results().map((n) => n.id)).toEqual(['a2']);
+  });
+
+  it('keeps the selected chip selected when it is clicked again, without a new search', () => {
+    setup(page([makeNode({ id: 'a1' })], 1, null));
+    type('alpha');
+    const calls = search.mock.calls.length;
+
+    chip('All').click();
+    fixture.detectChanges();
+
+    expect(search.mock.calls.length).toBe(calls);
+    expect(chip('All').getAttribute('aria-selected')).toBe('true');
+    expect(fixture.componentInstance.params().read).toBe('all');
+  });
+
+  it('says "No results with this filter." when a filter leaves nothing, and keeps the chips to switch back', () => {
+    setup(page([makeNode({ id: 'a1' })], 1, null), page([], 0, null));
+    type('alpha');
+    chip('Read').click();
+    fixture.detectChanges();
+
+    expect(el().querySelector('.no-results')?.textContent?.trim()).toBe('No results with this filter.');
+    expect(chip('All')).toBeTruthy();
+  });
+
+  it('loads the next page with the cursor and the same filter, appends it, and hides Load more on the last page', () => {
+    setup(
+      page([makeNode({ id: 'a1' }), makeNode({ id: 'a2' })], 3, 'k:2:1a2'),
+      page([makeNode({ id: 'a3' })], 3, null),
+    );
+    fixture.componentInstance.setReadFilter('unread');
+    type('alpha');
+
+    const button = () => Array.from(el().querySelectorAll('.load-more button')).find((b) => b.textContent?.includes('Load more')) as
+      HTMLButtonElement | undefined;
+    expect(el().querySelectorAll('.result-card').length).toBe(2);
+    expect(button()).toBeTruthy();
+
+    button()!.click();
+    fixture.detectChanges();
+
+    expect(search).toHaveBeenLastCalledWith('alpha', { cursor: 'k:2:1a2', readState: 'unread' });
+    expect(fixture.componentInstance.results().map((n) => n.id)).toEqual(['a1', 'a2', 'a3']);
+    expect(el().querySelector('.result-count')?.textContent?.trim()).toBe('3 results');
+    expect(button()).toBeUndefined();
+  });
+
+  it('drops a Load more answer that arrives after a new search started', () => {
+    const late = new Subject<SearchResultsDto>();
+    setup(page([makeNode({ id: 'a1' })], 2, 'k:1:1a1'));
+    search.mockReturnValueOnce(late);
+    type('alpha');
+    fixture.componentInstance.loadMore();
+    type('beta');
+
+    late.next(page([makeNode({ id: 'a2' })], 2, null));
+    fixture.detectChanges();
+
+    expect(search).toHaveBeenLastCalledWith('beta', { readState: 'all' });
+    expect(fixture.componentInstance.results()).toEqual([]);
+    expect(fixture.componentInstance.loadingMore()).toBe(false);
+  });
+
+  it('writes the text to the URL and leaves defaults out', () => {
+    setup(page([makeNode({ id: 'a1' })], 1, null));
+    type('alpha');
+    expect(navigate).toHaveBeenLastCalledWith([], expect.objectContaining({ queryParams: { q: 'alpha', read: null, f: null } }));
+    type('');
+    expect(navigate).toHaveBeenLastCalledWith([], expect.objectContaining({ queryParams: { q: null, read: null, f: null } }));
+  });
+});
+
+describe('SearchComponent opened from a URL (1.45.0)', () => {
+  it('runs the search in the URL at once, with its filter, and shows it in the field and the chips', async () => {
+    const search = vi.fn().mockReturnValue(of({ query: 'Alpha', items: [makeNode({ id: 'a1' })], totalCount: 1, nextCursor: null, hasMore: false }));
+    TestBed.configureTestingModule({
+      imports: [SearchComponent],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        { provide: ApiService, useValue: { search, getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card' })) } },
+      ],
+    });
+    await TestBed.inject(Router).navigateByUrl('/?q=Alpha&read=unread');
+    const fixture = TestBed.createComponent(SearchComponent);
+    fixture.detectChanges();
+    // The listbox applies its value to the chips once they are created (after the results arrived).
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(search).toHaveBeenCalledTimes(1);
+    expect(search).toHaveBeenCalledWith('Alpha', { readState: 'unread' });
+    expect(fixture.componentInstance.query).toBe('Alpha');
+    const selected = (fixture.nativeElement as HTMLElement).querySelector('.read-filter mat-chip-option.mat-mdc-chip-selected');
+    expect(selected?.textContent?.trim()).toBe('Unread');
+  });
+});
+
+describe('search URL parameters (1.45.0)', () => {
+  it('reads q and read, and ignores an unknown read value', () => {
+    expect(searchParamsFromQuery(convertToParamMap({ q: 'x', read: 'reading' }))).toEqual({ q: 'x', read: 'reading', f: [] });
+    expect(searchParamsFromQuery(convertToParamMap({ q: 'x', read: 'bogus' }))).toEqual({ q: 'x', read: 'all', f: [] });
+    expect(searchParamsFromQuery(convertToParamMap({}))).toEqual({ q: '', read: 'all', f: [] });
+  });
+
+  it('1.45.0: reads repeated tag filters in order, dropping malformed and repeated ones', () => {
+    const map = convertToParamMap({ f: ['creator:fv_1', 'bogus', 'genre:fv_2', 'creator:fv_1', 'year:'] });
+    expect(searchParamsFromQuery(map)).toEqual({ q: '', read: 'all', f: ['creator:fv_1', 'genre:fv_2'] });
+  });
+
+  it('round-trips and leaves the defaults out', () => {
+    expect(searchParamsToQuery({ q: 'x', read: 'unread', f: [] })).toEqual({ q: 'x', read: 'unread', f: null });
+    expect(searchParamsToQuery({ q: '  ', read: 'all', f: [] })).toEqual({ q: null, read: null, f: null });
+    expect(searchParamsToQuery({ q: '', read: 'all', f: ['creator:fv_1', 'genre:fv_2'] })).toEqual({ q: null, read: null, f: ['creator:fv_1', 'genre:fv_2'] });
+  });
+});
+
+/** 1.45.0 lane P: the tag view on lane Q's shapes - `f` filters as chips in the field, WORK cards, redirects of merged creators, Load more. */
+describe('SearchComponent tag filters and work cards (1.45.0)', () => {
+  type Answer = SearchResultsDto & FacetSearchFields;
+
+  const location = (o: Partial<FacetLocationDto> = {}): FacetLocationDto => ({
+    nodeId: 'f1', libraryId: 'L1', libraryName: 'Manga', trail: [{ id: 'f1', displayName: 'Series A' }], ...o,
+  });
+  const work = (o: Partial<FacetWorkDto> = {}): FacetWorkDto => ({
+    title: 'Series A', node: makeNode({ id: 'f1', kind: 'Folder', displayName: 'Series A', coverUrl: '/api/v1/items/a1/cover' }),
+    coverUrl: '/api/v1/items/a1/cover', locations: [location()], locationCount: 1, ...o,
+  });
+  const filter = (o: Partial<SearchFilterDto> = {}): SearchFilterDto => ({
+    bucket: 'Creators', source: 'Chip', id: 'fv_1', display: 'Synthetic Author', matched: true, valueIds: ['fv_1'], ...o,
+  });
+  const answer = (works: FacetWorkDto[], filters: SearchFilterDto[], o: Partial<Answer> = {}): Answer => ({
+    query: '', items: [], totalCount: works.length, nextCursor: null, hasMore: false, works, filters, ...o,
+  });
+
+  async function open(url: string, ...answers: Answer[]) {
+    const search = vi.fn();
+    for (const a of answers) search.mockReturnValueOnce(of(a));
+    search.mockReturnValue(of(answer([], [])));
+    TestBed.configureTestingModule({
+      imports: [SearchComponent],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        { provide: ApiService, useValue: { search, getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card' })) } },
+      ],
+    });
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl(url);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    const fixture = TestBed.createComponent(SearchComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    return { fixture, el, search, navigate };
+  }
+
+  const chipLabels = (el: HTMLElement) =>
+    Array.from(el.querySelectorAll('[data-testid="search-filter-chip"] .filter-label')).map((c) => c.textContent!.trim());
+
+  it('searches the filters in the URL (AND) without text, names them in the field and lists WORK cards', async () => {
+    const { el, search } = await open('/?f=creator:fv_1&f=genre:fv_2', answer(
+      [work(), work({ title: 'One-shot B', coverUrl: null,
+        node: makeNode({ id: 'a9', kind: 'Archive', displayName: 'One-shot B.cbz', isRead: true }),
+        locations: [location({ nodeId: 'a9', libraryId: 'L2', libraryName: 'Manga 2', trail: [{ id: 'f9', displayName: 'One Shots' }, { id: 'a9', displayName: 'One-shot B.cbz' }] })] })],
+      [filter(), filter({ bucket: 'Genres', id: 'fv_2', display: 'Comedy', valueIds: ['fv_2'] })],
+    ));
+    expect(search).toHaveBeenCalledWith('', { readState: 'all', filters: ['creator:fv_1', 'genre:fv_2'] });
+    expect(chipLabels(el)).toEqual(['Creators: Synthetic Author', 'Genres: Comedy']);
+    expect(el.querySelector('.result-count')!.textContent!.trim()).toBe('2 works');
+    const cards = Array.from(el.querySelectorAll('[data-testid="work-card"]'));
+    expect(cards.map((c) => c.querySelector('.result-title')!.textContent)).toEqual(['Series A', 'One-shot B']);
+    // A folder opens in browse, a one-shot archive in the reader (its own cover endpoint); the breadcrumb is display names only.
+    expect(cards[0].querySelector('a.work-link')!.getAttribute('href')).toBe('/libraries/L1/browse/f1');
+    expect(cards[1].querySelector('a.work-link')!.getAttribute('href')).toBe('/reader/a9');
+    expect(cards[1].querySelector('img')!.getAttribute('src')).toBe('/api/v1/items/a9/cover');
+    expect(cards[1].querySelector('.badge')!.textContent!.trim()).toBe('✓ Read');
+    expect(cards[1].querySelector('.crumb-line')!.textContent).toBe('Manga 2 › One Shots › One-shot B.cbz');
+    // The read-state chips are not offered in the tag view (lane Q's works query does not apply them).
+    expect(el.querySelector('.read-filter')).toBeNull();
+  });
+
+  it('expands "N locations" for a split series, with the ones not listed counted', async () => {
+    const { el, fixture } = await open('/?f=creator:fv_1', answer(
+      [work({ locations: [location(), location({ nodeId: 'f2', libraryId: 'L2', libraryName: 'Manga 2', trail: [{ id: 'f2', displayName: 'Series A 101-200' }] })], locationCount: 7 })],
+      [filter()],
+    ));
+    const toggle = el.querySelector<HTMLButtonElement>('[data-testid="work-locations-toggle"]')!;
+    expect(toggle.textContent).toContain('7 locations');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    toggle.click();
+    fixture.detectChanges();
+    const links = Array.from(el.querySelectorAll('[data-testid="work-locations"] a'));
+    expect(links.map((a) => a.getAttribute('href'))).toEqual(['/libraries/L1/browse/f1', '/libraries/L2/browse/f2']);
+    expect(links[1].textContent).toBe('Manga 2 › Series A 101-200');
+    expect(el.querySelector('[data-testid="work-locations"] .more-places')!.textContent).toBe('and 5 more');
+  });
+
+  it('removes a filter chip and searches again without it, keeping the text', async () => {
+    const { el, fixture, search, navigate } = await open('/?q=alpha&f=creator:fv_1&f=genre:fv_2', answer(
+      [work()], [filter(), filter({ bucket: 'Genres', id: 'fv_2', display: 'Comedy', valueIds: ['fv_2'] })],
+    ));
+    const remove = el.querySelectorAll<HTMLButtonElement>('[data-testid="search-filter-chip"] button[matChipRemove]')[0];
+    expect(remove.getAttribute('aria-label')).toBe('Remove filter Creators: Synthetic Author');
+    remove.click();
+    fixture.detectChanges();
+    expect(search).toHaveBeenLastCalledWith('alpha', { readState: 'all', filters: ['genre:fv_2'] });
+    expect(navigate).toHaveBeenLastCalledWith([], expect.objectContaining({ queryParams: { q: 'alpha', read: null, f: ['genre:fv_2'] } }));
+  });
+
+  it('goes back to the folder-name search (and its read chips) when the last filter is removed', async () => {
+    const { el, fixture, search } = await open('/?q=alpha&f=creator:fv_1', answer([work()], [filter()]));
+    el.querySelector<HTMLButtonElement>('[data-testid="search-filter-chip"] button[matChipRemove]')!.click();
+    fixture.detectChanges();
+    expect(search).toHaveBeenLastCalledWith('alpha', { readState: 'all' });
+    expect(fixture.componentInstance.works()).toEqual([]);
+    expect(el.querySelector('.read-filter')).not.toBeNull();
+  });
+
+  it('follows a merged creator: the URL names the creator it was merged into, without a second search', async () => {
+    const { el, search, navigate } = await open('/?f=creator:fv_old', answer(
+      [work()], [filter({ id: 'fv_old', display: 'Kept Name', valueIds: ['fv_new'], redirectedFrom: 'fv_old' })],
+    ));
+    expect(search).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenLastCalledWith([], expect.objectContaining({ queryParams: { q: null, read: null, f: ['creator:fv_new'] }, replaceUrl: true }));
+    expect(chipLabels(el)).toEqual(['Creators: Kept Name']);
+  });
+
+  it('says so when a tag is unknown (or not visible) and finds nothing, and the chip can still be removed', async () => {
+    const { el } = await open('/?f=creator:fv_gone', answer([], [filter({ id: 'fv_gone', display: undefined, matched: false, valueIds: [] })]));
+    expect(chipLabels(el)).toEqual(['Unknown tag']);
+    expect(el.querySelector('.no-results')!.textContent!.trim()).toBe('No works with these tags.');
+    expect(el.querySelector('[data-testid="search-filter-chip"] button[matChipRemove]')).not.toBeNull();
+  });
+
+  it('passes typed field syntax through the text and loads more works with the cursor', async () => {
+    const typed = filter({ source: 'Typed', id: undefined, text: 'Synthetic Author' });
+    const { el, fixture, search } = await open('/?q=creator:%22Synthetic%20Author%22',
+      answer([work()], [typed], { totalCount: 2, nextCursor: 'w:1', hasMore: true }),
+      answer([work({ title: 'Series B', node: makeNode({ id: 'f7', kind: 'Folder' }) })], [typed], { totalCount: 2 }),
+    );
+    expect(search).toHaveBeenCalledWith('creator:"Synthetic Author"', { readState: 'all' });
+    // A filter typed in the text is not a removable chip (the text shows it).
+    expect(chipLabels(el)).toEqual([]);
+    const more = Array.from(el.querySelectorAll<HTMLButtonElement>('.load-more button')).find((b) => b.textContent!.includes('Load more'))!;
+    more.click();
+    fixture.detectChanges();
+    expect(search).toHaveBeenLastCalledWith('creator:"Synthetic Author"', { cursor: 'w:1', readState: 'all' });
+    expect(fixture.componentInstance.works().map((w) => w.title)).toEqual(['Series A', 'Series B']);
+    expect(el.querySelector('.load-more')).toBeNull();
   });
 });

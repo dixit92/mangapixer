@@ -679,6 +679,74 @@ test.describe('tracker sync web (1.43.0)', () => {
     expect(outside).toEqual([]);
   });
 
+  test('1.45.0 (K8): read a chapter to the end, Back - the gold ring is on the chapters the tracker now counts, without a reload', async ({ page }) => {
+    // The owner's path (2026-10-19, live 1.44.0): the cards showed Read but no gold ring until a reload. The server sets `trackerRead`
+    // only for a series the viewer tracks on a connected tracker, and no tracker is reachable here: the browse answer gets it for
+    // chapters 1 and 2 once chapter 2's last page was saved (MyAnimeList's number covers the earlier chapter too).
+    test.skip(!VOLUMES_ROOT, 'E2E_SERIES_FIXTURE_ROOT not set: no synthetic library available');
+    test.setTimeout(180_000);
+    const outside = await guardOutside(page);
+    await login(page);
+    const [libraryId, folderId] = await volumeLibrary(page);
+    const headers = await csrf(page.request);
+    const prefs = await (await page.request.get('/api/v1/reading/library-preferences')).json();
+    // The chapter files themselves (the Folders view), as the owner's chapter series lists them.
+    (await page.request.put('/api/v1/reading/library-preferences', { headers, data: { ...prefs, seriesViewMode: 'Folders' } })).ok();
+    let readId = '';
+    try {
+      await page.route(/\/api\/v1\/trackers$/, (r) => r.fulfill({ json: { trackers: [connectedMal()] } }));
+      await page.route(/\/api\/v1\/trackers\/attention$/, (r) => r.fulfill({ json: { total: 0, trackers: [] } }));
+      await page.route(/\/api\/v1\/trackers\/nodes\/[^/]+\/summary$/, (r) => r.fulfill({ json: { seriesId: null, rows: [] } }));
+      let finished = false;
+      await page.route(/\/api\/v1\/reading\/progress\/[^/?]+$/, async (r) => {
+        const req = r.request();
+        if (req.method() === 'PUT' && readId && req.url().endsWith(`/${readId}`) && (req.postDataJSON()?.pageIndex ?? 0) >= 2) finished = true;
+        await r.continue();
+      });
+      await page.route(new RegExp(`/api/v1/libraries/${libraryId}/browse\\?.*parentId=${folderId}`), async (r) => {
+        const res = await r.fetch();
+        const body = await res.json();
+        for (const n of body.items as { displayName: string; trackerRead?: string[] | null }[]) {
+          if (finished && /v01 c00[12]/.test(n.displayName)) n.trackerRead = ['mal'];
+        }
+        await r.fulfill({ response: res, json: body });
+      });
+
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+      const cards = page.locator('.nodes .node-wrap');
+      const second = cards.filter({ hasText: 'v01 c002' });
+      await expect(second).toHaveCount(1);
+      await expect(page.getByTestId('tracker-read-mark')).toHaveCount(0);
+      await page.evaluate(() => { (window as unknown as { k8: string }).k8 = 'same page'; });
+      readId = (await second.locator('a.node-card').getAttribute('href'))!.split('?')[0].split('/').pop()!;
+
+      // Read it to the end, then Back.
+      await second.locator('a.node-card').click();
+      await expect(page).toHaveURL(new RegExp(`/reader/${readId}`));
+      await page.waitForTimeout(1500);
+      await page.keyboard.press('End');
+      await page.waitForTimeout(1200);
+      await page.goBack();
+      await expect(page).toHaveURL(new RegExp(`/libraries/${libraryId}/browse/${folderId}$`));
+
+      // The ring on chapters 1 and 2 (the second look covers a sync still in flight), on the same page - never reloaded.
+      const ringed = cards.filter({ has: page.getByTestId('tracker-read-mark') });
+      await expect(ringed).toHaveCount(2, { timeout: 10_000 });
+      await expect(ringed.nth(0)).toContainText('v01 c001');
+      await expect(ringed.nth(1)).toContainText('v01 c002');
+      expect(finished).toBe(true);
+      expect(await page.evaluate(() => (window as unknown as { k8?: string }).k8)).toBe('same page');
+      expect(outside).toEqual([]);
+    } finally {
+      await page.request.put('/api/v1/reading/library-preferences', { headers, data: prefs });
+      if (readId) {
+        await page.request.delete(`/api/v1/reading/${readId}/read`, { headers });
+        await page.request.delete(`/api/v1/reading/progress/${readId}`, { headers });
+      }
+    }
+  });
+
   test('the popover of a Private-library folder says why nothing counts and turns sync on (1.44.0)', async ({ page }) => {
     // The owner's path (2026-10-17): a read series in a Private library showed "MangaPixer: nothing read" next to read chapters.
     test.skip(!VOLUMES_ROOT, 'E2E_SERIES_FIXTURE_ROOT not set: no synthetic library available');
@@ -925,7 +993,16 @@ test.describe('tracking UX review fixes (1.43.0)', () => {
     await expect(pop).toBeVisible();
     await expect(pop).toHaveAttribute('role', 'dialog');
     await expect(pop).toHaveAccessibleName('Tracking for this series');
-    await expect(pop.getByTestId('series-tracking-open-mal')).toBeFocused();
+    // 1.45.0 (UX review #16): the dialog itself takes the focus; Tab then reaches its controls in the order they are shown, the
+    // tracker-site link first and "Open in Tracking" last (it was the start, with the link before it only after wrapping round).
+    await expect(pop).toBeFocused();
+    const order = await pop.evaluate((p) => [...p.querySelectorAll<HTMLElement>('a[href], button:not([disabled])')]
+      .map((e) => e.getAttribute('data-testid')));
+    expect(order.at(-1)).toBe('series-tracking-open-mal');
+    for (const id of order) {
+      await page.keyboard.press('Tab');
+      expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).toBe(id);
+    }
     const inside = () => page.evaluate(() => !!document.activeElement?.closest('[data-testid="series-tracking-popover"]'));
     for (const key of ['Tab', 'Tab', 'Shift+Tab', 'Shift+Tab', 'Shift+Tab']) {
       await page.keyboard.press(key);

@@ -116,6 +116,21 @@ public sealed class MangaPixerDbContext : DbContext
     public DbSet<VolumeContentEntity> VolumeContents => Set<VolumeContentEntity>();
     public DbSet<VolumeScanStateEntity> VolumeScanState => Set<VolumeScanStateEntity>();
 
+    // 1.45.0 tag index and canonical creators (seam I0, migration AddFacetIndex; configured in FacetModel).
+    public DbSet<CreatorEntity> Creators => Set<CreatorEntity>();
+    public DbSet<CreatorNameEntity> CreatorNames => Set<CreatorNameEntity>();
+    public DbSet<CreatorProviderIdEntity> CreatorProviderIds => Set<CreatorProviderIdEntity>();
+    public DbSet<CreatorOverrideEntity> CreatorOverrides => Set<CreatorOverrideEntity>();
+    public DbSet<FacetWorkEntity> FacetWorks => Set<FacetWorkEntity>();
+    public DbSet<FacetValueEntity> FacetValues => Set<FacetValueEntity>();
+    public DbSet<FacetEntryEntity> FacetEntries => Set<FacetEntryEntity>();
+    public DbSet<FacetIndexLibraryEntity> FacetIndexLibraries => Set<FacetIndexLibraryEntity>();
+    // 1.45.0 new-chapter freshness (lane R, migration AddMangaDexLatestUpload; configured in FreshnessModel).
+    public DbSet<MangaDexLatestUploadEntity> MangaDexLatestUploads => Set<MangaDexLatestUploadEntity>();
+    public DbSet<LibraryFreshnessEntity> LibraryFreshness => Set<LibraryFreshnessEntity>();
+    public DbSet<FreshnessStateEntity> FreshnessState => Set<FreshnessStateEntity>();
+    public DbSet<MetadataRefreshNudgeEntity> MetadataRefreshNudges => Set<MetadataRefreshNudgeEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -154,6 +169,8 @@ public sealed class MangaPixerDbContext : DbContext
         // 1.43.0: each feature configures its own tables in its own file (two lanes, one hot file).
         TrackerModel.Configure(modelBuilder);
         VolumeScanModel.Configure(modelBuilder);
+        FacetModel.Configure(modelBuilder);
+        FreshnessModel.Configure(modelBuilder);
     }
 
     private static void ConfigureAppSettings(ModelBuilder mb)
@@ -759,6 +776,8 @@ public sealed class MangaPixerDbContext : DbContext
             e.Property(x => x.Key).IsRequired().HasMaxLength(32);
             e.Property(x => x.Value).IsRequired().HasMaxLength(200);
             e.Property(x => x.Role).HasMaxLength(32);
+            // 1.45.0 (AddFacetIndex): a declared creator's provider reference, e.g. mangaupdates:<author id> (lane A sets it).
+            e.Property(x => x.ExternalRef).HasMaxLength(64);
             // "Effective facts for a library" reads every row of one library at once.
             e.HasIndex(x => new { x.LibraryId, x.Key });
             // A folder's own facts (and the cascade from catalog_nodes).

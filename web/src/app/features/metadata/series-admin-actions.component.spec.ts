@@ -293,7 +293,7 @@ describe('SeriesAdminActionsComponent', () => {
       item('[data-testid="artist-folder"]')!.click();
       await Promise.resolve();
       await Promise.resolve();
-      expect(artist.open).toHaveBeenCalledWith('Beta Painter');
+      expect(artist.open).toHaveBeenCalledWith('Beta Painter', 'f1');
       expect(api.setArtistFolder).toHaveBeenCalledWith('f1', { name: 'Beta Painter', role: 'author' });
       expect(state.refresh).toHaveBeenCalledWith('f1');
       expect(declaredApi.version()).toBe(1);
@@ -304,7 +304,7 @@ describe('SeriesAdminActionsComponent', () => {
       const { artist } = create(seriesInfo({ nodeId: 'f2', anchorNodeId: 'p1', anchorDisplayName: 'Parent Series' }));
       item('[data-testid="artist-folder"]')!.click();
       await Promise.resolve();
-      expect(artist.open).toHaveBeenCalledWith('');
+      expect(artist.open).toHaveBeenCalledWith('', 'f2');
     });
 
     it('an archive does not offer it', () => {

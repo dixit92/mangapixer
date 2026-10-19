@@ -107,6 +107,50 @@ public sealed record RefreshCadenceDto
 
     /// <summary>How many linked series are checked at each cadence (days ascending).</summary>
     public required IReadOnlyList<RefreshCadenceCountDto> ByDays { get; init; }
+
+    /// <summary>1.45.0: "Check for new chapters every N hours" - the MangaDex latest-upload sweep (1-6, default 6).</summary>
+    public int NewChapterCheckHours { get; init; } = 6;
+
+    /// <summary>1.45.0: the hours "Check for new chapters" offers (1-6).</summary>
+    public IReadOnlyList<int> AllowedNewChapterCheckHours { get; init; } = [];
+
+    /// <summary>1.45.0: the last new-chapter checks (counts only), or null before the first.</summary>
+    public NewChapterChecksDto? NewChapters { get; init; }
+}
+
+/// <summary>
+/// 1.45.0: the last runs of the new-chapter checks - the MangaDex latest-upload sweep, MangaUpdates' releases feed and the refresh of due
+/// records between the daily passes. Times and counts only.
+/// </summary>
+public sealed record NewChapterChecksDto
+{
+    /// <summary>When the last sweep started, or null.</summary>
+    public DateTimeOffset? SweepAt { get; init; }
+
+    /// <summary><c>ok</c>, or why the last sweep stopped (<c>budget_exhausted</c>, <c>provider_backoff</c>, ...).</summary>
+    public string? SweepOutcome { get; init; }
+
+    /// <summary>MangaDex records the last sweep read.</summary>
+    public int SweepRecords { get; init; }
+
+    /// <summary>Of them, with a new latest upload (their volume lists were made due).</summary>
+    public int SweepChanged { get; init; }
+
+    /// <summary>Requests the last sweep sent.</summary>
+    public int SweepRequests { get; init; }
+
+    /// <summary>When MangaUpdates' releases feed was last read, or null.</summary>
+    public DateTimeOffset? FeedAt { get; init; }
+
+    public string? FeedOutcome { get; init; }
+
+    /// <summary>Linked series the last read of the feed made due now.</summary>
+    public int FeedMatched { get; init; }
+
+    public int FeedRequests { get; init; }
+
+    /// <summary>The last refresh of due records between the daily passes, or null.</summary>
+    public DateTimeOffset? DuePassAt { get; init; }
 }
 
 public sealed record RefreshCadenceCountDto
@@ -133,6 +177,9 @@ public sealed record UpdateRefreshCadenceRequest
 
     /// <summary><c>faster</c>, <c>chapters</c> or <c>volumes</c> (1.35.0); anything else is <c>invalid_cadence</c>.</summary>
     public string? PaceSource { get; init; }
+
+    /// <summary>1.45.0: "Check for new chapters every N hours", 1-6; anything else is <c>invalid_cadence</c>.</summary>
+    public int? NewChapterCheckHours { get; init; }
 }
 
 /// <summary>
@@ -143,7 +190,10 @@ public sealed record SeriesRefreshCadenceDto
 {
     public required int Days { get; init; }
 
-    /// <summary><c>finished</c>, <c>choice</c>, <c>pace</c>, <c>paused</c> or <c>pace_unknown</c> (1.35.0: following the pace, none known yet).</summary>
+    /// <summary>
+    /// <c>finished</c>, <c>choice</c>, <c>pace</c>, <c>paused</c> or <c>pace_unknown</c> (1.35.0: following the pace, none known yet); 1.45.0:
+    /// <c>reading</c> - someone is reading the series (a read mark in the last 14 days, or a tracker entry Reading): every 2 days.
+    /// </summary>
     public required string Reason { get; init; }
 
     /// <summary>The estimated days between two volumes when the volume pace was read, else null.</summary>

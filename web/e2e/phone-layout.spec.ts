@@ -98,6 +98,7 @@ test('every main page fits a phone and a tablet screen', async ({ page }) => {
     ['series - Volumes view', `${browse}/${folderId}`],
     ['volume stack', `${browse}/${folderId}/volume/1`],
     ['search', '/search?q=Stacked'],
+    ['search - read filter chips', '/search?q=Stacked&read=unread'],
     ['favorites', '/favorites'],
     ['library menu', '/library-nav'],
     ['settings', '/settings'],
@@ -155,6 +156,87 @@ test('every main page fits a phone and a tablet screen', async ({ page }) => {
   }
 
   expect(failures, `pages that do not fit the screen:\n${failures.join('\n')}`).toEqual([]);
+});
+
+/** A name with no place to wrap (CJK pen names, long circle names): it must be cut inside its chip, never push past the screen. */
+const UNBROKEN = 'Averyveryverylongsyntheticpennamewithoutanyspacesforthelayoutcheck';
+
+/** The Info panel's tags (lane Q's `GET nodes/{id}/info` shape, 1.45.0), long names and counts on every row. */
+function longPanel(nodeId: string) {
+  const chip = (token: string, id: string, display: string, extra: Record<string, unknown> = {}) =>
+    ({ id, display, roles: 'None', conflict: false, filter: `${token}:${id}`, ...extra });
+  return {
+    nodeId, mode: 'Container', worksBelow: 40,
+    buckets: [
+      { bucket: 'Creators', more: 9, chips: [
+        chip('creator', 'fv_l1', UNBROKEN, { roles: 'Writer, Artist', count: 30, here: 12 }),
+        chip('creator', 'fv_l2', 'Second Synthetic Author', { roles: 'Writer', count: 4, here: 3 }),
+        chip('creator', 'fv_l3', 'Declared Artist', { roles: 'Artist', conflict: true }),
+      ] },
+      { bucket: 'Magazine', more: 0, chips: [chip('magazine', 'fv_m1', 'Weekly Synthetic Magazine Of Very Long Serialized Stories', { count: 9, here: 7 })] },
+      { bucket: 'Genres', more: 20, chips: ['Action', 'Fantasy', 'Comedy', 'Slice of Life', 'Supernatural', 'Drama'].map((g, i) => chip('genre', `fv_g${i}`, g, { count: 30, here: 20 - i })) },
+      { bucket: 'About', more: 0, chips: [chip('about', 'fv_a1', UNBROKEN, { here: 2 })] },
+    ],
+  };
+}
+
+test('the Info sheet with chips and the tag search with two filters fit a phone and a tablet screen (1.45.0)', async ({ page }) => {
+  test.setTimeout(120_000);
+  const failures: string[] = [];
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  const folder = { id: folderId, parentId: '', libraryId, kind: 'Folder', displayName: 'Stacked Saga', availability: 'Available', coverUrl: null };
+  // Contract-shaped answers (lanes F / Q build the index; the layout under test is the web's): every folder has these tags.
+  await page.route('**/api/v1/nodes/*/info', (route) =>
+    route.fulfill({ json: longPanel(new URL(route.request().url()).pathname.split('/').at(-2)!) }));
+  await page.route(/\/api\/v1\/search\?.*\bf=/, (route) => route.fulfill({ json: {
+    query: '', items: [], totalCount: 2, nextCursor: null, hasMore: false,
+    filters: [
+      { bucket: 'Creators', source: 'Chip', id: 'fv_l1', display: UNBROKEN, matched: true, valueIds: ['fv_l1'] },
+      { bucket: 'Genres', source: 'Chip', id: 'fv_g0', display: 'Action', matched: true, valueIds: ['fv_g0'] },
+    ],
+    works: [
+      { title: `${UNBROKEN} The Series`, node: folder, coverUrl: null, locationCount: 2, locations: [
+        { nodeId: folderId, libraryId, libraryName: 'Volume Stacks', trail: [{ id: folderId, displayName: 'Stacked Saga' }] },
+        { nodeId: 'n_second', libraryId, libraryName: 'Volume Stacks', trail: [{ id: 'x', displayName: UNBROKEN }, { id: 'n_second', displayName: UNBROKEN }] },
+      ] },
+      { title: 'A One-shot', node: { ...folder, id: 'n_os', displayName: 'A One-shot' }, coverUrl: null, locationCount: 1, locations: [
+        { nodeId: 'n_os', libraryId, libraryName: 'Volume Stacks', trail: [{ id: 'y', displayName: 'One Shots' }, { id: 'n_os', displayName: 'A One-shot' }] },
+      ] },
+    ],
+  } }));
+  for (const size of SIZES) {
+    await page.setViewportSize(size);
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+    await page.getByRole('button', { name: 'Info', exact: true }).click();
+    await expect(page.getByTestId('series-overlay').getByTestId('info-chip').first()).toBeVisible();
+    await settle(page);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-info-sheet.png` });
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px Info sheet: ${p.kind}: ${p.what} - ${p.detail}`);
+    // The sheet's body scrolls (so the generic check treats it as a sideways scroller): a chip must still fit its width - a long name is
+    // cut inside the chip, the sheet never scrolls sideways - and every chip is 32 px tall (D1 2.6).
+    const sheet = await page.getByTestId('series-overlay').locator('.body').evaluate((body) => {
+      const width = body.getBoundingClientRect().right;
+      const chips = Array.from(body.querySelectorAll('[data-testid="info-chip"], [data-testid="info-chip-menu"], [data-testid="info-more"]'));
+      return {
+        sideways: body.scrollWidth > body.clientWidth + 1,
+        past: chips.filter((c) => c.getBoundingClientRect().right > width + 1).map((c) => (c.textContent ?? '').trim().slice(0, 30)),
+        heights: [...new Set(chips.map((c) => Math.round(c.getBoundingClientRect().height)))],
+      };
+    });
+    if (sheet.sideways) failures.push(`${size.width} px Info sheet: the sheet scrolls sideways`);
+    for (const c of sheet.past) failures.push(`${size.width} px Info sheet: chip past the sheet edge: "${c}"`);
+    if (sheet.heights.join() !== '32') failures.push(`${size.width} px Info sheet: chip heights ${sheet.heights.join(', ')} (want 32)`);
+    await page.keyboard.press('Escape');
+
+    await page.goto('/search?f=creator:fv_l1&f=genre:fv_g0');
+    await expect(page.getByTestId('search-filter-chip')).toHaveCount(2);
+    await page.getByTestId('work-locations-toggle').click();
+    await settle(page);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-tag-search.png` });
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px tag search: ${p.kind}: ${p.what} - ${p.detail}`);
+  }
+  expect(failures, `Info sheet / tag search do not fit the screen:\n${failures.join('\n')}`).toEqual([]);
 });
 
 test('the declared-facts dialog and its type list fit a phone and a tablet screen', async ({ page }) => {
@@ -450,4 +532,42 @@ test('the reader shows the archive name: a row under the bar on phones and table
     for (const p of await layoutProblems(page)) failures.push(`${size.width} px reader: ${p.kind}: ${p.what} - ${p.detail}`);
   }
   expect(failures, `the reader with its archive name does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
+});
+
+test('Match folders by name as artists, with MangaUpdates authors offered, fits a phone and a tablet screen', async ({ page }) => {
+  // 1.45.0 (lane A): "Search MangaUpdates for the rest" with a full candidate list (long names, the other name, genres, the page link).
+  // Contract-shaped answers; the author search is answered here, so nothing is sent.
+  test.setTimeout(120_000);
+  const failures: string[] = [];
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  await page.route('**/api/v1/admin/metadata/folder-match/preview', (r) => r.fulfill({
+    json: { kind: 'Artists', compared: 0, rows: [
+      { nodeId: folderId, displayName: 'Stacked Saga', status: 'NoMatch', searchText: 'Stacked Saga A Synthetic Artist Name Long Enough To Wrap' },
+    ] },
+  }));
+  await page.route(/\/api\/v1\/admin\/metadata\/nodes\/[^/]+\/author-search$/, (r) => r.fulfill({
+    json: { total: 10, candidates: Array.from({ length: 10 }, (_, i) => ({
+      provider: 'mangaupdates', externalId: String(900 + i), name: `Synthetic Artist With A Rather Long Pen Name Number ${i}`,
+      hitName: i % 2 ? `Another Spelling Of The Same Synthetic Artist ${i}` : null, totalSeries: 30 - i,
+      genres: ['Drama', 'Psychological', 'Supernatural', 'Horror'], siteUrl: `https://www.mangaupdates.com/author/syn${i}/synthetic`,
+    })) },
+  }));
+  for (const size of SIZES) {
+    await page.setViewportSize(size);
+    await page.goto(`/libraries/${libraryId}/browse`);
+    await page.locator('.select-toggle').click();
+    await page.locator('.node-wrap', { hasText: 'Stacked Saga' }).first().click();
+    await page.getByTestId('series-selection-menu').click();
+    await page.getByTestId('bulk-folder-match').click();
+    await page.getByTestId('folder-match-artists').click();
+    await page.getByTestId('folder-match-web').click();
+    await page.getByTestId('folder-match-web-search').click();
+    await expect(page.getByTestId(`folder-match-author-${folderId}`).locator('mat-radio-button')).toHaveCount(9);
+    await settle(page);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-folder-match-authors.png` });
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px folder match authors: ${p.kind}: ${p.what} - ${p.detail}`);
+    await page.getByTestId('folder-match-close').click();
+  }
+  expect(failures, `the folder match dialog with authors does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
 });

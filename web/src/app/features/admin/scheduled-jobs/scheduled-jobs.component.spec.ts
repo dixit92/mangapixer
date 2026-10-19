@@ -3,7 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
-import { ScheduledJobsComponent, cadenceLabel, offsetLabel, serverTime } from './scheduled-jobs.component';
+import { ScheduledJobsComponent, breakdownLabel, cadenceLabel, everyHoursLabel, offsetLabel, serverTime } from './scheduled-jobs.component';
 import { ScheduledJobDto, ScheduledJobsDto } from '../../../core/api/api-types';
 
 /**
@@ -93,6 +93,42 @@ describe('ScheduledJobsComponent', () => {
     // A backup every 6 hours takes no hour.
     expect((el.querySelector('[data-testid="job-hour-backup"]') as HTMLSelectElement).disabled).toBe(true);
     expect(text(el, 'job-backup')).toContain('Only for daily or longer intervals');
+  });
+
+  it('"Check for new chapters" saves its hours, and the last checks are shown in counts (1.45.0)', () => {
+    expect([1, 2, 6].map(everyHoursLabel)).toEqual(['Every hour', 'Every 2 hours', 'Every 6 hours']);
+    expect([2, 3, 6, 7, 10, 14, 20, 30].map(breakdownLabel)).toEqual(['every 2 days', 'every 3-6 days', 'every 3-6 days', 'every week',
+      'every 8-13 days', 'every 2 weeks', 'every 15-29 days', 'every month']);
+    const refresh = {
+      ...dto().refresh,
+      byDays: [{ days: 2, count: 4 }, { days: 3, count: 10 }, { days: 5, count: 6 }, { days: 14, count: 19 }],
+      newChapterCheckHours: 6, allowedNewChapterCheckHours: [1, 2, 3, 4, 5, 6],
+      newChapters: {
+        sweepAt: '2026-10-02T16:00:00Z', sweepOutcome: 'ok', sweepRecords: 1044, sweepChanged: 3, sweepRequests: 11,
+        feedAt: '2026-10-02T15:00:00Z', feedOutcome: 'provider_backoff', feedMatched: 2, feedRequests: 1,
+      },
+    };
+    const f = createLoaded(dto({ refresh }));
+    const el = f.nativeElement as HTMLElement;
+    expect(text(el, 'job-metadata-refresh')).toContain('Checked every 2 days: 4, every 3-6 days: 16, every 2 weeks: 19.');
+    expect(text(el, 'job-new-chapters')).toBe('MangaDex checked Fri 2 Oct, 12:00: 1044 series, 3 with a new chapter (11 requests). '
+      + 'MangaUpdates releases read Fri 2 Oct, 11:00: 2 series due now (1 requests) - stopped: MangaUpdates asked MangaPixer to wait.');
+    const select = el.querySelector('[data-testid="job-cadence-new-chapters"]') as HTMLSelectElement;
+    expect(select.value).toBe('6');
+    expect([...select.options].map(o => o.textContent?.trim())[0]).toBe('Every hour');
+    select.value = '3';
+    select.dispatchEvent(new Event('change'));
+    const put = httpMock!.expectOne((r) => r.method === 'PUT' && r.url === `${URL}/metadata-refresh/cadence`);
+    expect(put.request.body).toEqual({ newChapterCheckHours: 3 });
+    put.flush(dto({ refresh: { ...refresh, newChapterCheckHours: 3 } }));
+    f.detectChanges();
+    expect((el.querySelector('[data-testid="job-cadence-new-chapters"]') as HTMLSelectElement).value).toBe('3');
+  });
+
+  it('shows no new-chapter row or line for a server that reports none', () => {
+    const el = createLoaded().nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="job-cadence-new-chapters"]')).toBeNull();
+    expect(el.querySelector('[data-testid="job-new-chapters"]')).toBeNull();
   });
 
   it('saves an hour, and "Any time" as null for backups', () => {

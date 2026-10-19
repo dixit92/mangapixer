@@ -107,6 +107,16 @@ import {
   SeriesAnswer,
 } from './api-types';
 
+/** Options of {@link ApiService.search} (1.45.0). */
+export interface SearchOptions {
+  libraryId?: string;
+  cursor?: string | null;
+  pageSize?: number;
+  readState?: LibraryReadStateFilter;
+  /** Tag filters (1.45.0, lane P): each `<bucket>:<value id>` is sent as one `f` parameter; all must match (AND). */
+  filters?: readonly string[];
+}
+
 /**
  * HttpClient-based API service. All requests go through /api/v1 prefix.
  * XSRF token is handled by the XsrfInterceptor.
@@ -240,9 +250,17 @@ export class ApiService {
     return this.get(`/nodes/${nodeId}/neighbors`);
   }
 
-  search(query: string, libraryId?: string): Observable<SearchResultsDto> {
+  /**
+   * Catalog search. 1.45.0: keyset paging (`cursor` = the previous page's `nextCursor`) and the read-state filter (`readState`, the browse
+   * Show filter values; 'all' sends nothing). Options are one object so a later filter is one more field.
+   */
+  search(query: string, options: SearchOptions = {}): Observable<SearchResultsDto> {
     let params = new HttpParams().set('q', query);
-    if (libraryId) params = params.set('libraryId', libraryId);
+    if (options.libraryId) params = params.set('libraryId', options.libraryId);
+    if (options.cursor) params = params.set('cursor', options.cursor);
+    if (options.pageSize) params = params.set('pageSize', options.pageSize.toString());
+    if (options.readState && options.readState !== 'all') params = params.set('readState', options.readState);
+    for (const f of options.filters ?? []) params = params.append('f', f);
     return this.get<SearchResultsDto>('/search', params);
   }
 

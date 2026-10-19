@@ -47,15 +47,20 @@ describe('MetadataSettingsComponent', () => {
     expect(q('[data-testid="md-comicinfo"]')!.textContent).toContain('90 of 100 archives read');
   });
 
-  it('consent 5 (1.38.0): the MangaUpdates bullet names the approved author numbers; the automatic consent stays 4', () => {
-    expect(CONSENT_TEXT_VERSION).toBe(6);
+  it('consent 7 (1.45.0): the MangaUpdates bullet and "When:" name the approved author search; the automatic consent stays 5', () => {
+    expect(CONSENT_TEXT_VERSION).toBe(7);
     expect(AUTO_CONSENT_TEXT_VERSION).toBe(5);
     const { q } = create();
     const text = (q('[data-testid="md-consent-text"]')!.textContent ?? '').replace(/\s+/g, ' ');
     expect(text).toContain(
-      'the search text you confirm in the Identify dialog or in Match folders by name (usually a folder or file name), MangaUpdates '
-      + "record numbers, and, when you ask for artists' other names, the MangaUpdates author numbers of the creators of series you "
-      + 'have stored.',
+      'the search text you confirm in the Identify dialog or in Match folders by name (usually a folder or file name) - to find a '
+      + "series, or, when you look for an artist, to find an author -, MangaUpdates record numbers, and, when you ask for artists' "
+      + 'other names, the MangaUpdates author numbers of the creators of series you have stored and of the artists you picked.',
+    );
+    expect(text).toContain(
+      'When: only when an admin runs Identify, Look up, Refresh, Choose cover or a Missing-report lookup in an enabled library, '
+      + "asks for artists' other names, or searches MangaUpdates for an artist. Nothing happens automatically unless you also turn "
+      + 'on Automatic matching.',
     );
   });
 

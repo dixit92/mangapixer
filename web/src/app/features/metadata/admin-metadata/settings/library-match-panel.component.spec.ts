@@ -64,6 +64,27 @@ describe('LibraryMatchPanelComponent', () => {
     expect((el.querySelector('[data-testid="match-start"]') as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it('1.45.0: with nothing left it says so (owner wording) instead of "0 folders to match", and Start stays greyed', () => {
+    const { el } = create(estimate({ candidates: 0, estimatedRequests: 0, unmatched: 0 }));
+    const nothing = el.querySelector('[data-testid="match-nothing"]')!;
+    expect(nothing.textContent!.trim()).toBe('Nothing to match - every folder is linked or decided');
+    expect(el.querySelector('[data-testid="match-estimate"]')).toBeNull();
+    expect(el.textContent).not.toContain('0 folders to match');
+    const start = el.querySelector('[data-testid="match-start"]') as HTMLButtonElement;
+    expect(start.disabled).toBe(true);
+    expect(start.getAttribute('aria-describedby')).toBe(nothing.id);
+  });
+
+  it('1.45.0: nothing new, but folders that found no match before: says so and points at the retry box; the retry estimate shows', () => {
+    const { el, c, fixture } = create(estimate({ candidates: 0, estimatedRequests: 0, unmatched: 4 }));
+    expect(el.querySelector('[data-testid="match-nothing"]')!.textContent!.replace(/\s+/g, ' ').trim())
+      .toBe('Nothing new to match - 4 folders found no match before; "Also retry" below tries them again');
+    c.setRetry(true);
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="match-nothing"]')).toBeNull();
+    expect(el.querySelector('[data-testid="match-estimate"]')!.textContent).toContain('130 folders to match');
+  });
+
   it('shows an estimate failure', () => {
     const { c } = create(new Error('Not implemented yet.'));
     expect(c.error()).toBe('Not implemented yet.');

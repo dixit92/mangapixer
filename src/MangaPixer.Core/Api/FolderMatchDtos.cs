@@ -63,6 +63,13 @@ public sealed record FolderMatchArtistDto
 
     /// <summary>How many stored records credit this artist.</summary>
     public required int RecordCount { get; init; }
+
+    /// <summary>
+    /// 1.45.0 (owner, 2026-10-19): the artist's MangaUpdates author id (from the stored records' credits) when it is the only stored
+    /// author id for the declared name; null otherwise. Passed back in the apply item (<c>provider</c> <c>mangaupdates</c> +
+    /// <c>externalId</c>), it is stored as the declared artist's reference - nothing is sent.
+    /// </summary>
+    public string? AuthorId { get; init; }
 }
 
 /// <summary>A stored series record a folder's name matched.</summary>
@@ -102,7 +109,9 @@ public sealed record FolderMatchRowDto
 
     /// <summary>
     /// Collections, a folder without a local match: the exact text "Search the web for the rest" would send for it (the Identify dialog's
-    /// first suggestion for this name); null when the name gives no search text.
+    /// first suggestion for this name); null when the name gives no search text. Artists (1.45.0): the same text for a folder without a
+    /// local match, or an Artist folder whose declared artist has no MangaUpdates reference yet - what "Search MangaUpdates for the rest"
+    /// sends to the author search.
     /// </summary>
     public string? SearchText { get; init; }
 }
@@ -127,10 +136,13 @@ public sealed record FolderMatchApplyItem
     /// <summary>Artists: the role (<c>author</c> by default, <c>writer</c>, <c>artist</c>).</summary>
     public string? Role { get; init; }
 
-    /// <summary>Collections: the stored record's provider.</summary>
+    /// <summary>
+    /// Collections: the stored record's provider. Artists (1.45.0): <c>mangaupdates</c> when the admin picked an author from the author
+    /// search (stored as the declared artist's reference; nothing is sent).
+    /// </summary>
     public string? Provider { get; init; }
 
-    /// <summary>Collections: the stored record's id.</summary>
+    /// <summary>Collections: the stored record's id. Artists (1.45.0): the picked MangaUpdates author id.</summary>
     public string? ExternalId { get; init; }
 }
 
@@ -153,7 +165,8 @@ public sealed record FolderMatchApplyItemResultDto
 
     /// <summary>
     /// <c>ok</c>, or an error code: <c>not_found</c>, <c>not_a_folder</c>, <c>duplicate</c>, <c>creator_name_invalid</c>,
-    /// <c>creator_role_invalid</c>, <c>creators_too_many</c>, <c>record_missing</c>, <c>record_not_stored</c>, <c>invalid_request</c>.
+    /// <c>creator_role_invalid</c>, <c>creators_too_many</c>, <c>record_missing</c>, <c>record_not_stored</c>, <c>invalid_request</c>,
+    /// <c>author_ref_invalid</c> (1.45.0).
     /// </summary>
     public required string Code { get; init; }
 

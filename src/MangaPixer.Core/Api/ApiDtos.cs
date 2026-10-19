@@ -264,6 +264,20 @@ public sealed record SearchResultsDto
     /// Null on later pages.
     /// </summary>
     public IReadOnlyList<SeriesMatchDto>? SeriesMatches { get; init; }
+
+    /// <summary>
+    /// 1.45.0 (tag view, lane Q): the filters of a search with <c>f=</c> parameters or typed field syntax in <c>q</c>, as the server
+    /// understood them. Left out of a plain search.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<SearchFilterDto>? Filters { get; init; }
+
+    /// <summary>
+    /// 1.45.0 (tag view, lane Q): with a filter, the results are WORK cards (keyset-paged by <see cref="NextCursor"/>; <see cref="Items"/>
+    /// is empty and <see cref="TotalCount"/> counts works). Left out of a plain search, which is unchanged.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<FacetWorkDto>? Works { get; init; }
 }
 
 /// <summary>A catalog node found through a linked series' alternative title.</summary>

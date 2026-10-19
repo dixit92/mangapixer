@@ -558,7 +558,7 @@ describe('ReviewDashboardComponent', () => {
       key('r');
       await Promise.resolve();
       await Promise.resolve();
-      expect(artist.open).toHaveBeenCalledWith('Beta Painter');
+      expect(artist.open).toHaveBeenCalledWith('Beta Painter', 'n5');
       expect(snack.last().label).toBe('Artist folder: Beta Painter - Beta Painter');
       expect(api.acceptArtist).not.toHaveBeenCalled();
       snack.close();

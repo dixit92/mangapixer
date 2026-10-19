@@ -160,6 +160,36 @@ public sealed class ScheduledJobsHttpTests : IDisposable
     }
 
     [Fact]
+    public async Task NewChapterCheckHours_IsValidated_Saved_Audited_AndTheChecksAreWired()
+    {
+        // 1.45.0 (lane R): "Check for new chapters every N hours" (1-6, default 6) under the series information refresh.
+        var admin = await _factory.LoginAsAdminWithChangedPasswordAsync();
+        var jobs = await OkAsync<ScheduledJobsDto>(await admin.GetAsync("/api/v1/admin/jobs"));
+        Assert.Equal(6, jobs.Refresh.NewChapterCheckHours);
+        Assert.Equal([1, 2, 3, 4, 5, 6], jobs.Refresh.AllowedNewChapterCheckHours);
+        Assert.Null(jobs.Refresh.NewChapters); // nothing ran yet
+
+        foreach (var bad in new[] { 0, 7, 24 })
+        {
+            Assert.Equal("invalid_cadence", await ErrorAsync(await admin.PutAsJsonAsync("/api/v1/admin/jobs/metadata-refresh/cadence",
+                new UpdateRefreshCadenceRequest { NewChapterCheckHours = bad }), HttpStatusCode.BadRequest));
+        }
+        jobs = await OkAsync<ScheduledJobsDto>(await admin.PutAsJsonAsync("/api/v1/admin/jobs/metadata-refresh/cadence",
+            new UpdateRefreshCadenceRequest { NewChapterCheckHours = 2 }));
+        Assert.Equal(2, jobs.Refresh.NewChapterCheckHours);
+        Assert.NotNull(jobs.Refresh.NewChapters); // the state row exists now (no check ran: no times)
+        Assert.Null(jobs.Refresh.NewChapters!.SweepAt);
+        Assert.Contains(("metadata.refresh.cadence", "new_chapters_h2"), await AuditAsync());
+
+        // The checks are registered and reachable from the hosted service's scope; on a fresh instance (fetching off) a tick sends nothing.
+        using var scope = _factory.Services.CreateScope();
+        var runner = scope.ServiceProvider.GetRequiredService<com.lifepixer.mangapixer.Server.Features.Metadata.Freshness.NewChapterChecksRunner>();
+        var tick = await runner.RunTickAsync();
+        Assert.Null(tick.Sweep);
+        Assert.Null(tick.Feed);
+    }
+
+    [Fact]
     public async Task ScanTimeOfDay_GoesThroughTheScanSchedule_AndShowsInTheJobs()
     {
         var admin = await _factory.LoginAsAdminWithChangedPasswordAsync();

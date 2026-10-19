@@ -10,6 +10,9 @@ import { SeriesInfoDto } from '../../core/api/api-types';
 import { MetadataApiService } from './metadata-api.service';
 import { SeriesInfoOverlayComponent } from './series-info-overlay.component';
 import { seriesInfo } from './series-info.testing';
+import { InfoApiService } from './info/info-api.service';
+import { InfoPanelDto } from './info/info-types';
+import { emptyPanel, panel } from './info/info.testing';
 
 /**
  * The series-info overlay (1.24.0): loads through either host (dialog / bottom
@@ -20,7 +23,7 @@ describe('SeriesInfoOverlayComponent', () => {
   const dialogRef = { close: vi.fn() };
   const sheetRef = { dismiss: vi.fn() };
 
-  function create(info: SeriesInfoDto | 'error', opts: { admin?: boolean; sheet?: boolean } = {}) {
+  function create(info: SeriesInfoDto | 'error', opts: { admin?: boolean; sheet?: boolean; tags?: InfoPanelDto | 'error' } = {}) {
     dialogRef.close.mockClear();
     sheetRef.dismiss.mockClear();
     const api = {
@@ -32,6 +35,8 @@ describe('SeriesInfoOverlayComponent', () => {
       provideRouter([]),
       { provide: MetadataApiService, useValue: api },
       { provide: AuthService, useValue: { isAdmin: () => !!opts.admin } },
+      // 1.45.0: the Tags block's answer (nothing indexed by default).
+      { provide: InfoApiService, useValue: { getInfo: vi.fn(() => (opts.tags === 'error' ? throwError(() => ({ status: 404 })) : of(opts.tags ?? emptyPanel()))) } },
     ];
     if (opts.sheet) {
       providers.push({ provide: MAT_BOTTOM_SHEET_DATA, useValue: { nodeId: 'card-1' } }, { provide: MatBottomSheetRef, useValue: sheetRef });
@@ -49,6 +54,21 @@ describe('SeriesInfoOverlayComponent', () => {
     expect(api.getSeriesInfo).toHaveBeenCalledWith('card-1');
     expect(el.querySelector('[data-testid="series-title"]')!.textContent).toBe('Synthetic Saga');
     expect(el.querySelector('[data-testid="series-comicinfo-source"]')!.textContent).toContain('ComicInfo in 12 of 14 items');
+  });
+
+  it('1.45.0: is titled "Info" and shows the Tags block; a chip leaves the overlay for the search page', () => {
+    const { el } = create(seriesInfo({ nodeId: 'card-1', state: 'Web' }), { tags: panel() });
+    expect(el.querySelector('.kicker')!.textContent).toBe('Info');
+    const chip = el.querySelector('[data-testid="info-chip"]') as HTMLAnchorElement;
+    expect(chip.getAttribute('href')).toBe('/search?f=creator:fv_a');
+    chip.click();
+    expect(dialogRef.close).toHaveBeenCalled();
+  });
+
+  it('1.45.0: a chip in the phone bottom sheet dismisses it', () => {
+    const { el } = create(seriesInfo({ nodeId: 'card-1', state: 'Web' }), { sheet: true, tags: panel() });
+    (el.querySelector('[data-testid="info-chip"]') as HTMLAnchorElement).click();
+    expect(sheetRef.dismiss).toHaveBeenCalled();
   });
 
   it('works in a bottom sheet too (phone)', () => {

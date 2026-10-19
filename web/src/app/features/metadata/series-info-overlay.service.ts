@@ -11,7 +11,7 @@ export interface SeriesInfoOverlayData {
 }
 
 /**
- * Opens the series-info overlay (1.24.0) for a node without navigating away, so the
+ * Opens the Info overlay (1.24.0; "Info" since 1.45.0) for a node without navigating away, so the
  * browse scroll position is untouched: a right-side sheet on desktop/tablet (the
  * library sidebar is on the left), a bottom sheet (up to 90vh) on phone. Backdrop
  * click and Esc close both. The overlay component is imported on first use, so the
@@ -29,7 +29,7 @@ export class SeriesInfoOverlayService {
       this.bottomSheet.open(SeriesInfoOverlayComponent, {
         data,
         panelClass: 'series-info-bottom-sheet',
-        ariaLabel: 'Series information',
+        ariaLabel: 'Information',
       });
       return;
     }
@@ -40,7 +40,7 @@ export class SeriesInfoOverlayService {
       height: '100vh',
       width: '420px',
       maxWidth: '100vw',
-      ariaLabel: 'Series information',
+      ariaLabel: 'Information',
       autoFocus: 'dialog',
       restoreFocus: true,
     });

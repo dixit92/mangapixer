@@ -85,6 +85,9 @@ public sealed class ExportRebuildService(
         var sw = Stopwatch.StartNew();
         var now = ExportJson.Truncate(time.GetUtcNow());
         var lastScan = await db.Libraries.AsNoTracking().Where(l => l.Id == libraryId).Select(l => l.LastScanCompleted).FirstOrDefaultAsync(ct);
+        // 1.45.0: the library's latest-upload confirmation is read BEFORE the items, so a sweep that completes while they are built never
+        // claims to have confirmed values this snapshot does not hold (the page envelope's sweeps.mangadexLatestUpload).
+        var sweepAt = await db.LibraryFreshness.AsNoTracking().Where(f => f.LibraryId == libraryId).Select(f => f.MangaDexSweepAt).FirstOrDefaultAsync(ct);
         var built = await builder.BuildAsync(libraryId, now, ct);
         var poolStart = now - await PoolWindowAsync(ct);
 
@@ -215,6 +218,11 @@ public sealed class ExportRebuildService(
         state.LastRebuildAt = now;
         state.ItemCount = built.Count;
         state.LastRebuildMs = sw.ElapsedMilliseconds;
+        var freshness = await db.LibraryFreshness.FirstOrDefaultAsync(f => f.LibraryId == libraryId, ct);
+        if (freshness is null && sweepAt is not null)
+            db.LibraryFreshness.Add(freshness = new LibraryFreshnessEntity { LibraryId = libraryId });
+        if (freshness is not null)
+            freshness.ExportMangaDexSweepAt = sweepAt;
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 

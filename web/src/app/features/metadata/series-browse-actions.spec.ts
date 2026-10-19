@@ -12,6 +12,9 @@ import { MetadataStateService } from './metadata-state.service';
 import { MetadataApiService } from './metadata-api.service';
 import { SeriesInfoButtonComponent } from './series-info-button.component';
 import { SeriesInfoOverlayService } from './series-info-overlay.service';
+import { InfoApiService } from './info/info-api.service';
+import { InfoPanelDto } from './info/info-types';
+import { emptyPanel, panel } from './info/info.testing';
 import { SeriesSelectionActionsComponent } from './series-selection-actions.component';
 import { seriesInfo } from './series-info.testing';
 
@@ -32,7 +35,7 @@ describe('SeriesInfoButtonComponent', () => {
   }) as MetadataSettingsDto;
 
   function create(info: SeriesInfoDto | 'error', admin = false,
-    opts: { fetchAvailable?: boolean; settings?: MetadataSettingsDto } = {}) {
+    opts: { fetchAvailable?: boolean; settings?: MetadataSettingsDto; works?: number | 'error' } = {}) {
     const open = vi.fn(() => Promise.resolve());
     const identifyOpen = vi.fn(() => Promise.resolve(true));
     let current = info;
@@ -41,11 +44,19 @@ describe('SeriesInfoButtonComponent', () => {
       getIdentifyContext: vi.fn(() => of({ libraryId: 'lib1', fetchAvailable: opts.fetchAvailable ?? true } as IdentifyContextDto)),
       getSettings: vi.fn(() => of(opts.settings ?? settings())),
     };
+    // 1.45.0: the tag index's answer for the folder (works at or below it); default: nothing indexed (lane Q's route answers 0 works).
+    const works = opts.works ?? 0;
+    const infoApi = {
+      getInfo: vi.fn(() => (works === 'error'
+        ? throwError(() => ({ status: 404 }))
+        : of((works > 0 ? panel({ nodeId: 'folder-1', mode: 'Container', worksBelow: works }) : emptyPanel('folder-1')) as InfoPanelDto))),
+    };
     TestBed.configureTestingModule({
       imports: [Host],
       providers: [
         provideNoopAnimations(),
         { provide: MetadataApiService, useValue: api },
+        { provide: InfoApiService, useValue: infoApi },
         { provide: SeriesInfoOverlayService, useValue: { open } },
         { provide: AuthService, useValue: { isAdmin: () => admin } },
         { provide: IdentifyDialogService, useValue: { open: identifyOpen } },
@@ -56,8 +67,35 @@ describe('SeriesInfoButtonComponent', () => {
     const button = () => fixture.nativeElement.querySelector('[data-testid="series-info-button"]') as HTMLButtonElement | null;
     const identify = () => fixture.nativeElement.querySelector('[data-testid="series-identify-button"]') as HTMLButtonElement | null;
     const setInfo = (next: SeriesInfoDto) => { current = next; };
-    return { fixture, api, open, identifyOpen, button, identify, setInfo };
+    return { fixture, api, infoApi, open, identifyOpen, button, identify, setInfo };
   }
+
+  it('reads "Info" (owner decision 7, 1.45.0)', () => {
+    const { button } = create(seriesInfo({ state: 'Web' }));
+    expect(button()!.textContent).toContain('Info');
+    expect(button()!.textContent).not.toContain('Series info');
+    expect(button()!.getAttribute('aria-label')).toBe('Info');
+  });
+
+  it('1.45.0: appears for a folder WITHOUT series information when the tag index knows works below it, for readers and admins', () => {
+    const reader = create(seriesInfo({ state: 'None' }), false, { works: 3 });
+    expect(reader.infoApi.getInfo).toHaveBeenCalledWith('folder-1');
+    expect(reader.button()).not.toBeNull();
+    reader.button()!.click();
+    expect(reader.open).toHaveBeenCalledWith('folder-1');
+    TestBed.resetTestingModule();
+    const admin = create(seriesInfo({ state: 'None' }), true, { works: 3 });
+    expect(admin.button()).not.toBeNull();
+    expect(admin.identify()).toBeNull();
+  });
+
+  it('1.45.0: keeps the old rule when the tag index has nothing or cannot answer', () => {
+    expect(create(seriesInfo({ state: 'None' }), false, { works: 'error' }).button()).toBeNull();
+    TestBed.resetTestingModule();
+    expect(create(seriesInfo({ state: 'Web' }), false, { works: 'error' }).button()).not.toBeNull();
+    TestBed.resetTestingModule();
+    expect(create(seriesInfo({ state: 'None' }), true, { works: 'error' }).identify()).not.toBeNull();
+  });
 
   it('appears when the current folder resolves to a series and opens the overlay', () => {
     const { api, open, button } = create(seriesInfo({ state: 'Web' }));
@@ -98,7 +136,7 @@ describe('SeriesInfoButtonComponent', () => {
     expect(api.getIdentifyContext).not.toHaveBeenCalled();
   });
 
-  it('flips "Identify..." <-> "Series info" on a link change for this folder, without a reload', () => {
+  it('flips "Identify..." <-> "Info" on a link change for this folder, without a reload', () => {
     const { fixture, api, button, identify, setInfo } = create(seriesInfo({ state: 'None' }), true);
     expect(identify()).not.toBeNull();
     const state = TestBed.inject(MetadataStateService);

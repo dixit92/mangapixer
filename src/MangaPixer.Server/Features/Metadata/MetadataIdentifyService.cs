@@ -64,6 +64,7 @@ public sealed class MetadataIdentifyService
     private readonly Declared.IDeclaredFactsReader? _declared;
     private readonly MetadataAutoMatchState? _autoState;
     private readonly GcdDetails? _gcd;
+    private readonly Facets.IFacetIndexNudge _facetNudge;
 
     public MetadataIdentifyService(
         MangaPixerDbContext db,
@@ -81,7 +82,8 @@ public sealed class MetadataIdentifyService
         ICoverResolver? covers = null,
         Declared.IDeclaredFactsReader? declared = null,
         MetadataAutoMatchState? autoState = null,
-        GcdDetails? gcd = null)
+        GcdDetails? gcd = null,
+        Facets.IFacetIndexNudge? facetNudge = null)
     {
         _db = db;
         _gateway = gateway;
@@ -99,6 +101,7 @@ public sealed class MetadataIdentifyService
         _declared = declared;
         _autoState = autoState;
         _gcd = gcd;
+        _facetNudge = facetNudge ?? Facets.NoFacetIndexNudge.Instance;
     }
 
     /// <summary>Whether the comics site is registered (it is in the app; a test host may leave it out).</summary>
@@ -467,12 +470,19 @@ public sealed class MetadataIdentifyService
             record.FetchedAt = now;
             state = "Gone";
             await _db.SaveChangesAsync(ct);
+            await Freshness.RefreshFollowUp.ClearNudgeAsync(_db, record.Id, ct);
         }
         else
         {
             var oldImageUrl = record.ImageRemoteUrl;
+            var latestBefore = record.LatestChapter;
             Apply(record, fetched, now);
             await _db.SaveChangesAsync(ct);
+            // 1.45.0 (MangaList's recommendation 6): an admin's Refresh writes the observation and the cadence like the background pass,
+            // and a rise of the latest chapter makes the MangaDex volume list due now; it moves only this record's own clock - the
+            // MangaDex lists keep their next check unless the companion step that follows re-reads them.
+            await Freshness.RefreshFollowUp.AfterRefreshAsync(_db, record, latestBefore, now, _logger, ct);
+            _facetNudge.AllChanged(Facets.FacetNudgeReason.RecordStored);
             state = "Ok";
             if (record.ImageRemoteUrl is not null && (record.ImageState != 1 || !string.Equals(oldImageUrl, record.ImageRemoteUrl, StringComparison.Ordinal)))
                 imageUpdated = await TryStoreImageAsync(record, node.LibraryId, ct);
@@ -567,6 +577,7 @@ public sealed class MetadataIdentifyService
         }
         Apply(record, fetched, now);
         await _db.SaveChangesAsync(ct);
+        _facetNudge.AllChanged(Facets.FacetNudgeReason.RecordStored);
         _logger.LogInformation(LogEvents.Metadata.RecordStored, "Metadata record {RecordId} stored ({Provider} {ExternalId})",
             record.Id, record.Provider, record.ExternalId);
         return record;

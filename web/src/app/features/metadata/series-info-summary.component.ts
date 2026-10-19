@@ -5,15 +5,23 @@ import { RouterLink } from '@angular/router';
 import { SeriesInfoDto } from '../../core/api/api-types';
 import { creditGroups, itemLine, metaLine } from './series-info-labels';
 import { DeclaredFactsLineComponent } from './declared/declared-facts-line.component';
+import { FacetBucket, InfoPanelDto } from './info/info-types';
 
 /**
  * Presentational series summary (1.24.0) shared by the overlay and the series page,
  * so the two surfaces never disagree: title, alternative titles, the facts line,
- * credits, genres (plain text until faceted search exists - chips would look
- * clickable), description, the per-item ComicInfo block (archives), and the mixed /
+ * credits, genres, description, the per-item ComicInfo block (archives), and the mixed /
  * none / Don't match states. `compact` (overlay) clamps the description to six lines
  * with a "More" toggle and folds long alt-title and genre lists. The series page sets
  * `showDescription` false: it shows the description once, under About.
+ *
+ * 1.45.0: the Info overlay and the series page put the Tags block (`app-info-tags`, one row
+ * of clickable chips per bucket) under this summary and hand its answer in as `tagsPanel`.
+ * The Creators and Genres rows then REPLACE the plain-text credits and genres lines (the
+ * chips waited for faceted search, which now exists); while the block loads, or when nothing
+ * is indexed, the plain text stays. A node with no series information but indexed works
+ * below (an artist's folder, "One Shots") shows its name instead of "No series information".
+ * The hover summary has no Tags block and keeps the plain text.
  *
  * All text is bound as text (never innerHTML): ComicInfo and provider values are
  * data, never markup.
@@ -27,7 +35,11 @@ import { DeclaredFactsLineComponent } from './declared/declared-facts-line.compo
     @let i = info();
     @switch (i.state) {
       @case ('None') {
-        <p class="empty" data-testid="series-none">No series information.</p>
+        @if (tagsPanel()) {
+          <h2 class="title" data-testid="series-title">{{ i.anchorDisplayName }}</h2>
+        } @else {
+          <p class="empty" data-testid="series-none">No series information.</p>
+        }
       }
       @case ('DontMatch') {
         <p class="empty" data-testid="series-dont-match">
@@ -64,14 +76,14 @@ import { DeclaredFactsLineComponent } from './declared/declared-facts-line.compo
         @if (i.licensedEn !== null && i.licensedEn !== undefined) {
           <p class="facts">{{ i.licensedEn ? 'Licensed in English' : 'Not licensed in English' }}@if (i.translationComplete === true) { · Translation complete}</p>
         }
-        @if (credits().length > 0) {
+        @if (credits().length > 0 && !hasChips('Creators')) {
           <p class="credits">
             @for (c of credits(); track c.label; let last = $last) {
               <span class="muted">{{ c.label }}:</span> {{ c.names }}@if (!last) { · }
             }
           </p>
         }
-        @if (genres().length > 0) {
+        @if (genres().length > 0 && !hasChips('Genres')) {
           <p class="genres" data-testid="series-genres">{{ genres().join(' · ') }}@if (genreOverflow() > 0) {<span class="muted"> · +{{ genreOverflow() }} more</span>}</p>
         }
         @if (i.description && showDescription()) {
@@ -150,6 +162,9 @@ export class SeriesInfoSummaryComponent {
    */
   readonly shortAltTitles = input(false);
 
+  /** 1.45.0: the host's Tags block answer once loaded (null: none, loading, nothing indexed, or not available). */
+  readonly tagsPanel = input<InfoPanelDto | null>(null);
+
   readonly expanded = signal(false);
 
   private readonly altLimit = computed(() => (this.compact() || this.shortAltTitles() ? 2 : 50));
@@ -160,6 +175,11 @@ export class SeriesInfoSummaryComponent {
   readonly genres = computed(() => (this.info().genres ?? []).slice(0, this.genreLimit()));
   readonly genreOverflow = computed(() => Math.max(0, (this.info().genres ?? []).length - this.genreLimit()));
   readonly facts = computed(() => metaLine(this.info()));
+
+  /** Whether the Tags block shows this bucket (its chips then replace the plain-text line). */
+  hasChips(bucket: FacetBucket): boolean {
+    return !!this.tagsPanel()?.buckets.some((b) => b.bucket === bucket && b.chips.length > 0);
+  }
   readonly itemFacts = computed(() => itemLine(this.info().item));
 
   /** Credits grouped by role label, story first: "Story: A, B . Art: C". */

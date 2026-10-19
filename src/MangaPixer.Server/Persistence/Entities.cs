@@ -1343,6 +1343,12 @@ public sealed class DeclaredFactEntity
     /// <summary>Display order within a multi-valued key (creators keep the admin's order).</summary>
     public int Position { get; set; }
 
+    /// <summary>
+    /// 1.45.0: a declared creator's provider reference (<c>mangaupdates:&lt;author id&gt;</c>, max 64) - the author an admin picked from an
+    /// author search; null otherwise. An admin decision (kept by "Delete fetched web data").
+    /// </summary>
+    public string? ExternalRef { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 

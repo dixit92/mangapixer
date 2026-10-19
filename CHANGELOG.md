@@ -6,6 +6,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.45.0] - 2026-10-19
+
+### Added
+
+- **Info panel with clickable tags.** The browse button over a folder now reads **Info**. Its panel - and the series page - shows the folder's tags in rows: **Creators** (with "Story", "Art" or "Story & art"), **Series**, **Magazine**, **Publisher**, **Year started**, **Genres**, **Type** and, for works in a "Collection about" folder, **About** ("Fan works of <series>"). A tag shows how many works you can see carry it once that is 2 or more. On a folder that holds many works (an artist's folder, "One Shots") the panel shows the tags of the works below ("12 here"), the 12 most common per row and "+N more". A declared type or creator that disagrees with the web record is shown next to it in amber, marked as a conflict. Info also appears on folders without series information of their own when works below them have tags.
+- **Tags count only what you can open.** Each tag's number counts the works in the libraries you may see - your Private libraries are left out while Incognito is on, and libraries with "Show series information" off add nothing.
+- **Tag search.** Selecting a tag opens Search filtered by it: the tag sits in the search field as a chip you can remove, several tags narrow the results together, and you can also type `creator:"Name"`, `genre:`, `publisher:`, `magazine:`, `year:` or `type:`. The results are works - a series split over several folders or libraries is listed once, with "2 locations" to see where each part lives - and each card opens the folder (or, for a one-shot, the archive) it is in. The filter is part of the page address, so a reload or a shared link opens the same results.
+- **A tag index of your libraries**, built in the background after links, refreshes, ComicInfo reads, declared facts and scans change - never while a library scans, and it waits while you read: works (a series counts once however many folders or libraries hold it; a one-shot archive is a work of its own), canonical creators (every spelling of an author, joined by the MangaUpdates author id, the author's other names and, for unlinked works, ComicInfo), magazines, publishers, start years, genres, types and the series a collection is about.
+- **Admins: Rename, Merge into... and Split... a creator** from a creator tag's menu, for when two names are one person or one name is two - kept through every rebuild; a merged creator's links and bookmarks open the creator it was merged into. Merges and splits are in the audit log.
+- **Find an artist on MangaUpdates.** An artist folder named after someone none of whose works you have linked yet can now be tied to that artist's MangaUpdates author: **Find on MangaUpdates** in the **Artist folder** dialog, or **Search MangaUpdates for the rest** in **Match folders by name** as artist folders (off until ticked; one folder per second, at most 50 per run). Each author found shows its name, the other name the search matched, the number of series, up to three genres and a link to its MangaUpdates page; nothing is marked until you pick one and press **Mark**, and marking sends nothing. Admins only; never automatic.
+- **New chapters are noticed sooner.** With Automatic matching on, MangaPixer checks MangaDex for the latest uploaded chapter of your linked series every 6 hours (**Scheduled jobs** > Series information refresh > **Check for new chapters**: every 1 to 6 hours) - one request for every 100 series - and reads MangaUpdates' list of the day's releases four times a day; a series with a new chapter has its lists or its record read again right away.
+- **Series you are reading are checked every 2 days**: a series with an archive marked read in the last two weeks, or Reading on a tracker.
+- **Search: read status, a read filter and Load more.** Search results show the same **Read** / **Reading** marks as the library; a row of chips - **All**, **Reading**, **Read**, **Unread** - shows only those results (the count follows the filter); searches with more than 50 results show **Load more**. The search text, tag filters and read filter are part of the page address.
+- **Metadata export:** `companions.mangadexLatestUpload` (`chapterId`, `fetchedAt` - the item changes only when the chapter does) and the page envelope's `sweeps.mangadexLatestUpload`, for MangaList's shared chapter signal.
+
+### Changed
+
+- **Fetch from the web asks for consent again (version 7).** MangaUpdates may now also be sent the search text you confirm when you look for an artist, as an author search, and the author numbers of the artists you pick; and, with Automatic matching on, MangaDex is asked for the latest uploaded chapter of your linked series (by their MangaDex ids only, 100 at a time) and MangaUpdates' public list of the day's releases is read (by page number only). Fetching pauses after the update until an admin accepts the new text; Automatic matching's consent is unchanged and resumes with it.
+- **Following the pace, a series is checked at about half the time between its new chapters** (a monthly series every 15 days, a weekly one every 3 days) instead of at or after the next chapter; the series information refresh also runs every 4 hours between the daily runs for the series that have become due.
+- **A check for new chapters that stops early** (daily budget, MangaDex asking to slow down, a switch turned off) still confirms every library whose series were all checked before it stopped. A MangaDex record that MangaDex no longer returns keeps its last latest chapter in the export; a series also linked to MangaUpdates keeps getting new-chapter refreshes from MangaUpdates.
+- **Artist folders and their MangaUpdates author**: Match folders by name (as artist folders) saves the matched artist's MangaUpdates author number when only one known author has that name, and renaming a folder's declared artist links the new name to its author the same way - nothing is sent; otherwise **Find on MangaUpdates** still works.
+- **An admin's Refresh counts like a scheduled one**: the change it sees is noted for the series' pace, and a new chapter makes the MangaDex lists due at once.
+- **Administration > Libraries: several libraries scanning at once.** A scanning library is shown on its whole block - its row and its Auto-scan and Declared lines - with one moving line under all of them; the rings and lines of all scanning libraries move together, the ring sits centred on the library's icon, and while more than one library scans a line above the list says how many ("3 libraries scanning · Cancel all"). The "Scan all libraries" tooltip opens above the button.
+- **Match now says when there is nothing to match**: "Nothing to match - every folder is linked or decided" (and, while folders that found no match before are left out, how many there are and that "Also retry" tries them again).
+- **A series without a Volumes view says why**: its View menu shows "No Volumes view: no volume list is known for this series yet" when no volume list can place its chapters.
+- The Info panel's credits and genres lines are replaced by the tag rows when tags exist (the hover summary keeps the short text).
+- A filter that leaves nothing in a folder says so ("No series here match ..." with Show any, or "Nothing here matches the filter" with Clear filter) instead of "This folder is empty".
+- The incomplete-volume badge ("8 of 9 ch") and the duplicates chip explain themselves in a tooltip; on a touch screen a tap on the badge shows the explanation instead of opening the volume.
+- Metadata Manager > Review: the candidates' scores line up whether or not a candidate has an "Open on site" link, and a long-press on that link no longer starts select mode. The series Tracking popover takes the focus when it opens, so Tab walks its controls in order.
+- Dependencies: Angular CDK / Material 22.2.3, Playwright 1.64.1.
+
+### Fixed
+
+- **The gold tracker ring appears without a reload after you come back from the reader** - also on earlier chapters a higher tracker number now covers.
+- **A volume list no longer disappears when MangaDex briefly answers with none**: the last good list is kept while MangaDex still lists volume covers for the series (or its volume total is unchanged).
+- Renaming or moving a series folder keeps its series link and settings even when a file had left the folder at an earlier scan: only files that disappeared together with the folder count against the "80% of the files moved" rule.
+- Search results with the same name in several folders no longer skip results between pages.
+- A library that starts scanning between two status updates can be cancelled (Cancel scan / Cancel all were greyed for it).
+- MangaDex volume lists stored before 1.43.0 learn which chapters can be read there over the next days (at most 100 a day), instead of at their next regular check.
+- The author search's text is never written to the log, not even at Debug level.
+
 ## [1.44.0] - 2026-10-17
 
 ### Added

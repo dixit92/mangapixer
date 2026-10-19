@@ -1,6 +1,7 @@
 import { vi } from 'vitest';
+import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
@@ -11,6 +12,7 @@ import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { CatalogNodeDto, LibraryDto, LibraryViewMode, PageResponse } from '../../core/api/api-types';
 import { TrackerStateService } from '../trackers/tracker-state.service';
+import { ReadStateService } from '../../core/reading/read-state.service';
 import { seriesRow, summary, trackerAccount } from '../trackers/trackers.testing';
 
 /**
@@ -40,11 +42,16 @@ describe('LibraryBrowseComponent tracker marks and the Tracking button', () => {
       getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'f1', trail: [] })),
       getNode: vi.fn().mockReturnValue(of({ ...archive('f1', null), kind: 'Folder', displayName: 'Saga' })),
       getJumpIndex: vi.fn().mockReturnValue(of({ libraryId: 'lib1', buckets: [] })),
+      getReadMark: vi.fn((itemId: string) => of({ itemId, isRead: true })),
+      getProgress: vi.fn().mockReturnValue(of(null)),
     };
     TestBed.configureTestingModule({
       imports: [LibraryBrowseComponent],
       providers: [
-        provideRouter([]), provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations(),
+        provideRouter([
+          { path: 'libraries/:libraryId/browse/:nodeId', component: BlankComponent },
+          { path: 'reader/:itemId', component: BlankComponent },
+        ]), provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations(),
         { provide: ApiService, useValue: apiSpy },
         { provide: AuthService, useValue: { isAdmin: () => false } },
         { provide: ActivatedRoute, useValue: { paramMap: of({ get: (k: string) => (k === 'libraryId' ? 'lib1' : 'f1') }) } },
@@ -55,7 +62,7 @@ describe('LibraryBrowseComponent tracker marks and the Tracking button', () => {
     const fixture = TestBed.createComponent(LibraryBrowseComponent);
     fixture.detectChanges();
     const http = TestBed.inject(HttpTestingController);
-    return { fixture, http, el: fixture.nativeElement as HTMLElement };
+    return { fixture, http, el: fixture.nativeElement as HTMLElement, apiSpy, page };
   }
 
   const marks = (el: HTMLElement) => [...el.querySelectorAll<HTMLElement>('[data-testid="tracker-read-mark"]')];
@@ -101,6 +108,53 @@ describe('LibraryBrowseComponent tracker marks and the Tracking button', () => {
     expect(button.closest('app-series-tracking-button')!.nextElementSibling!.tagName.toLowerCase()).toBe('app-series-info-button');
   });
 
+  it('1.45.0 (K8): back from the reader, every listed card\'s ring is re-read in place - at once and once more 3 s later', async () => {
+    const { fixture, el, apiSpy, page } = setup('card', true);
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/libraries/lib1/browse/f1');
+    const listCalls = () => apiSpy.browseLibrary.mock.calls.filter((a) => a[3] !== 1); // not the Continue row's 1-item look
+    const first = listCalls()[0];
+    expect(listCalls()).toHaveLength(1);
+    expect(marks(el)).toHaveLength(2);
+    const untouched = fixture.componentInstance.nodes()[1];
+
+    // In the reader: chapter a3 is finished; MyAnimeList now counts a3 (and a1 / a2 stay counted).
+    await router.navigateByUrl('/reader/a3');
+    TestBed.inject(ReadStateService).notifyChanged('a3');
+    expect(listCalls()).toHaveLength(1); // nothing while the reader is shown
+    apiSpy.browseLibrary.mockReturnValue(of({ ...page, items: page.items.map((n) => ({ ...n, trackerRead: n.trackerRead ?? ['mal'] })) }));
+
+    vi.useFakeTimers();
+    try {
+      await router.navigateByUrl('/libraries/lib1/browse/f1');
+      fixture.detectChanges();
+      // The same page request as the list's own (folder, sort, filters, cursor), and the ring is on all three cards - no reload.
+      expect(listCalls()).toHaveLength(2);
+      expect(listCalls()[1]).toEqual(first);
+      expect(marks(el)).toHaveLength(3);
+      // Only the ring changed: an unchanged card keeps its object (nothing re-rendered, the scroll stays).
+      expect(fixture.componentInstance.nodes()[1]).toBe(untouched);
+      vi.advanceTimersByTime(LibraryBrowseComponent.TRACKER_RETRY_MS);
+      expect(listCalls()).toHaveLength(3);
+      // Another navigation without a new read change asks nothing.
+      await router.navigateByUrl('/libraries/lib1/browse/f1?x=1');
+      vi.advanceTimersByTime(LibraryBrowseComponent.TRACKER_RETRY_MS);
+      expect(listCalls()).toHaveLength(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('1.45.0 (K8): a viewer without a connected tracker gets no extra request on the way back', async () => {
+    const { apiSpy } = setup('card', false);
+    TestBed.inject(TrackerStateService).set({ trackers: [] });
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/reader/a3');
+    TestBed.inject(ReadStateService).notifyChanged('a3');
+    await router.navigateByUrl('/libraries/lib1/browse/f1');
+    expect(apiSpy.browseLibrary.mock.calls.filter((a) => a[3] !== 1)).toHaveLength(1);
+  });
+
   it('UX6: with the Tracking button the bar may wrap (the trail keeps its room; on a phone it takes its own row); without it, not', () => {
     const none = setup('card', true);
     none.http.expectOne('/api/v1/trackers/nodes/f1/summary').flush({ seriesId: null, rows: [] });
@@ -115,3 +169,6 @@ describe('LibraryBrowseComponent tracker marks and the Tracking button', () => {
     expect(el.querySelector('.browse-bar')!.classList).toContain('has-tracking');
   });
 });
+
+@Component({ standalone: true, template: '' })
+class BlankComponent {}

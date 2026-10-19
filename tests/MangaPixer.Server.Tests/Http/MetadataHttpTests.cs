@@ -219,7 +219,9 @@ public sealed class MetadataHttpTests : IClassFixture<MangaPixerWebApplicationFa
         Assert.True(settings!.ShowSeriesInfo);
         Assert.False(settings.FetchEnabled);
         Assert.Equal(5000, settings.DailyBudget);
-        Assert.Equal(6, settings.CurrentConsentVersion); // 1.42.0: MangaDex as the series record (5 in 1.38.0: MangaUpdates author records; 4 in 1.32.0: GCD + Wikipedia; 3 in 1.29.0: MangaDex; 2 in 1.28.0: the allowlist text)
+        // The server's own version (7 in 1.45.0: author search; 6 in 1.42.0: MangaDex as the series record; 5 in 1.38.0: MangaUpdates author
+        // records; 4 in 1.32.0: GCD + Wikipedia; 3 in 1.29.0: MangaDex; 2 in 1.28.0: the allowlist text) - pinned in MetadataConsentFiveTests.
+        Assert.Equal(MetadataConsent.CurrentVersion, settings.CurrentConsentVersion);
         Assert.Contains(settings.Libraries, l => l.LibraryId == LibPubId && !l.FetchEnabled && l.ShowSeriesInfo);
 
         var noConsent = await admin.PutAsJsonAsync("/api/v1/admin/metadata/settings", new UpdateMetadataSettingsRequest { FetchEnabled = true });
