@@ -248,12 +248,12 @@ ported or copied from two upstream projects, attributed under "Ported shader cod
 below.
 
 - `@angular/animations` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/cdk` - 22.2.2 - MIT - https://github.com/angular/components *(bundled)*
+- `@angular/cdk` - 22.2.3 - MIT - https://github.com/angular/components *(bundled)*
 - `@angular/common` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
 - `@angular/compiler` - 22.2.2 - MIT - https://github.com/angular/angular
 - `@angular/core` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
 - `@angular/forms` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/material` - 22.2.2 - MIT - https://github.com/angular/components *(bundled)*
+- `@angular/material` - 22.2.3 - MIT - https://github.com/angular/components *(bundled)*
 - `@angular/platform-browser` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
 - `@angular/router` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
 - `@fontsource/roboto` - 5.3.0 - OFL-1.1 - https://github.com/fontsource/font-files *(bundled)*
@@ -602,7 +602,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `@peculiar/asn1-x509` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
 - `@peculiar/utils` - 2.0.3 - MIT - https://github.com/PeculiarVentures/pvtsutils
 - `@peculiar/x509` - 1.14.3 - MIT - https://github.com/PeculiarVentures/x509
-- `@playwright/test` - 1.64.0 - Apache-2.0 - https://github.com/microsoft/playwright
+- `@playwright/test` - 1.64.1 - Apache-2.0 - https://github.com/microsoft/playwright
 - `@rolldown/binding-linux-x64-gnu` - 1.2.8 - MIT - https://github.com/rolldown/rolldown
 - `@rolldown/pluginutils` - 1.0.1 - MIT - https://github.com/rolldown/plugins
 - `@schematics/angular` - 22.2.2 - MIT - https://github.com/angular/angular-cli
@@ -984,8 +984,8 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `picomatch` - 4.0.7 - MIT - https://github.com/micromatch/picomatch
 - `piscina` - 5.3.2 - MIT - https://github.com/piscinajs/piscina
 - `pkijs` - 3.4.1 - BSD-3-Clause - https://github.com/PeculiarVentures/PKI.js
-- `playwright-core` - 1.64.0 - Apache-2.0 - https://github.com/microsoft/playwright
-- `playwright` - 1.64.0 - Apache-2.0 - https://github.com/microsoft/playwright
+- `playwright-core` - 1.64.1 - Apache-2.0 - https://github.com/microsoft/playwright
+- `playwright` - 1.64.1 - Apache-2.0 - https://github.com/microsoft/playwright
 - `postcss-loader` - 8.2.1 - MIT - https://github.com/webpack/postcss-loader
 - `postcss-media-query-parser` - 0.2.3 - MIT - https://github.com/dryoma/postcss-media-query-parser
 - `postcss-modules-extract-imports` - 3.1.0 - ISC - https://github.com/css-modules/postcss-modules-extract-imports
