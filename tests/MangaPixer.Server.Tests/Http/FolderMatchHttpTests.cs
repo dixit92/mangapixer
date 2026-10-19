@@ -262,6 +262,47 @@ public sealed class FolderMatchHttpTests
         Assert.False((await LinksAsync(factory.Services)).ContainsKey("fmA1")); // the preview changes nothing
     }
 
+    /// <summary>
+    /// Owner, 2026-10-19 (lane A question 1): a LOCAL artist match carries the matched creator's MangaUpdates author id (already on the
+    /// stored record's credit) when it is the only author id for the declared name; the dialog passes it back in the apply item and it is
+    /// stored as the declared artist's reference. Read as raw JSON (the field is new). Nothing is sent.
+    /// </summary>
+    [Fact]
+    public async Task PreviewArtists_ALocalMatchCarriesItsMangaUpdatesAuthorId_OnlyWhenUnambiguous_AndTheApplyStoresItAsTheReference()
+    {
+        using var factory = NewFactory();
+        await SeedAsync(factory.Services);
+        var admin = await factory.LoginAsAdminWithChangedPasswordAsync();
+
+        var response = await admin.PostAsJsonAsync(Preview, new FolderMatchPreviewRequest { Kind = FolderMatchKind.Artists, NodeIds = ["fmA1", "fmA3", "fmA7"] });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var artists = doc.RootElement.GetProperty("rows").EnumerateArray().ToDictionary(r => r.GetProperty("nodeId").GetString()!,
+            r => r.GetProperty("artists").EnumerateArray().Select(a => (Name: a.GetProperty("name").GetString()!,
+                AuthorId: a.TryGetProperty("authorId", out var id) && id.ValueKind == System.Text.Json.JsonValueKind.String ? id.GetString() : null)).ToList());
+        // Author 501: its only id under that name.
+        Assert.Equal([("Qzv Painter", (string?)"501")], artists["fmA1"]);
+        // "Shared Name" is author 601's name AND a spelling of author 602: ambiguous - no id; 602's own main name is unambiguous.
+        Assert.Equal([("Shared Name", (string?)null), ("Other Person", (string?)"602")], artists["fmA3"]);
+        // A GCD creator has no MangaUpdates id.
+        Assert.Equal([("Comic Writer", (string?)null)], artists["fmA7"]);
+
+        var result = await ApplyAsync(admin, new FolderMatchApplyRequest
+        {
+            Kind = FolderMatchKind.Artists,
+            Items = [new FolderMatchApplyItem { NodeId = "fmA1", Name = "Qzv Painter", Role = "author", Provider = "mangaupdates", ExternalId = "501" }],
+        });
+        Assert.Equal("ok", Assert.Single(result.Results).Code);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+            var nodeId = await db.CatalogNodes.Where(n => n.PublicId == "fmA1").Select(n => n.Id).SingleAsync();
+            var fact = await db.DeclaredFacts.AsNoTracking().SingleAsync(f => f.NodeId == nodeId && f.Key == DeclaredFactKeys.Creator);
+            Assert.Equal(("Qzv Painter", "mangaupdates:501"), (fact.Value, fact.ExternalRef));
+        }
+        Assert.Equal(0, factory.Handler.CallCount);
+    }
+
     [Fact]
     public async Task PreviewArtists_MatchesTheStoredAuthorRecordsOtherNames_AndDeclaresItsMainName()
     {

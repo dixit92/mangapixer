@@ -196,6 +196,7 @@ public sealed class FolderMatchService
                 ?? a.Names.FirstOrDefault(n => forms.Any(f => AutoMatchText.NamesEqual(f, n))) ?? a.DeclaredName,
             Provider = a.Provider,
             RecordCount = a.RecordCount,
+            AuthorId = index.UniqueMangaUpdatesAuthorIdOf(a),
         }).ToList();
     }
 
