@@ -84,7 +84,7 @@ have become due every 4 hours, so a series checked every 2 or 3 days is not held
 Every one of these requests counts in the daily request budget and is paced like the others; with Automatic matching off, or a library's
 **Fetch from the web** off, nothing is sent for it. The card shows when MangaDex and MangaUpdates were last checked, how many series had a
 new chapter and how many requests it took. A typical library of about 1,000 series with MangaDex records needs some 45 MangaDex requests
-and 10-20 MangaUpdates requests a day for this.
+and at most 12 MangaUpdates requests a day for this.
 
 An admin's **Refresh** of a series (*1.45.0*) counts like a scheduled one: the change it sees is noted for the series' pace, and it moves
 only the next check of what it read again.

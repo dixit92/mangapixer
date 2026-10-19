@@ -17,7 +17,8 @@ public sealed class MangaUpdatesReleasesFeed
 
     /// <summary>
     /// Pages read per poll at most. A page holds several hundred releases (the review instance, 2026-10-19: 10 pages, 6727 releases, the
-    /// list longer still), newest first, so three pages every 6 hours cover what came out since the last poll.
+    /// list longer still), and the list is taken to be newest first (as MangaUpdates' releases page shows it), so three pages every 6 hours
+    /// cover what came out since the last poll.
     /// </summary>
     public const int MaxPages = 3;
 
