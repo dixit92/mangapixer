@@ -15716,6 +15716,12 @@
               "string"
             ],
             "format": "int32"
+          },
+          "authorId": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

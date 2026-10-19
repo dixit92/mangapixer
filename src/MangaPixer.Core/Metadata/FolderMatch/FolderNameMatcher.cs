@@ -47,6 +47,9 @@ public static partial class FolderNameMatcher
     /// <summary>The credit roles that make a creator an artist here (MangaUpdates / GCD store <c>author</c>, <c>artist</c>, <c>other</c>).</summary>
     public static readonly IReadOnlySet<string> ArtistRoles = new HashSet<string>(StringComparer.Ordinal) { "author", "artist" };
 
+    /// <summary>The provider slug of MangaUpdates credits (<see cref="CreatorCredit.Provider"/>).</summary>
+    public const string MangaUpdatesProvider = "mangaupdates";
+
     /// <summary>
     /// The scoring forms a folder name is compared in: the name as written and the matcher's cleaned variants (brackets, tags, volume
     /// tokens and edition words removed; a trailing <c>[English Title]</c> as a second variant). Distinct, non-empty, written form first.
@@ -203,6 +206,31 @@ public sealed class ArtistNameIndex
     }
 
     public int Count => _artists.Count;
+
+    /// <summary>
+    /// The MangaUpdates author id a folder matched to <paramref name="artist"/> stores with the declared artist (owner, 2026-10-19:
+    /// <c>declared_facts.ExternalRef = mangaupdates:&lt;id&gt;</c>; no request): the artist's own id when it is the ONLY provider person id
+    /// among every known artist with a name equal to the declared name (the same keys as <see cref="Match"/>). Null for an artist without
+    /// a MangaUpdates id, or when another person with an id shares that name (ambiguous).
+    /// </summary>
+    public string? UniqueMangaUpdatesAuthorIdOf(KnownArtist artist)
+    {
+        if (artist.Provider != FolderNameMatcher.MangaUpdatesProvider || string.IsNullOrWhiteSpace(artist.AuthorId))
+            return null;
+        var form = TitleNormalizer.ScoringForm(artist.DeclaredName);
+        if (form.Length == 0)
+            return null;
+        var (sorted, noSpace) = FolderNameMatcher.NameKeys(form);
+        var hits = new HashSet<int>();
+        if (_bySorted.TryGetValue(sorted, out var a))
+            hits.UnionWith(a);
+        if (_byNoSpace.TryGetValue(noSpace, out var b))
+            hits.UnionWith(b);
+        var ids = hits.Select(i => _artists[i]).Where(x => !string.IsNullOrWhiteSpace(x.AuthorId))
+            .Select(x => x.Provider + ":" + x.AuthorId!.Trim()).Distinct(StringComparer.Ordinal).ToList();
+        var own = artist.Provider + ":" + artist.AuthorId.Trim();
+        return ids.Count == 1 && ids[0] == own ? artist.AuthorId.Trim() : null;
+    }
 
     /// <summary>
     /// The artists one of whose names equals the folder's name (any of its forms), in index order, distinct. Artists that would declare the

@@ -108,14 +108,14 @@ public sealed class NewChapterFreshnessTests : IAsyncLifetime
     private sealed record Series(CatalogNodeEntity Folder, MetadataRecordEntity Record, MetadataRecordEntity MangaDex);
 
     /// <summary>A folder linked Confirmed to a MangaUpdates record whose MangaDex companion is <paramref name="mangaId"/>, with an Ok volume list.</summary>
-    private async Task<Series> SeriesAsync(string muId, string mangaId, long? libraryId = null)
+    private async Task<Series> SeriesAsync(string muId, string mangaId, long? libraryId = null, MetadataRecordEntity? sharedMangaDex = null)
     {
         var folder = await _t.AddFolderAsync(null, "Synthetic Shelf " + muId, libraryId);
         await _t.AddArchiveAsync(folder, $"Synthetic Shelf {muId} c001.cbz");
         var record = await _t.AddRecordAsync(muId, "Synthetic Series " + muId);
         record.FetchedAt = Now - TimeSpan.FromDays(1);
         record.LatestChapter = 30;
-        var md = new MetadataRecordEntity
+        var md = sharedMangaDex ?? new MetadataRecordEntity
         {
             PublicId = "md" + muId,
             Provider = MetadataProviderAllowlist.MangaDex,
@@ -123,7 +123,8 @@ public sealed class NewChapterFreshnessTests : IAsyncLifetime
             Title = "Synthetic Series " + muId,
             FetchedAt = Now - TimeSpan.FromDays(1),
         };
-        _t.Db.MetadataRecords.Add(md);
+        if (sharedMangaDex is null)
+            _t.Db.MetadataRecords.Add(md);
         await _t.Db.SaveChangesAsync();
         _t.Db.MetadataCompanions.Add(new MetadataCompanionEntity
         {
@@ -305,8 +306,12 @@ public sealed class NewChapterFreshnessTests : IAsyncLifetime
         Assert.Null(await NewChapterChecks.PeekAsync(_t.Db, default)); // nothing recorded either: it waits for the gate
     }
 
+    /// <summary>
+    /// Owner, 2026-10-19 (lane R question 2): a sweep stopped by the budget confirms every library whose MangaDex records were all read
+    /// before the stop - and the export's <c>sweeps.mangadexLatestUpload</c> says so; a library with a record not read keeps its old time.
+    /// </summary>
     [Fact]
-    public async Task Sweep_StoppedByTheBudget_AdvancesNoLibrary_AndALibraryWithFetchOffIsNeitherAskedNorConfirmed()
+    public async Task Sweep_StoppedByTheBudget_ConfirmsTheLibrariesReadBeforeTheStop_AndALibraryWithFetchOffIsNeitherAskedNorConfirmed()
     {
         var other = await _t.AddLibraryAsync("lib0other", "Other");
         var off = await _t.AddLibraryAsync("lib0off", "Off");
@@ -321,12 +326,18 @@ public sealed class NewChapterFreshnessTests : IAsyncLifetime
         row.MetadataDailyBudget = 1; // the first library's request fits, the second's does not
         await _t.Db.SaveChangesAsync();
 
+        var stoppedAt = Now;
         var stopped = await Sweep().RunAsync();
 
-        Assert.Equal(("budget_exhausted", 1, 0), (stopped!.StoppedCode, stopped.Requests, stopped.Libraries));
+        Assert.Equal(("budget_exhausted", 1, 1), (stopped!.StoppedCode, stopped.Requests, stopped.Libraries));
         Assert.Equal(ChapterA1, (await UploadAsync(a.MangaDex)).ChapterId); // what was read is kept
-        Assert.False(await _t.Db.LibraryFreshness.AnyAsync(f => f.MangaDexSweepAt != null));
+        _t.Db.ChangeTracker.Clear();
+        var afterStop = await _t.Db.LibraryFreshness.AsNoTracking().Where(f => f.MangaDexSweepAt != null).ToListAsync();
+        // The first library's only record was read before the stop: confirmed at the sweep's start. The other one's was not: no time.
+        Assert.Equal([(_t.LibraryId, (DateTimeOffset?)stoppedAt)], afterStop.Select(f => (f.LibraryId, f.MangaDexSweepAt)));
         Assert.Equal("budget_exhausted", (await NewChapterChecks.PeekAsync(_t.Db, default))!.SweepOutcome);
+        _h.Time.Advance(TimeSpan.FromMinutes(1));
+        Assert.Equal(ExportJson.Format(stoppedAt), (await PageAsync(null)).GetProperty("sweeps").GetProperty("mangadexLatestUpload").GetString());
 
         // The next budget day (with room for both requests): the sweep completes and confirms the libraries whose fetching is on - not the
         // one with it off.
@@ -340,6 +351,152 @@ public sealed class NewChapterFreshnessTests : IAsyncLifetime
         _t.Db.ChangeTracker.Clear();
         var confirmedLibraries = await _t.Db.LibraryFreshness.AsNoTracking().Where(f => f.MangaDexSweepAt == Now).Select(f => f.LibraryId).ToListAsync();
         Assert.Equal([_t.LibraryId, other.Id], confirmedLibraries.Order());
+    }
+
+    /// <summary>A record shared by two libraries is asked once, under the lower one - so it counts as read for both after a stop.</summary>
+    [Fact]
+    public async Task Sweep_StoppedByTheBudget_ALibraryWithAnUnreadRecordKeepsItsOldTime_ASharedRecordReadCountsForBoth()
+    {
+        var other = await _t.AddLibraryAsync("lib0other2", "Other");
+        await _h.Auto.EnableAutomaticAsync();
+        await _h.Auto.Net.EnableAsync(other.Id);
+        var first = await SeriesAsync("741", MdA);
+        await SeriesAsync("742", MdA, other.Id, first.MangaDex); // the same MangaDex record, used by both libraries
+        await SeriesAsync("743", MdB, other.Id);
+        _latest[MdA] = ChapterA1;
+        _latest[MdB] = ChapterB1;
+        var t0 = Now;
+        Assert.Null((await Sweep().RunAsync())!.StoppedCode); // both libraries confirmed at t0
+        _h.Time.Advance(TimeSpan.FromHours(6));
+        var row = await _t.Db.AppSettings.FirstAsync();
+        row.MetadataDailyBudget = 3; // the first sweep spent 2: one more request fits today (the first library's)
+        await _t.Db.SaveChangesAsync();
+
+        var stoppedAt = Now;
+        var stopped = await Sweep().RunAsync();
+
+        Assert.Equal(("budget_exhausted", 1), (stopped!.StoppedCode, stopped.Libraries));
+        _t.Db.ChangeTracker.Clear();
+        var times = await _t.Db.LibraryFreshness.AsNoTracking().ToDictionaryAsync(f => f.LibraryId, f => f.MangaDexSweepAt);
+        Assert.Equal(stoppedAt, times[_t.LibraryId]);
+        Assert.Equal(t0, times[other.Id]); // MdB was not read: the old time stays
+    }
+
+    // --- Records MangaDex leaves out (owner, 2026-10-19: lane R question 3) ---
+
+    /// <summary>A folder linked Confirmed to a MangaDex record itself (its own companion, method Self) - no MangaUpdates record.</summary>
+    private async Task<(CatalogNodeEntity Folder, MetadataRecordEntity MangaDex)> MangaDexOnlySeriesAsync(string mangaId)
+    {
+        var folder = await _t.AddFolderAsync(null, "Synthetic Shelf " + mangaId[^2..]);
+        await _t.AddArchiveAsync(folder, $"Synthetic Shelf {mangaId[^2..]} c001.cbz");
+        var md = new MetadataRecordEntity
+        {
+            PublicId = "mdonly" + mangaId[^2..],
+            Provider = MetadataProviderAllowlist.MangaDex,
+            ExternalId = mangaId,
+            Title = "Synthetic MangaDex Only",
+            FetchedAt = Now - TimeSpan.FromDays(1),
+        };
+        _t.Db.MetadataRecords.Add(md);
+        await _t.Db.SaveChangesAsync();
+        _t.Db.MetadataCompanions.Add(new MetadataCompanionEntity
+        {
+            RecordId = md.Id,
+            Provider = MetadataProviderAllowlist.MangaDex,
+            CompanionRecordId = md.Id,
+            State = (int)CompanionState.Confirmed,
+            Method = (int)CompanionMethod.Self,
+            CheckedAt = Now - TimeSpan.FromDays(1),
+        });
+        await _t.Db.SaveChangesAsync();
+        await _t.AddLinkAsync(folder, md, SeriesLinkState.Confirmed);
+        return (folder, md);
+    }
+
+    /// <summary>The stored miss count and whether a miss time is set, read as SQL (columns of migration AddLatestUploadMissing).</summary>
+    private async Task<(int Count, long? Since)> MissingAsync(MetadataRecordEntity md)
+    {
+        _t.Db.ChangeTracker.Clear();
+        var count = await _t.Db.Database.SqlQueryRaw<int>(
+            "SELECT MissingCount AS Value FROM mangadex_latest_uploads WHERE RecordId = {0}", md.Id).SingleAsync();
+        var since = await _t.Db.Database.SqlQueryRaw<long?>(
+            "SELECT MissingSince AS Value FROM mangadex_latest_uploads WHERE RecordId = {0}", md.Id).SingleAsync();
+        return (count, since);
+    }
+
+    [Fact]
+    public async Task Sweep_ARecordLeftOut_KeepsItsValue_CountsTheMisses_LogsTheMangaDexOnlyIds_AndAsksNothingElse()
+    {
+        await _h.Auto.EnableAutomaticAsync();
+        var a = await SeriesAsync("731", MdA);              // MangaUpdates record + MangaDex companion
+        var only = await MangaDexOnlySeriesAsync(MdB);      // linked only to MangaDex
+        _latest[MdA] = ChapterA1;
+        _latest[MdB] = ChapterB1;
+        await Sweep().RunAsync();
+        Assert.Equal((0, null), await MissingAsync(a.MangaDex));
+        var exportBefore = (await PageAsync(null)).GetProperty("items").EnumerateArray()
+            .ToDictionary(i => i.GetProperty("nodeId").GetString()!, i => i.GetProperty("companions").GetProperty("mangadexLatestUpload").GetRawText());
+
+        // Both taken down on MangaDex: not returned. The stored values stay; each row counts the miss.
+        _latest.Clear();
+        _h.Time.Advance(TimeSpan.FromHours(6));
+        _h.ResetRequests();
+        var missed = await Sweep().RunAsync();
+        Assert.Equal((0, (string?)null), (missed!.Records, missed.StoppedCode));
+        Assert.Equal(ChapterA1, (await UploadAsync(a.MangaDex)).ChapterId);
+        Assert.Equal(ChapterB1, (await UploadAsync(only.MangaDex)).ChapterId);
+        var (countA, sinceA) = await MissingAsync(a.MangaDex);
+        Assert.Equal(1, countA);
+        Assert.NotNull(sinceA);
+        Assert.Equal(1, (await MissingAsync(only.MangaDex)).Count);
+        // Logged with ids and counts: one of the two is covered by its MangaUpdates record, the other is linked only to MangaDex.
+        var line = Assert.Single(_h.Auto.Net.Logs.Lines, l => l.Contains(" 9469 ", StringComparison.Ordinal));
+        Assert.Contains("2 records not returned, 1 covered by a linked MangaUpdates record, 1 linked only to MangaDex", line, StringComparison.Ordinal);
+        Assert.Contains($"(records {only.MangaDex.Id})", line, StringComparison.Ordinal);
+        Assert.DoesNotContain("Synthetic", line, StringComparison.Ordinal);
+        // No other kind of request for them: only the bulk latest-upload request went out.
+        Assert.All(_h.Handler.Seen, s => Assert.True(s.Uri.Host == MetadataHttp.MangaDexApiHost && s.Uri.AbsolutePath == "/manga"
+            && Uri.UnescapeDataString(s.Uri.Query).Contains("ids[]=", StringComparison.Ordinal), s.Uri.ToString()));
+        Assert.Single(_h.Handler.Seen);
+
+        // Missed again: the count rises, the first miss time stays. The export block is unchanged throughout.
+        _h.Time.Advance(TimeSpan.FromHours(6));
+        await Sweep().RunAsync();
+        Assert.Equal((2, sinceA), await MissingAsync(a.MangaDex));
+        var exportAfter = (await PageAsync(null)).GetProperty("items").EnumerateArray()
+            .ToDictionary(i => i.GetProperty("nodeId").GetString()!, i => i.GetProperty("companions").GetProperty("mangadexLatestUpload").GetRawText());
+        Assert.Equal(exportBefore, exportAfter);
+
+        // Back on MangaDex: the miss is cleared.
+        _latest[MdA] = ChapterA1;
+        _h.Time.Advance(TimeSpan.FromHours(6));
+        await Sweep().RunAsync();
+        Assert.Equal((0, null), await MissingAsync(a.MangaDex));
+        Assert.Equal(3, (await MissingAsync(only.MangaDex)).Count);
+    }
+
+    [Fact]
+    public async Task Sweep_ARecordLeftOut_DoesNotStopTheReleasesFeedFromNudgingItsMangaUpdatesRefresh()
+    {
+        await _h.Auto.EnableAutomaticAsync();
+        var a = await SeriesAsync("732", MdA);
+        _latest[MdA] = ChapterA1;
+        await Sweep().RunAsync();
+        _latest.Clear(); // taken down on MangaDex
+        _h.Time.Advance(TimeSpan.FromHours(6));
+        await Sweep().RunAsync();
+        Assert.Equal(1, (await MissingAsync(a.MangaDex)).Count);
+
+        _releases.Add([(732, "31", "Feed Title Missing")]); // stored latest 30
+        var feed = await Feed().RunAsync();
+        Assert.Equal(1, feed!.Matched);
+        _t.Db.ChangeTracker.Clear();
+        Assert.Equal([a.Record.Id], await _t.Db.MetadataRefreshNudges.AsNoTracking().Select(n => n.RecordId).ToListAsync());
+
+        _h.Auto.Records[732] = MuJson.Get(732, "Synthetic Series 732");
+        _h.ResetRequests();
+        Assert.Equal(1, (await _h.Auto.Refresh().RunPassAsync()).Refreshed);
+        Assert.Contains(_h.Handler.Seen, s => s.Uri.Host == MetadataHttp.MangaUpdatesApiHost && s.Uri.AbsolutePath == "/v1/series/732");
     }
 
     [Fact]

@@ -63,6 +63,13 @@ public sealed record FolderMatchArtistDto
 
     /// <summary>How many stored records credit this artist.</summary>
     public required int RecordCount { get; init; }
+
+    /// <summary>
+    /// 1.45.0 (owner, 2026-10-19): the artist's MangaUpdates author id (from the stored records' credits) when it is the only stored
+    /// author id for the declared name; null otherwise. Passed back in the apply item (<c>provider</c> <c>mangaupdates</c> +
+    /// <c>externalId</c>), it is stored as the declared artist's reference - nothing is sent.
+    /// </summary>
+    public string? AuthorId { get; init; }
 }
 
 /// <summary>A stored series record a folder's name matched.</summary>

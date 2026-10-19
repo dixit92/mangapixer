@@ -338,17 +338,32 @@ public sealed class DeclaredFactsService
         var removed = existing.Where(f => !keep.Contains(f)).ToList();
         if (!changed && removed.Count == 0)
             return;
+        // 1.45.0 (owner, 2026-10-19): a rename drops the declared artist's MangaUpdates reference with its row (as before); then each
+        // creator this write added gets the id of the one provider-backed creator known here by its new name, if there is one.
+        var relinked = 0;
+        if (removed.Any(f => f.Key == DeclaredFactKeys.Creator && AuthorReference.MangaUpdatesIdOf(f.ExternalRef) is not null))
+        {
+            foreach (var row in keep.Where(f => f.Id == 0 && f.Key == DeclaredFactKeys.Creator && f.ExternalRef is null))
+            {
+                if (await LocalAuthorRelink.FindAsync(_db, row.Value, ct) is { } authorId)
+                {
+                    row.ExternalRef = AuthorReference.MangaUpdates(authorId);
+                    relinked++;
+                }
+            }
+        }
         _db.DeclaredFacts.RemoveRange(removed);
         await _db.SaveChangesAsync(ct);
         _facetNudge.LibraryChanged(libraryId, Facets.FacetNudgeReason.DeclaredFactsChanged);
 
         var cleared = wanted.Count == 0;
-        await _audit.RecordAsync(cleared ? AuditActions.DeclaredFactsClear : AuditActions.DeclaredFactsSet, AuditResults.Success, actor,
+        await _audit.RecordAsync(cleared ? AuditActions.DeclaredFactsClear : AuditActions.DeclaredFactsSet,
+            relinked > 0 ? LocalAuthorRelink.AuditResult : AuditResults.Success, actor,
             ct: ct, targetLibraryId: libraryId, targetItemId: nodeId);
         _logger.LogInformation(LogEvents.Metadata.DeclaredFactsChanged,
-            "Declared facts {Change} on {Scope} {ScopeId}: type {HasType}, {CreatorCount} creators",
+            "Declared facts {Change} on {Scope} {ScopeId}: type {HasType}, {CreatorCount} creators, {Relinked} relinked locally",
             cleared ? "cleared" : "set", nodeId is null ? "library" : "folder", nodeId ?? libraryId,
-            values.Type is not null, values.Creators.Count);
+            values.Type is not null, values.Creators.Count, relinked);
     }
 
     // --- Views ---

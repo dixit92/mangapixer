@@ -21,6 +21,15 @@ public sealed class MangaDexLatestUploadEntity
 
     /// <summary>The last sweep that read it (the same value or a new one).</summary>
     public DateTimeOffset CheckedAt { get; set; }
+
+    /// <summary>
+    /// 1.45.0 owner follow-up (migration <c>AddLatestUploadMissing</c>): the first sweep of the current run that MangaDex left this record
+    /// out of its answer (taken down); null while it is returned. The stored <see cref="ChapterId"/> is kept meanwhile.
+    /// </summary>
+    public DateTimeOffset? MissingSince { get; set; }
+
+    /// <summary>How many sweeps in a row left the record out (0 while it is returned).</summary>
+    public int MissingCount { get; set; }
 }
 
 /// <summary>Per library: the latest-upload sweep that confirmed every MangaDex companion of the library (its start time).</summary>

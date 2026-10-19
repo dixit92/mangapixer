@@ -479,7 +479,10 @@ export class FolderMatchDialogComponent implements OnDestroy {
       : `${plural(sent, 'search', 'searches')} sent.${left ? ` ${left} left: search again for the rest.` : ''}`));
   }
 
-  /** The local items to mark, from the ticked rows (artists: a row with a picked author is marked with that author instead). */
+  /**
+   * The local items to mark, from the ticked rows (artists: a row with a picked author is marked with that author instead; 1.45.0: a
+   * local match whose MangaUpdates author id the preview gave carries it, stored as the declared artist's reference - nothing is sent).
+   */
   private localItems(): FolderMatchApplyItem[] {
     const kind = this.kind();
     const items: FolderMatchApplyItem[] = [];
@@ -488,7 +491,11 @@ export class FolderMatchDialogComponent implements OnDestroy {
       if (!r.ticked || r.result === 'ok' || authorPicked.has(r.row.nodeId)) continue;
       if (kind === 'Artists') {
         const artist = (r.row.artists ?? [])[r.pick];
-        if (artist) items.push({ nodeId: r.row.nodeId, name: artist.name, role: artist.role });
+        if (artist) {
+          items.push(artist.authorId
+            ? { nodeId: r.row.nodeId, name: artist.name, role: artist.role, provider: 'mangaupdates', externalId: artist.authorId }
+            : { nodeId: r.row.nodeId, name: artist.name, role: artist.role });
+        }
         else if (r.row.status === 'NoMatch' && r.ownName) items.push({ nodeId: r.row.nodeId });
       } else if (kind === 'Collections') {
         const record = (r.row.records ?? [])[r.pick];
