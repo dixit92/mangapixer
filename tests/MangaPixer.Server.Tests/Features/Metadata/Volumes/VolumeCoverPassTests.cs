@@ -256,8 +256,12 @@ public sealed class VolumeCoverPassTests : IAsyncLifetime
 
         Assert.Equal((int)VolumeMapState.Empty, map.State);
         // The pure rule: a usable stored list stays while covers are listed, or the total is unchanged.
-        var stored = new SeriesVolumeMapEntity { State = (int)VolumeMapState.Ok, KnownVolumeCount = 43,
-            VolumesJson = "[{\"v\":\"1\",\"c\":[\"1\",\"2\"]},{\"v\":\"2\",\"c\":[\"3\",\"4\"]}]" };
+        var stored = new SeriesVolumeMapEntity
+        {
+            State = (int)VolumeMapState.Ok,
+            KnownVolumeCount = 43,
+            VolumesJson = "[{\"v\":\"1\",\"c\":[\"1\",\"2\"]},{\"v\":\"2\",\"c\":[\"3\",\"4\"]}]",
+        };
         Assert.True(VolumeMapService.KeepsLastGoodList(stored, listsVolumeCovers: true, knownNow: 50));
         Assert.True(VolumeMapService.KeepsLastGoodList(stored, listsVolumeCovers: false, knownNow: 43));
         Assert.False(VolumeMapService.KeepsLastGoodList(stored, listsVolumeCovers: false, knownNow: 50));

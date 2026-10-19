@@ -537,7 +537,10 @@ public sealed class NewChapterFreshnessTests : IAsyncLifetime
         _t.Db.ReadMarks.Add(new ReadMarkEntity { UserId = user.Id, ItemId = staleChapter.Id, MarkedAt = Now - TimeSpan.FromDays(20) });
         _t.Db.TrackerEntries.Add(new TrackerEntryEntity
         {
-            UserId = user.Id, Tracker = "mal", RecordId = tracked.Record.Id, RemoteStatus = (int)com.lifepixer.mangapixer.Core.Trackers.TrackerEntryStatus.Reading,
+            UserId = user.Id,
+            Tracker = "mal",
+            RecordId = tracked.Record.Id,
+            RemoteStatus = (int)com.lifepixer.mangapixer.Core.Trackers.TrackerEntryStatus.Reading,
             UpdatedAt = Now,
         });
         await _t.Db.SaveChangesAsync();
