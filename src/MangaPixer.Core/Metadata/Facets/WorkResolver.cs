@@ -181,49 +181,49 @@ public static class WorkResolver
             {
                 case MatchLevel.Folder:
                 case MatchLevel.ReviewOnly:
-                {
-                    var work = new Work { AnchorNodeId = folder.Id, Title = folder.Name };
-                    unlinked.Add(work);
-                    var location = NewLocation(work, folder.Id, about);
-                    // Mixed (one subfolder + loose units of one work): the loose archives are the work; the subfolder stands on its own.
-                    var covers = classification.Class != WorkClass.Mixed;
-                    var ctx = new Context(location, work, covers, about);
-                    foreach (var archive in archives)
                     {
-                        if (!OwnDecisionArchive(archive, ctx))
-                            location.Archives.Add(archive.Id);
-                    }
-                    PushFolders(folder, covers ? ctx : fresh);
-                    return;
-                }
-                case MatchLevel.Archive:
-                {
-                    var grouped = new HashSet<long>();
-                    var groups = classification.ArchiveGroups.Count > 0 || !opener
-                        ? classification.ArchiveGroups
-                        : archives.Select((_, i) => new ArchiveGroup(string.Empty, [i])).ToList();
-                    foreach (var group in groups)
-                    {
-                        var members = group.ArchiveIndexes
-                            .Where(i => i >= 0 && i < archives.Count)
-                            .Distinct()
-                            .Order()
-                            .Select(i => archives[i])
-                            .Where(a => tree.OwnStoppingLink(a.Id) is null && grouped.Add(a.Id))
-                            .ToList();
-                        if (members.Count == 0)
-                            continue;
-                        var title = members.Count == 1 || group.QueryTitle.Length == 0 ? members[0].Name : group.QueryTitle;
-                        var work = new Work { AnchorNodeId = members[0].Id, Title = title };
+                        var work = new Work { AnchorNodeId = folder.Id, Title = folder.Name };
                         unlinked.Add(work);
-                        foreach (var member in members)
-                            NewLocation(work, member.Id, about).Archives.Add(member.Id);
+                        var location = NewLocation(work, folder.Id, about);
+                        // Mixed (one subfolder + loose units of one work): the loose archives are the work; the subfolder stands on its own.
+                        var covers = classification.Class != WorkClass.Mixed;
+                        var ctx = new Context(location, work, covers, about);
+                        foreach (var archive in archives)
+                        {
+                            if (!OwnDecisionArchive(archive, ctx))
+                                location.Archives.Add(archive.Id);
+                        }
+                        PushFolders(folder, covers ? ctx : fresh);
+                        return;
                     }
-                    foreach (var archive in archives)
-                        OwnDecisionArchive(archive, fresh);
-                    PushFolders(folder, fresh);
-                    return;
-                }
+                case MatchLevel.Archive:
+                    {
+                        var grouped = new HashSet<long>();
+                        var groups = classification.ArchiveGroups.Count > 0 || !opener
+                            ? classification.ArchiveGroups
+                            : archives.Select((_, i) => new ArchiveGroup(string.Empty, [i])).ToList();
+                        foreach (var group in groups)
+                        {
+                            var members = group.ArchiveIndexes
+                                .Where(i => i >= 0 && i < archives.Count)
+                                .Distinct()
+                                .Order()
+                                .Select(i => archives[i])
+                                .Where(a => tree.OwnStoppingLink(a.Id) is null && grouped.Add(a.Id))
+                                .ToList();
+                            if (members.Count == 0)
+                                continue;
+                            var title = members.Count == 1 || group.QueryTitle.Length == 0 ? members[0].Name : group.QueryTitle;
+                            var work = new Work { AnchorNodeId = members[0].Id, Title = title };
+                            unlinked.Add(work);
+                            foreach (var member in members)
+                                NewLocation(work, member.Id, about).Archives.Add(member.Id);
+                        }
+                        foreach (var archive in archives)
+                            OwnDecisionArchive(archive, fresh);
+                        PushFolders(folder, fresh);
+                        return;
+                    }
                 default:
                     foreach (var archive in archives)
                         OwnDecisionArchive(archive, fresh);
