@@ -97,11 +97,13 @@ export class SeriesInfoButtonComponent {
   }
 
   private resolve(id: string): Observable<SeriesSlot> {
-    return forkJoin({
-      info: this.api.getSeriesInfo(id).pipe(catchError(() => of(null))),
-      // The tag index (1.45.0): works at or below this folder that the viewer may see. No answer = nothing indexed.
-      works: this.infoApi.getInfo(id).pipe(map((p) => p.works), catchError(() => of(0))),
-    }).pipe(
+    return this.api.getSeriesInfo(id).pipe(
+      catchError(() => of(null)),
+      // Series information decides at once; only without it is the tag index asked (1.45.0): works at or below this folder that
+      // the viewer may see (no answer = nothing indexed).
+      switchMap((info) => hasSeriesContent(info)
+        ? of({ info, works: 0 })
+        : this.infoApi.getInfo(id).pipe(map((p) => ({ info, works: p.works })), catchError(() => of({ info, works: 0 })))),
       switchMap(({ info, works }) => {
         if (hasSeriesContent(info) || works > 0) return of<SeriesSlot>('info');
         if (!info || !this.auth.isAdmin()) return of<SeriesSlot>('none');

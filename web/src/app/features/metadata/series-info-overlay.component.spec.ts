@@ -35,8 +35,8 @@ describe('SeriesInfoOverlayComponent', () => {
       provideRouter([]),
       { provide: MetadataApiService, useValue: api },
       { provide: AuthService, useValue: { isAdmin: () => !!opts.admin } },
-      // 1.45.0: the Tags block's answer (a creator chip by default).
-      { provide: InfoApiService, useValue: { getInfo: vi.fn(() => (opts.tags === 'error' ? throwError(() => ({ status: 404 })) : of(opts.tags ?? panel()))), getInfoBucket: vi.fn() } },
+      // 1.45.0: the Tags block's answer (nothing indexed by default).
+      { provide: InfoApiService, useValue: { getInfo: vi.fn(() => (opts.tags === 'error' ? throwError(() => ({ status: 404 })) : of(opts.tags ?? panel({ works: 0, buckets: [] })))), getInfoBucket: vi.fn() } },
     ];
     if (opts.sheet) {
       providers.push({ provide: MAT_BOTTOM_SHEET_DATA, useValue: { nodeId: 'card-1' } }, { provide: MatBottomSheetRef, useValue: sheetRef });
@@ -57,7 +57,7 @@ describe('SeriesInfoOverlayComponent', () => {
   });
 
   it('1.45.0: is titled "Info" and shows the Tags block; a chip leaves the overlay for the search page', () => {
-    const { el } = create(seriesInfo({ nodeId: 'card-1', state: 'Web' }));
+    const { el } = create(seriesInfo({ nodeId: 'card-1', state: 'Web' }), { tags: panel() });
     expect(el.querySelector('.kicker')!.textContent).toBe('Info');
     const chip = el.querySelector('[data-testid="info-chip"]') as HTMLAnchorElement;
     expect(chip.getAttribute('href')).toBe('/search?f=creator:fv_a');
@@ -66,7 +66,7 @@ describe('SeriesInfoOverlayComponent', () => {
   });
 
   it('1.45.0: a chip in the phone bottom sheet dismisses it', () => {
-    const { el } = create(seriesInfo({ nodeId: 'card-1', state: 'Web' }), { sheet: true });
+    const { el } = create(seriesInfo({ nodeId: 'card-1', state: 'Web' }), { sheet: true, tags: panel() });
     (el.querySelector('[data-testid="info-chip"]') as HTMLAnchorElement).click();
     expect(sheetRef.dismiss).toHaveBeenCalled();
   });

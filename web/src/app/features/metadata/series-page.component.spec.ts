@@ -9,6 +9,7 @@ import { CatalogNodeDto, SeriesInfoDto } from '../../core/api/api-types';
 import { MetadataApiService } from './metadata-api.service';
 import { InfoApiService } from './info/info-api.service';
 import { panel } from './info/info.testing';
+import { InfoPanelDto } from './info/info-types';
 import { MissingReportApiService } from './missing/missing-report-api.service';
 import { SeriesPageComponent } from './series-page.component';
 import { seriesInfo } from './series-info.testing';
@@ -19,6 +20,10 @@ import { seriesInfo } from './series-info.testing';
  * nextUnread, and the hidden / missing states.
  */
 describe('SeriesPageComponent', () => {
+  /** 1.45.0: the Tags block's answer (nothing indexed unless a test says otherwise). */
+  let tagsAnswer: InfoPanelDto = panel({ works: 0, buckets: [] });
+  afterEach(() => { tagsAnswer = panel({ works: 0, buckets: [] }); });
+
   function create(
     nodeId: string, info: SeriesInfoDto | 'error', nextUnread: CatalogNodeDto | null = null, admin = false,
     archiveNode: Partial<CatalogNodeDto> | null = null,
@@ -41,7 +46,7 @@ describe('SeriesPageComponent', () => {
         { provide: ApiService, useValue: api },
         { provide: AuthService, useValue: { isAdmin: () => admin } },
         // 1.45.0: the Tags block under the summary.
-        { provide: InfoApiService, useValue: { getInfo: vi.fn(() => of(panel())), getInfoBucket: vi.fn() } },
+        { provide: InfoApiService, useValue: { getInfo: vi.fn(() => of(tagsAnswer)), getInfoBucket: vi.fn() } },
         { provide: MissingReportApiService, useValue: { forNodeViewer: vi.fn(() => throwError(() => ({ status: 404 }))) } },
         { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ nodeId })) } },
       ],
@@ -103,6 +108,7 @@ describe('SeriesPageComponent', () => {
   });
 
   it('1.45.0: shows the Tags block under the summary, with chips that open the tag search', () => {
+    tagsAnswer = panel();
     const { el } = create('anchor-1', seriesInfo({ nodeId: 'anchor-1', anchorNodeId: 'anchor-1', state: 'Web' }));
     const chip = el.querySelector('.hero [data-testid="info-tags"] [data-testid="info-chip"]') as HTMLAnchorElement;
     expect(chip.getAttribute('href')).toBe('/search?f=creator:fv_a');

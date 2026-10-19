@@ -5,7 +5,6 @@ import { RouterLink } from '@angular/router';
 import { SeriesInfoDto } from '../../core/api/api-types';
 import { creditGroups, itemLine, metaLine } from './series-info-labels';
 import { DeclaredFactsLineComponent } from './declared/declared-facts-line.component';
-import { InfoTagsComponent } from './info/info-tags.component';
 import { FacetBucketName, InfoPanelDto } from './info/info-types';
 
 /**
@@ -16,19 +15,19 @@ import { FacetBucketName, InfoPanelDto } from './info/info-types';
  * with a "More" toggle and folds long alt-title and genre lists. The series page sets
  * `showDescription` false: it shows the description once, under About.
  *
- * 1.45.0: with `tags` (the Info overlay and the series page) the Tags block follows - one
- * row of clickable chips per bucket, each opening the search filtered by that tag. Its
- * Creators and Genres rows REPLACE the plain-text credits and genres lines (the chips
- * waited for faceted search, which now exists); while the block loads, or when nothing is
- * indexed, the plain text stays. A node with no series information but indexed works
- * below (a library root, an artist's folder) shows its name and the tags instead of
- * "No series information". The hover summary keeps the plain text (no `tags`).
+ * 1.45.0: the Info overlay and the series page put the Tags block (`app-info-tags`, one row
+ * of clickable chips per bucket) under this summary and hand its answer in as `tagsPanel`.
+ * The Creators and Genres rows then REPLACE the plain-text credits and genres lines (the
+ * chips waited for faceted search, which now exists); while the block loads, or when nothing
+ * is indexed, the plain text stays. A node with no series information but indexed works
+ * below (an artist's folder, "One Shots") shows its name instead of "No series information".
+ * The hover summary has no Tags block and keeps the plain text.
  *
  * All text is bound as text (never innerHTML): ComicInfo and provider values are
  * data, never markup.
  */
 @Component({
-  imports: [RouterLink, DeclaredFactsLineComponent, InfoTagsComponent],
+  imports: [RouterLink, DeclaredFactsLineComponent],
   selector: 'app-series-info-summary',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -110,9 +109,6 @@ import { FacetBucketName, InfoPanelDto } from './info/info-types';
       }
     }
     <app-declared-facts-line [nodeId]="i.nodeId" />
-    @if (tags()) {
-      <app-info-tags [nodeId]="i.nodeId" (loaded)="tagsPanel.set($event)" />
-    }
 
     @if (i.item) {
       <section class="item" data-testid="series-item">
@@ -166,11 +162,8 @@ export class SeriesInfoSummaryComponent {
    */
   readonly shortAltTitles = input(false);
 
-  /** 1.45.0: show the Tags block (the Info overlay and the series page). */
-  readonly tags = input(false);
-
-  /** The Tags block's answer once loaded (null: loading, nothing indexed, or not available). */
-  readonly tagsPanel = signal<InfoPanelDto | null>(null);
+  /** 1.45.0: the host's Tags block answer once loaded (null: none, loading, nothing indexed, or not available). */
+  readonly tagsPanel = input<InfoPanelDto | null>(null);
 
   readonly expanded = signal(false);
 
