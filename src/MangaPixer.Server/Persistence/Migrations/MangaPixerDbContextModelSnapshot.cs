@@ -1608,6 +1608,12 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Property<long>("CheckedAt")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("MissingCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("MissingSince")
+                        .HasColumnType("INTEGER");
+
                     b.Property<long>("SeenAt")
                         .HasColumnType("INTEGER");
 

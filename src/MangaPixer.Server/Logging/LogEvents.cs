@@ -520,6 +520,7 @@ public static class LogEvents
         public const int VolumeListKept = 9466;
         public const int FreshnessFailed = 9467;
         public const int CrossTrigger = 9468;
+        public const int LatestUploadMissing = 9469; // owner follow-up 2026-10-19: records MangaDex left out of the sweep answer
 
         // Tag query (1.45.0, lane Q, 9450-9459). Counts, ids and timings only - never search text, tag values or names.
         public const int FacetCountsComputed = 9450;

@@ -23,7 +23,13 @@ public sealed record LatestUploadSweepResult(int Requests, int Records, int Chan
 /// <item>A CHANGED value (not the first read) makes that series' MangaDex volume lists due now (recommendation 5): the volume-cover pass
 /// re-reads them on its next tick.</item>
 /// <item>A sweep that completes stores its START time for every library it covered (<c>library_freshness.MangaDexSweepAt</c>, the export's
-/// <c>sweeps.mangadexLatestUpload</c>); one stopped by the budget, a backoff, a switch or a provider error advances no library.</item>
+/// <c>sweeps.mangadexLatestUpload</c>). One stopped by the budget, a backoff, a switch or a provider error (owner, 2026-10-19) stores it
+/// for every library whose MangaDex records were ALL read before the stop (a library without any included); a library with a record
+/// not read yet keeps its old time.</item>
+/// <item>A record MangaDex leaves out of the answer (taken down) keeps its stored value (owner, 2026-10-19: MangaList falls back on its
+/// side); the stored row counts the sweeps in a row that missed it (<c>MissingSince</c> / <c>MissingCount</c>, cleared when it is
+/// returned again). Such a series with a linked MangaUpdates record keeps being refreshed through MangaUpdates (the releases feed and
+/// the record refresh); one linked only to MangaDex is only logged (record ids, counts) - no other request is made for it.</item>
 /// </list>
 /// Sends MangaDex record ids only. A series inside a "Don't match" folder is left out (as in the volume-cover pass). Logs ids and counts.
 /// </summary>
@@ -32,7 +38,14 @@ public sealed class LatestUploadSweep(
     ILogger<LatestUploadSweep> logger)
 {
     /// <summary>One MangaDex record to read: its stored id and MangaDex id, and the libraries whose linked series use it.</summary>
-    internal sealed record Target(long RecordId, string MangaId, IReadOnlyList<long> Libraries);
+    /// <summary>
+    /// <paramref name="MangaUpdatesLinked"/>: a series linked to a MangaUpdates record uses it (the MangaUpdates path covers the series
+    /// when MangaDex leaves the record out); false = linked only to MangaDex.
+    /// </summary>
+    internal sealed record Target(long RecordId, string MangaId, IReadOnlyList<long> Libraries, bool MangaUpdatesLinked = false);
+
+    /// <summary>At most this many record ids in the "linked only to MangaDex" log line (the count is always complete).</summary>
+    internal const int MissingIdsLogged = 50;
 
     /// <summary>True when the sweep is due (the admin's interval since the last completed one, or a retry after a stopped one).</summary>
     public async Task<bool> IsDueAsync(CancellationToken ct = default)
@@ -60,6 +73,9 @@ public sealed class LatestUploadSweep(
         string? stopped = null;
         int records = 0, changed = 0;
         var changedRecords = new List<long>();
+        // The records of the batches MangaDex answered (returned or left out) - a library is confirmed when all of its are here.
+        var answered = new HashSet<long>();
+        var missing = new List<Target>();
 
         // Each record is asked for once, for the first library that uses it; batches never mix libraries (each request passes that
         // library's own "Fetch from the web").
@@ -85,9 +101,19 @@ public sealed class LatestUploadSweep(
                 var stored = await db.MangaDexLatestUploads.Where(u => batchIds.Contains(u.RecordId)).ToDictionaryAsync(u => u.RecordId, ct);
                 foreach (var target in batch)
                 {
-                    // A record MangaDex did not return (taken down) keeps its stored value: nothing new is known about it.
+                    answered.Add(target.RecordId);
+                    // A record MangaDex did not return (taken down) keeps its stored value: nothing new is known about it. The stored
+                    // row (when it was read before) counts the miss; MangaList falls back on its side.
                     if (!byId.TryGetValue(target.MangaId, out var upload))
+                    {
+                        missing.Add(target);
+                        if (stored.TryGetValue(target.RecordId, out var gone))
+                        {
+                            gone.MissingSince ??= now;
+                            gone.MissingCount++;
+                        }
                         continue;
+                    }
                     records++;
                     if (!stored.TryGetValue(target.RecordId, out var row))
                     {
@@ -101,6 +127,8 @@ public sealed class LatestUploadSweep(
                         continue;
                     }
                     row.CheckedAt = now;
+                    row.MissingSince = null;
+                    row.MissingCount = 0;
                     if (string.Equals(row.ChapterId, upload.ChapterId, StringComparison.Ordinal))
                         continue;
                     row.ChapterId = upload.ChapterId;
@@ -122,13 +150,14 @@ public sealed class LatestUploadSweep(
         state.SweepRequests = call.RequestsSent;
         state.SweepRecords = records;
         state.SweepChanged = changed;
+        // Completed: every MangaDex record of each of these libraries was asked for in this sweep (a library without any is covered
+        // too, once any library has one). Stopped (owner, 2026-10-19): only the libraries none of whose records is left unread.
+        var confirmed = stopped is null ? libraries : ConfirmedAfterStop(libraries, targets, answered);
         var advanced = 0;
-        if (stopped is null)
+        if (confirmed.Count > 0)
         {
-            // Every MangaDex record of each of these libraries was asked for in this sweep (a library without any is covered too, once
-            // any library has one).
-            var rows = await db.LibraryFreshness.Where(f => libraries.Contains(f.LibraryId)).ToDictionaryAsync(f => f.LibraryId, ct);
-            foreach (var library in libraries)
+            var rows = await db.LibraryFreshness.Where(f => confirmed.Contains(f.LibraryId)).ToDictionaryAsync(f => f.LibraryId, ct);
+            foreach (var library in confirmed)
             {
                 if (!rows.TryGetValue(library, out var row))
                     db.LibraryFreshness.Add(row = new LibraryFreshnessEntity { LibraryId = library });
@@ -137,10 +166,37 @@ public sealed class LatestUploadSweep(
             }
         }
         await db.SaveChangesAsync(ct);
+        LogMissing(missing);
         logger.LogInformation(LogEvents.Metadata.LatestUploadSweep,
             "MangaDex latest-upload sweep: {Records} records, {Changed} changed, {Due} volume lists due, {Requests} requests, {Libraries} libraries confirmed; {Outcome}",
             records, changed, due, call.RequestsSent, advanced, stopped ?? "ok");
         return new LatestUploadSweepResult(call.RequestsSent, records, changed, advanced, stopped);
+    }
+
+    /// <summary>
+    /// The libraries a STOPPED sweep confirms: those whose every MangaDex record was in a batch MangaDex answered before the stop (a
+    /// record left out of an answer counts as read - nothing more can be known about it). A library without records is confirmed too,
+    /// as in a completed sweep.
+    /// </summary>
+    internal static IReadOnlyList<long> ConfirmedAfterStop(IReadOnlyList<long> libraries, IReadOnlyList<Target> targets, IReadOnlySet<long> answered)
+    {
+        var unread = targets.Where(t => !answered.Contains(t.RecordId)).SelectMany(t => t.Libraries).ToHashSet();
+        return libraries.Where(l => !unread.Contains(l)).ToList();
+    }
+
+    /// <summary>
+    /// Logs the records MangaDex left out of its answers (owner, 2026-10-19): how many, how many a linked MangaUpdates record covers
+    /// (refreshed through MangaUpdates as before), and the record ids of those linked only to MangaDex - left as they are, nothing else
+    /// is asked for them. Ids and counts only.
+    /// </summary>
+    private void LogMissing(IReadOnlyList<Target> missing)
+    {
+        if (missing.Count == 0)
+            return;
+        var mangaDexOnly = missing.Where(t => !t.MangaUpdatesLinked).Select(t => t.RecordId).Order().ToList();
+        logger.LogInformation(LogEvents.Metadata.LatestUploadMissing,
+            "MangaDex latest-upload sweep: {Missing} records not returned, {MangaUpdates} covered by a linked MangaUpdates record, {MangaDexOnly} linked only to MangaDex (records {RecordIds})",
+            missing.Count, missing.Count - mangaDexOnly.Count, mangaDexOnly.Count, string.Join(",", mangaDexOnly.Take(MissingIdsLogged)));
     }
 
     /// <summary>
@@ -166,12 +222,14 @@ public sealed class LatestUploadSweep(
             where c.Provider == mangaDexId && found.Contains(c.State) && c.CompanionRecordId != null
             join md in db.MetadataRecords.AsNoTracking() on c.CompanionRecordId equals md.Id
             where md.Provider == mangaDexId
-            select new { l.NodeId, n.ParentId, l.LibraryId, md.Id, md.ExternalId })
+            join series in db.MetadataRecords.AsNoTracking() on l.RecordId equals series.Id
+            select new { l.NodeId, n.ParentId, l.LibraryId, md.Id, md.ExternalId, SeriesProvider = series.Provider })
             .ToListAsync(ct);
         var excluded = await VolumeCoverPass.UnderDontMatchAsync(db, rows.Select(r => (r.NodeId, r.ParentId)).Distinct().ToList(), ct);
         return rows.Where(r => !excluded.Contains(r.NodeId) && MangaDexProvider.IsValidId(r.ExternalId))
             .GroupBy(r => r.Id)
-            .Select(g => new Target(g.Key, g.First().ExternalId, g.Select(r => r.LibraryId).Distinct().Order().ToList()))
+            .Select(g => new Target(g.Key, g.First().ExternalId, g.Select(r => r.LibraryId).Distinct().Order().ToList(),
+                g.Any(r => r.SeriesProvider == MetadataProviderAllowlist.MangaUpdates)))
             .OrderBy(t => t.Libraries[0]).ThenBy(t => t.RecordId)
             .ToList();
     }
