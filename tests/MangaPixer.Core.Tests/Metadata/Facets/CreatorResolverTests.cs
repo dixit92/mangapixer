@@ -69,7 +69,7 @@ public sealed class CreatorResolverTests
     [Fact]
     public void R4_EveryUnresolvedCreditWithOneKey_SharesItsNameOnlyCreator()
     {
-        var resolver = new CreatorResolver(Registry(Two, nameOnly: [("solo artist", 40)]));
+        var resolver = new CreatorResolver(Registry(Two, nameOnly: [("artist solo", 40)]));
 
         Assert.Equal(CreatorHandle.Existing(40), resolver.Resolve(new FacetCredit("Solo Artist", "penciller")));
         Assert.Equal(CreatorHandle.Existing(40), resolver.Resolve(new FacetCredit("artist, solo", "writer")));
