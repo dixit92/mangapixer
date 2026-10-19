@@ -124,16 +124,17 @@ public sealed class MetadataCarryOverService
         var tombstoned = (int)CatalogNodeAvailability.Tombstoned;
         var nodes = await _db.CatalogNodes.AsNoTracking()
             .Where(n => libraryList.Contains(n.LibraryId))
-            .Select(n => new TreeRow(n.Id, n.ParentId, n.Kind == (int)CatalogNodeKind.Folder, n.Availability != tombstoned))
+            .Select(n => new TreeRow(n.Id, n.ParentId, n.Kind == (int)CatalogNodeKind.Folder, n.Availability != tombstoned,
+                n.LastSeenScanRevision, n.TombstonedAt))
             .ToDictionaryAsync(n => n.Id, ct);
 
-        var strandedArchiveParents = nodes.Values
+        var strandedArchives = nodes.Values
             .Where(r => !r.IsFolder && !r.Live && r.ParentId is not null && !(pairedTombstones?.Contains(r.Id) ?? false))
-            .Select(r => r.ParentId!.Value).ToList();
+            .ToList();
         var carried = 0;
         foreach (var t in stranded)
         {
-            var target = MapTarget(t, ledger, nodes, strandedArchiveParents);
+            var target = MapTarget(t, ledger, nodes, strandedArchives);
             if (target is not { } n)
                 continue;
             var moved = await MoveRowsAsync(t, n, ct, recordConflicts: true);
@@ -151,15 +152,23 @@ public sealed class MetadataCarryOverService
         return carried;
     }
 
-    public readonly record struct TreeRow(long Id, long? ParentId, bool IsFolder, bool Live);
+    /// <summary>
+    /// One catalog row for the mapper. <paramref name="LastSeen"/> (the last scan revision that saw the node) and
+    /// <paramref name="TombstonedAt"/> date a tombstone (1.45.0): only archives that left in the move window count against the 80% rule.
+    /// </summary>
+    public readonly record struct TreeRow(long Id, long? ParentId, bool IsFolder, bool Live, long LastSeen = 0, DateTimeOffset? TombstonedAt = null);
 
     /// <summary>
     /// Where the removed folder <paramref name="t"/> went, or null when the moved
     /// archives disagree, too few of T's archives moved, or the target is not a
     /// live folder. Pure over the given rows (unit-tested).
+    ///
+    /// 1.45.0 (phase K2): an archive still tombstoned below T counts as "did not follow" only when it left in the move window - it was
+    /// last seen at the scan that last saw T (it was in the folder up to the move), or it was tombstoned with T or later. A tombstone from
+    /// an earlier scan (a file moved out or deleted days before the rename) is no longer one of T's archives.
     /// </summary>
     public static long? MapTarget(long t, IReadOnlyList<ScanMove> ledger, IReadOnlyDictionary<long, TreeRow> nodes,
-        IReadOnlyList<long>? strandedArchiveParents = null)
+        IReadOnlyList<TreeRow>? strandedArchives = null)
     {
         long? target = null;
         var movedCount = 0;
@@ -182,11 +191,20 @@ public sealed class MetadataCarryOverService
         if (target is not { } n || !nodes.TryGetValue(n, out var targetRow) || !targetRow.IsFolder || !targetRow.Live || n == t)
             return null;
 
-        // Archives still stranded (tombstoned) anywhere below T did not follow.
-        strandedArchiveParents ??= nodes.Values.Where(r => !r.IsFolder && !r.Live && r.ParentId is not null).Select(r => r.ParentId!.Value).ToList();
-        var remaining = strandedArchiveParents.Count(p => DepthBelow(p, t, nodes) >= 0);
+        // Archives still stranded (tombstoned) anywhere below T that left in the move window did not follow.
+        strandedArchives ??= nodes.Values.Where(r => !r.IsFolder && !r.Live && r.ParentId is not null).ToList();
+        var folder = nodes.TryGetValue(t, out var tRow) ? tRow : default;
+        var remaining = strandedArchives.Count(a => InMoveWindow(a, folder) && DepthBelow(a.ParentId!.Value, t, nodes) >= 0);
         return movedCount >= MinMovedShare * (movedCount + remaining) ? n : null;
     }
+
+    /// <summary>
+    /// Whether the tombstoned <paramref name="archive"/> left with the removed folder <paramref name="folder"/> (1.45.0): seen at the scan
+    /// that last saw the folder, or tombstoned at the same reconciliation or later. Unknown dates (rows without them) count, as before.
+    /// </summary>
+    private static bool InMoveWindow(TreeRow archive, TreeRow folder) =>
+        archive.LastSeen >= folder.LastSeen
+        || (archive.TombstonedAt is { } left && folder.TombstonedAt is { } removed && left >= removed);
 
     /// <summary>How many levels <paramref name="folderId"/> is below <paramref name="ancestorId"/> (0 = same), or -1.</summary>
     private static int DepthBelow(long folderId, long ancestorId, IReadOnlyDictionary<long, TreeRow> nodes)
