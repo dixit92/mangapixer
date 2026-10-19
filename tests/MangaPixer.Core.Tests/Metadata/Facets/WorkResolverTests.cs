@@ -253,7 +253,7 @@ public sealed class WorkResolverTests
         foreach (var id in b)
             lib.Ci(id, "Synthetic Saga", new FacetCredit("Kenta Mori", "Writer")); // the same person's pen name
 
-        var resolver = ProviderBacked(("mangaupdates:7", ["Tanaka Hiroshi", "Kenta Mori"]));
+        var resolver = ProviderBacked(("mangaupdates:7", new[] { "Tanaka Hiroshi", "Kenta Mori" }));
         var works = lib.Works(resolver);
 
         var work = Assert.Single(works);
@@ -261,7 +261,7 @@ public sealed class WorkResolverTests
         Assert.Equal(new[] { first, second }, work.Locations.Select(l => l.NodeId).ToArray());
 
         // Without the alias (no provider author record naming both spellings), the two folders are two works.
-        var unaliased = lib.Works(ProviderBacked(("mangaupdates:7", ["Tanaka Hiroshi"])));
+        var unaliased = lib.Works(ProviderBacked(("mangaupdates:7", new[] { "Tanaka Hiroshi" })));
         Assert.Equal(2, unaliased.Count);
     }
 
@@ -278,7 +278,7 @@ public sealed class WorkResolverTests
         foreach (var id in a.Concat(b))
             lib.Ci(id, "Synthetic Saga", new FacetCredit("Sato", "writer"));
 
-        var works = lib.Works(ProviderBacked(("mangaupdates:7", ["Sato"])));
+        var works = lib.Works(ProviderBacked(("mangaupdates:7", new[] { "Sato" })));
 
         Assert.Equal(2, works.Count);
         Assert.All(works, w => Assert.Equal(FacetWorkKind.ComicInfo, w.Kind));
@@ -291,7 +291,7 @@ public sealed class WorkResolverTests
         var p2 = plain.Folder("Saga Part Two");
         foreach (var id in plain.Archives(p1, "Saga Part One {0:00}.cbz", 2).Concat(plain.Archives(p2, "Saga Part Two {0:00}.cbz", 2)))
             plain.Ci(id, "Synthetic Saga", new FacetCredit("Sato", "writer"));
-        Assert.Single(plain.Works(ProviderBacked(("mangaupdates:7", ["Sato"]))));
+        Assert.Single(plain.Works(ProviderBacked(("mangaupdates:7", new[] { "Sato" }))));
     }
 
     [Fact]
@@ -325,7 +325,7 @@ public sealed class WorkResolverTests
         var folder = lib.Folder("Saga");
         foreach (var id in lib.Archives(folder, "Saga {0:00}.cbz", 2))
             lib.Ci(id, "Synthetic Saga", new FacetCredit("Hiroshi Tanaka", "writer"), new FacetCredit("Second Artist", "penciller"));
-        var resolver = ProviderBacked(("mangaupdates:7", ["Hiroshi Tanaka"]));
+        var resolver = ProviderBacked(("mangaupdates:7", new[] { "Hiroshi Tanaka" }));
         var other = new FacetComicInfoWorkKey("ci:synthetic saga#1,9", "synthetic saga", [1, 9]);
         var unrelated = new FacetComicInfoWorkKey("ci:synthetic saga#8", "synthetic saga", [8]);
 

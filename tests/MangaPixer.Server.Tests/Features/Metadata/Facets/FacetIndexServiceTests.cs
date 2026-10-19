@@ -159,7 +159,7 @@ public sealed class FacetIndexServiceTests
 
         var merged = await kit.Admin().MergeAsync(other.PublicId, pen.PublicId, null, default);
         Assert.Equal(pen.PublicId, merged.Creator!.Id);
-        Assert.Contains((null, FacetNudgeReason.CreatorOverrideChanged), kit.Nudges.Nudges);
+        Assert.Contains(((long?)null, FacetNudgeReason.CreatorOverrideChanged), kit.Nudges.Nudges);
 
         for (var pass = 0; pass < 2; pass++)
         {

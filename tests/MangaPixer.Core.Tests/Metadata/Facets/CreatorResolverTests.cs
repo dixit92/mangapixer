@@ -24,8 +24,8 @@ public sealed class CreatorResolverTests
 
     private static readonly (string, long, string[])[] Two =
     [
-        ("mangaupdates:7", 1, ["Tanaka Hiroshi", "Kenta Mori"]),
-        ("mangaupdates:8", 2, ["Sato", "Sato Yuki"]),
+        ("mangaupdates:7", 1L, new[] { "Tanaka Hiroshi", "Kenta Mori" }),
+        ("mangaupdates:8", 2L, new[] { "Sato", "Sato Yuki" }),
     ];
 
     [Fact]
@@ -57,9 +57,9 @@ public sealed class CreatorResolverTests
     {
         var resolver = new CreatorResolver(Registry(
         [
-            ("mangaupdates:7", 1, ["Tanaka Hiroshi"]),
-            ("mangaupdates:8", 2, ["Common Name"]),
-            ("mangaupdates:9", 3, ["Common Name"]),
+            ("mangaupdates:7", 1L, new[] { "Tanaka Hiroshi" }),
+            ("mangaupdates:8", 2L, new[] { "Common Name" }),
+            ("mangaupdates:9", 3L, new[] { "Common Name" }),
         ]));
 
         Assert.Equal(CreatorHandle.Existing(1), resolver.Resolve(new FacetCredit("Hiroshi Tanaka", "writer")));
@@ -97,8 +97,8 @@ public sealed class CreatorResolverTests
     {
         var resolver = new CreatorResolver(Registry(
         [
-            ("mangaupdates:7", 1, ["Common Name"]),
-            ("mangaupdates:8", 2, ["Common Name"]),
+            ("mangaupdates:7", 1L, new[] { "Common Name" }),
+            ("mangaupdates:8", 2L, new[] { "Common Name" }),
         ], nameOnly: [("solo", 5)], merges: [(1, 2), (5, 2)]));
 
         Assert.Equal(CreatorHandle.Existing(2), resolver.Resolve(new FacetCredit("x", "author", "mangaupdates:7")));
@@ -119,9 +119,9 @@ public sealed class CreatorResolverTests
     {
         IEnumerable<CreatorSpellingUse> uses = [new("Mori Kenta", 2, 5), new("Kenta Mori", 2, 3), new("KENTA MORI", 1, 1)];
 
-        Assert.Equal(("Pen Name", CreatorDisplayNameSource.Admin), CreatorDisplayName.Choose(" Pen  Name ", ["Main"], uses));
-        Assert.Equal(("Main", CreatorDisplayNameSource.Provider), CreatorDisplayName.Choose(null, [null, "Main"], uses));
-        Assert.Equal(("Kenta Mori", CreatorDisplayNameSource.MostUsed), CreatorDisplayName.Choose("", [], uses));
+        Assert.Equal<(string, CreatorDisplayNameSource)?>(("Pen Name", CreatorDisplayNameSource.Admin), CreatorDisplayName.Choose(" Pen  Name ", ["Main"], uses));
+        Assert.Equal<(string, CreatorDisplayNameSource)?>(("Main", CreatorDisplayNameSource.Provider), CreatorDisplayName.Choose(null, [null, "Main"], uses));
+        Assert.Equal<(string, CreatorDisplayNameSource)?>(("Kenta Mori", CreatorDisplayNameSource.MostUsed), CreatorDisplayName.Choose("", [], uses));
         Assert.Null(CreatorDisplayName.Choose(null, [], []));
     }
 
