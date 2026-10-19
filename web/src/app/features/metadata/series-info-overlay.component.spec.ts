@@ -12,7 +12,7 @@ import { SeriesInfoOverlayComponent } from './series-info-overlay.component';
 import { seriesInfo } from './series-info.testing';
 import { InfoApiService } from './info/info-api.service';
 import { InfoPanelDto } from './info/info-types';
-import { panel } from './info/info.testing';
+import { emptyPanel, panel } from './info/info.testing';
 
 /**
  * The series-info overlay (1.24.0): loads through either host (dialog / bottom
@@ -36,7 +36,7 @@ describe('SeriesInfoOverlayComponent', () => {
       { provide: MetadataApiService, useValue: api },
       { provide: AuthService, useValue: { isAdmin: () => !!opts.admin } },
       // 1.45.0: the Tags block's answer (nothing indexed by default).
-      { provide: InfoApiService, useValue: { getInfo: vi.fn(() => (opts.tags === 'error' ? throwError(() => ({ status: 404 })) : of(opts.tags ?? panel({ works: 0, buckets: [] })))), getInfoBucket: vi.fn() } },
+      { provide: InfoApiService, useValue: { getInfo: vi.fn(() => (opts.tags === 'error' ? throwError(() => ({ status: 404 })) : of(opts.tags ?? emptyPanel()))) } },
     ];
     if (opts.sheet) {
       providers.push({ provide: MAT_BOTTOM_SHEET_DATA, useValue: { nodeId: 'card-1' } }, { provide: MatBottomSheetRef, useValue: sheetRef });

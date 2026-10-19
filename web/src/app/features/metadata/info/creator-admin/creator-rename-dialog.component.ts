@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -10,12 +10,13 @@ import { CreatorDto } from '../info-types';
 import { CreatorDialogData } from './creator-admin.service';
 import { creatorErrorText, nameSourceLabel } from './creator-admin-labels';
 
-const MAX_NAME = 200;
+/** Lane F's limit (`invalid` above it). */
+const MAX_NAME = 256;
 
 /**
  * "Rename..." on a creator chip (admin, 1.45.0): the name the creator is shown with everywhere. One of its known spellings can be picked,
  * or a new one typed; "Use the automatic name" goes back to the rule (the author record's main name, else the most used spelling).
- * The new name is saved on this server only.
+ * The new name is saved on this server only; the chips show it after the index's next pass.
  */
 @Component({
   selector: 'app-creator-rename-dialog',
@@ -33,11 +34,11 @@ const MAX_NAME = 200;
                  data-testid="creator-rename-name">
         </mat-form-field>
       </form>
-      @if (creator(); as c) {
-        @if (c.names.length > 1) {
+      @if (data.creator; as c) {
+        @if ((c.names ?? []).length > 1) {
           <p class="small">Known spellings:</p>
           <ul class="names">
-            @for (n of c.names; track n.name) {
+            @for (n of c.names ?? []; track n.name) {
               <li>
                 <button type="button" class="pick" (click)="name.set(n.name)">{{ n.name }}</button>
                 <span class="muted"> {{ source(n.source) }}</span>
@@ -49,7 +50,7 @@ const MAX_NAME = 200;
       @if (error(); as e) { <p class="error" role="alert" data-testid="creator-error">{{ e }}</p> }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      @if (creator()?.displayNameSource === 'Admin') {
+      @if (data.creator.displayNameSource === 'admin') {
         <button mat-button type="button" [disabled]="saving()" (click)="useAutomatic()" data-testid="creator-rename-auto">Use the automatic name</button>
       }
       <button mat-button type="button" mat-dialog-close>Cancel</button>
@@ -67,29 +68,21 @@ const MAX_NAME = 200;
     .error { margin: 8px 0 0; color: var(--mp-error); }
   `],
 })
-export class CreatorRenameDialogComponent implements OnInit {
+export class CreatorRenameDialogComponent {
   readonly data = inject<CreatorDialogData>(MAT_DIALOG_DATA);
   private readonly ref = inject<MatDialogRef<CreatorRenameDialogComponent, CreatorDto>>(MatDialogRef);
   private readonly api = inject(InfoApiService);
 
   readonly maxName = MAX_NAME;
-  readonly name = signal(this.data.display);
-  readonly creator = signal<CreatorDto | null>(null);
+  readonly name = signal(this.data.creator.displayName || this.data.display);
   readonly saving = signal(false);
   readonly error = signal<string | null>(null);
   readonly valid = computed(() => {
     const n = this.name().trim();
-    return n.length > 0 && n.length <= MAX_NAME && n !== this.data.display;
+    return n.length > 0 && n.length <= MAX_NAME && n !== this.data.creator.displayName;
   });
 
-  ngOnInit(): void {
-    this.api.getCreator(this.data.creatorId).subscribe({
-      next: (c) => this.creator.set(c),
-      error: (e) => this.error.set(creatorErrorText(e)),
-    });
-  }
-
-  source(s: CreatorDto['names'][number]['source']): string {
+  source(s: string): string {
     return nameSourceLabel(s);
   }
 
@@ -105,7 +98,7 @@ export class CreatorRenameDialogComponent implements OnInit {
   private send(displayName: string | null): void {
     this.saving.set(true);
     this.error.set(null);
-    this.api.renameCreator(this.data.creatorId, { displayName }).subscribe({
+    this.api.renameCreator(this.data.creator.id, { displayName }).subscribe({
       next: (c) => this.ref.close(c),
       error: (e) => {
         this.error.set(creatorErrorText(e));

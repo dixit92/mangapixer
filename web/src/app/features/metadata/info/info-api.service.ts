@@ -1,20 +1,17 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { catchError, map } from 'rxjs/operators';
 
 import { ApiError } from '../../../core/api/api-types';
 import {
   CreatorDto,
-  CreatorListDto,
-  CreatorMergeRequest,
-  CreatorRenameRequest,
-  CreatorSplitRequest,
-  FacetBucketDto,
-  FacetBucketName,
+  CreatorSearchResultDto,
   InfoPanelDto,
+  MergeCreatorRequest,
+  SetCreatorDisplayNameRequest,
+  SplitCreatorRequest,
 } from './info-types';
-import { bucketToken } from './info-labels';
 
 /**
  * The Info panel's server calls (1.45.0 lane P): the node's tags (lane Q's `GET nodes/{id}/info`) and the admin creator routes (lane F,
@@ -25,15 +22,14 @@ export class InfoApiService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = '/api/v1';
 
-  /** The node's tags for this viewer; a container's buckets hold at most 12 chips each, with `more` for the rest. */
+  /** The node's tags for this viewer (404 when the node is not accessible; `mode: None` when nothing is indexed). */
   getInfo(nodeId: string): Observable<InfoPanelDto> {
     return this.get<InfoPanelDto>(`/nodes/${encodeURIComponent(nodeId)}/info`);
   }
 
-  /** Every chip of one bucket ("More" on a container). */
-  getInfoBucket(nodeId: string, bucket: FacetBucketName): Observable<FacetBucketDto> {
-    const params = new HttpParams().set('bucket', bucketToken(bucket));
-    return this.get<FacetBucketDto>(`/nodes/${encodeURIComponent(nodeId)}/info/bucket`, params);
+  /** A library root's tags (the root is not a node). */
+  getLibraryInfo(libraryId: string): Observable<InfoPanelDto> {
+    return this.get<InfoPanelDto>(`/libraries/${encodeURIComponent(libraryId)}/info`);
   }
 
   // --- Admin: creators (lane F) ---
@@ -43,22 +39,32 @@ export class InfoApiService {
     return this.get<CreatorDto>(`/admin/metadata/creators/${encodeURIComponent(id)}`);
   }
 
-  /** Creators whose names match the text (the "Merge into..." picker). */
-  findCreators(text: string): Observable<CreatorListDto> {
-    return this.get<CreatorListDto>('/admin/metadata/creators', new HttpParams().set('q', text));
+  /** Live creators whose spellings contain the text (the "Merge into..." picker). */
+  findCreators(text: string, limit = 20): Observable<CreatorDto[]> {
+    const params = new HttpParams().set('q', text).set('limit', String(limit));
+    return this.get<CreatorSearchResultDto>('/admin/metadata/creators', params).pipe(map((r) => r.items ?? []));
   }
 
-  renameCreator(id: string, body: CreatorRenameRequest): Observable<CreatorDto> {
+  /**
+   * The creator a creator chip stands for: a chip carries its tag value id (`fv_...`), a creator names its value (`valueId`), so the chip's
+   * name finds it. Null when no creator with that value is found.
+   */
+  creatorForValue(valueId: string, display: string): Observable<CreatorDto | null> {
+    return this.findCreators(display, 50).pipe(map((list) => list.find((c) => c.valueId === valueId) ?? null));
+  }
+
+  /** null or blank clears the admin's name (the automatic rule applies on the next index pass). */
+  renameCreator(id: string, body: SetCreatorDisplayNameRequest): Observable<CreatorDto> {
     return this.put<CreatorDto>(`/admin/metadata/creators/${encodeURIComponent(id)}/display-name`, body);
   }
 
-  /** Merges `id` into `body.targetId`; answers with the target. */
-  mergeCreator(id: string, body: CreatorMergeRequest): Observable<CreatorDto> {
+  /** Merges `id` into `body.intoId`; answers with the creator kept. */
+  mergeCreator(id: string, body: MergeCreatorRequest): Observable<CreatorDto> {
     return this.post<CreatorDto>(`/admin/metadata/creators/${encodeURIComponent(id)}/merge`, body);
   }
 
-  /** Moves the chosen provider ids and names to a NEW creator; answers with the new creator. */
-  splitCreator(id: string, body: CreatorSplitRequest): Observable<CreatorDto> {
+  /** Moves the chosen provider ids and spellings to a NEW creator; answers with the new creator. */
+  splitCreator(id: string, body: SplitCreatorRequest): Observable<CreatorDto> {
     return this.post<CreatorDto>(`/admin/metadata/creators/${encodeURIComponent(id)}/split`, body);
   }
 

@@ -1,136 +1,136 @@
-import { BreadcrumbEntry } from '../../../core/api/api-types';
+import { BreadcrumbEntry, CatalogNodeDto } from '../../../core/api/api-types';
 
 // 1.45.0 lane P: the web side of the Info panel's tags, the tag search and the creator admin routes (D1 "Information Panel and Faceted
-// Tags" 2.4 / 2.6). These shapes mirror the server DTOs of lanes Q (`GET nodes/{id}/info`, the search filters) and F (the creator admin
-// routes). They live here until those lanes' DTOs land in `core/api/api-types.ts`; at that merge this file re-exports them from there.
+// Tags" 2.4 / 2.6). These are lane Q's (`GET nodes/{id}/info`, the search filters) and lane F's (the creator admin routes) TypeScript
+// types AS THOSE LANES BUILT THEM (their notes, "API shapes for lane P"), same names and fields. They are copied here because both lanes
+// add them to `core/api/api-types.ts` on their own branches; when they are merged this file becomes re-exports from there.
 
-/** The Info panel's buckets, in the owner's display order (decision 5, D1 2.4; `FacetBucket` on the server). */
-export type FacetBucketName = 'Creators' | 'Series' | 'Magazine' | 'Publisher' | 'Year' | 'Genres' | 'Type' | 'About' | 'Custom';
+/** Info panel buckets, in the owner's display order. URL / typed token: creator, series, magazine, publisher, year, genre, type, about, custom. */
+export type FacetBucket = 'Creators' | 'Series' | 'Magazine' | 'Publisher' | 'Year' | 'Genres' | 'Type' | 'About' | 'Custom';
 
-/** A creator's role on the work(s) a chip stands for: both = "Story & art" (D1 2.2). */
-export type FacetCreatorRole = 'Writer' | 'Artist' | 'StoryAndArt';
+/** A creator's roles on a chip: comma-separated flag names ('Writer', 'Artist', 'Writer, Artist' = Story & art, 'None'). */
+export type FacetRoles = string;
 
-/** Where a chip's value came from (`FacetSources`). */
-export type FacetSourceName = 'Web' | 'ComicInfo' | 'Declared' | 'Admin';
+export type InfoPanelMode = 'None' | 'Work' | 'Container';
 
-/** One tag (a value of a bucket) as the viewer may see it. */
 export interface FacetChipDto {
-  /** The value's public id (`fv_...`): the search filter `f=<bucket>:<valueId>`. */
-  valueId: string;
+  /** The value's public id (`fv_...`). */
+  id: string;
   display: string;
-  /**
-   * Works the viewer can see with this value (a single work), or works below carrying it (a container: "N here"). Present only when
-   * 2 or more: a count of 1 is not shown (owner decision 5) - the chip stays clickable.
-   */
+  /** Works the viewer may see that carry the value - only when 2 or more (count-of-1 rule). */
   count?: number | null;
-  /** Creators only: the role on this work / these works. */
-  role?: FacetCreatorRole | null;
-  /** A declared value that disagrees with the linked record (both chips are shown; this one is amber). */
-  conflict?: boolean;
-  sources?: FacetSourceName[] | null;
-  /** Creators only: the canonical creator's public id (`cr_...`), for the admin menu. */
-  creatorId?: string | null;
+  /** Container only: works below this node that carry it ("12 here"). */
+  here?: number | null;
+  roles: FacetRoles;
+  conflict: boolean;
+  /** One `f` query parameter value for the search (`creator:fv_...`). */
+  filter: string;
 }
 
 export interface FacetBucketDto {
-  bucket: FacetBucketName;
-  /** At most 12 on a container (the most carried first, Q10); every value on a single work. */
+  bucket: FacetBucket;
   chips: FacetChipDto[];
-  /** Values left out of `chips` ("More"); 0 when all are shown. */
+  /** Further values beyond `chips` (container: top 12 per bucket). */
   more: number;
 }
 
-/** `GET /api/v1/nodes/{id}/info`: the node's tags, per viewer (D1 2.5 / 2.6). */
-export interface InfoPanelDto {
-  nodeId: string;
-  /** True for a container (a library root, an artist's folder, "One Shots"): the chips are the values of the works below. */
-  container: boolean;
-  /** Works the node is or holds that the index knows (0 = nothing indexed: no Tags block). */
-  works: number;
-  /** Buckets with at least one chip, in display order. */
-  buckets: FacetBucketDto[];
-}
-
-/** One location of a work (a folder or an archive), as display names only - never a path. */
-export interface FacetWorkLocationDto {
+export interface FacetLocationDto {
   nodeId: string;
   libraryId: string;
-  kind: 'Folder' | 'Archive';
-  displayName: string;
-  /** Library > folder > ... above the location (display names of visible nodes). The first entry is the library. */
+  libraryName: string;
+  /** From the library's top-level folder down to the location node itself (display names only). */
   trail: BreadcrumbEntry[];
 }
 
-/** A WORK card of a filtered search (the tag view). */
-export interface FacetWorkDto {
-  workId: string;
+export interface FacetWorkSummaryDto {
   title: string;
-  coverUrl?: string | null;
-  /** The visible locations (a split series has several). */
-  locations: FacetWorkLocationDto[];
-  /** All visible locations; `locations` may hold fewer. */
   locationCount: number;
+  locations: FacetLocationDto[];
 }
 
-/** A search filter as the server resolved it (from `f=` or typed field syntax in `q`), so the field can show its name. */
-export interface FacetFilterDto {
-  /** `<bucket token>:<valueId>` - the `f` parameter that stands for this filter. */
-  param: string;
-  bucket: FacetBucketName;
-  valueId: string;
-  display: string;
-  /** Set when the filter named a merged creator's value: the `f` parameter that was asked for (the web replaces the URL). */
-  redirectedFrom?: string | null;
+/** `GET /api/v1/nodes/{nodeId}/info` and `GET /api/v1/libraries/{libraryId}/info`. */
+export interface InfoPanelDto {
+  nodeId: string;
+  mode: InfoPanelMode;
+  buckets: FacetBucketDto[];
+  worksBelow?: number | null;
+  work?: FacetWorkSummaryDto | null;
 }
 
-/** The search answer's filtered part (lane Q adds these fields to `SearchResultsDto`). */
+/** A work card of the tag view. */
+export interface FacetWorkDto {
+  title: string;
+  /** The first visible location as a normal card (cover, read state) - what the card opens. */
+  node: CatalogNodeDto;
+  coverUrl?: string | null;
+  locationCount: number;
+  /** At most 5 visible locations; the first is `node`. */
+  locations: FacetLocationDto[];
+}
+
+export type SearchFilterSource = 'Chip' | 'Typed';
+
+/** A filter as the server understood it. Not matched = unknown or not visible to the viewer (answered alike). */
+export interface SearchFilterDto {
+  bucket: FacetBucket;
+  source: SearchFilterSource;
+  id?: string;
+  text?: string;
+  display?: string;
+  matched: boolean;
+  valueIds: string[];
+  redirectedFrom?: string;
+}
+
+/** The search answer's tag-view part (lane Q adds these two fields to `SearchResultsDto`). */
 export interface FacetSearchFields {
-  /** With a filter: the matching works (instead of `items`). */
-  works?: FacetWorkDto[] | null;
-  /** The filters the server applied, in the order asked; a filter it did not know is left out. */
-  filters?: FacetFilterDto[] | null;
+  filters?: SearchFilterDto[];
+  works?: FacetWorkDto[];
 }
 
-// --- Creator admin (lane F: `/api/v1/admin/metadata/creators/...`) ---
+// --- lane F: the admin creator API (`/api/v1/admin/metadata/creators`, admin only, cookie + CSRF) ---
 
-export type CreatorNameSourceName = 'Record' | 'ProviderAuthor' | 'ComicInfo' | 'Declared' | 'Admin';
-
+/** One spelling of a canonical creator and where it came from. */
 export interface CreatorNameDto {
   name: string;
-  source: CreatorNameSourceName;
+  /** record, providerAuthor, comicInfo, declared or admin. */
+  source: string;
+  /** latin, cjk, hangul or other. */
+  script: string;
 }
 
-export interface CreatorProviderIdDto {
-  provider: string;
-  externalId: string;
-}
-
+/** A canonical creator. Asked by a merged creator's id, the answer is the creator it was merged into, with `redirectedFrom`. */
 export interface CreatorDto {
+  /** cr_... */
   id: string;
   displayName: string;
-  displayNameSource: 'Provider' | 'MostUsed' | 'Admin';
-  names: CreatorNameDto[];
-  providerIds: CreatorProviderIdDto[];
-  /** Works credited to this creator (all libraries - admins see every library). */
-  works: number;
-  /** Set when the id asked for was merged into this creator: the old id. */
+  /** provider, mostUsed or admin. */
+  displayNameSource: string;
+  names?: CreatorNameDto[];
+  /** mangaupdates:<author id>, sorted; empty for a name-only creator. */
+  providerIds?: string[];
+  mergedFrom?: string[];
+  /** The creator's tag value (fv_...) for `/search?f=creators:<id>`, null while no work is indexed. */
+  valueId?: string | null;
+  /** Indexed works crediting it (all libraries). */
+  works?: number;
   redirectedFrom?: string | null;
 }
 
-export interface CreatorListDto {
-  items: CreatorDto[];
+/** `GET /api/v1/admin/metadata/creators?q=&limit=`: live creators whose spellings contain the query. */
+export interface CreatorSearchResultDto {
+  items?: CreatorDto[];
 }
 
-export interface CreatorMergeRequest {
-  targetId: string;
+export interface MergeCreatorRequest {
+  intoId?: string | null;
 }
 
-export interface CreatorSplitRequest {
-  providerIds: CreatorProviderIdDto[];
-  names: string[];
+export interface SplitCreatorRequest {
+  providerIds?: string[] | null;
+  names?: string[] | null;
 }
 
-export interface CreatorRenameRequest {
-  /** null = back to the automatic display name. */
-  displayName: string | null;
+export interface SetCreatorDisplayNameRequest {
+  displayName?: string | null;
 }

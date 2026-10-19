@@ -10,7 +10,7 @@ import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-ho
 import { MetadataStateService } from '../metadata/metadata-state.service';
 import { ApiService } from '../../core/api/api.service';
 import { CatalogNodeDto, SearchResultsDto } from '../../core/api/api-types';
-import { FacetFilterDto, FacetSearchFields, FacetWorkDto, FacetWorkLocationDto } from '../metadata/info/info-types';
+import { FacetLocationDto, FacetSearchFields, FacetWorkDto, SearchFilterDto } from '../metadata/info/info-types';
 
 /**
  * Search component tests. Covers the 1.8.1 fix: folder results render the
@@ -559,21 +559,21 @@ describe('search URL parameters (1.45.0)', () => {
   });
 });
 
-/** 1.45.0 lane P: the tag view - `f` filters as chips in the field, WORK cards, redirects of merged creators, Load more. */
+/** 1.45.0 lane P: the tag view on lane Q's shapes - `f` filters as chips in the field, WORK cards, redirects of merged creators, Load more. */
 describe('SearchComponent tag filters and work cards (1.45.0)', () => {
   type Answer = SearchResultsDto & FacetSearchFields;
 
-  const location = (o: Partial<FacetWorkLocationDto> = {}): FacetWorkLocationDto => ({
-    nodeId: 'f1', libraryId: 'L1', kind: 'Folder', displayName: 'Series A',
-    trail: [{ id: 'L1', displayName: 'Manga' }], ...o,
+  const location = (o: Partial<FacetLocationDto> = {}): FacetLocationDto => ({
+    nodeId: 'f1', libraryId: 'L1', libraryName: 'Manga', trail: [{ id: 'f1', displayName: 'Series A' }], ...o,
   });
   const work = (o: Partial<FacetWorkDto> = {}): FacetWorkDto => ({
-    workId: 'w1', title: 'Series A', coverUrl: '/api/v1/items/a1/cover', locations: [location()], locationCount: 1, ...o,
+    title: 'Series A', node: makeNode({ id: 'f1', kind: 'Folder', displayName: 'Series A', coverUrl: '/api/v1/items/a1/cover' }),
+    coverUrl: '/api/v1/items/a1/cover', locations: [location()], locationCount: 1, ...o,
   });
-  const filter = (o: Partial<FacetFilterDto> = {}): FacetFilterDto => ({
-    param: 'creator:fv_1', bucket: 'Creators', valueId: 'fv_1', display: 'Synthetic Author', ...o,
+  const filter = (o: Partial<SearchFilterDto> = {}): SearchFilterDto => ({
+    bucket: 'Creators', source: 'Chip', id: 'fv_1', display: 'Synthetic Author', matched: true, valueIds: ['fv_1'], ...o,
   });
-  const answer = (works: FacetWorkDto[], filters: FacetFilterDto[], o: Partial<Answer> = {}): Answer => ({
+  const answer = (works: FacetWorkDto[], filters: SearchFilterDto[], o: Partial<Answer> = {}): Answer => ({
     query: '', items: [], totalCount: works.length, nextCursor: null, hasMore: false, works, filters, ...o,
   });
 
@@ -605,41 +605,45 @@ describe('SearchComponent tag filters and work cards (1.45.0)', () => {
 
   it('searches the filters in the URL (AND) without text, names them in the field and lists WORK cards', async () => {
     const { el, search } = await open('/?f=creator:fv_1&f=genre:fv_2', answer(
-      [work(), work({ workId: 'w2', title: 'One-shot B', coverUrl: null,
-        locations: [location({ nodeId: 'a9', kind: 'Archive', displayName: 'One-shot B', trail: [{ id: 'L2', displayName: 'Manga 2' }, { id: 'f9', displayName: 'One Shots' }] })] })],
-      [filter(), filter({ param: 'genre:fv_2', bucket: 'Genres', valueId: 'fv_2', display: 'Comedy' })],
+      [work(), work({ title: 'One-shot B', coverUrl: null,
+        node: makeNode({ id: 'a9', kind: 'Archive', displayName: 'One-shot B.cbz', isRead: true }),
+        locations: [location({ nodeId: 'a9', libraryId: 'L2', libraryName: 'Manga 2', trail: [{ id: 'f9', displayName: 'One Shots' }, { id: 'a9', displayName: 'One-shot B.cbz' }] })] })],
+      [filter(), filter({ bucket: 'Genres', id: 'fv_2', display: 'Comedy', valueIds: ['fv_2'] })],
     ));
     expect(search).toHaveBeenCalledWith('', { readState: 'all', filters: ['creator:fv_1', 'genre:fv_2'] });
     expect(chipLabels(el)).toEqual(['Creators: Synthetic Author', 'Genres: Comedy']);
     expect(el.querySelector('.result-count')!.textContent!.trim()).toBe('2 works');
     const cards = Array.from(el.querySelectorAll('[data-testid="work-card"]'));
     expect(cards.map((c) => c.querySelector('.result-title')!.textContent)).toEqual(['Series A', 'One-shot B']);
-    // A folder opens in browse, a one-shot archive in the reader; the breadcrumb is display names only.
+    // A folder opens in browse, a one-shot archive in the reader (its own cover endpoint); the breadcrumb is display names only.
     expect(cards[0].querySelector('a.work-link')!.getAttribute('href')).toBe('/libraries/L1/browse/f1');
     expect(cards[1].querySelector('a.work-link')!.getAttribute('href')).toBe('/reader/a9');
-    expect(cards[1].querySelector('.crumb-line')!.textContent).toBe('Manga 2 › One Shots › One-shot B');
-    // The read-state chips stay available with a filter alone.
-    expect(el.querySelector('.read-filter')).not.toBeNull();
+    expect(cards[1].querySelector('img')!.getAttribute('src')).toBe('/api/v1/items/a9/cover');
+    expect(cards[1].querySelector('.badge')!.textContent!.trim()).toBe('✓ Read');
+    expect(cards[1].querySelector('.crumb-line')!.textContent).toBe('Manga 2 › One Shots › One-shot B.cbz');
+    // The read-state chips are not offered in the tag view (lane Q's works query does not apply them).
+    expect(el.querySelector('.read-filter')).toBeNull();
   });
 
-  it('expands "2 locations" for a split series', async () => {
-    const { el, fixture } = await open('/?f=series:fv_s', answer(
-      [work({ locations: [location(), location({ nodeId: 'f2', displayName: 'Series A 101-200', libraryId: 'L2', trail: [{ id: 'L2', displayName: 'Manga 2' }] })], locationCount: 2 })],
-      [filter({ param: 'series:fv_s', bucket: 'Series', valueId: 'fv_s', display: 'Series A' })],
+  it('expands "N locations" for a split series, with the ones not listed counted', async () => {
+    const { el, fixture } = await open('/?f=creator:fv_1', answer(
+      [work({ locations: [location(), location({ nodeId: 'f2', libraryId: 'L2', libraryName: 'Manga 2', trail: [{ id: 'f2', displayName: 'Series A 101-200' }] })], locationCount: 7 })],
+      [filter()],
     ));
     const toggle = el.querySelector<HTMLButtonElement>('[data-testid="work-locations-toggle"]')!;
-    expect(toggle.textContent).toContain('2 locations');
+    expect(toggle.textContent).toContain('7 locations');
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     toggle.click();
     fixture.detectChanges();
     const links = Array.from(el.querySelectorAll('[data-testid="work-locations"] a'));
     expect(links.map((a) => a.getAttribute('href'))).toEqual(['/libraries/L1/browse/f1', '/libraries/L2/browse/f2']);
     expect(links[1].textContent).toBe('Manga 2 › Series A 101-200');
+    expect(el.querySelector('[data-testid="work-locations"] .more-places')!.textContent).toBe('and 5 more');
   });
 
   it('removes a filter chip and searches again without it, keeping the text', async () => {
     const { el, fixture, search, navigate } = await open('/?q=alpha&f=creator:fv_1&f=genre:fv_2', answer(
-      [work()], [filter(), filter({ param: 'genre:fv_2', bucket: 'Genres', valueId: 'fv_2', display: 'Comedy' })],
+      [work()], [filter(), filter({ bucket: 'Genres', id: 'fv_2', display: 'Comedy', valueIds: ['fv_2'] })],
     ));
     const remove = el.querySelectorAll<HTMLButtonElement>('[data-testid="search-filter-chip"] button[matChipRemove]')[0];
     expect(remove.getAttribute('aria-label')).toBe('Remove filter Creators: Synthetic Author');
@@ -649,17 +653,18 @@ describe('SearchComponent tag filters and work cards (1.45.0)', () => {
     expect(navigate).toHaveBeenLastCalledWith([], expect.objectContaining({ queryParams: { q: 'alpha', read: null, f: ['genre:fv_2'] } }));
   });
 
-  it('goes back to the folder-name search when the last filter is removed', async () => {
+  it('goes back to the folder-name search (and its read chips) when the last filter is removed', async () => {
     const { el, fixture, search } = await open('/?q=alpha&f=creator:fv_1', answer([work()], [filter()]));
     el.querySelector<HTMLButtonElement>('[data-testid="search-filter-chip"] button[matChipRemove]')!.click();
     fixture.detectChanges();
     expect(search).toHaveBeenLastCalledWith('alpha', { readState: 'all' });
     expect(fixture.componentInstance.works()).toEqual([]);
+    expect(el.querySelector('.read-filter')).not.toBeNull();
   });
 
   it('follows a merged creator: the URL names the creator it was merged into, without a second search', async () => {
     const { el, search, navigate } = await open('/?f=creator:fv_old', answer(
-      [work()], [filter({ param: 'creator:fv_new', valueId: 'fv_new', display: 'Kept Name', redirectedFrom: 'creator:fv_old' })],
+      [work()], [filter({ id: 'fv_old', display: 'Kept Name', valueIds: ['fv_new'], redirectedFrom: 'fv_old' })],
     ));
     expect(search).toHaveBeenCalledTimes(1);
     expect(navigate).toHaveBeenLastCalledWith([], expect.objectContaining({ queryParams: { q: null, read: null, f: ['creator:fv_new'] }, replaceUrl: true }));
@@ -667,15 +672,17 @@ describe('SearchComponent tag filters and work cards (1.45.0)', () => {
   });
 
   it('says so when a tag is unknown (or not visible) and finds nothing, and the chip can still be removed', async () => {
-    const { el } = await open('/?f=creator:fv_gone', answer([], []));
+    const { el } = await open('/?f=creator:fv_gone', answer([], [filter({ id: 'fv_gone', display: undefined, matched: false, valueIds: [] })]));
     expect(chipLabels(el)).toEqual(['Unknown tag']);
     expect(el.querySelector('.no-results')!.textContent!.trim()).toBe('No works with these tags.');
+    expect(el.querySelector('[data-testid="search-filter-chip"] button[matChipRemove]')).not.toBeNull();
   });
 
   it('passes typed field syntax through the text and loads more works with the cursor', async () => {
+    const typed = filter({ source: 'Typed', id: undefined, text: 'Synthetic Author' });
     const { el, fixture, search } = await open('/?q=creator:%22Synthetic%20Author%22',
-      answer([work()], [filter()], { totalCount: 2, nextCursor: 'w:1', hasMore: true }),
-      answer([work({ workId: 'w2', title: 'Series B' })], [filter()], { totalCount: 2 }),
+      answer([work()], [typed], { totalCount: 2, nextCursor: 'w:1', hasMore: true }),
+      answer([work({ title: 'Series B', node: makeNode({ id: 'f7', kind: 'Folder' }) })], [typed], { totalCount: 2 }),
     );
     expect(search).toHaveBeenCalledWith('creator:"Synthetic Author"', { readState: 'all' });
     // A filter typed in the text is not a removable chip (the text shows it).
@@ -684,7 +691,7 @@ describe('SearchComponent tag filters and work cards (1.45.0)', () => {
     more.click();
     fixture.detectChanges();
     expect(search).toHaveBeenLastCalledWith('creator:"Synthetic Author"', { cursor: 'w:1', readState: 'all' });
-    expect(fixture.componentInstance.works().map((w) => w.workId)).toEqual(['w1', 'w2']);
+    expect(fixture.componentInstance.works().map((w) => w.title)).toEqual(['Series A', 'Series B']);
     expect(el.querySelector('.load-more')).toBeNull();
   });
 });

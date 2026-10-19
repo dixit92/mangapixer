@@ -9,19 +9,20 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from '../../../core/auth/auth.service';
 import { CreatorAdminService } from './creator-admin/creator-admin.service';
 import { InfoApiService } from './info-api.service';
-import { bucketLabel, bucketRank, chipCount, chipText, chipTitle, filterParam, roleLabel } from './info-labels';
-import { FacetBucketName, FacetChipDto, InfoPanelDto } from './info-types';
+import { bucketLabel, bucketRank, chipCount, chipText, chipTitle, locationText, roleLabel } from './info-labels';
+import { FacetBucket, FacetChipDto, FacetLocationDto, InfoPanelDto } from './info-types';
 
 /**
  * The Info panel's Tags block (1.45.0, D1 2.6): one row per bucket in the owner's order - a label and wrapping chips. A chip opens the
  * tag view, which is the search page filtered by that value (`/search?f=<bucket>:<value id>`, decision 4). A chip shows its count only
  * when it is 2 or more (decision 5: quiet, still clickable); on a container the count is "N here" and each bucket shows its top 12 with
- * "More" (Q10). A declared value that disagrees with the linked record is amber, with the declared-facts line's Conflict wording.
- * Admins get a menu on creator chips: Rename, Merge into..., Split... (lane F's routes).
+ * "+N more" (Q10). A declared value that disagrees with the linked record is amber, with the declared-facts line's Conflict wording.
+ * A single work kept in several places lists them ("2 locations"). Admins get a menu on creator chips: Rename, Merge into...,
+ * Split... (lane F's routes).
  *
- * Hosted by the series summary (overlay and series page). Inside the overlay a chip also closes it (a router navigation does not close a
- * Material dialog by itself). Nothing is shown while loading, when nothing is indexed, or when the server answers with an error (the
- * summary keeps its plain-text lines then).
+ * Hosted under the series summary by the Info overlay and the series page. Inside the overlay a chip also closes it (a router navigation
+ * does not close a Material dialog by itself). Nothing is shown while loading, when nothing is indexed, or when the server answers with
+ * an error (the summary keeps its plain-text lines then).
  */
 @Component({
   selector: 'app-info-tags',
@@ -35,18 +36,18 @@ import { FacetBucketName, FacetChipDto, InfoPanelDto } from './info-types';
           <div class="bucket" [attr.data-bucket]="b.bucket" data-testid="info-bucket">
             <h3 class="label">{{ label(b.bucket) }}</h3>
             <ul class="chips">
-              @for (chip of b.chips; track chip.valueId) {
+              @for (chip of b.chips; track chip.id) {
                 <li class="chip-wrap" [class.conflict]="chip.conflict">
-                  <a class="chip" [routerLink]="['/search']" [queryParams]="{ f: param(b.bucket, chip) }"
+                  <a class="chip" [routerLink]="['/search']" [queryParams]="{ f: chip.filter }"
                      [attr.aria-label]="title(b.bucket, chip)" [matTooltip]="title(b.bucket, chip)" matTooltipShowDelay="600"
-                     [class.has-menu]="menuFor(b.bucket, chip)" data-testid="info-chip" [attr.data-value]="chip.valueId"
+                     [class.has-menu]="menuFor(b.bucket)" data-testid="info-chip" [attr.data-value]="chip.id"
                      (click)="opened()">
                     @if (chip.conflict) { <mat-icon class="warn" aria-hidden="true">warning_amber</mat-icon> }
                     <span class="name">{{ text(b.bucket, chip) }}</span>
                     @if (role(chip); as r) { <span class="role">{{ r }}</span> }
                     @if (count(chip); as c) { <span class="count" data-testid="info-chip-count">{{ c }}</span> }
                   </a>
-                  @if (menuFor(b.bucket, chip)) {
+                  @if (menuFor(b.bucket)) {
                     <button type="button" class="chip-menu" [matMenuTriggerFor]="creatorMenu" [matMenuTriggerData]="{ chip: chip }"
                             [attr.aria-label]="'Creator actions for ' + chip.display" data-testid="info-chip-menu">
                       <mat-icon>more_vert</mat-icon>
@@ -56,11 +57,19 @@ import { FacetBucketName, FacetChipDto, InfoPanelDto } from './info-types';
               }
               @if (b.more > 0) {
                 <li class="chip-wrap">
-                  <button type="button" class="chip more" [disabled]="loadingMore() === b.bucket" (click)="loadMore(b.bucket)"
-                          data-testid="info-more">
-                    <span class="name">{{ loadingMore() === b.bucket ? 'Loading…' : 'More' }}</span>
-                    <span class="count">+{{ b.more }}</span>
-                  </button>
+                  <span class="more" data-testid="info-more">+{{ b.more }} more</span>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+        @if (locations().length > 1) {
+          <div class="bucket" data-testid="info-locations">
+            <h3 class="label">{{ panel()?.work?.locationCount }} locations</h3>
+            <ul class="places">
+              @for (loc of locations(); track loc.nodeId) {
+                <li>
+                  <a [routerLink]="['/libraries', loc.libraryId, 'browse', loc.nodeId]" [title]="place(loc)" (click)="opened()">{{ place(loc) }}</a>
                 </li>
               }
             </ul>
@@ -80,10 +89,10 @@ import { FacetBucketName, FacetChipDto, InfoPanelDto } from './info-types';
   styles: [`
     :host { display: block; clear: both; }
     .tags { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgb(var(--mp-ink-rgb) / 0.08); }
-    .bucket { margin: 0 0 10px; }
+    .bucket { margin: 0 0 10px; min-width: 0; }
     .label { margin: 0 0 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: var(--mp-text-dim); }
-    /* Chips wrap; 32 px tall with 8 px gaps (D1 2.6: 44 px rows on a phone when they wrap is the row height + gap). */
-    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; min-width: 0; }
+    /* Chips wrap; 32 px tall with 8 px gaps (D1 2.6). */
+    .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; padding: 0; list-style: none; min-width: 0; }
     .chip-wrap { display: inline-flex; max-width: 100%; min-width: 0; }
     .chip {
       display: inline-flex; align-items: center; gap: 6px; box-sizing: border-box;
@@ -112,8 +121,13 @@ import { FacetBucketName, FacetChipDto, InfoPanelDto } from './info-types';
     .conflict .chip, .conflict .chip-menu { border-color: var(--mp-warn); background: rgb(var(--mp-warn-rgb) / 0.12); }
     .conflict .name { color: var(--mp-warn); }
     .warn { flex: none; font-size: 16px; width: 16px; height: 16px; color: var(--mp-warn); }
-    .more { color: var(--mp-accent); border-style: dashed; }
-    .more:disabled { cursor: default; opacity: 0.7; }
+    .more { display: inline-flex; align-items: center; height: 32px; font-size: 12px; color: var(--mp-text-muted); white-space: nowrap; }
+    .places { margin: 0; padding: 0; list-style: none; font-size: 13px; }
+    .places li { min-width: 0; }
+    .places a {
+      display: block; padding: 6px 0; color: var(--mp-accent); text-decoration: none;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
   `],
 })
 export class InfoTagsComponent {
@@ -131,7 +145,6 @@ export class InfoTagsComponent {
   readonly loaded = output<InfoPanelDto | null>();
 
   readonly panel = signal<InfoPanelDto | null>(null);
-  readonly loadingMore = signal<FacetBucketName | null>(null);
 
   readonly buckets = computed(() =>
     [...(this.panel()?.buckets ?? [])]
@@ -139,7 +152,12 @@ export class InfoTagsComponent {
       .sort((a, b) => bucketRank(a.bucket) - bucketRank(b.bucket)),
   );
 
-  /** Bumped per load, so a late answer for an earlier node (or an earlier "More") is dropped. */
+  /** A single work's places when it lives in more than one (a split series, or one series in two libraries). */
+  readonly locations = computed(() => (this.panel()?.mode === 'Work' ? this.panel()?.work?.locations ?? [] : []));
+
+  private readonly container = computed(() => this.panel()?.mode === 'Container');
+
+  /** Bumped per load, so a late answer for an earlier node is dropped. */
   private generation = 0;
 
   constructor() {
@@ -149,33 +167,33 @@ export class InfoTagsComponent {
     });
   }
 
-  label(bucket: FacetBucketName): string {
+  label(bucket: FacetBucket): string {
     return bucketLabel(bucket);
   }
 
-  text(bucket: FacetBucketName, chip: FacetChipDto): string {
+  text(bucket: FacetBucket, chip: FacetChipDto): string {
     return chipText(bucket, chip);
   }
 
-  title(bucket: FacetBucketName, chip: FacetChipDto): string {
-    return chipTitle(bucket, chip, this.panel()?.container ?? false);
+  title(bucket: FacetBucket, chip: FacetChipDto): string {
+    return chipTitle(bucket, chip, this.container());
   }
 
   role(chip: FacetChipDto): string | null {
-    return roleLabel(chip.role);
+    return roleLabel(chip.roles);
   }
 
   count(chip: FacetChipDto): string | null {
-    return chipCount(chip, this.panel()?.container ?? false);
+    return chipCount(chip, this.container());
   }
 
-  param(bucket: FacetBucketName, chip: FacetChipDto): string {
-    return filterParam(bucket, chip.valueId);
+  place(loc: FacetLocationDto): string {
+    return locationText(loc);
   }
 
-  /** Admins: creator chips with a canonical creator id carry the Rename / Merge / Split menu. */
-  menuFor(bucket: FacetBucketName, chip: FacetChipDto): boolean {
-    return bucket === 'Creators' && !!chip.creatorId && this.auth.isAdmin();
+  /** Admins: creator chips carry the Rename / Merge / Split menu. */
+  menuFor(bucket: FacetBucket): boolean {
+    return bucket === 'Creators' && this.auth.isAdmin();
   }
 
   /** A chip was followed: leave the overlay (the search page replaces what is behind it). */
@@ -184,42 +202,26 @@ export class InfoTagsComponent {
     this.sheetRef?.dismiss();
   }
 
-  /** "More": every chip of the bucket replaces its top 12. */
-  loadMore(bucket: FacetBucketName): void {
-    const generation = this.generation;
-    this.loadingMore.set(bucket);
-    this.api.getInfoBucket(this.nodeId(), bucket).subscribe({
-      next: (full) => {
-        if (generation !== this.generation) return;
-        this.panel.update((p) => p && { ...p, buckets: p.buckets.map((b) => (b.bucket === bucket ? { ...full, bucket, more: 0 } : b)) });
-        this.loadingMore.set(null);
-      },
-      error: () => {
-        if (generation === this.generation) this.loadingMore.set(null);
-      },
-    });
-  }
-
   async rename(chip: FacetChipDto): Promise<void> {
-    if (chip.creatorId && (await this.creatorAdmin.rename(chip.creatorId, chip.display))) this.load(this.nodeId());
+    if (await this.creatorAdmin.rename(chip.id, chip.display)) this.load(this.nodeId());
   }
 
   async merge(chip: FacetChipDto): Promise<void> {
-    if (chip.creatorId && (await this.creatorAdmin.merge(chip.creatorId, chip.display))) this.load(this.nodeId());
+    if (await this.creatorAdmin.merge(chip.id, chip.display)) this.load(this.nodeId());
   }
 
   async split(chip: FacetChipDto): Promise<void> {
-    if (chip.creatorId && (await this.creatorAdmin.split(chip.creatorId, chip.display))) this.load(this.nodeId());
+    if (await this.creatorAdmin.split(chip.id, chip.display)) this.load(this.nodeId());
   }
 
   private load(nodeId: string): void {
     const generation = ++this.generation;
-    this.loadingMore.set(null);
     this.api.getInfo(nodeId).subscribe({
       next: (panel) => {
         if (generation !== this.generation) return;
         this.panel.set(panel);
-        this.loaded.emit(panel.works > 0 ? panel : null);
+        const shown = panel.mode !== 'None' && panel.buckets.some((b) => b.chips.length > 0);
+        this.loaded.emit(shown ? panel : null);
       },
       error: () => {
         if (generation !== this.generation) return;

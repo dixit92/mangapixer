@@ -197,7 +197,7 @@ describe('SeriesInfoSummaryComponent with tags', () => {
   });
 
   it('names a node without series information that has tags, instead of "No series information"', () => {
-    const { el } = render(seriesInfo({ state: 'None', title: null, anchorDisplayName: 'One Shots' }), panel({ container: true, works: 5 }));
+    const { el } = render(seriesInfo({ state: 'None', title: null, anchorDisplayName: 'One Shots' }), panel({ mode: 'Container', worksBelow: 5 }));
     expect(el.querySelector('[data-testid="series-none"]')).toBeNull();
     expect(el.querySelector('[data-testid="series-title"]')!.textContent).toBe('One Shots');
   });

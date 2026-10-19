@@ -1,45 +1,55 @@
 import { Injectable, inject } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { ComponentType } from '@angular/cdk/portal';
-import { firstValueFrom } from 'rxjs';
+import { catchError, firstValueFrom, of } from 'rxjs';
 
 import { isPhone } from '../../series-info-overlay.service';
+import { InfoApiService } from '../info-api.service';
 import { CreatorDto } from '../info-types';
 
-/** What every creator admin dialog is opened with: the chip's creator and its name as shown. */
+/** What every creator admin dialog is opened with: the creator (as lane F answered it) and its name as the chip showed it. */
 export interface CreatorDialogData {
-  creatorId: string;
+  creator: CreatorDto;
   display: string;
 }
 
 /**
- * Admin creator actions from a creator chip's menu (1.45.0, D1 2.2 "Admin merge / split"): Rename, Merge into..., Split.... Each opens
- * its dialog (imported on first use), which asks, confirms and sends; the promise resolves to the creator the server answered with
- * (renamed, the merge target, or the new split creator), or null when the admin cancelled.
+ * Admin creator actions from a creator chip's menu (1.45.0, D1 2.2 "Admin merge / split"): Rename, Merge into..., Split.... The chip
+ * carries its tag value id; the creator holding that value is looked up first (lane F's creator search), then its dialog (imported on
+ * first use) asks, confirms and sends. Resolves to the creator the server answered with (renamed, the merge target, or the new split
+ * creator), or null when nothing was changed.
  */
 @Injectable({ providedIn: 'root' })
 export class CreatorAdminService {
   private readonly dialog = inject(MatDialog);
+  private readonly snackBar = inject(MatSnackBar);
+  private readonly api = inject(InfoApiService);
 
-  async rename(creatorId: string, display: string): Promise<CreatorDto | null> {
+  async rename(valueId: string, display: string): Promise<CreatorDto | null> {
     const { CreatorRenameDialogComponent } = await import('./creator-rename-dialog.component');
-    return this.open(CreatorRenameDialogComponent, { creatorId, display }, 'Rename creator');
+    return this.open(CreatorRenameDialogComponent, valueId, display, 'Rename creator');
   }
 
-  async merge(creatorId: string, display: string): Promise<CreatorDto | null> {
+  async merge(valueId: string, display: string): Promise<CreatorDto | null> {
     const { CreatorMergeDialogComponent } = await import('./creator-merge-dialog.component');
-    return this.open(CreatorMergeDialogComponent, { creatorId, display }, 'Merge creator');
+    return this.open(CreatorMergeDialogComponent, valueId, display, 'Merge creator');
   }
 
-  async split(creatorId: string, display: string): Promise<CreatorDto | null> {
+  async split(valueId: string, display: string): Promise<CreatorDto | null> {
     const { CreatorSplitDialogComponent } = await import('./creator-split-dialog.component');
-    return this.open(CreatorSplitDialogComponent, { creatorId, display }, 'Split creator');
+    return this.open(CreatorSplitDialogComponent, valueId, display, 'Split creator');
   }
 
-  private async open<C>(component: ComponentType<C>, data: CreatorDialogData, ariaLabel: string): Promise<CreatorDto | null> {
+  private async open<C>(component: ComponentType<C>, valueId: string, display: string, ariaLabel: string): Promise<CreatorDto | null> {
+    const creator = await firstValueFrom(this.api.creatorForValue(valueId, display).pipe(catchError(() => of(null))));
+    if (!creator) {
+      this.snackBar.open('This creator could not be found. Open the panel again in a moment.', 'OK', { duration: 6000 });
+      return null;
+    }
     const phone = isPhone();
     const ref = this.dialog.open<C, CreatorDialogData, CreatorDto | undefined>(component, {
-      data,
+      data: { creator, display },
       width: phone ? '100vw' : '520px',
       maxWidth: '100vw',
       maxHeight: phone ? '100vh' : '90vh',

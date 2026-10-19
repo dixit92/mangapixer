@@ -60,17 +60,17 @@ async function ensureLibrary(page: Page): Promise<{ libraryId: string; libraryNa
 
 /** The fixture's tags as lane Q's `GET nodes/{id}/info` answers them (single work: its own values; counts of 1 are left out). */
 function fixturePanel(nodeId: string) {
-  const chip = (valueId: string, display: string, extra: Record<string, unknown> = {}) => ({ valueId, display, ...extra });
+  const chip = (token: string, id: string, display: string, roles = 'None') => ({ id, display, roles, conflict: false, filter: `${token}:${id}` });
   return {
     nodeId,
-    container: false,
-    works: 1,
+    mode: 'Work',
     buckets: [
-      { bucket: 'Creators', more: 0, chips: [chip('fv_e2ew', 'Test Writer', { role: 'Writer', creatorId: 'cr_e2ew' }), chip('fv_e2ea', 'Test Artist', { role: 'Artist', creatorId: 'cr_e2ea' })] },
-      { bucket: 'Publisher', more: 0, chips: [chip('fv_e2ep', 'Synthetic Press')] },
-      { bucket: 'Year', more: 0, chips: [chip('fv_e2ey', '2020')] },
-      { bucket: 'Genres', more: 0, chips: [chip('fv_e2eg1', 'Action'), chip('fv_e2eg2', 'Fantasy')] },
+      { bucket: 'Creators', more: 0, chips: [chip('creator', 'fv_e2ew', 'Test Writer', 'Writer'), chip('creator', 'fv_e2ea', 'Test Artist', 'Artist')] },
+      { bucket: 'Publisher', more: 0, chips: [chip('publisher', 'fv_e2ep', 'Synthetic Press')] },
+      { bucket: 'Year', more: 0, chips: [chip('year', 'fv_e2ey', '2020')] },
+      { bucket: 'Genres', more: 0, chips: [chip('genre', 'fv_e2eg1', 'Action'), chip('genre', 'fv_e2eg2', 'Fantasy')] },
     ],
+    work: { title: 'Synthetic Saga', locationCount: 1, locations: [] },
   };
 }
 
@@ -83,10 +83,10 @@ async function serveTagRoutes(page: Page, ids: { libraryId: string; libraryName:
   await page.route('**/api/v1/nodes/*/info', async (route: Route) => {
     const res = await route.fetch();
     const body = res.ok() ? await res.json().catch(() => null) : null;
-    if (body && Array.isArray(body.buckets)) return route.fulfill({ response: res });
+    if (body && typeof body.mode === 'string') return route.fulfill({ response: res });
     state.mocked = true;
     const nodeId = new URL(route.request().url()).pathname.split('/').at(-2)!;
-    const panel = nodeId === ids.folder.id ? fixturePanel(nodeId) : { nodeId, container: false, works: 0, buckets: [] };
+    const panel = nodeId === ids.folder.id ? fixturePanel(nodeId) : { nodeId, mode: 'None', buckets: [] };
     return route.fulfill({ json: panel });
   });
   await page.route(/\/api\/v1\/search\?/, async (route: Route) => {
@@ -98,11 +98,16 @@ async function serveTagRoutes(page: Page, ids: { libraryId: string; libraryName:
     if (body && Array.isArray(body.works)) return route.fulfill({ response: res });
     state.mocked = true;
     const names: Record<string, [string, string]> = { 'creator:fv_e2ew': ['Creators', 'Test Writer'], 'genre:fv_e2eg1': ['Genres', 'Action'] };
-    const filters = f.filter((p) => names[p]).map((p) => ({ param: p, bucket: names[p][0], valueId: p.split(':')[1], display: names[p][1] }));
-    const works = filters.length === f.length
+    const filters = f.map((p) => {
+      const id = p.split(':')[1];
+      return names[p]
+        ? { bucket: names[p][0], source: 'Chip', id, display: names[p][1], matched: true, valueIds: [id] }
+        : { bucket: 'Creators', source: 'Chip', id, matched: false, valueIds: [] };
+    });
+    const works = filters.every((x) => x.matched)
       ? [{
-          workId: 'w_e2e', title: 'Synthetic Saga', coverUrl: null, locationCount: 1,
-          locations: [{ nodeId: ids.folder.id, libraryId: ids.libraryId, kind: 'Folder', displayName: 'Synthetic Series', trail: [{ id: ids.libraryId, displayName: ids.libraryName }] }],
+          title: 'Synthetic Saga', node: ids.folder, coverUrl: null, locationCount: 1,
+          locations: [{ nodeId: ids.folder.id, libraryId: ids.libraryId, libraryName: ids.libraryName, trail: [{ id: ids.folder.id, displayName: 'Synthetic Series' }] }],
         }]
       : [];
     return route.fulfill({ json: { query: url.searchParams.get('q') ?? '', items: [], totalCount: works.length, nextCursor: null, hasMore: false, works, filters } });

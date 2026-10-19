@@ -17,8 +17,8 @@ import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-ho
 import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/folder-rollup-badge.component';
 import { MetadataStateService } from '../metadata/metadata-state.service';
 import { CatalogNodeDto, LibraryReadStateFilter, SearchResultsDto, SeriesMatchDto } from '../../core/api/api-types';
-import { bucketLabel, isFilterParam } from '../metadata/info/info-labels';
-import { FacetFilterDto, FacetSearchFields, FacetWorkDto, FacetWorkLocationDto } from '../metadata/info/info-types';
+import { bucketLabel, bucketToken, filterValueId, isFilterParam, locationText } from '../metadata/info/info-labels';
+import { FacetLocationDto, FacetSearchFields, FacetWorkDto, SearchFilterDto } from '../metadata/info/info-types';
 
 /**
  * The search page's state as it appears in the URL (1.45.0): `q` (the search text), `read` (the read-state filter; absent = all) and
@@ -109,7 +109,7 @@ interface FilterChip {
 
     <!-- Read-state filter (1.45.0): the browse Show filter's choices as one chip row over the results, applied on the server before
          paging (the count and "Load more" stay right). Shown once there is search text, so a filter with no hits can be switched back. -->
-    @if (active()) {
+    @if (active() && !tagView()) {
       <mat-chip-listbox class="read-filter" aria-label="Show" [value]="params().read" (change)="onReadChip($event.value)"
                         hideSingleSelectionIndicator>
         @for (opt of readOptions; track opt.value) {
@@ -132,34 +132,44 @@ interface FilterChip {
     @if (works().length > 0) {
       <p class="result-count">{{ totalCount() }} work{{ totalCount() === 1 ? '' : 's' }}</p>
       <div class="results-grid" data-testid="work-results">
-        @for (work of works(); track work.workId) {
+        @for (work of works(); track work.node.id + ':' + $index) {
           <div class="result-card work-card" data-testid="work-card">
-            @if (work.locations[0]; as first) {
-              <a [routerLink]="locationLink(first)" class="work-link">
-                <div class="cover">
-                  @if (work.coverUrl) {
-                    <img appCover [src]="work.coverUrl" alt="" loading="lazy">
-                  }
-                  <mat-icon class="cover-fallback">{{ first.kind === 'Folder' ? 'folder' : 'menu_book' }}</mat-icon>
-                </div>
-                <div class="result-title" [title]="work.title">{{ work.title }}</div>
-              </a>
-              <nav class="crumbs" [attr.aria-label]="'Where ' + work.title + ' is'">
-                <span class="crumb-line" [title]="trailText(first)">{{ trailText(first) }}</span>
-              </nav>
-              @if (work.locationCount > 1) {
-                <button type="button" class="locations-toggle" (click)="toggleLocations(work.workId)"
-                        [attr.aria-expanded]="expanded().has(work.workId)" data-testid="work-locations-toggle">
-                  {{ work.locationCount }} locations
-                  <mat-icon>{{ expanded().has(work.workId) ? 'expand_less' : 'expand_more' }}</mat-icon>
-                </button>
-                @if (expanded().has(work.workId)) {
-                  <ul class="locations" data-testid="work-locations">
-                    @for (loc of work.locations; track loc.nodeId) {
-                      <li><a [routerLink]="locationLink(loc)" [title]="trailText(loc)">{{ trailText(loc) }}</a></li>
-                    }
-                  </ul>
+            <!-- The work opens where its first visible location is: a folder in browse, a one-shot archive in the reader. -->
+            <a [routerLink]="getNodeLink(work.node)" class="work-link">
+              <div class="cover">
+                @if (work.coverUrl ?? coverSrc(work.node); as src) {
+                  <img appCover [src]="src" alt="" loading="lazy">
                 }
+                <mat-icon class="cover-fallback">{{ kindIcon(work.node) }}</mat-icon>
+                @if (work.node.isRead) {
+                  <span class="badge read" matTooltip="Read">✓ Read</span>
+                } @else if (work.node.readingState === 'InProgress') {
+                  <span class="badge reading">Reading</span>
+                }
+                <app-folder-rollup-badge [rollup]="work.node.readRollup" />
+              </div>
+              <div class="result-title" [title]="work.title">{{ work.title }}</div>
+            </a>
+            @if (work.locations[0]; as first) {
+              <div class="crumbs">
+                <span class="crumb-line" [title]="trailText(first)">{{ trailText(first) }}</span>
+              </div>
+            }
+            @if (work.locationCount > 1) {
+              <button type="button" class="locations-toggle" (click)="toggleLocations(workKey(work, $index))"
+                      [attr.aria-expanded]="expanded().has(workKey(work, $index))" data-testid="work-locations-toggle">
+                {{ work.locationCount }} locations
+                <mat-icon>{{ expanded().has(workKey(work, $index)) ? 'expand_less' : 'expand_more' }}</mat-icon>
+              </button>
+              @if (expanded().has(workKey(work, $index))) {
+                <ul class="locations" data-testid="work-locations">
+                  @for (loc of work.locations; track loc.nodeId) {
+                    <li><a [routerLink]="locationLink(work, loc)" [title]="trailText(loc)">{{ trailText(loc) }}</a></li>
+                  }
+                  @if (work.locationCount > work.locations.length) {
+                    <li class="more-places">and {{ work.locationCount - work.locations.length }} more</li>
+                  }
+                </ul>
               }
             }
           </div>
@@ -299,6 +309,7 @@ interface FilterChip {
     .locations-toggle mat-icon { font-size: 18px; width: 18px; height: 18px; }
     .locations { margin: 0; padding: 0; list-style: none; font-size: 12px; }
     .locations li { margin: 2px 0; min-width: 0; }
+    .more-places { color: var(--mp-text-muted); padding: 4px 0; }
     .locations a { display: block; color: var(--mp-accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 4px 0; }
     .load-more { display: flex; justify-content: center; margin: 24px 0 8px; }
   `],
@@ -316,7 +327,7 @@ export class SearchComponent {
   /** With a tag filter (1.45.0): the matching works, instead of `results`. */
   readonly works = signal<FacetWorkDto[]>([]);
   /** The filters as the server named them in its last answer. */
-  private readonly resolvedFilters = signal<FacetFilterDto[]>([]);
+  private readonly resolvedFilters = signal<SearchFilterDto[]>([]);
   /** Works whose locations list is open. */
   readonly expanded = signal<ReadonlySet<string>>(new Set());
   readonly seriesMatches = signal<SeriesMatchDto[]>([]);
@@ -337,12 +348,18 @@ export class SearchComponent {
   /** There is something to search for: text, a tag filter, or both. */
   readonly active = computed(() => this.params().q.trim().length > 0 || this.params().f.length > 0);
 
+  /**
+   * The tag view (1.45.0): a filter in the URL, or the last answer had work cards (typed `creator:` ... in the text). The read-state
+   * chips are not shown there - lane Q's works query does not apply them (its open question 2); the cards still show read marks.
+   */
+  readonly tagView = computed(() => this.params().f.length > 0 || this.works().length > 0);
+
   /** The field's filter chips, in URL order, named once the server has answered. */
   readonly filterChips = computed<FilterChip[]>(() => {
-    const byParam = new Map(this.resolvedFilters().map((r) => [r.param, r]));
+    const byId = new Map(this.resolvedFilters().filter((r) => r.source === 'Chip' && r.id).map((r) => [r.id!, r]));
     return this.params().f.map((param) => {
-      const r = byParam.get(param);
-      if (r) return { param, label: `${bucketLabel(r.bucket)}: ${r.display}`, known: true };
+      const r = byId.get(filterValueId(param));
+      if (r?.matched && r.display) return { param, label: `${bucketLabel(r.bucket)}: ${r.display}`, known: true };
       return { param, label: this.searched() ? 'Unknown tag' : '…', known: !this.searched() };
     });
   });
@@ -429,14 +446,22 @@ export class SearchComponent {
     });
   }
 
-  /** Where a work's location opens: a folder in browse, an archive (a one-shot) in the reader. */
-  locationLink(loc: FacetWorkLocationDto): string[] {
-    return loc.kind === 'Folder' ? ['/libraries', loc.libraryId, 'browse', loc.nodeId] : ['/reader', loc.nodeId];
+  /** A work card has no id of its own (lane Q): its first location and its place in the list name it. */
+  workKey(work: FacetWorkDto, index: number): string {
+    return `${work.node.id}:${index}`;
+  }
+
+  /**
+   * Where a location opens: the first is the card's own node (a folder in browse, an archive in the reader); the others are the further
+   * folders of a split series (lane Q sends their ids and names, not their kind), opened in browse.
+   */
+  locationLink(work: FacetWorkDto, loc: FacetLocationDto): string[] {
+    return loc.nodeId === work.node.id ? this.getNodeLink(work.node) : ['/libraries', loc.libraryId, 'browse', loc.nodeId];
   }
 
   /** "Library › Folder › Work": the location's place as display names (never a path). */
-  trailText(loc: FacetWorkLocationDto): string {
-    return [...loc.trail.map((t) => t.displayName), loc.displayName].join(' › ');
+  trailText(loc: FacetLocationDto): string {
+    return locationText(loc);
   }
 
   /** Sets the read-state filter and runs the search again from its first page. */
@@ -459,8 +484,7 @@ export class SearchComponent {
         if (generation !== this.generation) return;
         const response = answer as SearchAnswer;
         if (response.works) {
-          const shownWorks = new Set(this.works().map((w) => w.workId));
-          this.works.update((list) => [...list, ...response.works!.filter((w) => !shownWorks.has(w.workId))]);
+          this.works.update((list) => [...list, ...response.works!]);
           this.takePaging(response);
           this.loadingMore.set(false);
           return;
@@ -528,12 +552,19 @@ export class SearchComponent {
    * The filters as the server resolved them. A merged creator's old value answers with its target and `redirectedFrom`
    * (D1 2.2): the URL then names the target, so a bookmark keeps working and the field shows the creator it opens.
    */
-  private takeFilters(filters: FacetFilterDto[]): void {
+  private takeFilters(filters: SearchFilterDto[]): void {
     this.resolvedFilters.set(filters);
-    const moved = filters.filter((r) => r.redirectedFrom && r.redirectedFrom !== r.param && this.params().f.includes(r.redirectedFrom));
-    if (moved.length === 0) return;
-    const to = new Map(moved.map((r) => [r.redirectedFrom!, r.param]));
-    this.params.update((p) => ({ ...p, f: [...new Set(p.f.map((v) => to.get(v) ?? v))] }));
+    const to = new Map<string, string>();
+    for (const r of filters) {
+      const target = r.valueIds[0];
+      if (r.source === 'Chip' && r.matched && r.redirectedFrom && target && target !== r.redirectedFrom) {
+        to.set(r.redirectedFrom, `${bucketToken(r.bucket)}:${target}`);
+      }
+    }
+    if (to.size === 0) return;
+    this.params.update((p) => ({ ...p, f: [...new Set(p.f.map((v) => to.get(filterValueId(v)) ?? v))] }));
+    // The answer is for the old id: the new id names the same value, so the chips keep their names.
+    this.resolvedFilters.set(filters.map((r) => (r.redirectedFrom && to.has(r.redirectedFrom) ? { ...r, id: r.valueIds[0] } : r)));
     this.writeUrl();
   }
 

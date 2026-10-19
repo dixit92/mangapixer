@@ -1,39 +1,42 @@
 import { Type } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { of, throwError } from 'rxjs';
 
 import { InfoApiService } from '../info-api.service';
 import { CreatorDto } from '../info-types';
+import { CreatorAdminService } from './creator-admin.service';
 import { CreatorMergeDialogComponent } from './creator-merge-dialog.component';
 import { CreatorRenameDialogComponent } from './creator-rename-dialog.component';
 import { CreatorSplitDialogComponent } from './creator-split-dialog.component';
-import { creatorErrorText, creatorSummary } from './creator-admin-labels';
+import { creatorErrorText, creatorSummary, providerIdLabel } from './creator-admin-labels';
 
 const creator = (o: Partial<CreatorDto> = {}): CreatorDto => ({
   id: 'cr_1',
   displayName: 'Synthetic Author',
-  displayNameSource: 'Provider',
-  names: [{ name: 'Synthetic Author', source: 'ProviderAuthor' }, { name: 'S. Author', source: 'ComicInfo' }],
-  providerIds: [{ provider: 'mangaupdates', externalId: '101' }, { provider: 'mangaupdates', externalId: '202' }],
+  displayNameSource: 'provider',
+  names: [{ name: 'Synthetic Author', source: 'providerAuthor', script: 'latin' }, { name: 'S. Author', source: 'comicInfo', script: 'latin' }],
+  providerIds: ['mangaupdates:101', 'mangaupdates:202'],
+  valueId: 'fv_a',
   works: 3,
   ...o,
 });
 
-/** Admin creator dialogs (1.45.0, D1 2.2): Rename, Merge into... (find + confirm), Split... (choose + confirm). */
+/** Admin creator dialogs (1.45.0, D1 2.2) on lane F's routes: Rename, Merge into... (find + confirm), Split... (choose + confirm). */
 describe('creator admin dialogs', () => {
   const ref = { close: vi.fn() };
 
-  function render<T>(component: Type<T>, api: Partial<Record<keyof InfoApiService, unknown>>) {
+  function render<T>(component: Type<T>, api: Partial<Record<keyof InfoApiService, unknown>>, c: CreatorDto = creator()) {
     ref.close.mockClear();
     TestBed.configureTestingModule({
       imports: [component],
       providers: [
         provideNoopAnimations(),
-        { provide: MAT_DIALOG_DATA, useValue: { creatorId: 'cr_1', display: 'Synthetic Author' } },
+        { provide: MAT_DIALOG_DATA, useValue: { creator: c, display: 'Synthetic Author' } },
         { provide: MatDialogRef, useValue: ref },
-        { provide: InfoApiService, useValue: { getCreator: vi.fn(() => of(creator())), ...api } },
+        { provide: InfoApiService, useValue: api },
       ],
     });
     const fixture = TestBed.createComponent(component);
@@ -43,10 +46,11 @@ describe('creator admin dialogs', () => {
     return { fixture, el, button };
   }
 
-  it('Rename: sends the typed name and closes with the answer; a known spelling can be picked', () => {
-    const renameCreator = vi.fn(() => of(creator({ displayName: 'S. Author', displayNameSource: 'Admin' })));
+  it('Rename: sends the picked spelling and closes with the answer', () => {
+    const renameCreator = vi.fn(() => of(creator({ displayName: 'S. Author', displayNameSource: 'admin' })));
     const { fixture, el, button } = render(CreatorRenameDialogComponent, { renameCreator });
     expect(button('creator-rename-save')!.disabled).toBe(true); // unchanged name
+    expect(button('creator-rename-auto')).toBeNull(); // not an admin-set name
     const pick = Array.from(el.querySelectorAll<HTMLButtonElement>('.pick')).find((b) => b.textContent === 'S. Author')!;
     pick.click();
     fixture.detectChanges();
@@ -57,9 +61,7 @@ describe('creator admin dialogs', () => {
 
   it('Rename: an admin-set name can go back to the automatic one', () => {
     const renameCreator = vi.fn(() => of(creator()));
-    const { button } = render(CreatorRenameDialogComponent, {
-      renameCreator, getCreator: vi.fn(() => of(creator({ displayNameSource: 'Admin' }))),
-    });
+    const { button } = render(CreatorRenameDialogComponent, { renameCreator }, creator({ displayNameSource: 'admin' }));
     button('creator-rename-auto')!.click();
     expect(renameCreator).toHaveBeenCalledWith('cr_1', { displayName: null });
   });
@@ -67,7 +69,7 @@ describe('creator admin dialogs', () => {
   it('Merge: finds the other creator by name (never itself), asks to confirm, then merges into it', () => {
     vi.useFakeTimers();
     try {
-      const findCreators = vi.fn(() => of({ items: [creator(), creator({ id: 'cr_2', displayName: 'Synthetic Auteur', providerIds: [{ provider: 'mangaupdates', externalId: '303' }], works: 1 })] }));
+      const findCreators = vi.fn(() => of([creator(), creator({ id: 'cr_2', displayName: 'Synthetic Auteur', providerIds: ['mangaupdates:303'], works: 1 })]));
       const mergeCreator = vi.fn(() => of(creator({ id: 'cr_2', displayName: 'Synthetic Auteur' })));
       const { fixture, el, button } = render(CreatorMergeDialogComponent, { findCreators, mergeCreator });
       fixture.componentInstance.onQuery('Synth');
@@ -84,7 +86,7 @@ describe('creator admin dialogs', () => {
       expect(el.querySelector('[data-testid="creator-merge-confirm"]')!.textContent).toContain('Merge Synthetic Author into Synthetic Auteur?');
       expect(mergeCreator).not.toHaveBeenCalled();
       button('creator-merge-save')!.click();
-      expect(mergeCreator).toHaveBeenCalledWith('cr_1', { targetId: 'cr_2' });
+      expect(mergeCreator).toHaveBeenCalledWith('cr_1', { intoId: 'cr_2' });
       expect(ref.close).toHaveBeenCalledWith(expect.objectContaining({ id: 'cr_2' }));
     } finally {
       vi.useRealTimers();
@@ -95,7 +97,7 @@ describe('creator admin dialogs', () => {
     vi.useFakeTimers();
     try {
       const { fixture, el, button } = render(CreatorMergeDialogComponent, {
-        findCreators: vi.fn(() => of({ items: [creator({ id: 'cr_2', displayName: 'Other' })] })),
+        findCreators: vi.fn(() => of([creator({ id: 'cr_2', displayName: 'Other' })])),
         mergeCreator: vi.fn(() => throwError(() => ({ error: 'same_creator', message: 'x' }))),
       });
       fixture.componentInstance.onQuery('Other');
@@ -116,20 +118,22 @@ describe('creator admin dialogs', () => {
     const splitCreator = vi.fn(() => of(creator({ id: 'cr_9', displayName: 'S. Author' })));
     const { fixture, el, button } = render(CreatorSplitDialogComponent, { splitCreator });
     expect(button('creator-split-next')!.disabled).toBe(true);
+    expect(Array.from(el.querySelectorAll('[data-testid="creator-split-id"]')).map((c) => c.textContent!.trim()))
+      .toEqual(['MangaUpdates author 101', 'MangaUpdates author 202']);
 
     const c = fixture.componentInstance;
-    c.toggleId({ provider: 'mangaupdates', externalId: '202' });
+    c.toggleId('mangaupdates:202');
     c.toggleName('S. Author');
     fixture.detectChanges();
     expect(button('creator-split-next')!.disabled).toBe(false);
 
     // Everything ticked: nothing would stay.
-    c.toggleId({ provider: 'mangaupdates', externalId: '101' });
+    c.toggleId('mangaupdates:101');
     c.toggleName('Synthetic Author');
     fixture.detectChanges();
     expect(button('creator-split-next')!.disabled).toBe(true);
     expect(el.textContent).toContain('Keep at least one name or id');
-    c.toggleId({ provider: 'mangaupdates', externalId: '101' });
+    c.toggleId('mangaupdates:101');
     c.toggleName('Synthetic Author');
     fixture.detectChanges();
 
@@ -138,13 +142,55 @@ describe('creator admin dialogs', () => {
     expect(el.querySelector('[data-testid="creator-split-confirm"]')!.textContent).toContain('Move 1 name and 1 id from Synthetic Author to a new creator?');
     expect(splitCreator).not.toHaveBeenCalled();
     button('creator-split-save')!.click();
-    expect(splitCreator).toHaveBeenCalledWith('cr_1', { providerIds: [{ provider: 'mangaupdates', externalId: '202' }], names: ['S. Author'] });
+    expect(splitCreator).toHaveBeenCalledWith('cr_1', { providerIds: ['mangaupdates:202'], names: ['S. Author'] });
     expect(ref.close).toHaveBeenCalledWith(expect.objectContaining({ id: 'cr_9' }));
   });
 
-  it('labels: a creator line and error words', () => {
+  it('labels: a creator line, provider ids and error words', () => {
     expect(creatorSummary(creator({ providerIds: [], works: 1 }))).toBe('1 work');
+    expect(providerIdLabel('mangaupdates:42')).toBe('MangaUpdates author 42');
     expect(creatorErrorText({ status: 403 })).toBe('Only an admin can change creators.');
+    expect(creatorErrorText({ error: 'split_all' })).toContain('Keep at least one');
     expect(creatorErrorText({ error: 'not_found' })).toContain('no longer exists');
+  });
+});
+
+/** The chip -> creator step: the chip's value id names the creator (lane F's `valueId`), found by the chip's name. */
+describe('CreatorAdminService', () => {
+  function setup(found: CreatorDto[] | 'error') {
+    const open = vi.fn(() => ({ afterClosed: () => of(creator({ displayName: 'Renamed' })) }));
+    const snack = vi.fn();
+    const findCreators = vi.fn(() => (found === 'error' ? throwError(() => ({ status: 500 })) : of(found)));
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: MatDialog, useValue: { open } },
+        { provide: MatSnackBar, useValue: { open: snack } },
+        // creatorForValue is the real one, over the mocked search.
+        { provide: InfoApiService, useFactory: () => {
+          const real = Object.create(InfoApiService.prototype) as InfoApiService;
+          return Object.assign(real, { findCreators });
+        } },
+      ],
+    });
+    return { service: TestBed.inject(CreatorAdminService), open, snack, findCreators };
+  }
+
+  it('opens the dialog for the creator whose tag value the chip is', async () => {
+    const { service, open, findCreators } = setup([creator({ id: 'cr_0', valueId: 'fv_other' }), creator()]);
+    const result = await service.rename('fv_a', 'Synthetic Author');
+    expect(findCreators).toHaveBeenCalledWith('Synthetic Author', 50);
+    expect(open).toHaveBeenCalledWith(CreatorRenameDialogComponent, expect.objectContaining({ data: { creator: expect.objectContaining({ id: 'cr_1' }), display: 'Synthetic Author' } }));
+    expect(result?.displayName).toBe('Renamed');
+  });
+
+  it('says so and opens nothing when no creator holds the value', async () => {
+    const { service, open, snack } = setup([creator({ valueId: 'fv_other' })]);
+    expect(await service.merge('fv_a', 'Synthetic Author')).toBeNull();
+    expect(open).not.toHaveBeenCalled();
+    expect(snack).toHaveBeenCalled();
+    TestBed.resetTestingModule();
+    const failed = setup('error');
+    expect(await failed.service.split('fv_a', 'Synthetic Author')).toBeNull();
+    expect(failed.open).not.toHaveBeenCalled();
   });
 });

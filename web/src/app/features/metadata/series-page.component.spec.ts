@@ -8,7 +8,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { CatalogNodeDto, SeriesInfoDto } from '../../core/api/api-types';
 import { MetadataApiService } from './metadata-api.service';
 import { InfoApiService } from './info/info-api.service';
-import { panel } from './info/info.testing';
+import { emptyPanel, panel } from './info/info.testing';
 import { InfoPanelDto } from './info/info-types';
 import { MissingReportApiService } from './missing/missing-report-api.service';
 import { SeriesPageComponent } from './series-page.component';
@@ -21,8 +21,8 @@ import { seriesInfo } from './series-info.testing';
  */
 describe('SeriesPageComponent', () => {
   /** 1.45.0: the Tags block's answer (nothing indexed unless a test says otherwise). */
-  let tagsAnswer: InfoPanelDto = panel({ works: 0, buckets: [] });
-  afterEach(() => { tagsAnswer = panel({ works: 0, buckets: [] }); });
+  let tagsAnswer: InfoPanelDto = emptyPanel();
+  afterEach(() => { tagsAnswer = emptyPanel(); });
 
   function create(
     nodeId: string, info: SeriesInfoDto | 'error', nextUnread: CatalogNodeDto | null = null, admin = false,
@@ -46,7 +46,7 @@ describe('SeriesPageComponent', () => {
         { provide: ApiService, useValue: api },
         { provide: AuthService, useValue: { isAdmin: () => admin } },
         // 1.45.0: the Tags block under the summary.
-        { provide: InfoApiService, useValue: { getInfo: vi.fn(() => of(tagsAnswer)), getInfoBucket: vi.fn() } },
+        { provide: InfoApiService, useValue: { getInfo: vi.fn(() => of(tagsAnswer)) } },
         { provide: MissingReportApiService, useValue: { forNodeViewer: vi.fn(() => throwError(() => ({ status: 404 }))) } },
         { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ nodeId })) } },
       ],

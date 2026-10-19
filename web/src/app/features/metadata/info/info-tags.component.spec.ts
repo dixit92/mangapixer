@@ -10,7 +10,7 @@ import { CreatorAdminService } from './creator-admin/creator-admin.service';
 import { InfoApiService } from './info-api.service';
 import { InfoTagsComponent } from './info-tags.component';
 import { InfoPanelDto } from './info-types';
-import { bucket, chip, panel } from './info.testing';
+import { bucket, chip, emptyPanel, panel } from './info.testing';
 
 @Component({
   standalone: true,
@@ -22,16 +22,13 @@ class HostComponent {
   readonly loaded: (InfoPanelDto | null)[] = [];
 }
 
-/** The Info panel's Tags block (1.45.0, D1 2.4 / 2.6). */
+/** The Info panel's Tags block (1.45.0, D1 2.4 / 2.6), on lane Q's `InfoPanelDto`. */
 describe('InfoTagsComponent', () => {
   const dialogRef = { close: vi.fn() };
 
-  function render(answer: InfoPanelDto | 'error', opts: { admin?: boolean; inDialog?: boolean; full?: InfoPanelDto['buckets'][number] } = {}) {
+  function render(answer: InfoPanelDto | 'error', opts: { admin?: boolean; inDialog?: boolean } = {}) {
     dialogRef.close.mockClear();
-    const api = {
-      getInfo: vi.fn(() => (answer === 'error' ? throwError(() => ({ status: 404 })) : of(answer))),
-      getInfoBucket: vi.fn(() => of(opts.full ?? bucket())),
-    };
+    const api = { getInfo: vi.fn(() => (answer === 'error' ? throwError(() => ({ status: 404 })) : of(answer))) };
     const creatorAdmin = { rename: vi.fn(() => Promise.resolve(null)), merge: vi.fn(() => Promise.resolve(null)), split: vi.fn(() => Promise.resolve(null)) };
     const providers: unknown[] = [
       provideNoopAnimations(),
@@ -52,10 +49,10 @@ describe('InfoTagsComponent', () => {
   it('shows one row per bucket in the owner\'s order with its label, whatever order the server sent', () => {
     const { el } = render(panel({
       buckets: [
-        bucket({ bucket: 'Genres', chips: [chip({ valueId: 'fv_g', display: 'Comedy' })] }),
-        bucket({ bucket: 'About', chips: [chip({ valueId: 'fv_s', display: 'Starlight Academy' })] }),
+        bucket({ bucket: 'Genres', chips: [chip({ id: 'fv_g', display: 'Comedy', filter: 'genre:fv_g' })] }),
+        bucket({ bucket: 'About', chips: [chip({ id: 'fv_s', display: 'Starlight Academy', filter: 'about:fv_s' })] }),
         bucket({ bucket: 'Creators', chips: [chip()] }),
-        bucket({ bucket: 'Year', chips: [chip({ valueId: 'fv_y', display: '2004' })] }),
+        bucket({ bucket: 'Year', chips: [chip({ id: 'fv_y', display: '2004', filter: 'year:fv_y' })] }),
       ],
     }));
     const rows = Array.from(el.querySelectorAll('[data-testid="info-bucket"]'));
@@ -65,9 +62,14 @@ describe('InfoTagsComponent', () => {
     expect(rows[3].querySelector('.name')!.textContent).toBe('Fan works of Starlight Academy');
   });
 
+  it('links each chip to the search with the chip\'s own filter', () => {
+    const { chips } = render(panel({ buckets: [bucket({ bucket: 'Genres', chips: [chip({ id: 'fv_g', display: 'Comedy', filter: 'genre:fv_g' })] })] }));
+    expect(chips()[0].getAttribute('href')).toBe('/search?f=genre:fv_g');
+  });
+
   it('shows a count only when it is 2 or more, in its own span; a count of 1 stays quiet but the chip still links', () => {
     const { chips } = render(panel({
-      buckets: [bucket({ chips: [chip({ valueId: 'fv_a', display: 'Two Works', count: 2 }), chip({ valueId: 'fv_b', display: 'One Work', count: 1 })] })],
+      buckets: [bucket({ chips: [chip({ id: 'fv_a', display: 'Two Works', count: 2 }), chip({ id: 'fv_b', display: 'One Work' })] })],
     }));
     const [two, one] = chips();
     expect(two.querySelector('[data-testid="info-chip-count"]')!.textContent).toBe('(2)');
@@ -76,36 +78,43 @@ describe('InfoTagsComponent', () => {
     expect(two.getAttribute('aria-label')).toBe('Two Works, 2 works');
   });
 
-  it('counts "N here" on a container, with "More" for the rest of a bucket', () => {
-    const full = bucket({ bucket: 'Genres', chips: Array.from({ length: 14 }, (_, i) => chip({ valueId: `fv_${i}`, display: `Genre ${i}` })) });
-    const { el, api, chips, fixture } = render(panel({
-      container: true,
-      works: 40,
-      buckets: [bucket({ bucket: 'Genres', chips: [chip({ valueId: 'fv_g', display: 'Comedy', count: 12 })], more: 13 })],
-    }), { full });
+  it('counts "N here" on a container and says how many more values a bucket has', () => {
+    const { el, chips } = render(panel({
+      mode: 'Container',
+      worksBelow: 40,
+      buckets: [bucket({ bucket: 'Genres', chips: [chip({ id: 'fv_g', display: 'Comedy', count: 30, here: 12, filter: 'genre:fv_g' })], more: 13 })],
+    }));
     expect(chips()[0].querySelector('.count')!.textContent).toBe('12 here');
-    const more = el.querySelector<HTMLButtonElement>('[data-testid="info-more"]')!;
-    expect(more.textContent).toContain('+13');
-
-    more.click();
-    fixture.detectChanges();
-    expect(api.getInfoBucket).toHaveBeenCalledWith('n1', 'Genres');
-    expect(chips().length).toBe(14);
-    expect(el.querySelector('[data-testid="info-more"]')).toBeNull();
+    expect(el.querySelector('[data-testid="info-more"]')!.textContent).toBe('+13 more');
   });
 
   it('marks a conflicting value amber with the Conflict wording, and shows the role of a creator', () => {
     const { chips } = render(panel({
       buckets: [bucket({ chips: [
-        chip({ valueId: 'fv_d', display: 'Declared Artist', conflict: true, sources: ['Declared'], role: 'Artist' }),
-        chip({ valueId: 'fv_w', display: 'Web Artist', role: 'StoryAndArt' }),
+        chip({ id: 'fv_d', display: 'Declared Artist', conflict: true, roles: 'Artist' }),
+        chip({ id: 'fv_w', display: 'Web Artist', roles: 'Writer, Artist' }),
       ] })],
     }));
     const [declared, web] = chips();
     expect(declared.parentElement!.classList).toContain('conflict');
-    expect(declared.getAttribute('aria-label')).toBe('Declared Artist, Art, Conflict: declared here, the web record says otherwise');
+    expect(declared.getAttribute('aria-label')).toBe('Declared Artist, Art, Conflict: the folder\'s declared value and the web record disagree');
     expect(web.parentElement!.classList).not.toContain('conflict');
     expect(web.querySelector('.role')!.textContent).toBe('Story & art');
+  });
+
+  it('lists the places of a work kept in several folders', () => {
+    const { el } = render(panel({
+      work: {
+        title: 'Series A', locationCount: 2, locations: [
+          { nodeId: 'f1', libraryId: 'L1', libraryName: 'Manga', trail: [{ id: 'f1', displayName: 'Series A' }] },
+          { nodeId: 'f2', libraryId: 'L2', libraryName: 'Manga 2', trail: [{ id: 'x', displayName: 'Archive' }, { id: 'f2', displayName: 'Series A 101-200' }] },
+        ],
+      },
+    }));
+    const places = el.querySelectorAll('[data-testid="info-locations"] a');
+    expect(el.querySelector('[data-testid="info-locations"] .label')!.textContent).toBe('2 locations');
+    expect(Array.from(places).map((a) => a.textContent)).toEqual(['Manga › Series A', 'Manga 2 › Archive › Series A 101-200']);
+    expect(places[1].getAttribute('href')).toBe('/libraries/L2/browse/f2');
   });
 
   it('closes the overlay it is in when a chip is followed', () => {
@@ -117,8 +126,8 @@ describe('InfoTagsComponent', () => {
   it('gives admins a menu on creator chips (Rename, Merge into..., Split...) and readers none', async () => {
     const answer = panel({
       buckets: [
-        bucket({ chips: [chip({ creatorId: 'cr_1' })] }),
-        bucket({ bucket: 'Genres', chips: [chip({ valueId: 'fv_g', display: 'Comedy' })] }),
+        bucket({ chips: [chip()] }),
+        bucket({ bucket: 'Genres', chips: [chip({ id: 'fv_g', display: 'Comedy', filter: 'genre:fv_g' })] }),
       ],
     });
     const reader = render(answer);
@@ -135,11 +144,11 @@ describe('InfoTagsComponent', () => {
     expect(items).toEqual(['edit Rename…', 'call_merge Merge into…', 'call_split Split…']);
     (document.querySelector('[data-testid="creator-merge"]') as HTMLButtonElement).click();
     await admin.fixture.whenStable();
-    expect(admin.creatorAdmin.merge).toHaveBeenCalledWith('cr_1', 'Synthetic Author');
+    expect(admin.creatorAdmin.merge).toHaveBeenCalledWith('fv_a', 'Synthetic Author');
   });
 
   it('reloads the tags after an admin change was saved', async () => {
-    const { fixture, api, creatorAdmin, el } = render(panel({ buckets: [bucket({ chips: [chip({ creatorId: 'cr_1' })] })] }), { admin: true });
+    const { fixture, api, creatorAdmin, el } = render(panel(), { admin: true });
     creatorAdmin.rename.mockResolvedValueOnce({ id: 'cr_1' } as never);
     el.querySelector<HTMLButtonElement>('[data-testid="info-chip-menu"]')!.click();
     fixture.detectChanges();
@@ -149,7 +158,7 @@ describe('InfoTagsComponent', () => {
   });
 
   it('shows nothing and reports null when nothing is indexed or the server cannot answer', () => {
-    const empty = render(panel({ works: 0, buckets: [] }));
+    const empty = render(emptyPanel());
     expect(empty.el.querySelector('[data-testid="info-tags"]')).toBeNull();
     expect(empty.fixture.componentInstance.loaded).toEqual([null]);
     TestBed.resetTestingModule();

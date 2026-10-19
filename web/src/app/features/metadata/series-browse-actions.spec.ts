@@ -14,6 +14,7 @@ import { SeriesInfoButtonComponent } from './series-info-button.component';
 import { SeriesInfoOverlayService } from './series-info-overlay.service';
 import { InfoApiService } from './info/info-api.service';
 import { InfoPanelDto } from './info/info-types';
+import { emptyPanel, panel } from './info/info.testing';
 import { SeriesSelectionActionsComponent } from './series-selection-actions.component';
 import { seriesInfo } from './series-info.testing';
 
@@ -48,7 +49,7 @@ describe('SeriesInfoButtonComponent', () => {
     const infoApi = {
       getInfo: vi.fn(() => (works === 'error'
         ? throwError(() => ({ status: 404 }))
-        : of({ nodeId: 'folder-1', container: true, works, buckets: [] } as InfoPanelDto))),
+        : of((works > 0 ? panel({ nodeId: 'folder-1', mode: 'Container', worksBelow: works }) : emptyPanel('folder-1')) as InfoPanelDto))),
     };
     TestBed.configureTestingModule({
       imports: [Host],

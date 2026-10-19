@@ -117,7 +117,7 @@ export class CreatorMergeDialogComponent {
       )
       .subscribe((list) => {
         this.searching.set(false);
-        this.candidates.set((list?.items ?? []).filter((c) => c.id !== this.data.creatorId));
+        this.candidates.set((list ?? []).filter((c) => c.id !== this.data.creator.id));
       });
   }
 
@@ -136,7 +136,7 @@ export class CreatorMergeDialogComponent {
     if (!t || this.saving()) return;
     this.saving.set(true);
     this.error.set(null);
-    this.api.mergeCreator(this.data.creatorId, { targetId: t.id }).subscribe({
+    this.api.mergeCreator(this.data.creator.id, { intoId: t.id }).subscribe({
       next: (c) => this.ref.close(c),
       error: (e) => {
         this.error.set(creatorErrorText(e));

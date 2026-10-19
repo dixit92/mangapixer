@@ -163,18 +163,19 @@ const UNBROKEN = 'Averyveryverylongsyntheticpennamewithoutanyspacesforthelayoutc
 
 /** The Info panel's tags (lane Q's `GET nodes/{id}/info` shape, 1.45.0), long names and counts on every row. */
 function longPanel(nodeId: string) {
-  const chip = (valueId: string, display: string, extra: Record<string, unknown> = {}) => ({ valueId, display, ...extra });
+  const chip = (token: string, id: string, display: string, extra: Record<string, unknown> = {}) =>
+    ({ id, display, roles: 'None', conflict: false, filter: `${token}:${id}`, ...extra });
   return {
-    nodeId, container: true, works: 40,
+    nodeId, mode: 'Container', worksBelow: 40,
     buckets: [
       { bucket: 'Creators', more: 9, chips: [
-        chip('fv_l1', UNBROKEN, { role: 'StoryAndArt', count: 12, creatorId: 'cr_l1' }),
-        chip('fv_l2', 'Second Synthetic Author', { role: 'Writer', count: 3, creatorId: 'cr_l2' }),
-        chip('fv_l3', 'Declared Artist', { role: 'Artist', conflict: true, sources: ['Declared'], creatorId: 'cr_l3' }),
+        chip('creator', 'fv_l1', UNBROKEN, { roles: 'Writer, Artist', count: 30, here: 12 }),
+        chip('creator', 'fv_l2', 'Second Synthetic Author', { roles: 'Writer', count: 4, here: 3 }),
+        chip('creator', 'fv_l3', 'Declared Artist', { roles: 'Artist', conflict: true }),
       ] },
-      { bucket: 'Magazine', more: 0, chips: [chip('fv_m1', 'Weekly Synthetic Magazine Of Very Long Serialized Stories', { count: 7 })] },
-      { bucket: 'Genres', more: 20, chips: ['Action', 'Fantasy', 'Comedy', 'Slice of Life', 'Supernatural', 'Drama'].map((g, i) => chip(`fv_g${i}`, g, { count: 20 - i })) },
-      { bucket: 'About', more: 0, chips: [chip('fv_a1', UNBROKEN, { count: 2 })] },
+      { bucket: 'Magazine', more: 0, chips: [chip('magazine', 'fv_m1', 'Weekly Synthetic Magazine Of Very Long Serialized Stories', { count: 9, here: 7 })] },
+      { bucket: 'Genres', more: 20, chips: ['Action', 'Fantasy', 'Comedy', 'Slice of Life', 'Supernatural', 'Drama'].map((g, i) => chip('genre', `fv_g${i}`, g, { count: 30, here: 20 - i })) },
+      { bucket: 'About', more: 0, chips: [chip('about', 'fv_a1', UNBROKEN, { here: 2 })] },
     ],
   };
 }
@@ -184,22 +185,23 @@ test('the Info sheet with chips and the tag search with two filters fit a phone 
   const failures: string[] = [];
   await login(page);
   const [libraryId, folderId] = await ensureLibrary(page);
+  const folder = { id: folderId, parentId: '', libraryId, kind: 'Folder', displayName: 'Stacked Saga', availability: 'Available', coverUrl: null };
   // Contract-shaped answers (lanes F / Q build the index; the layout under test is the web's): every folder has these tags.
   await page.route('**/api/v1/nodes/*/info', (route) =>
     route.fulfill({ json: longPanel(new URL(route.request().url()).pathname.split('/').at(-2)!) }));
   await page.route(/\/api\/v1\/search\?.*\bf=/, (route) => route.fulfill({ json: {
     query: '', items: [], totalCount: 2, nextCursor: null, hasMore: false,
     filters: [
-      { param: 'creator:fv_l1', bucket: 'Creators', valueId: 'fv_l1', display: UNBROKEN },
-      { param: 'genre:fv_g0', bucket: 'Genres', valueId: 'fv_g0', display: 'Action' },
+      { bucket: 'Creators', source: 'Chip', id: 'fv_l1', display: UNBROKEN, matched: true, valueIds: ['fv_l1'] },
+      { bucket: 'Genres', source: 'Chip', id: 'fv_g0', display: 'Action', matched: true, valueIds: ['fv_g0'] },
     ],
     works: [
-      { workId: 'w1', title: `${UNBROKEN} The Series`, coverUrl: null, locationCount: 2, locations: [
-        { nodeId: folderId, libraryId, kind: 'Folder', displayName: 'Stacked Saga', trail: [{ id: libraryId, displayName: 'Volume Stacks' }] },
-        { nodeId: 'n_second', libraryId, kind: 'Folder', displayName: UNBROKEN, trail: [{ id: libraryId, displayName: 'Volume Stacks' }, { id: 'x', displayName: UNBROKEN }] },
+      { title: `${UNBROKEN} The Series`, node: folder, coverUrl: null, locationCount: 2, locations: [
+        { nodeId: folderId, libraryId, libraryName: 'Volume Stacks', trail: [{ id: folderId, displayName: 'Stacked Saga' }] },
+        { nodeId: 'n_second', libraryId, libraryName: 'Volume Stacks', trail: [{ id: 'x', displayName: UNBROKEN }, { id: 'n_second', displayName: UNBROKEN }] },
       ] },
-      { workId: 'w2', title: 'A One-shot', coverUrl: null, locationCount: 1, locations: [
-        { nodeId: folderId, libraryId, kind: 'Archive', displayName: 'A One-shot', trail: [{ id: libraryId, displayName: 'Volume Stacks' }, { id: 'y', displayName: 'One Shots' }] },
+      { title: 'A One-shot', node: { ...folder, id: 'n_os', displayName: 'A One-shot' }, coverUrl: null, locationCount: 1, locations: [
+        { nodeId: 'n_os', libraryId, libraryName: 'Volume Stacks', trail: [{ id: 'y', displayName: 'One Shots' }, { id: 'n_os', displayName: 'A One-shot' }] },
       ] },
     ],
   } }));
