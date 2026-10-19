@@ -50,8 +50,12 @@ internal static class QueryValues
         foreach (var id in result.Keys.ToList())
         {
             var current = id;
-            for (var hop = 0; hop < 16 && mergedInto.TryGetValue(current, out var next) && next is { } target && target != id; hop++)
+            for (var hop = 0; hop < 16; hop++)
+            {
+                if (!mergedInto.TryGetValue(current, out var next) || next is not { } target || target == id)
+                    break;
                 current = target;
+            }
             result[id] = current;
         }
         return result;

@@ -60,7 +60,7 @@ public sealed class FacetSearchService
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
         pageSize = Math.Clamp(pageSize, 1, CatalogBrowseService.MaxSearchPageSize);
         var parsed = FacetSearchSyntax.Parse(query);
-        var chips = (filters ?? []).Where(f => !string.IsNullOrWhiteSpace(f)).Select(f => f.Trim()).ToList();
+        var chips = (filters ?? Array.Empty<string>()).Where(f => !string.IsNullOrWhiteSpace(f)).Select(f => f.Trim()).ToList();
         var chipRequests = chips.Select(ParseChip).ToList(); // throws FacetFilterFormatException before any query
 
         var scope = await _scopes.ResolveAsync(userId, incognito, ct);
