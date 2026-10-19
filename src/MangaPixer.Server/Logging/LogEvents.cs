@@ -510,6 +510,11 @@ public static class LogEvents
         //   9450-9459 tag query: per-viewer counts, the works page, field search (lane Q)
         //   9460-9479 new-chapter freshness, the MangaDex latest-upload sweep, the MangaUpdates releases feed (lane R)
 
+        // Tag query (1.45.0, lane Q, 9450-9459). Counts, ids and timings only - never search text, tag values or names.
+        public const int FacetCountsComputed = 9450;
+        public const int InfoPanelServed = 9451;
+        public const int FacetSearchServed = 9452;
+
         // MangaDex as the series record (1.42.0, lane D, 9500-9599). Ids, counts and codes only - never titles or search text.
         public const int MangaDexSelfCompanion = 9500;
         public const int MangaDexStep = 9501;

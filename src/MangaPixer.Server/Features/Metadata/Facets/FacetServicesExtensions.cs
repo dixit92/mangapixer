@@ -13,6 +13,7 @@ public static class FacetServicesExtensions
     public static IServiceCollection AddFacets(this IServiceCollection services)
     {
         services.TryAddSingleton<IFacetIndexNudge, NoFacetIndexNudge>();
+        services.AddFacetQuery(); // lane Q: counts, the Info panel, the tag view
         return services;
     }
 }

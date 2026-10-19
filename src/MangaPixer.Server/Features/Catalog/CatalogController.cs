@@ -348,13 +348,22 @@ public sealed class CatalogController : ControllerBase
     /// read state, and <paramref name="readState"/> (<c>reading</c> / <c>read</c> / <c>unread</c>, browse's Show filter values; anything
     /// else = no filter) keeps only those results before the page is cut.
     /// </summary>
+    /// <remarks>
+    /// 1.45.0 (tag view, lane Q): repeatable <paramref name="f"/> = <c>&lt;bucket&gt;:&lt;value id&gt;</c> (AND), and typed field syntax
+    /// in <paramref name="q"/> (<c>creator:"..."</c>, <c>genre:</c>, <c>publisher:</c>, <c>magazine:</c>, <c>year:</c>, <c>type:</c>),
+    /// make the search a tag view: WORK cards in <c>works</c>, the understood filters in <c>filters</c>, keyset-paged by the same
+    /// <c>cursor</c> / <c>pageSize</c> (<c>readState</c> does not apply to works). Without either, search is unchanged. A malformed
+    /// <c>f</c> is 400 <c>invalid_filter</c>; a value the viewer cannot see answers like an unknown one (empty).
+    /// </remarks>
     [HttpGet("search")]
     public async Task<IActionResult> Search(
-        [FromQuery] string q,
+        [FromQuery] string? q,
         [FromQuery] string? libraryId,
         [FromQuery] string? cursor = null,
         [FromQuery] int pageSize = 50,
         [FromQuery] string? readState = null,
+        [FromQuery] string[]? f = null,
+        [FromServices] Metadata.Facets.FacetSearchService? facetSearch = null,
         CancellationToken ct = default)
     {
         var userId = GetUserId();
@@ -368,6 +377,21 @@ public sealed class CatalogController : ControllerBase
             if (library is null) return NotFound();
             libId = library.Id;
         }
+
+        if (facetSearch is not null && Metadata.Facets.FacetSearchService.IsFacetSearch(q, f))
+        {
+            try
+            {
+                return Ok(await facetSearch.SearchAsync(userId.Value, _incognito.IsIncognito, q, f, libId, cursor, pageSize, ct));
+            }
+            catch (Metadata.Facets.FacetFilterFormatException ex)
+            {
+                return BadRequest(new ApiError { Error = "invalid_filter", Message = ex.Message });
+            }
+        }
+
+        if (q is null)
+            return BadRequest(new ApiError { Error = "invalid_request", Message = "q is required." });
 
         var result = await _browseService.SearchAsync(
             userId.Value, q, libId, cursor, pageSize, incognito: _incognito.IsIncognito, readState: ParseReadState(readState), ct: ct);
