@@ -720,6 +720,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     .node-sub { font-size: 12px; color: var(--mp-text-muted); }
     .empty { color: var(--mp-text-muted); padding: 32px; text-align: center; }
     .empty p { margin: 0 0 12px; }
+    /* 1.45.0: the empty line spans the whole card grid (it was squeezed into one card column on a phone). */
+    .nodes > .empty { grid-column: 1 / -1; }
     .scroll-sentinel { min-height: 40px; text-align: center; color: var(--mp-text-muted); font-size: 12px; }
     /* --- PHONE breakpoint only (1.10.0, F3; folded into one media query - was three
        separate @media blocks). Desktop + iPad (>=561px) are untouched: every rule
