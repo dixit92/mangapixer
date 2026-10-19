@@ -7638,6 +7638,84 @@
         }
       }
     },
+    "/api/v1/nodes/{nodeId}/info": {
+      "get": {
+        "tags": [
+          "InfoPanel"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/InfoPanelDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InfoPanelDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InfoPanelDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/libraries/{libraryId}/info": {
+      "get": {
+        "tags": [
+          "InfoPanel"
+        ],
+        "parameters": [
+          {
+            "name": "libraryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/InfoPanelDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InfoPanelDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InfoPanelDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/metadata/folders/{nodeId}/declared": {
       "get": {
         "tags": [
@@ -10848,6 +10926,16 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "f",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
           }
         ],
         "responses": {
@@ -12666,6 +12754,21 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "BreadcrumbEntry": {
+        "required": [
+          "id",
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
           }
         }
       },
@@ -14513,6 +14616,134 @@
           }
         }
       },
+      "FacetBucket": {
+        "type": "integer"
+      },
+      "FacetBucketDto": {
+        "required": [
+          "bucket",
+          "chips"
+        ],
+        "type": "object",
+        "properties": {
+          "bucket": {
+            "$ref": "#/components/schemas/FacetBucket"
+          },
+          "chips": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FacetChipDto"
+            }
+          },
+          "more": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "FacetChipDto": {
+        "required": [
+          "id",
+          "display",
+          "filter"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "display": {
+            "type": "string"
+          },
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "here": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "roles": {
+            "$ref": "#/components/schemas/FacetRoles"
+          },
+          "conflict": {
+            "type": "boolean"
+          },
+          "filter": {
+            "type": "string"
+          }
+        }
+      },
+      "FacetLocationDto": {
+        "required": [
+          "nodeId",
+          "libraryId",
+          "libraryName",
+          "trail"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "libraryId": {
+            "type": "string"
+          },
+          "libraryName": {
+            "type": "string"
+          },
+          "trail": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BreadcrumbEntry"
+            }
+          }
+        }
+      },
+      "FacetRoles": {
+        "type": "integer"
+      },
+      "FacetWorkSummaryDto": {
+        "required": [
+          "title",
+          "locationCount",
+          "locations"
+        ],
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "locationCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "locations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FacetLocationDto"
+            }
+          }
+        }
+      },
       "FolderCoverPreference": {
         "type": "integer"
       },
@@ -15577,6 +15808,50 @@
       "IFormFile": {
         "type": "string",
         "format": "binary"
+      },
+      "InfoPanelDto": {
+        "required": [
+          "nodeId",
+          "mode",
+          "buckets"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/InfoPanelMode"
+          },
+          "buckets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FacetBucketDto"
+            }
+          },
+          "worksBelow": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "work": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FacetWorkSummaryDto"
+              }
+            ]
+          }
+        }
+      },
+      "InfoPanelMode": {
+        "type": "integer"
       },
       "InVolumeFileDto": {
         "required": [
@@ -23664,6 +23939,9 @@
     },
     {
       "name": "MetadataFlags"
+    },
+    {
+      "name": "InfoPanel"
     },
     {
       "name": "DeclaredFactsAdmin"

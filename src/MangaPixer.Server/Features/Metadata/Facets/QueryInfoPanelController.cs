@@ -28,7 +28,6 @@ public sealed class InfoPanelController : ControllerBase
     /// <summary>The tags of a node: its own work's values, or (a container) the values of the works below, top 12 per bucket.</summary>
     [HttpGet("nodes/{nodeId}/info")]
     [ProducesResponseType<InfoPanelDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetNodeInfo(string nodeId, CancellationToken ct = default)
     {
         if (UserId() is not { } userId)
@@ -40,7 +39,6 @@ public sealed class InfoPanelController : ControllerBase
     /// <summary>The tags of a library root (the values of every work in it, top 12 per bucket).</summary>
     [HttpGet("libraries/{libraryId}/info")]
     [ProducesResponseType<InfoPanelDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetLibraryInfo(string libraryId, CancellationToken ct = default)
     {
         if (UserId() is not { } userId)
