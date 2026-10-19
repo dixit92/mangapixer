@@ -63,6 +63,7 @@ const RESULT_TEXT: Record<string, string> = {
   creator_role_invalid: 'Unknown role',
   creators_too_many: 'The folder already declares the most creators',
   record_not_stored: 'The series record is no longer stored',
+  author_ref_invalid: 'The MangaUpdates author is not valid',
   invalid_request: 'Not valid',
 };
 

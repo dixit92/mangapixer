@@ -1575,6 +1575,10 @@ export interface MetadataReviewAcceptCollectionRequest {
 export interface SetArtistFolderRequest {
   name?: string | null;
   role?: string | null;
+  /** 1.45.0: `mangaupdates` when the admin picked an author from an author search (stored as a reference; nothing is sent). */
+  provider?: string | null;
+  /** 1.45.0: the picked MangaUpdates author id. */
+  externalId?: string | null;
 }
 
 /** 1.37.0: what marking a folder an artist's folder did. */
@@ -1586,6 +1590,32 @@ export interface ArtistFolderResultDto {
   creatorAdded?: boolean;
   /** Works at and below the folder queued for automatic matching now (0 while automatic matching is off). */
   queued?: number;
+  /** 1.45.0: the declared artist's reference (`mangaupdates:<author id>`) when the admin picked an author. */
+  authorRef?: string | null;
+}
+
+/** 1.45.0: an author search by name - the text the admin confirms is the only thing sent (page 1, 10 per page). */
+export interface AuthorSearchRequest {
+  text?: string | null;
+}
+
+/** 1.45.0: one author an author search found - only offered, nothing is stored or marked until the admin picks it. */
+export interface AuthorSearchCandidateDto {
+  provider: string;
+  externalId: string;
+  /** The author's main name on MangaUpdates. */
+  name: string;
+  /** The other name the search matched, when it is not the main name. */
+  hitName?: string | null;
+  totalSeries?: number | null;
+  genres?: string[];
+  /** The author's page on MangaUpdates. */
+  siteUrl?: string | null;
+}
+
+export interface AuthorSearchResultDto {
+  candidates: AuthorSearchCandidateDto[];
+  total: number;
 }
 
 // --- Match folders by name (1.38.0): stored data only ---

@@ -317,7 +317,7 @@ export class SeriesAdminActionsComponent {
   async artistFolder(): Promise<void> {
     const info = this.info();
     // The folder's own name when the info is its own; otherwise the field starts empty (empty = the folder's name, on the server).
-    const artist = await this.artistDialog.open(info.anchorNodeId === info.nodeId ? info.anchorDisplayName : '');
+    const artist = await this.artistDialog.open(info.anchorNodeId === info.nodeId ? info.anchorDisplayName : '', info.nodeId);
     if (!artist) return;
     const declaredChanged = () => this.injector.get(DeclaredFactsApiService).version.update((v) => v + 1);
     this.run(this.api.setArtistFolder(info.nodeId, artist).pipe(tap(declaredChanged)), artistFolderLabel(artist.name), true,
