@@ -52,6 +52,10 @@ public sealed record AuthorSearchRequest
 {
     /// <summary>The search text, 1-200 characters after whitespace is collapsed.</summary>
     public string? Text { get; init; }
+
+    /// <summary>Never the text itself: the framework's Debug / Trace "action arguments" log line prints the request (privacy: no search text in logs).</summary>
+    public override string ToString() =>
+        $"AuthorSearchRequest {{ Text = [{Text?.Length ?? 0} characters] }}";
 }
 
 /// <summary>1.45.0: one author an author search found. Only offered: nothing is stored or marked until the admin picks it.</summary>
