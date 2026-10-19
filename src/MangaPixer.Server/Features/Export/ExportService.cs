@@ -143,10 +143,14 @@ public sealed class ExportService(MangaPixerDbContext db, ExportRebuildService r
             items.Add(item);
         }
         var kind = (await KindsAsync(ct)).GetValueOrDefault(library.Id);
+        // 1.45.0: the snapshot's latest-upload confirmation (stored with the rebuild, so every page of the call says the same).
+        var sweepAt = await db.LibraryFreshness.AsNoTracking().Where(f => f.LibraryId == library.Id).Select(f => f.ExportMangaDexSweepAt)
+            .FirstOrDefaultAsync(ct);
         var body = new JsonObject
         {
             ["schemaVersion"] = ExportJson.SchemaVersion,
             ["serverTime"] = ExportJson.Format(state.LastRebuildAt),
+            ["sweeps"] = Node(new ExportSweepsDto { MangadexLatestUpload = sweepAt is { } at ? ExportJson.Truncate(at) : null }),
             ["library"] = Node(new ExportLibraryRefDto { Id = library.PublicId, DisplayName = library.DisplayName, Kind = kind }),
             ["items"] = items,
             ["removed"] = removed,

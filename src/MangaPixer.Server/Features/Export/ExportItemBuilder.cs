@@ -64,6 +64,9 @@ public sealed class ExportItemBuilder(MangaPixerDbContext db)
         var companionRecords = await db.MetadataRecords.AsNoTracking().Where(r => companionIds.Contains(r.Id))
             .Select(r => new CompanionRecord(r.Id, r.ExternalId, r.ExtraJson, r.LatestChapter, r.OriginVolumes))
             .ToDictionaryAsync(r => r.Id, ct);
+        // 1.45.0: MangaDex's latest uploaded chapter of each companion, as the sweep stored it.
+        var latestUploads = await db.MangaDexLatestUploads.AsNoTracking().Where(u => companionIds.Contains(u.RecordId))
+            .ToDictionaryAsync(u => u.RecordId, ct);
         var aniListByMu = await AniListByMangaUpdatesIdAsync(ct);
         var maps = (await db.SeriesVolumeMaps.AsNoTracking().Where(m => recordIds.Contains(m.RecordId)).ToListAsync(ct)).ToLookup(m => m.RecordId);
         var wikipedia = await db.WikipediaLists.AsNoTracking().Where(w => recordIds.Contains(w.RecordId))
@@ -116,6 +119,9 @@ public sealed class ExportItemBuilder(MangaPixerDbContext db)
                         ? new ExportAniListDto { Id = alId, Chapters = WholeOrNull(aniList.LatestChapter), Volumes = aniList.OriginVolumes }
                         : null,
                     MangadexReleased = record is null || !isSeries ? null : MangaDexReleased(maps[record.Id]),
+                    MangadexLatestUpload = mangadex is not null && latestUploads.TryGetValue(mangadex.Id, out var upload)
+                        ? new ExportMangaDexLatestUploadDto { ChapterId = upload.ChapterId, FetchedAt = ExportJson.Truncate(upload.SeenAt) }
+                        : null,
                 },
                 OfficialLinks = OfficialLinks(mangadex?.ExtraJson),
                 // 1.42.0: plus the volumes the Volumes view estimates for this folder (its own progress grouping), flagged as estimated.
