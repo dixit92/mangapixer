@@ -224,6 +224,20 @@ describe('AdminComponent directory browser row', () => {
     expect(cancelScan).toHaveBeenCalledTimes(2);
   });
 
+  it('1.45.0: a library that starts scanning between two polls gets its run, so Cancel scan and Cancel all work for it', () => {
+    const { fixture, apiSpy } = setup({ name: 'x', path: '/library-root/x', hasChildren: false });
+    const getScanHistory = vi.fn((id: string) => of([{ id: `run-${id}`, status: 'running' }]));
+    Object.assign(apiSpy, { getLibrary: vi.fn((id: string) => of({ id, name: id, scanSchedule: 'Daily' } as unknown as LibraryDto)), getScanHistory });
+    const c = fixture.componentInstance;
+    c.libraries.set([{ id: 'l1', name: 'Shelf', itemCount: 3, isScanning: false } as unknown as LibraryDto]);
+    apiSpy.getAllLibraries.mockReturnValue(of([{ id: 'l1', name: 'Shelf', itemCount: 3, isScanning: true } as unknown as LibraryDto]));
+    (c as unknown as { refreshLibraries(): void }).refreshLibraries();
+    fixture.detectChanges();
+    expect(getScanHistory).toHaveBeenCalledWith('l1');
+    expect(c.scanRunId('l1')).toBe('run-l1');
+    (c as unknown as { stopPolling(): void }).stopPolling();
+  });
+
   it('1.45.0: the "Scan all libraries" tooltip opens above the button (below, it covered the first library\'s name)', () => {
     const { fixture, apiSpy } = setup({ name: 'x', path: '/library-root/x', hasChildren: false });
     Object.assign(apiSpy, { getLibrary: vi.fn((id: string) => of({ id, name: id, scanSchedule: 'Daily' } as unknown as LibraryDto)) });

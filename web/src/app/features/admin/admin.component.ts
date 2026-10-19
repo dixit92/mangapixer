@@ -1133,6 +1133,11 @@ export class AdminComponent implements OnInit, OnDestroy {
           this.libraries().filter(l => l.isScanning).map(l => l.id),
         );
         this.libraries.set(libs);
+        // 1.45.0: a library that started scanning since the last poll (a schedule, a token, another tab) gets its run id too, so its
+        // Cancel scan and Cancel all work.
+        for (const lib of libs) {
+          if (lib.isScanning && !previouslyScanning.has(lib.id) && !this.runningScans().get(lib.id)) this.backfillScanRunId(lib.id);
+        }
         // Detect scans that just finished to clear their running state + notify.
         for (const id of previouslyScanning) {
           const now = libs.find(l => l.id === id);
