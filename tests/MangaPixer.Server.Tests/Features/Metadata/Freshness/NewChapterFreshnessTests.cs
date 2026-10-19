@@ -58,7 +58,8 @@ public sealed class NewChapterFreshnessTests : IAsyncLifetime
     private HttpResponseMessage? Route(HttpRequestMessage request)
     {
         var uri = request.RequestUri!;
-        if (uri.Host == MetadataHttp.MangaDexApiHost && uri.AbsolutePath == "/manga" && uri.Query.Contains("ids%5B%5D=", StringComparison.Ordinal))
+        if (uri.Host == MetadataHttp.MangaDexApiHost && uri.AbsolutePath == "/manga"
+            && Uri.UnescapeDataString(uri.Query).Contains("ids[]=", StringComparison.Ordinal))
         {
             var ids = Uri.UnescapeDataString(uri.Query).TrimStart('?').Split('&').Where(p => p.StartsWith("ids[]=", StringComparison.Ordinal))
                 .Select(p => p["ids[]=".Length..]).ToList();
@@ -350,7 +351,7 @@ public sealed class NewChapterFreshnessTests : IAsyncLifetime
         }
         var result = await Sweep().RunAsync();
         Assert.Equal((2, 101, null), (result!.Requests, result.Records, result.StoppedCode));
-        Assert.Equal([100, 1], SweepRequests().Select(u => u.Query.Split("ids%5B%5D=").Length - 1));
+        Assert.Equal([100, 1], SweepRequests().Select(u => Uri.UnescapeDataString(u.Query).Split("ids[]=").Length - 1));
     }
 
     // --- The export contract (MangaList's shared chapter signal) ---
