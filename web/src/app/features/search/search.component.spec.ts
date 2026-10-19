@@ -443,6 +443,19 @@ describe('SearchComponent read state, filter, Load more and URL (1.45.0)', () =>
     expect(fixture.componentInstance.results().map((n) => n.id)).toEqual(['a2']);
   });
 
+  it('keeps the selected chip selected when it is clicked again, without a new search', () => {
+    setup(page([makeNode({ id: 'a1' })], 1, null));
+    type('alpha');
+    const calls = search.mock.calls.length;
+
+    chip('All').click();
+    fixture.detectChanges();
+
+    expect(search.mock.calls.length).toBe(calls);
+    expect(chip('All').getAttribute('aria-selected')).toBe('true');
+    expect(fixture.componentInstance.params().read).toBe('all');
+  });
+
   it('says "No results with this filter." when a filter leaves nothing, and keeps the chips to switch back', () => {
     setup(page([makeNode({ id: 'a1' })], 1, null), page([], 0, null));
     type('alpha');

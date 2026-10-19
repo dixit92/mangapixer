@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -8,7 +8,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatChipsModule } from '@angular/material/chips';
+import { MatChipListbox, MatChipsModule } from '@angular/material/chips';
 
 import { ApiService } from '../../core/api/api.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
@@ -78,10 +78,10 @@ function sameParams(a: SearchParams, b: SearchParams): boolean {
     <!-- Read-state filter (1.45.0): the browse Show filter's choices as one chip row over the results, applied on the server before
          paging (the count and "Load more" stay right). Shown once there is search text, so a filter with no hits can be switched back. -->
     @if (params().q.trim()) {
-      <mat-chip-listbox class="read-filter" aria-label="Show" [value]="params().read" (change)="setReadFilter($event.value)"
+      <mat-chip-listbox class="read-filter" aria-label="Show" [value]="params().read" (change)="onReadChip($event.value)"
                         hideSingleSelectionIndicator>
         @for (opt of readOptions; track opt.value) {
-          <mat-chip-option [value]="opt.value" [selectable]="params().read !== opt.value">{{ opt.label }}</mat-chip-option>
+          <mat-chip-option [value]="opt.value">{{ opt.label }}</mat-chip-option>
         }
       </mat-chip-listbox>
     }
@@ -231,6 +231,7 @@ export class SearchComponent {
   /** Per-user opt-in (1.21.0): show the favorite star + boost favorited results to top. */
   readonly prominence = signal(false);
 
+  private readonly readFilterBox = viewChild(MatChipListbox);
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
   private nextCursor: string | null = null;
   /** Series-match anchors of the current search: a normal hit that is one shows only in "Series matches", on every page. */
@@ -273,11 +274,23 @@ export class SearchComponent {
     }, 300);
   }
 
-  /** A filter chip (1.45.0). Re-clicking the selected chip changes nothing (it is not deselectable). */
-  setReadFilter(read: LibraryReadStateFilter | null | undefined): void {
-    const value = read ?? 'all';
-    if (value === this.params().read) return;
-    this.params.update((p) => ({ ...p, read: value }));
+  /**
+   * A filter chip was clicked (1.45.0). Clicking the selected chip again would leave the row with no choice: it is selected again
+   * instead (one choice is always shown - and announced - as selected).
+   */
+  onReadChip(value: LibraryReadStateFilter | null | undefined): void {
+    if (value == null) {
+      const box = this.readFilterBox();
+      if (box) box.value = this.params().read;
+      return;
+    }
+    this.setReadFilter(value);
+  }
+
+  /** Sets the read-state filter and runs the search again from its first page. */
+  setReadFilter(read: LibraryReadStateFilter): void {
+    if (read === this.params().read) return;
+    this.params.update((p) => ({ ...p, read }));
     this.writeUrl();
     this.runSearch();
   }
