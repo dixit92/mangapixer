@@ -2865,6 +2865,26 @@ export interface RefreshCadenceDto {
   usedToday: number;
   overdue: number;
   byDays: RefreshCadenceCountDto[];
+  /** "Check for new chapters every N hours" - the MangaDex latest-upload sweep, 1-6 (1.45.0). */
+  newChapterCheckHours?: number;
+  allowedNewChapterCheckHours?: number[];
+  /** The last new-chapter checks (1.45.0), or null before the first. */
+  newChapters?: NewChapterChecksDto | null;
+}
+
+/** The last runs of the new-chapter checks (1.45.0): times and counts only. */
+export interface NewChapterChecksDto {
+  sweepAt?: string | null;
+  /** `ok`, or why the last sweep stopped (`budget_exhausted`, `provider_backoff`, ...). */
+  sweepOutcome?: string | null;
+  sweepRecords?: number;
+  sweepChanged?: number;
+  sweepRequests?: number;
+  feedAt?: string | null;
+  feedOutcome?: string | null;
+  feedMatched?: number;
+  feedRequests?: number;
+  duePassAt?: string | null;
 }
 
 export interface RefreshCadenceCountDto {
@@ -2883,12 +2903,14 @@ export interface UpdateRefreshCadenceRequest {
   finishedDays?: number | null;
   followPace?: boolean | null;
   paceSource?: RefreshPaceSource | null;
+  /** 1-6 (1.45.0). */
+  newChapterCheckHours?: number | null;
 }
 
 /** GET /admin/jobs/metadata-refresh/series/{nodeId}: one linked series' refresh cadence (admin only). */
 export interface SeriesRefreshCadenceDto {
   days: number;
-  reason: 'finished' | 'choice' | 'pace' | 'paused' | 'pace_unknown';
+  reason: 'finished' | 'choice' | 'pace' | 'paused' | 'pace_unknown' | 'reading';
   volumeIntervalDays?: number | null;
   /** Days between two new chapters, when the chapter pace was read (1.35.0). */
   chapterIntervalDays?: number | null;
@@ -2930,6 +2952,8 @@ export interface ExportLibraryRefDto {
 export interface ExportMetadataPageDto {
   schemaVersion: number;
   serverTime: string;
+  /** 1.45.0: the library's new-chapter confirmation times (the same on every page). */
+  sweeps: ExportSweepsDto;
   library: ExportLibraryRefDto;
   items: ExportItemDto[];
   removed: ExportRemovalDto[];
@@ -3017,6 +3041,19 @@ export interface ExportCompanionsDto {
   mangadex?: string | null;
   anilist?: ExportAniListDto | null;
   mangadexReleased?: ExportMangaDexReleasedDto | null;
+  /** 1.45.0: MangaDex's latest uploaded chapter (left out when never read). */
+  mangadexLatestUpload?: ExportMangaDexLatestUploadDto | null;
+}
+
+/** 1.45.0: changes only when `chapterId` changes; `fetchedAt` = when that value was first read. */
+export interface ExportMangaDexLatestUploadDto {
+  chapterId: string | null;
+  fetchedAt: string;
+}
+
+/** 1.45.0: the start of the last latest-upload sweep that completed for every MangaDex companion of the library. */
+export interface ExportSweepsDto {
+  mangadexLatestUpload?: string | null;
 }
 
 export interface ExportMangaDexReleasedDto {
