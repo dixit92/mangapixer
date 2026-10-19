@@ -514,11 +514,14 @@ describe('SearchComponent opened from a URL (1.45.0)', () => {
     await TestBed.inject(Router).navigateByUrl('/?q=Alpha&read=unread');
     const fixture = TestBed.createComponent(SearchComponent);
     fixture.detectChanges();
+    // The listbox applies its value to the chips once they are created (after the results arrived).
+    await fixture.whenStable();
+    fixture.detectChanges();
 
     expect(search).toHaveBeenCalledTimes(1);
     expect(search).toHaveBeenCalledWith('Alpha', { readState: 'unread' });
     expect(fixture.componentInstance.query).toBe('Alpha');
-    const selected = (fixture.nativeElement as HTMLElement).querySelector('.read-filter button[role="option"][aria-selected="true"]');
+    const selected = (fixture.nativeElement as HTMLElement).querySelector('.read-filter mat-chip-option.mat-mdc-chip-selected');
     expect(selected?.textContent?.trim()).toBe('Unread');
   });
 });
