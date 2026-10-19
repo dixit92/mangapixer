@@ -37,10 +37,10 @@ public sealed class LatestUploadSweep(
     MangaPixerDbContext db, MetadataGateway gateway, IMangaDexProvider mangaDex, MetadataAutoMatchService autoMatch, TimeProvider time,
     ILogger<LatestUploadSweep> logger)
 {
-    /// <summary>One MangaDex record to read: its stored id and MangaDex id, and the libraries whose linked series use it.</summary>
     /// <summary>
-    /// <paramref name="MangaUpdatesLinked"/>: a series linked to a MangaUpdates record uses it (the MangaUpdates path covers the series
-    /// when MangaDex leaves the record out); false = linked only to MangaDex.
+    /// One MangaDex record to read: its stored id and MangaDex id, the libraries whose linked series use it, and whether a series linked
+    /// to a MangaUpdates record uses it (<paramref name="MangaUpdatesLinked"/> - the MangaUpdates path covers that series when MangaDex
+    /// leaves the record out; false = linked only to MangaDex).
     /// </summary>
     internal sealed record Target(long RecordId, string MangaId, IReadOnlyList<long> Libraries, bool MangaUpdatesLinked = false);
 
