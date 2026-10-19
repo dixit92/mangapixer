@@ -925,7 +925,16 @@ test.describe('tracking UX review fixes (1.43.0)', () => {
     await expect(pop).toBeVisible();
     await expect(pop).toHaveAttribute('role', 'dialog');
     await expect(pop).toHaveAccessibleName('Tracking for this series');
-    await expect(pop.getByTestId('series-tracking-open-mal')).toBeFocused();
+    // 1.45.0 (UX review #16): the dialog itself takes the focus; Tab then reaches its controls in the order they are shown, the
+    // tracker-site link first and "Open in Tracking" last (it was the start, with the link before it only after wrapping round).
+    await expect(pop).toBeFocused();
+    const order = await pop.evaluate((p) => [...p.querySelectorAll<HTMLElement>('a[href], button:not([disabled])')]
+      .map((e) => e.getAttribute('data-testid')));
+    expect(order.at(-1)).toBe('series-tracking-open-mal');
+    for (const id of order) {
+      await page.keyboard.press('Tab');
+      expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).toBe(id);
+    }
     const inside = () => page.evaluate(() => !!document.activeElement?.closest('[data-testid="series-tracking-popover"]'));
     for (const key of ['Tab', 'Tab', 'Shift+Tab', 'Shift+Tab', 'Shift+Tab']) {
       await page.keyboard.press(key);

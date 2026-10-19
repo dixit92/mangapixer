@@ -201,6 +201,32 @@ describe('ReviewRowComponent', () => {
     expect(plain.el.querySelector('[data-testid="review-link"]')!.textContent).toContain('Synthetic Comic');
   });
 
+  it('1.45.0 (UX review #13): every candidate keeps the site icon\'s slot before its score; a press on the icon never reaches the list', () => {
+    const base = reviewItem();
+    const [first, second] = base.candidates!;
+    const { el, all } = create(reviewItem({ candidates: [
+      { ...first, provider: 'mangaupdates', externalId: '42' },
+      { ...second, provider: 'gcd', externalId: '7' },
+    ] }));
+    const bodies = all('[data-testid="review-candidate"] .cand-body');
+    expect(bodies).toHaveLength(2);
+    for (const body of bodies) {
+      const kids = [...body.children].map((k) => k.className.split(' ')[0]);
+      // The slot is there with or without a link, right after the text and before the score.
+      expect(kids.indexOf('cand-site-slot')).toBe(kids.indexOf('cand-text') + 1);
+      expect(kids.indexOf('cand-site-slot')).toBeLessThan(kids.indexOf('score'));
+    }
+    expect(bodies[0].querySelector('[data-testid="review-candidate-site"]')).not.toBeNull();
+    expect(bodies[1].querySelector('[data-testid="review-candidate-site"]')).toBeNull();
+
+    const reached: string[] = [];
+    el.addEventListener('pointerdown', () => reached.push('row'));
+    bodies[0].querySelector('[data-testid="review-candidate-site"]')!.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(reached).toEqual([]);
+    bodies[1].dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(reached).toEqual(['row']);
+  });
+
   it('shows the current link on the Auto-linked tab and hides inline actions on phone', () => {
     const item = reviewItem({ candidates: [], link: { state: 'Auto', title: 'Synthetic Saga', matchScore: 0.95,
       updatedAt: '2026-09-24T00:00:00Z', imageUrl: '/api/v1/metadata/images/x' } });

@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { MatTooltip, MatTooltipModule } from '@angular/material/tooltip';
 
 import { VolumeStackSummaryDto } from '../../core/api/api-types';
 import { DUPLICATE_TIP, duplicateListText, duplicatesLabel } from '../duplicate-units';
@@ -12,17 +13,23 @@ import { DUPLICATE_TIP, duplicateListText, duplicatesLabel } from '../duplicate-
  * 1.31.0: the same chapter in more than one file of the volume (uploaded twice) gets a second chip, "2 duplicates" - below the
  * mark, or alone when nothing is missing; the "8/10" itself counts each chapter once. The chip is in this component so every
  * place a stack card is drawn (browse card, list row) shows it without a template change.
+ * 1.45.0 (UX review #12): the explanation is a tooltip (hover / focus) instead of a `title` only, and on a touch screen a tap on the
+ * badge itself shows it for a few seconds instead of opening the volume (outside select mode; a tap anywhere else opens it as before).
  */
 @Component({
   selector: 'app-volume-incomplete-badge',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [MatTooltipModule],
   template: `
     @if (shown()) {
-      <span class="incomplete" [class.moved]="moved()" [attr.aria-label]="label()" [title]="label()" data-testid="stack-incomplete">{{ compact() ? have() + '/' + total() : have() + ' of ' + total() + ' ch' }}</span>
+      <span class="incomplete" [class.moved]="moved()" [attr.aria-label]="label()" [matTooltip]="label()" matTooltipTouchGestures="off"
+            #tip="matTooltip" (pointerdown)="pressed($event)" (click)="tapped($event, tip)"
+            data-testid="stack-incomplete">{{ compact() ? have() + '/' + total() : have() + ' of ' + total() + ' ch' }}</span>
     }
     @if (dupCount() > 0) {
-      <span class="dup" [class.below]="shown()" [class.moved]="moved()" [attr.aria-label]="dupTitle()" [title]="dupTitle()"
+      <span class="dup" [class.below]="shown()" [class.moved]="moved()" [attr.aria-label]="dupTitle()" [matTooltip]="dupTitle()"
+            matTooltipTouchGestures="off" #dupTip="matTooltip" (pointerdown)="pressed($event)" (click)="tapped($event, dupTip)"
             data-testid="stack-duplicates">{{ dupCount() }} duplicate{{ dupCount() === 1 ? '' : 's' }}</span>
     }
   `,
@@ -68,4 +75,26 @@ export class VolumeIncompleteBadgeComponent {
   });
   readonly dupCount = computed(() => this.summary().duplicates?.length ?? 0);
   readonly dupTitle = computed(() => `${duplicatesLabel(this.summary().duplicates)}: ${duplicateListText(this.summary().duplicates)}. ${DUPLICATE_TIP}`);
+
+  /** How long a tapped badge's explanation stays up on a touch screen. */
+  static readonly TAP_TIP_MS = 4000;
+  private lastPointer = '';
+
+  pressed(event: PointerEvent): void {
+    this.lastPointer = event.pointerType ?? '';
+  }
+
+  /**
+   * A touch tap on the badge explains it (the tooltip, for a few seconds) instead of opening the volume. A mouse click, and any tap
+   * while selecting (the card toggles then), go on to the card as before.
+   */
+  tapped(event: Event, tip: MatTooltip): void {
+    const touch = this.lastPointer === 'touch' || this.lastPointer === 'pen';
+    this.lastPointer = '';
+    if (!touch || this.moved()) return;
+    event.preventDefault();
+    event.stopPropagation();
+    tip.show(0);
+    tip.hide(VolumeIncompleteBadgeComponent.TAP_TIP_MS);
+  }
 }

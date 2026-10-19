@@ -538,7 +538,20 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
         </div>
         }
       } @empty {
-        <p class="empty">This folder is empty.</p>
+        <!-- 1.45.0 (UX review #6): a filter that leaves nothing says so, with the way back - never "This folder is empty". -->
+        @if (!loadingMore() && completionApplies()) {
+          <div class="empty" data-testid="browse-empty-filtered">
+            <p>No series here match "{{ completionText() }}".</p>
+            <button mat-stroked-button type="button" (click)="setCompletionFilter(null)" data-testid="browse-empty-any">Show any</button>
+          </div>
+        } @else if (!loadingMore() && filterActive()) {
+          <div class="empty" data-testid="browse-empty-filtered">
+            <p>Nothing here matches the filter.</p>
+            <button mat-stroked-button type="button" (click)="clearFilters()" data-testid="browse-empty-clear">Clear filter</button>
+          </div>
+        } @else {
+          <p class="empty">This folder is empty.</p>
+        }
       }
     </div>
 
@@ -698,6 +711,7 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     }
     .node-sub { font-size: 12px; color: var(--mp-text-muted); }
     .empty { color: var(--mp-text-muted); padding: 32px; text-align: center; }
+    .empty p { margin: 0 0 12px; }
     .scroll-sentinel { min-height: 40px; text-align: center; color: var(--mp-text-muted); font-size: 12px; }
     /* --- PHONE breakpoint only (1.10.0, F3; folded into one media query - was three
        separate @media blocks). Desktop + iPad (>=561px) are untouched: every rule
@@ -1522,6 +1536,30 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     if (this.completionFilter() === answer) return;
     this.completionFilter.set(answer);
     if (answer === null) this.completionCounts.set(null);
+    this.resetList();
+    this.loadNodes();
+    if (this.shouldShowJumpRail()) this.loadJumpIndex(this.libraryId());
+    else this.jumpBuckets.set([]);
+    this.scrollToTop('auto');
+  }
+
+  /** 1.45.0: the chosen Completion answer's name, for the empty filtered list. */
+  completionText(): string {
+    const answer = this.completionFilter();
+    return answer ? completionLabel(answer) : '';
+  }
+
+  /** 1.45.0 (UX review #6): every filter back to its default in one reload (the empty filtered list's button). */
+  clearFilters(): void {
+    if (!this.filterActive()) return;
+    this.readStateFilter.set('all');
+    this.hideEmptyFolders.set(false);
+    if (this.favoritesOnly()) {
+      this.favoritesOnly.set(false);
+      this.dropFavoritesQueryParam();
+    }
+    this.completionFilter.set(null);
+    this.completionCounts.set(null);
     this.resetList();
     this.loadNodes();
     if (this.shouldShowJumpRail()) this.loadJumpIndex(this.libraryId());

@@ -25,15 +25,27 @@ import { daysLabel, plural, waitingLabel } from '../metadata-admin-labels';
       @if (loading()) {
         <mat-spinner diameter="20" />
       } @else if (estimate(); as e) {
-        <p class="figures" data-testid="match-estimate">
-          <strong>{{ plural(e.candidates, 'folder') }}</strong> to match ·
-          about {{ plural(e.estimatedRequests, 'request') }} ·
-          {{ days(e.estimatedDays) }} at {{ e.dailyBudget.toLocaleString('en-US') }} a day ·
-          {{ e.alreadyLinked.toLocaleString('en-US') }} already linked
-          @if (e.unmatched) { · {{ e.unmatched.toLocaleString('en-US') }} unmatched }
-        </p>
-        <p class="note">Today {{ e.budgetUsedToday.toLocaleString('en-US') }} of {{ e.dailyBudget.toLocaleString('en-US') }} requests are used.
-          The requests come out of the one daily budget; Identify waits too once it is spent.</p>
+        @if (e.candidates === 0) {
+          <!-- 1.45.0 (owner wording, 2026-10-19): say why Start is greyed instead of "0 folders to match". Folders that found no match
+               before are not "decided" - while they are left out, the line says so and points at the retry box. -->
+          <p class="figures" id="match-nothing-{{ libraryId() }}" data-testid="match-nothing">
+            @if (e.unmatched && !retryUnmatched()) {
+              Nothing new to match - {{ plural(e.unmatched, 'folder') }} found no match before; "Also retry" below tries them again
+            } @else {
+              Nothing to match - every folder is linked or decided
+            }
+          </p>
+        } @else {
+          <p class="figures" data-testid="match-estimate">
+            <strong>{{ plural(e.candidates, 'folder') }}</strong> to match ·
+            about {{ plural(e.estimatedRequests, 'request') }} ·
+            {{ days(e.estimatedDays) }} at {{ e.dailyBudget.toLocaleString('en-US') }} a day ·
+            {{ e.alreadyLinked.toLocaleString('en-US') }} already linked
+            @if (e.unmatched) { · {{ e.unmatched.toLocaleString('en-US') }} unmatched }
+          </p>
+          <p class="note">Today {{ e.budgetUsedToday.toLocaleString('en-US') }} of {{ e.dailyBudget.toLocaleString('en-US') }} requests are used.
+            The requests come out of the one daily budget; Identify waits too once it is spent.</p>
+        }
         <mat-checkbox [checked]="retryUnmatched()" (change)="setRetry($event.checked)" data-testid="match-retry">
           Also retry folders that found no match before
         </mat-checkbox>
@@ -47,6 +59,7 @@ import { daysLabel, plural, waitingLabel } from '../metadata-admin-labels';
         }
         <div class="actions">
           <button mat-flat-button type="button" [disabled]="starting() || !e.automaticAvailable || e.candidates === 0"
+                  [attr.aria-describedby]="e.candidates === 0 ? 'match-nothing-' + libraryId() : null"
                   (click)="start()" data-testid="match-start">Start matching</button>
           <button mat-button type="button" (click)="closed.emit()">Cancel</button>
         </div>
