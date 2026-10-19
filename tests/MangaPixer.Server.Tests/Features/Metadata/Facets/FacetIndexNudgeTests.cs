@@ -84,7 +84,11 @@ public sealed class FacetIndexNudgeTests : IDisposable
         db.CatalogNodes.Add(Folder(library.Id, folderPublicId, "Series"));
         db.MetadataRecords.Add(new MetadataRecordEntity
         {
-            PublicId = "fnrec1", Provider = "mangaupdates", ExternalId = "424242", Title = "Synthetic Web Title", FetchedAt = DateTimeOffset.UtcNow,
+            PublicId = "fnrec1",
+            Provider = "mangaupdates",
+            ExternalId = "424242",
+            Title = "Synthetic Web Title",
+            FetchedAt = DateTimeOffset.UtcNow,
         });
         await db.SaveChangesAsync();
         return library.Id;

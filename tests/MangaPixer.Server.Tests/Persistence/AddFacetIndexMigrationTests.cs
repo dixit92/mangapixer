@@ -64,29 +64,54 @@ public sealed class AddFacetIndexMigrationTests : IDisposable
             // Rows in the 1.44.0 shape (columns a later migration adds are skipped by the seed).
             await LegacySchemaSeed.InsertAsync(db, new LibraryEntity
             {
-                Id = 1, PublicId = "lib1", DisplayName = "Lib", RootPath = "/synthetic/lib", CaseComparisonPolicy = "ordinal", State = "active",
-                CatalogRevision = 4, CreatedAt = DateTimeOffset.UnixEpoch,
+                Id = 1,
+                PublicId = "lib1",
+                DisplayName = "Lib",
+                RootPath = "/synthetic/lib",
+                CaseComparisonPolicy = "ordinal",
+                State = "active",
+                CatalogRevision = 4,
+                CreatedAt = DateTimeOffset.UnixEpoch,
             });
             await LegacySchemaSeed.InsertAsync(db, Folder(7, 1, null, "Shelf"));
             await LegacySchemaSeed.InsertAsync(db, Folder(8, 1, 7, "Series"));
             await LegacySchemaSeed.InsertAsync(db, new MetadataRecordEntity
             {
-                Id = 30, PublicId = "rec30", Provider = "mangaupdates", ExternalId = "424242", Title = "Synthetic Web Title",
+                Id = 30,
+                PublicId = "rec30",
+                Provider = "mangaupdates",
+                ExternalId = "424242",
+                Title = "Synthetic Web Title",
                 FetchedAt = DateTimeOffset.UnixEpoch,
             });
             await LegacySchemaSeed.InsertAsync(db, new NodeSeriesLinkEntity
             {
-                NodeId = 8, LibraryId = 1, State = 1, RecordId = 30, CreatedAt = DateTimeOffset.UnixEpoch, UpdatedAt = DateTimeOffset.UnixEpoch,
+                NodeId = 8,
+                LibraryId = 1,
+                State = 1,
+                RecordId = 30,
+                CreatedAt = DateTimeOffset.UnixEpoch,
+                UpdatedAt = DateTimeOffset.UnixEpoch,
             });
             await LegacySchemaSeed.InsertAsync(db, new DeclaredFactEntity
             {
-                LibraryId = 1, NodeId = 8, Key = "creator", Value = "Synthetic Artist", Role = "artist", Position = 0,
-                CreatedAt = DateTimeOffset.UnixEpoch, UpdatedAt = DateTimeOffset.UnixEpoch,
+                LibraryId = 1,
+                NodeId = 8,
+                Key = "creator",
+                Value = "Synthetic Artist",
+                Role = "artist",
+                Position = 0,
+                CreatedAt = DateTimeOffset.UnixEpoch,
+                UpdatedAt = DateTimeOffset.UnixEpoch,
             });
             await LegacySchemaSeed.InsertAsync(db, new MetadataAuthorEntity
             {
-                Provider = "mangaupdates", ExternalId = "9001", Name = "Synthetic Artist", OtherNamesJson = "[\"S. Artist\"]",
-                FetchedAt = DateTimeOffset.UnixEpoch, Status = 0,
+                Provider = "mangaupdates",
+                ExternalId = "9001",
+                Name = "Synthetic Artist",
+                OtherNamesJson = "[\"S. Artist\"]",
+                FetchedAt = DateTimeOffset.UnixEpoch,
+                Status = 0,
             });
         }
 
@@ -125,8 +150,11 @@ public sealed class AddFacetIndexMigrationTests : IDisposable
 
             var creator = new CreatorEntity
             {
-                PublicId = FacetPublicIds.NewCreatorId(), DisplayName = "Synthetic Artist", DisplayNameSource = (int)CreatorDisplayNameSource.Provider,
-                CreatedAt = DateTimeOffset.UnixEpoch, UpdatedAt = DateTimeOffset.UnixEpoch,
+                PublicId = FacetPublicIds.NewCreatorId(),
+                DisplayName = "Synthetic Artist",
+                DisplayNameSource = (int)CreatorDisplayNameSource.Provider,
+                CreatedAt = DateTimeOffset.UnixEpoch,
+                UpdatedAt = DateTimeOffset.UnixEpoch,
             };
             db.Creators.Add(creator);
             await db.SaveChangesAsync();
@@ -136,21 +164,35 @@ public sealed class AddFacetIndexMigrationTests : IDisposable
             db.CreatorProviderIds.Add(new CreatorProviderIdEntity { CreatorId = creator.Id, Provider = "mangaupdates", ExternalId = "9001" });
             db.CreatorOverrides.Add(new CreatorOverrideEntity
             {
-                Kind = (int)CreatorOverrideKind.DisplayName, Subject = "mangaupdates:9001", TargetCreatorId = creator.Id, Value = "S. Artist",
+                Kind = (int)CreatorOverrideKind.DisplayName,
+                Subject = "mangaupdates:9001",
+                TargetCreatorId = creator.Id,
+                Value = "S. Artist",
                 CreatedAt = DateTimeOffset.UnixEpoch,
             });
             var work = new FacetWorkEntity
             {
-                WorkKey = FacetWorkKey.Record(30), Kind = (int)FacetWorkKind.Record, RecordId = 30, Title = "Synthetic Web Title",
-                SortKey = "synthetic web title", UpdatedAt = DateTimeOffset.UnixEpoch,
+                WorkKey = FacetWorkKey.Record(30),
+                Kind = (int)FacetWorkKind.Record,
+                RecordId = 30,
+                Title = "Synthetic Web Title",
+                SortKey = "synthetic web title",
+                UpdatedAt = DateTimeOffset.UnixEpoch,
             };
             var nodeWork = new FacetWorkEntity
             {
-                WorkKey = FacetWorkKey.Node(7), Kind = (int)FacetWorkKind.Node, Title = "Shelf", SortKey = "shelf", UpdatedAt = DateTimeOffset.UnixEpoch,
+                WorkKey = FacetWorkKey.Node(7),
+                Kind = (int)FacetWorkKind.Node,
+                Title = "Shelf",
+                SortKey = "shelf",
+                UpdatedAt = DateTimeOffset.UnixEpoch,
             };
             var value = new FacetValueEntity
             {
-                PublicId = FacetPublicIds.NewValueId(), Bucket = (int)FacetBucket.Creators, ValueKey = "c:" + creator.Id, Display = "S. Artist",
+                PublicId = FacetPublicIds.NewValueId(),
+                Bucket = (int)FacetBucket.Creators,
+                ValueKey = "c:" + creator.Id,
+                Display = "S. Artist",
                 CreatorId = creator.Id,
             };
             var genre = new FacetValueEntity { PublicId = FacetPublicIds.NewValueId(), Bucket = (int)FacetBucket.Genres, ValueKey = "action", Display = "Action" };
@@ -159,14 +201,23 @@ public sealed class AddFacetIndexMigrationTests : IDisposable
             db.FacetEntries.AddRange(
                 new FacetEntryEntity
                 {
-                    WorkId = work.Id, LocationNodeId = 8, LibraryId = 1, ValueId = value.Id,
-                    Sources = (int)(FacetSources.Web | FacetSources.Declared), Roles = (int)FacetRoles.Artist,
+                    WorkId = work.Id,
+                    LocationNodeId = 8,
+                    LibraryId = 1,
+                    ValueId = value.Id,
+                    Sources = (int)(FacetSources.Web | FacetSources.Declared),
+                    Roles = (int)FacetRoles.Artist,
                 },
                 new FacetEntryEntity { WorkId = work.Id, LocationNodeId = 8, LibraryId = 1, ValueId = genre.Id, Sources = (int)FacetSources.Web },
                 new FacetEntryEntity { WorkId = nodeWork.Id, LocationNodeId = 7, LibraryId = 1, ValueId = genre.Id, Sources = (int)FacetSources.ComicInfo });
             db.FacetIndexLibraries.Add(new FacetIndexLibraryEntity
             {
-                LibraryId = 1, InputsKey = "k1", BuiltAt = DateTimeOffset.UnixEpoch, Works = 2, Entries = 3, ElapsedMs = 12,
+                LibraryId = 1,
+                InputsKey = "k1",
+                BuiltAt = DateTimeOffset.UnixEpoch,
+                Works = 2,
+                Entries = 3,
+                ElapsedMs = 12,
             });
             await db.SaveChangesAsync();
         }
@@ -186,7 +237,11 @@ public sealed class AddFacetIndexMigrationTests : IDisposable
             await AssertRejectedAsync(db, new CreatorProviderIdEntity { CreatorId = creator.Id, Provider = "mangaupdates", ExternalId = "9001" });
             await AssertRejectedAsync(db, new FacetWorkEntity
             {
-                WorkKey = FacetWorkKey.Record(30), Kind = 0, Title = "x", SortKey = "x", UpdatedAt = DateTimeOffset.UnixEpoch,
+                WorkKey = FacetWorkKey.Record(30),
+                Kind = 0,
+                Title = "x",
+                SortKey = "x",
+                UpdatedAt = DateTimeOffset.UnixEpoch,
             });
             await AssertRejectedAsync(db, new FacetValueEntity { PublicId = FacetPublicIds.NewValueId(), Bucket = (int)FacetBucket.Genres, ValueKey = "action", Display = "x" });
             var genreId = await db.FacetValues.Where(v => v.ValueKey == "action").Select(v => v.Id).SingleAsync();
