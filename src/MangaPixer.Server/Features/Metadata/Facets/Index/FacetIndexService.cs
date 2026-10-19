@@ -8,7 +8,6 @@ using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Core.Metadata.Facets;
-using com.lifepixer.mangapixer.Core.Ordering;
 using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Facets.Creators;
 using com.lifepixer.mangapixer.Server.Logging;
@@ -356,7 +355,7 @@ public sealed class FacetIndexService
             var title = FacetText.Display(work.Title) ?? work.Key;
             if (title.Length > FacetModel.TitleLength)
                 title = title[..FacetModel.TitleLength];
-            var sortKey = SortKey.ForNode(CatalogNodeKind.Folder, title);
+            var sortKey = Core.Ordering.SortKey.ForNode(CatalogNodeKind.Folder, title);
             if (existingWorks.TryGetValue(work.Key, out var row))
             {
                 workIds[work.Key] = row.Id;
