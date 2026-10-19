@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, viewChild } from '@angular/core';
 import { MatTooltip, MatTooltipModule } from '@angular/material/tooltip';
 
 import { VolumeStackSummaryDto } from '../../core/api/api-types';
@@ -21,15 +21,17 @@ import { DUPLICATE_TIP, duplicateListText, duplicatesLabel } from '../duplicate-
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [MatTooltipModule],
+  // The tap is caught on the host (the badges sit inside the card's link, so they are not focusable controls of their own).
+  host: { '(pointerdown)': 'pressed($event)', '(click)': 'tapped($event)' },
   template: `
     @if (shown()) {
       <span class="incomplete" [class.moved]="moved()" [attr.aria-label]="label()" [matTooltip]="label()" matTooltipTouchGestures="off"
-            #tip="matTooltip" (pointerdown)="pressed($event)" (click)="tapped($event, tip)"
+            #tip="matTooltip"
             data-testid="stack-incomplete">{{ compact() ? have() + '/' + total() : have() + ' of ' + total() + ' ch' }}</span>
     }
     @if (dupCount() > 0) {
       <span class="dup" [class.below]="shown()" [class.moved]="moved()" [attr.aria-label]="dupTitle()" [matTooltip]="dupTitle()"
-            matTooltipTouchGestures="off" #dupTip="matTooltip" (pointerdown)="pressed($event)" (click)="tapped($event, dupTip)"
+            matTooltipTouchGestures="off" #dupTip="matTooltip"
             data-testid="stack-duplicates">{{ dupCount() }} duplicate{{ dupCount() === 1 ? '' : 's' }}</span>
     }
   `,
@@ -79,6 +81,8 @@ export class VolumeIncompleteBadgeComponent {
   /** How long a tapped badge's explanation stays up on a touch screen. */
   static readonly TAP_TIP_MS = 4000;
   private lastPointer = '';
+  private readonly tip = viewChild('tip', { read: MatTooltip });
+  private readonly dupTip = viewChild('dupTip', { read: MatTooltip });
 
   pressed(event: PointerEvent): void {
     this.lastPointer = event.pointerType ?? '';
@@ -88,10 +92,12 @@ export class VolumeIncompleteBadgeComponent {
    * A touch tap on the badge explains it (the tooltip, for a few seconds) instead of opening the volume. A mouse click, and any tap
    * while selecting (the card toggles then), go on to the card as before.
    */
-  tapped(event: Event, tip: MatTooltip): void {
+  tapped(event: Event): void {
     const touch = this.lastPointer === 'touch' || this.lastPointer === 'pen';
     this.lastPointer = '';
-    if (!touch || this.moved()) return;
+    const badge = (event.target as Element | null)?.closest?.('.incomplete, .dup');
+    const tip = badge?.classList.contains('dup') ? this.dupTip() : badge ? this.tip() : undefined;
+    if (!touch || this.moved() || !tip) return;
     event.preventDefault();
     event.stopPropagation();
     tip.show(0);
