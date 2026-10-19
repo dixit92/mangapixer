@@ -48,6 +48,7 @@ public sealed class AuthorAliasLookupService
     private readonly MetadataBackoff _backoff;
     private readonly TimeProvider _time;
     private readonly ILogger<AuthorAliasLookupService> _logger;
+    private readonly Facets.IFacetIndexNudge _facetNudge;
 
     public AuthorAliasLookupService(
         MangaPixerDbContext db,
@@ -56,7 +57,8 @@ public sealed class AuthorAliasLookupService
         MetadataBudget budget,
         MetadataBackoff backoff,
         TimeProvider time,
-        ILogger<AuthorAliasLookupService> logger)
+        ILogger<AuthorAliasLookupService> logger,
+        Facets.IFacetIndexNudge? facetNudge = null)
     {
         _db = db;
         _gateway = gateway;
@@ -65,6 +67,7 @@ public sealed class AuthorAliasLookupService
         _backoff = backoff;
         _time = time;
         _logger = logger;
+        _facetNudge = facetNudge ?? Facets.NoFacetIndexNudge.Instance;
     }
 
     /// <summary>The eligible author ids and the ones a look-up would request now (stored data only, no request).</summary>
@@ -265,6 +268,8 @@ public sealed class AuthorAliasLookupService
             _logger.LogInformation(LogEvents.Metadata.AuthorLookupFinished,
                 "Author look-up {Outcome}: {Requests} request(s), {Stored} stored, {NotFound} not found, {Failed} failed of {Total} in {ElapsedMs} ms",
                 snapshot.Outcome, snapshot.Requests, snapshot.Stored, snapshot.NotFound, snapshot.Failed, snapshot.Total, watch.ElapsedMilliseconds);
+            if (snapshot.Stored > 0)
+                _facetNudge.AllChanged(Facets.FacetNudgeReason.AuthorAliasesStored);
         }
     }
 

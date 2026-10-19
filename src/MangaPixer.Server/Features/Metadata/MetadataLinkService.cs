@@ -5,6 +5,7 @@ using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Admin;
 using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
+using com.lifepixer.mangapixer.Server.Features.Metadata.Facets;
 using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
@@ -45,19 +46,22 @@ public sealed class MetadataLinkService
     private readonly IEnumerable<IMetadataRecordRemovedHandler> _removedHandlers;
     private readonly TimeProvider _time;
     private readonly ILogger<MetadataLinkService> _logger;
+    private readonly IFacetIndexNudge _facetNudge;
 
     public MetadataLinkService(
         MangaPixerDbContext db,
         AuditService audit,
         IEnumerable<IMetadataRecordRemovedHandler> removedHandlers,
         TimeProvider time,
-        ILogger<MetadataLinkService> logger)
+        ILogger<MetadataLinkService> logger,
+        IFacetIndexNudge? facetNudge = null)
     {
         _db = db;
         _audit = audit;
         _removedHandlers = removedHandlers;
         _time = time;
         _logger = logger;
+        _facetNudge = facetNudge ?? NoFacetIndexNudge.Instance;
     }
 
     /// <summary>Links a node (folder or archive) to an existing record, replacing any row it had.</summary>
@@ -97,6 +101,7 @@ public sealed class MetadataLinkService
         existing.UpdatedAt = now;
         existing.LaterAt = null; // Decided: no longer set aside for later.
         await _db.SaveChangesAsync(ct);
+        _facetNudge.LibraryChanged(node.LibraryId, FacetNudgeReason.LinkChanged);
         await AfterAdminChangeAsync(node.Id, before, SeriesLinkState.Confirmed, record.ExternalId, ct);
 
         if (previousRecordId is { } oldRecord && oldRecord != record.Id)
@@ -139,6 +144,7 @@ public sealed class MetadataLinkService
         existing.UpdatedAt = now;
         existing.LaterAt = null; // Decided: no longer set aside for later.
         await _db.SaveChangesAsync(ct);
+        _facetNudge.LibraryChanged(node.LibraryId, FacetNudgeReason.LinkChanged);
         await AfterAdminChangeAsync(node.Id, before, SeriesLinkState.DontMatch, null, ct);
 
         if (previousRecordId is { } oldRecord)
@@ -192,6 +198,7 @@ public sealed class MetadataLinkService
         existing.UpdatedAt = now;
         existing.LaterAt = null;
         await _db.SaveChangesAsync(ct);
+        _facetNudge.LibraryChanged(node.LibraryId, FacetNudgeReason.LinkChanged);
         await AfterAdminChangeAsync(node.Id, before, SeriesLinkState.CollectionAbout, record.ExternalId, ct);
 
         if (previousRecordId is { } oldRecord && oldRecord != record.Id)
@@ -241,6 +248,7 @@ public sealed class MetadataLinkService
         existing.UpdatedAt = now;
         existing.LaterAt = null;
         await _db.SaveChangesAsync(ct);
+        _facetNudge.LibraryChanged(node.LibraryId, FacetNudgeReason.LinkChanged);
         await AfterAdminChangeAsync(node.Id, before, SeriesLinkState.ArtistFolder, null, ct);
         await ForgetFinishedMatchWorkAsync(_db.MetadataMatchQueue.Where(q => q.NodeId == node.Id), ct);
 
@@ -287,6 +295,7 @@ public sealed class MetadataLinkService
         var recordId = existing.RecordId;
         _db.NodeSeriesLinks.Remove(existing);
         await _db.SaveChangesAsync(ct);
+        _facetNudge.LibraryChanged(node.LibraryId, FacetNudgeReason.LinkChanged);
         await AfterAdminChangeAsync(node.Id, before, null, null, ct);
         if (recordId is { } id)
             await DeleteOrphanRecordsAsync([id], ct);
@@ -418,6 +427,10 @@ public sealed class MetadataLinkService
             ? await _db.MetadataRecords.Select(r => r.Id).ToListAsync(ct)
             : candidateRecordIds;
         var recordsRemoved = await DeleteOrphanRecordsAsync(recordIds, ct);
+        if (libraryId is { } purged)
+            _facetNudge.LibraryChanged(purged, FacetNudgeReason.WebDataPurged);
+        else
+            _facetNudge.AllChanged(FacetNudgeReason.WebDataPurged);
 
         // 1.38.0: the stored author records (artists' other names) are fetched data too - all of them for a global purge, else the ones
         // no remaining stored record names.

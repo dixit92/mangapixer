@@ -33,6 +33,7 @@ public sealed class DeclaredFactsService
     private readonly ILogger<DeclaredFactsService> _logger;
     private readonly TimeProvider _time;
     private readonly IAuthorAliasSource _aliases;
+    private readonly Facets.IFacetIndexNudge _facetNudge;
 
     public DeclaredFactsService(
         MangaPixerDbContext db,
@@ -42,7 +43,8 @@ public sealed class DeclaredFactsService
         Providers.MetadataProviderRegistry providers,
         ILogger<DeclaredFactsService> logger,
         TimeProvider time,
-        IAuthorAliasSource aliases)
+        IAuthorAliasSource aliases,
+        Facets.IFacetIndexNudge? facetNudge = null)
     {
         _db = db;
         _audit = audit;
@@ -52,6 +54,7 @@ public sealed class DeclaredFactsService
         _logger = logger;
         _time = time;
         _aliases = aliases;
+        _facetNudge = facetNudge ?? Facets.NoFacetIndexNudge.Instance;
     }
 
     // --- Admin: one scope ---
@@ -337,6 +340,7 @@ public sealed class DeclaredFactsService
             return;
         _db.DeclaredFacts.RemoveRange(removed);
         await _db.SaveChangesAsync(ct);
+        _facetNudge.LibraryChanged(libraryId, Facets.FacetNudgeReason.DeclaredFactsChanged);
 
         var cleared = wanted.Count == 0;
         await _audit.RecordAsync(cleared ? AuditActions.DeclaredFactsClear : AuditActions.DeclaredFactsSet, AuditResults.Success, actor,
