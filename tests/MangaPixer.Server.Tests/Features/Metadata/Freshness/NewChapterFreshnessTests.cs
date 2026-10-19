@@ -371,20 +371,21 @@ public sealed class NewChapterFreshnessTests : IAsyncLifetime
         Assert.Equal(ChapterA1, block.GetProperty("chapterId").GetString());
         Assert.Equal(ExportJson.Format(sweptAt), block.GetProperty("fetchedAt").GetString());
         Assert.Equal(ExportJson.Format(sweptAt), full.GetProperty("sweeps").GetProperty("mangadexLatestUpload").GetString());
-        var since = full.GetProperty("serverTime").GetString()!;
 
-        // The same chapter id again (a later sweep): no item changed; only the envelope's confirmation moved.
+        // The same chapter id again (a later sweep): no item changed since; only the envelope's confirmation moved. (updatedSince is
+        // inclusive - a client passing the previous serverTime gets that rebuild's items again - so "since" is a moment after it.)
         _h.Time.Advance(TimeSpan.FromHours(6));
+        var since = ExportJson.Format(Now);
         var secondSweep = Now;
         await Sweep().RunAsync();
         _h.Time.Advance(TimeSpan.FromMinutes(1));
         var unchanged = await PageAsync(since);
         Assert.Empty(unchanged.GetProperty("items").EnumerateArray());
         Assert.Equal(ExportJson.Format(secondSweep), unchanged.GetProperty("sweeps").GetProperty("mangadexLatestUpload").GetString());
-        since = unchanged.GetProperty("serverTime").GetString()!;
 
         // A new chapter id: the item comes once, with the new value and when it was first seen.
         _h.Time.Advance(TimeSpan.FromHours(6));
+        since = ExportJson.Format(Now);
         _latest[MdA] = ChapterA2;
         var changedAt = Now;
         await Sweep().RunAsync();
@@ -395,7 +396,11 @@ public sealed class NewChapterFreshnessTests : IAsyncLifetime
         var newBlock = changedItem.GetProperty("companions").GetProperty("mangadexLatestUpload");
         Assert.Equal((ChapterA2, ExportJson.Format(changedAt)), (newBlock.GetProperty("chapterId").GetString(), newBlock.GetProperty("fetchedAt").GetString()));
         _h.Time.Advance(TimeSpan.FromMinutes(1));
-        Assert.Empty((await PageAsync(changed.GetProperty("serverTime").GetString())).GetProperty("items").EnumerateArray());
+        since = ExportJson.Format(Now);
+        _h.Time.Advance(TimeSpan.FromHours(6));
+        await Sweep().RunAsync();
+        _h.Time.Advance(TimeSpan.FromMinutes(1));
+        Assert.Empty((await PageAsync(since)).GetProperty("items").EnumerateArray()); // once: the next confirmation brings nothing
     }
 
     [Fact]
