@@ -7,6 +7,8 @@ import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { CatalogNodeDto, SeriesInfoDto } from '../../core/api/api-types';
 import { MetadataApiService } from './metadata-api.service';
+import { InfoApiService } from './info/info-api.service';
+import { panel } from './info/info.testing';
 import { MissingReportApiService } from './missing/missing-report-api.service';
 import { SeriesPageComponent } from './series-page.component';
 import { seriesInfo } from './series-info.testing';
@@ -38,6 +40,8 @@ describe('SeriesPageComponent', () => {
         { provide: MetadataApiService, useValue: metadata },
         { provide: ApiService, useValue: api },
         { provide: AuthService, useValue: { isAdmin: () => admin } },
+        // 1.45.0: the Tags block under the summary.
+        { provide: InfoApiService, useValue: { getInfo: vi.fn(() => of(panel())), getInfoBucket: vi.fn() } },
         { provide: MissingReportApiService, useValue: { forNodeViewer: vi.fn(() => throwError(() => ({ status: 404 }))) } },
         { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ nodeId })) } },
       ],
@@ -96,6 +100,12 @@ describe('SeriesPageComponent', () => {
     expect(link.getAttribute('href')).toBe('https://mangadex.org/title/synthetic');
     expect(link.getAttribute('rel')).toBe('noopener noreferrer');
     expect(link.getAttribute('referrerpolicy')).toBe('no-referrer');
+  });
+
+  it('1.45.0: shows the Tags block under the summary, with chips that open the tag search', () => {
+    const { el } = create('anchor-1', seriesInfo({ nodeId: 'anchor-1', anchorNodeId: 'anchor-1', state: 'Web' }));
+    const chip = el.querySelector('.hero [data-testid="info-tags"] [data-testid="info-chip"]') as HTMLAnchorElement;
+    expect(chip.getAttribute('href')).toBe('/search?f=creator:fv_a');
   });
 
   it('shows no companion row when the series has none', () => {

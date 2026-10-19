@@ -1,10 +1,15 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { of, throwError } from 'rxjs';
 
 import { SeriesInfoDto } from '../../core/api/api-types';
 import { SeriesInfoSummaryComponent } from './series-info-summary.component';
 import { seriesInfo } from './series-info.testing';
+import { InfoApiService } from './info/info-api.service';
+import { InfoPanelDto } from './info/info-types';
+import { bucket, chip, panel } from './info/info.testing';
 
 @Component({
   standalone: true,
@@ -85,7 +90,7 @@ describe('SeriesInfoSummaryComponent', () => {
     expect(text(f)).toContain('Story: A Writer');
     expect(text(f)).toContain('Art: An Artist');
     expect(text(f)).toContain('Licensed in English');
-    // Genres are plain text (chips would look clickable before faceted search exists).
+    // Without the Tags block (the hover summary) genres stay plain text; the chips are the Tags block's (1.45.0).
     expect(q(f, '[data-testid="series-genres"]')!.textContent!.trim()).toBe('Action · Drama');
     expect(f.nativeElement.querySelector('.chip')).toBeNull();
   });
@@ -158,5 +163,58 @@ describe('SeriesInfoSummaryComponent', () => {
     expect(link.textContent).toBe('More');
     expect(link.getAttribute('href')).toBe('/series/node42');
     expect(el.querySelector('button.more')).toBeNull();
+  });
+});
+
+/** 1.45.0: the Tags block under the summary (overlay and series page) replaces the plain-text credits and genres. */
+describe('SeriesInfoSummaryComponent with tags', () => {
+  function render(info: SeriesInfoDto, answer: InfoPanelDto | 'error') {
+    const getInfo = vi.fn(() => (answer === 'error' ? throwError(() => ({ status: 404 })) : of(answer)));
+    TestBed.configureTestingModule({
+      imports: [SeriesInfoSummaryComponent],
+      providers: [provideRouter([]), provideNoopAnimations(), { provide: InfoApiService, useValue: { getInfo, getInfoBucket: vi.fn() } }],
+    });
+    const f = TestBed.createComponent(SeriesInfoSummaryComponent);
+    f.componentRef.setInput('info', info);
+    f.componentRef.setInput('tags', true);
+    f.detectChanges();
+    return { el: f.nativeElement as HTMLElement, getInfo };
+  }
+
+  const web = () => seriesInfo({
+    state: 'Web', creators: [{ name: 'A Writer', role: 'writer' }], genres: ['Action', 'Drama'],
+  });
+
+  it('shows chips for the node and drops the plain-text lines the chips replace', () => {
+    const { el, getInfo } = render(web(), panel({
+      buckets: [bucket({ chips: [chip({ display: 'A Writer', role: 'Writer' })] }), bucket({ bucket: 'Genres', chips: [chip({ valueId: 'fv_g', display: 'Action' })] })],
+    }));
+    expect(getInfo).toHaveBeenCalledWith('n1');
+    expect(el.querySelector('[data-testid="info-tags"]')).not.toBeNull();
+    expect(el.querySelector('[data-testid="series-genres"]')).toBeNull();
+    expect(el.querySelector('.credits')).toBeNull();
+  });
+
+  it('keeps a plain-text line when its bucket has no chips, and both lines when nothing is indexed or the index cannot answer', () => {
+    const genresOnly = render(web(), panel({ buckets: [bucket({ bucket: 'Genres', chips: [chip({ valueId: 'fv_g', display: 'Action' })] })] }));
+    expect(genresOnly.el.querySelector('.credits')!.textContent).toContain('A Writer');
+    expect(genresOnly.el.querySelector('[data-testid="series-genres"]')).toBeNull();
+    TestBed.resetTestingModule();
+    const failed = render(web(), 'error');
+    expect(failed.el.querySelector('[data-testid="info-tags"]')).toBeNull();
+    expect(failed.el.querySelector('.credits')).not.toBeNull();
+    expect(failed.el.querySelector('[data-testid="series-genres"]')).not.toBeNull();
+  });
+
+  it('names a container without series information and shows its tags instead of "No series information"', () => {
+    const { el } = render(seriesInfo({ state: 'None', title: null, anchorDisplayName: 'One Shots' }), panel({ container: true, works: 5 }));
+    expect(el.querySelector('[data-testid="series-none"]')).toBeNull();
+    expect(el.querySelector('[data-testid="series-title"]')!.textContent).toBe('One Shots');
+    expect(el.querySelector('[data-testid="info-tags"]')).not.toBeNull();
+  });
+
+  it('still says "No series information" when nothing is indexed either', () => {
+    const { el } = render(seriesInfo({ state: 'None', title: null }), panel({ works: 0, buckets: [] }));
+    expect(el.querySelector('[data-testid="series-none"]')).not.toBeNull();
   });
 });

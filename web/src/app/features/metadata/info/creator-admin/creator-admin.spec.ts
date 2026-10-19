@@ -1,0 +1,150 @@
+import { Type } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { of, throwError } from 'rxjs';
+
+import { InfoApiService } from '../info-api.service';
+import { CreatorDto } from '../info-types';
+import { CreatorMergeDialogComponent } from './creator-merge-dialog.component';
+import { CreatorRenameDialogComponent } from './creator-rename-dialog.component';
+import { CreatorSplitDialogComponent } from './creator-split-dialog.component';
+import { creatorErrorText, creatorSummary } from './creator-admin-labels';
+
+const creator = (o: Partial<CreatorDto> = {}): CreatorDto => ({
+  id: 'cr_1',
+  displayName: 'Synthetic Author',
+  displayNameSource: 'Provider',
+  names: [{ name: 'Synthetic Author', source: 'ProviderAuthor' }, { name: 'S. Author', source: 'ComicInfo' }],
+  providerIds: [{ provider: 'mangaupdates', externalId: '101' }, { provider: 'mangaupdates', externalId: '202' }],
+  works: 3,
+  ...o,
+});
+
+/** Admin creator dialogs (1.45.0, D1 2.2): Rename, Merge into... (find + confirm), Split... (choose + confirm). */
+describe('creator admin dialogs', () => {
+  const ref = { close: vi.fn() };
+
+  function render<T>(component: Type<T>, api: Partial<Record<keyof InfoApiService, unknown>>) {
+    ref.close.mockClear();
+    TestBed.configureTestingModule({
+      imports: [component],
+      providers: [
+        provideNoopAnimations(),
+        { provide: MAT_DIALOG_DATA, useValue: { creatorId: 'cr_1', display: 'Synthetic Author' } },
+        { provide: MatDialogRef, useValue: ref },
+        { provide: InfoApiService, useValue: { getCreator: vi.fn(() => of(creator())), ...api } },
+      ],
+    });
+    const fixture = TestBed.createComponent(component);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const button = (id: string) => el.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`);
+    return { fixture, el, button };
+  }
+
+  it('Rename: sends the typed name and closes with the answer; a known spelling can be picked', () => {
+    const renameCreator = vi.fn(() => of(creator({ displayName: 'S. Author', displayNameSource: 'Admin' })));
+    const { fixture, el, button } = render(CreatorRenameDialogComponent, { renameCreator });
+    expect(button('creator-rename-save')!.disabled).toBe(true); // unchanged name
+    const pick = Array.from(el.querySelectorAll<HTMLButtonElement>('.pick')).find((b) => b.textContent === 'S. Author')!;
+    pick.click();
+    fixture.detectChanges();
+    button('creator-rename-save')!.click();
+    expect(renameCreator).toHaveBeenCalledWith('cr_1', { displayName: 'S. Author' });
+    expect(ref.close).toHaveBeenCalledWith(expect.objectContaining({ displayName: 'S. Author' }));
+  });
+
+  it('Rename: an admin-set name can go back to the automatic one', () => {
+    const renameCreator = vi.fn(() => of(creator()));
+    const { button } = render(CreatorRenameDialogComponent, {
+      renameCreator, getCreator: vi.fn(() => of(creator({ displayNameSource: 'Admin' }))),
+    });
+    button('creator-rename-auto')!.click();
+    expect(renameCreator).toHaveBeenCalledWith('cr_1', { displayName: null });
+  });
+
+  it('Merge: finds the other creator by name (never itself), asks to confirm, then merges into it', () => {
+    vi.useFakeTimers();
+    try {
+      const findCreators = vi.fn(() => of({ items: [creator(), creator({ id: 'cr_2', displayName: 'Synthetic Auteur', providerIds: [{ provider: 'mangaupdates', externalId: '303' }], works: 1 })] }));
+      const mergeCreator = vi.fn(() => of(creator({ id: 'cr_2', displayName: 'Synthetic Auteur' })));
+      const { fixture, el, button } = render(CreatorMergeDialogComponent, { findCreators, mergeCreator });
+      fixture.componentInstance.onQuery('Synth');
+      vi.advanceTimersByTime(300);
+      fixture.detectChanges();
+      expect(findCreators).toHaveBeenCalledWith('Synth');
+      const candidates = el.querySelectorAll<HTMLButtonElement>('[data-testid="creator-merge-candidate"]');
+      expect(candidates.length).toBe(1);
+      expect(candidates[0].textContent).toContain('1 work · MangaUpdates author 303');
+      expect(button('creator-merge-save')).toBeNull();
+
+      candidates[0].click();
+      fixture.detectChanges();
+      expect(el.querySelector('[data-testid="creator-merge-confirm"]')!.textContent).toContain('Merge Synthetic Author into Synthetic Auteur?');
+      expect(mergeCreator).not.toHaveBeenCalled();
+      button('creator-merge-save')!.click();
+      expect(mergeCreator).toHaveBeenCalledWith('cr_1', { targetId: 'cr_2' });
+      expect(ref.close).toHaveBeenCalledWith(expect.objectContaining({ id: 'cr_2' }));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('Merge: shows the server\'s refusal and stays open', () => {
+    vi.useFakeTimers();
+    try {
+      const { fixture, el, button } = render(CreatorMergeDialogComponent, {
+        findCreators: vi.fn(() => of({ items: [creator({ id: 'cr_2', displayName: 'Other' })] })),
+        mergeCreator: vi.fn(() => throwError(() => ({ error: 'same_creator', message: 'x' }))),
+      });
+      fixture.componentInstance.onQuery('Other');
+      vi.advanceTimersByTime(300);
+      fixture.detectChanges();
+      el.querySelector<HTMLButtonElement>('[data-testid="creator-merge-candidate"]')!.click();
+      fixture.detectChanges();
+      button('creator-merge-save')!.click();
+      fixture.detectChanges();
+      expect(el.querySelector('[data-testid="creator-error"]')!.textContent).toContain('cannot be merged into itself');
+      expect(ref.close).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('Split: needs something to move and something to keep, confirms, then sends the chosen ids and names', () => {
+    const splitCreator = vi.fn(() => of(creator({ id: 'cr_9', displayName: 'S. Author' })));
+    const { fixture, el, button } = render(CreatorSplitDialogComponent, { splitCreator });
+    expect(button('creator-split-next')!.disabled).toBe(true);
+
+    const c = fixture.componentInstance;
+    c.toggleId({ provider: 'mangaupdates', externalId: '202' });
+    c.toggleName('S. Author');
+    fixture.detectChanges();
+    expect(button('creator-split-next')!.disabled).toBe(false);
+
+    // Everything ticked: nothing would stay.
+    c.toggleId({ provider: 'mangaupdates', externalId: '101' });
+    c.toggleName('Synthetic Author');
+    fixture.detectChanges();
+    expect(button('creator-split-next')!.disabled).toBe(true);
+    expect(el.textContent).toContain('Keep at least one name or id');
+    c.toggleId({ provider: 'mangaupdates', externalId: '101' });
+    c.toggleName('Synthetic Author');
+    fixture.detectChanges();
+
+    button('creator-split-next')!.click();
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="creator-split-confirm"]')!.textContent).toContain('Move 1 name and 1 id from Synthetic Author to a new creator?');
+    expect(splitCreator).not.toHaveBeenCalled();
+    button('creator-split-save')!.click();
+    expect(splitCreator).toHaveBeenCalledWith('cr_1', { providerIds: [{ provider: 'mangaupdates', externalId: '202' }], names: ['S. Author'] });
+    expect(ref.close).toHaveBeenCalledWith(expect.objectContaining({ id: 'cr_9' }));
+  });
+
+  it('labels: a creator line and error words', () => {
+    expect(creatorSummary(creator({ providerIds: [], works: 1 }))).toBe('1 work');
+    expect(creatorErrorText({ status: 403 })).toBe('Only an admin can change creators.');
+    expect(creatorErrorText({ error: 'not_found' })).toContain('no longer exists');
+  });
+});
