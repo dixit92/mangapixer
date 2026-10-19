@@ -49,8 +49,15 @@ public sealed class SearchPagingHttpTests : IClassFixture<MangaPixerWebApplicati
 
             CatalogNodeEntity Folder(string pid, string name) => new()
             {
-                PublicId = pid, LibraryId = library.Id, Kind = (int)CatalogNodeKind.Folder, DisplayName = name,
-                RelativePath = name, PathKey = name, SortKey = "0" + name, Availability = 0, CreatedAt = now,
+                PublicId = pid,
+                LibraryId = library.Id,
+                Kind = (int)CatalogNodeKind.Folder,
+                DisplayName = name,
+                RelativePath = name,
+                PathKey = name,
+                SortKey = "0" + name,
+                Availability = 0,
+                CreatedAt = now,
             };
             var one = Folder("pgOne", "Pager Saga One");
             var two = Folder("pgTwo", "Pager Saga Two");
@@ -60,9 +67,16 @@ public sealed class SearchPagingHttpTests : IClassFixture<MangaPixerWebApplicati
 
             CatalogNodeEntity Archive(string pid, CatalogNodeEntity parent, string name) => new()
             {
-                PublicId = pid, LibraryId = library.Id, ParentId = parent.Id, Kind = (int)CatalogNodeKind.Archive, DisplayName = name,
-                RelativePath = $"{parent.DisplayName}/{name}", PathKey = $"{parent.DisplayName}/{name}", SortKey = "1" + name,
-                Availability = 0, CreatedAt = now,
+                PublicId = pid,
+                LibraryId = library.Id,
+                ParentId = parent.Id,
+                Kind = (int)CatalogNodeKind.Archive,
+                DisplayName = name,
+                RelativePath = $"{parent.DisplayName}/{name}",
+                PathKey = $"{parent.DisplayName}/{name}",
+                SortKey = "1" + name,
+                Availability = 0,
+                CreatedAt = now,
             };
             var archives = new[]
             {
@@ -77,8 +91,15 @@ public sealed class SearchPagingHttpTests : IClassFixture<MangaPixerWebApplicati
                 db.ReadMarks.Add(new ReadMarkEntity { UserId = adminId, ItemId = read.Id, MarkedAt = now, Source = "manual" });
             db.ReadingProgress.Add(new ReadingProgressEntity
             {
-                UserId = adminId, ItemId = archives[3].Id, ContentVersion = 1, EntryKey = "p4", Ordinal = 4,
-                State = (int)ReadingState.InProgress, Revision = 1, LastMutationId = Guid.NewGuid().ToString("N"), UpdatedAt = now,
+                UserId = adminId,
+                ItemId = archives[3].Id,
+                ContentVersion = 1,
+                EntryKey = "p4",
+                Ordinal = 4,
+                State = (int)ReadingState.InProgress,
+                Revision = 1,
+                LastMutationId = Guid.NewGuid().ToString("N"),
+                UpdatedAt = now,
             });
             await db.SaveChangesAsync();
         }
