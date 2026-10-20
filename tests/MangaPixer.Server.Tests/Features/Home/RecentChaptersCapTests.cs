@@ -103,9 +103,10 @@ public sealed class RecentChaptersCapTests : IDisposable
         var unread = Stacks(await service.GetRecentChaptersAsync(userId, perLibrary: 2, readState: HomeReadStateFilter.Unread));
 
         Assert.Equal(2, unread.Count);
-        // One chunk of at least FilteredRollupChunk stacks holds two unread stacks in this seed - never all 40.
+        // The first chunk (16 stacks, RecentChaptersService.FilteredRollupChunk) holds two unread stacks in this seed: one query, never
+        // all 40 stacks. (Literal on purpose: the same test runs on the 1.45 code, which resolved every stack, to prove it red there.)
         var rollupQueries = RollupTargetCounts();
-        Assert.Equal(new[] { RecentChaptersService.FilteredRollupChunk }, rollupQueries);
+        Assert.Equal(new[] { 16 }, rollupQueries);
     }
 
     private static bool Matches(HomeReadStateFilter filter, string readState) => filter switch
