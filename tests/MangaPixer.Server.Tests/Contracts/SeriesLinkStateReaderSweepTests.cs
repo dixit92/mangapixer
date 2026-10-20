@@ -34,6 +34,7 @@ public sealed class SeriesLinkStateReaderSweepTests
         ["src/MangaPixer.Core/Metadata/MetadataVocabulary.cs"] = "the enum (value 5) and SeriesInfoState.ArtistFolder (7)",
         ["src/MangaPixer.Core/Metadata/SeriesLinkStates.cs"] = "THE decisions: not a series, stops, shows no record, admin decision, Opens",
         ["src/MangaPixer.Server/Features/Catalog/CatalogBrowseService.Completion.cs"] = "1.44.0 Completion filter: Confirmed / Auto with a record only (the Completion tab's set) - an artist folder has no answer and is never kept",
+        ["src/MangaPixer.Server/Features/Catalog/CompletionInputs.cs"] = "1.46.0 Completion answer cache stamp: every link row of any state counts (a unit subfolder with its own link of any state leaves its series' scope); the level's set is the filter's own",
         ["src/MangaPixer.Server/Features/Catalog/CatalogBrowseService.Search.cs"] = "alt-title search joins on a record: an artist folder has none (1.45.0: moved here from CatalogBrowseService.cs, unchanged)",
         ["src/MangaPixer.Server/Features/Catalog/VolumeEntryService.cs"] = "Volumes view: Confirmed / Auto only - an artist folder has no series; a unit walk stops at it",
         ["src/MangaPixer.Server/Features/Covers/CoverDecisionHostedService.cs"] = "any non-review row re-decides its subtree's covers (marking one too)",

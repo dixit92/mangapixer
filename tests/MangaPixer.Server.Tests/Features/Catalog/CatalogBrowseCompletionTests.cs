@@ -72,6 +72,9 @@ public sealed class CatalogBrowseCompletionTests : IDisposable
         var last = await db.CatalogNodes.Where(n => n.ParentId == folder.Id).OrderByDescending(n => n.SortKey).FirstAsync();
         last.Availability = (int)(tombstoned ? CatalogNodeAvailability.Tombstoned : CatalogNodeAvailability.Available);
         await db.SaveChangesAsync();
+        // 1.46.0 lane C: as the scan does after writing nodes (LibraryScanCoordinator, phase 4) - the level's answers are kept by revision.
+        await db.Libraries.Where(l => l.Id == folder.LibraryId)
+            .ExecuteUpdateAsync(u => u.SetProperty(l => l.CatalogRevision, l => l.CatalogRevision + 1));
     }
 
     [Fact]
