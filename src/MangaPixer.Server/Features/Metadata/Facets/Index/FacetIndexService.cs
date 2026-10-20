@@ -99,8 +99,13 @@ public sealed class FacetIndexService
 
     /// <summary>
     /// The library's inputs key (D1 2.3): the rules version, its catalog revision, its link rows, its parsed ComicInfo and declared facts
-    /// (counts and newest stamps), and the global creator inputs (records, author records, declared creators, admin overrides, merges) - a
-    /// SHA-256 of scalar reads; no rows are loaded.
+    /// (counts and newest stamps), the records its link rows name, and the global creator inputs (the creator tables, author records,
+    /// declared creators, admin overrides, merges) - a SHA-256 of scalar reads; no rows are loaded.
+    /// <para>
+    /// 1.45.1 (B2): the records part is the library's OWN linked records, no longer every stored record - a refresh of a record no link of
+    /// this library names left the key of EVERY library changed, so the sweep rebuilt all of them. What another library's record does to
+    /// this library goes through the creators: the creator pass of that library's rebuild writes the creator tables, which move this key.
+    /// </para>
     /// </summary>
     public async Task<string> InputsKeyAsync(long libraryId, CancellationToken ct)
     {
@@ -110,6 +115,7 @@ public sealed class FacetIndexService
         var links = _db.NodeSeriesLinks.Where(l => l.LibraryId == libraryId);
         var declared = _db.DeclaredFacts.Where(f => f.LibraryId == libraryId);
         var merged = _db.Creators.Where(c => c.MergedIntoId != null);
+        var linkedRecords = _db.MetadataRecords.Where(r => links.Any(l => l.RecordId == r.Id));
         var parts = new object?[]
         {
             RulesVersion,
@@ -120,8 +126,12 @@ public sealed class FacetIndexService
             await ci.MaxAsync(e => (DateTimeOffset?)e.ReadAt, ct),
             await declared.CountAsync(ct),
             await declared.MaxAsync(f => (DateTimeOffset?)f.UpdatedAt, ct),
-            await _db.MetadataRecords.CountAsync(ct),
-            await _db.MetadataRecords.MaxAsync(r => (DateTimeOffset?)r.FetchedAt, ct),
+            await linkedRecords.CountAsync(ct),
+            await linkedRecords.MaxAsync(r => (DateTimeOffset?)r.FetchedAt, ct),
+            await _db.Creators.CountAsync(ct),
+            await _db.Creators.MaxAsync(c => (DateTimeOffset?)c.UpdatedAt, ct),
+            await _db.CreatorNames.CountAsync(ct),
+            await _db.CreatorProviderIds.CountAsync(ct),
             await _db.MetadataAuthors.CountAsync(ct),
             await _db.MetadataAuthors.MaxAsync(a => (DateTimeOffset?)a.FetchedAt, ct),
             await _db.DeclaredFacts.CountAsync(f => f.ExternalRef != null, ct),

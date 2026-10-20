@@ -171,7 +171,7 @@ public sealed class FacetIndexNudgeTests : IDisposable
     }
 
     [Fact]
-    public async Task ARecordStoredOrRefreshedInIdentify_NudgesEveryLibrary()
+    public async Task ARecordStoredOrRefreshedInIdentify_NudgesOnlyTheLibrariesThatLinkIt()
     {
         var recorder = new RecordingFacetIndexNudge();
         using var factory = new MetadataNetworkWebApplicationFactory(configureServices: services =>
@@ -181,6 +181,8 @@ public sealed class FacetIndexNudgeTests : IDisposable
         });
         var admin = await factory.LoginAsAdminWithChangedPasswordAsync();
         long libraryId;
+        long secondId;
+        long thirdId;
         using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
@@ -190,10 +192,21 @@ public sealed class FacetIndexNudgeTests : IDisposable
             db.CatalogNodes.Add(Folder(library.Id, "fnNetSeries", "Berserk"));
             await db.SaveChangesAsync();
             libraryId = library.Id;
+            // 1.45.1 (B2): a second library linking the same series, and a third that does not link it.
+            var second = new LibraryEntity { PublicId = "fnlib5", DisplayName = "Second", RootPath = "/synthetic/fnnet2", CreatedAt = DateTimeOffset.UtcNow };
+            var third = new LibraryEntity { PublicId = "fnlib6", DisplayName = "Third", RootPath = "/synthetic/fnnet3", CreatedAt = DateTimeOffset.UtcNow };
+            db.Libraries.AddRange(second, third);
+            await db.SaveChangesAsync();
+            db.CatalogNodes.Add(Folder(second.Id, "fnNetSecond", "Berserk"));
+            db.CatalogNodes.Add(Folder(third.Id, "fnNetThird", "Other"));
+            await db.SaveChangesAsync();
+            secondId = second.Id;
+            thirdId = third.Id;
         }
         (await admin.PutAsJsonAsync("/api/v1/admin/metadata/settings",
             new UpdateMetadataSettingsRequest { FetchEnabled = true, AcceptedConsentVersion = MetadataConsent.CurrentVersion })).EnsureSuccessStatusCode();
         (await admin.PutAsJsonAsync("/api/v1/admin/metadata/libraries/fnlib4", new UpdateMetadataLibraryRequest { FetchEnabled = true })).EnsureSuccessStatusCode();
+        (await admin.PutAsJsonAsync("/api/v1/admin/metadata/libraries/fnlib5", new UpdateMetadataLibraryRequest { FetchEnabled = true })).EnsureSuccessStatusCode();
         recorder.Clear();
 
         // Linking a record that is not stored yet fetches and stores it first (a record may be linked from several libraries).
@@ -201,13 +214,20 @@ public sealed class FacetIndexNudgeTests : IDisposable
             new LinkSeriesRequest { Provider = "mangaupdates", ExternalId = MuFixtures.BerserkId.ToString(System.Globalization.CultureInfo.InvariantCulture) });
         link.EnsureSuccessStatusCode();
         var nudges = recorder.Nudges.ToList();
-        var stored = nudges.IndexOf(N(null, FacetNudgeReason.RecordStored));
-        Assert.True(stored >= 0, "no RecordStored nudge");
+        var stored = nudges.IndexOf(N(libraryId, FacetNudgeReason.RecordStored));
+        Assert.True(stored >= 0, "no RecordStored nudge for the library the admin acts in");
         Assert.True(nudges.IndexOf(N(libraryId, FacetNudgeReason.LinkChanged)) > stored, "the link nudge comes after the record's");
+        Assert.DoesNotContain(nudges, n => n.LibraryId is null); // never every library (1.45.1, B2)
+
+        // The second library links the same series (no network: the record is stored now).
+        Assert.Equal(HttpStatusCode.OK, (await admin.PutAsJsonAsync("/api/v1/admin/metadata/nodes/fnNetSecond/link",
+            new LinkSeriesRequest { Provider = "mangaupdates", ExternalId = MuFixtures.BerserkId.ToString(System.Globalization.CultureInfo.InvariantCulture) })).StatusCode);
 
         recorder.Clear();
         (await admin.PostAsync("/api/v1/admin/metadata/nodes/fnNetSeries/refresh", null)).EnsureSuccessStatusCode();
-        Assert.Contains(N(null, FacetNudgeReason.RecordStored), recorder.Nudges);
+        Assert.Equal(new[] { N(libraryId, FacetNudgeReason.RecordStored), N(secondId, FacetNudgeReason.RecordStored) },
+            recorder.Nudges.OrderBy(n => n.LibraryId).ToArray());
+        Assert.DoesNotContain(recorder.Nudges, n => n.LibraryId == thirdId || n.LibraryId is null);
         Assert.DoesNotContain(recorder.Nudges, n => n.Reason == FacetNudgeReason.LinkChanged); // a refresh writes no link
     }
 
@@ -244,9 +264,10 @@ public sealed class FacetIndexNudgeTests : IDisposable
     [Fact]
     public async Task TheComicInfoBackfill_NudgesAfterEachBatchThatStoredRows_Only()
     {
-        // 120 candidates in batches of 50: batch 1 stores, batch 2 only skips, batch 3 stores one.
-        var candidates = Enumerable.Range(1, 120).Select(i => new ComicInfoBackfillCandidate(i, 1, 0, 0, "/r", $"a{i}")).ToList();
-        var nudges = 0;
+        // 120 candidates in batches of 50: batch 1 stores, batch 2 only skips, batch 3 stores one. 1.45.1 (B2): each nudge names the
+        // libraries of the archives the batch stored (1-60 in library 7, 61-120 in library 8) - never every library.
+        var candidates = Enumerable.Range(1, 120).Select(i => new ComicInfoBackfillCandidate(i, 1, 0, 0, "/r", $"a{i}", i <= 60 ? 7 : 8)).ToList();
+        var nudges = new List<long[]>();
         var counts = await ComicInfoBackfillService.RunPassCoreAsync(
             (after, limit, _) => Task.FromResult<IReadOnlyList<ComicInfoBackfillCandidate>>(candidates.Where(c => c.NodeId > after).Take(limit).ToList()),
             (c, _) => Task.FromResult(c.NodeId <= 50 || c.NodeId == 120 ? ComicInfoItemResult.Stored : ComicInfoItemResult.Skipped),
@@ -254,9 +275,9 @@ public sealed class FacetIndexNudgeTests : IDisposable
             () => 0,
             backoffMs: 1,
             CancellationToken.None,
-            () => nudges++);
+            libraries => nudges.Add(libraries.Order().ToArray()));
 
         Assert.Equal(51, counts.Stored);
-        Assert.Equal(2, nudges);
+        Assert.Equal(new[] { new long[] { 7 }, new long[] { 8 } }, nudges);
     }
 }

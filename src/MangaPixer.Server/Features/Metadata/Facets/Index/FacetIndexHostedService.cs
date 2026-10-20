@@ -21,15 +21,23 @@ public sealed class FacetIndexQueue : IFacetIndexNudge
 
     public FacetIndexQueue(TimeProvider time) => _time = time;
 
+    /// <summary>
+    /// Marks the library dirty (its debounce restarts). 1.45.1 (B2): while an "every library" nudge waits, a library nudge is absorbed by it -
+    /// that pass starts after this nudge's write was committed, so it rebuilds the library once instead of twice.
+    /// </summary>
     public void LibraryChanged(long libraryId, FacetNudgeReason reason)
     {
-        _dirty[libraryId] = _time.GetUtcNow();
+        if (Interlocked.Read(ref _allTicks) == long.MinValue)
+            _dirty[libraryId] = _time.GetUtcNow();
         Wake();
     }
 
+    /// <summary>Marks every library dirty; 1.45.1 (B2): the libraries already waiting are taken into it (one rebuild each, not two).</summary>
     public void AllChanged(FacetNudgeReason reason)
     {
         Interlocked.Exchange(ref _allTicks, _time.GetUtcNow().UtcTicks);
+        foreach (var waiting in _dirty)
+            _dirty.TryRemove(waiting);
         Wake();
     }
 

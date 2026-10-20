@@ -482,7 +482,7 @@ public sealed class MetadataIdentifyService
             // and a rise of the latest chapter makes the MangaDex volume list due now; it moves only this record's own clock - the
             // MangaDex lists keep their next check unless the companion step that follows re-reads them.
             await Freshness.RefreshFollowUp.AfterRefreshAsync(_db, record, latestBefore, now, _logger, ct);
-            _facetNudge.AllChanged(Facets.FacetNudgeReason.RecordStored);
+            await Facets.FacetIndexNudges.RecordChangedAsync(_facetNudge, _db, record.Id, node.LibraryId, Facets.FacetNudgeReason.RecordStored, ct); // 1.45.1 (B2)
             state = "Ok";
             if (record.ImageRemoteUrl is not null && (record.ImageState != 1 || !string.Equals(oldImageUrl, record.ImageRemoteUrl, StringComparison.Ordinal)))
                 imageUpdated = await TryStoreImageAsync(record, node.LibraryId, ct);
@@ -577,7 +577,7 @@ public sealed class MetadataIdentifyService
         }
         Apply(record, fetched, now);
         await _db.SaveChangesAsync(ct);
-        _facetNudge.AllChanged(Facets.FacetNudgeReason.RecordStored);
+        await Facets.FacetIndexNudges.RecordChangedAsync(_facetNudge, _db, record.Id, libraryId, Facets.FacetNudgeReason.RecordStored, ct); // 1.45.1 (B2)
         _logger.LogInformation(LogEvents.Metadata.RecordStored, "Metadata record {RecordId} stored ({Provider} {ExternalId})",
             record.Id, record.Provider, record.ExternalId);
         return record;
