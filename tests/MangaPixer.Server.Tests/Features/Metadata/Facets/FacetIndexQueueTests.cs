@@ -56,4 +56,39 @@ public sealed class FacetIndexQueueTests
         Assert.True(queue.TakeDue(Debounce, out _).All);
         Assert.False(queue.TakeDue(Debounce, out _).All);
     }
+
+    [Fact]
+    public void RepeatedAndMixedNudges_InOneWindow_RebuildEachLibraryOnce()
+    {
+        // 1.45.1 (B2): library nudges around an "every library" nudge used to give two rebuilds of the same library (its own, then the
+        // every-library pass) - now the every-library pass takes them in.
+        var time = new ManualTime(new DateTimeOffset(2026, 10, 20, 8, 0, 0, TimeSpan.Zero));
+        var queue = new FacetIndexQueue(time);
+        var rebuilds = new Dictionary<long, int>();
+        void Take()
+        {
+            var (libraries, all) = queue.TakeDue(Debounce, out _);
+            foreach (var library in all ? new long[] { 1, 2, 3 } : libraries)
+                rebuilds[library] = rebuilds.GetValueOrDefault(library) + 1;
+        }
+
+        for (var i = 0; i < 5; i++)
+        {
+            queue.LibraryChanged(1, FacetNudgeReason.RecordStored);
+            time.Advance(TimeSpan.FromSeconds(2));
+            Take();
+        }
+        queue.AllChanged(FacetNudgeReason.AuthorAliasesStored);
+        time.Advance(TimeSpan.FromSeconds(5));
+        queue.LibraryChanged(2, FacetNudgeReason.ComicInfoStored);
+        queue.LibraryChanged(1, FacetNudgeReason.RecordStored);
+        for (var i = 0; i < 60; i++)
+        {
+            time.Advance(TimeSpan.FromSeconds(1));
+            Take();
+        }
+
+        Assert.Equal(new Dictionary<long, int> { [1] = 1, [2] = 1, [3] = 1 }, rebuilds);
+        Assert.Equal(0, queue.Pending);
+    }
 }

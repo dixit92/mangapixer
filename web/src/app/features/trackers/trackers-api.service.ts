@@ -7,6 +7,7 @@ import {
   AdminTrackerSettingsDto,
   TrackerAccountDto,
   TrackerAttentionDto,
+  TrackerCardMarksDto,
   TrackerBatchAction,
   TrackerBatchResultDto,
   TrackerConnectStartResponse,
@@ -38,6 +39,17 @@ export class TrackersApiService {
   private readonly adminBase = '/api/v1/admin/trackers';
 
   // --- The caller's own trackers ---
+
+  /**
+   * 1.45.1 (B4): the gold rings of the cards on screen (at most 200 ids: nodes of the library, volume stacks of the folder) - the browse
+   * page's re-read after Back from the reader, without replaying the listing. Display only; no tracker request.
+   */
+  cardMarks(libraryId: string, parentId: string | null, ids: readonly string[]): Observable<TrackerCardMarksDto> {
+    let params = new HttpParams().set('libraryId', libraryId);
+    if (parentId) params = params.set('parentId', parentId);
+    for (const id of ids) params = params.append('ids', id);
+    return this.http.get<TrackerCardMarksDto>(`${this.base}/card-marks`, { params, withCredentials: true });
+  }
 
   overview(): Observable<TrackersOverviewDto> {
     return this.http.get<TrackersOverviewDto>(this.base, { withCredentials: true });
