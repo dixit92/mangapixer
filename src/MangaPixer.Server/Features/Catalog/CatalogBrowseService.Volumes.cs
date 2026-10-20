@@ -60,7 +60,7 @@ public sealed partial class CatalogBrowseService
             HasMore = page.HasMore,
             PrevCursor = page.PrevCursor,
             HasPrevious = page.HasPrevious,
-            NextUnread = await ResolveNextUnreadAsync(view.LibraryId, view.FolderId, userId, ct),
+            NextUnread = IsFirstPage(cursor, before) ? await ResolveNextUnreadAsync(view.LibraryId, view.FolderId, userId, ct) : null,
         };
     }
 

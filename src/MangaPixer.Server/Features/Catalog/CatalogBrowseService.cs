@@ -337,7 +337,9 @@ public sealed partial class CatalogBrowseService
         // Pinned "Continue" row (1.7.0): the folder's next-to-read descendant archive,
         // resolved set-based over the same recursive descendant walk the cover/recency
         // aggregates use. Surfaced above the sorted list; the list order is unchanged.
-        var nextUnread = await ResolveNextUnreadAsync(libraryId, parentId, userId, ct);
+        // 1.46.0 (lane B, measured cost #5): the first page only - the web reads it from the first page (and its own pageSize=1 refresh)
+        // and never from a later or an earlier page (cursor / before), which answer null.
+        var nextUnread = IsFirstPage(cursor, before) ? await ResolveNextUnreadAsync(libraryId, parentId, userId, ct) : null;
         perfPhase.Lap("browse.next-unread");
 
         return new PageResponse<CatalogNodeDto>
@@ -1444,6 +1446,175 @@ public sealed partial class CatalogBrowseService
     }
 
     /// <summary>
+    /// The browse page's "Continue" archive (<see cref="ResolveNextUnreadByWalkAsync"/> describes the answer). 1.46.0 (lane B, measured
+    /// cost #5): at the library ROOT, where the descendants are every archive of the library, the answer is found without the whole-library
+    /// recursive walk: the viewer's most recently updated in-progress archive of the library (a reading_progress lookup by user), else the
+    /// library's first unread archive by (SortKey, Id) - each candidate kept only when its ancestors are all live up to a root node of the
+    /// library (the walk never descends below a tombstoned folder). A folder keeps the walk.
+    /// </summary>
+    private Task<CatalogNodeDto?> ResolveNextUnreadAsync(long libraryId, long? parentId, long userId, CancellationToken ct) =>
+        parentId is null ? ResolveNextUnreadAtRootAsync(libraryId, userId, ct) : ResolveNextUnreadByWalkAsync(libraryId, parentId, userId, ct);
+
+    /// <summary>A browse request for the first page: neither a forward cursor nor a backward position (1.46.0: "Continue" only there).</summary>
+    internal static bool IsFirstPage(string? cursor, string? before) => string.IsNullOrEmpty(cursor) && string.IsNullOrEmpty(before);
+
+    /// <summary>Candidates read per round by <see cref="ResolveNextUnreadAtRootAsync"/> (normally the first one is the answer).</summary>
+    private const int NextUnreadCandidateRound = 16;
+
+    /// <summary>The library-root form of the "Continue" answer (see <see cref="ResolveNextUnreadAsync"/>).</summary>
+    internal async Task<CatalogNodeDto?> ResolveNextUnreadAtRootAsync(long libraryId, long userId, CancellationToken ct)
+    {
+        var connection = _db.Database.GetDbConnection();
+        var wasOpen = connection.State == System.Data.ConnectionState.Open;
+        if (!wasOpen) await connection.OpenAsync(ct);
+        try
+        {
+            // Kind = 1 is Archive; Availability = 5 is Tombstoned; State = 1 is InProgress (the walk's literals). An in-progress archive
+            // wins (most recently updated, then SortKey, Id - the walk's order); otherwise the first unread archive by SortKey, Id.
+            const string inProgress = """
+                SELECT cn.Id
+                FROM reading_progress rp
+                JOIN catalog_nodes cn ON cn.Id = rp.ItemId
+                WHERE rp.UserId = $user AND rp.State = 1
+                  AND cn.LibraryId = $lib AND cn.Kind = 1 AND cn.Availability != 5
+                  AND NOT EXISTS (SELECT 1 FROM read_marks rm WHERE rm.UserId = $user AND rm.ItemId = cn.Id)
+                ORDER BY rp.UpdatedAt DESC, cn.SortKey, cn.Id
+                LIMIT $take OFFSET $skip;
+                """;
+            const string unread = """
+                SELECT cn.Id
+                FROM catalog_nodes cn
+                WHERE cn.LibraryId = $lib AND cn.Kind = 1 AND cn.Availability != 5
+                  AND NOT EXISTS (SELECT 1 FROM read_marks rm WHERE rm.UserId = $user AND rm.ItemId = cn.Id)
+                ORDER BY cn.SortKey, cn.Id
+                LIMIT $take OFFSET $skip;
+                """;
+            var chosen = await FirstReachableAsync(connection, inProgress, libraryId, userId, ct)
+                ?? await FirstReachableAsync(connection, unread, libraryId, userId, ct);
+            if (chosen is not { } id)
+                return null;
+
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT cn.Id,
+                       cn.PublicId,
+                       parent.PublicId AS ParentPublicId,
+                       lib.PublicId AS LibraryPublicId,
+                       cn.DisplayName,
+                       cn.Availability,
+                       ai.PageCount,
+                       rm.ItemId IS NOT NULL AS IsRead,
+                       rp.State,
+                       rp.Ordinal
+                FROM catalog_nodes cn
+                LEFT JOIN catalog_nodes parent ON cn.ParentId = parent.Id
+                JOIN libraries lib ON lib.Id = cn.LibraryId
+                LEFT JOIN archive_items ai ON ai.NodeId = cn.Id
+                LEFT JOIN read_marks rm ON rm.ItemId = cn.Id AND rm.UserId = $user
+                LEFT JOIN reading_progress rp ON rp.ItemId = cn.Id AND rp.UserId = $user
+                WHERE cn.Id = $id;
+                """;
+            AddParameter(command, "$id", id);
+            AddParameter(command, "$user", userId);
+            using var reader = await command.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct))
+                return null;
+            var (nodeId, dto) = ReadNextUnread(reader);
+            await reader.DisposeAsync();
+            return (await ApplyCoversAsync([dto], [new CoverTarget(nodeId, dto.Id, false)], ct))[0];
+        }
+        finally
+        {
+            if (!wasOpen) await connection.CloseAsync();
+        }
+    }
+
+    /// <summary>
+    /// The first candidate of <paramref name="sql"/> (ordered, paged by <c>$take</c> / <c>$skip</c>) whose ancestors are all live up to a root
+    /// node of the library - the set the root walk reaches. Null when none is.
+    /// </summary>
+    private static async Task<long?> FirstReachableAsync(System.Data.Common.DbConnection connection, string sql, long libraryId, long userId,
+        CancellationToken ct)
+    {
+        for (var skip = 0; ; skip += NextUnreadCandidateRound)
+        {
+            var candidates = new List<long>();
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = sql;
+                AddParameter(command, "$lib", libraryId);
+                AddParameter(command, "$user", userId);
+                AddParameter(command, "$take", NextUnreadCandidateRound);
+                AddParameter(command, "$skip", skip);
+                using var reader = await command.ExecuteReaderAsync(ct);
+                while (await reader.ReadAsync(ct))
+                    candidates.Add(reader.GetInt64(0));
+            }
+            foreach (var candidate in candidates)
+            {
+                if (await ReachableFromRootAsync(connection, candidate, libraryId, ct))
+                    return candidate;
+            }
+            if (candidates.Count < NextUnreadCandidateRound)
+                return null;
+        }
+    }
+
+    /// <summary>
+    /// Whether the node's ancestors (and itself) are all live and its chain ends at a root node of the library (bounded: a chain that never
+    /// reaches a root - which the root walk could not reach either - is not).
+    /// </summary>
+    private static async Task<bool> ReachableFromRootAsync(System.Data.Common.DbConnection connection, long nodeId, long libraryId,
+        CancellationToken ct)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            WITH RECURSIVE up(Id, ParentId, LibraryId, Availability, Depth) AS (
+                SELECT cn.Id, cn.ParentId, cn.LibraryId, cn.Availability, 0 FROM catalog_nodes cn WHERE cn.Id = $node
+                UNION ALL
+                SELECT p.Id, p.ParentId, p.LibraryId, p.Availability, u.Depth + 1 FROM up u JOIN catalog_nodes p ON p.Id = u.ParentId
+                WHERE u.Depth < 1024
+            )
+            SELECT COALESCE(SUM(Availability = 5), 0), COALESCE(SUM(ParentId IS NULL AND LibraryId = $lib), 0) FROM up;
+            """;
+        AddParameter(command, "$node", nodeId);
+        AddParameter(command, "$lib", libraryId);
+        using var reader = await command.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct) && reader.GetInt64(0) == 0 && reader.GetInt64(1) == 1;
+    }
+
+    private static void AddParameter(System.Data.Common.DbCommand command, string name, object? value)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.Value = value ?? DBNull.Value;
+        command.Parameters.Add(parameter);
+    }
+
+    /// <summary>The "Continue" card from a next-unread row (both forms read the same columns).</summary>
+    private static (long NodeId, CatalogNodeDto Dto) ReadNextUnread(System.Data.Common.DbDataReader reader)
+    {
+        var parentOrdinal = reader.GetOrdinal("ParentPublicId");
+        var pageCountOrdinal = reader.GetOrdinal("PageCount");
+        var stateOrdinal = reader.GetOrdinal("State");
+        var ordinalOrdinal = reader.GetOrdinal("Ordinal");
+        var dto = new CatalogNodeDto
+        {
+            Id = reader.GetString(reader.GetOrdinal("PublicId")),
+            ParentId = reader.IsDBNull(parentOrdinal) ? "" : reader.GetString(parentOrdinal),
+            LibraryId = reader.GetString(reader.GetOrdinal("LibraryPublicId")),
+            Kind = CatalogNodeKind.Archive,
+            DisplayName = reader.GetString(reader.GetOrdinal("DisplayName")),
+            Availability = (CatalogNodeAvailability)reader.GetInt32(reader.GetOrdinal("Availability")),
+            PageCount = reader.IsDBNull(pageCountOrdinal) ? null : reader.GetInt32(pageCountOrdinal),
+            IsRead = reader.GetBoolean(reader.GetOrdinal("IsRead")),
+            ReadingState = reader.IsDBNull(stateOrdinal) ? null : (ReadingState)reader.GetInt32(stateOrdinal),
+            LastReadPage = reader.IsDBNull(ordinalOrdinal) ? null : reader.GetInt32(ordinalOrdinal),
+        };
+        return (reader.GetInt64(reader.GetOrdinal("Id")), dto);
+    }
+
+    /// <summary>
     /// Resolves the browsed folder's next-to-read descendant archive (1.7.0): the
     /// in-progress archive if one exists (resume the most recently updated), else
     /// the first UNREAD archive in SortKey order (ordinal, matching
@@ -1458,8 +1629,10 @@ public sealed partial class CatalogBrowseService
     /// itself is never a candidate). Tombstoned archives are excluded. The returned
     /// DTO carries the same read-state fields the archive card shows (IsRead,
     /// ReadingState, LastReadPage) so the Continue row's affordance matches the list.
+    /// 1.46.0 (lane B): the walk answers folders; the library root has its own direct query (<see cref="ResolveNextUnreadAsync"/>) - this
+    /// walk with a null parent stays as the reference the equivalence test compares it with.
     /// </summary>
-    private async Task<CatalogNodeDto?> ResolveNextUnreadAsync(
+    internal async Task<CatalogNodeDto?> ResolveNextUnreadByWalkAsync(
         long libraryId,
         long? parentId,
         long userId,
@@ -1532,32 +1705,9 @@ public sealed partial class CatalogBrowseService
             using var reader = await command.ExecuteReaderAsync(ct);
             if (!await reader.ReadAsync(ct))
                 return null;
-
-            var publicId = reader.GetString(reader.GetOrdinal("PublicId"));
-            var parentOrdinal = reader.GetOrdinal("ParentPublicId");
-            var libraryPublicId = reader.GetString(reader.GetOrdinal("LibraryPublicId"));
-            var displayName = reader.GetString(reader.GetOrdinal("DisplayName"));
-            var availability = reader.GetInt32(reader.GetOrdinal("Availability"));
-            var pageCountOrdinal = reader.GetOrdinal("PageCount");
-            var stateOrdinal = reader.GetOrdinal("State");
-            var ordinalOrdinal = reader.GetOrdinal("Ordinal");
-
-            var nodeId = reader.GetInt64(reader.GetOrdinal("Id"));
-            var dto = new CatalogNodeDto
-            {
-                Id = publicId,
-                ParentId = reader.IsDBNull(parentOrdinal) ? "" : reader.GetString(parentOrdinal),
-                LibraryId = libraryPublicId,
-                Kind = CatalogNodeKind.Archive,
-                DisplayName = displayName,
-                Availability = (CatalogNodeAvailability)availability,
-                PageCount = reader.IsDBNull(pageCountOrdinal) ? null : reader.GetInt32(pageCountOrdinal),
-                IsRead = reader.GetBoolean(reader.GetOrdinal("IsRead")),
-                ReadingState = reader.IsDBNull(stateOrdinal) ? null : (ReadingState)reader.GetInt32(stateOrdinal),
-                LastReadPage = reader.IsDBNull(ordinalOrdinal) ? null : reader.GetInt32(ordinalOrdinal),
-            };
+            var (nodeId, dto) = ReadNextUnread(reader);
             await reader.DisposeAsync();
-            return (await ApplyCoversAsync([dto], [new CoverTarget(nodeId, publicId, false)], ct))[0];
+            return (await ApplyCoversAsync([dto], [new CoverTarget(nodeId, dto.Id, false)], ct))[0];
         }
         finally
         {
