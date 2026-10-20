@@ -158,7 +158,7 @@ public sealed class StaticAssetDeliveryHttpTests : IAsyncLifetime
         var missing = await GetAsync("/api/v1/nothing", "br");
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
         Assert.Null(missing.Headers.CacheControl);
-        Assert.Equal(0, (await missing.Content.ReadAsByteArrayAsync()).Length);
+        Assert.Empty(await missing.Content.ReadAsByteArrayAsync());
     }
 
     [Fact]
