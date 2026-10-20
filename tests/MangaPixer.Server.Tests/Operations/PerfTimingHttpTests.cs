@@ -48,9 +48,11 @@ public sealed class PerfTimingHttpTests
         var route = Assert.Single(routes, r => r.GetProperty("key").GetString() == "GET api/v1/operations/diagnostics");
         Assert.True(route.GetProperty("count").GetInt64() >= 1);
         Assert.True(route.GetProperty("sqlCount").GetInt64() >= 1);
-        var statements = perf.GetProperty("statements").EnumerateArray().ToList();
-        Assert.Contains(statements, s => s.GetProperty("key").GetString() == "GET api/v1/operations/diagnostics"
-            && s.GetProperty("shape").GetString()!.StartsWith("SELECT", StringComparison.OrdinalIgnoreCase));
+        var statements = perf.GetProperty("statements").EnumerateArray()
+            .Where(s => s.GetProperty("key").GetString() == "GET api/v1/operations/diagnostics").ToList();
+        var shapes = string.Join(" | ", statements.Select(s => s.GetProperty("shape").GetString()![..Math.Min(40, s.GetProperty("shape").GetString()!.Length)]));
+        Assert.True(statements.Any(s => s.GetProperty("shape").GetString()!.StartsWith("SELECT", StringComparison.OrdinalIgnoreCase)
+            && s.GetProperty("count").GetInt64() >= 1), shapes);
         Assert.True(perf.GetProperty("heap").GetProperty("heapSizeBytes").GetInt64() > 0);
         Assert.Contains(perf.GetProperty("transactions").EnumerateArray(), t => t.GetProperty("key").GetString()!.EndsWith(":commit", StringComparison.Ordinal));
     }

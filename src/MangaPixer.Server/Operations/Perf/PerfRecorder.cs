@@ -67,17 +67,17 @@ public sealed class PerfRecorder
     }
 
     /// <summary>One executed SQL command: inside a request it goes to that request's scope, otherwise to "background".</summary>
-    internal void RecordCommand(string commandText, double ms, int rows)
+    internal void RecordCommand(string commandText, double ms, int rows, bool countAsCommand = true)
     {
         var shape = ShapeOf(commandText);
         var scope = CurrentScope;
         if (scope is { Ended: false })
         {
-            scope.Add(shape, ms, rows);
+            scope.Add(shape, ms, rows, countAsCommand);
             return;
         }
         // Work a request started but did not wait for (its async flow outlived the response) counts apart from background.
-        BumpStatement((scope is null ? "(background)" : "(after a request)", shape), ms, 1, rows);
+        BumpStatement((scope is null ? "(background)" : "(after a request)", shape), ms, countAsCommand ? 1 : 0, rows);
     }
 
     /// <summary>BEGIN (SQLite takes the write lock for BEGIN IMMEDIATE) or COMMIT duration.</summary>
@@ -235,13 +235,14 @@ internal sealed class RequestPerfScope
         get { lock (_gate) return _statements.ToArray(); }
     }
 
-    public void Add(string shape, double ms, int rows)
+    public void Add(string shape, double ms, int rows, bool countAsCommand = true)
     {
+        var n = countAsCommand ? 1 : 0;
         lock (_gate)
         {
             SqlMs += ms;
-            SqlCount++;
-            _statements[shape] = _statements.TryGetValue(shape, out var s) ? (s.Ms + ms, s.Count + 1, s.Rows + rows) : (ms, 1, rows);
+            SqlCount += n;
+            _statements[shape] = _statements.TryGetValue(shape, out var s) ? (s.Ms + ms, s.Count + n, s.Rows + rows) : (ms, n, rows);
         }
     }
 

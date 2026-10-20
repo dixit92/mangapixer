@@ -17,9 +17,40 @@ public sealed class PerfCommandInterceptor : DbCommandInterceptor
     {
     }
 
+    // A query is recorded when it executes (time to the first row) and the time spent reading its rows is added when its
+    // reader is disposed (DataReaderDisposingEventData.Duration runs from the command's start).
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DbCommand, object> s_executed = new();
+
+    public override DbDataReader ReaderExecuted(DbCommand command, CommandExecutedEventData eventData, DbDataReader result)
+    {
+        OnReaderExecuted(command, eventData);
+        return result;
+    }
+
+    public override ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData, DbDataReader result,
+        CancellationToken cancellationToken = default)
+    {
+        OnReaderExecuted(command, eventData);
+        return ValueTask.FromResult(result);
+    }
+
+    private static void OnReaderExecuted(DbCommand command, CommandExecutedEventData eventData)
+    {
+        if (PerfRecorder.Active is not { } recorder)
+            return;
+        var ms = eventData.Duration.TotalMilliseconds;
+        recorder.RecordCommand(command.CommandText, ms, 0);
+        s_executed.AddOrUpdate(command, ms);
+    }
+
     public override InterceptionResult DataReaderDisposing(DbCommand command, DataReaderDisposingEventData eventData, InterceptionResult result)
     {
-        PerfRecorder.Active?.RecordCommand(command.CommandText, eventData.Duration.TotalMilliseconds, eventData.ReadCount);
+        if (PerfRecorder.Active is { } recorder && s_executed.TryGetValue(command, out var executed))
+        {
+            s_executed.Remove(command);
+            var reading = Math.Max(0, eventData.Duration.TotalMilliseconds - (double)executed);
+            recorder.RecordCommand(command.CommandText, reading, eventData.ReadCount, countAsCommand: false);
+        }
         return result;
     }
 
