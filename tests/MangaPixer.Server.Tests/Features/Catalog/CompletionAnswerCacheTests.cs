@@ -376,7 +376,11 @@ public sealed class CompletionAnswerCacheTests : IDisposable
         var wikipedia = Map(VolumeMapSource.WikipediaList, VolumeMapState.Ok, """[{"v":"1","c":["1","2"]},{"v":"3","c":["5","6"]}]""");
         var aniList = new SeriesVolumeMapEntity
         {
-            Source = (int)VolumeMapSource.AniListRatio, State = (int)VolumeMapState.Ok, ChaptersPerVolume = 4, KnownVolumeCount = 7, ContentHash = "x",
+            Source = (int)VolumeMapSource.AniListRatio,
+            State = (int)VolumeMapState.Ok,
+            ChaptersPerVolume = 4,
+            KnownVolumeCount = 7,
+            ContentHash = "x",
         };
         var record = new SeriesProgressLoader.RecordRow(1, (int)MetadataOrigin.Japan, (int)MetadataOriginStatus.Ongoing, 7, "20 Chapters (Ongoing)", 12,
             null, null, null, null);

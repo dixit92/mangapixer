@@ -75,8 +75,16 @@ internal static class CompletionInputs
             .OrderBy(r => r.Id)
             .Select(r => new
             {
-                r.Id, r.Origin, r.OriginStatus, r.OriginVolumes, r.StatusText, r.LatestChapter, r.PublishersJson, r.LicensedEn,
-                r.TranslationComplete, r.Webtoon,
+                r.Id,
+                r.Origin,
+                r.OriginStatus,
+                r.OriginVolumes,
+                r.StatusText,
+                r.LatestChapter,
+                r.PublishersJson,
+                r.LicensedEn,
+                r.TranslationComplete,
+                r.Webtoon,
             })
             .ToListAsync(ct);
         stamp.Add("records");
