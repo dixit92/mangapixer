@@ -206,7 +206,7 @@ class Runner:
         return cursor
 
     def browse(self, parent=None, **extra):
-        return f"{API}/libraries/{self.lib}/browse?" + q(pageSize=50, sort=extra.pop("sort", "name"),
+        return f"{API}/libraries/{self.lib}/browse?" + q(pageSize=extra.pop("pageSize", 50), sort=extra.pop("sort", "name"),
                                                           direction=extra.pop("direction", "asc"), parentId=parent, **extra)
 
     def folder_reqs(self, folder, **extra):

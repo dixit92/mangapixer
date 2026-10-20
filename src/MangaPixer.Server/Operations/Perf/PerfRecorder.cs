@@ -216,6 +216,29 @@ public sealed class PerfRecorder
     }
 }
 
+/// <summary>
+/// Measurement-only phase timer (1.46.0 lane M): <c>var t = PerfPhase.Start(); ...; t = t.Lap("browse.x");</c> records the time since
+/// the last lap as <c>phase:browse.x</c> in the current request (shown with the route's statements in the diagnostics). A no-op
+/// outside a timed request.
+/// </summary>
+public readonly struct PerfPhase
+{
+    private readonly long _start;
+
+    private PerfPhase(long start) => _start = start;
+
+    public static PerfPhase Start() => PerfRecorder.CurrentScope is { Ended: false } ? new PerfPhase(Stopwatch.GetTimestamp()) : default;
+
+    public PerfPhase Lap(string name)
+    {
+        if (_start == 0 || PerfRecorder.CurrentScope is not { Ended: false } scope)
+            return default;
+        var now = Stopwatch.GetTimestamp();
+        scope.AddPhase(name, Stopwatch.GetElapsedTime(_start, now).TotalMilliseconds);
+        return new PerfPhase(now);
+    }
+}
+
 /// <summary>What one request did in SQL (filled by the interceptors on the request's async flow).</summary>
 internal sealed class RequestPerfScope
 {
@@ -246,6 +269,13 @@ internal sealed class RequestPerfScope
             SqlCount += n;
             _statements[shape] = _statements.TryGetValue(shape, out var s) ? (s.Ms + ms, s.Count + n, s.Rows + rows) : (ms, n, rows);
         }
+    }
+
+    public void AddPhase(string name, double ms)
+    {
+        var key = "phase:" + name;
+        lock (_gate)
+            _statements[key] = _statements.TryGetValue(key, out var s) ? (s.Ms + ms, s.Count + 1, s.Rows) : (ms, 1, 0);
     }
 
     public void AddLockWait(double ms)

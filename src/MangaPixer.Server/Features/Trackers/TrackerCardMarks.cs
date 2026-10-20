@@ -41,10 +41,13 @@ public sealed class TrackerCardMarks(MangaPixerDbContext db, TrackerSettingsServ
             return nodes;
         if (!await db.TrackerEntries.AsNoTracking().AnyAsync(e => e.UserId == userId && e.RemoteSeenAt != null, ct))
             return nodes;
+        var perfPhase = com.lifepixer.mangapixer.Server.Operations.Perf.PerfPhase.Start(); // 1.46.0 lane M: measurement only
         if (hasItems)
             nodes = await DecorateItemsAsync(nodes, userId, folderId!.Value, volumes, ct);
+        perfPhase = perfPhase.Lap("marks.items");
         if (hasFolders)
             nodes = await DecorateSeriesFoldersAsync(nodes, userId, folderId, ct);
+        perfPhase.Lap("marks.series-folders");
         return nodes;
     }
 
