@@ -51,15 +51,29 @@ public sealed class AddCatalogCreatedAtIndexMigrationTests : IDisposable
             await LegacySchemaSeed.InsertAsync(db, new LibraryEntity { Id = 1, PublicId = "lib1", DisplayName = "A", RootPath = "/synthetic/a", CreatedAt = now });
             await LegacySchemaSeed.InsertAsync(db, new CatalogNodeEntity
             {
-                Id = 10, PublicId = "series", LibraryId = 1, Kind = (int)CatalogNodeKind.Folder, DisplayName = "Series",
-                RelativePath = "Series", PathKey = "series", SortKey = "0series", CreatedAt = now.AddDays(-60),
+                Id = 10,
+                PublicId = "series",
+                LibraryId = 1,
+                Kind = (int)CatalogNodeKind.Folder,
+                DisplayName = "Series",
+                RelativePath = "Series",
+                PathKey = "series",
+                SortKey = "0series",
+                CreatedAt = now.AddDays(-60),
             });
             for (var i = 0; i < 3; i++)
             {
                 await LegacySchemaSeed.InsertAsync(db, new CatalogNodeEntity
                 {
-                    Id = 11 + i, PublicId = $"ch{i}", LibraryId = 1, ParentId = 10, Kind = (int)CatalogNodeKind.Archive,
-                    DisplayName = $"Ch {i}.cbz", RelativePath = $"Series/Ch {i}.cbz", PathKey = $"series/ch {i}.cbz", SortKey = $"1ch{i}",
+                    Id = 11 + i,
+                    PublicId = $"ch{i}",
+                    LibraryId = 1,
+                    ParentId = 10,
+                    Kind = (int)CatalogNodeKind.Archive,
+                    DisplayName = $"Ch {i}.cbz",
+                    RelativePath = $"Series/Ch {i}.cbz",
+                    PathKey = $"series/ch {i}.cbz",
+                    SortKey = $"1ch{i}",
                     CreatedAt = now.AddDays(-10 * i),
                 });
             }
