@@ -87,7 +87,7 @@ public sealed class CompletionAnswerCacheTests : IDisposable
         }
 
         await SeriesAsync("whole", "Synthetic Alpha", MetadataOriginStatus.Complete, 3, 3, "Synthetic Alpha v01", "Synthetic Alpha v02", "Synthetic Alpha v03");
-        await SeriesAsync("running", "Synthetic Beta", MetadataOriginStatus.Ongoing, 8, 4, "Synthetic Beta v01", "Synthetic Beta v02");
+        await SeriesAsync("running", "Synthetic Beta", MetadataOriginStatus.Ongoing, 8, 2, "Synthetic Beta v01", "Synthetic Beta v02");
         await SeriesAsync("finished", "Synthetic Gamma", MetadataOriginStatus.Complete, 2, 2, "Synthetic Gamma v01");
         s.Records["finished-other"] = await VolumeTestData.AddRecordAsync(db, "Synthetic Gamma Other Record", 1, MetadataOriginStatus.Complete, 1);
 
@@ -104,14 +104,17 @@ public sealed class CompletionAnswerCacheTests : IDisposable
 
         await SeriesAsync("declared", "Synthetic Zeta", MetadataOriginStatus.Complete, 2, 2, "Synthetic Zeta v01", "Synthetic Zeta v02");
 
-        var chapters = await SeriesAsync("chapters", "Synthetic Eta", MetadataOriginStatus.Ongoing, null, null);
+        var chapters = await SeriesAsync("chapters", "Synthetic Eta", MetadataOriginStatus.Ongoing, null, 3);
         for (var c = 1; c <= 12; c++)
             s.Nodes[$"Synthetic Eta c{c:000}"] = await VolumeTestData.AddArchiveAsync(db, lib, chapters.Id, $"Synthetic Eta c{c:000}");
 
+        // Chapters 1-14 are out in English; volume 3 (not on the list) is estimated as 11-15 until a scan proves it holds 11-13.
         var scanned = await SeriesAsync("scanned", "Synthetic Theta", MetadataOriginStatus.Ongoing, 4, null,
             "Synthetic Theta v01", "Synthetic Theta v02", "Synthetic Theta v03", "Synthetic Theta c011", "Synthetic Theta c012",
-            "Synthetic Theta c013", "Synthetic Theta c016");
-        await VolumeTestData.AddMapAsync(db, s.Records["scanned"].Id, knownVolumes: 4, chaptersPerVolume: 5, volumes: [(1, 1, 5), (2, 6, 10)]);
+            "Synthetic Theta c013");
+        var scannedMap = await VolumeTestData.AddMapAsync(db, s.Records["scanned"].Id, knownVolumes: 4, chaptersPerVolume: 5,
+            volumes: [(1, 1, 5), (2, 6, 10)]);
+        await VolumeTestData.SetReleasedAsync(db, scannedMap, "en", 14);
 
         var wiki = await SeriesAsync("wikipedia", "Synthetic Iota", MetadataOriginStatus.Complete, 3, 3, "Synthetic Iota v01", "Synthetic Iota v02");
         await VolumeTestData.AddMapAsync(db, s.Records["wikipedia"].Id, chaptersPerVolume: 5, volumes: [(1, 1, 5), (2, 6, 10)]);
@@ -257,7 +260,10 @@ public sealed class CompletionAnswerCacheTests : IDisposable
     {
         var after = await OldAnswersAsync(k.S);
         var id = k.S.Series[key].Id;
-        Assert.NotEqual(before.GetValueOrDefault(id), after.GetValueOrDefault(id));
+        string Dump(Dictionary<long, SeriesAnswer?> a) =>
+            string.Join(", ", k.S.Series.Select(e => $"{e.Key}={(a.TryGetValue(e.Value.Id, out var v) ? v?.ToString() ?? "none" : "unlinked")}"));
+        Assert.True(before.GetValueOrDefault(id) != after.GetValueOrDefault(id) || before.ContainsKey(id) != after.ContainsKey(id),
+            $"the change must move the {key} answer; before: {Dump(before)}; after: {Dump(after)}");
         await AssertServesOldAnswersAsync(k.S, k.Browse);
     }
 
@@ -394,14 +400,13 @@ public sealed class CompletionAnswerCacheTests : IDisposable
     // --- Invalidation: one test per input ----------------------------------------------------------------------------------------------
 
     [Fact]
-    public async Task Input_CatalogRevision_AScanThatAddsTheMissingVolumes_IsServedAtOnce()
+    public async Task Input_CatalogRevision_AScanThatAddsTheMissingVolume_IsServedAtOnce()
     {
         using var k = await KitAsync();
         var before = await WarmAsync(k);
-        foreach (var v in new[] { 3, 4 })
-            await VolumeTestData.AddArchiveAsync(k.S.Db, k.S.Library.Id, k.S.Series["running"].Id, $"Synthetic Beta v0{v}");
+        await VolumeTestData.AddArchiveAsync(k.S.Db, k.S.Library.Id, k.S.Series["finished"].Id, "Synthetic Gamma v02");
         await BumpRevisionAsync(k.S);
-        await AssertChangeServedAsync(k, before, "running");
+        await AssertChangeServedAsync(k, before, "finished");
     }
 
     [Fact]
@@ -477,11 +482,12 @@ public sealed class CompletionAnswerCacheTests : IDisposable
     public async Task Input_VolumeMaps_AChangedList_IsServedAtOnce()
     {
         using var k = await KitAsync();
-        await VolumeTestData.AddMapAsync(k.S.Db, k.S.Records["chapters"].Id, chaptersPerVolume: 6, volumes: [(1, 1, 6), (2, 7, 12)]);
+        await VolumeTestData.AddMapAsync(k.S.Db, k.S.Records["chapters"].Id, chaptersPerVolume: 4, volumes: [(1, 1, 4), (2, 5, 8), (3, 9, 12)]);
         var before = await WarmAsync(k);
         // As VolumeMapService.StoreAsync writes a changed answer: the content, its hash and the version.
         var map = await k.S.Db.SeriesVolumeMaps.SingleAsync(m => m.RecordId == k.S.Records["chapters"].Id);
-        map.VolumesJson = """[{"v":"1","c":["1","2","3","4","5","6"]},{"v":"2","c":["7","8","9","10","11","12"]},{"v":"3","c":["13","14","15","16","17","18"]}]""";
+        map.VolumesJson = """[{"v":"1","c":["1","2","3","4","5"]},{"v":"2","c":["6","7","8","9","10"]},{"v":"3","c":["11","12","13","14","15"]}]""";
+        map.ChaptersPerVolume = 5;
         map.ContentHash = "changed";
         map.Version++;
         await k.S.Db.SaveChangesAsync();
