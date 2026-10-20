@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Library pages load much faster for readers who track series.** The gold "read on your tracker" rings of all the series cards on a page are worked out together instead of one series at a time (a library's top page went from over 900 database queries to under 70). The rings are unchanged.
+- **The Completion filter answers at once after the first time.** Each folder's answers are kept until something they depend on changes (a scan, a link, a declared edition or tracking setting, a volume list, a stored record, the preferred language, ComicInfo, the volume contents scan) - and at most 10 minutes. The answers are unchanged, and working them out is lighter.
+- **Faster home "New chapters":** the row works out the read state only for the stacks it shows, and a new database index finds a library's recently added archives directly. Same stacks, same order.
+- **Faster first visits after a restart or an update:** once the server answers, it prepares the library first pages, the home rows and the page encoder in the background, pausing whenever someone uses the server. It only reads and sends nothing anywhere; `MangaPixer:Warmup:Enabled=false` switches it off.
+- **Smaller, cached web app downloads:** the web app's files are sent compressed (Brotli or gzip - the first load transfers about a third of the bytes) and its versioned files are cached by the browser for a year, so a revisit downloads only what a new version changed. API answers are unchanged.
+- The "Continue" shortcut is worked out only for the first page of a list, and at a library's top level without walking the whole library; the library list remembers each library's file count until it is scanned again; search counts its matches and prepares its cards once per page instead of twice.
+- The background cover check no longer writes to the database for covers that did not change (it sent one delete per chapter and per plain volume of every linked series after each restart, with nothing to delete).
+- API note: `nextUnread` of a browse page is now null on any page after the first (a `cursor` or `before` request).
+
 ## [1.45.1] - 2026-10-20
 
 ### Fixed
