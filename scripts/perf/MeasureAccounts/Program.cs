@@ -33,7 +33,7 @@ var syntheticTracking = args.Contains("--synthetic-tracking");
 
 var services = new ServiceCollection();
 services.AddLogging();
-services.AddDbContext<MangaPixerDbContext>(o => o.ConfigureSqlite(dbPath));
+services.AddDbContext<MangaPixerDbContext>(o => ((DbContextOptionsBuilder<MangaPixerDbContext>)o).ConfigureSqlite(dbPath));
 services.AddIdentityCore<UserEntity>(options =>
 {
     options.Password.RequiredLength = 8;

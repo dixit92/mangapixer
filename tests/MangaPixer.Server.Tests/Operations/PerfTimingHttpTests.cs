@@ -42,9 +42,17 @@ public sealed class PerfTimingHttpTests
         Assert.All(timing.Split(", "), part => Assert.Matches(@"^(app|sql|sqln|lockw);dur=[0-9]+(\.[0-9])?$", part));
         Assert.Matches(@"(^|, )sqln;dur=[1-9][0-9]*", timing); // the cookie check and the snapshot's counts are SQL
 
-        var diag = await client.GetFromJsonAsync<JsonElement>(Diagnostics);
-        var perf = diag.GetProperty("perf");
-        var routes = perf.GetProperty("routes").EnumerateArray().ToList();
+        // The first request is counted when its middleware finishes, which may be just after the client got the response.
+        JsonElement perf = default;
+        List<JsonElement> routes = [];
+        for (var attempt = 0; attempt < 50 && !routes.Any(r => r.GetProperty("key").GetString() == "GET api/v1/operations/diagnostics"); attempt++)
+        {
+            if (attempt > 0)
+                await Task.Delay(100);
+            var diag = await client.GetFromJsonAsync<JsonElement>(Diagnostics);
+            perf = diag.GetProperty("perf");
+            routes = perf.GetProperty("routes").EnumerateArray().ToList();
+        }
         var route = Assert.Single(routes, r => r.GetProperty("key").GetString() == "GET api/v1/operations/diagnostics");
         Assert.True(route.GetProperty("count").GetInt64() >= 1);
         Assert.True(route.GetProperty("sqlCount").GetInt64() >= 1);

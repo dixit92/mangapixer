@@ -61,9 +61,11 @@ public sealed class PerfRecorder
     {
         s_scope.Value = null;
         scope.End();
-        Bump(_routes, route, totalMs, scope.SqlMs, scope.SqlCount, scope.LockWaitMs);
+        // Statements first: a reader that sees the route counted also sees its statements (the response may reach the client
+        // before this runs).
         foreach (var (shape, s) in scope.Statements)
             BumpStatement((route, shape), s.Ms, s.Count, s.Rows);
+        Bump(_routes, route, totalMs, scope.SqlMs, scope.SqlCount, scope.LockWaitMs);
     }
 
     /// <summary>One executed SQL command: inside a request it goes to that request's scope, otherwise to "background".</summary>
@@ -123,7 +125,7 @@ public sealed class PerfRecorder
         return shape;
     }
 
-    public PerfDiagnostics Snapshot(int maxStatements = 400)
+    public PerfDiagnostics Snapshot(int maxStatements = 1500)
     {
         var gc = GC.GetGCMemoryInfo();
         ThreadPool.GetAvailableThreads(out var workerAvail, out var ioAvail);
