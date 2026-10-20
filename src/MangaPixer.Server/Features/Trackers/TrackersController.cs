@@ -23,7 +23,8 @@ public sealed class TrackersController(
     TrackerEntriesService entries,
     TrackerListService list,
     TrackerPullService pull,
-    TrackerBatchService batch) : ControllerBase
+    TrackerBatchService batch,
+    Catalog.CatalogBrowseService browse) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType<TrackersOverviewDto>(StatusCodes.Status200OK)]
@@ -223,6 +224,28 @@ public sealed class TrackersController(
         UserId() is { } userId ? Ok(await list.AttentionAsync(userId, ct)) : Forbid();
 
     /// <summary>1.43.0: the series header popover - the caller's tracking of the series a folder belongs to (display only, no request).</summary>
+    /// <summary>
+    /// 1.45.1 (B4): the gold "read on &lt;tracker&gt;" rings of the cards on screen (<paramref name="ids"/>, at most 200: nodes of the library and
+    /// volume stacks of the folder <paramref name="parentId"/>), by the listing's own rule - the browse page's re-read after Back from the
+    /// reader, instead of replaying every page of the listing. Display only; no request to a tracker.
+    /// </summary>
+    [HttpGet("card-marks")]
+    [ProducesResponseType<TrackerCardMarksDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CardMarks([FromQuery] string? libraryId, [FromQuery] string? parentId, [FromQuery] string[]? ids,
+        CancellationToken ct)
+    {
+        if (UserId() is not { } userId)
+            return Forbid();
+        if (string.IsNullOrEmpty(libraryId))
+            return Problem(TrackerProblem.Bad("invalid_request", "A library is required."));
+        if (ids is { Length: > Catalog.CatalogBrowseService.MaxTrackerMarkIds })
+            return Problem(TrackerProblem.Bad("too_many_ids", "Ask for at most 200 cards at a time."));
+        var marks = await browse.TrackerCardMarksAsync(userId, libraryId, parentId, ids ?? [], ct);
+        return marks is null ? Problem(TrackerProblem.NotFound("not_found", "There is no such library or folder.")) : Ok(marks);
+    }
+
     [HttpGet("nodes/{nodeId}/summary")]
     [ProducesResponseType<TrackerSeriesSummaryDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiError>(StatusCodes.Status404NotFound)]

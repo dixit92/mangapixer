@@ -3807,6 +3807,17 @@ export interface TrackerDatesRequest {
 }
 
 /** `GET /api/v1/trackers/nodes/{nodeId}/summary`: the series header popover (one row per connected tracker). */
+/** 1.45.1 (B4): the gold rings of the cards on screen (`GET /api/v1/trackers/card-marks`); unknown ids are left out. */
+export interface TrackerCardMarksDto {
+  items: TrackerCardMarkDto[];
+}
+
+/** One card's ring: the trackers it is read on (as the listing's `trackerRead`), or null for no ring. */
+export interface TrackerCardMarkDto {
+  id: string;
+  trackerRead?: string[] | null;
+}
+
 export interface TrackerSeriesSummaryDto {
   seriesId?: string | null;
   rows: TrackerSeriesRowDto[];

@@ -679,7 +679,7 @@ test.describe('tracker sync web (1.43.0)', () => {
     expect(outside).toEqual([]);
   });
 
-  test('1.45.0 (K8): read a chapter to the end, Back - the gold ring is on the chapters the tracker now counts, without a reload', async ({ page }) => {
+  test('1.45.0 (K8) / 1.45.1 (B4): read a chapter to the end, Back - the gold ring is on the chapters the tracker now counts, without a reload or a listing replay', async ({ page }) => {
     // The owner's path (2026-10-19, live 1.44.0): the cards showed Read but no gold ring until a reload. The server sets `trackerRead`
     // only for a series the viewer tracks on a connected tracker, and no tracker is reachable here: the browse answer gets it for
     // chapters 1 and 2 once chapter 2's last page was saved (MyAnimeList's number covers the earlier chapter too).
@@ -703,11 +703,27 @@ test.describe('tracker sync web (1.43.0)', () => {
         if (req.method() === 'PUT' && readId && req.url().endsWith(`/${readId}`) && (req.postDataJSON()?.pageIndex ?? 0) >= 2) finished = true;
         await r.continue();
       });
+      // 1.45.1 (B4): after Back the rings come from the light card-marks route (the real server answers it; the test adds MyAnimeList's
+      // ring), never from a replay of the listing - every list request is counted.
+      const names = new Map<string, string>();
+      let listings = 0;
       await page.route(new RegExp(`/api/v1/libraries/${libraryId}/browse\\?.*parentId=${folderId}`), async (r) => {
+        if (!/[?&]pageSize=1(&|$)/.test(r.request().url())) listings++; // not the Continue row's 1-item look
         const res = await r.fetch();
         const body = await res.json();
-        for (const n of body.items as { displayName: string; trackerRead?: string[] | null }[]) {
+        for (const n of body.items as { id: string; displayName: string; trackerRead?: string[] | null }[]) {
+          names.set(n.id, n.displayName);
           if (finished && /v01 c00[12]/.test(n.displayName)) n.trackerRead = ['mal'];
+        }
+        await r.fulfill({ response: res, json: body });
+      });
+      const cardMarkStatuses: number[] = [];
+      await page.route(/\/api\/v1\/trackers\/card-marks\?/, async (r) => {
+        const res = await r.fetch();
+        cardMarkStatuses.push(res.status());
+        const body = await res.json();
+        for (const m of body.items as { id: string; trackerRead?: string[] | null }[]) {
+          if (finished && /v01 c00[12]/.test(names.get(m.id) ?? '')) m.trackerRead = ['mal'];
         }
         await r.fulfill({ response: res, json: body });
       });
@@ -719,6 +735,7 @@ test.describe('tracker sync web (1.43.0)', () => {
       await expect(second).toHaveCount(1);
       await expect(page.getByTestId('tracker-read-mark')).toHaveCount(0);
       await page.evaluate(() => { (window as unknown as { k8: string }).k8 = 'same page'; });
+      const listingsBeforeReading = listings;
       readId = (await second.locator('a.node-card').getAttribute('href'))!.split('?')[0].split('/').pop()!;
 
       // Read it to the end, then Back.
@@ -737,6 +754,11 @@ test.describe('tracker sync web (1.43.0)', () => {
       await expect(ringed.nth(1)).toContainText('v01 c002');
       expect(finished).toBe(true);
       expect(await page.evaluate(() => (window as unknown as { k8?: string }).k8)).toBe('same page');
+      // The real route answered (wired), and the listing was not asked again.
+      expect(cardMarkStatuses.length).toBeGreaterThan(0);
+      expect(cardMarkStatuses.every((st) => st === 200)).toBe(true);
+      await page.waitForTimeout(3500); // the second look (3 s) is a card-marks request too
+      expect(listings).toBe(listingsBeforeReading);
       expect(outside).toEqual([]);
     } finally {
       await page.request.put('/api/v1/reading/library-preferences', { headers, data: prefs });
