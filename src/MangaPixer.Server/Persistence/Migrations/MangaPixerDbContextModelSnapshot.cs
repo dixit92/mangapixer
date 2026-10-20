@@ -583,6 +583,8 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.HasIndex("LibraryId", "PathKey")
                         .IsUnique();
 
+                    b.HasIndex("LibraryId", "Kind", "CreatedAt");
+
                     b.HasIndex("ParentId", "Kind", "SortKey");
 
                     b.ToTable("catalog_nodes", (string)null);
