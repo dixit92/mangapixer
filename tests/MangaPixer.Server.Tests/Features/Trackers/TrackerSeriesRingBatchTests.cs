@@ -107,7 +107,7 @@ public sealed class TrackerSeriesRingBatchTests
         var lima = (await resolver.ArchivesAsync(seeded.ReaderId, seeded.Records[12], CancellationToken.None)).Archives;
         var mike = (await resolver.ArchivesAsync(seeded.ReaderId, seeded.Records[13], CancellationToken.None)).Archives;
         Assert.Equal(4, lima.Count);
-        Assert.Equal([1m, 2m], mike.Select(a => a.Units.Chapter).Order());
+        Assert.Equal([2m, 3m], mike.Select(a => a.Units.Volume).Order());
         Assert.Equal(6, adminGolf);
     }
 
@@ -362,13 +362,13 @@ public sealed class TrackerSeriesRingBatchTests
                 CandidatesKey = "k",
                 ScannedAt = DateTimeOffset.UtcNow,
             });
-            // 13 Mike: archives numbered only by their ComicInfo.
+            // 13 Mike: archives numbered only by their ComicInfo volume.
             var mike = await SeriesAsync("Mike Saga", ["Mike Story A", "Mike Story B"]);
             Seen(mike, TrackerSlugs.MangaUpdates, 2);
             var mikeFolder = db.NodeSeriesLinks.Local.Single(l => l.RecordId == mike.Id).NodeId;
             var mikeNodes = await db.CatalogNodes.Where(c => c.ParentId == mikeFolder).OrderBy(c => c.Id).Select(c => c.Id).ToListAsync();
-            await VolumeTestData.AddComicInfoAsync(db, mikeNodes[0], null, "1");
-            await VolumeTestData.AddComicInfoAsync(db, mikeNodes[1], null, "2");
+            await VolumeTestData.AddComicInfoAsync(db, mikeNodes[0], 2, "7");
+            await VolumeTestData.AddComicInfoAsync(db, mikeNodes[1], 3, null);
             await db.SaveChangesAsync();
 
             // Some read marks (ArchivesOfRecordsAsync with readMarks reads them).
