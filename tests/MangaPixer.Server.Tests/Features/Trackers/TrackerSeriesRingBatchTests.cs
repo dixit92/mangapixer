@@ -348,14 +348,14 @@ public sealed class TrackerSeriesRingBatchTests
             // 12 Lima: a volume file whose scanned contents hold chapters 1-2 (the volume contents scan), next to loose chapters.
             var lima = await SeriesAsync("Lima Saga", ["Volume 01", "Chapter 001", "Chapter 002", "Chapter 003"]);
             Seen(lima, TrackerSlugs.MangaUpdates, 3);
-            var limaNodes = await db.CatalogNodes.Where(c => c.ParentId == db.NodeSeriesLinks.Local.Single(l => l.RecordId == lima.Id).NodeId)
-                .ToDictionaryAsync(c => c.DisplayName, c => c.Id);
+            var limaFolder = db.NodeSeriesLinks.Local.Single(l => l.RecordId == lima.Id).NodeId;
+            var limaNodes = await db.CatalogNodes.Where(c => c.ParentId == limaFolder).ToDictionaryAsync(c => c.DisplayName, c => c.Id);
             db.VolumeContents.Add(new VolumeContentEntity
             {
                 VolumeNodeId = limaNodes["Volume 01"],
                 VolumeContentVersion = 1,
                 Volume = 1,
-                FolderId = db.NodeSeriesLinks.Local.Single(l => l.RecordId == lima.Id).NodeId,
+                FolderId = limaFolder,
                 State = (int)VolumeContentRowState.Known,
                 ChaptersJson = JsonSerializer.Serialize(new[] { "Chapter 001", "Chapter 002" }.Select((name, i) =>
                     new StoredFoundChapter(limaNodes[name], 1, 1 + i, 2 + i * 10, 11 + i * 10, 10, 10)), VolumeContentReader.Json),
@@ -365,8 +365,8 @@ public sealed class TrackerSeriesRingBatchTests
             // 13 Mike: archives numbered only by their ComicInfo.
             var mike = await SeriesAsync("Mike Saga", ["Mike Story A", "Mike Story B"]);
             Seen(mike, TrackerSlugs.MangaUpdates, 2);
-            var mikeNodes = await db.CatalogNodes.Where(c => c.ParentId == db.NodeSeriesLinks.Local.Single(l => l.RecordId == mike.Id).NodeId)
-                .OrderBy(c => c.Id).Select(c => c.Id).ToListAsync();
+            var mikeFolder = db.NodeSeriesLinks.Local.Single(l => l.RecordId == mike.Id).NodeId;
+            var mikeNodes = await db.CatalogNodes.Where(c => c.ParentId == mikeFolder).OrderBy(c => c.Id).Select(c => c.Id).ToListAsync();
             await VolumeTestData.AddComicInfoAsync(db, mikeNodes[0], null, "1");
             await VolumeTestData.AddComicInfoAsync(db, mikeNodes[1], null, "2");
             await db.SaveChangesAsync();
