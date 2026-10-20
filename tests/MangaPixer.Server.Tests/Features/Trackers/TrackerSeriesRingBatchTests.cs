@@ -95,7 +95,8 @@ public sealed class TrackerSeriesRingBatchTests
                 Assert.Equal(JsonSerializer.Serialize(map), JsonSerializer.Serialize(batched[recordId].Map));
             }
             // Not vacuous: the scopes hold archives, read ones among them, and the reader's scope differs from the admin's.
-            Assert.Contains(batched.Values, s => s.Archives.Any(a => a.Read));
+            if (userId == seeded.ReaderId)
+                Assert.Contains(batched.Values, s => s.Archives.Any(a => a.Read)); // the reader's own marks
             Assert.Contains(batched.Values, s => s.Map.Volumes.Count > 0);
         }
         var readerGolf = (await resolver.ArchivesAsync(seeded.ReaderId, seeded.Records[GolfIndex], CancellationToken.None)).Archives.Count;
