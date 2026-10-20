@@ -87,7 +87,7 @@ public sealed class PerfTimingHttpTests
 
         var rows = recorder.Snapshot().Statements.Where(s => s.Key == "GET api/v1/x").ToList();
         Assert.Equal(["phase:first", "phase:second"], rows.Select(r => r.Shape).Order(StringComparer.Ordinal));
-        Assert.All(rows, r => Assert.Equal(1, r.Count));
+        Assert.All(rows, r => Assert.Equal(1L, r.Count));
         Assert.DoesNotContain(recorder.Snapshot().Statements, s => s.Shape == "phase:outside");
     }
 }
