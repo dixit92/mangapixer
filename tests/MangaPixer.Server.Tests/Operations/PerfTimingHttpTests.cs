@@ -72,4 +72,22 @@ public sealed class PerfTimingHttpTests
         var shape = recorder.ShapeOf("SELECT \"c\".\"Id1\", @__p_0 FROM t0\n  WHERE name = 'A Secret ''Title''' AND n = 42 AND x > 3.5");
         Assert.Equal("SELECT \"c\".\"Id1\", @__p_0 FROM t0 WHERE name = '?' AND n = # AND x > #", shape);
     }
+
+    [Fact]
+    public void PhaseLaps_AreCountedWithTheRoute_AndAreNoOpsOutsideARequest()
+    {
+        PerfPhase.Start().Lap("outside"); // no request scope: nothing happens
+
+        var recorder = new PerfRecorder(enabled: false);
+        var scope = recorder.BeginRequest();
+        var phase = PerfPhase.Start();
+        phase = phase.Lap("first");
+        phase.Lap("second");
+        recorder.EndRequest(scope, "GET api/v1/x", 1);
+
+        var rows = recorder.Snapshot().Statements.Where(s => s.Key == "GET api/v1/x").ToList();
+        Assert.Equal(["phase:first", "phase:second"], rows.Select(r => r.Shape).Order(StringComparer.Ordinal));
+        Assert.All(rows, r => Assert.Equal(1, r.Count));
+        Assert.DoesNotContain(recorder.Snapshot().Statements, s => s.Shape == "phase:outside");
+    }
 }
