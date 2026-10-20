@@ -533,33 +533,11 @@ public sealed partial class Program
                 .AllowAnonymous()
                 .ExcludeFromDescription();
 
-            // Static files — serve Angular bundle from wwwroot/
+            // Static files — serve Angular bundle from wwwroot/, with the SPA fallback to index.html (1.46.0 lane D:
+            // precompressed variants from the web build and cache headers - see StaticAssetDelivery).
             var wwwrootPath = Path.Combine(builder.Environment.ContentRootPath, "wwwroot");
             if (Directory.Exists(wwwrootPath))
-            {
-                app.UseDefaultFiles();
-                app.UseStaticFiles();
-
-                // SPA fallback — serve index.html for non-API, non-file routes
-                app.MapFallback(context =>
-                {
-                    if (context.Request.Path.StartsWithSegments("/api"))
-                    {
-                        context.Response.StatusCode = 404;
-                        return Task.CompletedTask;
-                    }
-
-                    var indexPath = Path.Combine(wwwrootPath, "index.html");
-                    if (File.Exists(indexPath))
-                    {
-                        context.Response.ContentType = "text/html";
-                        return context.Response.SendFileAsync(indexPath);
-                    }
-
-                    context.Response.StatusCode = 404;
-                    return Task.CompletedTask;
-                });
-            }
+                app.UseMangaPixerWebApp(wwwrootPath);
 
             app.Run();
         }
