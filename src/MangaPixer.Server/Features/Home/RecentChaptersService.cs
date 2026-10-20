@@ -45,7 +45,9 @@ using Microsoft.EntityFrameworkCore;
 /// <item><description>
 /// Every stack carries a derived <see cref="RecentChapterStack.ReadState"/> (1.20.0), the same
 /// read rollup (<see cref="FolderReadRollupRules"/>) the optional <c>readState</c> filter uses —
-/// resolved once per library group so the tag and the filter can never disagree.
+/// one rollup per stack feeds both, so the tag and the filter can never disagree. Since 1.46.0 the
+/// rollups are resolved only for the stacks the row can show (in order, up to the cap), not for every
+/// stack of the library.
 /// </description></item>
 /// </list>
 /// </summary>
@@ -295,35 +297,14 @@ public sealed class RecentChaptersService
                 LatestItemName = latest.DisplayName,
                 LatestAddedAt = latest.CreatedAt,
                 NewCount = list.Count,
-                ReadState = ReadStateWireValue(null), // placeholder; set below once rollups resolve
+                ReadState = ReadStateWireValue(null), // placeholder; set by TakeWithReadStateAsync for the kept stacks
             }, topId));
         }
 
-        // Read-state rollup (1.20.0 tag + 1.17.0 filter, unified): resolved for EVERY stack —
-        // one bounded rollup query per library group, same as the folder-cover resolution below
-        // — so the per-card tag and the read-state filter are always derived from the same
-        // rollup and never disagree. Rollup is over each stack node's readable
-        // descendants (its whole subtree for a folder stack, or just itself for a standalone
-        // archive stack) — NOT limited to the recency-window candidates — so a stack's read
-        // state matches what the folder rollup badge / archive card would show if the user
-        // browsed to it directly.
-        var rollups = await ResolveReadRollupsAsync(stacks.Select(s => s.TopId).ToList(), userId, ct);
-        stacks = stacks
-            .Select(s => (s.Stack with { ReadState = ReadStateWireValue(ResolveRollup(rollups, s.TopId)) }, s.TopId))
-            .ToList();
-
-        // Read-state filter (1.17.0), applied BEFORE the newest-activity ordering and the
-        // per-library cap so a filtered-out stack never displaces one that matches — mirrors
-        // the browse view applying its read-state filter to the base query before pagination.
-        if (readState != HomeReadStateFilter.All)
-            stacks = stacks.Where(s => MatchesReadState(rollups, s.TopId, readState)).ToList();
-
-        // Order by newest activity, cap to perLibrary STACKS.
-        var ordered = stacks
-            .OrderByDescending(s => s.Stack.LatestAddedAt)
-            .ThenByDescending(s => s.TopId)
-            .Take(cap)
-            .ToList();
+        // Order by newest activity (TopId desc breaks ties, so the order is total), then cap to perLibrary STACKS.
+        var ordered = await TakeWithReadStateAsync(
+            stacks.OrderByDescending(s => s.Stack.LatestAddedAt).ThenByDescending(s => s.TopId).ToList(),
+            cap, userId, readState, ct);
 
         // Covers for the taken stacks from the cover resolver (1.29.0 seam): a folder stack shows the same cover as its
         // browse card (its first descendant archive by SortKey, one recursive CTE), a loose-archive stack its own cover.
@@ -333,6 +314,52 @@ public sealed class RecentChaptersService
         return ordered
             .Select(s => covers.TryGetValue(s.TopId, out var url) ? s.Stack with { CoverUrl = url } : s.Stack)
             .ToList();
+    }
+
+    /// <summary>Smallest number of stacks whose read rollups are resolved in one query while a read-state filter is on.</summary>
+    internal const int FilteredRollupChunk = 16;
+
+    /// <summary>
+    /// The first <paramref name="cap"/> stacks of <paramref name="ordered"/> (newest activity first) that match the read-state filter,
+    /// each tagged with its read rollup (1.20.0 tag + 1.17.0 filter, unified: the tag and the filter come from the same rollup and never
+    /// disagree). The rollup is over each stack node's readable descendants (its whole subtree for a folder stack, or just itself for a
+    /// standalone archive stack) - NOT limited to the recency-window candidates - so a stack's read state matches what the folder rollup
+    /// badge / archive card would show if the user browsed to it directly.
+    /// <para>
+    /// 1.46.0 lane D: the rollups are resolved only for the stacks that can still be shown, walking the ordered list in chunks, instead of
+    /// for every stack of the library before the cap. The result is the same as filtering every stack and then taking the first
+    /// <paramref name="cap"/> (the 1.17.0 rule - a filtered-out stack never displaces one that matches): the filter is per stack and the
+    /// order is total, so the first <paramref name="cap"/> matches of the ordered list are exactly those. Without a filter every stack
+    /// matches, so exactly the first <paramref name="cap"/> stacks are resolved, in one query.
+    /// </para>
+    /// </summary>
+    private async Task<List<(RecentChapterStack Stack, long TopId)>> TakeWithReadStateAsync(
+        List<(RecentChapterStack Stack, long TopId)> ordered,
+        int cap,
+        long userId,
+        HomeReadStateFilter readState,
+        CancellationToken ct)
+    {
+        var kept = new List<(RecentChapterStack Stack, long TopId)>(Math.Min(cap, ordered.Count));
+        var next = 0;
+        while (kept.Count < cap && next < ordered.Count)
+        {
+            var missing = cap - kept.Count;
+            var size = readState == HomeReadStateFilter.All ? missing : Math.Max(missing * 2, FilteredRollupChunk);
+            var chunk = ordered.GetRange(next, Math.Min(size, ordered.Count - next));
+            next += chunk.Count;
+
+            var rollups = await ResolveReadRollupsAsync(chunk.Select(s => s.TopId).ToList(), userId, ct);
+            foreach (var s in chunk)
+            {
+                if (kept.Count == cap)
+                    break;
+                if (readState != HomeReadStateFilter.All && !MatchesReadState(rollups, s.TopId, readState))
+                    continue;
+                kept.Add((s.Stack with { ReadState = ReadStateWireValue(ResolveRollup(rollups, s.TopId)) }, s.TopId));
+            }
+        }
+        return kept;
     }
 
     /// <summary>

@@ -518,6 +518,9 @@ public sealed class MangaPixerDbContext : DbContext
             // Tombstone lifecycle (1.31.0): move candidates inside the retention window, trash purge after it.
             e.HasIndex(x => new { x.Availability, x.TombstonedAt });
 
+            // Home "New chapters" (1.46.0 lane D): a library's archives added since the recency window's cutoff.
+            e.HasIndex(x => new { x.LibraryId, x.Kind, x.CreatedAt });
+
             // Self-referencing parent
             e.HasOne(x => x.Parent)
                 .WithMany()
