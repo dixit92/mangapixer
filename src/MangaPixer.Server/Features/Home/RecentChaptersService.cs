@@ -135,7 +135,9 @@ public sealed class RecentChaptersService
         var groups = new List<RecentChaptersLibraryGroup>(libs.Count);
         foreach (var lib in libs)
         {
+            var perfPhase = com.lifepixer.mangapixer.Server.Operations.Perf.PerfPhase.Start(); // 1.46.0 lane M: measurement only
             var stacks = await BuildStacksAsync(lib.Id, cutoff, cap, userId, readState, ct);
+            perfPhase.Lap("home.build-stacks");
             groups.Add(new RecentChaptersLibraryGroup
             {
                 LibraryId = lib.PublicId,
@@ -144,7 +146,10 @@ public sealed class RecentChaptersService
             });
         }
 
-        return new RecentChaptersDto { Libraries = await ApplyCardFlagsAsync(userId, groups, ct) };
+        var flagsPhase = com.lifepixer.mangapixer.Server.Operations.Perf.PerfPhase.Start(); // 1.46.0 lane M: measurement only
+        var flagged = await ApplyCardFlagsAsync(userId, groups, ct);
+        flagsPhase.Lap("home.card-flags");
+        return new RecentChaptersDto { Libraries = flagged };
     }
 
     /// <summary>

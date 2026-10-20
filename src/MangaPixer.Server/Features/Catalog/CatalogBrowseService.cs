@@ -8,6 +8,7 @@ using com.lifepixer.mangapixer.Core.Reading;
 using com.lifepixer.mangapixer.Server.Features.Auth;
 using com.lifepixer.mangapixer.Server.Features.Covers;
 using com.lifepixer.mangapixer.Server.Features.Metadata;
+using com.lifepixer.mangapixer.Server.Operations.Perf;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -155,7 +156,9 @@ public sealed partial class CatalogBrowseService
             baseQuery = baseQuery.Where(n => n.ParentId == parentId);
 
         // 1.44.0 lane C: the level's linked series, before any filter - the Completion section shows only where there are some.
+        var perfPhase = PerfPhase.Start(); // 1.46.0 lane M: measurement-only phase laps (no-op unless request timing is on)
         var linkedSeries = await LinkedSeriesOfLevelAsync(baseQuery, ct);
+        perfPhase = perfPhase.Lap("browse.linked-series");
 
         // Favorites-only filter (1.21.0): keep only nodes the user has starred. Applied
         // to the base query BEFORE counting/pagination so it composes with the read-state
@@ -246,13 +249,17 @@ public sealed partial class CatalogBrowseService
         BrowseCompletionCountsDto? completionCounts = null;
         if (completion is { } wanted && linkedSeries.Count > 0)
         {
+            perfPhase = perfPhase.Lap("browse.read-filter");
             (baseQuery, completionCounts) = await ApplyCompletionAsync(baseQuery, linkedSeries, libraryId, parentId, wanted,
                 continuation: !string.IsNullOrEmpty(cursor) || !string.IsNullOrEmpty(before), ct);
+            perfPhase = perfPhase.Lap("browse.completion");
         }
 
         // Total count from the base query (before cursor — fixes the decreasing-count bug
         // where the old code counted after the cursor filter).
+        perfPhase = perfPhase.Lap("browse.filters");
         var totalCount = await baseQuery.CountAsync(ct);
+        perfPhase = perfPhase.Lap("browse.count");
 
         // Backward (upward) paging (1.11.0): when `before` is set, return the page
         // immediately BEFORE that keyset (name sort only - the jump rail is name-sort, and
@@ -304,12 +311,16 @@ public sealed partial class CatalogBrowseService
             }
         }
 
+        perfPhase = perfPhase.Lap("browse.page-query");
         // Enrich the page's rows into card DTOs (covers, reader defaults, read state, rollups, favourites, (i)).
         var nodes = await EnrichAsync(rows, userId, libraryId, ct);
+        perfPhase = perfPhase.Lap("browse.enrich");
         if (parentId is { } folderId && rows.Any(r => r.Kind == (int)CatalogNodeKind.Archive))
             nodes = await WithAlsoInVolumeAsync(nodes, folderId, ct);
+        perfPhase = perfPhase.Lap("browse.also-in-volume");
         // 1.43.0 (tracker sync): the cards' "read on <tracker>" flag (one indexed lookup when the viewer tracks nothing).
         nodes = await WithTrackerReadAsync(nodes, userId, parentId, ct);
+        perfPhase = perfPhase.Lap("browse.tracker-marks");
 
         // Compute next cursor from the last row on the current page. recentlyRead
         // paginates by offset (in-memory pure-recency order); the others use a keyset.
@@ -327,6 +338,7 @@ public sealed partial class CatalogBrowseService
         // resolved set-based over the same recursive descendant walk the cover/recency
         // aggregates use. Surfaced above the sorted list; the list order is unchanged.
         var nextUnread = await ResolveNextUnreadAsync(libraryId, parentId, userId, ct);
+        perfPhase.Lap("browse.next-unread");
 
         return new PageResponse<CatalogNodeDto>
         {
@@ -364,7 +376,9 @@ public sealed partial class CatalogBrowseService
         // subfolders so a folder containing only subfolders still gets a cover (1.3.1 fix) - one recursive CTE
         // for the page (FolderCovers), no N+1.
         var folderIds = nodes.Where(n => n.Kind == CatalogNodeKind.Folder).Select(n => n.Id).ToList();
+        var perfPhase = PerfPhase.Start();
         nodes = await ApplyCoversAsync(nodes, rows.Select(r => new CoverTarget(r.InternalId, r.Id, r.Kind == (int)CatalogNodeKind.Folder)), ct);
+        perfPhase = perfPhase.Lap("enrich.covers");
 
         // Populate ReaderDefault for folders that carry a global override (1.2.0).
         if (folderIds.Count > 0)
@@ -447,11 +461,14 @@ public sealed partial class CatalogBrowseService
 
         // Per-user favorite star (1.21.0): applies to folders AND archives, so it is
         // keyed off EVERY node on the page (not just archives). One batched join, no N+1.
+        perfPhase = perfPhase.Lap("enrich.read-state-and-rollups");
         nodes = await ApplyFavoritesAsync(nodes, userId, ct);
+        perfPhase = perfPhase.Lap("enrich.favorites");
 
         // Card (i) affordance (1.24.0): whether each node ITSELF has series info.
         // A fixed handful of batched queries per page, independent of page size.
         nodes = await ApplyHasSeriesInfoAsync(nodes, rows, libraryId, ct);
+        perfPhase.Lap("enrich.series-info-flag");
 
         return nodes;
     }

@@ -33,6 +33,10 @@ public sealed class MangaPixerDbContext : DbContext
     {
         base.OnConfiguring(optionsBuilder);
         optionsBuilder.AddInterceptors(SortKeySqlFunctionInterceptor.Instance);
+        // 1.46.0 lane M: measurement-only SQL timing; each is a no-op unless MangaPixer:Perf:RequestTiming is on.
+        optionsBuilder.AddInterceptors(
+            com.lifepixer.mangapixer.Server.Operations.Perf.PerfCommandInterceptor.Instance,
+            com.lifepixer.mangapixer.Server.Operations.Perf.PerfTransactionInterceptor.Instance);
     }
 
     /// <summary>

@@ -41,10 +41,13 @@ public sealed class TrackerCardMarks(MangaPixerDbContext db, TrackerSettingsServ
             return nodes;
         if (!await db.TrackerEntries.AsNoTracking().AnyAsync(e => e.UserId == userId && e.RemoteSeenAt != null, ct))
             return nodes;
+        var perfPhase = com.lifepixer.mangapixer.Server.Operations.Perf.PerfPhase.Start(); // 1.46.0 lane M: measurement only
         if (hasItems)
             nodes = await DecorateItemsAsync(nodes, userId, folderId!.Value, volumes, ct);
+        perfPhase = perfPhase.Lap("marks.items");
         if (hasFolders)
             nodes = await DecorateSeriesFoldersAsync(nodes, userId, folderId, ct);
+        perfPhase.Lap("marks.series-folders");
         return nodes;
     }
 
@@ -71,7 +74,10 @@ public sealed class TrackerCardMarks(MangaPixerDbContext db, TrackerSettingsServ
             if (!TrackerFacts.IsKnown(c.Tracker) || c.ConsentVersion != TrackerConsent.UserVersion(c.Tracker))
                 continue;
             if (!allowed.TryGetValue(c.Tracker, out var isAllowed))
-                allowed[c.Tracker] = isAllowed = await settings.IsAllowedAsync(c.Tracker, ct);
+                // 1.46.0 lane M (measurement only, off by default): a measured instance runs with the tracker network off, which
+                // would hide every mark; MangaPixer:Perf:TrackerMarksWithNetworkOff keeps the display-only marks so their cost shows.
+                allowed[c.Tracker] = isAllowed = com.lifepixer.mangapixer.Server.Operations.Perf.PerfRecorder.Active is { TrackerMarksWithNetworkOff: true }
+                    || await settings.IsAllowedAsync(c.Tracker, ct);
             if (!isAllowed)
                 continue;
             if (!result.TryGetValue(c.RecordId, out var list))

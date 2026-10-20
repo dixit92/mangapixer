@@ -273,6 +273,7 @@ public sealed partial class Program
             // Operations services
             builder.Services.AddScoped<BackupService>();
             builder.Services.AddScoped<DiagnosticsService>();
+            com.lifepixer.mangapixer.Server.Operations.Perf.PerfServicesExtensions.AddPerfTiming(builder.Services, builder.Configuration); // 1.46.0 lane M: measurement only, off by default
 
             // Update Checker (1.21.0) — the ONE sanctioned outbound call, OFF by
             // default. TimeProvider drives the 24h cadence gate (mockable in
@@ -373,6 +374,10 @@ public sealed partial class Program
             builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(
                 options => ForwardedHeadersSetup.Configure(options, networkOptions));
 
+            // 1.46.0 lane M (measurement only): MangaPixer:Perf:SkipHostedServices names background services a measured instance
+            // does not start (empty by default).
+            com.lifepixer.mangapixer.Server.Operations.Perf.PerfServicesExtensions.SkipHostedServices(builder.Services, builder.Configuration);
+
             var app = builder.Build();
             // After Build() so a test that replaced the host's logger in DI is honoured by the sites below.
             var hostLogger = app.Services.GetRequiredService<Serilog.ILogger>();
@@ -392,6 +397,9 @@ public sealed partial class Program
             // keep working, and no PathBase/sub-path deployment is in scope. Both
             // are deferred rather than half-implemented.
             app.UseForwardedHeaders();
+
+            // Measurement-only request / SQL timing (1.46.0 lane M): added only when MangaPixer:Perf:RequestTiming is on.
+            com.lifepixer.mangapixer.Server.Operations.Perf.PerfServicesExtensions.UsePerfTiming(app);
 
             // Search engines (1.27.0): instances ask not to be indexed unless
             // MangaPixer:Network:AllowSearchIndexing is on (see SearchIndexing).
