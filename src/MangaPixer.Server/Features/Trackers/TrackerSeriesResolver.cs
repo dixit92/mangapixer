@@ -368,16 +368,15 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
         // Per record in node id order (LoadScopeAsync's `orderby n.Id`: the first folder holding an archive names its units).
         var byRecord = linkNodes.OrderBy(n => n.Id).GroupBy(n => n.RecordId).ToDictionary(g => g.Key, g => g.ToList());
 
-        // Rows per link node: a folder's series scope (one SeriesProgressLoader pass over every folder of every record - its walk and
-        // answers are per target), or a linked archive on its own.
+        // Rows per link node: a folder's series scope - the rows SeriesProgressLoader gives (its walk, ComicInfo and the volume contents
+        // scan), read for every folder of every record at once without the progress answers the rings do not need - or a linked archive
+        // on its own.
         var archive = (int)CatalogNodeKind.Archive;
         var folders = linkNodes.Where(n => n.Kind != archive).ToList();
+        var maps = await MapInputsAsync(db, byRecord.Keys.ToList(), ct);
         perfPhase = perfPhase.Lap("marks.walk-links");
-        var scopes = await new SeriesProgressLoader(db).LoadAsync(folders.Select(f => new SeriesProgressTarget(f.Id, f.RecordId)).ToList(), ct);
+        var (rowsByNode, nodeIds) = await ScopeRowsAsync(db, folders.Select(f => (f.Id, maps[f.RecordId])).ToList(), ct);
         perfPhase = perfPhase.Lap("marks.walk-series-scopes");
-        var rowsByNode = new Dictionary<long, IReadOnlyList<GroupingRow>>();
-        foreach (var f in folders)
-            rowsByNode[f.Id] = scopes.TryGetValue(f.Id, out var entry) ? entry.Rows : [];
         var parentIds = linkNodes.Where(n => n.Kind == archive && n.ParentId is not null).Select(n => n.ParentId!.Value).Distinct().ToList();
         var parentNames = new Dictionary<long, string>();
         foreach (var chunk in parentIds.Chunk(Batch))
@@ -391,15 +390,9 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
                 a.ParentId is { } p ? parentNames.GetValueOrDefault(p) : null)];
         }
 
-        // Archive public id -> node id (and the user's marks when asked).
-        var publicIds = rowsByNode.Values.SelectMany(r => r).Select(r => r.Id).Distinct().ToList();
-        var nodeIds = new Dictionary<string, long>(StringComparer.Ordinal);
-        foreach (var chunk in publicIds.Chunk(Batch))
-        {
-            foreach (var n in await db.CatalogNodes.AsNoTracking().Where(n => chunk.Contains(n.PublicId))
-                         .Select(n => new { n.Id, n.PublicId }).ToListAsync(ct))
-                nodeIds[n.PublicId] = n.Id;
-        }
+        // Archive public id -> node id: the walk's archives, and each linked archive (the user's marks when asked).
+        foreach (var a in linkNodes.Where(n => n.Kind == archive))
+            nodeIds[a.PublicId] = a.Id;
         var marked = new HashSet<long>();
         if (readMarks)
         {
@@ -408,8 +401,7 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
                     .ToListAsync(ct));
         }
 
-        // The maps of the records (MapAsync's answer per record) and each link node's declared edition.
-        var maps = await MapInputsAsync(db, byRecord.Keys.ToList(), ct);
+        // Each link node's declared edition.
         var editions = new Dictionary<long, DeclaredEditionFacts>();
         foreach (var chunk in linkNodes.Select(n => n.Id).Distinct().Chunk(Batch))
         {
@@ -439,6 +431,89 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
         }
         perfPhase.Lap("marks.walk-units");
         return result;
+    }
+
+    /// <summary>
+    /// The archive rows of each series folder exactly as <see cref="SeriesProgressLoader.LoadAsync"/> returns them in
+    /// <see cref="SeriesProgressEntry.Rows"/> (the same walk: the folder and its unit subfolders - unit-named, not side material, not linked
+    /// on their own - up to <see cref="SeriesProgressLoader.MaxUnitDepth"/> levels, children by SortKey, tombstoned nodes left out; ComicInfo
+    /// volume / number; the volume contents scan applied with the record's list map), batched over every folder, without the progress
+    /// answers. Also the node id of every archive it lists, by public id. <paramref name="folders"/>: (series folder, its record's map).
+    /// </summary>
+    private static async Task<(Dictionary<long, IReadOnlyList<GroupingRow>> Rows, Dictionary<string, long> NodeIds)> ScopeRowsAsync(
+        MangaPixerDbContext db, IReadOnlyList<(long NodeId, VolumeMapInput Map)> folders, CancellationToken ct)
+    {
+        var rows = new Dictionary<long, IReadOnlyList<GroupingRow>>();
+        var nodeIds = new Dictionary<string, long>(StringComparer.Ordinal);
+        if (folders.Count == 0)
+            return (rows, nodeIds);
+
+        // The series scope, one level at a time (SeriesProgressLoader's walk).
+        var tombstoned = (int)CatalogNodeAvailability.Tombstoned;
+        var archive = (int)CatalogNodeKind.Archive;
+        var scope = folders.DistinctBy(f => f.NodeId).ToDictionary(f => f.NodeId, f => (Series: f.NodeId, Name: (string?)null));
+        var archivesIn = new Dictionary<long, List<(long Id, string PublicId, string Name, string SortKey)>>();
+        var frontier = scope.Keys.ToList();
+        for (var depth = 0; depth <= SeriesProgressLoader.MaxUnitDepth && frontier.Count > 0; depth++)
+        {
+            var level = frontier;
+            var children = await db.CatalogNodes.AsNoTracking()
+                .Where(n => n.ParentId != null && level.Contains(n.ParentId.Value) && n.Availability != tombstoned)
+                .OrderBy(n => n.SortKey)
+                .Select(n => new { n.Id, ParentId = n.ParentId!.Value, n.Kind, n.DisplayName, n.PublicId, n.SortKey })
+                .ToListAsync(ct);
+            foreach (var c in children.Where(c => c.Kind == archive))
+            {
+                if (!archivesIn.TryGetValue(c.ParentId, out var list))
+                    archivesIn[c.ParentId] = list = [];
+                list.Add((c.Id, c.PublicId, c.DisplayName, c.SortKey));
+            }
+            if (depth == SeriesProgressLoader.MaxUnitDepth)
+                break;
+            var units = children
+                .Where(c => c.Kind != archive && AutoMatchText.IsUnitFolderName(c.DisplayName) && !CountEvidence.IsSideFolderName(c.DisplayName))
+                .ToList();
+            var unitIds = units.Select(u => u.Id).ToList();
+            var ownLinked = (await db.NodeSeriesLinks.AsNoTracking().Where(l => unitIds.Contains(l.NodeId)).Select(l => l.NodeId).ToListAsync(ct))
+                .ToHashSet();
+            frontier = [];
+            foreach (var u in units.Where(u => !ownLinked.Contains(u.Id)))
+            {
+                scope[u.Id] = (scope[u.ParentId].Series, u.DisplayName);
+                frontier.Add(u.Id);
+            }
+        }
+
+        // ComicInfo Volume / Number of the archives directly below the scope's folders (parsed ComicInfo only).
+        var parentIds = scope.Keys.ToList();
+        var comicInfo = (await (
+                from e in db.EmbeddedMetadata.AsNoTracking()
+                join n in db.CatalogNodes.AsNoTracking() on e.NodeId equals n.Id
+                where n.ParentId != null && parentIds.Contains(n.ParentId.Value) && e.State == 1 && (e.Volume != null || e.Number != null)
+                select new { e.NodeId, e.Volume, e.Number }).ToListAsync(ct))
+            .ToDictionary(r => r.NodeId, r => (r.Volume, (string?)r.Number));
+
+        var bySeries = scope.Select(kv => (Id: kv.Key, kv.Value.Series, kv.Value.Name)).ToLookup(f => f.Series);
+        foreach (var (target, map) in folders.DistinctBy(f => f.NodeId))
+        {
+            var built = new List<GroupingRow>();
+            var archiveIds = new Dictionary<long, string>();
+            foreach (var folder in bySeries[target])
+            {
+                foreach (var a in archivesIn.GetValueOrDefault(folder.Id) ?? [])
+                {
+                    var ci = comicInfo.GetValueOrDefault(a.Id);
+                    built.Add(new GroupingRow(a.PublicId, GroupingRowKind.Archive, a.Name, a.SortKey, folder.Name, ci.Volume, ci.Number));
+                    archiveIds[a.Id] = a.PublicId;
+                    nodeIds[a.PublicId] = a.Id;
+                }
+            }
+            // 1.44.0: the volume contents scan's answers, as the Volumes view reads them (VolumeContentReader, VolumeContents.Apply).
+            var (applied, _) = VolumeContents.Apply(built, map,
+                VolumeContents.MayApply(built) ? await VolumeScan.VolumeContentReader.LoadAsync(db, archiveIds, ct) : []);
+            rows[target] = applied;
+        }
+        return (rows, nodeIds);
     }
 
     /// <summary>
