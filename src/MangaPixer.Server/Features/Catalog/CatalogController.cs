@@ -50,7 +50,7 @@ public sealed class CatalogController : ControllerBase
     }
 
     [HttpGet("libraries")]
-    public async Task<IActionResult> GetLibraries(CancellationToken ct)
+    public async Task<IActionResult> GetLibraries([FromServices] LibraryItemCounts itemCountCache, CancellationToken ct)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
@@ -74,11 +74,8 @@ public sealed class CatalogController : ControllerBase
             .ToListAsync(ct);
         var scanningSet = new HashSet<long>(scanningLibIds);
 
-        var itemCounts = await _db.CatalogNodes
-            .Where(n => n.Kind == 1 && n.Availability != 5)
-            .GroupBy(n => n.LibraryId)
-            .Select(g => new { LibraryId = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.LibraryId, x => x.Count, ct);
+        // 1.46.0 (lane B, measured cost #8): the archive counts per library catalog state, not a count over all of catalog_nodes per call.
+        var itemCounts = await itemCountCache.GetAsync(_db, libraries.Select(l => (l.Id, l.CatalogRevision, l.CreatedAt)).ToList(), ct);
 
         // 1.37.0: who started the last scan (admin names, token names) - for an admin only.
         var starters = User.IsInRole("admin")

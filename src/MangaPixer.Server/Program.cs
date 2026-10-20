@@ -230,6 +230,7 @@ public sealed partial class Program
 
             // Catalog and reading services
             builder.Services.AddScoped<CatalogBrowseService>();
+            builder.Services.AddSingleton<LibraryItemCounts>(); // 1.46.0 lane B: the libraries list's archive counts per catalog state
             // Card covers (1.29.0 cover layer): one layered resolver for every card, the automatic decisions, the picker.
             Features.Covers.CoverLayerServices.AddCoverLayer(builder.Services, dataRoot);
             builder.Services.AddScoped<FolderViewSettingsService>();
