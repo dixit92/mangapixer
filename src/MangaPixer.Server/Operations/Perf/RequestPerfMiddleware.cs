@@ -60,7 +60,9 @@ public static class PerfServicesExtensions
     public static IServiceCollection AddPerfTiming(this IServiceCollection services, IConfiguration configuration)
     {
         var enabled = configuration.GetValue(PerfRecorder.ConfigKey, false);
-        services.AddSingleton(new PerfRecorder(enabled, configuration.GetValue(PerfRecorder.TrackerMarksKey, false)));
+        var trackerMarks = configuration.GetValue(PerfRecorder.TrackerMarksKey, false);
+        // A factory registration, so the container disposes the recorder with the host (Dispose stops the process-wide hook).
+        services.AddSingleton(_ => new PerfRecorder(enabled, trackerMarks));
         return services;
     }
 

@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using com.lifepixer.mangapixer.Server.Operations.Perf;
 using com.lifepixer.mangapixer.Tests.Server.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 /// <summary>
@@ -31,9 +32,10 @@ public sealed class PerfTimingHttpTests
     [Fact]
     public async Task Switched_On_TimesRequests_AndListsRoutesStatementsAndHeap()
     {
-        using var factory = MangaPixerWebApplicationFactory.WithExtraConfiguration(
+        var factory = MangaPixerWebApplicationFactory.WithExtraConfiguration(
             new Dictionary<string, string?> { [PerfRecorder.ConfigKey] = "true" });
         var client = await factory.LoginAsAdminWithChangedPasswordAsync();
+        var recorder = factory.Services.GetRequiredService<PerfRecorder>();
 
         var first = await client.GetAsync(Diagnostics);
         first.EnsureSuccessStatusCode();
@@ -63,6 +65,11 @@ public sealed class PerfTimingHttpTests
             && s.GetProperty("count").GetInt64() >= 1), shapes);
         Assert.True(perf.GetProperty("heap").GetProperty("heapSizeBytes").GetInt64() > 0);
         Assert.Contains(perf.GetProperty("transactions").EnumerateArray(), t => t.GetProperty("key").GetString()!.EndsWith(":commit", StringComparison.Ordinal));
+
+        // The process-wide hook ends with the host: later hosts in the same process (other tests) record nothing into it.
+        Assert.Same(recorder, PerfRecorder.Active);
+        factory.Dispose();
+        Assert.NotSame(recorder, PerfRecorder.Active);
     }
 
     [Fact]

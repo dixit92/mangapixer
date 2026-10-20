@@ -13,7 +13,7 @@ using System.Text.RegularExpressions;
 /// replaced, so no value from the data can appear), transaction begin / commit waits (SQLite's write lock), the GC heap and
 /// the thread pool. Nothing is logged, nothing leaves the process.
 /// </summary>
-public sealed class PerfRecorder
+public sealed class PerfRecorder : IDisposable
 {
     public const string ConfigKey = "MangaPixer:Perf:RequestTiming";
 
@@ -48,6 +48,9 @@ public sealed class PerfRecorder
         if (enabled)
             Volatile.Write(ref s_active, this);
     }
+
+    /// <summary>The host stopped: its recorder stops collecting (other hosts in the same process, e.g. tests, record nothing).</summary>
+    public void Dispose() => Interlocked.CompareExchange(ref s_active, null, this);
 
     /// <summary>Starts the request scope the SQL interceptors add to (the caller restores the previous one).</summary>
     internal RequestPerfScope BeginRequest()
@@ -120,7 +123,7 @@ public sealed class PerfRecorder
         if (_shapeCache.TryGetValue(commandText, out var cached))
             return cached;
         var shape = Space.Replace(Number.Replace(Literal.Replace(commandText, "'?'"), "#"), " ").Trim();
-        if (_shapeCache.Count < MaxKeys * 4)
+        if (_shapeCache.Count < MaxKeys)
             _shapeCache[commandText] = shape;
         return shape;
     }
