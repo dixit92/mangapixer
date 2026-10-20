@@ -105,7 +105,7 @@ def discover(c: Client) -> dict:
             best = (lib["id"], total)
     lib_id = best[0]
     # Breadth-first over folders of that library (bounded), counting direct children.
-    folders, seen, sizes, series, items = [None], 0, [], [], []
+    folders, seen, sizes, series, items, archives = [None], 0, [], [], [], []
     while folders and seen < 400:
         parent = folders.pop(0)
         seen += 1
@@ -119,8 +119,10 @@ def discover(c: Client) -> dict:
                     folders.append(n["id"])
                     if n.get("linkedSeries") or n.get("hasSeriesInfo"):
                         series.append(n["id"])
-                elif n.get("kind") == "Archive" and (n.get("pageCount") or 0) >= 40:
-                    items.append((n["id"], n.get("pageCount"), parent))
+                elif n.get("kind") == "Archive":
+                    archives.append(n["id"])
+                    if (n.get("pageCount") or 0) >= 40:
+                        items.append((n["id"], n.get("pageCount"), parent))
             cursor = page.get("nextCursor")
             if not page.get("hasMore") or not cursor:
                 break
@@ -148,6 +150,7 @@ def discover(c: Client) -> dict:
         "readItemsAll": [i[0] for i in items[:400]],
         "itemFolder": {i[0]: i[2] for i in items[:400]},
         "foldersVisited": seen,
+        "coverItems": archives[:6000],
     }
 
 
@@ -243,6 +246,7 @@ class Runner:
             "home": lambda: [("GET", f"{API}/libraries"), ("GET", f"{API}/reading/continue?limit=12"),
                              ("GET", f"{API}/home/recent-chapters"), ("GET", f"{API}/reading/library-preferences"),
                              ("GET", f"{API}/reading/home-libraries"), ("GET", f"{API}/favorites?pageSize=12")],
+            "covers_root": None,  # special: the root page's card covers after the listing
             "reader_open": None,  # special: manifest group, then the first page at both qualities
             "reader_back": None,  # special: the 1.45.1 ring refresh
         }
@@ -271,6 +275,12 @@ class Runner:
         rec("first_page_auto", w3, r3)
         w4, r4 = self.c.group([("GET", f"{API}/items/{item}/pages/{key}")])
         rec("first_page_full", w4, r4)
+
+    def run_covers_root(self, rec):
+        page = self.c.get_json(self.browse(None))
+        urls = [n["coverUrl"] for n in page.get("items", []) if n.get("coverUrl")]
+        wall, res = self.c.group([("GET", u) for u in urls])
+        rec("covers_root", wall, res)
 
     def run_reader_back(self, rec):
         items = self.t["readItems"]
@@ -327,7 +337,8 @@ def diagnostics(args) -> dict | None:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("mode", choices=["discover", "run"])
+    ap.add_argument("mode", choices=["discover", "run", "covers"])
+    ap.add_argument("--seconds", type=float, default=120, help="covers: how long to keep asking for card covers")
     ap.add_argument("--base", required=True)
     ap.add_argument("--user", required=True)
     ap.add_argument("--password-env", default="MP_PERF_PASSWORD")
@@ -351,6 +362,19 @@ def main() -> int:
         return 0
 
     t = json.load(open(args.targets))
+    if args.mode == "covers":
+        # Background load: ask for card covers like a browser scrolling through many cards. On an instance whose data root has
+        # no thumbnail files yet, each answer is a 202 and the server generates the thumbnail on the media workers.
+        ids, i, n202, n200, t_end = t.get("coverItems") or t["readItemsAll"], 0, 0, 0, time.time() + args.seconds
+        while time.time() < t_end:
+            batch = [("GET", f"{API}/items/{ids[(i + k) % len(ids)]}/cover") for k in range(6)]
+            i += 6
+            _, res = c.group(batch)
+            n202 += sum(1 for x in res if x["status"] == 202)
+            n200 += sum(1 for x in res if x["status"] == 200)
+            time.sleep(0.2)
+        print(json.dumps({"covers_asked": i, "pending_202": n202, "ok_200": n200}))
+        return 0
     before = diagnostics(args)
     r = Runner(c, t, args)
     points = r.points()
@@ -368,6 +392,8 @@ def main() -> int:
                 r.run_reader_open(rec)
             elif name == "reader_back":
                 r.run_reader_back(rec)
+            elif name == "covers_root":
+                r.run_covers_root(rec)
             else:
                 reqs = points[name]()
                 if reqs:
