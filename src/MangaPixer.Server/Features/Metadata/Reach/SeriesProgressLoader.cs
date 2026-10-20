@@ -42,12 +42,28 @@ public sealed class SeriesProgressLoader(MangaPixerDbContext db)
 
     private sealed record Folder(long Id, long Series, string? Name);
 
-    public async Task<IReadOnlyDictionary<long, SeriesProgressEntry>> LoadAsync(IReadOnlyList<SeriesProgressTarget> targets, CancellationToken ct)
+    public async Task<IReadOnlyDictionary<long, SeriesProgressEntry>> LoadAsync(IReadOnlyList<SeriesProgressTarget> targets, CancellationToken ct) =>
+        (await LoadScopedAsync(targets, ct)).Entries;
+
+    /// <summary>
+    /// 1.46.0 lane C: the entries with the catalog part of what they were computed from - the scope folders (the linked folders and
+    /// their unit subfolders) and the ComicInfo rows below them - so the Completion filter's answer cache can check those rows again.
+    /// </summary>
+    internal sealed record Loaded(
+        IReadOnlyDictionary<long, SeriesProgressEntry> Entries, IReadOnlyList<long> ScopeFolders,
+        IReadOnlyDictionary<long, (int? Volume, string? Number)> ComicInfo);
+
+    /// <summary>
+    /// <see cref="LoadAsync"/> with what it read (<see cref="Loaded"/>). 1.46.0 lane C: the volume contents scan's answers of all the
+    /// series are read together (<see cref="VolumeScan.VolumeContentReader.LoadManyAsync"/>, the same answer per series), and each map
+    /// row's JSON is parsed once (<see cref="StoredMaps"/>); only the map columns the progress reads are loaded.
+    /// </summary>
+    internal async Task<Loaded> LoadScopedAsync(IReadOnlyList<SeriesProgressTarget> targets, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(targets);
         var result = new Dictionary<long, SeriesProgressEntry>();
         if (targets.Count == 0)
-            return result;
+            return new Loaded(result, [], new Dictionary<long, (int? Volume, string? Number)>());
 
         // The series scope, one level at a time.
         var tombstoned = (int)CatalogNodeAvailability.Tombstoned;
@@ -85,13 +101,37 @@ public sealed class SeriesProgressLoader(MangaPixerDbContext db)
             }
         }
 
-        var comicInfo = await ComicInfoAsync(folders.Keys.ToList(), ct);
+        var scopeFolders = folders.Keys.ToList();
+        var comicInfo = await ComicInfoAsync(db, scopeFolders, ct);
         // 1.39.0: what an admin declared on each series folder itself (edition volumes, label, tracking) - own scope only.
         var editions = await Declared.DeclaredFactsResolution.LoadEditionAsync(db, targets.Select(t => t.NodeId).Distinct().ToList(), ct);
         var language = await ReleasedInLanguage.PreferredAsync(db, ct);
         var recordIds = targets.Select(t => t.RecordId).Distinct().ToList();
-        var maps = (await db.SeriesVolumeMaps.AsNoTracking().Where(m => recordIds.Contains(m.RecordId)).ToListAsync(ct))
+        // 1.46.0 lane C: only the columns the progress reads (not the readable chapter list, the hash or the schedule).
+        var maps = (await db.SeriesVolumeMaps.AsNoTracking().Where(m => recordIds.Contains(m.RecordId))
+                .Select(m => new SeriesVolumeMapEntity
+                {
+                    Id = m.Id,
+                    RecordId = m.RecordId,
+                    Source = m.Source,
+                    State = m.State,
+                    VolumesJson = m.VolumesJson,
+                    UnassignedJson = m.UnassignedJson,
+                    ChaptersPerVolume = m.ChaptersPerVolume,
+                    KnownVolumeCount = m.KnownVolumeCount,
+                    ReleasedLanguage = m.ReleasedLanguage,
+                    ReleasedChaptersJson = m.ReleasedChaptersJson,
+                    Version = m.Version,
+                })
+                .ToListAsync(ct))
             .ToLookup(m => m.RecordId);
+        var parsed = new Dictionary<long, StoredMaps>();
+        StoredMaps MapsOf(long recordId)
+        {
+            if (!parsed.TryGetValue(recordId, out var stored))
+                parsed[recordId] = stored = StoredMaps.Of(maps[recordId].ToList());
+            return stored;
+        }
         var wikipediaPages = (await db.WikipediaLists.AsNoTracking().Where(l => recordIds.Contains(l.RecordId) && l.PagesJson != null)
                 .Select(l => new { l.RecordId, l.PagesJson }).ToListAsync(ct))
             .ToDictionary(l => l.RecordId, l => l.PagesJson);
@@ -100,7 +140,9 @@ public sealed class SeriesProgressLoader(MangaPixerDbContext db)
                 r.LicensedEn, r.TranslationComplete, r.Webtoon))
             .ToDictionaryAsync(r => r.Id, ct);
 
+        // Each series' rows first, so the volume contents answers of all of them are read together.
         var bySeries = folders.Values.ToLookup(f => f.Series);
+        var series = new List<(SeriesProgressTarget Target, List<GroupingRow> Built, Dictionary<long, string> ArchiveIds, bool Restarts)>();
         foreach (var target in targets.DistinctBy(t => t.NodeId))
         {
             var built = new List<GroupingRow>();
@@ -118,29 +160,45 @@ public sealed class SeriesProgressLoader(MangaPixerDbContext db)
                 }
             }
             var restarts = MissingUnits.Evaluate(missingFolders, new PublishedTotals()).Verdict == MissingVerdict.Restarts;
+            series.Add((target, built, archiveIds, restarts));
+        }
+        // 1.44.0: the volume contents scan's answers, as the Volumes view reads them (VolumeContentReader, VolumeContents.Apply) - only for
+        // a series with a volume file among its rows.
+        var scanned = series.Where(s => VolumeContents.MayApply(s.Built)).ToList();
+        var scans = await VolumeScan.VolumeContentReader.LoadManyAsync(db, scanned.Select(s => (IReadOnlyDictionary<long, string>)s.ArchiveIds).ToList(), ct);
+        var scansOf = new Dictionary<long, IReadOnlyList<ScannedVolume>>();
+        for (var i = 0; i < scanned.Count; i++)
+            scansOf[scanned[i].Target.NodeId] = scans[i];
+
+        foreach (var (target, built, _, restarts) in series)
+        {
             var record = records.GetValueOrDefault(target.RecordId);
-            var (listMap, facts) = MapAndFacts(maps[target.RecordId].ToList(), record, language, target.ChaptersPerVolume,
-                editions.GetValueOrDefault(target.NodeId));
-            // 1.44.0: the volume contents scan's answers, as the Volumes view reads them (VolumeContentReader, VolumeContents.Apply).
-            var (rows, scannedMap) = VolumeContents.Apply(built, listMap,
-                VolumeContents.MayApply(built) ? await VolumeScan.VolumeContentReader.LoadAsync(db, archiveIds, ct) : []);
+            var stored = MapsOf(target.RecordId);
+            var (listMap, facts) = MapAndFacts(stored, record, language, target.ChaptersPerVolume, editions.GetValueOrDefault(target.NodeId));
+            var (rows, scannedMap) = VolumeContents.Apply(built, listMap, scansOf.GetValueOrDefault(target.NodeId) ?? []);
             var map = scannedMap ?? listMap;
             var progress = SeriesProgress.Evaluate(rows, map, facts, restarts);
             var units = rows.Select(VolumeGrouping.UnitsOf).ToList();
             result[target.NodeId] = new SeriesProgressEntry(progress, rows,
                 units.Count(u => u.Chapter is null && u.Volume is not null), units.Count(u => u.Chapter is not null),
-                ListCreditOf(maps[target.RecordId].ToList(), wikipediaPages.GetValueOrDefault(target.RecordId)));
+                ListCreditOf(stored, wikipediaPages.GetValueOrDefault(target.RecordId)));
         }
-        return result;
+        return new Loaded(result, scopeFolders, comicInfo);
     }
+
 
     /// <summary>
     /// The Wikipedia credit of a series (1.32.0): set only when the list a view shows was actually completed from the page - the stored
     /// Wikipedia list placed a volume or chapter MangaDex's did not - linking the first page the list was read from.
     /// </summary>
-    public static ListCreditDto? ListCreditOf(IReadOnlyList<SeriesVolumeMapEntity> maps, string? pagesJson)
+    public static ListCreditDto? ListCreditOf(IReadOnlyList<SeriesVolumeMapEntity> maps, string? pagesJson) =>
+        ListCreditOf(StoredMaps.Of(maps), pagesJson);
+
+    /// <summary><see cref="ListCreditOf(IReadOnlyList{SeriesVolumeMapEntity}, string?)"/> from maps already read (1.46.0 lane C).</summary>
+    public static ListCreditDto? ListCreditOf(StoredMaps maps, string? pagesJson)
     {
-        if (!ExactList(maps).WikipediaFilled || Volumes.Wikipedia.WikipediaVolumeService.ReadPages(pagesJson) is not [var first, ..])
+        ArgumentNullException.ThrowIfNull(maps);
+        if (!maps.Exact.WikipediaFilled || Volumes.Wikipedia.WikipediaVolumeService.ReadPages(pagesJson) is not [var first, ..])
             return null;
         return new ListCreditDto { Name = "Wikipedia", Url = Volumes.Wikipedia.WikipediaApi.PageUrl(first.Title), Title = first.Title };
     }
@@ -162,18 +220,27 @@ public sealed class SeriesProgressLoader(MangaPixerDbContext db)
     /// declared edition's volumes 1..N. Callers that only want the map (the view map, the volume-cover pass) pass none.
     /// </summary>
     public static (VolumeMapInput Map, ProgressFacts Facts) MapAndFacts(
-        IReadOnlyList<SeriesVolumeMapEntity> maps, RecordRow? record, string language, double? ratio = null, DeclaredEditionFacts? edition = null)
+        IReadOnlyList<SeriesVolumeMapEntity> maps, RecordRow? record, string language, double? ratio = null, DeclaredEditionFacts? edition = null) =>
+        MapAndFacts(StoredMaps.Of(maps), record, language, ratio, edition);
+
+    /// <summary>
+    /// <see cref="MapAndFacts(IReadOnlyList{SeriesVolumeMapEntity}, RecordRow?, string, double?, DeclaredEditionFacts?)"/> from maps already
+    /// read (1.46.0 lane C: each map's JSON parsed once).
+    /// </summary>
+    public static (VolumeMapInput Map, ProgressFacts Facts) MapAndFacts(
+        StoredMaps stored, RecordRow? record, string language, double? ratio = null, DeclaredEditionFacts? edition = null)
     {
-        ArgumentNullException.ThrowIfNull(maps);
-        var mangadex = Volumes.VolumeMapService.UsableMangaDexMap(maps);
+        ArgumentNullException.ThrowIfNull(stored);
+        var maps = stored.Rows;
+        var mangadex = stored.MangaDex;
         var aniList = maps.FirstOrDefault(m => m.Source == (int)VolumeMapSource.AniListRatio && m.State == (int)VolumeMapState.Ok);
-        var wikipedia = maps.FirstOrDefault(m => m.Source == (int)VolumeMapSource.WikipediaList && m.State == (int)VolumeMapState.Ok);
+        var wikipedia = stored.Wikipedia;
         // 1.34.0: a real list = at least two real MangaDex volumes, or a Wikipedia list; without one a webtoon / manhwa / manhua lists chapters.
         var hasRealList = wikipedia is not null
-            || (mangadex is not null && VolumeListRules.RealVolumeCount(VolumeMapJson.Read(mangadex.VolumesJson)) >= VolumeListRules.MinRealVolumes);
+            || (mangadex is not null && VolumeListRules.RealVolumeCount(stored.MangaDexVolumes) >= VolumeListRules.MinRealVolumes);
         var chaptersOnly = VolumeListRules.ChaptersOnly(record?.Webtoon, (MetadataOrigin?)record?.Origin, hasRealList);
         // 1.32.0: MangaDex's exact list, completed by the Wikipedia list where MangaDex lacks volumes / chapters (VolumeListMerge).
-        var exact = ExactList(maps);
+        var exact = stored.Exact;
         var volumes = ToVolumes(exact.Volumes);
         // Chapter mode: no chapters-per-volume ratio (a print edition's ratio says nothing about a webtoon's episodes).
         var mapRatio = chaptersOnly ? null : mangadex?.ChaptersPerVolume ?? wikipedia?.ChaptersPerVolume ?? aniList?.ChaptersPerVolume;
@@ -223,16 +290,73 @@ public sealed class SeriesProgressLoader(MangaPixerDbContext db)
     public static ExactVolumeList ExactList(IEnumerable<SeriesVolumeMapEntity> maps)
     {
         ArgumentNullException.ThrowIfNull(maps);
-        var all = maps as IReadOnlyCollection<SeriesVolumeMapEntity> ?? maps.ToList();
-        // 1.34.0: a near-empty MangaDex map (at most one real volume, mostly unassigned) is no list.
-        var mangadex = Volumes.VolumeMapService.UsableMangaDexMap(all);
-        var wikipedia = all.FirstOrDefault(m => m.Source == (int)VolumeMapSource.WikipediaList && m.State == (int)VolumeMapState.Ok);
-        var fromMangaDex = VolumeMapJson.Read(mangadex?.VolumesJson);
-        var unassigned = VolumeMapJson.ReadChapters(mangadex?.UnassignedJson);
-        if (wikipedia is null)
-            return new ExactVolumeList(fromMangaDex, unassigned, false);
-        var merged = VolumeListMerge.Merge(fromMangaDex, unassigned, VolumeMapJson.Read(wikipedia.VolumesJson));
-        return new ExactVolumeList(merged.Volumes, merged.Unassigned, merged.WikipediaFilled);
+        return StoredMaps.Of(maps as IReadOnlyList<SeriesVolumeMapEntity> ?? maps.ToList()).Exact;
+    }
+
+    /// <summary>
+    /// The stored maps of one record with each JSON column read once (1.46.0 lane C - before, one progress read the same MangaDex list
+    /// four to five times): the usable MangaDex map (<see cref="Volumes.VolumeMapService.IsUsable"/>: Ok and not near-empty, 1.34.0) with
+    /// its volumes and unassigned chapters, the Ok Wikipedia map, and the exact list (<see cref="ExactList"/>). Pure; the same values the
+    /// per-call reads gave.
+    /// </summary>
+    public sealed class StoredMaps
+    {
+        private StoredMaps(IReadOnlyList<SeriesVolumeMapEntity> rows, SeriesVolumeMapEntity? mangaDex, IReadOnlyList<VolumeMapEntry> mangaDexVolumes,
+            SeriesVolumeMapEntity? wikipedia, ExactVolumeList exact)
+        {
+            Rows = rows;
+            MangaDex = mangaDex;
+            MangaDexVolumes = mangaDexVolumes;
+            Wikipedia = wikipedia;
+            Exact = exact;
+        }
+
+        /// <summary>The map rows of the record, as read.</summary>
+        public IReadOnlyList<SeriesVolumeMapEntity> Rows { get; }
+
+        /// <summary>The usable MangaDex map, or null (<see cref="Volumes.VolumeMapService.UsableMangaDexMap"/>).</summary>
+        public SeriesVolumeMapEntity? MangaDex { get; }
+
+        /// <summary>The usable MangaDex map's volumes (empty without one).</summary>
+        public IReadOnlyList<VolumeMapEntry> MangaDexVolumes { get; }
+
+        /// <summary>The Ok Wikipedia map, or null.</summary>
+        public SeriesVolumeMapEntity? Wikipedia { get; }
+
+        /// <summary>The exact volume list every reader sees (<see cref="ExactList"/>).</summary>
+        public ExactVolumeList Exact { get; }
+
+        public static StoredMaps Of(IReadOnlyList<SeriesVolumeMapEntity> rows)
+        {
+            ArgumentNullException.ThrowIfNull(rows);
+            SeriesVolumeMapEntity? mangadex = null;
+            IReadOnlyList<VolumeMapEntry> volumes = [];
+            IReadOnlyList<string> unassigned = [];
+            // The first MangaDex map that is Ok and not near-empty (UsableMangaDexMap / IsUsable), its JSON read once.
+            foreach (var m in rows)
+            {
+                if (m.Source != (int)VolumeMapSource.MangaDexAggregate || m.State != (int)VolumeMapState.Ok)
+                    continue;
+                var v = VolumeMapJson.Read(m.VolumesJson);
+                var u = VolumeMapJson.ReadChapters(m.UnassignedJson);
+                if (VolumeListRules.IsNearEmpty(v, u))
+                    continue;
+                (mangadex, volumes, unassigned) = (m, v, u);
+                break;
+            }
+            var wikipedia = rows.FirstOrDefault(m => m.Source == (int)VolumeMapSource.WikipediaList && m.State == (int)VolumeMapState.Ok);
+            ExactVolumeList exact;
+            if (wikipedia is null)
+            {
+                exact = new ExactVolumeList(volumes, unassigned, false);
+            }
+            else
+            {
+                var merged = VolumeListMerge.Merge(volumes, unassigned, VolumeMapJson.Read(wikipedia.VolumesJson));
+                exact = new ExactVolumeList(merged.Volumes, merged.Unassigned, merged.WikipediaFilled);
+            }
+            return new StoredMaps(rows, mangadex, volumes, wikipedia, exact);
+        }
     }
 
     /// <summary>Stored volume entries as the pure grouping reads them (numbers); entries without a parseable number or chapter are skipped.</summary>
@@ -283,12 +407,14 @@ public sealed class SeriesProgressLoader(MangaPixerDbContext db)
         decimal.TryParse(text, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out value) && value >= 0;
 
     /// <summary>ComicInfo <c>Volume</c> / <c>Number</c> of the archives directly below the given folders (parsed ComicInfo only).</summary>
-    private async Task<Dictionary<long, (int? Volume, string? Number)>> ComicInfoAsync(List<long> parentIds, CancellationToken ct)
+    internal static async Task<Dictionary<long, (int? Volume, string? Number)>> ComicInfoAsync(MangaPixerDbContext db, IReadOnlyList<long> parentIds,
+        CancellationToken ct)
     {
+        var ids = parentIds as List<long> ?? parentIds.ToList();
         var rows = await (
             from e in db.EmbeddedMetadata.AsNoTracking()
             join n in db.CatalogNodes.AsNoTracking() on e.NodeId equals n.Id
-            where n.ParentId != null && parentIds.Contains(n.ParentId.Value) && e.State == 1 && (e.Volume != null || e.Number != null)
+            where n.ParentId != null && ids.Contains(n.ParentId.Value) && e.State == 1 && (e.Volume != null || e.Number != null)
             select new { e.NodeId, e.Volume, e.Number }).ToListAsync(ct);
         return rows.ToDictionary(r => r.NodeId, r => (r.Volume, (string?)r.Number));
     }
