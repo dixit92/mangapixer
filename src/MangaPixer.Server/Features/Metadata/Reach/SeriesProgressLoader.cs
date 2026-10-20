@@ -329,21 +329,8 @@ public sealed class SeriesProgressLoader(MangaPixerDbContext db)
         public static StoredMaps Of(IReadOnlyList<SeriesVolumeMapEntity> rows)
         {
             ArgumentNullException.ThrowIfNull(rows);
-            SeriesVolumeMapEntity? mangadex = null;
-            IReadOnlyList<VolumeMapEntry> volumes = [];
-            IReadOnlyList<string> unassigned = [];
-            // The first MangaDex map that is Ok and not near-empty (UsableMangaDexMap / IsUsable), its JSON read once.
-            foreach (var m in rows)
-            {
-                if (m.Source != (int)VolumeMapSource.MangaDexAggregate || m.State != (int)VolumeMapState.Ok)
-                    continue;
-                var v = VolumeMapJson.Read(m.VolumesJson);
-                var u = VolumeMapJson.ReadChapters(m.UnassignedJson);
-                if (VolumeListRules.IsNearEmpty(v, u))
-                    continue;
-                (mangadex, volumes, unassigned) = (m, v, u);
-                break;
-            }
+            // The first MangaDex map that is Ok and not near-empty (the rule's home), its JSON read once.
+            var (mangadex, volumes, unassigned) = Volumes.VolumeMapService.UsableMangaDexList(rows);
             var wikipedia = rows.FirstOrDefault(m => m.Source == (int)VolumeMapSource.WikipediaList && m.State == (int)VolumeMapState.Ok);
             ExactVolumeList exact;
             if (wikipedia is null)
