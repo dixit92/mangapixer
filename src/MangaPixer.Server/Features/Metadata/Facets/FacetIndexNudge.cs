@@ -1,5 +1,6 @@
 namespace com.lifepixer.mangapixer.Server.Features.Metadata.Facets;
 
+using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Server.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -72,8 +73,17 @@ public sealed class NoFacetIndexNudge : IFacetIndexNudge
 public static class FacetIndexNudges
 {
     /// <summary>
+    /// The link states whose record the tag index reads (a linked series, a "Collection about" folder); a Needs review candidate is not read.
+    /// </summary>
+    public static readonly IReadOnlyList<int> IndexedLinkStates = Enum.GetValues<SeriesLinkState>()
+        .Where(s => SeriesLinkStates.IsSeries(s) || s == SeriesLinkState.CollectionAbout)
+        .Select(s => (int)s)
+        .ToList();
+
+    /// <summary>
     /// After a record was stored or refreshed (committed): nudges <paramref name="alsoLibraryId"/> (the library an admin acts in) and every
-    /// library with a link row naming the record or index entries of its work. Never throws: when the look-up fails, every library is nudged.
+    /// library with a link row of an <see cref="IndexedLinkStates">indexed state</see> naming the record or index entries of its work. Never
+    /// throws: when the look-up fails, every library is nudged.
     /// </summary>
     public static async Task RecordChangedAsync(this IFacetIndexNudge nudge, MangaPixerDbContext db, long recordId, long? alsoLibraryId,
         FacetNudgeReason reason, CancellationToken ct)
@@ -83,7 +93,8 @@ public static class FacetIndexNudges
         List<long> libraries;
         try
         {
-            var linking = db.NodeSeriesLinks.AsNoTracking().Where(l => l.RecordId == recordId).Select(l => l.LibraryId);
+            var states = IndexedLinkStates;
+            var linking = db.NodeSeriesLinks.AsNoTracking().Where(l => l.RecordId == recordId && states.Contains(l.State)).Select(l => l.LibraryId);
             var indexed = db.FacetEntries.AsNoTracking()
                 .Where(e => db.FacetWorks.Any(w => w.Id == e.WorkId && w.RecordId == recordId))
                 .Select(e => e.LibraryId);

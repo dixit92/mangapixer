@@ -96,7 +96,8 @@ public sealed class TrackerCardMarksHttpTests
         (status, marks) = await CardMarksAsync(admin, series.LibraryPublicId, null, [series.FolderPublicId]);
         Assert.Equal("mangaupdates", marks[series.FolderPublicId]);
         Assert.Equal((await ListingAsync(admin, series, null))[series.FolderPublicId], marks[series.FolderPublicId]);
-        (_, marks) = await CardMarksAsync(admin, series.LibraryPublicId, series.FolderPublicId, archiveIds);
+        (status, marks) = await CardMarksAsync(admin, series.LibraryPublicId, series.FolderPublicId, archiveIds);
+        Assert.Equal(HttpStatusCode.OK, status);
         Assert.All(archiveIds, id => Assert.Equal("mangaupdates", marks[id]));
     }
 

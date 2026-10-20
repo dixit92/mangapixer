@@ -99,7 +99,7 @@ public sealed class FacetIndexService
 
     /// <summary>
     /// The library's inputs key (D1 2.3): the rules version, its catalog revision, its link rows, its parsed ComicInfo and declared facts
-    /// (counts and newest stamps), the records its link rows name, and the global creator inputs (the creator tables, author records,
+    /// (counts and newest stamps), the records its link rows of an indexed state name, and the global creator inputs (the creator tables, author records,
     /// declared creators, admin overrides, merges) - a SHA-256 of scalar reads; no rows are loaded.
     /// <para>
     /// 1.45.1 (B2): the records part is the library's OWN linked records, no longer every stored record - a refresh of a record no link of
@@ -130,7 +130,8 @@ public sealed class FacetIndexService
         var links = _db.NodeSeriesLinks.Where(l => l.LibraryId == libraryId);
         var declared = _db.DeclaredFacts.Where(f => f.LibraryId == libraryId);
         var merged = _db.Creators.Where(c => c.MergedIntoId != null);
-        var linkedRecords = _db.MetadataRecords.Where(r => links.Any(l => l.RecordId == r.Id));
+        var indexedStates = FacetIndexNudges.IndexedLinkStates;
+        var linkedRecords = _db.MetadataRecords.Where(r => links.Any(l => l.RecordId == r.Id && indexedStates.Contains(l.State)));
         var parts = new object?[]
         {
             RulesVersion,
