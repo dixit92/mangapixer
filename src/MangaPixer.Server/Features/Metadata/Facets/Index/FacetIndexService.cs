@@ -99,10 +99,30 @@ public sealed class FacetIndexService
 
     /// <summary>
     /// The library's inputs key (D1 2.3): the rules version, its catalog revision, its link rows, its parsed ComicInfo and declared facts
-    /// (counts and newest stamps), and the global creator inputs (records, author records, declared creators, admin overrides, merges) - a
-    /// SHA-256 of scalar reads; no rows are loaded.
+    /// (counts and newest stamps), the records its link rows of an indexed state name, and the global creator inputs (the creator tables, author records,
+    /// declared creators, admin overrides, merges) - a SHA-256 of scalar reads; no rows are loaded.
+    /// <para>
+    /// 1.45.1 (B2): the records part is the library's OWN linked records, no longer every stored record - a refresh of a record no link of
+    /// this library names left the key of EVERY library changed, so the sweep rebuilt all of them. What another library's record does to
+    /// this library goes through the creators: the creator pass of that library's rebuild writes the creator tables, which move this key.
+    /// The creator tables are written only by index passes and admin creator changes, both under <see cref="FacetIndexLock"/>, so a rebuild
+    /// stores the key with the creator tables as its OWN creator pass left them (else its next sweep would rebuild it again for nothing).
+    /// </para>
     /// </summary>
-    public async Task<string> InputsKeyAsync(long libraryId, CancellationToken ct)
+    public async Task<string> InputsKeyAsync(long libraryId, CancellationToken ct) =>
+        Hash([.. await InputPartsAsync(libraryId, ct), .. await CreatorTablePartsAsync(ct)]);
+
+    /// <summary>The creator tables part of the inputs key (written only under <see cref="FacetIndexLock"/>).</summary>
+    private async Task<object?[]> CreatorTablePartsAsync(CancellationToken ct) =>
+    [
+        await _db.Creators.CountAsync(ct),
+        await _db.Creators.MaxAsync(c => (DateTimeOffset?)c.UpdatedAt, ct),
+        await _db.CreatorNames.CountAsync(ct),
+        await _db.CreatorProviderIds.CountAsync(ct),
+    ];
+
+    /// <summary>Every other part of the inputs key (read before a rebuild reads its inputs).</summary>
+    private async Task<object?[]> InputPartsAsync(long libraryId, CancellationToken ct)
     {
         var parsed = FacetIndexData.ComicInfoParsed;
         var libraryNodes = _db.CatalogNodes.Where(n => n.LibraryId == libraryId).Select(n => n.Id);
@@ -110,6 +130,8 @@ public sealed class FacetIndexService
         var links = _db.NodeSeriesLinks.Where(l => l.LibraryId == libraryId);
         var declared = _db.DeclaredFacts.Where(f => f.LibraryId == libraryId);
         var merged = _db.Creators.Where(c => c.MergedIntoId != null);
+        var indexedStates = FacetIndexNudges.IndexedLinkStates;
+        var linkedRecords = _db.MetadataRecords.Where(r => links.Any(l => l.RecordId == r.Id && indexedStates.Contains(l.State)));
         var parts = new object?[]
         {
             RulesVersion,
@@ -120,8 +142,8 @@ public sealed class FacetIndexService
             await ci.MaxAsync(e => (DateTimeOffset?)e.ReadAt, ct),
             await declared.CountAsync(ct),
             await declared.MaxAsync(f => (DateTimeOffset?)f.UpdatedAt, ct),
-            await _db.MetadataRecords.CountAsync(ct),
-            await _db.MetadataRecords.MaxAsync(r => (DateTimeOffset?)r.FetchedAt, ct),
+            await linkedRecords.CountAsync(ct),
+            await linkedRecords.MaxAsync(r => (DateTimeOffset?)r.FetchedAt, ct),
             await _db.MetadataAuthors.CountAsync(ct),
             await _db.MetadataAuthors.MaxAsync(a => (DateTimeOffset?)a.FetchedAt, ct),
             await _db.DeclaredFacts.CountAsync(f => f.ExternalRef != null, ct),
@@ -131,6 +153,11 @@ public sealed class FacetIndexService
             await merged.CountAsync(ct),
             await merged.MaxAsync(c => (DateTimeOffset?)c.UpdatedAt, ct),
         };
+        return parts;
+    }
+
+    private static string Hash(IEnumerable<object?> parts)
+    {
         var text = string.Join('|', parts.Select(p => p switch
         {
             null => "-",
@@ -163,13 +190,14 @@ public sealed class FacetIndexService
                 _logger.LogDebug(LogEvents.Metadata.FacetIndexSkippedScan, "Tag index of library {LibraryId} skipped: a scan runs", libraryId);
                 return new FacetRebuildResult(FacetRebuildOutcome.SkippedScanRunning);
             }
-            var key = await InputsKeyAsync(libraryId, ct);
+            var inputs = await InputPartsAsync(libraryId, ct);
+            var key = Hash([.. inputs, .. await CreatorTablePartsAsync(ct)]);
             if (!force && string.Equals(await StoredKeyAsync(libraryId, ct), key, StringComparison.Ordinal))
                 return new FacetRebuildResult(FacetRebuildOutcome.Unchanged);
 
             try
             {
-                var result = await BuildAsync(libraryId, key, yieldAsync, watch, ct);
+                var result = await BuildAsync(libraryId, inputs, yieldAsync, watch, ct);
                 _logger.LogInformation(LogEvents.Metadata.FacetIndexRebuilt,
                     "Tag index of library {LibraryId} rebuilt: {Works} work(s), {Entries} entries; {Inserted} inserted, {Updated} updated, {Deleted} deleted in {ElapsedMs} ms",
                     libraryId, result.Works, result.Entries, result.Inserted, result.Updated, result.Deleted, result.ElapsedMs);
@@ -189,7 +217,7 @@ public sealed class FacetIndexService
 
     private sealed record Desired(long WorkId, FacetSources Sources, FacetRoles Roles, bool Conflict);
 
-    private async Task<FacetRebuildResult> BuildAsync(long libraryId, string key, Func<CancellationToken, Task>? yieldAsync, Stopwatch watch,
+    private async Task<FacetRebuildResult> BuildAsync(long libraryId, object?[] inputs, Func<CancellationToken, Task>? yieldAsync, Stopwatch watch,
         CancellationToken ct)
     {
         // 1. Creators first.
@@ -304,6 +332,9 @@ public sealed class FacetIndexService
             }
         }
 
+        // The key this build answers: its inputs as read before the build, the creator tables as its own creator pass left them.
+        var key = Hash([.. inputs, .. await CreatorTablePartsAsync(ct)]);
+
         // 6. The diff.
         var now = _time.GetUtcNow();
         var inserted = 0;
@@ -324,17 +355,20 @@ public sealed class FacetIndexService
             _generation?.Bump(); // Lane Q's count cache: every committed index write is a new generation.
         }
 
-        // 6a. Works (insert new keys; update changed titles / kinds).
+        // 6a. Works (insert new keys; update changed titles / kinds). 1.45.1 (B1): only works with at least one value are stored - a work
+        // with nothing to index would be inserted here and deleted again in 6d ("left without entries") on EVERY pass (measured on a real
+        // library: 725 of 3201 works, +725 / -725 per rebuild with unchanged inputs).
+        var indexed = drafts.Select(d => d.Work.Key).ToHashSet(StringComparer.Ordinal);
         var workIds = new Dictionary<string, long>(StringComparer.Ordinal);
         var existingWorks = new Dictionary<string, FacetWorkEntity>(StringComparer.Ordinal);
-        foreach (var chunk in works.Select(w => w.Key).Chunk(BatchSize))
+        foreach (var chunk in works.Where(w => indexed.Contains(w.Key)).Select(w => w.Key).Chunk(BatchSize))
         {
             foreach (var w in await _db.FacetWorks.AsNoTracking().Where(w => chunk.Contains(w.WorkKey)).ToListAsync(ct))
                 existingWorks[w.WorkKey] = w;
         }
         var newWorks = new List<FacetWorkEntity>();
         var changedWorks = new List<FacetWorkEntity>();
-        foreach (var work in works)
+        foreach (var work in works.Where(w => indexed.Contains(w.Key)))
         {
             var title = FacetText.Display(work.Title) ?? work.Key;
             if (title.Length > FacetModel.TitleLength)

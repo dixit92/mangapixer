@@ -39,6 +39,7 @@ import { TrackerSyncActionComponent } from '../trackers/tracker-sync-action.comp
 import { TrackerReadMarkComponent } from '../trackers/tracker-read-mark.component';
 import { SeriesTrackingButtonComponent } from '../trackers/series-tracking-button.component';
 import { TrackerStateService } from '../trackers/tracker-state.service';
+import { TrackersApiService } from '../trackers/trackers-api.service';
 import { FolderCoverPreferenceActionComponent } from './folder-cover-preference-action.component';
 import { NodeRowComponent, directionShort as directionChip } from '../../shared/node-row/node-row.component';
 import { SelectionBarComponent } from '../../shared/selection/selection-bar.component';
@@ -770,17 +771,15 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   private readonly readState = inject(ReadStateService);
   private readonly favorites = inject(FavoritesStateService);
   private readonly trackerState = inject(TrackerStateService);
+  private readonly trackersApi = inject(TrackersApiService);
   private stackRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   /** 1.45.0 (K8): a read change was announced; the cards' tracker rings are re-read once this view is shown. */
   private trackerRefreshDue = false;
   private trackerRetryTimer: ReturnType<typeof setTimeout> | null = null;
   /** 1.45.0 (K8): the second look, in case the tracker sync was still in flight at the first one. */
   static readonly TRACKER_RETRY_MS = 3000;
-  /**
-   * 1.45.0 (K8): the page requests that built the listed cards (the first page, appended pages, prepended pages), so the tracker
-   * refresh can re-ask exactly them. Reset with every fresh window load.
-   */
-  private pageRequests: { cursor: string | null; before: string | null; group: 'volumes' | 'flat' | null; preferVolumes: boolean }[] = [];
+  /** 1.45.1 (B4): the most card ids one ring re-read asks for (the server's limit); a longer list is split. */
+  static readonly TRACKER_MARKS_BATCH = 200;
   readonly auth = inject(AuthService);
 
   // Per-folder direction override options (1.2.0). null = inherit (clear).
@@ -1488,7 +1487,6 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   private resetList(): void {
     this.cursor = null;
     this.prevCursor = null;
-    this.pageRequests = [];
     this.nodes.set([]);
     this.hasMore.set(false);
     this.hasPrevious.set(false);
@@ -2147,11 +2145,9 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     const gen = ++this.loadGen;
     this.loadingMore.set(true);
     const preferVolumes = initial && this.preferVolumesOnce;
-    const request = { cursor: this.cursor, before: null, group: this.groupParam(), preferVolumes };
     this.api.browseLibrary(libId, this.parentId(), this.cursor, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders(), null, this.favoritesOnly(), this.groupParam(), preferVolumes, this.completionFilter()).subscribe({
       next: (response: PageResponse<CatalogNodeDto>) => {
         if (gen !== this.loadGen) return;
-        this.pageRequests = isAppend ? [...this.pageRequests, request] : [request];
         if (preferVolumes) {
           this.preferVolumesOnce = false;
           // The server opened the Volumes view: Name for THIS visit only (the stored sort is untouched, like the home sort).
@@ -2205,7 +2201,6 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
         if (gen !== this.loadGen) { this.loadingPrevious.set(false); return; }
         if (response.items.length > 0) {
           this.nodes.update((current) => [...response.items, ...current]);
-          this.pageRequests = [{ cursor: null, before, group: this.groupParam(), preferVolumes: false }, ...this.pageRequests];
         }
         this.prevCursor = response.prevCursor ?? null;
         this.hasPrevious.set(response.hasPrevious ?? false);
@@ -2267,26 +2262,27 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Re-asks the pages that built the list (same folder, sort, filters and cursors) and patches ONLY each listed card's `trackerRead`
-   * in place - no list replacement, so the scroll position and the loaded window stay as they are. Chosen over a new "rings for these
-   * ids" endpoint: the listing already computes the ring for every card kind (archives, volume stacks, series folders, the Volumes
-   * view) with the owner's intersection rule, so re-reading it is correct everywhere with no new API surface; it costs one browse
-   * request per loaded page (usually one or two), twice per return, and only for a viewer with a connected tracker.
+   * Re-reads ONLY the listed cards' `trackerRead` and patches it in place - no list replacement, so the scroll position and the loaded
+   * window stay as they are. 1.45.1 (B4): through the light `GET /trackers/card-marks` (the listing's own ring rule, for the card ids
+   * given - at most 200 per request) instead of replaying every page of the listing, which cost two full listings with every enrichment
+   * per return in a long, scrolled folder. Only for a viewer with a connected tracker.
    */
   private refreshTrackerMarks(): void {
     const libId = this.libraryId();
-    if (!libId || this.pageRequests.length === 0 || this.nodes().length === 0) return;
+    if (!libId || this.nodes().length === 0) return;
     // No connected tracker: no ring can appear (the overview is a local GET, loaded once per session).
     this.trackerState.ensureLoaded();
     if (this.trackerState.overview() !== null && !this.trackerState.hasConnected()) return;
+    const ids = this.nodes().filter((n) => n.kind === 'Archive' || n.kind === 'Folder' || n.kind === 'VolumeStack').map((n) => n.id);
+    if (ids.length === 0) return;
     const gen = this.loadGen;
     const folder = this.parentId();
-    forkJoin(this.pageRequests.map((r) => this.api.browseLibrary(libId, folder, r.cursor, this.pageSize(), this.sort(), this.sortDirection(),
-      this.readStateFilter(), this.hideEmptyFolders(), r.before, this.favoritesOnly(), r.group, r.preferVolumes, this.completionFilter())
-      .pipe(catchError(() => of(null))))).subscribe((pages) => {
+    const batches: string[][] = [];
+    for (let i = 0; i < ids.length; i += LibraryBrowseComponent.TRACKER_MARKS_BATCH) batches.push(ids.slice(i, i + LibraryBrowseComponent.TRACKER_MARKS_BATCH));
+    forkJoin(batches.map((batch) => this.trackersApi.cardMarks(libId, folder, batch).pipe(catchError(() => of(null))))).subscribe((answers) => {
       if (gen !== this.loadGen || this.parentId() !== folder) return;
       const rings = new Map<string, string[] | null>();
-      for (const page of pages) for (const n of page?.items ?? []) rings.set(n.id, n.trackerRead ?? null);
+      for (const answer of answers) for (const m of answer?.items ?? []) rings.set(m.id, m.trackerRead ?? null);
       if (rings.size === 0) return;
       const same = (a: string[] | null | undefined, b: string[] | null) => (a ?? []).join(',') === (b ?? []).join(',');
       this.nodes.update((list) => {

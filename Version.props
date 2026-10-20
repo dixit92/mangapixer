@@ -499,7 +499,10 @@
          noticed sooner (MangaDex latest-upload sweep, MangaUpdates releases feed, reading fast lane, half-interval pace) with the export's
          shared chapter signal; search paging + read status; phase K fixes. Migrations AddFacetIndex, AddMangaDexLatestUpload,
          AddLatestUploadMissing (additive); main consent 7 (automatic stays 5). -->
-    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
+    <!-- 1.45.1 - PATCH over 1.45.0 (2026-10-20): the tag index stores only works with values (725 empty works were added and removed on
+         every rebuild of one live library), record / ComicInfo nudges rebuild only the libraries they touch (coalesced; the sweep's inputs key
+         per library), and the browse ring refresh after Back uses GET /trackers/card-marks instead of replaying the listing. No migration. -->
+    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->

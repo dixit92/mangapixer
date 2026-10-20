@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.45.1] - 2026-10-20
+
+### Fixed
+
+- **The tag index no longer rewrites a library on every pass.** Works with nothing to index (a plain folder without a web record, ComicInfo or declared facts) were added and removed again each time the index was rebuilt; a rebuild with nothing new now writes nothing.
+- **A refreshed web record rebuilds only the libraries that use it.** Storing or refreshing a record, and reading ComicInfo in the background, used to rebuild the tag index of every library; now only the libraries that link the record (or hold the archives) are rebuilt, a burst of changes gives one rebuild per library, and the periodic check no longer finds every library changed after any refresh.
+- **Back from the reader is lighter.** The gold "read on your tracker" ring on the cards is re-read with one small request for the cards on the page, instead of loading the whole folder listing again (twice) - noticeable in long, scrolled folders.
+
 ## [1.45.0] - 2026-10-19
 
 ### Added
