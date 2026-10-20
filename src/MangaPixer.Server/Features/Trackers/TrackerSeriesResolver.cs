@@ -491,7 +491,7 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
                 join n in db.CatalogNodes.AsNoTracking() on e.NodeId equals n.Id
                 where n.ParentId != null && parentIds.Contains(n.ParentId.Value) && e.State == 1 && (e.Volume != null || e.Number != null)
                 select new { e.NodeId, e.Volume, e.Number }).ToListAsync(ct))
-            .ToDictionary(r => r.NodeId, r => (r.Volume, (string?)r.Number));
+            .ToDictionary(r => r.NodeId, r => (Volume: r.Volume, Number: (string?)r.Number));
 
         var bySeries = scope.Select(kv => (Id: kv.Key, kv.Value.Series, kv.Value.Name)).ToLookup(f => f.Series);
         foreach (var (target, map) in folders.DistinctBy(f => f.NodeId))
