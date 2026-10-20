@@ -112,12 +112,14 @@ public sealed class TrackerCardMarks(MangaPixerDbContext db, TrackerSettingsServ
         var walked = records.Values.Distinct().Where(synced.ContainsKey).ToList();
         SeriesWalked += walked.Count;
         var scopes = await resolver.ArchivesOfRecordsAsync(userId, walked, readMarks: false, ct);
+        var perfPhase = com.lifepixer.mangapixer.Server.Operations.Perf.PerfPhase.Start(); // measurement only (lane M's laps)
         var rings = new Dictionary<long, IReadOnlyList<string>?>();
         foreach (var recordId in walked)
         {
             var (archives, map) = scopes[recordId];
             rings[recordId] = SeriesRing(synced[recordId], archives, map);
         }
+        perfPhase.Lap("marks.rings");
         return nodes.Select(node =>
         {
             if (!records.TryGetValue(node.Id, out var recordId))

@@ -347,6 +347,7 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
             return result;
         foreach (var id in wanted)
             result[id] = ([], VolumeMapInput.Empty);
+        var perfPhase = com.lifepixer.mangapixer.Server.Operations.Perf.PerfPhase.Start(); // measurement only (lane M's laps)
 
         var accessible = (await libraries.GetAccessibleLibraryIdsAsync(userId, ct)).ToList();
         var states = new[] { (int)SeriesLinkState.Confirmed, (int)SeriesLinkState.Auto };
@@ -371,7 +372,9 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
         // answers are per target), or a linked archive on its own.
         var archive = (int)CatalogNodeKind.Archive;
         var folders = linkNodes.Where(n => n.Kind != archive).ToList();
+        perfPhase = perfPhase.Lap("marks.walk-links");
         var scopes = await new SeriesProgressLoader(db).LoadAsync(folders.Select(f => new SeriesProgressTarget(f.Id, f.RecordId)).ToList(), ct);
+        perfPhase = perfPhase.Lap("marks.walk-series-scopes");
         var rowsByNode = new Dictionary<long, IReadOnlyList<GroupingRow>>();
         foreach (var f in folders)
             rowsByNode[f.Id] = scopes.TryGetValue(f.Id, out var entry) ? entry.Rows : [];
@@ -414,6 +417,7 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
                 editions[node] = edition;
         }
 
+        perfPhase = perfPhase.Lap("marks.walk-ids-maps-editions");
         foreach (var (recordId, nodes) in byRecord)
         {
             var archives = new Dictionary<long, ScopeArchive>();
@@ -433,6 +437,7 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
             }
             result[recordId] = (archives.Values.ToList(), maps[recordId]);
         }
+        perfPhase.Lap("marks.walk-units");
         return result;
     }
 
