@@ -249,6 +249,7 @@ class Runner:
             "covers_root": None,  # special: the root page's card covers after the listing
             "reader_open": None,  # special: manifest group, then the first page at both qualities
             "reader_back": None,  # special: the 1.45.1 ring refresh
+            "reader_back_big": None,  # special: the same in the big folder with 200 loaded cards
         }
         return p
 
@@ -282,18 +283,19 @@ class Runner:
         wall, res = self.c.group([("GET", u) for u in urls])
         rec("covers_root", wall, res)
 
-    def run_reader_back(self, rec):
+    def run_reader_back(self, rec, big=False):
         items = self.t["readItems"]
         item = items[self.item_i % len(items)]
         self.item_i += 1
-        folder = self.t["itemFolder"].get(item) or self.big
-        page = self.c.get_json(self.browse(folder))
+        folder = self.big if big else (self.t["itemFolder"].get(item) or self.big)
+        # big: a long scrolled folder - the ring refresh asks for up to 200 loaded cards at once.
+        page = self.c.get_json(self.browse(folder, pageSize=200 if big else 50))
         ids = [n["id"] for n in page.get("items", [])][:200]
         reqs = [("GET", f"{API}/reading/{item}/read"), ("GET", f"{API}/reading/progress/{item}"),
                 ("GET", self.browse(folder, pageSize=1)),
                 ("GET", f"{API}/trackers/card-marks?" + q(libraryId=self.lib, parentId=folder, ids=ids))]
         wall, res = self.c.group(reqs)
-        rec("reader_back", wall, res)
+        rec("reader_back_big" if big else "reader_back", wall, res)
 
 
 def summarize(samples: dict) -> dict:
@@ -392,6 +394,8 @@ def main() -> int:
                 r.run_reader_open(rec)
             elif name == "reader_back":
                 r.run_reader_back(rec)
+            elif name == "reader_back_big":
+                r.run_reader_back(rec, big=True)
             elif name == "covers_root":
                 r.run_covers_root(rec)
             else:
