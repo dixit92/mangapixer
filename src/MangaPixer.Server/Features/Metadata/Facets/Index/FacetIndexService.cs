@@ -324,17 +324,20 @@ public sealed class FacetIndexService
             _generation?.Bump(); // Lane Q's count cache: every committed index write is a new generation.
         }
 
-        // 6a. Works (insert new keys; update changed titles / kinds).
+        // 6a. Works (insert new keys; update changed titles / kinds). 1.45.1 (B1): only works with at least one value are stored - a work
+        // with nothing to index would be inserted here and deleted again in 6d ("left without entries") on EVERY pass (measured on a real
+        // library: 725 of 3201 works, +725 / -725 per rebuild with unchanged inputs).
+        var indexed = drafts.Select(d => d.Work.Key).ToHashSet(StringComparer.Ordinal);
         var workIds = new Dictionary<string, long>(StringComparer.Ordinal);
         var existingWorks = new Dictionary<string, FacetWorkEntity>(StringComparer.Ordinal);
-        foreach (var chunk in works.Select(w => w.Key).Chunk(BatchSize))
+        foreach (var chunk in works.Where(w => indexed.Contains(w.Key)).Select(w => w.Key).Chunk(BatchSize))
         {
             foreach (var w in await _db.FacetWorks.AsNoTracking().Where(w => chunk.Contains(w.WorkKey)).ToListAsync(ct))
                 existingWorks[w.WorkKey] = w;
         }
         var newWorks = new List<FacetWorkEntity>();
         var changedWorks = new List<FacetWorkEntity>();
-        foreach (var work in works)
+        foreach (var work in works.Where(w => indexed.Contains(w.Key)))
         {
             var title = FacetText.Display(work.Title) ?? work.Key;
             if (title.Length > FacetModel.TitleLength)
