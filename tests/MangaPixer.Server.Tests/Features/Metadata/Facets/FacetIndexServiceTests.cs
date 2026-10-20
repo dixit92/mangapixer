@@ -124,6 +124,31 @@ public sealed class FacetIndexServiceTests
         _ = loose;
     }
 
+    /// <summary>
+    /// 1.45.1 (B1, measured on a copy of a real library: 725 of 3201 works had no value): a work with nothing to index - here a plain unlinked
+    /// series folder without ComicInfo or declared facts - is not stored, so a rebuild with unchanged inputs writes NOTHING (the old builder
+    /// inserted its row and deleted it again as "left without entries" on every pass).
+    /// </summary>
+    [Fact]
+    public async Task AWorkWithNoValues_IsNotStored_SoARebuildWithUnchangedInputsWritesNothing()
+    {
+        await using var kit = await Kit.CreateAsync();
+        await LinkedSeriesAsync(kit);
+        var plain = await kit.Meta.AddFolderAsync(null, "Plain Saga");
+        await kit.Meta.AddArchiveAsync(plain, "Plain Saga v01.cbz");
+        await kit.Meta.AddArchiveAsync(plain, "Plain Saga v02.cbz");
+
+        var first = await kit.RebuildAsync();
+        Assert.Equal(FacetRebuildOutcome.Rebuilt, first.Outcome);
+        Assert.False(await kit.Meta.Db.FacetWorks.AnyAsync(w => w.WorkKey == FacetWorkKey.Node(plain.Id)));
+        var workIds = await kit.Meta.Db.FacetWorks.AsNoTracking().OrderBy(w => w.Id).Select(w => w.Id).ToListAsync();
+
+        var second = await kit.RebuildAsync();
+
+        Assert.Equal((FacetRebuildOutcome.Rebuilt, 0, 0, 0), (second.Outcome, second.Inserted, second.Updated, second.Deleted));
+        Assert.Equal(workIds, await kit.Meta.Db.FacetWorks.AsNoTracking().OrderBy(w => w.Id).Select(w => w.Id).ToListAsync());
+    }
+
     [Fact]
     public async Task EveryCommittedIndexWrite_BumpsLaneQsGeneration_ASkippedPassDoesNot()
     {
