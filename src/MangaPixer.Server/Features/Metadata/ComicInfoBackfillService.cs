@@ -116,7 +116,12 @@ public sealed class ComicInfoBackfillService
             () => _workerPool.SchedulerPendingCount,
             BackoffMs,
             ct,
-            () => _facetNudge.AllChanged(Facets.FacetNudgeReason.ComicInfoStored));
+            libraries =>
+            {
+                // 1.45.1 (B2): only the libraries of the archives this batch stored (was: every library).
+                foreach (var library in libraries)
+                    _facetNudge.LibraryChanged(library, Facets.FacetNudgeReason.ComicInfoStored);
+            });
 
         if (counts.Attempted > 0)
             _logger.LogInformation(LogEvents.Metadata.ComicInfoBackfillCompleted,
@@ -129,7 +134,7 @@ public sealed class ComicInfoBackfillService
     /// Delegate-driven pass (unit-testable without a pool, DB or filesystem): keyset
     /// batches by node id, yield before every item while the pool is saturated or
     /// analysis is pending, attempt each item once. <paramref name="batchStored"/> (1.45.0: the tag index nudge) runs after each batch
-    /// that stored at least one row.
+    /// that stored at least one row, with the libraries of the archives it stored (1.45.1).
     /// </summary>
     internal static async Task<ComicInfoBackfillCounts> RunPassCoreAsync(
         Func<long, int, CancellationToken, Task<IReadOnlyList<ComicInfoBackfillCandidate>>> selectBatchAsync,
@@ -138,7 +143,7 @@ public sealed class ComicInfoBackfillService
         Func<int> schedulerPendingCount,
         int backoffMs,
         CancellationToken ct,
-        Action? batchStored = null)
+        Action<IReadOnlyCollection<long>>? batchStored = null)
     {
         var counts = new ComicInfoBackfillCounts();
         long afterNodeId = 0;
@@ -148,7 +153,7 @@ public sealed class ComicInfoBackfillService
             var batch = await selectBatchAsync(afterNodeId, BatchSize, ct);
             if (batch.Count == 0)
                 break;
-            var storedBefore = counts.Stored;
+            var storedLibraries = new HashSet<long>();
 
             foreach (var candidate in batch)
             {
@@ -175,17 +180,19 @@ public sealed class ComicInfoBackfillService
                     case ComicInfoItemResult.StoredWithComicInfo:
                         counts.Stored++;
                         counts.Found++;
+                        storedLibraries.Add(candidate.LibraryId);
                         break;
                     case ComicInfoItemResult.Stored:
                         counts.Stored++;
+                        storedLibraries.Add(candidate.LibraryId);
                         break;
                     default:
                         counts.Skipped++;
                         break;
                 }
             }
-            if (counts.Stored > storedBefore)
-                batchStored?.Invoke();
+            if (storedLibraries.Count > 0)
+                batchStored?.Invoke(storedLibraries);
         }
 
         return counts;
@@ -217,7 +224,7 @@ public sealed class ComicInfoBackfillService
                 && !db.EmbeddedMetadata.Any(e => e.NodeId == a.NodeId && e.ContentVersion == a.ContentVersion)
             orderby a.NodeId
             select new ComicInfoBackfillCandidate(
-                a.NodeId, a.ContentVersion, a.ModificationTicks, a.ByteLength, l.RootPath, n.RelativePath))
+                a.NodeId, a.ContentVersion, a.ModificationTicks, a.ByteLength, l.RootPath, n.RelativePath, l.Id))
             .Take(limit)
             .ToListAsync(ct);
     }
@@ -286,7 +293,8 @@ public sealed record ComicInfoBackfillCandidate(
     long ModificationTicks,
     long ByteLength,
     string RootPath,
-    string RelativePath);
+    string RelativePath,
+    long LibraryId = 0);
 
 public enum ComicInfoItemResult
 {

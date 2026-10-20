@@ -124,6 +124,31 @@ public sealed class FacetIndexServiceTests
         _ = loose;
     }
 
+    /// <summary>
+    /// 1.45.1 (B1, measured on a copy of a real library: 725 of 3201 works had no value): a work with nothing to index - here a plain unlinked
+    /// series folder without ComicInfo or declared facts - is not stored, so a rebuild with unchanged inputs writes NOTHING (the old builder
+    /// inserted its row and deleted it again as "left without entries" on every pass).
+    /// </summary>
+    [Fact]
+    public async Task AWorkWithNoValues_IsNotStored_SoARebuildWithUnchangedInputsWritesNothing()
+    {
+        await using var kit = await Kit.CreateAsync();
+        await LinkedSeriesAsync(kit);
+        var plain = await kit.Meta.AddFolderAsync(null, "Plain Saga");
+        await kit.Meta.AddArchiveAsync(plain, "Plain Saga v01.cbz");
+        await kit.Meta.AddArchiveAsync(plain, "Plain Saga v02.cbz");
+
+        var first = await kit.RebuildAsync();
+        Assert.Equal(FacetRebuildOutcome.Rebuilt, first.Outcome);
+        Assert.False(await kit.Meta.Db.FacetWorks.AnyAsync(w => w.WorkKey == FacetWorkKey.Node(plain.Id)));
+        var workIds = await kit.Meta.Db.FacetWorks.AsNoTracking().OrderBy(w => w.Id).Select(w => w.Id).ToListAsync();
+
+        var second = await kit.RebuildAsync();
+
+        Assert.Equal((FacetRebuildOutcome.Rebuilt, 0, 0, 0), (second.Outcome, second.Inserted, second.Updated, second.Deleted));
+        Assert.Equal(workIds, await kit.Meta.Db.FacetWorks.AsNoTracking().OrderBy(w => w.Id).Select(w => w.Id).ToListAsync());
+    }
+
     [Fact]
     public async Task EveryCommittedIndexWrite_BumpsLaneQsGeneration_ASkippedPassDoesNot()
     {
@@ -281,6 +306,41 @@ public sealed class FacetIndexServiceTests
 
         Assert.Equal(FacetRebuildOutcome.Rebuilt, (await kit.RebuildAsync()).Outcome);
         Assert.True(await kit.Meta.Db.FacetEntries.AnyAsync());
+    }
+
+    /// <summary>
+    /// 1.45.1 (B2): a record that no link of the library names - another library's series refreshed, a record stored by an Identify elsewhere -
+    /// leaves the library's inputs key alone (it used to move every library's key, so the sweep rebuilt them all); a refresh of the library's
+    /// own linked record and a change of the creator tables still move it.
+    /// </summary>
+    [Fact]
+    public async Task TheInputsKey_IgnoresRecordsNoLinkOfTheLibraryNames_AndMovesWithItsOwnRecordAndTheCreators()
+    {
+        await using var kit = await Kit.CreateAsync();
+        var (_, own) = await LinkedSeriesAsync(kit);
+        var other = await kit.Meta.AddLibraryAsync("otherlib", "Other");
+        var elsewhere = await kit.Meta.AddFolderAsync(null, "Elsewhere", other.Id);
+        var theirs = await kit.Meta.AddRecordAsync("600", "Elsewhere Series");
+        await kit.Meta.AddLinkAsync(elsewhere, theirs);
+        var index = kit.Index();
+        var key = await index.InputsKeyAsync(kit.Meta.LibraryId, default);
+
+        var db = kit.Meta.Db;
+        var tracked = await db.MetadataRecords.SingleAsync(r => r.Id == theirs.Id);
+        tracked.FetchedAt = DateTimeOffset.UtcNow.AddMinutes(5);
+        await db.SaveChangesAsync();
+        await kit.Meta.AddRecordAsync("700", "Unlinked Candidate");
+        Assert.Equal(key, await index.InputsKeyAsync(kit.Meta.LibraryId, default));
+
+        var mine = await db.MetadataRecords.SingleAsync(r => r.Id == own.Id);
+        mine.FetchedAt = DateTimeOffset.UtcNow.AddMinutes(6);
+        await db.SaveChangesAsync();
+        var afterOwn = await index.InputsKeyAsync(kit.Meta.LibraryId, default);
+        Assert.NotEqual(key, afterOwn);
+
+        // The creator pass of another library's rebuild (a new creator) moves it: what a record elsewhere does here goes through the creators.
+        await kit.Index().RebuildLibraryAsync(other.Id, default);
+        Assert.NotEqual(afterOwn, await index.InputsKeyAsync(kit.Meta.LibraryId, default));
     }
 
     [Fact]

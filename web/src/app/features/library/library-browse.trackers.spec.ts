@@ -108,51 +108,73 @@ describe('LibraryBrowseComponent tracker marks and the Tracking button', () => {
     expect(button.closest('app-series-tracking-button')!.nextElementSibling!.tagName.toLowerCase()).toBe('app-series-info-button');
   });
 
-  it('1.45.0 (K8): back from the reader, every listed card\'s ring is re-read in place - at once and once more 3 s later', async () => {
-    const { fixture, el, apiSpy, page } = setup('card', true);
+  it('1.45.1 (B4): back from the reader, the listed cards\' rings are re-read in place by one light request - at once and 3 s later - never by replaying the listing', async () => {
+    const { fixture, el, apiSpy, http } = setup('card', true);
     const router = TestBed.inject(Router);
     await router.navigateByUrl('/libraries/lib1/browse/f1');
     const listCalls = () => apiSpy.browseLibrary.mock.calls.filter((a) => a[3] !== 1); // not the Continue row's 1-item look
-    const first = listCalls()[0];
     expect(listCalls()).toHaveLength(1);
     expect(marks(el)).toHaveLength(2);
     const untouched = fixture.componentInstance.nodes()[1];
+    const cardMarks = () => http.match((r) => r.url === '/api/v1/trackers/card-marks');
 
     // In the reader: chapter a3 is finished; MyAnimeList now counts a3 (and a1 / a2 stay counted).
     await router.navigateByUrl('/reader/a3');
     TestBed.inject(ReadStateService).notifyChanged('a3');
-    expect(listCalls()).toHaveLength(1); // nothing while the reader is shown
-    apiSpy.browseLibrary.mockReturnValue(of({ ...page, items: page.items.map((n) => ({ ...n, trackerRead: n.trackerRead ?? ['mal'] })) }));
+    expect(cardMarks()).toHaveLength(0); // nothing while the reader is shown
 
     vi.useFakeTimers();
     try {
       await router.navigateByUrl('/libraries/lib1/browse/f1');
+      const [first] = cardMarks();
+      expect(first.request.method).toBe('GET');
+      expect(first.request.params.get('libraryId')).toBe('lib1');
+      expect(first.request.params.get('parentId')).toBe('f1');
+      expect(first.request.params.getAll('ids')).toEqual(['a1', 'a2', 'a3']);
+      first.flush({ items: [{ id: 'a1', trackerRead: ['mal'] }, { id: 'a2', trackerRead: ['mal', 'mangaupdates'] }, { id: 'a3', trackerRead: ['mal'] }] });
       fixture.detectChanges();
-      // The same page request as the list's own (folder, sort, filters, cursor), and the ring is on all three cards - no reload.
-      expect(listCalls()).toHaveLength(2);
-      expect(listCalls()[1]).toEqual(first);
+      // The ring is on all three cards - no reload, and the listing was not asked again.
       expect(marks(el)).toHaveLength(3);
+      expect(listCalls()).toHaveLength(1);
       // Only the ring changed: an unchanged card keeps its object (nothing re-rendered, the scroll stays).
       expect(fixture.componentInstance.nodes()[1]).toBe(untouched);
       vi.advanceTimersByTime(LibraryBrowseComponent.TRACKER_RETRY_MS);
-      expect(listCalls()).toHaveLength(3);
+      const [second] = cardMarks();
+      second.flush({ items: [{ id: 'a3', trackerRead: null }] });
+      fixture.detectChanges();
+      expect(marks(el)).toHaveLength(2); // a ring the tracker no longer gives is taken off
       // Another navigation without a new read change asks nothing.
       await router.navigateByUrl('/libraries/lib1/browse/f1?x=1');
       vi.advanceTimersByTime(LibraryBrowseComponent.TRACKER_RETRY_MS);
-      expect(listCalls()).toHaveLength(3);
+      expect(cardMarks()).toHaveLength(0);
+      expect(listCalls()).toHaveLength(1);
     } finally {
       vi.useRealTimers();
     }
   });
 
+  it('1.45.1 (B4): a long list is asked in batches of at most 200 card ids', async () => {
+    const { fixture, http } = setup('card', true);
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/libraries/lib1/browse/f1');
+    fixture.componentInstance.nodes.set(Array.from({ length: 450 }, (_, i) => archive(`n${i}`, null)));
+    await router.navigateByUrl('/reader/n1');
+    TestBed.inject(ReadStateService).notifyChanged('n1');
+    await router.navigateByUrl('/libraries/lib1/browse/f1');
+    const batches = http.match((r) => r.url === '/api/v1/trackers/card-marks');
+    expect(batches.map((b) => b.request.params.getAll('ids')!.length)).toEqual([200, 200, 50]);
+    for (const b of batches) b.flush({ items: [] });
+  });
+
   it('1.45.0 (K8): a viewer without a connected tracker gets no extra request on the way back', async () => {
-    const { apiSpy } = setup('card', false);
+    const { apiSpy, http } = setup('card', false);
     TestBed.inject(TrackerStateService).set({ trackers: [] });
     const router = TestBed.inject(Router);
     await router.navigateByUrl('/reader/a3');
     TestBed.inject(ReadStateService).notifyChanged('a3');
     await router.navigateByUrl('/libraries/lib1/browse/f1');
     expect(apiSpy.browseLibrary.mock.calls.filter((a) => a[3] !== 1)).toHaveLength(1);
+    http.expectNone((r) => r.url === '/api/v1/trackers/card-marks');
   });
 
   it('UX6: with the Tracking button the bar may wrap (the trail keeps its room; on a phone it takes its own row); without it, not', () => {

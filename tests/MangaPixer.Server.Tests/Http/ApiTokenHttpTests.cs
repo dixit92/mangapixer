@@ -294,6 +294,8 @@ public sealed class ApiTokenHttpTests
         "GET api/v1/admin/trackers/{slug}",
         "GET api/v1/trackers",
         "GET api/v1/trackers/attention",
+        // 1.45.1 (B4): the rings of the cards on screen after Back (cookie only, like every tracker route).
+        "GET api/v1/trackers/card-marks",
         "GET api/v1/trackers/nodes/{nodeId}/summary",
         "GET api/v1/trackers/sync-overrides",
         "GET api/v1/trackers/{slug}/entries",
