@@ -59,3 +59,29 @@ min-max), plus the server-side window of every run (difference of the cumulative
   runs taken during a spike; report medians with their spread, never a single run.
 - The page cache starts empty after every server restart; restart before a run for a cold-cache run, or repeat the same
   items right after a run for a warm one.
+
+## Library browsing and the server-side split (1.46.0)
+
+Measurement-only server switches (all off by default; set them only on an instance you measure):
+
+| Setting | Effect |
+|---|---|
+| `MangaPixer:Perf:RequestTiming=true` | Every `/api` response carries `Server-Timing: app, sql, sqln, lockw` (app time, EF SQL time, SQL command count, write-transaction BEGIN wait). The admin diagnostics snapshot gets a `perf` block: per route template, per SQL statement shape (literals and numbers replaced) and per phase lap (`phase:browse.*`, `phase:enrich.*`, `phase:marks.*`, `phase:home.*`), BEGIN / COMMIT waits, GC heap and thread pool. Raw ADO commands are not seen by the EF interceptor; the phase laps cover them. |
+| `MangaPixer:Perf:SkipHostedServices=<ClassName>,...` | Leaves those hosted services out (e.g. `ThumbnailBackfillHostedService,ContentSignatureBackfillHostedService,ComicInfoBackfillHostedService`). |
+| `MangaPixer:Perf:TrackerMarksWithNetworkOff=true` | Keeps the display-only tracker card marks while `Trackers:NetworkDisabled` is on (nothing is sent either way). |
+| `Facets:Index:FullPassSeconds=<n>` (+ `Facets:Index:SweepSeconds=1`) | Full tag-index passes back to back (a sustained rebuild load). |
+
+- `library_load.py discover` stores ids only (largest library, its biggest folder, a series with stored info, readable items, card
+  items) in a targets file; `run` times the user actions as the web app sends them (`browse_root`, `browse_big_folder`, the read /
+  completion filters, the Volumes view, a later page, search plain / read filter / tag, Info panel, series page, home, the root's card
+  covers, reader open + first page at both image qualities, Back from the reader in a small and a long folder), concurrently like a
+  browser and interleaved over N rounds; `--first-only` takes one sample per point (cold, right after a restart); `covers` asks for
+  card covers in a loop (a background thumbnail load on an instance without thumbnail files).
+- `summarize_library.py` prints the points, the slowest request of each with its `Server-Timing` split and the diagnostics window (top
+  statements and phases); `compare_library.py` puts runs side by side.
+- `frontend_probe.mjs` (Playwright) times the first card / first page of a library root and a folder (cold and warm), the long list's
+  scroll (frame times, long tasks, DOM nodes, JS heap). No screenshots.
+- `MeasureAccounts/` adds two measurement accounts to a throwaway COPY of a database through the app's own Identity user manager and
+  hasher (`dotnet run --project scripts/perf/MeasureAccounts -- <copy.db> <password-file> [--local-backups] [--synthetic-tracking]`);
+  it never reads or changes other users. `--synthetic-tracking` gives the reader a token-less tracker account with one entry per
+  linked series (an upper bound for the tracker-mark cost).

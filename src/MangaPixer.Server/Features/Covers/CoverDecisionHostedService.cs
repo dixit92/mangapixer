@@ -211,12 +211,13 @@ public sealed class CoverDecisionHostedService : BackgroundService
         var since = _watermark;
         var seriesNodes = await ChangedSeriesAsync(db, since, ct);
         var series = 0;
+        var written = 0;
         foreach (var nodeId in seriesNodes)
         {
             await YieldToReaderAsync(ct);
             try
             {
-                await decisions.DecideSubtreeAsync(nodeId, ct);
+                written += await decisions.DecideSubtreeAsync(nodeId, ct);
                 series++;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -235,7 +236,7 @@ public sealed class CoverDecisionHostedService : BackgroundService
                 if (!_spreadAttempted.Add((nodeId, version)))
                     continue;
                 await YieldToReaderAsync(ct);
-                await DecideSafelyAsync(decisions, nodeId, ct);
+                written += Written(await DecideSafelyAsync(decisions, nodeId, ct));
                 spreads++;
             }
         }
@@ -250,14 +251,16 @@ public sealed class CoverDecisionHostedService : BackgroundService
             var links = await CoverLinks.NearestAsync(db, webRows, ct);
             foreach (var nodeId in webRows.Where(id => !links.TryGetValue(id, out var l) || !l.IsLinked))
             {
-                await DecideSafelyAsync(decisions, nodeId, ct);
+                written += Written(await DecideSafelyAsync(decisions, nodeId, ct));
                 orphans++;
             }
         }
 
-        _logger.LogDebug(LogEvents.Metadata.CoverSweep, "Cover sweep: {Series} series, {Spreads} spreads, {Orphans} unlinked, {Ms} ms",
-            series, spreads, orphans, (int)(DateTimeOffset.UtcNow - started).TotalMilliseconds);
+        _logger.LogDebug(LogEvents.Metadata.CoverSweep, "Cover sweep: {Series} series, {Spreads} spreads, {Orphans} unlinked, {Written} rows written, {Ms} ms",
+            series, spreads, orphans, written, (int)(DateTimeOffset.UtcNow - started).TotalMilliseconds);
     }
+
+    private static int Written(CoverDecisionOutcome outcome) => outcome is CoverDecisionOutcome.Decided or CoverDecisionOutcome.Cleared ? 1 : 0;
 
     /// <summary>
     /// Nodes with their OWN link (any state but needs-review, so a new Don't match clears its subtree) whose link, record,
@@ -302,15 +305,16 @@ public sealed class CoverDecisionHostedService : BackgroundService
         return rows.Select(r => (r.Id, r.ContentVersion)).ToList();
     }
 
-    private async Task DecideSafelyAsync(CoverDecisionService decisions, long nodeId, CancellationToken ct)
+    private async Task<CoverDecisionOutcome> DecideSafelyAsync(CoverDecisionService decisions, long nodeId, CancellationToken ct)
     {
         try
         {
-            await decisions.DecideAsync(nodeId, ct);
+            return await decisions.DecideAsync(nodeId, ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogDebug(LogEvents.Metadata.CoverDecisionFailed, "Cover decision failed (node {NodeId}): {Error}", nodeId, ex.GetType().Name);
+            return CoverDecisionOutcome.Skipped;
         }
     }
 

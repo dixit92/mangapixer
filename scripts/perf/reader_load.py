@@ -303,6 +303,8 @@ class Reader(threading.Thread):
             w, h = p.get("width") or 0, p.get("height") or 0
             md = target_max_dim(self.view, self.vw, self.vh, self.dpr, (h / w) if w > 0 and h > 0 else 0)
             base = f"/api/v1/items/{item['id']}/pages/{urllib.parse.quote(p['entryKey'], safe='')}"
+            if getattr(self.args, "page_quality", "auto") == "full":
+                return base  # the reader's "full" image quality: no maxDim, the full-size transcode
             return f"{base}?maxDim={md}&filter={self.args.filter}" if md > 0 else base
 
         capped = self.args.prefetch_mode == "capped"
@@ -465,6 +467,9 @@ def main() -> int:
     ap.add_argument("--item-offset", type=int, default=0, help="rotate the item list (pick other items per run)")
     ap.add_argument("--items-per-reader", type=int, default=6)
     ap.add_argument("--filter", default="balanced")
+    ap.add_argument("--page-quality", choices=["auto", "full"], default="auto",
+                    help="the reader's image quality setting: auto (maxDim ladder) or full (full-size transcode)")
+    ap.add_argument("--targets", default=None, help="library_load.py targets file: read its item ids instead of walking a library")
     ap.add_argument("--prefetch-mode", choices=["legacy", "capped"], default="capped",
                     help="legacy = the pre-1.42.0 reader (all prefetches at once, unmarked); capped = 1.42.0 (2 at a time, "
                          "after the current page, marked X-MangaPixer-Prefetch)")
@@ -483,7 +488,11 @@ def main() -> int:
 
     probe = Session(args.base)
     probe.login(args.user, args.password)
-    items = list_items(probe, args.library, args.min_pages)
+    if args.targets:
+        with open(args.targets) as f:
+            items = [{"id": i, "pages": 0} for i in json.load(f)["readItemsAll"]]
+    else:
+        items = list_items(probe, args.library, args.min_pages)
     if not items:
         print("no items", file=sys.stderr)
         return 2

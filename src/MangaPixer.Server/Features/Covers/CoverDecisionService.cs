@@ -60,6 +60,14 @@ public sealed class CoverDecisionService
     private readonly CoverFiles _files;
     private readonly ILogger<CoverDecisionService>? _logger;
 
+    /// <summary>
+    /// 1.46.0: whether each node of the current subtree pass has a <c>node_auto_covers</c> row (read in one query per chunk), so a
+    /// node whose decision is "nothing automatic" and that has no row costs no DELETE and an undecided node no row lookup. Null
+    /// outside <see cref="DecideSubtreeAsync"/>; a node not in it is looked up. The hosted service is the only writer of decisions
+    /// (one pass at a time), so what was read stays true for the pass.
+    /// </summary>
+    private Dictionary<long, bool>? _hasRow;
+
     public CoverDecisionService(MangaPixerDbContext db, CoverCropService crops, CoverDirectionResolver direction, ICoverHasher hasher,
         ThumbnailStore thumbnails, MetadataImageStore posters, CoverFiles files, ILogger<CoverDecisionService>? logger = null)
     {
@@ -184,26 +192,52 @@ public sealed class CoverDecisionService
         }
 
         var changed = 0;
-        foreach (var chunk in archiveIds.Take(MaxSubtreeArchives).Chunk(500))
+        _hasRow = new();
+        try
         {
-            foreach (var row in await ArchiveRowsAsync(chunk, ct))
+            foreach (var chunk in archiveIds.Take(MaxSubtreeArchives).Chunk(500))
             {
-                ct.ThrowIfCancellationRequested();
-                if (await DecideArchiveAsync(row, await SeriesFor(row.Id), settings, ct) is CoverDecisionOutcome.Decided or CoverDecisionOutcome.Cleared)
+                await LoadRowPresenceAsync(chunk, ct);
+                foreach (var row in await ArchiveRowsAsync(chunk, ct))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    if (await DecideArchiveAsync(row, await SeriesFor(row.Id), settings, ct) is CoverDecisionOutcome.Decided or CoverDecisionOutcome.Cleared)
+                        changed++;
+                }
+            }
+            // Deepest folders first; the folder itself last.
+            var folderOrder = folderIds.AsEnumerable().Reverse().Append(folderId).ToList();
+            foreach (var chunk in folderOrder.Chunk(500))
+                await LoadRowPresenceAsync(chunk, ct);
+            foreach (var id in folderOrder)
+            {
+                var node = await _db.CatalogNodes.AsNoTracking().FirstOrDefaultAsync(n => n.Id == id, ct);
+                if (node is null)
+                    continue;
+                if (await DecideFolderAsync(node, await SeriesFor(id), settings, ct) is CoverDecisionOutcome.Decided or CoverDecisionOutcome.Cleared)
                     changed++;
             }
         }
-        // Deepest folders first; the folder itself last.
-        foreach (var id in folderIds.AsEnumerable().Reverse().Append(folderId))
+        finally
         {
-            var node = await _db.CatalogNodes.AsNoTracking().FirstOrDefaultAsync(n => n.Id == id, ct);
-            if (node is null)
-                continue;
-            if (await DecideFolderAsync(node, await SeriesFor(id), settings, ct) is CoverDecisionOutcome.Decided or CoverDecisionOutcome.Cleared)
-                changed++;
+            _hasRow = null;
         }
         return changed;
     }
+
+    /// <summary>Reads which of these nodes have a decision row (one query) into <see cref="_hasRow"/>.</summary>
+    private async Task LoadRowPresenceAsync(IReadOnlyCollection<long> nodeIds, CancellationToken ct)
+    {
+        if (_hasRow is null || nodeIds.Count == 0)
+            return;
+        var ids = nodeIds.ToList();
+        var present = (await _db.NodeAutoCovers.AsNoTracking().Where(a => ids.Contains(a.NodeId)).Select(a => a.NodeId).ToListAsync(ct)).ToHashSet();
+        foreach (var id in ids)
+            _hasRow[id] = present.Contains(id);
+    }
+
+    /// <summary>True when this pass read that the node has no decision row (so there is nothing to look up or delete).</summary>
+    private bool KnownWithoutRow(long nodeId) => _hasRow is not null && _hasRow.TryGetValue(nodeId, out var has) && !has;
 
     // ----- archives ------------------------------------------------------------------------------------------------
 
@@ -490,7 +524,7 @@ public sealed class CoverDecisionService
     private async Task<CoverDecisionOutcome> ApplyAsync(long nodeId, string inputsKey, CancellationToken ct,
         Func<Task<(CoverDecision? Decision, ulong? LocalHash)>> evaluate, SeriesContext series)
     {
-        var existing = await _db.NodeAutoCovers.FirstOrDefaultAsync(a => a.NodeId == nodeId, ct);
+        var existing = KnownWithoutRow(nodeId) ? null : await _db.NodeAutoCovers.FirstOrDefaultAsync(a => a.NodeId == nodeId, ct);
         if (existing is not null && string.Equals(existing.InputsKey, inputsKey, StringComparison.Ordinal))
             return CoverDecisionOutcome.Unchanged;
 
@@ -520,6 +554,8 @@ public sealed class CoverDecisionService
         existing.DecidedAt = DateTimeOffset.UtcNow;
         existing.RecheckAt = decision.NeedsRecheck ? DateTimeOffset.UtcNow + RecheckInterval(series.Record) : null;
         await _db.SaveChangesAsync(ct);
+        if (_hasRow is not null)
+            _hasRow[nodeId] = true;
         // A crop exists right after its decision (so the first card view does not wait for the worker); an existing
         // file of this content version is kept. A failed render is retried when the cover is first served.
         if (decision is { Source: AutoCoverSource.Crop, CropSide: { } decidedSide })
@@ -528,11 +564,23 @@ public sealed class CoverDecisionService
         return CoverDecisionOutcome.Decided;
     }
 
+    /// <summary>
+    /// Removes the node's decision row - only when it has one (1.46.0: a node without a row costs no DELETE, a write transaction on
+    /// the database; the sweep visits every chapter of a linked series, and every node of a subtree, on each full pass).
+    /// </summary>
     private async Task<CoverDecisionOutcome> ClearAsync(long nodeId, CancellationToken ct)
     {
-        foreach (var tracked in _db.ChangeTracker.Entries<NodeAutoCoverEntity>().Where(e => e.Entity.NodeId == nodeId).ToList())
-            tracked.State = EntityState.Detached;
+        if (KnownWithoutRow(nodeId))
+            return CoverDecisionOutcome.Unchanged;
+        var tracked = _db.ChangeTracker.Entries<NodeAutoCoverEntity>().Where(e => e.Entity.NodeId == nodeId).ToList();
+        if (_hasRow?.ContainsKey(nodeId) != true && tracked.Count == 0
+            && !await _db.NodeAutoCovers.AsNoTracking().AnyAsync(a => a.NodeId == nodeId, ct))
+            return CoverDecisionOutcome.Unchanged;
+        foreach (var entry in tracked)
+            entry.State = EntityState.Detached;
         var removed = await _db.NodeAutoCovers.Where(a => a.NodeId == nodeId).ExecuteDeleteAsync(ct);
+        if (_hasRow is not null)
+            _hasRow[nodeId] = false;
         return removed > 0 ? CoverDecisionOutcome.Cleared : CoverDecisionOutcome.Unchanged;
     }
 

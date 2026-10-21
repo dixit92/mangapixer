@@ -466,7 +466,7 @@
          Enhance black-output guard; "Official Volume Available". Migrations AddTrackerSync, AddTrackingPage,
          AddVolumeMapReadableChapters (additive); tracker consents v1 (new third privacy exception, AGENTS.md); metadata consents
          unchanged (main 6 / automatic 5); worker protocol unchanged (5). -->
-    <MangaPixerVersionMinor>45</MangaPixerVersionMinor>
+    <MangaPixerVersionMinor>46</MangaPixerVersionMinor>
     <!-- 1.31.1 - PATCH (2026-10-01, integrator-direct, owner live check of 1.31.0): content signatures backfilled for archives
          analysed before 1.5.0 (their moves were never recognised); Re-attach to a folder in another library; "Episode N" next
          to a volume is a part label, not a chapter; the review list shows the file's own page 1, never the cover layer's;
@@ -502,7 +502,12 @@
     <!-- 1.45.1 - PATCH over 1.45.0 (2026-10-20): the tag index stores only works with values (725 empty works were added and removed on
          every rebuild of one live library), record / ComicInfo nudges rebuild only the libraries they touch (coalesced; the sweep's inputs key
          per library), and the browse ring refresh after Back uses GET /trackers/card-marks instead of replaying the listing. No migration. -->
-    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
+    <!-- 1.46.0 - MINOR over 1.45.1 (2026-10-21): the optimization cycle - the ten costs lane M measured plus the home stack cache: tracker
+         marks in one batched walk per page (957 -> 67 SQL commands on a library root), Completion answers reused per level by input stamps,
+         home stack set cached per library, Continue on page 1 only, library counts per revision, search once, cover sweep writes only changes,
+         start-up warm-up, precompressed + immutable static assets. Measured root 471 -> 126 ms, root + completion 741 -> 109, home 156 -> 49.
+         Migration AddCatalogCreatedAtIndex (additive index); consent unchanged (main 7 / automatic 5). -->
+    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->

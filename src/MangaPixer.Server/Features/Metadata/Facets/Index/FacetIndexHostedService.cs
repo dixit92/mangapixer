@@ -129,7 +129,12 @@ public sealed class FacetIndexHostedService : BackgroundService
         Debounce = TimeSpan.FromSeconds(Read(configuration, "Facets:Index:DebounceSeconds", 30));
         SweepInterval = TimeSpan.FromSeconds(Math.Max(1, Read(configuration, "Facets:Index:SweepSeconds", 300)));
         StartDelay = TimeSpan.FromSeconds(Read(configuration, "Facets:Index:StartDelaySeconds", 60));
-        FullPassInterval = TimeSpan.FromHours(Math.Max(1, Read(configuration, "Facets:Index:FullPassHours", 24)));
+        // 1.46.0 lane M (measurement only, unset by default): Facets:Index:FullPassSeconds replaces the daily interval, so a measured
+        // instance can keep the builder rebuilding every library back to back (the tag-index load of a rebuild round).
+        var fullPassSeconds = Read(configuration, "Facets:Index:FullPassSeconds", 0);
+        FullPassInterval = fullPassSeconds > 0
+            ? TimeSpan.FromSeconds(fullPassSeconds)
+            : TimeSpan.FromHours(Math.Max(1, Read(configuration, "Facets:Index:FullPassHours", 24)));
     }
 
     public bool Enabled { get; }

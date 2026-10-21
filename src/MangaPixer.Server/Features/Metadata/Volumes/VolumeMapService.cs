@@ -206,6 +206,26 @@ public sealed class VolumeMapService
         maps.FirstOrDefault(m => m.Source == (int)VolumeMapSource.MangaDexAggregate && IsUsable(m));
 
     /// <summary>
+    /// 1.46.0 lane C: <see cref="UsableMangaDexMap"/> with the lists the rule read - its volumes and unassigned chapters (empty without a
+    /// usable map) - so a reader parses that map's JSON once (<c>SeriesProgressLoader.StoredMaps</c>). The same rule as <see cref="IsUsable"/>.
+    /// </summary>
+    public static (SeriesVolumeMapEntity? Map, IReadOnlyList<VolumeMapEntry> Volumes, IReadOnlyList<string> Unassigned) UsableMangaDexList(
+        IEnumerable<SeriesVolumeMapEntity> maps)
+    {
+        ArgumentNullException.ThrowIfNull(maps);
+        foreach (var m in maps)
+        {
+            if (m is not { Source: (int)VolumeMapSource.MangaDexAggregate, State: (int)VolumeMapState.Ok })
+                continue;
+            var volumes = VolumeMapJson.Read(m.VolumesJson);
+            var unassigned = VolumeMapJson.ReadChapters(m.UnassignedJson);
+            if (!VolumeListRules.IsNearEmpty(volumes, unassigned))
+                return (m, volumes, unassigned);
+        }
+        return (null, [], []);
+    }
+
+    /// <summary>
     /// The AniList totals of a series without a MangaDex volume list: by the AniList id MangaDex links (when known),
     /// else by the linked MangaUpdates title. Stores the AniList row (as the Missing report does), the companion state
     /// and a ratio-only map. Gateway refusals and failures propagate.

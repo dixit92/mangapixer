@@ -71,6 +71,8 @@ public sealed record PageResponse<T>
     /// the most recently updated), else the first UNREAD archive in SortKey order
     /// (ordinal, matching NaturalOrderComparer); null when every descendant is read.
     /// Additive - older clients that ignore it are unaffected. Never stored.
+    /// 1.46.0: answered on the FIRST page only (no cursor, no backward position); a later or
+    /// an earlier page carries null (the web app reads it from the first page only).
     /// </summary>
     public CatalogNodeDto? NextUnread { get; init; }
 

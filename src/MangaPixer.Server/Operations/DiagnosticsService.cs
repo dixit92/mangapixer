@@ -2,6 +2,7 @@ namespace com.lifepixer.mangapixer.Server.Operations;
 
 using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Media;
+using com.lifepixer.mangapixer.Server.Operations.Perf;
 using com.lifepixer.mangapixer.Server.Persistence;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
@@ -21,12 +22,15 @@ public sealed class DiagnosticsService
     private readonly MangaPixerDbContext _db;
     private readonly ILogger<DiagnosticsService>? _logger;
     private readonly MediaMetrics? _media;
+    private readonly PerfRecorder? _perf;
 
-    public DiagnosticsService(MangaPixerDbContext db, ILogger<DiagnosticsService>? logger = null, MediaMetrics? media = null)
+    public DiagnosticsService(MangaPixerDbContext db, ILogger<DiagnosticsService>? logger = null, MediaMetrics? media = null,
+        PerfRecorder? perf = null)
     {
         _db = db;
         _logger = logger;
         _media = media;
+        _perf = perf;
     }
 
     /// <summary>
@@ -81,6 +85,7 @@ public sealed class DiagnosticsService
                 ThreadCount = process.Threads.Count,
             },
             Media = _media?.Snapshot(),
+            Perf = _perf is { Enabled: true } ? _perf.Snapshot() : null,
         };
     }
 
@@ -116,6 +121,13 @@ public sealed record DiagnosticsSnapshot
     /// metrics are registered.
     /// </summary>
     public MediaDiagnostics? Media { get; init; }
+
+    /// <summary>
+    /// Measurement-only request / SQL / heap timings (1.46.0 lane M); present only while <c>MangaPixer:Perf:RequestTiming</c>
+    /// is on. Route templates, SQL statement shapes (no values), counts and durations.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public PerfDiagnostics? Perf { get; init; }
 }
 
 /// <summary>

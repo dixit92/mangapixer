@@ -83,6 +83,9 @@ public static class HostingServicesExtensions
         // WriteCoordinator for serialized DB writes.
         services.AddScoped<WriteCoordinator>();
 
+        // Start-up warm-up (1.46.0 lane D): the hot read paths once, after the app started, read-only, yielding to requests.
+        services.AddStartupWarmup();
+
         // JobRecoveryService — used by StartupRecoveryHostedService to recover
         // interrupted jobs, analyses, and scratch workspaces. Was missing in
         // the I01 wiring, which caused "No service for type JobRecoveryService"
