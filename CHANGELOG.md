@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.46.0] - 2026-10-21
+
 ### Changed
 
 - **Library pages load much faster for readers who track series.** The gold "read on your tracker" rings of all the series cards on a page are worked out together instead of one series at a time (a library's top page went from over 900 database queries to under 70). The rings are unchanged.
