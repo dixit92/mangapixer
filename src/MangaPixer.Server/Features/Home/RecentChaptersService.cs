@@ -9,6 +9,7 @@ using com.lifepixer.mangapixer.Server.Features.Auth;
 using com.lifepixer.mangapixer.Server.Features.Catalog;
 using com.lifepixer.mangapixer.Server.Features.Covers;
 using com.lifepixer.mangapixer.Server.Features.Metadata;
+using com.lifepixer.mangapixer.Server.Operations.Perf;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -49,6 +50,12 @@ using Microsoft.EntityFrameworkCore;
 /// rollups are resolved only for the stacks the row can show (in order, up to the cap), not for every
 /// stack of the library.
 /// </description></item>
+/// <item><description>
+/// 1.46.0 lane HC: the user-independent part of a library's row - its recent archives with the series folder each stacks on (the
+/// candidate query and the up-walk) - is kept per library and window by <see cref="HomeStackCache"/> while everything it is read from is
+/// unchanged (<see cref="HomeStackStamp"/>); each request still applies its own window cut-off, visibility, read rollups, cap, covers
+/// and card flags, so the answer is the same as building it every time.
+/// </description></item>
 /// </list>
 /// </summary>
 public sealed class RecentChaptersService
@@ -81,14 +88,21 @@ public sealed class RecentChaptersService
     private readonly LibraryAuthorizationService _auth;
     private readonly SeriesInfoFlagService _seriesInfoFlags;
     private readonly ICoverResolver _covers;
+    private readonly HomeStackCache? _stackCache;
+    private readonly TimeProvider _time;
 
+    /// <param name="stackCache">1.46.0 lane HC: the host's kept user-independent stack sources (the DI singleton); null = every request
+    /// builds them (the pre-1.46.0 path, kept for service tests and as the equivalence reference).</param>
+    /// <param name="time">The clock of the recency window (default: the system clock).</param>
     public RecentChaptersService(MangaPixerDbContext db, LibraryAuthorizationService auth, SeriesInfoFlagService? seriesInfoFlags = null,
-        ICoverResolver? covers = null)
+        ICoverResolver? covers = null, HomeStackCache? stackCache = null, TimeProvider? time = null)
     {
         _db = db;
         _auth = auth;
         _seriesInfoFlags = seriesInfoFlags ?? new SeriesInfoFlagService(db);
         _covers = covers ?? new FileCoverResolver(db);
+        _stackCache = stackCache;
+        _time = time ?? TimeProvider.System;
     }
 
     /// <summary>
@@ -132,13 +146,20 @@ public sealed class RecentChaptersService
             .ToListAsync(ct);
 
         var windowDays = await ResolveWindowDaysAsync(userId, ct);
-        var cutoff = DateTimeOffset.UtcNow - TimeSpan.FromDays(windowDays);
+        var now = _time.GetUtcNow();
+        var cutoff = now - TimeSpan.FromDays(windowDays);
+
+        // 1.46.0 lane HC: the stamps of the kept stack sources, read before any of their rows (see HomeStackStamp).
+        var inputsPhase = PerfPhase.Start(); // measurement only
+        var stamps = _stackCache is null ? null : await HomeStackStamp.ReadAsync(_db, libs.Select(l => l.Id).ToList(), ct);
+        inputsPhase.Lap("home.stack-inputs");
 
         var groups = new List<RecentChaptersLibraryGroup>(libs.Count);
         foreach (var lib in libs)
         {
-            var perfPhase = com.lifepixer.mangapixer.Server.Operations.Perf.PerfPhase.Start(); // 1.46.0 lane M: measurement only
-            var stacks = await BuildStacksAsync(lib.Id, cutoff, cap, userId, readState, ct);
+            var perfPhase = PerfPhase.Start(); // 1.46.0 lane M: measurement only
+            var source = await StackSourceAsync(lib.Id, windowDays, cutoff, now, stamps?[lib.Id], ct);
+            var stacks = await BuildStacksAsync(source, cutoff, cap, userId, readState, ct);
             perfPhase.Lap("home.build-stacks");
             groups.Add(new RecentChaptersLibraryGroup
             {
@@ -148,7 +169,7 @@ public sealed class RecentChaptersService
             });
         }
 
-        var flagsPhase = com.lifepixer.mangapixer.Server.Operations.Perf.PerfPhase.Start(); // 1.46.0 lane M: measurement only
+        var flagsPhase = PerfPhase.Start(); // 1.46.0 lane M: measurement only
         var flagged = await ApplyCardFlagsAsync(userId, groups, ct);
         flagsPhase.Lap("home.card-flags");
         return new RecentChaptersDto { Libraries = flagged };
@@ -220,16 +241,31 @@ public sealed class RecentChaptersService
     }
 
     /// <summary>
-    /// Builds one library's stacks: window-filter the candidate archives, attribute each to its
-    /// series folder, aggregate per stack, order by newest activity, cap.
+    /// 1.46.0 lane HC: the library's user-independent stack source for this window - the kept one while its stamp, cut-off and age allow
+    /// (<see cref="HomeStackCache"/>), else built from the database (and kept when there is a cache).
     /// </summary>
-    private async Task<IReadOnlyList<RecentChapterStack>> BuildStacksAsync(
-        long libraryId,
-        DateTimeOffset cutoff,
-        int cap,
-        long userId,
-        HomeReadStateFilter readState,
-        CancellationToken ct)
+    private async Task<HomeStackSource> StackSourceAsync(long libraryId, int windowDays, DateTimeOffset cutoff, DateTimeOffset now,
+        HomeStackStamp? stamp, CancellationToken ct)
+    {
+        var phase = PerfPhase.Start(); // measurement only
+        var cutoffKey = HomeStackCache.StoredKey(cutoff);
+        if (_stackCache is not null && stamp is not null && _stackCache.TryGet(libraryId, windowDays, stamp, cutoffKey, now) is { } kept)
+        {
+            phase.Lap("home.stack-source.kept");
+            return kept;
+        }
+        var source = await LoadStackSourceAsync(libraryId, cutoff, ct);
+        if (_stackCache is not null && stamp is not null)
+            _stackCache.Store(libraryId, windowDays, stamp, cutoffKey, now, source);
+        phase.Lap("home.stack-source.built");
+        return source;
+    }
+
+    /// <summary>
+    /// Reads one library's stack source: the window's candidate archives, each attributed to its series folder (one bounded recursive
+    /// upward walk), and the nodes the stacks are built on. User-independent.
+    /// </summary>
+    private async Task<HomeStackSource> LoadStackSourceAsync(long libraryId, DateTimeOffset cutoff, CancellationToken ct)
     {
         // Candidate archives (window-bounded). EF encodes/decodes the CreatedAt binary column.
         var candidates = await _db.CatalogNodes
@@ -247,38 +283,64 @@ public sealed class RecentChaptersService
             .ToListAsync(ct);
 
         if (candidates.Count == 0)
-            return [];
+            return new HomeStackSource([], new Dictionary<long, HomeStackNode>());
 
         // Map each candidate archive to its series folder, one bounded recursive upward walk.
         // An archive directly in the library root maps to itself.
         var seriesByArchive = await ResolveSeriesFoldersAsync(
             candidates.Select(c => c.Id).ToList(), ct);
 
-        // Group candidates by their series folder.
-        var bySeries = new Dictionary<long, List<CandidateArchive>>();
+        var kept = new List<HomeStackCandidate>(candidates.Count);
         foreach (var c in candidates)
         {
             if (!seriesByArchive.TryGetValue(c.Id, out var topId))
                 continue; // defensive: every node has a root
-            if (!bySeries.TryGetValue(topId, out var list))
-                bySeries[topId] = list = [];
+            kept.Add(new HomeStackCandidate(c.Id, c.PublicId, c.DisplayName, c.CreatedAt, HomeStackCache.StoredKey(c.CreatedAt), topId));
+        }
+
+        // Series-folder node details for the stacks.
+        var seriesIds = kept.Select(c => c.TopId).Distinct().ToList();
+        var seriesNodes = await _db.CatalogNodes
+            .Where(n => seriesIds.Contains(n.Id))
+            .Select(n => new { n.Id, n.PublicId, n.DisplayName, n.Kind })
+            .ToDictionaryAsync(x => x.Id, x => new HomeStackNode(x.PublicId, x.DisplayName, x.Kind), ct);
+
+        return new HomeStackSource(kept, seriesNodes);
+    }
+
+    /// <summary>
+    /// Builds one library's stacks from its stack source: keep the candidates added since <paramref name="cutoff"/> (compared in the
+    /// stored form, as the SQL window compares), group them by the node their stack is built on, aggregate per stack, order by newest
+    /// activity, cap (with the read rollups), covers.
+    /// </summary>
+    private async Task<IReadOnlyList<RecentChapterStack>> BuildStacksAsync(
+        HomeStackSource source,
+        DateTimeOffset cutoff,
+        int cap,
+        long userId,
+        HomeReadStateFilter readState,
+        CancellationToken ct)
+    {
+        var cutoffKey = HomeStackCache.StoredKey(cutoff);
+
+        // Group candidates by their series folder.
+        var bySeries = new Dictionary<long, List<HomeStackCandidate>>();
+        foreach (var c in source.Candidates)
+        {
+            if (c.CreatedKey < cutoffKey)
+                continue; // aged out of this request's window since the source was read
+            if (!bySeries.TryGetValue(c.TopId, out var list))
+                bySeries[c.TopId] = list = [];
             list.Add(c);
         }
 
         if (bySeries.Count == 0)
             return [];
 
-        // Series-folder node details for the stacks.
-        var seriesIds = bySeries.Keys.ToList();
-        var seriesNodes = await _db.CatalogNodes
-            .Where(n => seriesIds.Contains(n.Id))
-            .Select(n => new { n.Id, n.PublicId, n.DisplayName, n.Kind })
-            .ToDictionaryAsync(x => x.Id, ct);
-
         var stacks = new List<(RecentChapterStack Stack, long TopId)>(bySeries.Count);
         foreach (var (topId, list) in bySeries)
         {
-            if (!seriesNodes.TryGetValue(topId, out var top))
+            if (!source.Nodes.TryGetValue(topId, out var top))
                 continue;
 
             // Newest candidate in the stack (CreatedAt desc, Id desc as a stable tiebreak).
@@ -302,14 +364,17 @@ public sealed class RecentChaptersService
         }
 
         // Order by newest activity (TopId desc breaks ties, so the order is total), then cap to perLibrary STACKS.
+        var phase = PerfPhase.Start(); // measurement only
         var ordered = await TakeWithReadStateAsync(
             stacks.OrderByDescending(s => s.Stack.LatestAddedAt).ThenByDescending(s => s.TopId).ToList(),
             cap, userId, readState, ct);
+        phase = phase.Lap("home.rollups");
 
         // Covers for the taken stacks from the cover resolver (1.29.0 seam): a folder stack shows the same cover as its
         // browse card (its first descendant archive by SortKey, one recursive CTE), a loose-archive stack its own cover.
         var covers = await _covers.ResolveUrlsAsync(
             ordered.Select(s => new CoverTarget(s.TopId, s.Stack.Id, s.Stack.IsFolder)).ToList(), ct);
+        phase.Lap("home.covers");
 
         return ordered
             .Select(s => covers.TryGetValue(s.TopId, out var url) ? s.Stack with { CoverUrl = url } : s.Stack)
