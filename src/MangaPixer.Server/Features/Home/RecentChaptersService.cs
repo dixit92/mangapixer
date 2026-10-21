@@ -52,9 +52,10 @@ using Microsoft.EntityFrameworkCore;
 /// </description></item>
 /// <item><description>
 /// 1.46.0 lane HC: the user-independent part of a library's row - its recent archives with the series folder each stacks on (the
-/// candidate query and the up-walk) - is kept per library and window by <see cref="HomeStackCache"/> while everything it is read from is
-/// unchanged (<see cref="HomeStackStamp"/>); each request still applies its own window cut-off, visibility, read rollups, cap, covers
-/// and card flags, so the answer is the same as building it every time.
+/// candidate query and the up-walk) and, once asked for, the readable archives below each shown stack - is kept per library and window
+/// by <see cref="HomeStackCache"/> while everything it is read from is unchanged (<see cref="HomeStackStamp"/>); each request still
+/// applies its own window cut-off, visibility, the viewer's read marks and progress (the rollups), cap, covers and card flags, so the
+/// answer is the same as building it every time. The covers of all libraries are resolved in one cover-layer call.
 /// </description></item>
 /// </list>
 /// </summary>
