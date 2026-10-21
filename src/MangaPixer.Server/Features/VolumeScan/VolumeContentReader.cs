@@ -62,50 +62,94 @@ public static class VolumeContentReader
     public static async Task<IReadOnlyList<ScannedVolume>> LoadAsync(MangaPixerDbContext db, IReadOnlyDictionary<long, string> archives,
         CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(db);
         ArgumentNullException.ThrowIfNull(archives);
-        if (archives.Count == 0)
-            return [];
-        var ids = archives.Keys.ToList();
+        return (await LoadManyAsync(db, [archives], ct))[0];
+    }
+
+    /// <summary>Ids per query (<see cref="LoadManyAsync"/>); a scope's rows keep the order they had when each scope was read in chunks of this size.</summary>
+    internal const int Chunk = 500;
+
+    private sealed record StoredRow(long VolumeNodeId, long VolumeContentVersion, double Volume, int State, IReadOnlyList<StoredFoundChapter> Chapters);
+
+    /// <summary>
+    /// 1.46.0 lane C: the answers of several scopes at once (one per series of a folder level) - for each scope exactly what
+    /// <see cref="LoadAsync"/> gives for it alone (the same per-scope filters and the same row order), with the queries shared by all
+    /// scopes: the scanned rows of every scope's archives, then the content versions of every archive they involve, each chunk of
+    /// <see cref="Chunk"/> ids one query, and each stored chapter list parsed once.
+    /// </summary>
+    public static async Task<IReadOnlyList<IReadOnlyList<ScannedVolume>>> LoadManyAsync(MangaPixerDbContext db,
+        IReadOnlyList<IReadOnlyDictionary<long, string>> scopes, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(scopes);
+        var results = new IReadOnlyList<ScannedVolume>[scopes.Count];
+        var ids = scopes.SelectMany(s => s.Keys).Distinct().ToList();
         var known = (int)VolumeContentRowState.Known;
         var partial = (int)VolumeContentRowState.Partial;
-        var rows = new List<(long VolumeNodeId, long VolumeContentVersion, double Volume, int State, string ChaptersJson)>();
-        foreach (var chunk in ids.Chunk(500))
+        var rows = new Dictionary<long, StoredRow>();
+        foreach (var chunk in ids.Chunk(Chunk))
         {
             var part = await db.VolumeContents.AsNoTracking()
                 .Where(v => chunk.Contains(v.VolumeNodeId) && (v.State == known || v.State == partial))
                 .Select(v => new { v.VolumeNodeId, v.VolumeContentVersion, v.Volume, v.State, v.ChaptersJson })
                 .ToListAsync(ct);
-            rows.AddRange(part.Select(p => (p.VolumeNodeId, p.VolumeContentVersion, p.Volume, p.State, p.ChaptersJson)));
+            foreach (var p in part)
+                rows[p.VolumeNodeId] = new StoredRow(p.VolumeNodeId, p.VolumeContentVersion, p.Volume, p.State, ParseChapters(p.ChaptersJson));
         }
         if (rows.Count == 0)
-            return [];
+        {
+            Array.Fill(results, []);
+            return results;
+        }
 
-        var involved = rows.Select(r => r.VolumeNodeId)
-            .Concat(rows.SelectMany(r => ParseChapters(r.ChaptersJson)).Select(c => c.NodeId))
+        var involved = rows.Values.Select(r => r.VolumeNodeId)
+            .Concat(rows.Values.SelectMany(r => r.Chapters).Select(c => c.NodeId))
             .Distinct()
             .ToList();
         var versions = new Dictionary<long, long>();
-        foreach (var chunk in involved.Chunk(500))
+        foreach (var chunk in involved.Chunk(Chunk))
         {
             foreach (var v in await db.ArchiveItems.AsNoTracking().Where(a => chunk.Contains(a.NodeId))
                          .Select(a => new { a.NodeId, a.ContentVersion }).ToListAsync(ct))
                 versions[v.NodeId] = v.ContentVersion;
         }
 
+        for (var i = 0; i < scopes.Count; i++)
+            results[i] = Answers(scopes[i], rows, versions);
+        return results;
+    }
+
+    /// <summary>
+    /// One scope's answers from the shared rows. The rows run in the order a read of this scope alone returns them: its archive ids in
+    /// chunks of <see cref="Chunk"/>, each chunk by volume node id (the table's key).
+    /// </summary>
+    private static List<ScannedVolume> Answers(IReadOnlyDictionary<long, string> archives, Dictionary<long, StoredRow> rows,
+        Dictionary<long, long> versions)
+    {
         var result = new List<ScannedVolume>();
-        foreach (var row in rows)
+        var position = 0;
+        var mine = new List<(int Chunk, StoredRow Row)>();
+        foreach (var id in archives.Keys)
         {
-            if (!archives.TryGetValue(row.VolumeNodeId, out var volumeRowId) || versions.GetValueOrDefault(row.VolumeNodeId, -1) != row.VolumeContentVersion)
+            if (rows.TryGetValue(id, out var row))
+                mine.Add((position / Chunk, row));
+            position++;
+        }
+        foreach (var (_, row) in mine.OrderBy(m => m.Chunk).ThenBy(m => m.Row.VolumeNodeId))
+        {
+            var volumeRowId = archives[row.VolumeNodeId];
+            if (versions.GetValueOrDefault(row.VolumeNodeId, -1) != row.VolumeContentVersion)
                 continue;
-            var stored = ParseChapters(row.ChaptersJson);
+            var stored = row.Chapters;
             var chapters = stored
                 .Where(c => archives.ContainsKey(c.NodeId) && versions.GetValueOrDefault(c.NodeId, -1) == c.ContentVersion)
                 .Select(c => new ScannedChapter(archives[c.NodeId], c.Number))
                 .ToList();
             if (chapters.Count == 0)
                 continue;
-            var state = row.State == known && chapters.Count == stored.Count ? VolumeContentState.Known : VolumeContentState.Partial;
+            var state = row.State == (int)VolumeContentRowState.Known && chapters.Count == stored.Count
+                ? VolumeContentState.Known
+                : VolumeContentState.Partial;
             result.Add(new ScannedVolume(volumeRowId, (decimal)row.Volume, state, chapters));
         }
         return result;

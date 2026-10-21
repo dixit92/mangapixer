@@ -94,17 +94,26 @@ public sealed partial class CatalogBrowseService
 
             // Query the FTS5 index joined with catalog nodes and their parents/libraries
             // to project public IDs (audit defect D29). Keyset pagination on (SortKey, Id).
+            // 1.46.0 (lane B, measured cost #10): the match runs ONCE - the matched set is materialized and both the page (after the cursor)
+            // and the total (audit defect D6/D28: the same WHERE as the page, without the cursor) are read from it.
             var pageSql = $"""
+                WITH matched AS MATERIALIZED (
+                    SELECT cn.Id
+                    FROM catalog_search cs
+                    JOIN catalog_nodes cn ON cs.node_id = cn.Id
+                    WHERE {matchWhere}
+                    {readWhere}
+                )
                 SELECT cn.Id, cn.PublicId, cn.Kind,
                        cn.DisplayName, cn.Availability, cn.SortKey,
                        parent.PublicId AS ParentPublicId,
-                       lib.PublicId AS LibraryPublicId
-                FROM catalog_search cs
-                JOIN catalog_nodes cn ON cs.node_id = cn.Id
+                       lib.PublicId AS LibraryPublicId,
+                       (SELECT COUNT(*) FROM matched) AS TotalCount
+                FROM matched m
+                JOIN catalog_nodes cn ON cn.Id = m.Id
                 LEFT JOIN catalog_nodes parent ON cn.ParentId = parent.Id
                 JOIN libraries lib ON cn.LibraryId = lib.Id
-                WHERE {matchWhere}
-                {readWhere}
+                WHERE 1 = 1
                 {cursorWhere}
                 ORDER BY cn.SortKey, cn.Id
                 LIMIT @limit
@@ -113,6 +122,7 @@ public sealed partial class CatalogBrowseService
             var results = new List<CatalogNodeDto>();
             var internalIds = new Dictionary<string, long>(StringComparer.Ordinal);
             var sortKeys = new List<string>();
+            int? pageTotal = null;
             using (var command = connection.CreateCommand())
             {
                 command.CommandText = pageSql;
@@ -133,6 +143,7 @@ public sealed partial class CatalogBrowseService
                     results.Add(node);
                     internalIds[node.Id] = reader.GetInt64(reader.GetOrdinal("Id"));
                     sortKeys.Add(reader.GetString(reader.GetOrdinal("SortKey")));
+                    pageTotal ??= reader.GetInt32(reader.GetOrdinal("TotalCount"));
                 }
             }
 
@@ -145,10 +156,20 @@ public sealed partial class CatalogBrowseService
                 ? EncodeSearchCursor(internalIds[results[^1].Id], sortKeys[results.Count - 1])
                 : null;
 
-            // Compute total count with a separate query (audit defect D6/D28) - the same WHERE as the page, without the cursor.
+            // The total: from the page's own row; an empty first page matched nothing; only an empty LATER page (past the end) counts on
+            // its own, with the same WHERE as the page, without the cursor.
             int totalCount;
-            using (var countCommand = connection.CreateCommand())
+            if (pageTotal is { } total)
             {
+                totalCount = total;
+            }
+            else if (position is null)
+            {
+                totalCount = 0;
+            }
+            else
+            {
+                using var countCommand = connection.CreateCommand();
                 countCommand.CommandText = $"""
                     SELECT COUNT(*)
                     FROM catalog_search cs
@@ -161,16 +182,28 @@ public sealed partial class CatalogBrowseService
                 totalCount = Convert.ToInt32(await countCommand.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture);
             }
 
-            results = await EnrichSearchNodesAsync(results, internalIds, userId, ct);
+            // Alt-title matches (1.26.0): first page only, one extra query.
+            var anchors = position is null
+                ? await SeriesMatchAnchorsAsync(connection, ftsQuery, libIds, readState, ct)
+                : null;
+
+            // 1.46.0 (lane B, measured cost #10): ONE enrichment pass for the results and the series-match anchors together (it ran once
+            // for each); a node's enrichment depends on that node only, so a node in both lists gets the same card either way.
+            var cards = results.DistinctBy(n => n.Id, StringComparer.Ordinal).ToList();
+            var cardIds = new Dictionary<string, long>(internalIds, StringComparer.Ordinal);
+            foreach (var anchor in anchors?.Nodes ?? [])
+            {
+                if (cardIds.TryAdd(anchor.Id, anchors!.InternalIds[anchor.Id]))
+                    cards.Add(anchor);
+            }
+            var enriched = (await EnrichSearchNodesAsync(cards, cardIds, userId, ct)).ToDictionary(n => n.Id, StringComparer.Ordinal);
+            results = results.Select(n => enriched[n.Id]).ToList();
 
             // Series information (1.27.0): the same (i) flag as browse, for the card (i) and
             // the hover summary. Batched, fixed cost per page.
             results = await ApplyHasSeriesInfoByPublicIdAsync(results, ct);
 
-            // Alt-title matches (1.26.0): first page only, one extra query.
-            var seriesMatches = position is null
-                ? await SearchSeriesMatchesAsync(connection, userId, ftsQuery, libIds, readState, ct)
-                : null;
+            var seriesMatches = anchors is null ? null : SeriesMatchesOf(anchors, enriched, readState);
 
             return new SearchResultsDto
             {
@@ -432,21 +465,29 @@ public sealed partial class CatalogBrowseService
         return nodes;
     }
 
+    /// <summary>The series-match anchors before enrichment (<see cref="SeriesMatchAnchorsAsync"/>).</summary>
+    private sealed record SeriesMatchAnchors(
+        List<CatalogNodeDto> Nodes, Dictionary<string, string> Titles, Dictionary<string, long> InternalIds);
+
     /// <summary>
     /// Nodes linked (Confirmed or Auto; never NeedsReview or DontMatch) to a metadata
     /// record with a title matching the query, and (1.34.0) folders that are a "Collection about" such a record. Same visibility as catalog search
     /// (<paramref name="libIds"/> is the viewer's visible set, narrowed to the requested
     /// library); libraries and instances with "Show series information" off are excluded.
     /// Distinct anchors, first 20 by SortKey, each with its shortest matching title. 1.45.0: they carry the viewer's read state, and a
-    /// read-state filter keeps only the anchors it would keep among the results.
+    /// read-state filter keeps only the anchors it would keep among the results (<see cref="SeriesMatchesOf"/>, after the one enrichment
+    /// pass of the search - 1.46.0). An empty set when series information is hidden or nothing matches.
     /// </summary>
-    private async Task<List<SeriesMatchDto>> SearchSeriesMatchesAsync(
-        DbConnection connection, long userId, string ftsQuery, string libIds, BrowseReadStateFilter readState, CancellationToken ct)
+    private async Task<SeriesMatchAnchors> SeriesMatchAnchorsAsync(
+        DbConnection connection, string ftsQuery, string libIds, BrowseReadStateFilter readState, CancellationToken ct)
     {
+        var nodes = new List<CatalogNodeDto>();
+        var titles = new Dictionary<string, string>();
+        var internalIds = new Dictionary<string, long>(StringComparer.Ordinal);
         var globallyHidden = await _db.AppSettings
             .AnyAsync(s => s.Id == AppSettingsEntity.SingletonId && s.MetadataSeriesInfoHidden, ct);
         if (globallyHidden)
-            return [];
+            return new SeriesMatchAnchors(nodes, titles, internalIds);
 
         var sql = $"""
             SELECT cn.Id, cn.PublicId, cn.Kind, cn.DisplayName, cn.Availability,
@@ -468,9 +509,6 @@ public sealed partial class CatalogBrowseService
         // Without a filter the first 20 distinct anchors are the answer; with one, every distinct anchor is a candidate until its read
         // state is known.
         var limit = readState == BrowseReadStateFilter.All ? MaxSeriesMatches : int.MaxValue;
-        var nodes = new List<CatalogNodeDto>();
-        var titles = new Dictionary<string, string>();
-        var internalIds = new Dictionary<string, long>(StringComparer.Ordinal);
         using (var command = connection.CreateCommand())
         {
             command.CommandText = sql;
@@ -486,25 +524,23 @@ public sealed partial class CatalogBrowseService
                 internalIds[publicId] = reader.GetInt64(reader.GetOrdinal("Id"));
             }
         }
+        return new SeriesMatchAnchors(nodes, titles, internalIds);
+    }
 
-        if (nodes.Count == 0)
+    /// <summary>
+    /// The series matches from their enriched anchors (by public id): a read-state filter keeps the anchors it would keep among the results,
+    /// at most 20. Every anchor has its OWN confirmed / auto web link and shown series information (the anchor query), which is exactly the
+    /// browse (i) rule - no extra query.
+    /// </summary>
+    private static List<SeriesMatchDto> SeriesMatchesOf(SeriesMatchAnchors anchors, IReadOnlyDictionary<string, CatalogNodeDto> enriched,
+        BrowseReadStateFilter readState)
+    {
+        if (anchors.Nodes.Count == 0)
             return [];
-
+        var nodes = anchors.Nodes.Select(n => enriched[n.Id]);
         if (readState != BrowseReadStateFilter.All)
-        {
-            nodes = (await EnrichSearchNodesAsync(nodes, internalIds, userId, ct))
-                .Where(n => MatchesSearchReadState(n, readState))
-                .Take(MaxSeriesMatches)
-                .ToList();
-        }
-        else
-        {
-            nodes = await EnrichSearchNodesAsync(nodes, internalIds, userId, ct);
-        }
-
-        // Every anchor has its OWN confirmed / auto web link and shown series information
-        // (the query above), which is exactly the browse (i) rule - no extra query.
-        return nodes.Select(n => new SeriesMatchDto { Node = n with { HasSeriesInfo = true }, MatchedTitle = titles[n.Id] }).ToList();
+            nodes = nodes.Where(n => MatchesSearchReadState(n, readState)).Take(MaxSeriesMatches);
+        return nodes.Select(n => new SeriesMatchDto { Node = n with { HasSeriesInfo = true }, MatchedTitle = anchors.Titles[n.Id] }).ToList();
     }
 
     /// <summary>

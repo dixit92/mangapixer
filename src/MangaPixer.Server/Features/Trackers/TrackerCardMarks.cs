@@ -41,10 +41,13 @@ public sealed class TrackerCardMarks(MangaPixerDbContext db, TrackerSettingsServ
             return nodes;
         if (!await db.TrackerEntries.AsNoTracking().AnyAsync(e => e.UserId == userId && e.RemoteSeenAt != null, ct))
             return nodes;
+        var perfPhase = com.lifepixer.mangapixer.Server.Operations.Perf.PerfPhase.Start(); // 1.46.0 lane M: measurement only
         if (hasItems)
             nodes = await DecorateItemsAsync(nodes, userId, folderId!.Value, volumes, ct);
+        perfPhase = perfPhase.Lap("marks.items");
         if (hasFolders)
             nodes = await DecorateSeriesFoldersAsync(nodes, userId, folderId, ct);
+        perfPhase.Lap("marks.series-folders");
         return nodes;
     }
 
@@ -54,7 +57,7 @@ public sealed class TrackerCardMarks(MangaPixerDbContext db, TrackerSettingsServ
     /// <summary>
     /// The synced trackers of each record (see <see cref="DecorateAsync"/>), ordered by slug; records without one are left out.
     /// </summary>
-    private async Task<Dictionary<long, List<(string Tracker, TrackerNumbers Numbers)>>> SyncedAsync(long userId, IReadOnlyCollection<long> recordIds,
+    internal async Task<Dictionary<long, List<(string Tracker, TrackerNumbers Numbers)>>> SyncedAsync(long userId, IReadOnlyCollection<long> recordIds,
         CancellationToken ct)
     {
         var ok = (int)TrackerAccountState.Ok;
@@ -71,7 +74,10 @@ public sealed class TrackerCardMarks(MangaPixerDbContext db, TrackerSettingsServ
             if (!TrackerFacts.IsKnown(c.Tracker) || c.ConsentVersion != TrackerConsent.UserVersion(c.Tracker))
                 continue;
             if (!allowed.TryGetValue(c.Tracker, out var isAllowed))
-                allowed[c.Tracker] = isAllowed = await settings.IsAllowedAsync(c.Tracker, ct);
+                // 1.46.0 lane M (measurement only, off by default): a measured instance runs with the tracker network off, which
+                // would hide every mark; MangaPixer:Perf:TrackerMarksWithNetworkOff keeps the display-only marks so their cost shows.
+                allowed[c.Tracker] = isAllowed = com.lifepixer.mangapixer.Server.Operations.Perf.PerfRecorder.Active is { TrackerMarksWithNetworkOff: true }
+                    || await settings.IsAllowedAsync(c.Tracker, ct);
             if (!isAllowed)
                 continue;
             if (!result.TryGetValue(c.RecordId, out var list))
@@ -101,16 +107,19 @@ public sealed class TrackerCardMarks(MangaPixerDbContext db, TrackerSettingsServ
         var synced = await SyncedAsync(userId, records.Values.ToList(), ct);
         if (synced.Count == 0)
             return nodes;
+        // 1.46.0 (lane B, measured cost #1): ONE batched archive walk for every tracked series card of the page (it was one ~20-query walk
+        // per card); the same scope, units, editions and map per record as TrackerSeriesResolver.ArchivesAsync.
+        var walked = records.Values.Distinct().Where(synced.ContainsKey).ToList();
+        SeriesWalked += walked.Count;
+        var scopes = await resolver.ArchivesOfRecordsAsync(userId, walked, readMarks: false, ct);
+        var perfPhase = com.lifepixer.mangapixer.Server.Operations.Perf.PerfPhase.Start(); // measurement only (lane M's laps)
         var rings = new Dictionary<long, IReadOnlyList<string>?>();
-        foreach (var recordId in records.Values.Distinct().Where(synced.ContainsKey))
+        foreach (var recordId in walked)
         {
-            SeriesWalked++;
-            var (archives, map) = await resolver.ArchivesAsync(userId, recordId, ct);
-            var parts = TrackerReadOn.SplitPartsOf(archives.Select(a => a.Units));
-            rings[recordId] = archives.Count == 0
-                ? null
-                : ReadOnEvery(synced[recordId], numbers => archives.All(a => TrackerReadOn.Covers(a.Units, numbers, map, a.DeclaredEdition, a.OneShot, parts)));
+            var (archives, map) = scopes[recordId];
+            rings[recordId] = SeriesRing(synced[recordId], archives, map);
         }
+        perfPhase.Lap("marks.rings");
         return nodes.Select(node =>
         {
             if (!records.TryGetValue(node.Id, out var recordId))
@@ -119,6 +128,19 @@ public sealed class TrackerCardMarks(MangaPixerDbContext db, TrackerSettingsServ
             // An archive of another series: its own series decides, also to "no ring".
             return node.Kind == CatalogNodeKind.Archive ? node with { TrackerRead = ring } : ring is null ? node : node with { TrackerRead = ring };
         }).ToList();
+    }
+
+    /// <summary>
+    /// A series card's ring from its scope (see <see cref="DecorateAsync"/>): every archive covered by every synced tracker; none for a series
+    /// without archives. Shared with the equivalence test, which feeds it <see cref="TrackerSeriesResolver.ArchivesAsync"/>'s per-record scope.
+    /// </summary>
+    internal static IReadOnlyList<string>? SeriesRing(IReadOnlyList<(string Tracker, TrackerNumbers Numbers)> synced,
+        IReadOnlyList<TrackerSeriesResolver.ScopeArchive> archives, VolumeMapInput map)
+    {
+        if (archives.Count == 0)
+            return null;
+        var parts = TrackerReadOn.SplitPartsOf(archives.Select(a => a.Units));
+        return ReadOnEvery(synced, numbers => archives.All(a => TrackerReadOn.Covers(a.Units, numbers, map, a.DeclaredEdition, a.OneShot, parts)));
     }
 
     /// <summary>The archive and volume-stack cards of a folder of a linked series (see <see cref="DecorateAsync"/>).</summary>

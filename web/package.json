@@ -1,12 +1,12 @@
 {
   "name": "com.lifepixer.mangapixer.web",
-  "version": "1.45.1",
+  "version": "1.46.0",
   "description": "MangaPixer Angular web reader",
   "private": true,
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "ng build",
+    "build": "ng build && node scripts/precompress.mjs",
     "watch": "ng build --watch --configuration development",
     "lint": "ng lint && node scripts/check-theme-colors.mjs --enforce",
     "test": "ng test",

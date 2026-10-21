@@ -614,4 +614,22 @@ public static class LogEvents
         /// <summary>The completion filter answered a browse level: linked series, kept, milliseconds.</summary>
         public const int CompletionFilterApplied = 3200;
     }
+
+    /// <summary>
+    /// 1.46.0 lane D: the start-up warm-up (3290-3299, inside the 3xxx range; reserved for lane D). Step names, counts and timings only.
+    /// </summary>
+    public static class Startup
+    {
+        public const int Min = 3290;
+        public const int Max = 3299;
+
+        /// <summary>The warm-up ended: outcome, steps, failed steps, libraries, worker outcome, milliseconds, milliseconds waited.</summary>
+        public const int WarmupFinished = 3290;
+
+        /// <summary>A warm-up step failed (Debug): step name, exception type.</summary>
+        public const int WarmupStepFailed = 3291;
+
+        /// <summary>The warm-up stopped on an unexpected error (Warning): exception type.</summary>
+        public const int WarmupFailed = 3292;
+    }
 }

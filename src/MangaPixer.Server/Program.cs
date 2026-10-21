@@ -230,6 +230,7 @@ public sealed partial class Program
 
             // Catalog and reading services
             builder.Services.AddScoped<CatalogBrowseService>();
+            builder.Services.AddSingleton<LibraryItemCounts>(); // 1.46.0 lane B: the libraries list's archive counts per catalog state
             // Card covers (1.29.0 cover layer): one layered resolver for every card, the automatic decisions, the picker.
             Features.Covers.CoverLayerServices.AddCoverLayer(builder.Services, dataRoot);
             builder.Services.AddScoped<FolderViewSettingsService>();
@@ -249,6 +250,7 @@ public sealed partial class Program
             // Home "New chapters" — separate service, kept out of
             // CatalogBrowseService, which owns the main catalog-browsing surface.
             builder.Services.AddScoped<RecentChaptersService>();
+            builder.Services.AddSingleton<HomeStackCache>(); // 1.46.0 lane HC: the row's user-independent stack sources per library
 
             // Series metadata (1.24.0, lane B1): read-time series-info resolver, admin
             // settings/link services and the provider registry.
@@ -273,6 +275,7 @@ public sealed partial class Program
             // Operations services
             builder.Services.AddScoped<BackupService>();
             builder.Services.AddScoped<DiagnosticsService>();
+            com.lifepixer.mangapixer.Server.Operations.Perf.PerfServicesExtensions.AddPerfTiming(builder.Services, builder.Configuration); // 1.46.0 lane M: measurement only, off by default
 
             // Update Checker (1.21.0) — the ONE sanctioned outbound call, OFF by
             // default. TimeProvider drives the 24h cadence gate (mockable in
@@ -373,6 +376,10 @@ public sealed partial class Program
             builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(
                 options => ForwardedHeadersSetup.Configure(options, networkOptions));
 
+            // 1.46.0 lane M (measurement only): MangaPixer:Perf:SkipHostedServices names background services a measured instance
+            // does not start (empty by default).
+            com.lifepixer.mangapixer.Server.Operations.Perf.PerfServicesExtensions.SkipHostedServices(builder.Services, builder.Configuration);
+
             var app = builder.Build();
             // After Build() so a test that replaced the host's logger in DI is honoured by the sites below.
             var hostLogger = app.Services.GetRequiredService<Serilog.ILogger>();
@@ -392,6 +399,9 @@ public sealed partial class Program
             // keep working, and no PathBase/sub-path deployment is in scope. Both
             // are deferred rather than half-implemented.
             app.UseForwardedHeaders();
+
+            // Measurement-only request / SQL timing (1.46.0 lane M): added only when MangaPixer:Perf:RequestTiming is on.
+            com.lifepixer.mangapixer.Server.Operations.Perf.PerfServicesExtensions.UsePerfTiming(app);
 
             // Search engines (1.27.0): instances ask not to be indexed unless
             // MangaPixer:Network:AllowSearchIndexing is on (see SearchIndexing).
@@ -525,33 +535,11 @@ public sealed partial class Program
                 .AllowAnonymous()
                 .ExcludeFromDescription();
 
-            // Static files — serve Angular bundle from wwwroot/
+            // Static files — serve Angular bundle from wwwroot/, with the SPA fallback to index.html (1.46.0 lane D:
+            // precompressed variants from the web build and cache headers - see StaticAssetDelivery).
             var wwwrootPath = Path.Combine(builder.Environment.ContentRootPath, "wwwroot");
             if (Directory.Exists(wwwrootPath))
-            {
-                app.UseDefaultFiles();
-                app.UseStaticFiles();
-
-                // SPA fallback — serve index.html for non-API, non-file routes
-                app.MapFallback(context =>
-                {
-                    if (context.Request.Path.StartsWithSegments("/api"))
-                    {
-                        context.Response.StatusCode = 404;
-                        return Task.CompletedTask;
-                    }
-
-                    var indexPath = Path.Combine(wwwrootPath, "index.html");
-                    if (File.Exists(indexPath))
-                    {
-                        context.Response.ContentType = "text/html";
-                        return context.Response.SendFileAsync(indexPath);
-                    }
-
-                    context.Response.StatusCode = 404;
-                    return Task.CompletedTask;
-                });
-            }
+                app.UseMangaPixerWebApp(wwwrootPath);
 
             app.Run();
         }
