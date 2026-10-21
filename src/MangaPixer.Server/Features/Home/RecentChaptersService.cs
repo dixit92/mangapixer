@@ -536,7 +536,7 @@ public sealed class RecentChaptersService
     /// <para>
     /// 1.46.0 lane HC: in two halves - which readable archives each stack node holds (catalog rows only, one recursive CTE for the nodes
     /// the source does not know yet, then kept with it: <see cref="HomeStackSource.Readable"/>), and, per request, which of those
-    /// archives the viewer has a read mark or an in-progress record for (two indexed reads). The counts are those of the earlier single
+    /// archives the viewer has a read mark or an in-progress record for (one indexed read). The counts are those of the earlier single
     /// CTE (a read mark and a progress record are unique per user and archive, so each archive counts once).
     /// </para>
     /// </summary>
@@ -561,14 +561,7 @@ public sealed class RecentChaptersService
         var archiveIds = roots.SelectMany(id => source.Readable[id]).Distinct().ToList();
         if (archiveIds.Count == 0)
             return result;
-        var read = (await _db.ReadMarks.AsNoTracking()
-            .Where(m => m.UserId == userId && archiveIds.Contains(m.ItemId))
-            .Select(m => m.ItemId)
-            .ToListAsync(ct)).ToHashSet();
-        var inProgress = (await _db.ReadingProgress.AsNoTracking()
-            .Where(p => p.UserId == userId && p.State == (int)ReadingState.InProgress && archiveIds.Contains(p.ItemId))
-            .Select(p => p.ItemId)
-            .ToListAsync(ct)).ToHashSet();
+        var (read, inProgress) = await ViewerMarksAsync(archiveIds, userId, ct);
 
         foreach (var root in roots)
         {
@@ -589,6 +582,44 @@ public sealed class RecentChaptersService
                 result[root] = rollup.Value;
         }
         return result;
+    }
+
+    /// <summary>
+    /// Which of <paramref name="archiveIds"/> the viewer has a read mark for, and which an in-progress record (one command; both
+    /// tables are unique per user and archive and indexed on (user, archive)). The ids go in as literals, like the recursive CTEs' -
+    /// thousands of bound parameters cost more than the lookups.
+    /// </summary>
+    private async Task<(HashSet<long> Read, HashSet<long> InProgress)> ViewerMarksAsync(List<long> archiveIds, long userId, CancellationToken ct)
+    {
+        var read = new HashSet<long>();
+        var inProgress = new HashSet<long>();
+        var ids = string.Join(",", archiveIds);
+        var connection = _db.Database.GetDbConnection();
+        var wasOpen = connection.State == ConnectionState.Open;
+        if (!wasOpen) await connection.OpenAsync(ct);
+        try
+        {
+            using var command = connection.CreateCommand();
+            // State = 1 is InProgress (the literal of the earlier single CTE).
+            command.CommandText = $"""
+                SELECT ItemId, 0 FROM read_marks WHERE UserId = $user AND ItemId IN ({ids})
+                UNION ALL
+                SELECT ItemId, 1 FROM reading_progress WHERE UserId = $user AND State = 1 AND ItemId IN ({ids});
+                """;
+            var p = command.CreateParameter();
+            p.ParameterName = "$user";
+            p.Value = userId;
+            command.Parameters.Add(p);
+
+            using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                (reader.GetInt32(1) == 0 ? read : inProgress).Add(reader.GetInt64(0));
+        }
+        finally
+        {
+            if (!wasOpen) await connection.CloseAsync();
+        }
+        return (read, inProgress);
     }
 
     /// <summary>
