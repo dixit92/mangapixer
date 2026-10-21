@@ -381,7 +381,7 @@ public sealed class RecentChaptersService
 
         // Order by newest activity (TopId desc breaks ties, so the order is total), then cap to perLibrary STACKS.
         var phase = PerfPhase.Start(); // measurement only
-        var ordered = await TakeWithReadStateAsync(
+        var ordered = await TakeWithReadStateAsync(source,
             stacks.OrderByDescending(s => s.Stack.LatestAddedAt).ThenByDescending(s => s.TopId).ToList(),
             cap, userId, readState, ct);
         phase.Lap("home.rollups");
@@ -406,6 +406,7 @@ public sealed class RecentChaptersService
     /// </para>
     /// </summary>
     private async Task<List<(RecentChapterStack Stack, long TopId)>> TakeWithReadStateAsync(
+        HomeStackSource source,
         List<(RecentChapterStack Stack, long TopId)> ordered,
         int cap,
         long userId,
@@ -421,7 +422,7 @@ public sealed class RecentChaptersService
             var chunk = ordered.GetRange(next, Math.Min(size, ordered.Count - next));
             next += chunk.Count;
 
-            var rollups = await ResolveReadRollupsAsync(chunk.Select(s => s.TopId).ToList(), userId, ct);
+            var rollups = await ResolveReadRollupsAsync(source, chunk.Select(s => s.TopId).ToList(), userId, ct);
             foreach (var s in chunk)
             {
                 if (kept.Count == cap)
@@ -526,15 +527,20 @@ public sealed class RecentChaptersService
 
     /// <summary>
     /// Resolves the derived read rollup (<see cref="FolderReadRollupRules"/>, same rule the
-    /// browse view's folder badge uses) for each given stack node, via a single
-    /// recursive CTE. Works uniformly whether the root is a folder (rolled up over every
-    /// descendant archive) or a standalone archive (the root itself is the sole readable
-    /// descendant, since the base case of the recursive walk includes the root row): the
-    /// archive join only requires <c>Kind = 1</c>, not that the root be a folder. Root ids
-    /// with no readable (non-tombstoned) descendant archive are omitted (null rollup) — same
-    /// as <c>CatalogBrowseService.ResolveFolderReadRollupsAsync</c>, which this mirrors.
+    /// browse view's folder badge uses) for each given stack node. Works uniformly whether the
+    /// root is a folder (rolled up over every descendant archive) or a standalone archive (the
+    /// root itself is the sole readable descendant). Root ids with no readable (non-tombstoned)
+    /// descendant archive are omitted (null rollup) — same as
+    /// <c>CatalogBrowseService.ResolveFolderReadRollupsAsync</c>, which this mirrors.
+    /// <para>
+    /// 1.46.0 lane HC: in two halves - which readable archives each stack node holds (catalog rows only, one recursive CTE for the nodes
+    /// the source does not know yet, then kept with it: <see cref="HomeStackSource.Readable"/>), and, per request, which of those
+    /// archives the viewer has a read mark or an in-progress record for (two indexed reads). The counts are those of the earlier single
+    /// CTE (a read mark and a progress record are unique per user and archive, so each archive counts once).
+    /// </para>
     /// </summary>
     private async Task<Dictionary<long, FolderReadRollup>> ResolveReadRollupsAsync(
+        HomeStackSource source,
         List<long> seriesIds,
         long userId,
         CancellationToken ct)
@@ -543,15 +549,62 @@ public sealed class RecentChaptersService
         if (seriesIds.Count == 0)
             return result;
 
-        var ids = string.Join(",", seriesIds);
+        var roots = seriesIds.Distinct().ToList();
+        var unknown = roots.Where(id => !source.Readable.ContainsKey(id)).ToList();
+        if (unknown.Count > 0)
+        {
+            foreach (var (root, archives) in await ReadableArchivesAsync(unknown, ct))
+                source.Readable.TryAdd(root, archives);
+        }
+
+        var archiveIds = roots.SelectMany(id => source.Readable[id]).Distinct().ToList();
+        if (archiveIds.Count == 0)
+            return result;
+        var read = (await _db.ReadMarks.AsNoTracking()
+            .Where(m => m.UserId == userId && archiveIds.Contains(m.ItemId))
+            .Select(m => m.ItemId)
+            .ToListAsync(ct)).ToHashSet();
+        var inProgress = (await _db.ReadingProgress.AsNoTracking()
+            .Where(p => p.UserId == userId && p.State == (int)ReadingState.InProgress && archiveIds.Contains(p.ItemId))
+            .Select(p => p.ItemId)
+            .ToListAsync(ct)).ToHashSet();
+
+        foreach (var root in roots)
+        {
+            var archives = source.Readable[root];
+            if (archives.Length == 0)
+                continue;
+            var readCount = 0;
+            var inProgressCount = 0;
+            foreach (var archive in archives)
+            {
+                if (read.Contains(archive))
+                    readCount++;
+                else if (inProgress.Contains(archive))
+                    inProgressCount++;
+            }
+            var rollup = FolderReadRollupRules.Classify(total: archives.Length, read: readCount, inProgress: inProgressCount);
+            if (rollup is not null)
+                result[root] = rollup.Value;
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// The readable archives below each given node (the node itself included: a loose archive holds itself), via a single recursive
+    /// CTE over the catalog - every given id is in the answer, with an empty list when it holds none. User-independent.
+    /// </summary>
+    private async Task<Dictionary<long, long[]>> ReadableArchivesAsync(List<long> rootIds, CancellationToken ct)
+    {
+        var found = rootIds.ToDictionary(id => id, _ => new List<long>());
+        var ids = string.Join(",", rootIds);
         var connection = _db.Database.GetDbConnection();
         var wasOpen = connection.State == ConnectionState.Open;
         if (!wasOpen) await connection.OpenAsync(ct);
         try
         {
             using var command = connection.CreateCommand();
-            // Kind = 1 is Archive; Availability = 5 is Tombstoned; State = 1 is InProgress
-            // (same literals as CatalogBrowseService's sibling CTE).
+            // Kind = 1 is Archive; Availability = 5 is Tombstoned (same literals as CatalogBrowseService's sibling CTE).
             command.CommandText = $"""
                 WITH RECURSIVE subtree(RootId, NodeId) AS (
                     SELECT r.Id, r.Id FROM catalog_nodes r WHERE r.Id IN ({ids})
@@ -559,37 +612,20 @@ public sealed class RecentChaptersService
                     SELECT s.RootId, cn.Id FROM subtree s
                     JOIN catalog_nodes cn ON cn.ParentId = s.NodeId
                 )
-                SELECT s.RootId,
-                       COUNT(*) AS Total,
-                       SUM(CASE WHEN rm.ItemId IS NOT NULL THEN 1 ELSE 0 END) AS ReadCount,
-                       SUM(CASE WHEN rm.ItemId IS NULL AND rp.State = 1 THEN 1 ELSE 0 END) AS InProgressCount
+                SELECT s.RootId, a.Id
                 FROM subtree s
-                JOIN catalog_nodes a ON a.Id = s.NodeId AND a.Kind = 1 AND a.Availability != 5
-                LEFT JOIN read_marks rm ON rm.ItemId = a.Id AND rm.UserId = $user
-                LEFT JOIN reading_progress rp ON rp.ItemId = a.Id AND rp.UserId = $user
-                GROUP BY s.RootId;
+                JOIN catalog_nodes a ON a.Id = s.NodeId AND a.Kind = 1 AND a.Availability != 5;
                 """;
-            var p = command.CreateParameter();
-            p.ParameterName = "$user";
-            p.Value = userId;
-            command.Parameters.Add(p);
 
             using var reader = await command.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
-            {
-                var rollup = FolderReadRollupRules.Classify(
-                    total: reader.GetInt32(1),
-                    read: reader.GetInt32(2),
-                    inProgress: reader.GetInt32(3));
-                if (rollup is not null)
-                    result[reader.GetInt64(0)] = rollup.Value;
-            }
+                found[reader.GetInt64(0)].Add(reader.GetInt64(1));
         }
         finally
         {
             if (!wasOpen) await connection.CloseAsync();
         }
-        return result;
+        return found.ToDictionary(kv => kv.Key, kv => kv.Value.ToArray());
     }
 
     /// <summary>

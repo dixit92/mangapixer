@@ -2,6 +2,7 @@ using System.Text.Json;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
+using com.lifepixer.mangapixer.Core.Reading;
 using com.lifepixer.mangapixer.Server.Features.Auth;
 using com.lifepixer.mangapixer.Server.Features.Covers;
 using com.lifepixer.mangapixer.Server.Features.Home;
@@ -24,7 +25,8 @@ namespace com.lifepixer.mangapixer.Tests.Server.Features.Home;
 /// <item><description>Invalidation, one test per input of the stamp (catalog revision, library creation time, latest scan run, a scan in
 /// progress, the linked folders, the window cut-off going back, the age bound): each first shows the kept source is really reused while
 /// nothing moved (the answer is stale on purpose - the stamp is the contract), then that moving that input alone gives the fresh answer
-/// again. A stack ageing out of the window leaves on time from the kept source, without a rebuild.</description></item>
+/// again. A stack ageing out of the window leaves on time from the kept source, without a rebuild; the viewer's read marks and progress
+/// are read per request from the kept source (the stack's archives are kept, which of them the viewer read is not).</description></item>
 /// </list>
 /// </summary>
 public sealed class HomeStackCacheTests : IDisposable
@@ -77,6 +79,9 @@ public sealed class HomeStackCacheTests : IDisposable
             foreach (var id in await db.CatalogNodes.Where(n => n.LibraryId == alpha && n.Kind == 1 && n.RelativePath.Contains("Series Two"))
                          .Select(n => n.Id).ToListAsync())
                 db.ReadMarks.Add(new ReadMarkEntity { UserId = oneGrant, ItemId = id, MarkedAt = DateTimeOffset.UtcNow });
+            var volume1 = await db.CatalogNodes.SingleAsync(n => n.LibraryId == alpha && n.RelativePath.EndsWith("c001.cbz") && n.RelativePath.Contains("Vol 1"));
+            db.ReadingProgress.Add(InProgress(twoGrants, volume1.Id));
+            db.ReadMarks.Add(new ReadMarkEntity { UserId = admin, ItemId = volume1.Id, MarkedAt = DateTimeOffset.UtcNow });
             await db.SaveChangesAsync();
         }
 
@@ -242,6 +247,58 @@ public sealed class HomeStackCacheTests : IDisposable
     }
 
     [Fact]
+    public async Task ReadMarksAndProgress_AreReadPerRequest_FromTheKeptSource()
+    {
+        var (library, admin) = await SeedOneLibraryAsync();
+        var series = await _h.NodeAsync(library, "Manga/Series Two");
+        var chapter = await _h.NodeAsync(library, "Manga/Series Two/c001.cbz");
+        string StateOf(RecentChaptersDto dto) => dto.Libraries[0].Stacks.Single(s => s.Id == series.PublicId).ReadState;
+        Assert.Equal("unread", StateOf(await AskDtoAsync(cached: true, admin)));
+        var builds = _cache.Builds;
+
+        await using (var db = _h.NewContext())
+        {
+            db.ReadingProgress.Add(InProgress(admin, chapter.Id));
+            await db.SaveChangesAsync();
+        }
+        Assert.Equal(await AskAsync(cached: false, admin), await AskAsync(cached: true, admin));
+        Assert.Equal("reading", StateOf(await AskDtoAsync(cached: true, admin)));
+
+        await using (var db = _h.NewContext())
+        {
+            db.ReadMarks.Add(new ReadMarkEntity { UserId = admin, ItemId = chapter.Id, MarkedAt = DateTimeOffset.UtcNow });
+            await db.SaveChangesAsync();
+        }
+        Assert.Equal(await AskAsync(cached: false, admin), await AskAsync(cached: true, admin));
+        Assert.Equal("read", StateOf(await AskDtoAsync(cached: true, admin)));
+        Assert.Equal(builds, _cache.Builds); // the same kept source throughout: only the viewer's marks were read again
+    }
+
+    [Fact]
+    public async Task AnArchiveAddedBelowAShownStack_CountsInItsRollup_AfterTheRevisionMoves()
+    {
+        var (library, admin) = await SeedOneLibraryAsync();
+        var series = await _h.NodeAsync(library, "Manga/Series Two");
+        var chapter = await _h.NodeAsync(library, "Manga/Series Two/c001.cbz");
+        await using (var db = _h.NewContext())
+        {
+            db.ReadMarks.Add(new ReadMarkEntity { UserId = admin, ItemId = chapter.Id, MarkedAt = DateTimeOffset.UtcNow });
+            await db.SaveChangesAsync();
+        }
+        string StateOf(RecentChaptersDto dto) => dto.Libraries[0].Stacks.Single(s => s.Id == series.PublicId).ReadState;
+        Assert.Equal("read", StateOf(await AskDtoAsync(cached: true, admin)));
+
+        // An old chapter (outside the window) appears in the series: the stack is the same, its rollup is not.
+        await AddArchiveRowAsync(library, "Old chapter", _clock.Now.AddDays(-100), series.Id);
+        await using (var db = _h.NewContext())
+            await db.Libraries.Where(l => l.Id == library).ExecuteUpdateAsync(u => u.SetProperty(l => l.CatalogRevision, l => l.CatalogRevision + 1));
+
+        var fresh = await AskAsync(cached: false, admin);
+        Assert.Equal(fresh, await AskAsync(cached: true, admin));
+        Assert.NotEqual("read", StateOf(await AskDtoAsync(cached: true, admin)));
+    }
+
+    [Fact]
     public async Task AStackAgeingOutOfTheWindow_LeavesOnTime_FromTheKeptSource()
     {
         var (library, admin) = await SeedOneLibraryAsync();
@@ -387,8 +444,8 @@ public sealed class HomeStackCacheTests : IDisposable
         return (library, admin);
     }
 
-    /// <summary>A loose archive row written straight into the catalog (no revision raised), added at <paramref name="createdAt"/>.</summary>
-    private async Task AddArchiveRowAsync(long libraryId, string name, DateTimeOffset createdAt)
+    /// <summary>An archive row written straight into the catalog (no revision raised), added at <paramref name="createdAt"/>; loose by default.</summary>
+    private async Task AddArchiveRowAsync(long libraryId, string name, DateTimeOffset createdAt, long? parentId = null)
     {
         var id = "direct" + ++_serial;
         await using var db = _h.NewContext();
@@ -396,6 +453,7 @@ public sealed class HomeStackCacheTests : IDisposable
         {
             PublicId = id,
             LibraryId = libraryId,
+            ParentId = parentId,
             Kind = (int)CatalogNodeKind.Archive,
             DisplayName = name,
             RelativePath = id + ".cbz",
@@ -431,6 +489,16 @@ public sealed class HomeStackCacheTests : IDisposable
         await db.SaveChangesAsync();
         return record.Id;
     }
+
+    private static ReadingProgressEntity InProgress(long userId, long itemId) => new()
+    {
+        UserId = userId,
+        ItemId = itemId,
+        State = (int)ReadingState.InProgress,
+        EntryKey = "e1",
+        LastMutationId = "m" + itemId,
+        UpdatedAt = DateTimeOffset.UtcNow,
+    };
 
     private static NodeSeriesLinkEntity Link(CatalogNodeEntity folder, long? recordId, SeriesLinkState state) => new()
     {

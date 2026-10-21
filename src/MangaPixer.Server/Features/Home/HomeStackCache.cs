@@ -21,7 +21,15 @@ internal readonly record struct HomeStackNode(string PublicId, string DisplayNam
 /// its stack is built on (the up-walk to the series folder), and those nodes. The stacks, their order and their counts follow from it for
 /// any later cut-off (<see cref="RecentChaptersService"/> filters the candidates by the request's own cut-off).
 /// </summary>
-internal sealed record HomeStackSource(IReadOnlyList<HomeStackCandidate> Candidates, IReadOnlyDictionary<long, HomeStackNode> Nodes);
+internal sealed record HomeStackSource(IReadOnlyList<HomeStackCandidate> Candidates, IReadOnlyDictionary<long, HomeStackNode> Nodes)
+{
+    /// <summary>
+    /// The readable (live) archives below each stack node whose read rollup was asked for - the node itself for a loose archive - read
+    /// once per source, on first use: the catalog half of the read rollup (which archives a stack holds). The other half, which of them
+    /// the viewer has read or is reading, is read per request.
+    /// </summary>
+    public ConcurrentDictionary<long, long[]> Readable { get; } = new();
+}
 
 /// <summary>
 /// The stamp of everything a library's <see cref="HomeStackSource"/> is computed from (1.46.0 lane HC), read BEFORE the rows so stored rows
