@@ -17,7 +17,8 @@ namespace com.lifepixer.mangapixer.Tests.Server.Features.Home;
 /// Service-with-DB tests for the 1.46.0 lane HC home stack cache (<see cref="HomeStackCache"/>): the home "New chapters" row served from
 /// a kept, user-independent stack source per library is the same answer as the row built from the database every time.
 /// <list type="bullet">
-/// <item><description>Equivalence (real scans on temp folders): three viewers (admin; a reader with one grant; a reader with two grants, a
+/// <item><description>Equivalence (real scans on temp folders) of the old service (<see cref="RecentChaptersReference"/>) and the new one
+/// without and with the kept sources: three viewers (admin; a reader with one grant; a reader with two grants, a
 /// Private library and a 7-day window), Incognito off / on, every read-state filter and two caps, after each of: the first scan, a new
 /// archive, a folder rename, a move between series folders, a move to another library, a series-link change, a cover change.</description></item>
 /// <item><description>Invalidation, one test per input of the stamp (catalog revision, library creation time, latest scan run, a scan in
@@ -316,7 +317,10 @@ public sealed class HomeStackCacheTests : IDisposable
 
     // ---------------------------------------------------------------- helpers
 
-    /// <summary>For every viewer, Incognito off / on, every filter and two caps: the cached answer equals the uncached one.</summary>
+    /// <summary>
+    /// For every viewer, Incognito off / on, every filter and two caps: the OLD service's answer (<see cref="RecentChaptersReference"/>, the
+    /// code before the cache) equals the new service's, without and with the kept sources.
+    /// </summary>
     private async Task AssertSameForAllAsync(long[] viewers, string step)
     {
         _clock.Now = DateTimeOffset.UtcNow;
@@ -328,9 +332,11 @@ public sealed class HomeStackCacheTests : IDisposable
                 {
                     foreach (var cap in new int?[] { null, 2 })
                     {
-                        var expected = await AskAsync(cached: false, viewer, incognito, filter, cap);
+                        var expected = await AskReferenceAsync(viewer, incognito, filter, cap);
+                        var uncached = await AskAsync(cached: false, viewer, incognito, filter, cap);
                         var actual = await AskAsync(cached: true, viewer, incognito, filter, cap);
-                        Assert.True(expected == actual, $"{step}: viewer {viewer}, incognito {incognito}, {filter}, cap {cap}:\n{actual}\nexpected\n{expected}");
+                        Assert.True(expected == uncached, $"{step} (uncached): viewer {viewer}, incognito {incognito}, {filter}, cap {cap}:\n{uncached}\nexpected\n{expected}");
+                        Assert.True(expected == actual, $"{step} (kept): viewer {viewer}, incognito {incognito}, {filter}, cap {cap}:\n{actual}\nexpected\n{expected}");
                     }
                 }
             }
@@ -357,6 +363,14 @@ public sealed class HomeStackCacheTests : IDisposable
         var service = new RecentChaptersService(db, new LibraryAuthorizationService(db),
             covers: new LayeredCoverResolver(new CoverResolutionService(db)), stackCache: cached ? _cache : null, time: _clock);
         return await service.GetRecentChaptersAsync(userId, cap, incognito, filter);
+    }
+
+    /// <summary>The same request through the pre-1.46.0-HC service (per-library covers, no kept source, the wall clock).</summary>
+    private async Task<string> AskReferenceAsync(long userId, bool incognito, HomeReadStateFilter filter, int? cap)
+    {
+        await using var db = _h.NewContext();
+        var service = new RecentChaptersReference(db, new LibraryAuthorizationService(db), covers: new LayeredCoverResolver(new CoverResolutionService(db)));
+        return JsonSerializer.Serialize(await service.GetRecentChaptersAsync(userId, cap, incognito, filter));
     }
 
     /// <summary>One scanned library ("Alpha": a category folder with two series, one through unit folders, a loose archive) and an admin.</summary>
