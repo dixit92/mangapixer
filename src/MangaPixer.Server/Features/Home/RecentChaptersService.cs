@@ -154,18 +154,34 @@ public sealed class RecentChaptersService
         var stamps = _stackCache is null ? null : await HomeStackStamp.ReadAsync(_db, libs.Select(l => l.Id).ToList(), ct);
         inputsPhase.Lap("home.stack-inputs");
 
-        var groups = new List<RecentChaptersLibraryGroup>(libs.Count);
+        var kept = new List<List<(RecentChapterStack Stack, long TopId)>>(libs.Count);
         foreach (var lib in libs)
         {
             var perfPhase = PerfPhase.Start(); // 1.46.0 lane M: measurement only
             var source = await StackSourceAsync(lib.Id, windowDays, cutoff, now, stamps?[lib.Id], ct);
-            var stacks = await BuildStacksAsync(source, cutoff, cap, userId, readState, ct);
+            kept.Add(await BuildStacksAsync(source, cutoff, cap, userId, readState, ct));
             perfPhase.Lap("home.build-stacks");
+        }
+
+        // Covers for the taken stacks of every library at once from the cover resolver (1.29.0 seam; one call for the response since
+        // 1.46.0 lane HC - each node's cover depends only on that node, so the URLs are the ones a call per library gives): a folder stack
+        // shows the same cover as its browse card (its first descendant archive by SortKey, one recursive CTE), a loose-archive stack its
+        // own cover.
+        var coversPhase = PerfPhase.Start(); // measurement only
+        var covers = await _covers.ResolveUrlsAsync(
+            kept.SelectMany(k => k).Select(s => new CoverTarget(s.TopId, s.Stack.Id, s.Stack.IsFolder)).ToList(), ct);
+        coversPhase.Lap("home.covers");
+
+        var groups = new List<RecentChaptersLibraryGroup>(libs.Count);
+        for (var i = 0; i < libs.Count; i++)
+        {
             groups.Add(new RecentChaptersLibraryGroup
             {
-                LibraryId = lib.PublicId,
-                LibraryName = lib.DisplayName,
-                Stacks = stacks,
+                LibraryId = libs[i].PublicId,
+                LibraryName = libs[i].DisplayName,
+                Stacks = kept[i]
+                    .Select(s => covers.TryGetValue(s.TopId, out var url) ? s.Stack with { CoverUrl = url } : s.Stack)
+                    .ToList(),
             });
         }
 
@@ -311,9 +327,9 @@ public sealed class RecentChaptersService
     /// <summary>
     /// Builds one library's stacks from its stack source: keep the candidates added since <paramref name="cutoff"/> (compared in the
     /// stored form, as the SQL window compares), group them by the node their stack is built on, aggregate per stack, order by newest
-    /// activity, cap (with the read rollups), covers.
+    /// activity, cap (with the read rollups). The caller adds the covers.
     /// </summary>
-    private async Task<IReadOnlyList<RecentChapterStack>> BuildStacksAsync(
+    private async Task<List<(RecentChapterStack Stack, long TopId)>> BuildStacksAsync(
         HomeStackSource source,
         DateTimeOffset cutoff,
         int cap,
@@ -368,17 +384,8 @@ public sealed class RecentChaptersService
         var ordered = await TakeWithReadStateAsync(
             stacks.OrderByDescending(s => s.Stack.LatestAddedAt).ThenByDescending(s => s.TopId).ToList(),
             cap, userId, readState, ct);
-        phase = phase.Lap("home.rollups");
-
-        // Covers for the taken stacks from the cover resolver (1.29.0 seam): a folder stack shows the same cover as its
-        // browse card (its first descendant archive by SortKey, one recursive CTE), a loose-archive stack its own cover.
-        var covers = await _covers.ResolveUrlsAsync(
-            ordered.Select(s => new CoverTarget(s.TopId, s.Stack.Id, s.Stack.IsFolder)).ToList(), ct);
-        phase.Lap("home.covers");
-
-        return ordered
-            .Select(s => covers.TryGetValue(s.TopId, out var url) ? s.Stack with { CoverUrl = url } : s.Stack)
-            .ToList();
+        phase.Lap("home.rollups");
+        return ordered;
     }
 
     /// <summary>Smallest number of stacks whose read rollups are resolved in one query while a read-state filter is on.</summary>
