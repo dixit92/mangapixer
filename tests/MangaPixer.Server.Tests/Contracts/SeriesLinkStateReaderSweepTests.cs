@@ -47,6 +47,7 @@ public sealed class SeriesLinkStateReaderSweepTests
         ["src/MangaPixer.Server/Features/Export/ExportRebuildService.cs"] = "items = own rows of any state",
         ["src/MangaPixer.Server/Features/Export/ExportService.cs"] = "item counts = own rows of any state",
         ["src/MangaPixer.Server/Features/Export/ExportVocabulary.cs"] = "\"ArtistFolder\"",
+        ["src/MangaPixer.Server/Features/Home/HomeStackCache.cs"] = "1.46.0 home stack cache stamp: exactly the up-walk's linked test (a record, Confirmed / Auto / Collection about) on the library's folders",
         ["src/MangaPixer.Server/Features/Home/RecentChaptersService.cs"] = "stacks need a record: new works stack on the folder holding them (the artist folder for loose works)",
         ["src/MangaPixer.Server/Features/Jobs/ScheduledJobsService.cs"] = "refresh cadence: Confirmed / Auto only",
         ["src/MangaPixer.Server/Features/Library/Moves/MoveConflictService.cs"] = "moves like an admin decision; retires nothing below",

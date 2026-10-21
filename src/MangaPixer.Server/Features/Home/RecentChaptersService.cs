@@ -9,6 +9,7 @@ using com.lifepixer.mangapixer.Server.Features.Auth;
 using com.lifepixer.mangapixer.Server.Features.Catalog;
 using com.lifepixer.mangapixer.Server.Features.Covers;
 using com.lifepixer.mangapixer.Server.Features.Metadata;
+using com.lifepixer.mangapixer.Server.Operations.Perf;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -49,6 +50,13 @@ using Microsoft.EntityFrameworkCore;
 /// rollups are resolved only for the stacks the row can show (in order, up to the cap), not for every
 /// stack of the library.
 /// </description></item>
+/// <item><description>
+/// 1.46.0 lane HC: the user-independent part of a library's row - its recent archives with the series folder each stacks on (the
+/// candidate query and the up-walk) and, once asked for, the readable archives below each shown stack - is kept per library and window
+/// by <see cref="HomeStackCache"/> while everything it is read from is unchanged (<see cref="HomeStackStamp"/>); each request still
+/// applies its own window cut-off, visibility, the viewer's read marks and progress (the rollups), cap, covers and card flags, so the
+/// answer is the same as building it every time. The covers of all libraries are resolved in one cover-layer call.
+/// </description></item>
 /// </list>
 /// </summary>
 public sealed class RecentChaptersService
@@ -81,14 +89,21 @@ public sealed class RecentChaptersService
     private readonly LibraryAuthorizationService _auth;
     private readonly SeriesInfoFlagService _seriesInfoFlags;
     private readonly ICoverResolver _covers;
+    private readonly HomeStackCache? _stackCache;
+    private readonly TimeProvider _time;
 
+    /// <param name="stackCache">1.46.0 lane HC: the host's kept user-independent stack sources (the DI singleton); null = every request
+    /// builds them (the pre-1.46.0 path, kept for service tests and as the equivalence reference).</param>
+    /// <param name="time">The clock of the recency window (default: the system clock).</param>
     public RecentChaptersService(MangaPixerDbContext db, LibraryAuthorizationService auth, SeriesInfoFlagService? seriesInfoFlags = null,
-        ICoverResolver? covers = null)
+        ICoverResolver? covers = null, HomeStackCache? stackCache = null, TimeProvider? time = null)
     {
         _db = db;
         _auth = auth;
         _seriesInfoFlags = seriesInfoFlags ?? new SeriesInfoFlagService(db);
         _covers = covers ?? new FileCoverResolver(db);
+        _stackCache = stackCache;
+        _time = time ?? TimeProvider.System;
     }
 
     /// <summary>
@@ -132,23 +147,46 @@ public sealed class RecentChaptersService
             .ToListAsync(ct);
 
         var windowDays = await ResolveWindowDaysAsync(userId, ct);
-        var cutoff = DateTimeOffset.UtcNow - TimeSpan.FromDays(windowDays);
+        var now = _time.GetUtcNow();
+        var cutoff = now - TimeSpan.FromDays(windowDays);
 
-        var groups = new List<RecentChaptersLibraryGroup>(libs.Count);
+        // 1.46.0 lane HC: the stamps of the kept stack sources, read before any of their rows (see HomeStackStamp).
+        var inputsPhase = PerfPhase.Start(); // measurement only
+        var stamps = _stackCache is null ? null : await HomeStackStamp.ReadAsync(_db, libs.Select(l => l.Id).ToList(), ct);
+        inputsPhase.Lap("home.stack-inputs");
+
+        var kept = new List<List<(RecentChapterStack Stack, long TopId)>>(libs.Count);
         foreach (var lib in libs)
         {
-            var perfPhase = com.lifepixer.mangapixer.Server.Operations.Perf.PerfPhase.Start(); // 1.46.0 lane M: measurement only
-            var stacks = await BuildStacksAsync(lib.Id, cutoff, cap, userId, readState, ct);
+            var perfPhase = PerfPhase.Start(); // 1.46.0 lane M: measurement only
+            var source = await StackSourceAsync(lib.Id, windowDays, cutoff, now, stamps?[lib.Id], ct);
+            kept.Add(await BuildStacksAsync(source, cutoff, cap, userId, readState, ct));
             perfPhase.Lap("home.build-stacks");
+        }
+
+        // Covers for the taken stacks of every library at once from the cover resolver (1.29.0 seam; one call for the response since
+        // 1.46.0 lane HC - each node's cover depends only on that node, so the URLs are the ones a call per library gives): a folder stack
+        // shows the same cover as its browse card (its first descendant archive by SortKey, one recursive CTE), a loose-archive stack its
+        // own cover.
+        var coversPhase = PerfPhase.Start(); // measurement only
+        var covers = await _covers.ResolveUrlsAsync(
+            kept.SelectMany(k => k).Select(s => new CoverTarget(s.TopId, s.Stack.Id, s.Stack.IsFolder)).ToList(), ct);
+        coversPhase.Lap("home.covers");
+
+        var groups = new List<RecentChaptersLibraryGroup>(libs.Count);
+        for (var i = 0; i < libs.Count; i++)
+        {
             groups.Add(new RecentChaptersLibraryGroup
             {
-                LibraryId = lib.PublicId,
-                LibraryName = lib.DisplayName,
-                Stacks = stacks,
+                LibraryId = libs[i].PublicId,
+                LibraryName = libs[i].DisplayName,
+                Stacks = kept[i]
+                    .Select(s => covers.TryGetValue(s.TopId, out var url) ? s.Stack with { CoverUrl = url } : s.Stack)
+                    .ToList(),
             });
         }
 
-        var flagsPhase = com.lifepixer.mangapixer.Server.Operations.Perf.PerfPhase.Start(); // 1.46.0 lane M: measurement only
+        var flagsPhase = PerfPhase.Start(); // 1.46.0 lane M: measurement only
         var flagged = await ApplyCardFlagsAsync(userId, groups, ct);
         flagsPhase.Lap("home.card-flags");
         return new RecentChaptersDto { Libraries = flagged };
@@ -220,16 +258,31 @@ public sealed class RecentChaptersService
     }
 
     /// <summary>
-    /// Builds one library's stacks: window-filter the candidate archives, attribute each to its
-    /// series folder, aggregate per stack, order by newest activity, cap.
+    /// 1.46.0 lane HC: the library's user-independent stack source for this window - the kept one while its stamp, cut-off and age allow
+    /// (<see cref="HomeStackCache"/>), else built from the database (and kept when there is a cache).
     /// </summary>
-    private async Task<IReadOnlyList<RecentChapterStack>> BuildStacksAsync(
-        long libraryId,
-        DateTimeOffset cutoff,
-        int cap,
-        long userId,
-        HomeReadStateFilter readState,
-        CancellationToken ct)
+    private async Task<HomeStackSource> StackSourceAsync(long libraryId, int windowDays, DateTimeOffset cutoff, DateTimeOffset now,
+        HomeStackStamp? stamp, CancellationToken ct)
+    {
+        var phase = PerfPhase.Start(); // measurement only
+        var cutoffKey = HomeStackCache.StoredKey(cutoff);
+        if (_stackCache is not null && stamp is not null && _stackCache.TryGet(libraryId, windowDays, stamp, cutoffKey, now) is { } kept)
+        {
+            phase.Lap("home.stack-source.kept");
+            return kept;
+        }
+        var source = await LoadStackSourceAsync(libraryId, cutoff, ct);
+        if (_stackCache is not null && stamp is not null)
+            _stackCache.Store(libraryId, windowDays, stamp, cutoffKey, now, source);
+        phase.Lap("home.stack-source.built");
+        return source;
+    }
+
+    /// <summary>
+    /// Reads one library's stack source: the window's candidate archives, each attributed to its series folder (one bounded recursive
+    /// upward walk), and the nodes the stacks are built on. User-independent.
+    /// </summary>
+    private async Task<HomeStackSource> LoadStackSourceAsync(long libraryId, DateTimeOffset cutoff, CancellationToken ct)
     {
         // Candidate archives (window-bounded). EF encodes/decodes the CreatedAt binary column.
         var candidates = await _db.CatalogNodes
@@ -247,38 +300,64 @@ public sealed class RecentChaptersService
             .ToListAsync(ct);
 
         if (candidates.Count == 0)
-            return [];
+            return new HomeStackSource([], new Dictionary<long, HomeStackNode>());
 
         // Map each candidate archive to its series folder, one bounded recursive upward walk.
         // An archive directly in the library root maps to itself.
         var seriesByArchive = await ResolveSeriesFoldersAsync(
             candidates.Select(c => c.Id).ToList(), ct);
 
-        // Group candidates by their series folder.
-        var bySeries = new Dictionary<long, List<CandidateArchive>>();
+        var kept = new List<HomeStackCandidate>(candidates.Count);
         foreach (var c in candidates)
         {
             if (!seriesByArchive.TryGetValue(c.Id, out var topId))
                 continue; // defensive: every node has a root
-            if (!bySeries.TryGetValue(topId, out var list))
-                bySeries[topId] = list = [];
+            kept.Add(new HomeStackCandidate(c.Id, c.PublicId, c.DisplayName, c.CreatedAt, HomeStackCache.StoredKey(c.CreatedAt), topId));
+        }
+
+        // Series-folder node details for the stacks.
+        var seriesIds = kept.Select(c => c.TopId).Distinct().ToList();
+        var seriesNodes = await _db.CatalogNodes
+            .Where(n => seriesIds.Contains(n.Id))
+            .Select(n => new { n.Id, n.PublicId, n.DisplayName, n.Kind })
+            .ToDictionaryAsync(x => x.Id, x => new HomeStackNode(x.PublicId, x.DisplayName, x.Kind), ct);
+
+        return new HomeStackSource(kept, seriesNodes);
+    }
+
+    /// <summary>
+    /// Builds one library's stacks from its stack source: keep the candidates added since <paramref name="cutoff"/> (compared in the
+    /// stored form, as the SQL window compares), group them by the node their stack is built on, aggregate per stack, order by newest
+    /// activity, cap (with the read rollups). The caller adds the covers.
+    /// </summary>
+    private async Task<List<(RecentChapterStack Stack, long TopId)>> BuildStacksAsync(
+        HomeStackSource source,
+        DateTimeOffset cutoff,
+        int cap,
+        long userId,
+        HomeReadStateFilter readState,
+        CancellationToken ct)
+    {
+        var cutoffKey = HomeStackCache.StoredKey(cutoff);
+
+        // Group candidates by their series folder.
+        var bySeries = new Dictionary<long, List<HomeStackCandidate>>();
+        foreach (var c in source.Candidates)
+        {
+            if (c.CreatedKey < cutoffKey)
+                continue; // aged out of this request's window since the source was read
+            if (!bySeries.TryGetValue(c.TopId, out var list))
+                bySeries[c.TopId] = list = [];
             list.Add(c);
         }
 
         if (bySeries.Count == 0)
             return [];
 
-        // Series-folder node details for the stacks.
-        var seriesIds = bySeries.Keys.ToList();
-        var seriesNodes = await _db.CatalogNodes
-            .Where(n => seriesIds.Contains(n.Id))
-            .Select(n => new { n.Id, n.PublicId, n.DisplayName, n.Kind })
-            .ToDictionaryAsync(x => x.Id, ct);
-
         var stacks = new List<(RecentChapterStack Stack, long TopId)>(bySeries.Count);
         foreach (var (topId, list) in bySeries)
         {
-            if (!seriesNodes.TryGetValue(topId, out var top))
+            if (!source.Nodes.TryGetValue(topId, out var top))
                 continue;
 
             // Newest candidate in the stack (CreatedAt desc, Id desc as a stable tiebreak).
@@ -302,18 +381,12 @@ public sealed class RecentChaptersService
         }
 
         // Order by newest activity (TopId desc breaks ties, so the order is total), then cap to perLibrary STACKS.
-        var ordered = await TakeWithReadStateAsync(
+        var phase = PerfPhase.Start(); // measurement only
+        var ordered = await TakeWithReadStateAsync(source,
             stacks.OrderByDescending(s => s.Stack.LatestAddedAt).ThenByDescending(s => s.TopId).ToList(),
             cap, userId, readState, ct);
-
-        // Covers for the taken stacks from the cover resolver (1.29.0 seam): a folder stack shows the same cover as its
-        // browse card (its first descendant archive by SortKey, one recursive CTE), a loose-archive stack its own cover.
-        var covers = await _covers.ResolveUrlsAsync(
-            ordered.Select(s => new CoverTarget(s.TopId, s.Stack.Id, s.Stack.IsFolder)).ToList(), ct);
-
-        return ordered
-            .Select(s => covers.TryGetValue(s.TopId, out var url) ? s.Stack with { CoverUrl = url } : s.Stack)
-            .ToList();
+        phase.Lap("home.rollups");
+        return ordered;
     }
 
     /// <summary>Smallest number of stacks whose read rollups are resolved in one query while a read-state filter is on.</summary>
@@ -334,6 +407,7 @@ public sealed class RecentChaptersService
     /// </para>
     /// </summary>
     private async Task<List<(RecentChapterStack Stack, long TopId)>> TakeWithReadStateAsync(
+        HomeStackSource source,
         List<(RecentChapterStack Stack, long TopId)> ordered,
         int cap,
         long userId,
@@ -349,7 +423,7 @@ public sealed class RecentChaptersService
             var chunk = ordered.GetRange(next, Math.Min(size, ordered.Count - next));
             next += chunk.Count;
 
-            var rollups = await ResolveReadRollupsAsync(chunk.Select(s => s.TopId).ToList(), userId, ct);
+            var rollups = await ResolveReadRollupsAsync(source, chunk.Select(s => s.TopId).ToList(), userId, ct);
             foreach (var s in chunk)
             {
                 if (kept.Count == cap)
@@ -454,15 +528,20 @@ public sealed class RecentChaptersService
 
     /// <summary>
     /// Resolves the derived read rollup (<see cref="FolderReadRollupRules"/>, same rule the
-    /// browse view's folder badge uses) for each given stack node, via a single
-    /// recursive CTE. Works uniformly whether the root is a folder (rolled up over every
-    /// descendant archive) or a standalone archive (the root itself is the sole readable
-    /// descendant, since the base case of the recursive walk includes the root row): the
-    /// archive join only requires <c>Kind = 1</c>, not that the root be a folder. Root ids
-    /// with no readable (non-tombstoned) descendant archive are omitted (null rollup) — same
-    /// as <c>CatalogBrowseService.ResolveFolderReadRollupsAsync</c>, which this mirrors.
+    /// browse view's folder badge uses) for each given stack node. Works uniformly whether the
+    /// root is a folder (rolled up over every descendant archive) or a standalone archive (the
+    /// root itself is the sole readable descendant). Root ids with no readable (non-tombstoned)
+    /// descendant archive are omitted (null rollup) — same as
+    /// <c>CatalogBrowseService.ResolveFolderReadRollupsAsync</c>, which this mirrors.
+    /// <para>
+    /// 1.46.0 lane HC: in two halves - which readable archives each stack node holds (catalog rows only, one recursive CTE for the nodes
+    /// the source does not know yet, then kept with it: <see cref="HomeStackSource.Readable"/>), and, per request, which of those
+    /// archives the viewer has a read mark or an in-progress record for (one indexed read). The counts are those of the earlier single
+    /// CTE (a read mark and a progress record are unique per user and archive, so each archive counts once).
+    /// </para>
     /// </summary>
     private async Task<Dictionary<long, FolderReadRollup>> ResolveReadRollupsAsync(
+        HomeStackSource source,
         List<long> seriesIds,
         long userId,
         CancellationToken ct)
@@ -471,31 +550,61 @@ public sealed class RecentChaptersService
         if (seriesIds.Count == 0)
             return result;
 
-        var ids = string.Join(",", seriesIds);
+        var roots = seriesIds.Distinct().ToList();
+        var unknown = roots.Where(id => !source.Readable.ContainsKey(id)).ToList();
+        if (unknown.Count > 0)
+        {
+            foreach (var (root, archives) in await ReadableArchivesAsync(unknown, ct))
+                source.Readable.TryAdd(root, archives);
+        }
+
+        var archiveIds = roots.SelectMany(id => source.Readable[id]).Distinct().ToList();
+        if (archiveIds.Count == 0)
+            return result;
+        var (read, inProgress) = await ViewerMarksAsync(archiveIds, userId, ct);
+
+        foreach (var root in roots)
+        {
+            var archives = source.Readable[root];
+            if (archives.Length == 0)
+                continue;
+            var readCount = 0;
+            var inProgressCount = 0;
+            foreach (var archive in archives)
+            {
+                if (read.Contains(archive))
+                    readCount++;
+                else if (inProgress.Contains(archive))
+                    inProgressCount++;
+            }
+            var rollup = FolderReadRollupRules.Classify(total: archives.Length, read: readCount, inProgress: inProgressCount);
+            if (rollup is not null)
+                result[root] = rollup.Value;
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Which of <paramref name="archiveIds"/> the viewer has a read mark for, and which an in-progress record (one command; both
+    /// tables are unique per user and archive and indexed on (user, archive)). The ids go in as literals, like the recursive CTEs' -
+    /// thousands of bound parameters cost more than the lookups.
+    /// </summary>
+    private async Task<(HashSet<long> Read, HashSet<long> InProgress)> ViewerMarksAsync(List<long> archiveIds, long userId, CancellationToken ct)
+    {
+        var read = new HashSet<long>();
+        var inProgress = new HashSet<long>();
+        var ids = string.Join(",", archiveIds);
         var connection = _db.Database.GetDbConnection();
         var wasOpen = connection.State == ConnectionState.Open;
         if (!wasOpen) await connection.OpenAsync(ct);
         try
         {
             using var command = connection.CreateCommand();
-            // Kind = 1 is Archive; Availability = 5 is Tombstoned; State = 1 is InProgress
-            // (same literals as CatalogBrowseService's sibling CTE).
+            // State = 1 is InProgress (the literal of the earlier single CTE).
             command.CommandText = $"""
-                WITH RECURSIVE subtree(RootId, NodeId) AS (
-                    SELECT r.Id, r.Id FROM catalog_nodes r WHERE r.Id IN ({ids})
-                    UNION ALL
-                    SELECT s.RootId, cn.Id FROM subtree s
-                    JOIN catalog_nodes cn ON cn.ParentId = s.NodeId
-                )
-                SELECT s.RootId,
-                       COUNT(*) AS Total,
-                       SUM(CASE WHEN rm.ItemId IS NOT NULL THEN 1 ELSE 0 END) AS ReadCount,
-                       SUM(CASE WHEN rm.ItemId IS NULL AND rp.State = 1 THEN 1 ELSE 0 END) AS InProgressCount
-                FROM subtree s
-                JOIN catalog_nodes a ON a.Id = s.NodeId AND a.Kind = 1 AND a.Availability != 5
-                LEFT JOIN read_marks rm ON rm.ItemId = a.Id AND rm.UserId = $user
-                LEFT JOIN reading_progress rp ON rp.ItemId = a.Id AND rp.UserId = $user
-                GROUP BY s.RootId;
+                SELECT ItemId, 0 FROM read_marks WHERE UserId = $user AND ItemId IN ({ids})
+                UNION ALL
+                SELECT ItemId, 1 FROM reading_progress WHERE UserId = $user AND State = 1 AND ItemId IN ({ids});
                 """;
             var p = command.CreateParameter();
             p.ParameterName = "$user";
@@ -504,20 +613,51 @@ public sealed class RecentChaptersService
 
             using var reader = await command.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
-            {
-                var rollup = FolderReadRollupRules.Classify(
-                    total: reader.GetInt32(1),
-                    read: reader.GetInt32(2),
-                    inProgress: reader.GetInt32(3));
-                if (rollup is not null)
-                    result[reader.GetInt64(0)] = rollup.Value;
-            }
+                (reader.GetInt32(1) == 0 ? read : inProgress).Add(reader.GetInt64(0));
         }
         finally
         {
             if (!wasOpen) await connection.CloseAsync();
         }
-        return result;
+        return (read, inProgress);
+    }
+
+    /// <summary>
+    /// The readable archives below each given node (the node itself included: a loose archive holds itself), via a single recursive
+    /// CTE over the catalog - every given id is in the answer, with an empty list when it holds none. User-independent.
+    /// </summary>
+    private async Task<Dictionary<long, long[]>> ReadableArchivesAsync(List<long> rootIds, CancellationToken ct)
+    {
+        var found = rootIds.ToDictionary(id => id, _ => new List<long>());
+        var ids = string.Join(",", rootIds);
+        var connection = _db.Database.GetDbConnection();
+        var wasOpen = connection.State == ConnectionState.Open;
+        if (!wasOpen) await connection.OpenAsync(ct);
+        try
+        {
+            using var command = connection.CreateCommand();
+            // Kind = 1 is Archive; Availability = 5 is Tombstoned (same literals as CatalogBrowseService's sibling CTE).
+            command.CommandText = $"""
+                WITH RECURSIVE subtree(RootId, NodeId) AS (
+                    SELECT r.Id, r.Id FROM catalog_nodes r WHERE r.Id IN ({ids})
+                    UNION ALL
+                    SELECT s.RootId, cn.Id FROM subtree s
+                    JOIN catalog_nodes cn ON cn.ParentId = s.NodeId
+                )
+                SELECT s.RootId, a.Id
+                FROM subtree s
+                JOIN catalog_nodes a ON a.Id = s.NodeId AND a.Kind = 1 AND a.Availability != 5;
+                """;
+
+            using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                found[reader.GetInt64(0)].Add(reader.GetInt64(1));
+        }
+        finally
+        {
+            if (!wasOpen) await connection.CloseAsync();
+        }
+        return found.ToDictionary(kv => kv.Key, kv => kv.Value.ToArray());
     }
 
     /// <summary>

@@ -250,6 +250,7 @@ public sealed partial class Program
             // Home "New chapters" — separate service, kept out of
             // CatalogBrowseService, which owns the main catalog-browsing surface.
             builder.Services.AddScoped<RecentChaptersService>();
+            builder.Services.AddSingleton<HomeStackCache>(); // 1.46.0 lane HC: the row's user-independent stack sources per library
 
             // Series metadata (1.24.0, lane B1): read-time series-info resolver, admin
             // settings/link services and the provider registry.
