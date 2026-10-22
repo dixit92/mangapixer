@@ -292,4 +292,84 @@ describe('SeriesInfoOverlayService', () => {
     expect(dialog.open).not.toHaveBeenCalled();
     expect(sheet.open.mock.calls[0][1].data).toEqual({ nodeId: 'n1' });
   });
+
+  it('1.47.0: opens a library root\'s overlay the same way, with the library as its data', async () => {
+    const desktop = create(false);
+    await desktop.service.openLibrary('lib1', 'Manga');
+    expect(desktop.dialog.open.mock.calls[0][1].data).toEqual({ libraryId: 'lib1', libraryName: 'Manga' });
+    TestBed.resetTestingModule();
+    const phone = create(true);
+    await phone.service.openLibrary('lib1', 'Manga');
+    expect(phone.sheet.open.mock.calls[0][1].data).toEqual({ libraryId: 'lib1', libraryName: 'Manga' });
+  });
+});
+
+/** 1.47.0 (lane P): the library root's Info slot - a library is not a node: only the tag index decides, never Identify. */
+describe('SeriesInfoButtonComponent at a library root', () => {
+  @Component({
+    standalone: true,
+    imports: [SeriesInfoButtonComponent],
+    template: `<app-series-info-button [libraryId]="libraryId()" libraryName="Manga" />`,
+  })
+  class LibraryHost {
+    readonly libraryId = signal('lib1');
+  }
+
+  function create(answer: InfoPanelDto | 'error', admin = true) {
+    const open = vi.fn(() => Promise.resolve());
+    const openLibrary = vi.fn(() => Promise.resolve());
+    const metadata = { getSeriesInfo: vi.fn(), getIdentifyContext: vi.fn(), getSettings: vi.fn() };
+    const infoApi = {
+      getInfo: vi.fn(),
+      getLibraryInfo: vi.fn(() => (answer === 'error' ? throwError(() => ({ status: 404 })) : of(answer))),
+    };
+    TestBed.configureTestingModule({
+      imports: [LibraryHost],
+      providers: [
+        provideNoopAnimations(),
+        { provide: MetadataApiService, useValue: metadata },
+        { provide: InfoApiService, useValue: infoApi },
+        { provide: SeriesInfoOverlayService, useValue: { open, openLibrary } },
+        { provide: AuthService, useValue: { isAdmin: () => admin } },
+        { provide: IdentifyDialogService, useValue: { open: vi.fn() } },
+      ],
+    });
+    const fixture = TestBed.createComponent(LibraryHost);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    return {
+      fixture, metadata, infoApi, open, openLibrary,
+      button: () => el.querySelector<HTMLButtonElement>('[data-testid="series-info-button"]'),
+      identify: () => el.querySelector('[data-testid="series-identify-button"]'),
+    };
+  }
+
+  it('shows "Info" when the library has tags the viewer may see, and opens the library overlay', () => {
+    const { button, infoApi, metadata, open, openLibrary } = create(panel({ nodeId: 'lib1', mode: 'Container', worksBelow: 5 }));
+    expect(infoApi.getLibraryInfo).toHaveBeenCalledWith('lib1');
+    expect(infoApi.getInfo).not.toHaveBeenCalled();
+    expect(metadata.getSeriesInfo).not.toHaveBeenCalled(); // a library root has no series information
+    expect(button()!.getAttribute('aria-label')).toBe('Info');
+    button()!.click();
+    expect(openLibrary).toHaveBeenCalledWith('lib1', 'Manga');
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('shows nothing (never Identify) when nothing is indexed or the server cannot answer', () => {
+    const empty = create(emptyPanel('lib1'));
+    expect(empty.button()).toBeNull();
+    expect(empty.identify()).toBeNull();
+    expect(empty.metadata.getIdentifyContext).not.toHaveBeenCalled();
+    TestBed.resetTestingModule();
+    const failed = create('error');
+    expect(failed.button()).toBeNull();
+    expect(failed.identify()).toBeNull();
+  });
+
+  it('asks again for another library', () => {
+    const { fixture, infoApi } = create(panel({ nodeId: 'lib1', mode: 'Container' }));
+    fixture.componentInstance.libraryId.set('lib2');
+    fixture.detectChanges();
+    expect(infoApi.getLibraryInfo).toHaveBeenLastCalledWith('lib2');
+  });
 });

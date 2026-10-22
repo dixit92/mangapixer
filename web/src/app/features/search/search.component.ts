@@ -67,7 +67,7 @@ interface FilterChip {
  * Search component. Uses the FTS5 trigram search via the API. 1.45.0 (lane P): the tag view - a chip of the Info panel opens this page
  * with `f=<bucket>:<value id>`; the filters show as removable chips in the field (they scroll sideways in their own row on a phone),
  * typed field syntax (`creator:"..."`) passes through `q`, and the results are WORK cards (cover, title, where the work lives as a
- * breadcrumb of display names, "2 locations" for a split series) with the same keyset "Load more" and read filter. Without a filter the
+ * breadcrumb of display names, "2 locations" for a split series) with the same keyset "Load more" and (1.47.0) read filter. Without a filter the
  * page is the folder-name search it was.
  */
 @Component({
@@ -109,8 +109,9 @@ interface FilterChip {
     </mat-form-field>
 
     <!-- Read-state filter (1.45.0): the browse Show filter's choices as one chip row over the results, applied on the server before
-         paging (the count and "Load more" stay right). Shown once there is search text, so a filter with no hits can be switched back. -->
-    @if (active() && !tagView()) {
+         paging (the count and "Load more" stay right). Shown once there is search text or a tag, so a filter with no hits can be switched
+         back. 1.47.0: also in the tag view - a WORK is read, reading or unread by the browse rule over its places you can see. -->
+    @if (active()) {
       <mat-chip-listbox class="read-filter" aria-label="Show" [value]="params().read" (change)="onReadChip($event.value)"
                         hideSingleSelectionIndicator>
         @for (opt of readOptions; track opt.value) {
@@ -351,8 +352,8 @@ export class SearchComponent {
   readonly active = computed(() => this.params().q.trim().length > 0 || this.params().f.length > 0);
 
   /**
-   * The tag view (1.45.0): a filter in the URL, or the last answer had work cards (typed `creator:` ... in the text). The read-state
-   * chips are not shown there - lane Q's works query does not apply them (its open question 2); the cards still show read marks.
+   * The tag view (1.45.0): a filter in the URL, or the last answer had work cards (typed `creator:` ... in the text). 1.47.0: the read
+   * chips apply there too (the server reads a work as one folder of its visible locations).
    */
   readonly tagView = computed(() => this.params().f.length > 0 || this.works().length > 0);
 
@@ -367,7 +368,7 @@ export class SearchComponent {
   });
 
   readonly noResultsText = computed(() => {
-    if (this.params().f.length > 0) return 'No works with these tags.';
+    if (this.params().f.length > 0) return this.params().read === 'all' ? 'No works with these tags.' : 'No works with these tags and this filter.';
     return this.params().read === 'all' ? 'No results found.' : 'No results with this filter.';
   });
 

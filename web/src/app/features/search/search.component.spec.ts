@@ -621,8 +621,26 @@ describe('SearchComponent tag filters and work cards (1.45.0)', () => {
     expect(cards[1].querySelector('img')!.getAttribute('src')).toBe('/api/v1/items/a9/cover');
     expect(cards[1].querySelector('.badge')!.textContent!.trim()).toBe('✓ Read');
     expect(cards[1].querySelector('.crumb-line')!.textContent).toBe('Manga 2 › One Shots › One-shot B.cbz');
-    // The read-state chips are not offered in the tag view (lane Q's works query does not apply them).
-    expect(el.querySelector('.read-filter')).toBeNull();
+    // 1.47.0: the read-state chips are offered in the tag view too (the server applies them to works).
+    expect(el.querySelector('.read-filter')).not.toBeNull();
+  });
+
+  it('1.47.0: the read chips filter the works - the read state goes to the server with the tags, and into the URL', async () => {
+    const { el, fixture, search, navigate } = await open('/?f=genre:fv_2&read=read', answer(
+      [work()], [filter({ bucket: 'Genres', id: 'fv_2', display: 'Comedy', valueIds: ['fv_2'] })],
+    ), answer([], [filter({ bucket: 'Genres', id: 'fv_2', display: 'Comedy', valueIds: ['fv_2'] })]));
+    expect(search).toHaveBeenCalledWith('', { readState: 'read', filters: ['genre:fv_2'] });
+    const selected = el.querySelector('.read-filter mat-chip-option.mat-mdc-chip-selected');
+    expect(selected!.textContent!.trim()).toBe('Read');
+    const unread = Array.from(el.querySelectorAll<HTMLElement>('.read-filter mat-chip-option')).find((c) => c.textContent?.trim() === 'Unread')!;
+    unread.querySelector('button')!.click();
+    fixture.detectChanges();
+    expect(search).toHaveBeenLastCalledWith('', { readState: 'unread', filters: ['genre:fv_2'] });
+    expect(navigate).toHaveBeenLastCalledWith([], expect.objectContaining({ queryParams: { q: null, read: 'unread', f: ['genre:fv_2'] } }));
+    // The filters stay as chips; nothing matched this read state.
+    expect(chipLabels(el)).toEqual(['Genres: Comedy']);
+    expect(el.querySelector('.no-results')!.textContent!.trim()).toBe('No works with these tags and this filter.');
+    expect(el.querySelector('.read-filter')).not.toBeNull();
   });
 
   it('expands "N locations" for a split series, with the ones not listed counted', async () => {
