@@ -43,8 +43,15 @@ public sealed class HomeCoverCacheHttpTests
             await db.SaveChangesAsync();
             CatalogNodeEntity Node(string pub, long? parent, int kind, string name) => new()
             {
-                PublicId = pub, LibraryId = library.Id, ParentId = parent, Kind = kind, DisplayName = name, RelativePath = pub, PathKey = pub,
-                SortKey = (kind == 0 ? "0" : "1") + name, CreatedAt = DateTimeOffset.UtcNow,
+                PublicId = pub,
+                LibraryId = library.Id,
+                ParentId = parent,
+                Kind = kind,
+                DisplayName = name,
+                RelativePath = pub,
+                PathKey = pub,
+                SortKey = (kind == 0 ? "0" : "1") + name,
+                CreatedAt = DateTimeOffset.UtcNow,
             };
             var folder = Node(folderId, null, 0, "Series");
             db.CatalogNodes.Add(folder);

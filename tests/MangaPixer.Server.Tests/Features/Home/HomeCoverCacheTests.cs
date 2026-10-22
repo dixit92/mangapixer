@@ -75,7 +75,11 @@ public sealed class HomeCoverCacheTests : IDisposable
         var oneBefore = await CoverOfAsync(admin, one);
         await WriteAsync(db => db.NodeCoverChoices.Add(new NodeCoverChoiceEntity
         {
-            NodeId = one.Id, Mode = (int)CoverChoiceMode.Archive, ArchiveNodeId = v02.Id, Version = 1, SetAt = DateTimeOffset.UtcNow,
+            NodeId = one.Id,
+            Mode = (int)CoverChoiceMode.Archive,
+            ArchiveNodeId = v02.Id,
+            Version = 1,
+            SetAt = DateTimeOffset.UtcNow,
         }));
         await AssertSameForAllAsync(viewers, "a cover choice");
         Assert.NotEqual(oneBefore, await CoverOfAsync(admin, one));
@@ -93,7 +97,11 @@ public sealed class HomeCoverCacheTests : IDisposable
         // 2. An automatic decision (a series folder shows its local volume 1).
         await WriteAsync(db => db.NodeAutoCovers.Add(new NodeAutoCoverEntity
         {
-            NodeId = two.Id, Source = (int)AutoCoverSource.LocalVolume1, ArchiveNodeId = c001.Id, Version = 1, DecidedAt = DateTimeOffset.UtcNow,
+            NodeId = two.Id,
+            Source = (int)AutoCoverSource.LocalVolume1,
+            ArchiveNodeId = c001.Id,
+            Version = 1,
+            DecidedAt = DateTimeOffset.UtcNow,
         }));
         await AssertSameForAllAsync(viewers, "an automatic decision");
 
@@ -101,13 +109,23 @@ public sealed class HomeCoverCacheTests : IDisposable
         var record = await AddRecordAsync();
         var cover = new VolumeCoverEntity
         {
-            PublicId = "vc" + ++_serial, ProviderRecordId = record, Volume = 1, Locale = "en", RemoteId = "r", RemoteFile = "f",
-            State = (int)VolumeCoverState.Stored, StoredVersion = 1,
+            PublicId = "vc" + ++_serial,
+            ProviderRecordId = record,
+            Volume = 1,
+            Locale = "en",
+            RemoteId = "r",
+            RemoteFile = "f",
+            State = (int)VolumeCoverState.Stored,
+            StoredVersion = 1,
         };
         await WriteAsync(db => db.VolumeCovers.Add(cover));
         await WriteAsync(db => db.NodeAutoCovers.Add(new NodeAutoCoverEntity
         {
-            NodeId = one.Id, Source = (int)AutoCoverSource.WebVolume, VolumeCoverId = cover.Id, Version = 1, DecidedAt = DateTimeOffset.UtcNow,
+            NodeId = one.Id,
+            Source = (int)AutoCoverSource.WebVolume,
+            VolumeCoverId = cover.Id,
+            Version = 1,
+            DecidedAt = DateTimeOffset.UtcNow,
         }));
         await AssertSameForAllAsync(viewers, "a web cover decided");
         var web = await CoverOfAsync(admin, one);
@@ -134,8 +152,12 @@ public sealed class HomeCoverCacheTests : IDisposable
         // 4. A series link and its record's poster (an automatic poster decision shows the linked record's stored image).
         await WriteAsync(db => db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
         {
-            NodeId = two.Id, LibraryId = alpha, RecordId = record, State = (int)SeriesLinkState.Confirmed,
-            CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
+            NodeId = two.Id,
+            LibraryId = alpha,
+            RecordId = record,
+            State = (int)SeriesLinkState.Confirmed,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
         }));
         await using (var db = _h.NewContext())
         {
