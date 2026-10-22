@@ -7293,6 +7293,35 @@
         }
       }
     },
+    "/api/v1/admin/metadata/taken-down": {
+      "get": {
+        "tags": [
+          "TakenDownRecords"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TakenDownRecordsDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TakenDownRecordsDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TakenDownRecordsDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/metadata/folder-match/preview": {
       "post": {
         "tags": [
@@ -15746,6 +15775,9 @@
               "null",
               "string"
             ]
+          },
+          "localMatch": {
+            "type": "boolean"
           }
         }
       },
@@ -22023,6 +22055,108 @@
           }
         }
       },
+      "TakenDownRecordDto": {
+        "required": [
+          "recordId",
+          "title",
+          "since",
+          "sweeps",
+          "series"
+        ],
+        "type": "object",
+        "properties": {
+          "recordId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "since": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSeen": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "sweeps": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TakenDownSeriesDto"
+            }
+          },
+          "moreSeries": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "TakenDownRecordsDto": {
+        "required": [
+          "total",
+          "limit",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "limit": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TakenDownRecordDto"
+            }
+          }
+        }
+      },
+      "TakenDownSeriesDto": {
+        "required": [
+          "nodeId",
+          "libraryId",
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "libraryId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          }
+        }
+      },
       "TrackerAccountDto": {
         "required": [
           "tracker",
@@ -25085,6 +25219,9 @@
     },
     {
       "name": "NodeMissing"
+    },
+    {
+      "name": "TakenDownRecords"
     },
     {
       "name": "MetadataFolderMatch"
