@@ -204,7 +204,7 @@ Artists often publish under several names: pen names, other spellings, the name 
 - Each request sends only the MangaUpdates author number and the fixed `User-Agent`, to `api.mangaupdates.com` - never a name, a search or anything from your library. It needs **Fetch from the web** (with the current consent) and MangaUpdates on the [allowed sites](#allowed-sites), but not Automatic matching.
 - Every request counts in the daily request budget. The look-up stops when the budget is spent, when MangaUpdates asks MangaPixer to slow down, when you switch web lookups off, or when you press **Cancel**; the authors it did not reach stay to look up, and pressing the button again continues there.
 - An author already looked up is not asked again for 180 days. An author MangaUpdates does not know is remembered as such; one whose answer could not be read is tried again next time.
-- Only the author's main name and other names are stored on your server (at most 50 names per author). **Delete all fetched web data** removes them; deleting one library's fetched data removes the names no remaining stored series - or picked artist - needs. They are not part of the [metadata export](metadata-export.md).
+- Only the author's main name and other names are stored on your server (at most 50 names per author). **Delete all fetched web data** removes them; deleting one library's fetched data removes the names no remaining stored series - or picked artist - needs. *From 1.47.0* the [metadata export](metadata-export.md#creators) carries them as each creator's `otherNames`.
 
 ## Allowed sites
 
