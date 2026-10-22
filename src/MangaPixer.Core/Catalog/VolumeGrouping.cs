@@ -339,7 +339,7 @@ public static class VolumeGrouping
         var chapters = new List<(GroupingRow Row, UnitNumbers Units)>();
         var volumes = new List<(GroupingRow Row, UnitNumbers Units)>();
         // 1.47.0: loose chapters that may be listed at their numeric position, and where each volume starts (chapter numbers).
-        var looseChapters = new List<(VolumeEntry Entry, decimal Chapter)>();
+        var looseChapters = new List<(int Index, decimal Chapter)>();
         var volumeStarts = new List<(string Key, decimal Start)>();
         foreach (var row in rows)
         {
@@ -417,10 +417,9 @@ public static class VolumeGrouping
                 Bucket(placed.Volume).Chapters.Add(new StackMember(row, false, chapter, u.IsExtra, placed.Placement));
                 continue;
             }
-            var loose = LooseArchive(row, map, chapter);
-            entries.Add(loose);
             if (!map.ChaptersOnly && chapter is >= 0 and < 100_000)
-                looseChapters.Add((loose, chapter));
+                looseChapters.Add((entries.Count, chapter));
+            entries.Add(LooseArchive(row, map, chapter));
         }
 
         // A fractional volume file joins the end of the previous volume's stack; alone (that volume has nothing here) it stays
@@ -599,7 +598,7 @@ public static class VolumeGrouping
     /// chapter is not put in a volume and no volume is claimed. Chapters of one gap are ordered by number.
     /// </summary>
     private static void PlaceLooseChapters(
-        List<VolumeEntry> entries, List<(VolumeEntry Entry, decimal Chapter)> looseChapters, List<(string Key, decimal Start)> volumeStarts)
+        List<VolumeEntry> entries, List<(int Index, decimal Chapter)> looseChapters, List<(string Key, decimal Start)> volumeStarts)
     {
         if (looseChapters.Count == 0 || volumeStarts.Count == 0)
             return;
@@ -607,7 +606,7 @@ public static class VolumeGrouping
         var realKeys = entries.Where(e => e.Rank == 0 && e.Kind != VolumeEntryKind.MissingVolume).Select(e => e.VolumeKey)
             .Order(StringComparer.Ordinal).ToList();
         var firstStarted = started.Min(StringComparer.Ordinal)!;
-        foreach (var (entry, chapter) in looseChapters)
+        foreach (var (index, chapter) in looseChapters)
         {
             string? anchor = null;
             foreach (var (key, start) in volumeStarts)
@@ -629,8 +628,7 @@ public static class VolumeGrouping
                     continue;
                 prefix = "-"; // sorts before every volume key
             }
-            var index = entries.IndexOf(entry);
-            entries[index] = entry with { Rank = 0, VolumeKey = prefix + SortableKey(chapter), PlacedByNumber = true };
+            entries[index] = entries[index] with { Rank = 0, VolumeKey = prefix + SortableKey(chapter), PlacedByNumber = true };
         }
     }
 
