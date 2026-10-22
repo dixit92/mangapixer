@@ -150,8 +150,14 @@ test('desktop: number ranges behind a common prefix land on their first chapter,
     // 60 may be past what is loaded (50 cards a page): then the range cursor reloads the list from Ch. 060.
     await rail.getByRole('button', { name: '60', exact: true }).click();
     await expect.poll(() => landed(page, 'Jump Saga - Ch. 060.cbz')).toBe(true);
+    // 1.47.0: near the end of the list the page cannot scroll the range's first card up to the top row - the clicked chip stays
+    // highlighted (the scroll-spy used to move it to the range the top row belongs to).
+    await expect(rail.locator('.jump-chip.active')).toHaveText('60');
     await rail.getByRole('button', { name: 'Other', exact: true }).click();
     await expect(page.locator('.node-wrap', { hasText: 'Jump Saga - Oneshot.cbz' })).toBeInViewport();
+    await expect(rail.locator('.jump-chip.active')).toHaveText('Other');
+    await page.waitForTimeout(600); // a late scroll event must not move it either
+    await expect(rail.locator('.jump-chip.active')).toHaveText('Other');
     await expectFitsScreen(page, 'the jump rail (desktop)');
     await shot(page, 'jump-rail-desktop');
 
