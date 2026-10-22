@@ -21,7 +21,7 @@ For every chapter archive, the first rule that applies decides:
 3. **Between two known volumes.** When exactly one volume is missing from the list between two known ones, the chapters in between belong to it. A chapter inside a known volume's own span belongs to that volume.
 4. **An estimate.** When several volumes are unknown, their chapters are split evenly; after the last known volume, chapters are placed in steps of the average chapters per volume, never past the last volume the series is known to have. A stack that uses an estimate is shown as **~ Volume 12**.
 5. **Between two neighbouring volumes.** A chapter the list places in neither of two consecutive volumes (volume 1 ends at chapter 10, volume 2 starts at 12, and you have chapter 11) goes at the end of the first one.
-6. **Otherwise it stays loose**, listed after the volumes as a normal chapter ("not in a volume yet"). That is where the chapters after the newest published volume of a running series end up.
+6. **Otherwise it stays loose**, listed as a normal chapter ("not in a volume yet"), never put in a volume. *From 1.47.0* it is listed at its number among the volumes (see [What the list shows](#what-the-list-shows)); before, it was listed after all of them. That is where the chapters after the newest published volume of a running series end up.
 
 Extras (a fractional chapter such as `c045.5`) follow their whole chapter into its volume. A **split chapter** is different: when the volume list names only parts of a chapter (`4.1`, `4.2`) and not chapter 4 itself, the parts are chapter 4, and it is complete when all its parts are here (a `c004` file also covers them). It works the other way round too: when the volume list names chapter 4 but your files are its parts (`4.1`, `4.2`, `4.3`), those files are chapter 4, not extras. A file `c003` next to `c003.2` is chapter 3 in two parts. A lone `.5` (`c010.5`) stays an extra. Without a volume list, a fractional chapter is always an extra.
 
@@ -69,6 +69,8 @@ Entries are ordered **by volume**, not by file name: a chapter named `Series c01
 2. subfolders that are not merged (see below);
 3. loose chapters and other archives.
 
+*New in 1.47.0:* a loose chapter that has a number is listed **at its number between the volumes**, not after all of them. When volume 9 ends at chapter 88.3 and volume 10 starts at 91, two loose chapters 89 and 90 are listed between the two volume stacks. This is only the order: the chapters are not put in a volume, and nothing is claimed for a volume. A loose chapter goes after the last volume that starts at or before it (or first, when it comes before every volume). It stays among the other loose archives when MangaPixer cannot tell where it belongs: when a volume file whose chapters are not known sits next to the place, or when no volume has a known chapter range. Chapters without a number, other archives and (in the webtoon chapter list) everything keep their places.
+
 **Name descending** reverses the whole list; the chapters inside a stack always stay in reading order. The count above the list is the number of entries, so a stack counts once, and a stack is never split across pages.
 
 - A real volume file with no chapters of its own volume is just its card, no stack.
@@ -88,7 +90,7 @@ When a folder is linked to a series, its generic unit subfolders are merged into
 
 *New in 1.34.0.* Webtoons rarely come in volumes, and the sites MangaPixer reads seldom say which chapters a webtoon volume holds. So for a folder linked to a series that MangaUpdates marks as a **webtoon**, or to a **manhwa** or **manhua**, the view lists the **chapters** instead of guessing volumes - unless a real volume list exists (two or more volumes on MangaDex, or a Wikipedia chapter list):
 
-- The switch reads **Chapters | Folders**. **Chapters** lists the series' chapter files in chapter order (files without a chapter number at the end), merged `Chapters` subfolders included.
+- The switch reads **Chapters | Folders**. **Chapters** lists the series' chapter files in chapter order (files without a chapter number at the end), merged `Chapters` subfolders included. *New in 1.47.0:* the chapters are listed without the file extension (`0003 [0001 - Some Title]`, not `... .cbz`); **Folders** keeps the file names.
 - No **Volume N - Missing** cards, no estimated `~ Volume N` stacks, and the series status never says "volumes missing": it says which chapters you have and which are missing ("You have chapters 1-311 · 2 chapters missing"), where MangaPixer knows what is released.
 - Files whose names state their volume (`Title v02 c015`) still group into volumes, as above.
 - The completion mark works as before, by chapters.
