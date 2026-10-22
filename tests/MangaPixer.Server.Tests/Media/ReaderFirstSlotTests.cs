@@ -1,6 +1,10 @@
 namespace com.lifepixer.mangapixer.Tests.Server.Media;
 
+using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
+using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Media;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -28,14 +32,16 @@ public sealed class ReaderFirstSlotTests : IClassFixture<WorkerProcessFixture>, 
         }
     }
 
-    private MediaWorkerPool CreatePool(int maxConcurrentJobs)
+    private MediaWorkerPool CreatePool(int maxConcurrentJobs, ILoggerFactory? loggerFactory = null, TimeSpan? analysisTimeout = null)
     {
         var options = _fixture.CreatePoolOptions();
         options.MaxConcurrentJobs = maxConcurrentJobs;
         options.WorkerIdleTimeout = TimeSpan.Zero;
+        if (analysisTimeout is { } timeout)
+            options.AnalysisTimeout = timeout;
         var pool = new MediaWorkerPool(
             options, new JobScheduler(options), new ScratchWorkspaceManager(_fixture.ScratchRoot),
-            NullLogger<MediaWorkerPool>.Instance, NullLoggerFactory.Instance);
+            NullLogger<MediaWorkerPool>.Instance, loggerFactory ?? NullLoggerFactory.Instance);
         _pools.Add(pool);
         return pool;
     }
@@ -148,27 +154,108 @@ public sealed class ReaderFirstSlotTests : IClassFixture<WorkerProcessFixture>, 
         Assert.True(done.Success, $"{done.ErrorType} {done.ErrorMessage}");
     }
 
+    /// <summary>
+    /// Records the process id of every worker the pool starts, from the supervisor's "Worker process ready (pid N)"
+    /// event, so a test can pause one worker without any hook in the pool.
+    /// </summary>
+    private sealed class WorkerPidLog : ILoggerProvider, ILogger
+    {
+        private readonly List<int> _pids = [];
+
+        public IReadOnlyList<int> Pids
+        {
+            get { lock (_pids) return _pids.ToList(); }
+        }
+
+        public ILogger CreateLogger(string categoryName) => this;
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (eventId.Id != LogEvents.Worker.SupervisorHandshakeReady)
+                return;
+            var match = Regex.Match(formatter(state, exception), @"pid (\d+)");
+            if (match.Success)
+                lock (_pids) _pids.Add(int.Parse(match.Groups[1].Value));
+        }
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private static class Signals
+    {
+        private const int SigCont = 18;
+        private const int SigStop = 19;
+
+        [DllImport("libc", EntryPoint = "kill", SetLastError = true)]
+        private static extern int Kill(int pid, int signal);
+
+        /// <summary>Freezes the process: a worker mid-extract stays busy, with its job unfinished, until <see cref="Resume"/>.</summary>
+        public static void Pause(int pid) => Assert.Equal(0, Kill(pid, SigStop));
+
+        public static void Resume(int pid) => Kill(pid, SigCont);
+    }
+
     [Fact]
     public async Task WorkerCap_GrowsAndShrinks_WhileRunning()
     {
-        var pool = CreatePool(maxConcurrentJobs: 1);
+        // Process control by signal needs a Linux host, like the rest of this category's process management.
+        Assert.True(OperatingSystem.IsLinux(), "Worker process tests run on Linux.");
+
+        // 1.47.0 lane T: this test used to wait for BusyWorkerCount == 2 behind a fixed 200 ms delay. Whether the first
+        // extract was still running when the second worker finished starting depended on machine load, so under load the
+        // first one finished first and the passing state never held. Now the first extract is held by pausing its worker
+        // process (SIGSTOP): it stays busy for exactly as long as the test needs, whatever the load, and every wait below is
+        // on a state that persists until the test changes it.
+        var pids = new WorkerPidLog();
+        using var loggerFactory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Information).AddProvider(pids));
+        var pool = CreatePool(maxConcurrentJobs: 1, loggerFactory, analysisTimeout: TimeSpan.FromMinutes(5));
         await pool.StartAsync();
+        Assert.True(await WaitForAsync(() => pids.Pids.Count == 1, TimeSpan.FromSeconds(30)), "The first worker never reported ready");
+        var firstWorker = pids.Pids[0];
         var slow = _fixture.CreateSlowImageZip("rf-resize.zip", size: 2400);
 
-        var first = ExtractAsync(pool, slow, "page001.jpg", MediaSlotKind.Page);
-        Assert.True(await WaitForAsync(() => pool.BusyWorkerCount == 1, TimeSpan.FromSeconds(10)), "The first extract never took the slot");
-        var second = ExtractAsync(pool, slow, "page001.jpg", MediaSlotKind.Page);
-        await Task.Delay(200);
-        Assert.False(second.IsCompleted);
+        Task<PageExtractionOutcome>? first = null;
+        try
+        {
+            first = ExtractAsync(pool, slow, "page001.jpg", MediaSlotKind.Page);
+            Assert.True(await WaitForAsync(() => pool.BusyWorkerCount == 1, TimeSpan.FromSeconds(30)), "The first extract never took the slot");
+            Signals.Pause(firstWorker);
 
-        // A higher cap starts a worker for the waiting request at once - it does not wait for the first extract.
-        pool.SetMaxConcurrentJobs(2);
-        Assert.Equal(2, pool.MaxConcurrentJobs);
-        Assert.True(await WaitForAsync(() => pool.BusyWorkerCount == 2, TimeSpan.FromSeconds(15)), "No second worker started for the waiting request");
-        Assert.All(await Task.WhenAll(first, second), o => Assert.True(o.Success, o.ErrorType));
+            // The second request queues behind the paused extract: a cap of 1 has no other slot to give it.
+            var second = ExtractAsync(pool, slow, "page001.jpg", MediaSlotKind.Page);
+            Assert.True(await WaitForAsync(() => pool.Metrics.Snapshot().Pool.WaitingSlotCallers == 1, TimeSpan.FromSeconds(30)),
+                "The second request never queued for a slot");
+            Assert.False(second.IsCompleted);
+            Assert.Equal(1, pool.WorkerCount);
+
+            // A higher cap starts a worker for the waiting request at once - it does not wait for the first extract,
+            // which cannot finish while its worker is paused.
+            pool.SetMaxConcurrentJobs(2);
+            Assert.Equal(2, pool.MaxConcurrentJobs);
+            var served = await second.WaitAsync(TimeSpan.FromSeconds(120));
+            Assert.True(served.Success, $"{served.ErrorType} {served.ErrorMessage}");
+            Assert.False(first.IsCompleted, "The first extract finished while its worker was paused");
+            Assert.Equal(2, pool.WorkerCount);
+            Assert.Equal(1, pool.BusyWorkerCount);
+
+            Signals.Resume(firstWorker);
+            var finished = await first.WaitAsync(TimeSpan.FromSeconds(120));
+            Assert.True(finished.Success, $"{finished.ErrorType} {finished.ErrorMessage}");
+        }
+        finally
+        {
+            // Never leave a paused worker behind if an assertion failed.
+            Signals.Resume(firstWorker);
+        }
 
         // A lower cap retires the idle worker above it.
         pool.SetMaxConcurrentJobs(1);
-        Assert.True(await WaitForAsync(() => pool.WorkerCount == 1, TimeSpan.FromSeconds(10)), $"Pool still has {pool.WorkerCount} workers");
+        Assert.True(await WaitForAsync(() => pool.WorkerCount == 1, TimeSpan.FromSeconds(30)), $"Pool still has {pool.WorkerCount} workers");
     }
 }
