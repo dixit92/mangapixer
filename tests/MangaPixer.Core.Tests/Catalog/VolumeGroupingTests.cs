@@ -689,11 +689,11 @@ public sealed class VolumeGroupingTests
     [Fact]
     public void LooseChapters_StayAfterTheVolumes_WhenAVolumeFileWithUnknownChaptersBordersTheGap()
     {
-        // Volume 2 is a file with no chapter numbers: chapter 45 could be inside it, so it is not placed between volumes 1 and 3.
-        var rows = Named("Series v01 c001", "Series v01 c002", "Series v02", "Series v03 c040", "Series v03 c041", "Series c045");
+        // Volume 2 is a file with no chapter numbers: chapter 25 could be inside it, so it is not placed between volumes 1 and 3.
+        var rows = Named("Series v01 c001", "Series v01 c002", "Series v02", "Series v03 c040", "Series v03 c041", "Series c025");
         var r = VolumeGrouping.Group(rows, null);
 
-        Assert.Equal(["Volume 1", "Series v02", "Volume 3", "Series c045"], r.Entries.Select(Label));
+        Assert.Equal(["Volume 1", "Series v02", "Volume 3", "Series c025"], r.Entries.Select(Label));
         Assert.Equal(2, r.Entries[^1].Rank);
         // A chapter below the first started volume, with a volume file before it, is not placed either.
         var below = VolumeGrouping.Group(Named("Series v01", "Series v02 c010", "Series v02 c011", "Series c005"), null);
