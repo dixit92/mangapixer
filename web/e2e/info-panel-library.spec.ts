@@ -103,8 +103,8 @@ test('library root: browse -> Info -> the library\'s tags -> a chip opens the ta
   const creators = overlay.locator('[data-testid="info-bucket"][data-bucket="Creators"]');
   const writer = creators.getByTestId('info-chip').filter({ hasText: 'Test Writer' });
   await expect(writer).toBeVisible();
-  // A container counts "N here".
-  await expect(writer.getByTestId('info-chip-count')).toContainText('here');
+  // One work of the library carries it: the count stays quiet (count-of-1 rule; "N here" from 2 on).
+  await expect(writer.getByTestId('info-chip-count')).toHaveCount(0);
   await shot(page, '01-overlay-desktop');
 
   await writer.click();
