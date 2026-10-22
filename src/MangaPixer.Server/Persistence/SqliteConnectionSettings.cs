@@ -37,11 +37,12 @@ public sealed class SqliteConnectionSettingsInterceptor : DbConnectionIntercepto
 
     /// <summary>
     /// Page cache per connection, in KiB (<c>PRAGMA cache_size</c> takes a negative number for KiB). SQLite allocates cache pages only
-    /// as a connection touches them, so this is a ceiling, not a reservation. Measured on a live copy (34k catalog nodes, 1.47.0 lane S):
-    /// statements that walk or scan the catalog took 90-100 ms at the 2 MB default and at 4 or 8 MB (they re-read pages they had just
-    /// dropped, through the array's FUSE layer) and 10-13 ms at 16 MB; 32 and 64 MB gave nothing more.
+    /// as a connection touches them, so this is a ceiling, not a reservation. Measured on a live copy (1.47.0 lane S): the catalog table
+    /// is 14.2 MiB at 34k nodes, and statements whose plan scans it took 90-100 ms at the 2 MB default and at 4 or 8 MB (they re-read
+    /// pages they had just dropped, through the array's FUSE layer) and 10-13 ms at 16 MB and above. 32 MiB keeps that up to roughly
+    /// twice today's catalog.
     /// </summary>
-    public const int CacheSizeKiB = 16384;
+    public const int CacheSizeKiB = 32768;
 
     /// <summary>The statements, in order. Only approved settings (see the class remarks); the tests pin this text.</summary>
     internal static readonly string Statements =
