@@ -83,6 +83,8 @@ public sealed class WebtoonVolumesHttpTests : IClassFixture<MangaPixerWebApplica
         // 1.47.0 (owner): the Chapters view titles a chapter without its file extension.
         Assert.Equal(["0001 [0000]", "0002 [0000.5]", "0003 [0001 - Some Title]"], first.Items.Select(n => n.DisplayName));
         Assert.All(first.Items, n => Assert.Equal(CatalogNodeKind.Archive, n.Kind));
+        // The Continue row's chapter is titled the same way.
+        Assert.Equal("0001 [0000]", first.NextUnread?.DisplayName);
         Assert.StartsWith("v:", first.NextCursor);
 
         var rest = await OkAsync<PageResponse<CatalogNodeDto>>(await admin.GetAsync(
@@ -101,5 +103,6 @@ public sealed class WebtoonVolumesHttpTests : IClassFixture<MangaPixerWebApplica
         var flat = await OkAsync<PageResponse<CatalogNodeDto>>(
             await admin.GetAsync($"/api/v1/libraries/{LibPubId}/browse?parentId={SeriesPubId}&pageSize=3&group=flat"));
         Assert.Equal(["0001 [0000].cbz", "0002 [0000.5].cbz", "0003 [0001 - Some Title].cbz"], flat.Items.Select(n => n.DisplayName));
+        Assert.Equal("0001 [0000].cbz", flat.NextUnread?.DisplayName);
     }
 }

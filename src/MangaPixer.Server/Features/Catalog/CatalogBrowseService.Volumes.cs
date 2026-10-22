@@ -61,7 +61,9 @@ public sealed partial class CatalogBrowseService
             HasMore = page.HasMore,
             PrevCursor = page.PrevCursor,
             HasPrevious = page.HasPrevious,
-            NextUnread = IsFirstPage(cursor, before) ? await ResolveNextUnreadAsync(view.LibraryId, view.FolderId, userId, ct) : null,
+            NextUnread = IsFirstPage(cursor, before) && await ResolveNextUnreadAsync(view.LibraryId, view.FolderId, userId, ct) is { } next
+                ? ChapterTitled(next, view)
+                : null,
         };
     }
 
@@ -306,7 +308,11 @@ public sealed partial class CatalogBrowseService
     /// reader's own title keep their rules, and the archive itself is untouched.
     /// </summary>
     internal static CatalogNodeDto ChapterTitled(CatalogNodeDto card, VolumeEntry entry, FolderVolumeEntries view) =>
-        view.ChaptersOnly && entry.Kind == VolumeEntryKind.Archive
+        entry.Kind == VolumeEntryKind.Archive ? ChapterTitled(card, view) : card;
+
+    /// <summary>The same title rule for an archive card outside the entry list (the Continue row's next chapter).</summary>
+    internal static CatalogNodeDto ChapterTitled(CatalogNodeDto card, FolderVolumeEntries view) =>
+        view.ChaptersOnly && card.Kind == CatalogNodeKind.Archive
             ? card with { DisplayName = TitleNormalizer.StripArchiveExtension(card.DisplayName).TrimEnd() is { Length: > 0 } title ? title : card.DisplayName }
             : card;
 
