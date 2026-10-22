@@ -191,6 +191,13 @@ public sealed record VolumeEntry
     /// (its card is titled "Volume N" in the Volumes view; the folder view keeps the file name).
     /// </summary>
     public decimal? Volume { get; init; }
+
+    /// <summary>
+    /// 1.47.0: a loose chapter (no volume in its name, none from a list) listed at its NUMERIC position between the volumes, so it has
+    /// rank 0 and a position key after the volume it follows. Ordering only - it never claims a volume, and it is not a volume entry
+    /// (<see cref="VolumeGroupingResult.HasVolumes"/> ignores it).
+    /// </summary>
+    public bool PlacedByNumber { get; init; }
 }
 
 /// <summary>
@@ -209,7 +216,7 @@ public sealed record VolumeGroupingResult(IReadOnlyList<VolumeEntry> Entries, in
     public bool Grouped => StackCount > 0 || MissingVolumeCount > 0;
 
     /// <summary>At least one volume entry (a volume file, a stack or a placeholder).</summary>
-    public bool HasVolumes => Entries.Any(e => e.Rank == 0);
+    public bool HasVolumes => Entries.Any(e => e.Rank == 0 && !e.PlacedByNumber);
 }
 
 /// <summary>The pure grouping function of the Volumes view.</summary>
@@ -331,6 +338,9 @@ public static class VolumeGrouping
 
         var chapters = new List<(GroupingRow Row, UnitNumbers Units)>();
         var volumes = new List<(GroupingRow Row, UnitNumbers Units)>();
+        // 1.47.0: loose chapters that may be listed at their numeric position, and where each volume starts (chapter numbers).
+        var looseChapters = new List<(VolumeEntry Entry, decimal Chapter)>();
+        var volumeStarts = new List<(string Key, decimal Start)>();
         foreach (var row in rows)
         {
             if (row.Kind == GroupingRowKind.Folder)
@@ -407,7 +417,10 @@ public static class VolumeGrouping
                 Bucket(placed.Volume).Chapters.Add(new StackMember(row, false, chapter, u.IsExtra, placed.Placement));
                 continue;
             }
-            entries.Add(LooseArchive(row, map, chapter));
+            var loose = LooseArchive(row, map, chapter);
+            entries.Add(loose);
+            if (!map.ChaptersOnly && chapter is >= 0 and < 100_000)
+                looseChapters.Add((loose, chapter));
         }
 
         // A fractional volume file joins the end of the previous volume's stack; alone (that volume has nothing here) it stays
@@ -463,6 +476,8 @@ public static class VolumeGrouping
         foreach (var (volume, bucket) in byVolume)
         {
             var extras = bonusByVolume.GetValueOrDefault(volume) ?? [];
+            if (StartOf(volume, bucket.Chapters.Select(m => m.Chapter), resolver) is { } start)
+                volumeStarts.Add((SortableKey(volume), start));
             if (bucket.Chapters.Count == 0 && extras.Count == 0)
             {
                 // A volume archive with no chapters of its volume is a plain card (two editions: two cards).
@@ -548,16 +563,75 @@ public static class VolumeGrouping
                     });
                     missingVolumes++;
                     missingVolumeNumbers.Add(v);
+                    if (StartOf(v, [], resolver) is { } placeholderStart)
+                        volumeStarts.Add((SortableKey(v), placeholderStart));
                 }
             }
         }
 
+        PlaceLooseChapters(entries, looseChapters, volumeStarts);
         entries.Sort(Compare);
         return new VolumeGroupingResult(entries, stackCount, missingVolumes, missingChapters.Count)
         {
             MissingChapterUnits = missingChapters.Order().ToList(),
             MissingVolumeNumbers = missingVolumeNumbers,
         };
+    }
+
+    /// <summary>The first chapter number a volume holds here: its listed chapters (a list or a range) and the chapter files of its stack.</summary>
+    private static decimal? StartOf(decimal volume, IEnumerable<decimal?> stackChapters, VolumeResolver resolver)
+    {
+        decimal? start = resolver.RequiredUnits(volume) is { Count: > 0 } required ? required.Min() : null;
+        foreach (var c in stackChapters)
+        {
+            if (c is { } value && (start is null || value < start))
+                start = value;
+        }
+        return start;
+    }
+
+    /// <summary>
+    /// 1.47.0 (owner, 2026-10-22): a loose chapter goes at its numeric position between the volumes instead of after all of them: after
+    /// the last volume that starts at or before the chapter (so two chapters between a volume ending at 88.3 and one starting at 91 sit
+    /// between those volumes), or before every volume when it precedes them all. Only when the neighbour on the far side is known too: a
+    /// volume file whose chapters are unknown (a name alone) next to the gap could hold the chapter, so then the chapter stays where it
+    /// was (after the volumes), as it does when no volume has a known start. Missing-volume placeholders never block. Ordering only: the
+    /// chapter is not put in a volume and no volume is claimed. Chapters of one gap are ordered by number.
+    /// </summary>
+    private static void PlaceLooseChapters(
+        List<VolumeEntry> entries, List<(VolumeEntry Entry, decimal Chapter)> looseChapters, List<(string Key, decimal Start)> volumeStarts)
+    {
+        if (looseChapters.Count == 0 || volumeStarts.Count == 0)
+            return;
+        var started = volumeStarts.Select(v => v.Key).ToHashSet(StringComparer.Ordinal);
+        var realKeys = entries.Where(e => e.Rank == 0 && e.Kind != VolumeEntryKind.MissingVolume).Select(e => e.VolumeKey)
+            .Order(StringComparer.Ordinal).ToList();
+        var firstStarted = started.Min(StringComparer.Ordinal)!;
+        foreach (var (entry, chapter) in looseChapters)
+        {
+            string? anchor = null;
+            foreach (var (key, start) in volumeStarts)
+            {
+                if (start <= chapter && (anchor is null || string.CompareOrdinal(key, anchor) > 0))
+                    anchor = key;
+            }
+            string prefix;
+            if (anchor is not null)
+            {
+                var next = realKeys.FirstOrDefault(k => string.CompareOrdinal(k, anchor) > 0);
+                if (next is not null && !started.Contains(next))
+                    continue;
+                prefix = anchor + "~";
+            }
+            else
+            {
+                if (realKeys.Any(k => string.CompareOrdinal(k, firstStarted) < 0))
+                    continue;
+                prefix = "-"; // sorts before every volume key
+            }
+            var index = entries.IndexOf(entry);
+            entries[index] = entry with { Rank = 0, VolumeKey = prefix + SortableKey(chapter), PlacedByNumber = true };
+        }
     }
 
     /// <summary>

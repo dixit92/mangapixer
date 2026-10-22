@@ -357,9 +357,10 @@ public sealed class VolumeGroupingTests
         var r = VolumeGrouping.Group(rows, Map(false, 3, 10, (1, 1, 10)));
 
         Assert.Equal(["1", "2", "3"], Stacks(r).Select(e => e.Stack!.Key));
-        // Chapters 31..35 would be volume 4: past the known volume count they stay loose.
-        var loose = r.Entries.Where(e => e.Rank == 2).ToList();
+        // Chapters 31..35 would be volume 4: past the known volume count they stay loose (1.47.0: listed after the last volume by number).
+        var loose = r.Entries.Where(e => e.Kind == VolumeEntryKind.Archive).ToList();
         Assert.Equal(5, loose.Count);
+        Assert.All(loose, e => Assert.True(e.PlacedByNumber));
         Assert.Equal(VolumeStackConfidence.Estimated, Stacks(r)[1].Stack!.Confidence);
     }
 
@@ -609,5 +610,119 @@ public sealed class VolumeGroupingTests
         var r = VolumeGrouping.Group(rows, null);
 
         Assert.Equal(["1", "2", "3"], VolumeGrouping.StackKeys(r.Entries));
+    }
+
+    // --- 1.47.0: loose chapters at their numeric position between the volumes (owner, 2026-10-22) ---
+
+    private static List<GroupingRow> Named(params string[] names) => names.Select(n => Archive(n)).ToList();
+
+    private static string Label(VolumeEntry e) => e.Stack is { } s ? s.Label : e.Row!.Name;
+
+    /// <summary>The owner's shape: volume 9 ends at 88.3, two chapters name no volume, volume 10 starts at 91.</summary>
+    private static List<GroupingRow> OwnerShape(params string[] loose) =>
+        Named("Series v09 c086", "Series v09 c087", "Series v09 c088", "Series v09 c088.3", "Series v10 c091", "Series v10 c092", "Series v10 c093")
+            .Concat(Named(loose)).ToList();
+
+    [Fact]
+    public void LooseChapters_SitBetweenTheVolumesTheirNumbersFallBetween_NotAfterAllOfThem()
+    {
+        var r = VolumeGrouping.Group(OwnerShape("Series c090", "Series c089"), null);
+
+        // Ordered by number inside the gap, whatever the order the rows came in.
+        Assert.Equal(["Volume 9", "Series c089", "Series c090", "Volume 10"], r.Entries.Select(Label));
+        var placed = r.Entries.Where(e => e.PlacedByNumber).ToList();
+        Assert.Equal(2, placed.Count);
+        Assert.All(placed, e => Assert.Equal((VolumeEntryKind.Archive, 0, (decimal?)null), (e.Kind, e.Rank, e.Volume)));
+        Assert.True(r.Grouped);
+        Assert.True(r.HasVolumes);
+        // Ordering only: neither volume claimed the chapters.
+        var stacks = Stacks(r).Select(e => e.Stack!).ToList();
+        Assert.Equal([4, 3], stacks.Select(s => s.PresentCount));
+        Assert.DoesNotContain(stacks.SelectMany(s => s.Members), m => m.Row.Name is "Series c089" or "Series c090");
+        // The order is a total order of the position tuple, so paging walks it without a gap or a repeat.
+        var seen = new List<string>();
+        string? cursor = null;
+        for (var guard = 0; guard < 10; guard++)
+        {
+            var page = VolumePaging.Page(r.Entries, cursor, null, 1, descending: false);
+            seen.AddRange(page.Entries.Select(Label));
+            if (!page.HasMore)
+                break;
+            cursor = page.NextCursor;
+        }
+        Assert.Equal(r.Entries.Select(Label), seen);
+    }
+
+    [Fact]
+    public void LooseChapters_BeforeTheFirstVolume_AndAfterTheLastOne()
+    {
+        var rows = Named("Series v02 c010", "Series v02 c011", "Series v03 c020", "Series v03 c021", "Series c005", "Series c100", "Series c015");
+        var r = VolumeGrouping.Group(rows, null);
+
+        Assert.Equal(["Series c005", "Volume 2", "Series c015", "Volume 3", "Series c100"], r.Entries.Select(Label));
+        Assert.All(r.Entries.Where(e => e.Stack is null), e => Assert.True(e.PlacedByNumber));
+    }
+
+    [Fact]
+    public void LooseChapters_WithoutANumber_StayAfterEverythingElse()
+    {
+        var rows = OwnerShape("Series c089", "Series Art Book").Append(Folder("Season 2")).ToList();
+        var r = VolumeGrouping.Group(rows, null);
+
+        Assert.Equal(["Volume 9", "Series c089", "Volume 10", "Season 2", "Series Art Book"], r.Entries.Select(Label));
+        Assert.Equal([0, 0, 0, 1, 2], r.Entries.Select(e => e.Rank));
+        Assert.False(r.Entries[^1].PlacedByNumber);
+    }
+
+    [Fact]
+    public void LooseChapters_StayAfterTheVolumes_WhenNoVolumeKnowsItsChapters()
+    {
+        // Volume files named only by volume: nothing says which chapters they hold, so nothing is placed (as before).
+        var rows = Named("Series v01", "Series v02", "Series c005", "Series c050");
+        var r = VolumeGrouping.Group(rows, null);
+
+        Assert.Equal([0, 0, 2, 2], r.Entries.Select(e => e.Rank));
+        Assert.DoesNotContain(r.Entries, e => e.PlacedByNumber);
+        Assert.Equal(["Series c005", "Series c050"], r.Entries.Skip(2).Select(Label));
+    }
+
+    [Fact]
+    public void LooseChapters_StayAfterTheVolumes_WhenAVolumeFileWithUnknownChaptersBordersTheGap()
+    {
+        // Volume 2 is a file with no chapter numbers: chapter 45 could be inside it, so it is not placed between volumes 1 and 3.
+        var rows = Named("Series v01 c001", "Series v01 c002", "Series v02", "Series v03 c040", "Series v03 c041", "Series c045");
+        var r = VolumeGrouping.Group(rows, null);
+
+        Assert.Equal(["Volume 1", "Series v02", "Volume 3", "Series c045"], r.Entries.Select(Label));
+        Assert.Equal(2, r.Entries[^1].Rank);
+        // A chapter below the first started volume, with a volume file before it, is not placed either.
+        var below = VolumeGrouping.Group(Named("Series v01", "Series v02 c010", "Series v02 c011", "Series c005"), null);
+        Assert.Equal(2, below.Entries[^1].Rank);
+    }
+
+    [Fact]
+    public void LooseChapters_FollowAListedVolumeToo_AndMissingVolumePlaceholdersDoNotBlock()
+    {
+        // Volumes 1 and 2 are listed (1-10, 11-20), volume 4 starts at 31 and volume 3 is missing; 25 and 26 are in volume 3's range.
+        var rows = Chapters(1, 20).Concat(Chapters(31, 33)).Concat(Chapters(25, 26)).ToList();
+        var r = VolumeGrouping.Group(rows, Map(false, null, null, (1, 1, 10), (2, 11, 20), (3, 21, 30), (4, 31, 40)), markMissingVolumes: true);
+
+        // Chapters 25 and 26 are placed in volume 3 by the list (an exact one), so nothing is loose here; the view is unchanged.
+        Assert.DoesNotContain(r.Entries, e => e.PlacedByNumber);
+        Assert.Equal(["1", "2", "3", "4"], Stacks(r).Select(e => e.Stack!.Key));
+
+        // A chapter the list cannot place (past every volume it knows, no ratio) sits after the last volume, in number order.
+        var beyond = VolumeGrouping.Group(Chapters(1, 20).Concat(Named("Series c025")).ToList(), Map(false, null, null, (1, 1, 10), (2, 11, 20)), markMissingVolumes: true);
+        Assert.Equal(["Volume 1", "Volume 2", "Series c025"], beyond.Entries.Select(Label));
+        Assert.True(beyond.Entries[^1].PlacedByNumber);
+    }
+
+    [Fact]
+    public void LooseChapters_AreNotPlacedInChapterMode()
+    {
+        var rows = Named("Series v01 c001", "Series v01 c002", "Series v02 c040", "Series c020", "Series Art Book");
+        var r = VolumeGrouping.Group(rows, VolumeMapInput.Empty with { ChaptersOnly = true });
+
+        Assert.DoesNotContain(r.Entries, e => e.PlacedByNumber);
     }
 }
