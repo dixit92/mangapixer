@@ -3962,3 +3962,36 @@ export interface SplitCreatorRequest {
 export interface SetCreatorDisplayNameRequest {
   displayName?: string | null;
 }
+
+/**
+ * 1.47.0 (owner decision 10a): MangaDex records the latest-upload sweep stopped finding (taken down), from stored rows only - no
+ * request, no fallback lookup. Admin page only (Metadata Manager, Runs tab).
+ */
+export interface TakenDownRecordsDto {
+  /** How many records are missing now (`items` holds at most `limit`, oldest first). */
+  total: number;
+  limit: number;
+  items: TakenDownRecordDto[];
+}
+
+/** One MangaDex record the sweep stopped finding. */
+export interface TakenDownRecordDto {
+  recordId: string;
+  title: string;
+  /** The first sweep of the current run that left the record out of MangaDex's answer. */
+  since: string;
+  /** The last sweep that still found it, or absent when it never did. */
+  lastSeen?: string | null;
+  /** How many sweeps in a row left it out. */
+  sweeps: number;
+  /** The series here that use the record (a few; see `moreSeries`). */
+  series: TakenDownSeriesDto[];
+  moreSeries?: number;
+}
+
+/** A linked series folder whose MangaDex record is missing. */
+export interface TakenDownSeriesDto {
+  nodeId: string;
+  libraryId: string;
+  displayName: string;
+}
