@@ -94,10 +94,11 @@ public sealed class RecursiveCteRewriteEquivalenceTests : IDisposable
 
         async Task FillAsync(long lib, long? parent, int depth)
         {
-            var children = random.Next(0, depth == 0 ? 7 : 5);
+            // About 10 root nodes, then 0-4 children per folder, more folders near the top: a few dozen folders per library.
+            var children = depth == 0 ? 10 : random.Next(0, 5);
             for (var c = 0; c < children; c++)
             {
-                var folder = depth < 5 && random.NextDouble() < 0.45;
+                var folder = depth < 5 && random.NextDouble() < (depth < 2 ? 0.6 : 0.35);
                 var node = Node(lib, parent, folder ? CatalogNodeKind.Folder : CatalogNodeKind.Archive, names[random.Next(names.Length)],
                     tombstoned: random.NextDouble() < 0.15);
                 db.CatalogNodes.Add(node);

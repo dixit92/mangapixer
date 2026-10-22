@@ -149,7 +149,11 @@ public sealed class HomeCoverCacheTests : IDisposable
             await db.AppSettings.ExecuteUpdateAsync(u => u.SetProperty(s => s.MetadataVolumeCoversEnabled, true).SetProperty(s => s.CoverSpreadCropEnabled, false));
         await AssertSameForAllAsync(viewers, "the web-cover switch on, the crop switch off");
 
-        // 4. A series link and its record's poster (an automatic poster decision shows the linked record's stored image).
+        // 4. The library shows saved web covers again; a series link and its record's poster (an automatic poster decision shows the
+        // linked record's stored image).
+        await using (var db = _h.NewContext())
+            await db.Libraries.Where(l => l.Id == alpha).ExecuteUpdateAsync(u => u.SetProperty(l => l.WebCoversHidden, false));
+        await AssertSameForAllAsync(viewers, "the library shows saved web covers again");
         await WriteAsync(db => db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
         {
             NodeId = two.Id,
@@ -169,6 +173,7 @@ public sealed class HomeCoverCacheTests : IDisposable
             await db.MetadataRecords.Where(r => r.Id == record).ExecuteUpdateAsync(u => u.SetProperty(r => r.ImageState, 1).SetProperty(r => r.ImageVersion, 1));
         await AssertSameForAllAsync(viewers, "the record's poster stored");
         var poster = await CoverOfAsync(admin, two);
+        Assert.StartsWith($"/api/v1/nodes/{two.PublicId}/cover?v=", poster, StringComparison.Ordinal);
         await using (var db = _h.NewContext())
             await db.MetadataRecords.Where(r => r.Id == record).ExecuteUpdateAsync(u => u.SetProperty(r => r.ImageVersion, 2));
         await AssertSameForAllAsync(viewers, "the record's poster replaced");
