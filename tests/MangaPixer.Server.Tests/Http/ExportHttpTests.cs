@@ -62,6 +62,11 @@ public sealed class ExportHttpTests : IClassFixture<MangaPixerWebApplicationFact
                 ExternalId = $"80{i}",
                 Title = $"Export Series {i}",
                 OriginStatus = (int)MetadataOriginStatus.Ongoing,
+                // 1.47.0: series 1 credits two people (one under both roles) and an editor; the others have no creators.
+                CreatorsJson = i == 1
+                    ? "[{\"name\":\"Http Writer\",\"role\":\"author\",\"providerId\":\"515\"},{\"name\":\"Http Hand\",\"role\":\"artist\",\"providerId\":\"516\"},"
+                        + "{\"name\":\"Http Writer\",\"role\":\"artist\",\"providerId\":\"515\"},{\"name\":\"Http Editor\",\"role\":\"other\",\"providerId\":\"517\"}]"
+                    : null,
                 FetchedAt = DateTimeOffset.UtcNow,
             };
             db.MetadataRecords.Add(record);
@@ -149,6 +154,26 @@ public sealed class ExportHttpTests : IClassFixture<MangaPixerWebApplicationFact
         var since = await OkAsync(await admin.GetAsync($"/api/v1/export/metadata?library={LibPubId}&updatedSince={Uri.EscapeDataString(serverTime)}"));
         Assert.True(since.GetProperty("items").GetArrayLength() >= 1);
         Assert.Equal(JsonValueKind.Array, since.GetProperty("removed").ValueKind);
+    }
+
+    [Fact]
+    public async Task Metadata_ExportsCreatorsPerPerson_AndThePageMarker_NotOnItemsWithoutCreators()
+    {
+        var admin = await AdminAsync();
+        var page = await OkAsync(await admin.GetAsync($"/api/v1/export/metadata?library={LibPubId}"));
+
+        Assert.Equal(1, page.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal(["creators"], page.GetProperty("recordFields").EnumerateArray().Select(f => f.GetString()));
+        var records = page.GetProperty("items").EnumerateArray().ToDictionary(i => i.GetProperty("nodeId").GetString()!, i => i.GetProperty("record"));
+        var creators = records["exSeries1"].GetProperty("creators").EnumerateArray().ToList();
+        Assert.Equal([("Http Writer", "Author, Artist", 515L), ("Http Hand", "Artist", 516L)],
+            creators.Select(c => (c.GetProperty("name").GetString()!, c.GetProperty("role").GetString()!, c.GetProperty("muAuthorId").GetInt64())));
+        // No stored author row: otherNames is present and empty.
+        Assert.All(creators, c => Assert.Equal(JsonValueKind.Array, c.GetProperty("otherNames").ValueKind));
+        Assert.All(creators, c => Assert.Equal(0, c.GetProperty("otherNames").GetArrayLength()));
+        // Left out, never null and never [] for the list itself.
+        Assert.False(records["exSeries2"].TryGetProperty("creators", out _));
+        Assert.False(records["exSeries3"].TryGetProperty("creators", out _));
     }
 
     [Fact]
