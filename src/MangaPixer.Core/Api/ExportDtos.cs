@@ -61,6 +61,13 @@ public sealed record ExportMetadataPageDto
     /// </summary>
     public required ExportSweepsDto Sweeps { get; init; }
 
+    /// <summary>
+    /// 1.47.0: the optional fields of <c>items[].record</c> this server exports, as lowercase names (today <c>["creators"]</c>). A client
+    /// reads an ABSENT optional record field as "none known" when its name is listed here, and as "an older server" when it is not. A page
+    /// level value: it is not part of any item, so it never changes an item's <c>updatedAt</c>.
+    /// </summary>
+    public required IReadOnlyList<string> RecordFields { get; init; }
+
     public required ExportLibraryRefDto Library { get; init; }
     public required IReadOnlyList<ExportItemDto> Items { get; init; }
 
@@ -221,6 +228,35 @@ public sealed record ExportRecordDto
     public bool? CompletedInOrigin { get; init; }
     public required IReadOnlyList<ExportPublisherDto> EnglishPublishers { get; init; }
     public required DateTimeOffset FetchedAt { get; init; }
+
+    /// <summary>
+    /// 1.47.0: the record's creators, one entry per person (the author and artist credits of one person merge into one entry, in the order
+    /// the record first credits them; MangaUpdates' <c>other</c> credits are left out). Left out of the record when it has none, so an item
+    /// without creators keeps its exact form (and its <c>updatedAt</c>); the page's <c>recordFields</c> tells a client that "left out" means
+    /// "none known".
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<ExportCreatorDto>? Creators { get; init; }
+}
+
+/// <summary>One credited person of a record (1.47.0).</summary>
+public sealed record ExportCreatorDto
+{
+    /// <summary>The name as the record credits it.</summary>
+    public required string Name { get; init; }
+
+    /// <summary><c>Author</c>, <c>Artist</c> or <c>Author, Artist</c>.</summary>
+    public required string Role { get; init; }
+
+    /// <summary>The MangaUpdates author id (a number), or null when the credit has none (MangaDex and GCD records).</summary>
+    public long? MuAuthorId { get; init; }
+
+    /// <summary>
+    /// The person's other names (at most 50) from the stored MangaUpdates author record: its main name when that differs from the credited
+    /// one, then its other names, as stored. <c>[]</c> when none are stored (an admin has not run "Artists' other names" for the author) or
+    /// the credit has no author id.
+    /// </summary>
+    public required IReadOnlyList<string> OtherNames { get; init; }
 }
 
 /// <summary>An English publisher of the record.</summary>
