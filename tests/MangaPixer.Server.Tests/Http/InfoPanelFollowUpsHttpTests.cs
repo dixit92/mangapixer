@@ -234,22 +234,30 @@ public sealed class InfoPanelFollowUpsHttpTests : IClassFixture<MangaPixerWebApp
     public async Task ReadFilter_PagesAndCountAgree()
     {
         var seed = await SeedAsync();
+
+        // The filter is applied before the page is cut: every page counts the same 2 works, the cursor walks them once.
         var titles = new List<string>();
         string? cursor = null;
         var pages = 0;
         do
         {
-            var page = await FacetQueryTestSupport.GetAsync<SearchResultsDto>(seed.Admin, "/api/v1/search?" + F("genre", seed.Seinen)
-                + "&readState=unread&pageSize=4" + (cursor is null ? "" : "&cursor=" + Uri.EscapeDataString(cursor)));
+            var page = await FacetQueryTestSupport.GetAsync<SearchResultsDto>(seed.Reader, "/api/v1/search?" + F("genre", seed.Seinen)
+                + "&readState=unread&pageSize=1" + (cursor is null ? "" : "&cursor=" + Uri.EscapeDataString(cursor)));
             titles.AddRange(page.Works!.Select(w => w.Title));
-            Assert.Equal(6, page.TotalCount);
+            Assert.Equal(2, page.TotalCount);
             cursor = page.HasMore ? page.NextCursor : null;
             Assert.True(++pages <= 5);
         }
         while (cursor is not null);
 
         Assert.Equal(2, pages);
-        Assert.Equal(["Akira", "Berserk", "Claymore", "Dorohedoro", "Eden", "Fire Punch"], titles);
+        Assert.Equal(["Dorohedoro", "Eden"], titles);
+
+        // The admin (no read marks; sees B too): all six are unread, over pages of 4.
+        var admin = await FacetQueryTestSupport.GetAsync<SearchResultsDto>(seed.Admin, "/api/v1/search?" + F("genre", seed.Seinen)
+            + "&readState=unread&pageSize=4");
+        Assert.Equal(6, admin.TotalCount);
+        Assert.True(admin.HasMore);
     }
 
     // ---- (2) the "+N more" bucket page ----
