@@ -90,19 +90,23 @@ public sealed class RecentChaptersService
     private readonly SeriesInfoFlagService _seriesInfoFlags;
     private readonly ICoverResolver _covers;
     private readonly HomeStackCache? _stackCache;
+    private readonly HomeCoverCache? _coverCache;
     private readonly TimeProvider _time;
 
     /// <param name="stackCache">1.46.0 lane HC: the host's kept user-independent stack sources (the DI singleton); null = every request
     /// builds them (the pre-1.46.0 path, kept for service tests and as the equivalence reference).</param>
     /// <param name="time">The clock of the recency window (default: the system clock).</param>
+    /// <param name="coverCache">1.47.0 lane S: the host's kept stack covers (the DI singleton; used with <paramref name="stackCache"/>, whose
+    /// stamps key it); null = every request resolves them (the pre-1.47.0 path, the equivalence reference).</param>
     public RecentChaptersService(MangaPixerDbContext db, LibraryAuthorizationService auth, SeriesInfoFlagService? seriesInfoFlags = null,
-        ICoverResolver? covers = null, HomeStackCache? stackCache = null, TimeProvider? time = null)
+        ICoverResolver? covers = null, HomeStackCache? stackCache = null, TimeProvider? time = null, HomeCoverCache? coverCache = null)
     {
         _db = db;
         _auth = auth;
         _seriesInfoFlags = seriesInfoFlags ?? new SeriesInfoFlagService(db);
         _covers = covers ?? new FileCoverResolver(db);
         _stackCache = stackCache;
+        _coverCache = coverCache;
         _time = time ?? TimeProvider.System;
     }
 
@@ -169,8 +173,25 @@ public sealed class RecentChaptersService
         // shows the same cover as its browse card (its first descendant archive by SortKey, one recursive CTE), a loose-archive stack its
         // own cover.
         var coversPhase = PerfPhase.Start(); // measurement only
-        var covers = await _covers.ResolveUrlsAsync(
-            kept.SelectMany(k => k).Select(s => new CoverTarget(s.TopId, s.Stack.Id, s.Stack.IsFolder)).ToList(), ct);
+        // 1.47.0 lane S: kept covers (HomeCoverCache) while the cover-layer version and the library stamps are unchanged; the version is
+        // read here, before any cover row.
+        IReadOnlyDictionary<long, string> covers;
+        if (_coverCache is null || stamps is null)
+        {
+            covers = await _covers.ResolveUrlsAsync(kept.SelectMany(k => k).Select(s => new CoverTarget(s.TopId, s.Stack.Id, s.Stack.IsFolder)).ToList(), ct);
+        }
+        else
+        {
+            var layerVersion = CoverLayerVersion.Of(_db);
+            var targets = new List<(CoverTarget, HomeStackStamp)>();
+            for (var i = 0; i < libs.Count; i++)
+            {
+                var stamp = stamps[libs[i].Id];
+                foreach (var (stack, topId) in kept[i])
+                    targets.Add((new CoverTarget(topId, stack.Id, stack.IsFolder), stamp));
+            }
+            covers = await _coverCache.ResolveUrlsAsync(targets, layerVersion, _time.GetUtcNow(), _covers.ResolveUrlsAsync, ct);
+        }
         coversPhase.Lap("home.covers");
 
         var groups = new List<RecentChaptersLibraryGroup>(libs.Count);

@@ -276,7 +276,7 @@ public sealed partial class Program
             builder.Services.AddScoped<BackupService>();
             builder.Services.AddScoped<DiagnosticsService>();
             com.lifepixer.mangapixer.Server.Operations.Perf.PerfServicesExtensions.AddPerfTiming(builder.Services, builder.Configuration); // 1.46.0 lane M: measurement only, off by default
-            com.lifepixer.mangapixer.Server.Persistence.SqliteSettingsServices.AddSqliteSettings(builder.Services); // 1.47.0 lane S: periodic PRAGMA optimize, home cover cache
+            Features.Home.HomeCoverCacheServices.AddHomeCoverCache(builder.Services); // 1.47.0 lane S: the home stack covers, kept per cover-layer version
 
             // Update Checker (1.21.0) — the ONE sanctioned outbound call, OFF by
             // default. TimeProvider drives the 24h cadence gate (mockable in

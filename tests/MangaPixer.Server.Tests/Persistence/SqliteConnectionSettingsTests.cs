@@ -3,9 +3,8 @@ namespace com.lifepixer.mangapixer.Tests.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using com.lifepixer.mangapixer.Tests.Server.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging.Abstractions;
 using System.Data.Common;
 using Xunit;
 
@@ -126,31 +125,30 @@ public sealed class SqliteConnectionSettingsTests : IDisposable
                 $"PRAGMA cache_size = -{SqliteConnectionSettingsInterceptor.CacheSizeKiB}",
             ],
             statements);
-        foreach (var forbidden in new[] { "mmap", "locking_mode", "journal_mode", "OFF", "NORMAL", "writable_schema", "cell_size_check = OFF" })
+        foreach (var forbidden in new[] { "mmap", "locking_mode", "journal_mode", "OFF", "NORMAL", "writable_schema" })
             Assert.DoesNotContain(forbidden, SqliteConnectionSettingsInterceptor.Statements, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal("PRAGMA optimize = 0x10002;", SqliteOptimizer.Statement);
     }
 
     [Fact]
-    public async Task StartUp_GathersPlannerStatistics_AndThePeriodicRunIsRegistered()
+    public async Task TheRunningApp_OpensEveryConnectionWithTheSettings()
     {
-        await using var sp = Provider();
-        using var scope = sp.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
-        await db.Database.EnsureCreatedAsync();
-        await DatabaseInitialization.ConfigureDatabaseAsync(db);
-        var connection = db.Database.GetDbConnection();
-        await db.Database.OpenConnectionAsync();
-        Assert.Equal(1, Scalar(connection, "SELECT COUNT(*) FROM sqlite_master WHERE name = 'sqlite_stat1'"));
-        // The integrity of the file after it: optimize writes only SQLite's own statistics.
-        Assert.Equal("ok", Text(connection, "PRAGMA quick_check"));
-
-        // The periodic run: registered by the one Program call, and a run on a scope succeeds.
-        var services = new ServiceCollection();
-        services.AddSqliteSettings();
-        Assert.Contains(services, d => d.ServiceType == typeof(IHostedService) && d.ImplementationType == typeof(SqliteOptimizeHostedService));
-        var hosted = new SqliteOptimizeHostedService(sp.GetRequiredService<IServiceScopeFactory>(), NullLogger<SqliteOptimizeHostedService>.Instance,
-            TimeProvider.System);
-        await hosted.RunOnceAsync(CancellationToken.None);
+        // Wiring: the app's own DI registration (AuthServicesExtensions) and MangaPixerDbContext.OnConfiguring.
+        await using var factory = new MangaPixerWebApplicationFactory();
+        using var client = factory.CreateClient();
+        var scopes = Enumerable.Range(0, 3).Select(_ => factory.Services.CreateScope()).ToList();
+        try
+        {
+            foreach (var scope in scopes)
+            {
+                var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+                await db.Database.OpenConnectionAsync();
+                Assert.Equal(Expected, Settings(db.Database.GetDbConnection()));
+            }
+        }
+        finally
+        {
+            foreach (var scope in scopes)
+                scope.Dispose();
+        }
     }
 }

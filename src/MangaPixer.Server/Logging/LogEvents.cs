@@ -632,20 +632,4 @@ public static class LogEvents
         /// <summary>The warm-up stopped on an unexpected error (Warning): exception type.</summary>
         public const int WarmupFailed = 3292;
     }
-
-    /// <summary>
-    /// 1.47.0 lane S: SQLite connection settings and statistics, and the home cover cache (3250-3259, inside the 3xxx range; reserved for
-    /// lane S). Counts and timings only.
-    /// </summary>
-    public static class Sqlite
-    {
-        public const int Min = 3250;
-        public const int Max = 3259;
-
-        /// <summary><c>PRAGMA optimize</c> ran: trigger (start-up / periodic), milliseconds.</summary>
-        public const int OptimizeRan = 3250;
-
-        /// <summary><c>PRAGMA optimize</c> failed (Warning): exception type. Nothing depends on it; the next run tries again.</summary>
-        public const int OptimizeFailed = 3251;
-    }
 }

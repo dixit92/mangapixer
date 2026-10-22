@@ -3,6 +3,7 @@ namespace com.lifepixer.mangapixer.Tests.Server.Features.Catalog;
 using System.Data.Common;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Ordering;
+using com.lifepixer.mangapixer.Core.Reading;
 using com.lifepixer.mangapixer.Server.Features.Auth;
 using com.lifepixer.mangapixer.Server.Features.Catalog;
 using com.lifepixer.mangapixer.Server.Persistence;
@@ -197,6 +198,24 @@ public sealed class RecursiveCteRewriteEquivalenceTests : IDisposable
         LIMIT 1;
         """;
 
+    private const string RollupReference = """
+        WITH RECURSIVE subtree(RootId, NodeId) AS (
+            SELECT r.Id, r.Id FROM catalog_nodes r WHERE r.Id IN ({ids})
+            UNION ALL
+            SELECT s.RootId, cn.Id FROM subtree s
+            JOIN catalog_nodes cn ON cn.ParentId = s.NodeId
+        )
+        SELECT s.RootId,
+               COUNT(*) AS Total,
+               SUM(CASE WHEN rm.ItemId IS NOT NULL THEN 1 ELSE 0 END) AS ReadCount,
+               SUM(CASE WHEN rm.ItemId IS NULL AND rp.State = 1 THEN 1 ELSE 0 END) AS InProgressCount
+        FROM subtree s
+        JOIN catalog_nodes a ON a.Id = s.NodeId AND a.Kind = 1 AND a.Availability != 5
+        LEFT JOIN read_marks rm ON rm.ItemId = a.Id AND rm.UserId = $user
+        LEFT JOIN reading_progress rp ON rp.ItemId = a.Id AND rp.UserId = $user
+        GROUP BY s.RootId;
+        """;
+
     private static async Task<List<object[]>> RowsAsync(MangaPixerDbContext db, string sql, params (string Name, object? Value)[] parameters)
     {
         var connection = db.Database.GetDbConnection();
@@ -267,5 +286,38 @@ public sealed class RecursiveCteRewriteEquivalenceTests : IDisposable
             }
         }
         Assert.True(asked > 20);
+    }
+
+    [Theory]
+    [InlineData(5)]
+    [InlineData(19)]
+    [InlineData(42)]
+    public async Task ReadRollup_GivesTheReferenceCounts_ForEveryFolder_AloneAndTogether_ForEachViewer(int seed)
+    {
+        var s = await SeedAsync(seed);
+        await using var _ = s.Db;
+        var service = new CatalogBrowseService(s.Db, new LibraryAuthorizationService(s.Db));
+        var compared = 0;
+
+        async Task CompareAsync(List<long> ids, long user)
+        {
+            var reference = new Dictionary<long, FolderReadRollup>();
+            foreach (var r in await RowsAsync(s.Db, RollupReference.Replace("{ids}", string.Join(",", ids), StringComparison.Ordinal), ("$user", user)))
+            {
+                if (FolderReadRollupRules.Classify((int)(long)r[1], (int)(long)r[2], (int)(long)r[3]) is { } rollup)
+                    reference[(long)r[0]] = rollup;
+            }
+            var rewritten = await service.ResolveFolderReadRollupsAsync(ids, user, CancellationToken.None);
+            Assert.Equal(reference.OrderBy(kv => kv.Key), rewritten.OrderBy(kv => kv.Key));
+            compared += reference.Count;
+        }
+
+        foreach (var user in s.Users)
+        {
+            foreach (var (id, _) in s.Folders)
+                await CompareAsync([id], user);
+            await CompareAsync(s.Folders.Select(f => f.Id).ToList(), user);
+        }
+        Assert.True(compared > 10);
     }
 }

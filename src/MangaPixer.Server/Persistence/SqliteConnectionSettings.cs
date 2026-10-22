@@ -1,15 +1,9 @@
 namespace com.lifepixer.mangapixer.Server.Persistence;
 
 using System.Data.Common;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using com.lifepixer.mangapixer.Server.Logging;
 using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 
 /// <summary>
 /// The per-connection SQLite settings (1.47.0 lane S), applied once to every physical connection the application opens - the
@@ -28,7 +22,8 @@ using Microsoft.Extensions.Logging;
 /// </list>
 /// Never <c>mmap_size</c>, <c>locking_mode</c>, a <c>journal_mode</c> change (WAL is a property of the database file, set at start-up)
 /// or a weaker <c>synchronous</c>: appdata lives on the Unraid array (shfs / FUSE), where memory-mapped I/O is a known corruption
-/// risk. Any further PRAGMA needs the owner.
+/// risk. Any further PRAGMA needs the owner. (<c>PRAGMA optimize</c> was approved too but is not run: measured on a live copy, the
+/// statistics it gathers made SQLite pick whole-table scans for the home up-walks and its first run took ~6 s - lane S's note.)
 /// <para>
 /// Once per physical connection: a pooled connection keeps its native handle (and these settings) between opens, so the statements
 /// run only the first time a handle is seen (a weak table keyed on the handle) - EF Core opens and closes the connection around
@@ -42,9 +37,9 @@ public sealed class SqliteConnectionSettingsInterceptor : DbConnectionIntercepto
 
     /// <summary>
     /// Page cache per connection, in KiB (<c>PRAGMA cache_size</c> takes a negative number for KiB). SQLite allocates cache pages only
-    /// as a connection touches them, so this is a ceiling, not a reservation. 16 MiB holds the catalog's tree index and the rows a
-    /// library-wide recursive walk touches (the largest live library: ~11k nodes) where the 2 MB default made such a walk re-read pages
-    /// within one statement; measured in lane S's note (1.47.0).
+    /// as a connection touches them, so this is a ceiling, not a reservation. Measured on a live copy (34k catalog nodes, 1.47.0 lane S):
+    /// statements that walk or scan the catalog took 90-100 ms at the 2 MB default and at 4 or 8 MB (they re-read pages they had just
+    /// dropped, through the array's FUSE layer) and 10-13 ms at 16 MB; 32 and 64 MB gave nothing more.
     /// </summary>
     public const int CacheSizeKiB = 16384;
 
@@ -91,86 +86,5 @@ public sealed class SqliteConnectionSettingsInterceptor : DbConnectionIntercepto
         }
         Configured.AddOrUpdate(handle, Applied);
         return true;
-    }
-}
-
-/// <summary>
-/// <c>PRAGMA optimize</c> (1.47.0 lane S, owner-approved): lets SQLite gather the planner statistics (<c>sqlite_stat1</c>) for tables that
-/// have none or changed a lot since they were gathered - with the bounded sample SQLite itself picks for <c>optimize</c> - so the
-/// planner can tell a selective index (a folder's children) from a broad one (a whole library). Run once at start-up after the
-/// migrations (<see cref="DatabaseInitialization.ConfigureDatabaseAsync"/>) and then every <see cref="SqliteOptimizeHostedService.Interval"/>.
-/// It changes no row the application reads; it writes only SQLite's own statistics table.
-/// </summary>
-public static class SqliteOptimizer
-{
-    /// <summary>
-    /// <c>0x10002</c>: check EVERY table (not only those the current connection has queried - a fresh pooled connection has queried none)
-    /// and analyse the ones that need it. SQLite's documented form for start-up and periodic runs on long-lived databases.
-    /// </summary>
-    public const string Statement = "PRAGMA optimize = 0x10002;";
-
-    /// <summary>Runs <see cref="Statement"/>; returns the elapsed milliseconds.</summary>
-    public static async Task<long> RunAsync(MangaPixerDbContext db, CancellationToken ct)
-    {
-        ArgumentNullException.ThrowIfNull(db);
-        var sw = Stopwatch.StartNew();
-        await db.Database.ExecuteSqlRawAsync(Statement, ct);
-        return sw.ElapsedMilliseconds;
-    }
-}
-
-/// <summary>
-/// Runs <see cref="SqliteOptimizer"/> periodically (1.47.0 lane S): SQLite recommends it for applications that keep connections open for a
-/// long time. Cheap when nothing changed (SQLite re-analyses only tables whose size changed a lot). Logs milliseconds only.
-/// </summary>
-public sealed class SqliteOptimizeHostedService(IServiceScopeFactory scopes, ILogger<SqliteOptimizeHostedService> logger, TimeProvider time)
-    : BackgroundService
-{
-    /// <summary>How often the periodic run happens (the start-up run is part of the database initialization).</summary>
-    public static readonly TimeSpan Interval = TimeSpan.FromHours(6);
-
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            try
-            {
-                await Task.Delay(Interval, time, stoppingToken);
-            }
-            catch (OperationCanceledException)
-            {
-                return;
-            }
-            await RunOnceAsync(stoppingToken);
-        }
-    }
-
-    /// <summary>One run in its own scope; a failure is logged and never stops the service.</summary>
-    internal async Task RunOnceAsync(CancellationToken ct)
-    {
-        try
-        {
-            await using var scope = scopes.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
-            var ms = await SqliteOptimizer.RunAsync(db, ct);
-            logger.LogInformation(LogEvents.Sqlite.OptimizeRan, "SQLite optimize ran: trigger {Trigger}, {Milliseconds} ms", "periodic", ms);
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(LogEvents.Sqlite.OptimizeFailed, "SQLite optimize failed: {ExceptionType}", ex.GetType().Name);
-        }
-    }
-}
-
-/// <summary>DI registration of lane S's services (one call from <c>Program</c>).</summary>
-public static class SqliteSettingsServices
-{
-    public static IServiceCollection AddSqliteSettings(this IServiceCollection services)
-    {
-        services.AddHostedService<SqliteOptimizeHostedService>();
-        return services;
     }
 }
