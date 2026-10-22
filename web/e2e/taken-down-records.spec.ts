@@ -43,10 +43,11 @@ const answer = {
 };
 
 for (const [label, width, height] of [['desktop', 1280, 900], ['phone', 390, 844]] as const) {
-  test(`the Runs tab lists the MangaDex records taken down, from stored data only (${label})`, async ({ page }) => {
+  test(`the Runs tab lists the MangaDex records taken down, from stored data only (${label})`, async ({ page, baseURL }) => {
     await page.setViewportSize({ width, height });
+    const origin = new URL(baseURL!).origin;
     const foreign: string[] = [];
-    page.on('request', (r) => { if (!r.url().startsWith('http://localhost') && !r.url().startsWith('http://127.0.0.1') && !r.url().startsWith('data:')) foreign.push(r.url()); });
+    page.on('request', (r) => { if (!r.url().startsWith('data:') && new URL(r.url()).origin !== origin) foreign.push(r.url()); });
     await serve(page, answer);
     await login(page);
     await page.goto('/admin/metadata?tab=runs');
