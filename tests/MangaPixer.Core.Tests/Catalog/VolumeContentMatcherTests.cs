@@ -282,8 +282,8 @@ public sealed class VolumeContentMatcherTests
         Assert.Equal(9, stack.Members.Count);
         // Read from the files: the stack's source is the file names, not a list.
         Assert.Equal(VolumeListSource.FileNames, stack.Source);
-        // The other chapters stay loose: nothing estimates them without a list.
-        Assert.Equal(12, after.Entries.Count(e => e.Kind == VolumeEntryKind.Archive && e.Rank != 0));
+        // The other chapters stay loose (1.47.0: listed by their number around the stack): nothing estimates them without a list.
+        Assert.Equal(12, after.Entries.Count(e => e.Kind == VolumeEntryKind.Archive && (e.Rank != 0 || e.PlacedByNumber)));
     }
 
     [Fact]

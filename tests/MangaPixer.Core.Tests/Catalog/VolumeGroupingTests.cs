@@ -470,7 +470,8 @@ public sealed class VolumeGroupingTests
         var r = VolumeGrouping.Group(rows, Map(true, null, null, (1, 1, 10)));
 
         Assert.Equal(3, r.MissingChapterCount); // 11, 13, 14
-        Assert.Equal(2, r.Entries.Count(e => e.Rank == 2));
+        // Loose chapters (1.47.0: after the volume by their number).
+        Assert.Equal(2, r.Entries.Count(e => e.Kind == VolumeEntryKind.Archive && (e.Rank == 2 || e.PlacedByNumber)));
     }
 
     [Fact]
