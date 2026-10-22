@@ -149,6 +149,17 @@ describe('LibraryBrowseComponent smart jump rail (1.41.0)', () => {
     expect(comp.activeJump()?.label).toBe('0');
   });
 
+  it('1.47.0: a list that is shorter than the screen (nothing to scroll) keeps the clicked chip too', () => {
+    const { comp, el } = setup({ nodes: [node('c048'), node('c049'), node('c050'), node('c051')], page: { hasPrevious: true, prevCursor: 'k047' } });
+    comp.activeJump.set(comp.jumpBuckets()[1]);
+    layout(el, 100, [300, 300, 520, 520]);
+
+    scrollMetrics(900, 900, 0);
+    comp.updateActiveJump();
+
+    expect(comp.activeJump()?.label).toBe('50');
+  });
+
   it('1.47.0: at the end of the page the highlight still follows the top row when the current bucket is no longer on screen', () => {
     const { comp, el } = setup({ nodes: [node('c048'), node('c049'), node('c050'), node('c051')], page: { hasPrevious: true, prevCursor: 'k047' } });
     comp.activeJump.set(comp.jumpBuckets()[0]);
