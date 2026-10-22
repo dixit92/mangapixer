@@ -307,6 +307,7 @@ public sealed class AltTitleSearchTests : IDisposable
 /// same machine load, cache warmth and ordering; the medians are compared with a relative-plus-floor bound (max of 1.5x and +100 ms; a fixed absolute
 /// margin on the p95 of two back-to-back phases failed under parallel load, 1.47.0 lane T).
 /// </summary>
+[Collection(SerialCollection.Name)]
 public sealed class AltTitleSearchLatencyTests : IDisposable
 {
     private readonly string _tempDir = Path.Combine(Path.GetTempPath(), "mangapixer-altlat-" + Guid.NewGuid().ToString("N")[..8]);

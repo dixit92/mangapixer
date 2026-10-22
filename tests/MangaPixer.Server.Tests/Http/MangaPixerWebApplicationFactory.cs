@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Xunit;
 
@@ -40,6 +41,7 @@ public sealed class MangaPixerWebApplicationFactory : WebApplicationFactory<Prog
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), "mangapixer-http-" + Guid.NewGuid().ToString("N")[..8]);
     private readonly IReadOnlyDictionary<string, string?>? _extraConfiguration;
     private readonly bool _rateLimitDisabled;
+    private readonly bool _withoutBackgroundServices;
 
     public string DataRoot => Path.Combine(_tempRoot, "data");
     public string CacheRoot => Path.Combine(_tempRoot, "cache");
@@ -74,12 +76,23 @@ public sealed class MangaPixerWebApplicationFactory : WebApplicationFactory<Prog
         IReadOnlyDictionary<string, string?> extraConfiguration,
         bool rateLimitDisabled = true) => new(extraConfiguration, rateLimitDisabled);
 
+    /// <summary>
+    /// Creates a factory whose host runs NO hosted (background) services - no startup recovery, maintenance, backup, trash,
+    /// tracker relay, facet index, volume scan, auto-match worker and so on. A test of an HTTP surface that reads and writes
+    /// its own seeded rows then has no other writer on its database: nothing but its own requests touches the file, so a
+    /// result cannot depend on when a background pass happens to run under load (1.47.0 lane T). Not for a test that
+    /// exercises a hosted service.
+    /// </summary>
+    public static MangaPixerWebApplicationFactory WithoutBackgroundServices() => new(null, rateLimitDisabled: true, withoutBackgroundServices: true);
+
     private MangaPixerWebApplicationFactory(
         IReadOnlyDictionary<string, string?>? extraConfiguration,
-        bool rateLimitDisabled)
+        bool rateLimitDisabled,
+        bool withoutBackgroundServices = false)
     {
         _extraConfiguration = extraConfiguration;
         _rateLimitDisabled = rateLimitDisabled;
+        _withoutBackgroundServices = withoutBackgroundServices;
 
         Directory.CreateDirectory(DataRoot);
         Directory.CreateDirectory(CacheRoot);
@@ -167,6 +180,10 @@ public sealed class MangaPixerWebApplicationFactory : WebApplicationFactory<Prog
                 d => d.ImplementationType == typeof(ComicInfoBackfillHostedService));
             if (comicInfoBackfillDescriptor is not null)
                 services.Remove(comicInfoBackfillDescriptor);
+
+            // WithoutBackgroundServices(): every hosted service goes, so no background pass writes to the test's database.
+            if (_withoutBackgroundServices)
+                services.RemoveAll<IHostedService>();
         });
     }
 

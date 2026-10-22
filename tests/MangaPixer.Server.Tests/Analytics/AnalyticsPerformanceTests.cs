@@ -24,6 +24,7 @@ using Xunit.Abstractions;
 /// service-layer latency. See the feature note's Dashboard v1 section for the
 /// measured numbers and the "no rollup needed" conclusion.
 /// </summary>
+[Collection(SerialCollection.Name)]
 public sealed class AnalyticsPerformanceTests : IDisposable
 {
     private readonly string _tempDir;
