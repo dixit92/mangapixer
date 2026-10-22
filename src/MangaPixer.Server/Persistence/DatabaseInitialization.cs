@@ -59,7 +59,8 @@ public static class DatabaseInitialization
     /// </summary>
     public static async Task ConfigureDatabaseAsync(MangaPixerDbContext db, CancellationToken ct = default)
     {
-        // Enable foreign keys on every connection
+        // Enable foreign keys on this connection (1.47.0: every other connection gets the same settings from
+        // SqliteConnectionSettingsInterceptor - before, only this start-up connection had them)
         await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = ON;", ct);
 
         // WAL mode for concurrent readers + single writer
@@ -135,6 +136,17 @@ public static class DatabaseInitialization
 
         // Set the schema version so startup validation can detect incompatible databases
         await SetSchemaVersionAsync(db, CurrentSchemaVersion, ct);
+
+        // 1.47.0 lane S: planner statistics for tables that have none or changed a lot (owner-approved PRAGMA optimize). The
+        // pragmas above apply to THIS connection only; every pooled connection gets them from SqliteConnectionSettingsInterceptor.
+        // Optional: a failure must not degrade start-up (SqliteOptimizeHostedService runs it again later).
+        try
+        {
+            await SqliteOptimizer.RunAsync(db, ct);
+        }
+        catch (SqliteException)
+        {
+        }
     }
 
     /// <summary>
