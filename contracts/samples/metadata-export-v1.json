@@ -4,6 +4,9 @@
   "sweeps": {
     "mangadexLatestUpload": "2026-10-04T08:00:00.000Z"
   },
+  "recordFields": [
+    "creators"
+  ],
   "library": {
     "id": "lib0manga",
     "displayName": "Manga",
@@ -77,7 +80,24 @@
             "omnibus": false
           }
         ],
-        "fetchedAt": "2026-09-30T12:00:00.000Z"
+        "fetchedAt": "2026-09-30T12:00:00.000Z",
+        "creators": [
+          {
+            "name": "Synthetic Writer",
+            "role": "Author, Artist",
+            "muAuthorId": 20000001,
+            "otherNames": [
+              "Shinsetsu Sakka",
+              "S. Writer"
+            ]
+          },
+          {
+            "name": "Sample Illustrator",
+            "role": "Artist",
+            "muAuthorId": 20000002,
+            "otherNames": []
+          }
+        ]
       },
       "companions": {
         "mangadex": null,
@@ -154,7 +174,24 @@
             "omnibus": false
           }
         ],
-        "fetchedAt": "2026-09-30T12:00:00.000Z"
+        "fetchedAt": "2026-09-30T12:00:00.000Z",
+        "creators": [
+          {
+            "name": "Synthetic Writer",
+            "role": "Author, Artist",
+            "muAuthorId": 20000001,
+            "otherNames": [
+              "Shinsetsu Sakka",
+              "S. Writer"
+            ]
+          },
+          {
+            "name": "Sample Illustrator",
+            "role": "Artist",
+            "muAuthorId": 20000002,
+            "otherNames": []
+          }
+        ]
       },
       "companions": {
         "mangadex": "00000000-0000-4000-8000-000000000001",
@@ -402,7 +439,24 @@
             "omnibus": false
           }
         ],
-        "fetchedAt": "2026-09-30T12:00:00.000Z"
+        "fetchedAt": "2026-09-30T12:00:00.000Z",
+        "creators": [
+          {
+            "name": "Synthetic Writer",
+            "role": "Author, Artist",
+            "muAuthorId": 20000001,
+            "otherNames": [
+              "Shinsetsu Sakka",
+              "S. Writer"
+            ]
+          },
+          {
+            "name": "Sample Illustrator",
+            "role": "Artist",
+            "muAuthorId": 20000002,
+            "otherNames": []
+          }
+        ]
       },
       "companions": {
         "mangadex": "00000000-0000-4000-8000-000000000001",

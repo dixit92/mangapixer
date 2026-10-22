@@ -3077,6 +3077,8 @@ export interface ExportMetadataPageDto {
   serverTime: string;
   /** 1.45.0: the library's new-chapter confirmation times (the same on every page). */
   sweeps: ExportSweepsDto;
+  /** 1.47.0: the optional record fields this server exports (today `["creators"]`); an absent one is "none known" when listed. */
+  recordFields: string[];
   library: ExportLibraryRefDto;
   items: ExportItemDto[];
   removed: ExportRemovalDto[];
@@ -3150,6 +3152,19 @@ export interface ExportRecordDto {
   completedInOrigin?: boolean | null;
   englishPublishers: ExportPublisherDto[];
   fetchedAt: string;
+  /** 1.47.0: one entry per credited person; left out when the record has none. */
+  creators?: ExportCreatorDto[] | null;
+}
+
+/** 1.47.0: one credited person of a record. */
+export interface ExportCreatorDto {
+  name: string;
+  /** `Author`, `Artist` or `Author, Artist`. */
+  role: string;
+  /** The MangaUpdates author id, or null (MangaDex / GCD credits). */
+  muAuthorId?: number | null;
+  /** At most 50; `[]` when none are stored. */
+  otherNames: string[];
 }
 
 export interface ExportPublisherDto {

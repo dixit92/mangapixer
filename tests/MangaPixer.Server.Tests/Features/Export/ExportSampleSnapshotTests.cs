@@ -71,6 +71,22 @@ public sealed class ExportSampleSnapshotTests
             "[{\"name\":\"Synthetic Press\",\"kind\":\"english\",\"volumes\":3,\"status\":\"ongoing\"},{\"name\":\"Synthetic Original\",\"kind\":\"original\"}]",
             "5 Volumes (Ongoing)", licensed: true, refreshDays: 14);
         questRecord.AltTitlesJson = "[\"Synthetic Quest: The Journey\",\"Shinsetsu Kuesuto\"]";
+        // 1.47.0: creators - one person credited as author and artist (one entry, role "Author, Artist", other names from the stored
+        // author record), a second artist whose author record was never read ([] other names), and an editor that is left out. The saga
+        // record has no creators, so its item has no "creators" key.
+        questRecord.CreatorsJson = "[{\"name\":\"Synthetic Writer\",\"role\":\"author\",\"providerId\":\"20000001\"},"
+            + "{\"name\":\"Sample Illustrator\",\"role\":\"artist\",\"providerId\":\"20000002\"},"
+            + "{\"name\":\"Synthetic Writer\",\"role\":\"artist\",\"providerId\":\"20000001\"},"
+            + "{\"name\":\"Sample Editor\",\"role\":\"other\",\"providerId\":\"20000003\"}]";
+        db.MetadataAuthors.Add(new MetadataAuthorEntity
+        {
+            Provider = "mangaupdates",
+            ExternalId = "20000001",
+            Name = "Synthetic Writer",
+            OtherNamesJson = "[\"Shinsetsu Sakka\",\"S. Writer\"]",
+            Status = 0,
+            FetchedAt = T0.AddDays(-1),
+        });
         var sagaRecord = Record("10000000002", "Synthetic Saga", MetadataOriginStatus.Complete, 2, 12, null, "2 Volumes (Complete)", licensed: false, refreshDays: null);
         var mangadex = new MetadataRecordEntity
         {

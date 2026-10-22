@@ -1141,7 +1141,11 @@ public sealed class MetadataRecordEntity
     public bool? LicensedEn { get; set; }
     public bool? TranslationComplete { get; set; }
 
-    /// <summary><c>[{name, role}]</c>.</summary>
+    /// <summary>
+    /// <c>[{name, role, providerId?}]</c>: one entry per credit, the role lowercase (<c>author</c>, <c>artist</c> or <c>other</c>), so a
+    /// person credited as both has two entries; <c>providerId</c> is the MangaUpdates author id and is left out when the provider has none
+    /// (MangaDex, GCD). The metadata export (1.47.0, <c>record.creators</c>) groups them per person and drops <c>other</c>.
+    /// </summary>
     public string? CreatorsJson { get; set; }
     public string? GenresJson { get; set; }
 
@@ -2064,8 +2068,8 @@ public sealed class ApiTokenEntity
 /// <summary>
 /// A provider's author record (1.38.0, migration AddMetadataAuthors): today a MangaUpdates author - the main name and the other
 /// names (pen names, other spellings and scripts) - fetched by the author id a stored series record lists for a creator, only when an
-/// admin asks ("Artists' other names"). Read by Match folders by name through <c>IAuthorAliasSource</c>. Not exported; removed by
-/// "Delete fetched web data".
+/// admin asks ("Artists' other names"). Read by Match folders by name through <c>IAuthorAliasSource</c>
+/// and (1.47.0) exported as <c>record.creators[].otherNames</c>; removed by "Delete fetched web data".
 /// </summary>
 public sealed class MetadataAuthorEntity
 {

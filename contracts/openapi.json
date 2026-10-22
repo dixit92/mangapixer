@@ -14720,6 +14720,37 @@
           }
         }
       },
+      "ExportCreatorDto": {
+        "required": [
+          "name",
+          "role",
+          "otherNames"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "muAuthorId": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "otherNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "ExportDuplicateDto": {
         "required": [
           "kind",
@@ -15115,6 +15146,7 @@
           "schemaVersion",
           "serverTime",
           "sweeps",
+          "recordFields",
           "library",
           "items",
           "removed"
@@ -15135,6 +15167,12 @@
           },
           "sweeps": {
             "$ref": "#/components/schemas/ExportSweepsDto"
+          },
+          "recordFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "library": {
             "$ref": "#/components/schemas/ExportLibraryRefDto"
@@ -15342,6 +15380,15 @@
           "fetchedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "creators": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ExportCreatorDto"
+            }
           }
         }
       },
