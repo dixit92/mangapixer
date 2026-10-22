@@ -48,8 +48,14 @@ public sealed class TakenDownRecordsHttpTests
         {
             var folder = new CatalogNodeEntity
             {
-                PublicId = c.Pub, LibraryId = c.Lib.Id, Kind = (int)CatalogNodeKind.Folder, DisplayName = c.Name, RelativePath = c.Pub,
-                PathKey = c.Pub, SortKey = "0" + c.Name, CreatedAt = Base,
+                PublicId = c.Pub,
+                LibraryId = c.Lib.Id,
+                Kind = (int)CatalogNodeKind.Folder,
+                DisplayName = c.Name,
+                RelativePath = c.Pub,
+                PathKey = c.Pub,
+                SortKey = "0" + c.Name,
+                CreatedAt = Base,
             };
             db.CatalogNodes.Add(folder);
             var series = new MetadataRecordEntity { PublicId = "mu" + c.Pub, Provider = "mangaupdates", ExternalId = (next++).ToString(System.Globalization.CultureInfo.InvariantCulture), Title = "Series " + c.Pub, FetchedAt = Base };
@@ -63,19 +69,32 @@ public sealed class TakenDownRecordsHttpTests
             await db.SaveChangesAsync();
             db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
             {
-                NodeId = folder.Id, LibraryId = c.Lib.Id, State = (int)c.State, RecordId = series.Id, CreatedAt = Base, UpdatedAt = Base,
+                NodeId = folder.Id,
+                LibraryId = c.Lib.Id,
+                State = (int)c.State,
+                RecordId = series.Id,
+                CreatedAt = Base,
+                UpdatedAt = Base,
             });
             db.MetadataCompanions.Add(new MetadataCompanionEntity
             {
-                RecordId = series.Id, Provider = "mangadex", CompanionRecordId = md.Id, State = (int)CompanionState.Auto, CheckedAt = Base,
+                RecordId = series.Id,
+                Provider = "mangadex",
+                CompanionRecordId = md.Id,
+                State = (int)CompanionState.Auto,
+                CheckedAt = Base,
             });
             await db.SaveChangesAsync();
             if (!db.MangaDexLatestUploads.Any(u => u.RecordId == md.Id))
             {
                 db.MangaDexLatestUploads.Add(new MangaDexLatestUploadEntity
                 {
-                    RecordId = md.Id, ChapterId = "10000000-0000-4000-8000-000000000001", SeenAt = Base, CheckedAt = Base.AddDays(1),
-                    MissingSince = c.Since is { } d ? Base.AddDays(d) : null, MissingCount = c.Sweeps,
+                    RecordId = md.Id,
+                    ChapterId = "10000000-0000-4000-8000-000000000001",
+                    SeenAt = Base,
+                    CheckedAt = Base.AddDays(1),
+                    MissingSince = c.Since is { } d ? Base.AddDays(d) : null,
+                    MissingCount = c.Sweeps,
                 });
                 await db.SaveChangesAsync();
             }
