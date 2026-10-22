@@ -305,8 +305,9 @@ public sealed class AltTitleSearchTests : IDisposable
 /// <summary>
 /// Latency guard: the extra series query must not move search latency on a ~20k-node library.
 /// Two identical databases are measured in alternation, one with the series index and one with it emptied, so both see the
-/// same machine load, cache warmth and ordering; the medians are compared with a relative-plus-floor bound (max of 1.5x and +100 ms; a fixed absolute
-/// margin on the p95 of two back-to-back phases failed under parallel load, 1.47.0 lane T).
+/// same machine load, cache warmth and ordering. The medians are compared with a relative-plus-floor bound: the series query
+/// costs about 4 ms on this data, the bound allows max(1.5x, +40 ms), and a node scan per hit (+80 ms) fails it. A fixed
+/// absolute margin on the p95 of two back-to-back phases failed under parallel load (1.47.0 lane T).
 /// </summary>
 [Collection(SerialCollection.Name)]
 public sealed class AltTitleSearchLatencyTests(ITestOutputHelper output) : IDisposable
@@ -420,7 +421,7 @@ public sealed class AltTitleSearchLatencyTests(ITestOutputHelper output) : IDisp
 
             var medianWith = Median(withMs);
             var medianWithout = Median(withoutMs);
-            var allowed = Math.Max(medianWithout * 1.5, medianWithout + 100);
+            var allowed = Math.Max(medianWithout * 1.5, medianWithout + 40);
             output.WriteLine($"median with series index {medianWith:F1} ms, baseline {medianWithout:F1} ms, allowed {allowed:F1} ms");
             Assert.True(medianWith <= allowed,
                 $"median with series index {medianWith:F1} ms vs baseline {medianWithout:F1} ms (allowed {allowed:F1} ms)");
