@@ -77,6 +77,36 @@ public sealed record FacetChipDto
 
     /// <summary>The search filter for this chip: the value of one <c>f</c> query parameter (<c>creator:fv_...</c>).</summary>
     public required string Filter { get; init; }
+
+    /// <summary>
+    /// 1.47.0 (lane P): a creator chip's creator (<c>cr_...</c>) - the live creator the chip names, after a merge the one it was merged
+    /// into - for the admin creator routes. Left out for every other bucket and for a value with no creator.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CreatorId { get; init; }
+}
+
+/// <summary>
+/// 1.47.0 (lane P): a page of one bucket of the Info panel ("+N more"; <c>GET /api/v1/nodes/{nodeId}/info/buckets/{bucket}</c> and
+/// <c>GET /api/v1/libraries/{libraryId}/info/buckets/{bucket}</c>). The same chips, order and per-viewer counts as the panel itself: the
+/// panel's chips are the first page of the bucket (offset 0), "+N more" asks from the offset of the chips already shown.
+/// </summary>
+public sealed record FacetBucketPageDto
+{
+    public required FacetBucket Bucket { get; init; }
+
+    /// <summary>The chips from <see cref="Offset"/> on (at most the requested limit).</summary>
+    public required IReadOnlyList<FacetChipDto> Chips { get; init; }
+
+    /// <summary>Where this page starts in the bucket (0 = the first chip).</summary>
+    public required int Offset { get; init; }
+
+    /// <summary>How many chips the bucket has for this viewer (0 when the bucket has none here).</summary>
+    public required int Total { get; init; }
+
+    /// <summary>The offset of the next page; null when this page reaches the end of the bucket.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? NextOffset { get; init; }
 }
 
 /// <summary>A work as the Info panel shows it in Work mode.</summary>

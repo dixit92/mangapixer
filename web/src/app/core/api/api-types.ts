@@ -204,6 +204,8 @@ export interface FacetChipDto {
   conflict: boolean;
   /** One `f` query parameter value for the search (`creator:fv_...`). */
   filter: string;
+  /** 1.47.0: creator chips only - the live creator (`cr_...`) the chip names, for the admin creator routes. */
+  creatorId?: string | null;
 }
 
 export interface FacetBucketDto {
@@ -211,6 +213,19 @@ export interface FacetBucketDto {
   chips: FacetChipDto[];
   /** Further values beyond `chips` (container: top 12 per bucket). */
   more: number;
+}
+
+/**
+ * 1.47.0 "+N more": a page of one bucket (`GET /api/v1/nodes/{nodeId}/info/buckets/{bucket}`, `GET /api/v1/libraries/{libraryId}/info/buckets/{bucket}`),
+ * in the panel's order with the viewer's counts; the panel's chips are its first page.
+ */
+export interface FacetBucketPageDto {
+  bucket: FacetBucket;
+  chips: FacetChipDto[];
+  offset: number;
+  total: number;
+  /** The next page's offset; absent at the end of the bucket. */
+  nextOffset?: number | null;
 }
 
 export interface FacetLocationDto {

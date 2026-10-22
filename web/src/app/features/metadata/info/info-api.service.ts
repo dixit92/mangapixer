@@ -7,11 +7,16 @@ import { ApiError } from '../../../core/api/api-types';
 import {
   CreatorDto,
   CreatorSearchResultDto,
+  FacetBucket,
+  FacetBucketPageDto,
   InfoPanelDto,
   MergeCreatorRequest,
   SetCreatorDisplayNameRequest,
   SplitCreatorRequest,
 } from './info-types';
+
+/** What an Info panel is for (1.47.0): a node (a folder or archive) or a library root, which is not a node. */
+export type InfoTarget = { nodeId: string; libraryId?: undefined } | { libraryId: string; nodeId?: undefined };
 
 /**
  * The Info panel's server calls (1.45.0 lane P): the node's tags (lane Q's `GET nodes/{id}/info`) and the admin creator routes (lane F,
@@ -32,6 +37,18 @@ export class InfoApiService {
     return this.get<InfoPanelDto>(`/libraries/${encodeURIComponent(libraryId)}/info`);
   }
 
+  /**
+   * 1.47.0 "+N more": one bucket of the target's panel from `offset` on (the panel's chips are its first page), the same order and
+   * counts as the panel.
+   */
+  getBucket(target: InfoTarget, bucket: FacetBucket, offset: number, limit = 100): Observable<FacetBucketPageDto> {
+    const base = target.libraryId !== undefined
+      ? `/libraries/${encodeURIComponent(target.libraryId)}`
+      : `/nodes/${encodeURIComponent(target.nodeId)}`;
+    const params = new HttpParams().set('offset', String(offset)).set('limit', String(limit));
+    return this.get<FacetBucketPageDto>(`${base}/info/buckets/${encodeURIComponent(bucket)}`, params);
+  }
+
   // --- Admin: creators (lane F) ---
 
   /** A creator by id; a merged id answers with its target and `redirectedFrom`. */
@@ -46,11 +63,13 @@ export class InfoApiService {
   }
 
   /**
-   * The creator a creator chip stands for: a chip carries its tag value id (`fv_...`), a creator names its value (`valueId`), so the chip's
-   * name finds it. Null when no creator with that value is found.
+   * The creator a creator chip stands for. 1.47.0: the chip carries its creator's id (`creatorId`), so the creator is read by id. An
+   * answer without it (a server before 1.47.0) falls back to the chip's name: a creator names its value (`valueId`). Null when no
+   * creator is found.
    */
-  creatorForValue(valueId: string, display: string): Observable<CreatorDto | null> {
-    return this.findCreators(display, 50).pipe(map((list) => list.find((c) => c.valueId === valueId) ?? null));
+  creatorForChip(chip: { id: string; display: string; creatorId?: string | null }): Observable<CreatorDto | null> {
+    if (chip.creatorId) return this.getCreator(chip.creatorId);
+    return this.findCreators(chip.display, 50).pipe(map((list) => list.find((c) => c.valueId === chip.id) ?? null));
   }
 
   /** null or blank clears the admin's name (the automatic rule applies on the next index pass). */

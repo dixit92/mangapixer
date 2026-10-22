@@ -349,7 +349,8 @@ public sealed class CatalogController : ControllerBase
     /// 1.45.0 (tag view, lane Q): repeatable <paramref name="f"/> = <c>&lt;bucket&gt;:&lt;value id&gt;</c> (AND), and typed field syntax
     /// in <paramref name="q"/> (<c>creator:"..."</c>, <c>genre:</c>, <c>publisher:</c>, <c>magazine:</c>, <c>year:</c>, <c>type:</c>),
     /// make the search a tag view: WORK cards in <c>works</c>, the understood filters in <c>filters</c>, keyset-paged by the same
-    /// <c>cursor</c> / <c>pageSize</c> (<c>readState</c> does not apply to works). Without either, search is unchanged. A malformed
+    /// <c>cursor</c> / <c>pageSize</c>. 1.47.0 (lane P): <c>readState</c> applies to works too - a work is read by the browse folder rule
+    /// over its locations the viewer may see (<c>QueryWorkReadState</c>). Without either, search is unchanged. A malformed
     /// <c>f</c> is 400 <c>invalid_filter</c>; a value the viewer cannot see answers like an unknown one (empty).
     /// </remarks>
     [HttpGet("search")]
@@ -379,7 +380,8 @@ public sealed class CatalogController : ControllerBase
         {
             try
             {
-                return Ok(await facetSearch.SearchAsync(userId.Value, _incognito.IsIncognito, q, f, libId, cursor, pageSize, ct));
+                return Ok(await facetSearch.SearchAsync(
+                    userId.Value, _incognito.IsIncognito, q, f, libId, cursor, pageSize, ParseReadState(readState), ct));
             }
             catch (Metadata.Facets.FacetFilterFormatException ex)
             {
