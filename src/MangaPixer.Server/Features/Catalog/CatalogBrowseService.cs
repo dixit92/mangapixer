@@ -1650,12 +1650,17 @@ public sealed partial class CatalogBrowseService
             // browsing the library root); recursion reaches every descendant. Only
             // not-read archives (no read-mark) are candidates. An in-progress one wins
             // (resume the most recently updated); otherwise the first by SortKey.
-            command.CommandText = """
+            // 1.47.0 lane S: the seed names its own form. The former `($parent IS NULL AND ParentId IS NULL) OR ParentId = $parent` could
+            // not use the ParentId index for a bound parameter, so a folder's walk started by reading the WHOLE library through the
+            // LibraryId index (~11k rows in the largest live library) to find that folder's children. A folder seeds from its children
+            // (`+LibraryId`: the same filter, kept off the index); the root form is unchanged.
+            var seed = parentId is null
+                ? "cn.LibraryId = $lib AND cn.Availability != 5 AND cn.ParentId IS NULL"
+                : "+cn.LibraryId = $lib AND cn.Availability != 5 AND cn.ParentId = $parent";
+            command.CommandText = $"""
                 WITH RECURSIVE descendants(NodeId) AS (
                     SELECT cn.Id FROM catalog_nodes cn
-                    WHERE cn.LibraryId = $lib
-                      AND cn.Availability != 5
-                      AND (($parent IS NULL AND cn.ParentId IS NULL) OR cn.ParentId = $parent)
+                    WHERE {seed}
                     UNION ALL
                     SELECT cn.Id FROM descendants d
                     JOIN catalog_nodes cn ON cn.ParentId = d.NodeId
@@ -1692,10 +1697,13 @@ public sealed partial class CatalogBrowseService
             libParam.Value = libraryId;
             command.Parameters.Add(libParam);
 
-            var parentParam = command.CreateParameter();
-            parentParam.ParameterName = "$parent";
-            parentParam.Value = (object?)parentId ?? DBNull.Value;
-            command.Parameters.Add(parentParam);
+            if (parentId is not null)
+            {
+                var parentParam = command.CreateParameter();
+                parentParam.ParameterName = "$parent";
+                parentParam.Value = parentId.Value;
+                command.Parameters.Add(parentParam);
+            }
 
             var userParam = command.CreateParameter();
             userParam.ParameterName = "$user";

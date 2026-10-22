@@ -70,7 +70,7 @@ public sealed class SqliteConnectionSettingsTests : IDisposable
         using (var scope = sp.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
-            await db.Database.MigrateAsync();
+            await db.Database.EnsureCreatedAsync();
             await DatabaseInitialization.ConfigureDatabaseAsync(db);
         }
 
@@ -137,7 +137,7 @@ public sealed class SqliteConnectionSettingsTests : IDisposable
         await using var sp = Provider();
         using var scope = sp.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
-        await db.Database.MigrateAsync();
+        await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
         var connection = db.Database.GetDbConnection();
         await db.Database.OpenConnectionAsync();
