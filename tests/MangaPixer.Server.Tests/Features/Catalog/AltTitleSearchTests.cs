@@ -8,6 +8,7 @@ using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
+using Xunit.Abstractions;
 
 /// <summary>
 /// Service-with-DB tests for alt-title search (1.26.0): the series_search triggers
@@ -308,7 +309,7 @@ public sealed class AltTitleSearchTests : IDisposable
 /// margin on the p95 of two back-to-back phases failed under parallel load, 1.47.0 lane T).
 /// </summary>
 [Collection(SerialCollection.Name)]
-public sealed class AltTitleSearchLatencyTests : IDisposable
+public sealed class AltTitleSearchLatencyTests(ITestOutputHelper output) : IDisposable
 {
     private readonly string _tempDir = Path.Combine(Path.GetTempPath(), "mangapixer-altlat-" + Guid.NewGuid().ToString("N")[..8]);
 
@@ -420,6 +421,7 @@ public sealed class AltTitleSearchLatencyTests : IDisposable
             var medianWith = Median(withMs);
             var medianWithout = Median(withoutMs);
             var allowed = Math.Max(medianWithout * 1.5, medianWithout + 100);
+            output.WriteLine($"median with series index {medianWith:F1} ms, baseline {medianWithout:F1} ms, allowed {allowed:F1} ms");
             Assert.True(medianWith <= allowed,
                 $"median with series index {medianWith:F1} ms vs baseline {medianWithout:F1} ms (allowed {allowed:F1} ms)");
         }
