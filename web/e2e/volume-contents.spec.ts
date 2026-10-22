@@ -73,12 +73,16 @@ test('the chapters inside a volume file join its stack, and the volume says so',
   // Before the scan nothing groups (one volume file, loose chapters): the folder lists its files.
   await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
   const volume = page.locator('.node-wrap', { hasText: 'Volume 2' });
-  // The scan runs in the background: reload until the volume file and the chapters found inside are one stack.
+  // The scan runs in the background. Wait for it on the API (the same Volumes-view browse the page makes, which also puts the folder
+  // first in the scan queue) instead of reloading the page every few seconds: the server of Verify-E2E.ps1 starts the scan at once
+  // and retries every 5 s, so the stack shows within seconds; the 120 s only covers a runner that left the quiet-server timers.
   await expect.poll(async () => {
-    await page.reload();
-    await page.locator('.node-wrap').first().waitFor();
-    return page.locator('app-stack-card').count();
-  }, { timeout: 120_000, intervals: [2000, 3000, 5000] }).toBe(1);
+    const view = await (await page.request.get(`/api/v1/libraries/${libraryId}/browse?parentId=${folderId}&pageSize=50&group=volumes`)).json();
+    return ((view.items ?? []) as Node[]).filter((n) => n.kind === 'VolumeStack').length;
+  }, { timeout: 120_000, intervals: [1000, 2000, 3000] }).toBe(1);
+  await page.reload();
+  await page.locator('.node-wrap').first().waitFor();
+  await expect(page.locator('app-stack-card')).toHaveCount(1);
   await expect(volume).toBeVisible();
   await expect(volume.locator('.node-sub')).toContainText('2 chapters');
   // Chapter 11 is not inside: it stays a loose chapter after the volumes.
