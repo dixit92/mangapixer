@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
@@ -41,7 +42,10 @@ describe('TakenDownRecordsComponent', () => {
     expect(rows[0].textContent).toContain('Older Takedown');
     expect(rows[0].textContent).toContain('Shelf Old, Shelf Twin');
     expect(rows[0].textContent).toContain('and 2 more');
-    expect(rows[0].querySelector('[data-testid="taken-down-since"]')!.textContent).toMatch(/Missing since Oct 4, 2026 · 7 checks in a row · last found Oct 3, 2026/);
+    // The dates read in the viewer's time zone (as the pipe does), so the expectation uses the same pipe.
+    const day = (iso: string) => new DatePipe('en-US').transform(iso, 'mediumDate');
+    expect(rows[0].querySelector('[data-testid="taken-down-since"]')!.textContent!.replace(/\s+/g, ' ').trim())
+      .toBe(`Missing since ${day('2026-10-04T06:00:00Z')} · 7 checks in a row · last found ${day('2026-10-03T06:00:00Z')}`);
     // Never found since the record was stored: no "last found"; a single check reads in the singular.
     const second = rows[1].querySelector('[data-testid="taken-down-since"]')!.textContent!;
     expect(second).toContain('1 check in a row');
