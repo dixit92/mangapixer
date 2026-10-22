@@ -80,7 +80,8 @@ public sealed class WebtoonVolumesHttpTests : IClassFixture<MangaPixerWebApplica
         var first = await OkAsync<PageResponse<CatalogNodeDto>>(
             await admin.GetAsync($"/api/v1/libraries/{LibPubId}/browse?parentId={SeriesPubId}&pageSize=3"));
         Assert.Equal(21, first.TotalCount); // 0, 0.5 and 1-20 without 9
-        Assert.Equal(["0001 [0000].cbz", "0002 [0000.5].cbz", "0003 [0001 - Some Title].cbz"], first.Items.Select(n => n.DisplayName));
+        // 1.47.0 (owner): the Chapters view titles a chapter without its file extension.
+        Assert.Equal(["0001 [0000]", "0002 [0000.5]", "0003 [0001 - Some Title]"], first.Items.Select(n => n.DisplayName));
         Assert.All(first.Items, n => Assert.Equal(CatalogNodeKind.Archive, n.Kind));
         Assert.StartsWith("v:", first.NextCursor);
 
@@ -88,6 +89,17 @@ public sealed class WebtoonVolumesHttpTests : IClassFixture<MangaPixerWebApplica
             $"/api/v1/libraries/{LibPubId}/browse?parentId={SeriesPubId}&pageSize=50&cursor={Uri.EscapeDataString(first.NextCursor!)}"));
         Assert.Equal(18, rest.Items.Count);
         Assert.DoesNotContain(rest.Items, n => n.Kind == CatalogNodeKind.VolumeStack);
-        Assert.Equal("0022 [0020 - Some Title].cbz", rest.Items[^1].DisplayName);
+        Assert.Equal("0022 [0020 - Some Title]", rest.Items[^1].DisplayName);
+        Assert.DoesNotContain(rest.Items.Concat(first.Items), n => n.DisplayName.EndsWith(".cbz", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task TheFolderView_OfTheSameWebtoon_KeepsTheFileNamesWithTheirExtension()
+    {
+        var admin = await AdminAsync();
+
+        var flat = await OkAsync<PageResponse<CatalogNodeDto>>(
+            await admin.GetAsync($"/api/v1/libraries/{LibPubId}/browse?parentId={SeriesPubId}&pageSize=3&group=flat"));
+        Assert.Equal(["0001 [0000].cbz", "0002 [0000.5].cbz", "0003 [0001 - Some Title].cbz"], flat.Items.Select(n => n.DisplayName));
     }
 }
