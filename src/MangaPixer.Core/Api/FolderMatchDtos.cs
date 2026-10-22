@@ -144,6 +144,12 @@ public sealed record FolderMatchApplyItem
 
     /// <summary>Collections: the stored record's id. Artists (1.45.0): the picked MangaUpdates author id.</summary>
     public string? ExternalId { get; init; }
+
+    /// <summary>
+    /// Artists (1.47.0): true when <see cref="ExternalId"/> is the author id of a LOCAL match from the preview (stored records), not a
+    /// pick from the author search - the audit result is then <c>local_author_match</c> instead of <c>author_search</c>. Only a label.
+    /// </summary>
+    public bool LocalMatch { get; init; }
 }
 
 /// <summary>

@@ -1759,6 +1759,8 @@ export interface FolderMatchApplyItem {
   role?: string | null;
   provider?: string | null;
   externalId?: string | null;
+  /** Artists (1.47.0): the id is from a local match of the preview (audit `local_author_match`), not an author search pick. */
+  localMatch?: boolean;
 }
 
 export interface FolderMatchApplyRequest {

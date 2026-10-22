@@ -493,7 +493,7 @@ export class FolderMatchDialogComponent implements OnDestroy {
         const artist = (r.row.artists ?? [])[r.pick];
         if (artist) {
           items.push(artist.authorId
-            ? { nodeId: r.row.nodeId, name: artist.name, role: artist.role, provider: 'mangaupdates', externalId: artist.authorId }
+            ? { nodeId: r.row.nodeId, name: artist.name, role: artist.role, provider: 'mangaupdates', externalId: artist.authorId, localMatch: true }
             : { nodeId: r.row.nodeId, name: artist.name, role: artist.role });
         }
         else if (r.row.status === 'NoMatch' && r.ownName) items.push({ nodeId: r.row.nodeId });
