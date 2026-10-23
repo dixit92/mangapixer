@@ -661,17 +661,7 @@ public sealed class RecentChaptersService
             // 1.47.0 lane S2: CROSS JOIN keeps the walk as the outer loop (one primary-key lookup per walked row); with a plain JOIN
             // SQLite 3.53 scanned ALL of catalog_nodes behind a bloom filter (live copy: 14.2 -> 4.6 ms for 27 stacks). Same rows; the
             // caller only counts them per stack and tests membership.
-            command.CommandText = $"""
-                WITH RECURSIVE subtree(RootId, NodeId) AS (
-                    SELECT r.Id, r.Id FROM catalog_nodes r WHERE r.Id IN ({ids})
-                    UNION ALL
-                    SELECT s.RootId, cn.Id FROM subtree s
-                    JOIN catalog_nodes cn ON cn.ParentId = s.NodeId
-                )
-                SELECT s.RootId, a.Id
-                FROM subtree s
-                CROSS JOIN catalog_nodes a ON a.Id = s.NodeId AND a.Kind = 1 AND a.Availability != 5;
-                """;
+            command.CommandText = ReadableArchivesSql(ids);
 
             using var reader = await command.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
@@ -683,6 +673,19 @@ public sealed class RecentChaptersService
         }
         return found.ToDictionary(kv => kv.Key, kv => kv.Value.ToArray());
     }
+
+    /// <summary>The statement of <see cref="ReadableArchivesAsync"/> for an id list (1.47.0 lane S2: the equivalence test runs it).</summary>
+    internal static string ReadableArchivesSql(string ids) => $"""
+            WITH RECURSIVE subtree(RootId, NodeId) AS (
+                SELECT r.Id, r.Id FROM catalog_nodes r WHERE r.Id IN ({ids})
+                UNION ALL
+                SELECT s.RootId, cn.Id FROM subtree s
+                JOIN catalog_nodes cn ON cn.ParentId = s.NodeId
+            )
+            SELECT s.RootId, a.Id
+            FROM subtree s
+            CROSS JOIN catalog_nodes a ON a.Id = s.NodeId AND a.Kind = 1 AND a.Availability != 5;
+        """;
 
     /// <summary>
     /// Whether a stack matches the read-state filter by its stack node's read rollup.

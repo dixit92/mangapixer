@@ -623,6 +623,18 @@ public sealed class MetadataReviewService
 
     private sealed record ArchiveNameRow(long Root, long ParentId, string ParentName, string Name);
 
+    /// <summary>The statement of <see cref="DuplicatesAsync"/> for an id list (1.47.0 lane S2: the equivalence test runs it).</summary>
+    internal static string DuplicatesSql(string ids) => $"""
+            WITH RECURSIVE sub(root, id) AS (
+                SELECT n."Id", n."Id" FROM catalog_nodes n WHERE n."Id" IN ({ids})
+                UNION ALL
+                SELECT sub.root, c."Id" FROM catalog_nodes c JOIN sub ON c."ParentId" = sub.id WHERE c."Availability" != 5
+            )
+            SELECT sub.root AS "Root", c."ParentId" AS "ParentId", p."DisplayName" AS "ParentName", c."DisplayName" AS "Name"
+            FROM sub CROSS JOIN catalog_nodes c ON c."Id" = sub.id JOIN catalog_nodes p ON p."Id" = c."ParentId"
+            WHERE c."Kind" = 1
+        """;
+
     /// <summary>
     /// Duplicate chapter and volume numbers below each folder (1.31.0): the live archives are compared per directory (a number in two
     /// different folders is not a duplicate - seasons restart), as the Volumes view and the Missing report read the names. Names
@@ -637,16 +649,7 @@ public sealed class MetadataReviewService
             return [];
         var ids = string.Join(',', folderIds.Select(i => i.ToString(CultureInfo.InvariantCulture)));
 #pragma warning disable EF1002
-        var rows = await _db.Database.SqlQueryRaw<ArchiveNameRow>($"""
-            WITH RECURSIVE sub(root, id) AS (
-                SELECT n."Id", n."Id" FROM catalog_nodes n WHERE n."Id" IN ({ids})
-                UNION ALL
-                SELECT sub.root, c."Id" FROM catalog_nodes c JOIN sub ON c."ParentId" = sub.id WHERE c."Availability" != 5
-            )
-            SELECT sub.root AS "Root", c."ParentId" AS "ParentId", p."DisplayName" AS "ParentName", c."DisplayName" AS "Name"
-            FROM sub CROSS JOIN catalog_nodes c ON c."Id" = sub.id JOIN catalog_nodes p ON p."Id" = c."ParentId"
-            WHERE c."Kind" = 1
-            """).ToListAsync(ct);
+        var rows = await _db.Database.SqlQueryRaw<ArchiveNameRow>(DuplicatesSql(ids)).ToListAsync(ct);
 #pragma warning restore EF1002
         var result = new Dictionary<long, (int Chapters, int Volumes)>();
         foreach (var byRoot in rows.GroupBy(r => r.Root))

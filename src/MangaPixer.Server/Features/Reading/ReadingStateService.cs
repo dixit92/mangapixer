@@ -637,19 +637,7 @@ public sealed class ReadingStateService
         try
         {
             using var command = connection.CreateCommand();
-            command.CommandText = """
-                WITH RECURSIVE descendants(Id) AS (
-                    SELECT Id FROM catalog_nodes WHERE ParentId = $root
-                    UNION ALL
-                    SELECT cn.Id FROM catalog_nodes cn
-                    JOIN descendants d ON cn.ParentId = d.Id
-                )
-                SELECT cn.Id
-                FROM descendants d
-                CROSS JOIN catalog_nodes cn ON cn.Id = d.Id
-                WHERE cn.Kind = 1 AND cn.Availability != 5
-                ORDER BY cn.Id;
-                """;
+            command.CommandText = DescendantArchivesSql;
             var p = command.CreateParameter();
             p.ParameterName = "$root";
             p.Value = folderNodeId;
@@ -665,6 +653,21 @@ public sealed class ReadingStateService
         }
         return ids;
     }
+
+    /// <summary>The statement of <see cref="GetDescendantArchiveIdsAsync"/> (parameter <c>$root</c>; 1.47.0 lane S2: the equivalence test runs it).</summary>
+    internal const string DescendantArchivesSql = """
+        WITH RECURSIVE descendants(Id) AS (
+            SELECT Id FROM catalog_nodes WHERE ParentId = $root
+            UNION ALL
+            SELECT cn.Id FROM catalog_nodes cn
+            JOIN descendants d ON cn.ParentId = d.Id
+        )
+        SELECT cn.Id
+        FROM descendants d
+        CROSS JOIN catalog_nodes cn ON cn.Id = d.Id
+        WHERE cn.Kind = 1 AND cn.Availability != 5
+        ORDER BY cn.Id;
+        """;
 
     /// <summary>
     /// Gets continue-reading items for a user (in-progress, most recently updated first).

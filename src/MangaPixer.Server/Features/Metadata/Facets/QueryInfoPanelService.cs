@@ -207,7 +207,10 @@ public sealed class InfoPanelService
     // SQLite 3.53 scanned ALL of facet_entries behind a bloom filter (live copy, the largest category folder: 9.4 -> 4.9 ms). Same rows;
     // the panel groups and fully sorts them (a container by place, so no row is taken by position).
     private Task<List<Entry>> EntriesBelowAsync(long nodeId, CancellationToken ct) =>
-        QuerySql.ReadAsync(_db, $"""
+        QuerySql.ReadAsync(_db, EntriesBelowSql, new Dictionary<string, object?> { ["@node"] = nodeId }, ReadEntry, ct);
+
+    /// <summary>The statement of <see cref="EntriesBelowAsync"/> (parameter <c>@node</c>; 1.47.0 lane S2: the equivalence test runs it).</summary>
+    internal static readonly string EntriesBelowSql = $"""
             WITH RECURSIVE below(Id) AS (
                 SELECT Id FROM catalog_nodes WHERE ParentId = @node
                 UNION ALL
@@ -217,7 +220,7 @@ public sealed class InfoPanelService
             FROM below
             CROSS JOIN facet_entries e ON e.LocationNodeId = below.Id
             JOIN catalog_nodes n ON n.Id = e.LocationNodeId AND n.Availability != {QuerySql.Tombstoned}
-            """, new Dictionary<string, object?> { ["@node"] = nodeId }, ReadEntry, ct);
+        """;
 
     /// <summary>The node's ancestors, nearest first (64 levels at most).</summary>
     private async Task<List<long>> AncestorsAsync(long nodeId, CancellationToken ct)
