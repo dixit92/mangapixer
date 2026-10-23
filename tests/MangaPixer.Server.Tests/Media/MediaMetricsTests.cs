@@ -1,6 +1,9 @@
 namespace com.lifepixer.mangapixer.Tests.Server.Media;
 
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using System.Runtime.CompilerServices;
 using com.lifepixer.mangapixer.Server.Media;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -28,6 +31,58 @@ public sealed class MediaMetricsTests
         Assert.Equal(MediaMetrics.BucketBoundsMs.Count + 1, t.BucketCounts.Count);
         Assert.Equal(10, t.BucketCounts.Sum());
         Assert.Equal(3, t.BucketCounts[2]); // <=5 ms: 3, 4, 4
+    }
+
+    /// <summary>
+    /// 1.47.0 lane T2: the admin diagnostics snapshot (and the Debug summary line) sorts the timings and counts while the media pool
+    /// records them. A LINQ sort straight over a <c>ConcurrentDictionary</c> copies it by <c>Count</c> + <c>CopyTo</c>, which throws
+    /// <see cref="ArgumentException"/> when the first value of a new name / kind arrives in between - a 500 on the diagnostics GET.
+    /// Writers add new kinds the whole time; a fresh instance replaces one with many keys so each snapshot stays quick.
+    /// </summary>
+    [Fact]
+    public void Snapshot_WhileNewKindsArrive_NeverThrows()
+    {
+        var current = new StrongBox<MediaMetrics>(new MediaMetrics());
+        var all = new ConcurrentQueue<MediaMetrics>([current.Value!]);
+        var stop = 0;
+        var writers = new[]
+        {
+            new Thread(() =>
+            {
+                for (var i = 0; Volatile.Read(ref stop) == 0; i++)
+                    Volatile.Read(ref current.Value)!.RecordMs(MediaMetrics.SlotWait, $"k{i}", 1);
+            }),
+            new Thread(() =>
+            {
+                for (var i = 0; Volatile.Read(ref stop) == 0; i++)
+                    Volatile.Read(ref current.Value)!.Count(MediaMetrics.SlotOutcome, $"k{i}");
+            }),
+        };
+        foreach (var writer in writers)
+            writer.Start();
+        try
+        {
+            var snapshots = 0;
+            for (var watch = Stopwatch.StartNew(); watch.Elapsed < TimeSpan.FromSeconds(2); snapshots++)
+            {
+                var snapshot = Volatile.Read(ref current.Value)!.Snapshot();
+                if (snapshot.Timings.Count + snapshot.Counts.Count >= 3000)
+                {
+                    var next = new MediaMetrics();
+                    all.Enqueue(next);
+                    Volatile.Write(ref current.Value, next);
+                }
+            }
+            Assert.True(snapshots > 10, $"only {snapshots} snapshots");
+        }
+        finally
+        {
+            Volatile.Write(ref stop, 1);
+            foreach (var writer in writers)
+                writer.Join();
+            foreach (var metrics in all)
+                metrics.Dispose();
+        }
     }
 
     [Fact]
