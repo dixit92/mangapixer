@@ -2,7 +2,6 @@ namespace com.lifepixer.mangapixer.Tests.Server.Operations;
 
 using System.Diagnostics;
 using System.Net.Http.Json;
-using System.Runtime.CompilerServices;
 using System.Text.Json;
 using com.lifepixer.mangapixer.Server.Operations.Perf;
 using com.lifepixer.mangapixer.Tests.Server.Http;
@@ -85,20 +84,20 @@ public sealed class PerfTimingHttpTests
     [Fact]
     public void Snapshot_WhileNewStatementsAndRoutesArrive_NeverThrows()
     {
-        var current = new StrongBox<PerfRecorder>(new PerfRecorder(enabled: false));
+        var current = new[] { new PerfRecorder(enabled: false) }; // one slot, swapped with Volatile
         var stop = 0;
         var writers = new[]
         {
             new Thread(() =>
             {
                 for (var i = 0; Volatile.Read(ref stop) == 0; i++)
-                    Volatile.Read(ref current.Value)!.RecordCommand($"SELECT c{i}x FROM t", 0.5, 1);
+                    Volatile.Read(ref current[0]).RecordCommand($"SELECT c{i}x FROM t", 0.5, 1);
             }),
             new Thread(() =>
             {
                 for (var i = 0; Volatile.Read(ref stop) == 0; i++)
                 {
-                    var recorder = Volatile.Read(ref current.Value)!;
+                    var recorder = Volatile.Read(ref current[0]);
                     recorder.EndRequest(recorder.BeginRequest(), $"GET api/v1/r{i}x", 1);
                 }
             }),
@@ -110,9 +109,9 @@ public sealed class PerfTimingHttpTests
             var snapshots = 0;
             for (var watch = Stopwatch.StartNew(); watch.Elapsed < TimeSpan.FromSeconds(2); snapshots++)
             {
-                var snapshot = Volatile.Read(ref current.Value)!.Snapshot();
+                var snapshot = Volatile.Read(ref current[0]).Snapshot();
                 if (snapshot.Statements.Length >= 1500 || snapshot.Routes.Length >= 3000)
-                    Volatile.Write(ref current.Value, new PerfRecorder(enabled: false));
+                    Volatile.Write(ref current[0], new PerfRecorder(enabled: false));
             }
             Assert.True(snapshots > 10, $"only {snapshots} snapshots");
         }

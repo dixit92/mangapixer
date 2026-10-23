@@ -3,7 +3,6 @@ namespace com.lifepixer.mangapixer.Tests.Server.Media;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
-using System.Runtime.CompilerServices;
 using com.lifepixer.mangapixer.Server.Media;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -42,20 +41,20 @@ public sealed class MediaMetricsTests
     [Fact]
     public void Snapshot_WhileNewKindsArrive_NeverThrows()
     {
-        var current = new StrongBox<MediaMetrics>(new MediaMetrics());
-        var all = new ConcurrentQueue<MediaMetrics>([current.Value!]);
+        var current = new[] { new MediaMetrics() }; // one slot, swapped with Volatile
+        var all = new ConcurrentQueue<MediaMetrics>(current);
         var stop = 0;
         var writers = new[]
         {
             new Thread(() =>
             {
                 for (var i = 0; Volatile.Read(ref stop) == 0; i++)
-                    Volatile.Read(ref current.Value)!.RecordMs(MediaMetrics.SlotWait, $"k{i}", 1);
+                    Volatile.Read(ref current[0]).RecordMs(MediaMetrics.SlotWait, $"k{i}", 1);
             }),
             new Thread(() =>
             {
                 for (var i = 0; Volatile.Read(ref stop) == 0; i++)
-                    Volatile.Read(ref current.Value)!.Count(MediaMetrics.SlotOutcome, $"k{i}");
+                    Volatile.Read(ref current[0]).Count(MediaMetrics.SlotOutcome, $"k{i}");
             }),
         };
         foreach (var writer in writers)
@@ -65,12 +64,12 @@ public sealed class MediaMetricsTests
             var snapshots = 0;
             for (var watch = Stopwatch.StartNew(); watch.Elapsed < TimeSpan.FromSeconds(2); snapshots++)
             {
-                var snapshot = Volatile.Read(ref current.Value)!.Snapshot();
+                var snapshot = Volatile.Read(ref current[0]).Snapshot();
                 if (snapshot.Timings.Count + snapshot.Counts.Count >= 3000)
                 {
                     var next = new MediaMetrics();
                     all.Enqueue(next);
-                    Volatile.Write(ref current.Value, next);
+                    Volatile.Write(ref current[0], next);
                 }
             }
             Assert.True(snapshots > 10, $"only {snapshots} snapshots");
