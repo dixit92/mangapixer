@@ -58,6 +58,14 @@ async function ensureLibrary(page: Page): Promise<[string, string]> {
   return [lib!.id, folder];
 }
 
+/** The viewer's Volumes | Folders choice (null = follow the folder's default, which is Volumes here). */
+async function setSwitch(page: Page, mode: 'Volumes' | 'Folders' | null): Promise<void> {
+  const headers = await csrf(page.request);
+  const current = await (await page.request.get('/api/v1/reading/library-preferences')).json();
+  const res = await page.request.put('/api/v1/reading/library-preferences', { headers, data: { ...current, seriesViewMode: mode } });
+  expect(res.ok(), await res.text()).toBeTruthy();
+}
+
 async function shot(page: Page, name: string): Promise<void> {
   if (!SHOTS) return;
   await page.waitForTimeout(600);
@@ -68,6 +76,10 @@ test('the chapters inside a volume file join its stack, and the volume says so',
   test.setTimeout(300_000); // the library scan, its analysis and the background volume scan, each polled for up to 120 s
   await login(page);
   const [libraryId, folderId] = await ensureLibrary(page);
+  // The page lists what the viewer's switch says, the API poll below asks for the Volumes view itself: start from the default, as
+  // volume-stacks.spec.ts does - a Folders choice another spec left behind made the page flat while the API showed the stack (1.47.0
+  // lane T2).
+  await setSwitch(page, null);
 
   // The owner's path: the folder's Volumes view (opening it puts the folder first in the scan) -> the volume -> the line.
   // Before the scan nothing groups (one volume file, loose chapters): the folder lists its files.
