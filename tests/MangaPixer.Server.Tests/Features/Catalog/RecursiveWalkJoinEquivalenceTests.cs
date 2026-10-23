@@ -4,7 +4,6 @@ using System.Data.Common;
 using System.Globalization;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
-using com.lifepixer.mangapixer.Core.Ordering;
 using com.lifepixer.mangapixer.Server.Features.Covers;
 using com.lifepixer.mangapixer.Server.Features.Home;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Facets;
@@ -98,7 +97,7 @@ public sealed class RecursiveWalkJoinEquivalenceTests : IDisposable
                     DisplayName = name,
                     RelativePath = $"/synthetic/n{serial}",
                     PathKey = $"/synthetic/n{serial}",
-                    SortKey = SortKey.ForNode(kind, name),
+                    SortKey = com.lifepixer.mangapixer.Core.Ordering.SortKey.ForNode(kind, name),
                     Availability = random.NextDouble() < 0.15 ? (int)CatalogNodeAvailability.Tombstoned : (int)CatalogNodeAvailability.Available,
                     CreatedAt = start.AddHours(random.Next(0, 2000)),
                 };
