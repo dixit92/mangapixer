@@ -11,6 +11,7 @@ export type {
   CreatorSearchResultDto,
   FacetBucket,
   FacetBucketDto,
+  FacetBucketPageDto,
   FacetChipDto,
   FacetLocationDto,
   FacetRoles,

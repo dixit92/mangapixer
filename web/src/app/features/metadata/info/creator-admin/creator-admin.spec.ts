@@ -155,29 +155,53 @@ describe('creator admin dialogs', () => {
   });
 });
 
-/** The chip -> creator step: the chip's value id names the creator (lane F's `valueId`), found by the chip's name. */
+/**
+ * The chip -> creator step. 1.47.0: a chip with `creatorId` reads that creator by id (no name lookup); a chip without it (an answer from
+ * a server before 1.47.0) still finds the creator holding its value (lane F's `valueId`) by the chip's name.
+ */
 describe('CreatorAdminService', () => {
-  function setup(found: CreatorDto[] | 'error') {
+  function setup(found: CreatorDto[] | 'error', byId: CreatorDto | 'error' = creator()) {
     const open = vi.fn(() => ({ afterClosed: () => of(creator({ displayName: 'Renamed' })) }));
     const snack = vi.fn();
     const findCreators = vi.fn(() => (found === 'error' ? throwError(() => ({ status: 500 })) : of(found)));
+    const getCreator = vi.fn(() => (byId === 'error' ? throwError(() => ({ status: 404 })) : of(byId)));
     TestBed.configureTestingModule({
       providers: [
         { provide: MatDialog, useValue: { open } },
         { provide: MatSnackBar, useValue: { open: snack } },
-        // creatorForValue is the real one, over the mocked search.
+        // creatorForChip is the real one, over the mocked reads.
         { provide: InfoApiService, useFactory: () => {
           const real = Object.create(InfoApiService.prototype) as InfoApiService;
-          return Object.assign(real, { findCreators });
+          return Object.assign(real, { findCreators, getCreator });
         } },
       ],
     });
-    return { service: TestBed.inject(CreatorAdminService), open, snack, findCreators };
+    return { service: TestBed.inject(CreatorAdminService), open, snack, findCreators, getCreator };
   }
 
-  it('opens the dialog for the creator whose tag value the chip is', async () => {
-    const { service, open, findCreators } = setup([creator({ id: 'cr_0', valueId: 'fv_other' }), creator()]);
-    const result = await service.rename('fv_a', 'Synthetic Author');
+  const chip = { id: 'fv_a', display: 'Synthetic Author' };
+
+  it('reads the creator by the chip\'s creatorId - no name lookup', async () => {
+    const { service, open, findCreators, getCreator } = setup([], creator({ id: 'cr_9' }));
+    const result = await service.split({ ...chip, creatorId: 'cr_9' });
+    expect(getCreator).toHaveBeenCalledWith('cr_9');
+    expect(findCreators).not.toHaveBeenCalled();
+    expect(open).toHaveBeenCalledWith(CreatorSplitDialogComponent, expect.objectContaining({ data: { creator: expect.objectContaining({ id: 'cr_9' }), display: 'Synthetic Author' } }));
+    expect(result?.displayName).toBe('Renamed');
+  });
+
+  it('says so when the creator of the id is gone', async () => {
+    const { service, open, snack, findCreators } = setup([creator()], 'error');
+    expect(await service.rename({ ...chip, creatorId: 'cr_gone' })).toBeNull();
+    expect(findCreators).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+    expect(snack).toHaveBeenCalled();
+  });
+
+  it('without a creatorId, opens the dialog for the creator whose tag value the chip is', async () => {
+    const { service, open, findCreators, getCreator } = setup([creator({ id: 'cr_0', valueId: 'fv_other' }), creator()]);
+    const result = await service.rename(chip);
+    expect(getCreator).not.toHaveBeenCalled();
     expect(findCreators).toHaveBeenCalledWith('Synthetic Author', 50);
     expect(open).toHaveBeenCalledWith(CreatorRenameDialogComponent, expect.objectContaining({ data: { creator: expect.objectContaining({ id: 'cr_1' }), display: 'Synthetic Author' } }));
     expect(result?.displayName).toBe('Renamed');
@@ -185,12 +209,12 @@ describe('CreatorAdminService', () => {
 
   it('says so and opens nothing when no creator holds the value', async () => {
     const { service, open, snack } = setup([creator({ valueId: 'fv_other' })]);
-    expect(await service.merge('fv_a', 'Synthetic Author')).toBeNull();
+    expect(await service.merge(chip)).toBeNull();
     expect(open).not.toHaveBeenCalled();
     expect(snack).toHaveBeenCalled();
     TestBed.resetTestingModule();
     const failed = setup('error');
-    expect(await failed.service.split('fv_a', 'Synthetic Author')).toBeNull();
+    expect(await failed.service.split(chip)).toBeNull();
     expect(failed.open).not.toHaveBeenCalled();
   });
 });

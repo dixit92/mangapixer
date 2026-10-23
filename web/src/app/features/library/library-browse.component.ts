@@ -188,6 +188,9 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
           <!-- 1.43.0: the series' tracking (a gold button + popover) for a user with a connected tracker. -->
           <app-series-tracking-button [nodeId]="folderId" />
           <app-series-info-button [nodeId]="folderId" />
+        } @else if (libraryId()) {
+          <!-- 1.47.0 (lane P): the library root's Info - its tags (a library root is not a node). -->
+          <app-series-info-button [libraryId]="libraryId()" [libraryName]="libraryName()" />
         }
         <!-- Volumes | Folders (1.29.0): only where the folder has a Volumes view; the choice is the per-user
              series view preference. 1.31.0: never inert - under another sort the list is flat (Folders shows as on) and

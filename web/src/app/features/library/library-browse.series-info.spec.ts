@@ -3,7 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of } from 'rxjs';
 
@@ -180,13 +180,19 @@ describe('LibraryBrowseComponent series info (1.24.0)', () => {
     }));
   });
 
-  it('shows the top-bar Series info button inside a folder, not at the library root', () => {
+  it('shows the top-bar Series info button inside a folder; at the library root only the library\'s tag slot (1.47.0)', () => {
     const inFolder = setup('card', [], 'folder-1');
     expect(inFolder.metadata.getSeriesInfo).toHaveBeenCalledWith('folder-1');
     expect(inFolder.el.querySelector('[data-testid="series-info-button"]')).not.toBeNull();
     TestBed.resetTestingModule();
     const atRoot = setup('card', [], null);
-    expect(atRoot.el.querySelector('app-series-info-button')).toBeNull();
+    // A library root is not a node: no series information is asked for it, and the slot asks the tag index for the library
+    // (unanswered here, so no button shows).
+    expect(atRoot.el.querySelector('app-series-info-button')).not.toBeNull();
+    expect(atRoot.metadata.getSeriesInfo).not.toHaveBeenCalled();
+    atRoot.fixture.detectChanges();
+    TestBed.inject(HttpTestingController).expectOne((r) => r.url.endsWith('/libraries/lib1/info'));
+    expect(atRoot.el.querySelector('[data-testid="series-info-button"]')).toBeNull();
   });
 
   it('offers the Series selection menu to admins only', () => {

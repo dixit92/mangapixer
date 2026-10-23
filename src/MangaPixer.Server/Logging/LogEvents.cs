@@ -527,6 +527,10 @@ public static class LogEvents
         public const int InfoPanelServed = 9451;
         public const int FacetSearchServed = 9452;
 
+        // Info panel follow-ups (1.47.0, lane P, 9453-9459). Counts, ids and timings only.
+        public const int InfoBucketPageServed = 9453;
+        public const int FacetWorkReadStateFiltered = 9454;
+
         // Tag index (1.45.0 lane F, 9440-9449). Library / creator ids, counts and timings only - never names, titles or tag values.
         public const int FacetIndexRebuilt = 9440;
         public const int FacetIndexSkippedScan = 9441;

@@ -23,6 +23,8 @@ import { InfoPanelDto } from './info/info-types';
  * MatBottomSheet (phone) - see SeriesInfoOverlayService - so it works with either
  * ref/data token. Content = the shared summary + an attribution/sources footer +
  * "Open series page" + the admin menu (with lane B2's disabled Identify slot).
+ * 1.47.0: for a LIBRARY ROOT (`libraryId` in the data) only the library's name and its Tags block - a library root has no series
+ * information, so there is no summary, no sources footer and no series actions.
  */
 @Component({
   selector: 'app-series-info-overlay',
@@ -38,7 +40,17 @@ import { InfoPanelDto } from './info/info-types';
         </button>
       </div>
 
-      @if (loading()) {
+      @if (library(); as lib) {
+        <div class="body" data-testid="library-info">
+          <h2 class="library-name">{{ lib.libraryName || 'Library' }}</h2>
+          @if (libraryTags(); as t) {
+            <p class="works-below" data-testid="library-works">{{ t.worksBelow ?? 0 }} work{{ t.worksBelow === 1 ? '' : 's' }} with tags</p>
+          } @else if (libraryTagsLoaded()) {
+            <p class="state-text">No tags in this library yet.</p>
+          }
+          <app-info-tags [libraryId]="lib.libraryId" (loaded)="libraryTags.set($event); libraryTagsLoaded.set(true)" />
+        </div>
+      } @else if (loading()) {
         <div class="state"><mat-spinner diameter="28" /></div>
       } @else if (error()) {
         <p class="state error">{{ error() }}</p>
@@ -118,6 +130,8 @@ import { InfoPanelDto } from './info/info-types';
     .actions mat-icon { margin-right: 4px; }
     .state { padding: 24px 16px; display: flex; justify-content: center; }
     .error { color: var(--mp-error); }
+    .library-name { margin: 4px 0 2px; font-size: 20px; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; }
+    .works-below, .state-text { margin: 0 0 4px; font-size: 13px; color: var(--mp-text-muted); }
     /* Hosts: the dialog is a full-height right sheet, the bottom sheet grows to 90vh. */
     ::ng-deep .series-info-side-sheet .mat-mdc-dialog-surface { border-radius: 0; background: var(--mp-surface); }
     ::ng-deep .series-info-side-sheet .mat-mdc-dialog-container { max-height: 100vh; }
@@ -136,6 +150,11 @@ export class SeriesInfoOverlayComponent implements OnInit {
   private readonly data: SeriesInfoOverlayData =
     inject<SeriesInfoOverlayData | null>(MAT_DIALOG_DATA, { optional: true })
     ?? inject<SeriesInfoOverlayData>(MAT_BOTTOM_SHEET_DATA);
+
+  /** 1.47.0: the library root this overlay is for (null for a node). */
+  readonly library = computed(() => (this.data.libraryId !== undefined ? { libraryId: this.data.libraryId, libraryName: this.data.libraryName } : null));
+  readonly libraryTags = signal<InfoPanelDto | null>(null);
+  readonly libraryTagsLoaded = signal(false);
 
   readonly info = signal<SeriesInfoDto | null>(null);
   /** The Tags block's answer (1.45.0), handed to the summary so its chips replace the plain-text lines. */
@@ -157,8 +176,10 @@ export class SeriesInfoOverlayComponent implements OnInit {
   }
 
   reload(): void {
+    const nodeId = this.data.nodeId;
+    if (nodeId === undefined) return; // a library root has no series information
     this.loading.set(this.info() === null);
-    this.api.getSeriesInfo(this.data.nodeId).subscribe({
+    this.api.getSeriesInfo(nodeId).subscribe({
       next: (info) => {
         this.info.set(info);
         this.error.set(null);

@@ -47,6 +47,41 @@ public sealed class InfoPanelController : ControllerBase
         return panel is null ? NotFound() : Ok(panel);
     }
 
+    /// <summary>
+    /// 1.47.0 (lane P, "+N more"): one bucket of a node's panel, paged (<paramref name="offset"/> from 0, <paramref name="limit"/> 1 -
+    /// <see cref="InfoPanelService.MaxBucketPage"/>, default 100). <paramref name="bucket"/> is a filter token (<c>creator</c>,
+    /// <c>genre</c>, ...) or a bucket name; anything else is 400 <c>invalid_bucket</c>. The node's access rule is the panel's (404).
+    /// </summary>
+    [HttpGet("nodes/{nodeId}/info/buckets/{bucket}")]
+    [ProducesResponseType<FacetBucketPageDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetNodeBucket(
+        string nodeId, string bucket, [FromQuery] int offset = 0, [FromQuery] int limit = 100, CancellationToken ct = default)
+    {
+        if (UserId() is not { } userId)
+            return Unauthorized();
+        if (!FacetBucketTokens.TryParse(bucket, out var parsed))
+            return BadRequest(InvalidBucket());
+        var page = await _panels.BucketForNodeAsync(userId, _incognito.IsIncognito, nodeId, parsed, offset, limit, ct);
+        return page is null ? NotFound() : Ok(page);
+    }
+
+    /// <summary>1.47.0 (lane P): one bucket of a library root's panel, paged like <see cref="GetNodeBucket"/>.</summary>
+    [HttpGet("libraries/{libraryId}/info/buckets/{bucket}")]
+    [ProducesResponseType<FacetBucketPageDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetLibraryBucket(
+        string libraryId, string bucket, [FromQuery] int offset = 0, [FromQuery] int limit = 100, CancellationToken ct = default)
+    {
+        if (UserId() is not { } userId)
+            return Unauthorized();
+        if (!FacetBucketTokens.TryParse(bucket, out var parsed))
+            return BadRequest(InvalidBucket());
+        var page = await _panels.BucketForLibraryAsync(userId, _incognito.IsIncognito, libraryId, parsed, offset, limit, ct);
+        return page is null ? NotFound() : Ok(page);
+    }
+
+    private static ApiError InvalidBucket() =>
+        new() { Error = "invalid_bucket", Message = "A bucket is a filter token such as creator, genre or publisher." };
+
     private long? UserId()
     {
         var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
