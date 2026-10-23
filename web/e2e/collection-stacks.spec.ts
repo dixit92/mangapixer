@@ -167,8 +167,13 @@ for (const [label, width, height] of [['desktop', 1280, 900], ['tablet', 820, 11
       await page.getByTestId('stack-folder-link').click();
       await expect(page.locator('.node-wrap')).toHaveCount(2);
       const flat = page.waitForResponse((r) => r.url().includes(`parentId=${folderId}`) && r.url().includes('group=flat'));
+      // The click also SAVES the viewer's choice (Folders). Wait for that save before the `finally` below resets the switch: under load
+      // the save can reach the server after the reset and leave the admin on Folders for every later spec (1.47.0 lane T2 - it made
+      // volume-contents.spec.ts show no stack).
+      const saved = page.waitForResponse((r) => r.url().includes('/api/v1/reading/library-preferences') && r.request().method() === 'PUT');
       await page.getByTestId('view-folders').click();
       await flat;
+      await saved;
       await expect(page.locator('.node-wrap')).toHaveCount(3);
       await expect(page.getByTestId('collection-stack-card')).toHaveCount(0);
       await expectFitsScreen(page, `artist folder, Folders view (${label})`);

@@ -1,5 +1,6 @@
 namespace com.lifepixer.mangapixer.Tests.Server.Operations;
 
+using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
 using com.lifepixer.mangapixer.Server.Operations.Perf;
@@ -38,7 +39,7 @@ public sealed class PerfTimingHttpTests
         var recorder = factory.Services.GetRequiredService<PerfRecorder>();
 
         var first = await client.GetAsync(Diagnostics);
-        first.EnsureSuccessStatusCode();
+        await factory.UnhandledErrors.EnsureSuccessAsync(first); // a 500 names its exception (1.47.0 lane T2)
         var timing = string.Join(", ", first.Headers.GetValues("Server-Timing"));
         // Durations and counts only: every part is a known field with a number.
         Assert.All(timing.Split(", "), part => Assert.Matches(@"^(app|sql|sqln|lockw);dur=[0-9]+(\.[0-9])?$", part));
@@ -70,6 +71,56 @@ public sealed class PerfTimingHttpTests
         Assert.Same(recorder, PerfRecorder.Active);
         factory.Dispose();
         Assert.NotSame(recorder, PerfRecorder.Active);
+    }
+
+    /// <summary>
+    /// 1.47.0 lane T2 - the cause of the 500 this class's switched-on test got on its first diagnostics GET in a full Server run (alone
+    /// it passed): the SQL hook is process-wide, so while the measured host takes its snapshot, the SQL of every other host in the
+    /// process (the other tests) keeps adding new statement shapes. A LINQ sort straight over a <c>ConcurrentDictionary</c> copies
+    /// it by <c>Count</c> + <c>CopyTo</c>, and <c>CopyTo</c> throws <see cref="ArgumentException"/> when a key arrived in between.
+    /// The snapshot must copy each map atomically. Writers on their own threads add new shapes and routes the whole time; a fresh
+    /// recorder replaces a full one, since past 4000 keys new shapes fold into one row and stop adding keys.
+    /// </summary>
+    [Fact]
+    public void Snapshot_WhileNewStatementsAndRoutesArrive_NeverThrows()
+    {
+        var current = new[] { new PerfRecorder(enabled: false) }; // one slot, swapped with Volatile
+        var stop = 0;
+        var writers = new[]
+        {
+            new Thread(() =>
+            {
+                for (var i = 0; Volatile.Read(ref stop) == 0; i++)
+                    Volatile.Read(ref current[0]).RecordCommand($"SELECT c{i}x FROM t", 0.5, 1);
+            }),
+            new Thread(() =>
+            {
+                for (var i = 0; Volatile.Read(ref stop) == 0; i++)
+                {
+                    var recorder = Volatile.Read(ref current[0]);
+                    recorder.EndRequest(recorder.BeginRequest(), $"GET api/v1/r{i}x", 1);
+                }
+            }),
+        };
+        foreach (var writer in writers)
+            writer.Start();
+        try
+        {
+            var snapshots = 0;
+            for (var watch = Stopwatch.StartNew(); watch.Elapsed < TimeSpan.FromSeconds(2); snapshots++)
+            {
+                var snapshot = Volatile.Read(ref current[0]).Snapshot();
+                if (snapshot.Statements.Length >= 1500 || snapshot.Routes.Length >= 3000)
+                    Volatile.Write(ref current[0], new PerfRecorder(enabled: false));
+            }
+            Assert.True(snapshots > 10, $"only {snapshots} snapshots");
+        }
+        finally
+        {
+            Volatile.Write(ref stop, 1);
+            foreach (var writer in writers)
+                writer.Join();
+        }
     }
 
     [Fact]
