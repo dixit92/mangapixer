@@ -71,6 +71,7 @@ public sealed class SeriesLinkStateReaderSweepTests
         ["src/MangaPixer.Server/Features/Metadata/AutoMatch/MetadataRefreshService.cs"] = "Confirmed / Auto only: there is no record to refresh",
         ["src/MangaPixer.Server/Features/Metadata/Collections/CollectionAboutService.cs"] = "clears only a Collection about row (an artist row is left alone)",
         ["src/MangaPixer.Server/Features/Metadata/Freshness/LatestUploadSweep.cs"] = "1.45.0: Confirmed / Auto only (a series' MangaDex companion); an artist folder / collection / review / Don't match has none; inside a Don't match folder: left out",
+        ["src/MangaPixer.Server/Features/Metadata/Freshness/TakenDownRecordsService.cs"] = "1.47.0: Confirmed / Auto only (the series whose MangaDex companion went missing); no other state has a companion",
         ["src/MangaPixer.Server/Features/Metadata/Freshness/ReadingSeries.cs"] = "1.45.0: a read mark counts for the records of Confirmed / Auto rows on the node or up to 4 folders above; no other state",
         ["src/MangaPixer.Server/Features/Metadata/Freshness/ReleasesFeedPoll.cs"] = "1.45.0: Confirmed / Auto MangaUpdates records only (the refresh's set)",
         ["src/MangaPixer.Server/Features/Metadata/Flags/MetadataFlagService.cs"] = "readers cannot flag it (no web data); caps count Confirmed / Auto",

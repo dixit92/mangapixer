@@ -1355,11 +1355,28 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     if (owners[first] === -1) return; // no bucket starts in this window: keep the jumped-to chip
     const buckets = this.jumpBuckets();
     const current = this.activeJump();
+    // 1.47.0: near the end of the list the page cannot scroll the clicked bucket's first card up to the top row, so the top row
+    // belongs to an earlier bucket. Keep the chip while the page cannot scroll further and that card is on screen.
+    if (current && this.atScrollEnd() && this.cardOnScreen(nodes, cards, current, threshold)) return;
     let active = buckets[owners[first]];
     for (let i = first; i < cards.length && Math.abs(cards[i].getBoundingClientRect().bottom - rowBottom) < 1; i++) {
       if (current && buckets[owners[i]] === current) { active = current; break; }
     }
     this.activeJump.set(active);
+  }
+
+  /** True when the list's scroller cannot scroll any further (at its end, or nothing to scroll); false without a layout (jsdom). */
+  private atScrollEnd(): boolean {
+    const el = this.scrollParent() ?? (typeof document !== 'undefined' ? (document.scrollingElement ?? document.documentElement) : null);
+    return !!el && el.clientHeight > 0 && el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
+  }
+
+  /** Whether the first card of `bucket` is loaded and at least partly on screen below the sticky stack. */
+  private cardOnScreen(nodes: CatalogNodeDto[], cards: NodeListOf<HTMLElement>, bucket: JumpIndexBucketDto, threshold: number): boolean {
+    const index = bucket.firstNodeId ? nodes.findIndex((n) => n.id === bucket.firstNodeId) : -1;
+    if (index === -1) return false;
+    const rect = cards[index].getBoundingClientRect();
+    return rect.bottom > threshold && rect.top < (typeof window !== 'undefined' ? window.innerHeight : 0);
   }
 
   /**

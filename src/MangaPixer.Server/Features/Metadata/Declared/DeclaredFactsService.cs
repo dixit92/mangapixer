@@ -73,8 +73,12 @@ public sealed class DeclaredFactsService
             : DeclaredFactsResult<DeclaredFactsScopeDto>.Ok(await LibraryScopeDtoAsync(library, ct));
     }
 
+    /// <param name="relinkNew">
+    /// 1.47.0: whether a declared creator this write adds gets the local relink (default). The Artist folder action passes false: it decides
+    /// its own reference (a picked author, or its own relink) and stores it after this call.
+    /// </param>
     public async Task<DeclaredFactsResult<DeclaredFactsScopeDto>> SetFolderAsync(
-        string nodePublicId, SetDeclaredFactsRequest request, string? actor, CancellationToken ct = default)
+        string nodePublicId, SetDeclaredFactsRequest request, string? actor, CancellationToken ct = default, bool relinkNew = true)
     {
         var (values, error) = Validate(request);
         if (values is null)
@@ -82,7 +86,7 @@ public sealed class DeclaredFactsService
         var (code, node) = await FolderAsync(nodePublicId, ct);
         if (node is null)
             return new(code);
-        await ReplaceAsync(node.LibraryId, node.Id, values, actor, ct);
+        await ReplaceAsync(node.LibraryId, node.Id, values, actor, ct, relinkNew);
         return DeclaredFactsResult<DeclaredFactsScopeDto>.Ok(await FolderScopeDtoAsync(node, ct));
     }
 
@@ -296,8 +300,14 @@ public sealed class DeclaredFactsService
             cleared ? "cleared" : "set", nodeId, values.VolumeTotal is not null, values.Edition is not null, values.TrackingOff);
     }
 
-    /// <summary>Replaces the v1 keys (type, creator) of one scope; rows of other keys are left alone.</summary>
-    private async Task ReplaceAsync(long libraryId, long? nodeId, DeclaredFacts values, string? actor, CancellationToken ct)
+    /// <summary>
+    /// Replaces the v1 keys (type, creator) of one scope; rows of other keys are left alone.
+    /// A creator row that still applies (same name and role) keeps its MangaUpdates reference. 1.47.0 (owner, 2026-10-22): a creator
+    /// whose spelling changed but whose <see cref="DeclaredFactsComparer.NameKey"/> is the same (a capitals-only rename) carries the
+    /// reference over; any other creator this write adds gets the id of the one provider-backed creator known here by its name, if there
+    /// is one (<see cref="LocalAuthorRelink"/> - stored data only, never a request).
+    /// </summary>
+    private async Task ReplaceAsync(long libraryId, long? nodeId, DeclaredFacts values, string? actor, CancellationToken ct, bool relinkNew = true)
     {
         var now = _time.GetUtcNow();
         var existing = await _db.DeclaredFacts
@@ -311,16 +321,40 @@ public sealed class DeclaredFactsService
         wanted.AddRange(values.Creators.Select(c => (DeclaredFactKeys.Creator, c.Name, c.Role)));
 
         // Keep a row that still applies (its CreatedAt stays); add the new ones; remove the rest.
+        // First the rows that match exactly; then, for a creator left over, the reference of a leftover row of the same name key.
+        var matched = new DeclaredFactEntity?[wanted.Count];
+        var taken = new HashSet<DeclaredFactEntity>();
+        for (var i = 0; i < wanted.Count; i++)
+        {
+            var (key, value, role) = wanted[i];
+            matched[i] = existing.FirstOrDefault(f => !taken.Contains(f) && f.Key == key
+                && string.Equals(f.Value, value, StringComparison.Ordinal) && string.Equals(f.Role, role, StringComparison.Ordinal));
+            if (matched[i] is { } exact)
+                taken.Add(exact);
+        }
+        var carried = new string?[wanted.Count];
+        for (var i = 0; i < wanted.Count; i++)
+        {
+            if (matched[i] is not null || wanted[i].Key != DeclaredFactKeys.Creator)
+                continue;
+            var nameKey = DeclaredFactsComparer.NameKey(wanted[i].Value);
+            var donor = nameKey.Length == 0 ? null : existing.FirstOrDefault(f => !taken.Contains(f) && f.Key == DeclaredFactKeys.Creator
+                && AuthorReference.MangaUpdatesIdOf(f.ExternalRef) is not null && DeclaredFactsComparer.NameKey(f.Value) == nameKey);
+            if (donor is null)
+                continue;
+            carried[i] = donor.ExternalRef;
+            taken.Add(donor);
+        }
+
         var changed = false;
         var keep = new HashSet<DeclaredFactEntity>();
         for (var i = 0; i < wanted.Count; i++)
         {
             var (key, value, role) = wanted[i];
-            var row = existing.FirstOrDefault(f => !keep.Contains(f) && f.Key == key
-                && string.Equals(f.Value, value, StringComparison.Ordinal) && string.Equals(f.Role, role, StringComparison.Ordinal));
+            var row = matched[i];
             if (row is null)
             {
-                row = new DeclaredFactEntity { LibraryId = libraryId, NodeId = nodeId, Key = key, Value = value, Role = role, CreatedAt = now };
+                row = new DeclaredFactEntity { LibraryId = libraryId, NodeId = nodeId, Key = key, Value = value, Role = role, CreatedAt = now, ExternalRef = carried[i] };
                 _db.DeclaredFacts.Add(row);
                 changed = true;
             }
@@ -338,10 +372,8 @@ public sealed class DeclaredFactsService
         var removed = existing.Where(f => !keep.Contains(f)).ToList();
         if (!changed && removed.Count == 0)
             return;
-        // 1.45.0 (owner, 2026-10-19): a rename drops the declared artist's MangaUpdates reference with its row (as before); then each
-        // creator this write added gets the id of the one provider-backed creator known here by its new name, if there is one.
         var relinked = 0;
-        if (removed.Any(f => f.Key == DeclaredFactKeys.Creator && AuthorReference.MangaUpdatesIdOf(f.ExternalRef) is not null))
+        if (relinkNew)
         {
             foreach (var row in keep.Where(f => f.Id == 0 && f.Key == DeclaredFactKeys.Creator && f.ExternalRef is null))
             {

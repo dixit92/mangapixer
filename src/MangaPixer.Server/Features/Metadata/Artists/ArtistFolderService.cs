@@ -25,7 +25,8 @@ public sealed record ArtistFolderOutcome(MetadataLinkResultCode Code, ArtistFold
 /// No network here. Removing the mark removes only the row: the declared creator stays (Declared facts edits it).
 /// 1.45.0: the request may name the MangaUpdates author the admin picked from an author search (<c>provider</c> + <c>externalId</c>,
 /// validated, never fetched): it is stored on the declared artist as its provider reference <c>mangaupdates:&lt;id&gt;</c>
-/// (<c>declared_facts.ExternalRef</c>) and the audit result is <c>author_search</c>. Still no request: the author's other names come later
+/// (<c>declared_facts.ExternalRef</c>) and the audit result is <c>author_search</c> (1.47.0: <c>local_author_match</c> when the id came from
+/// a local match of Match folders by name). Still no request: the author's other names come later
 /// through "Artists' other names", whose eligible ids include declared references.
 /// 1.45.0 (owner, 2026-10-19: "attempt to relink"): marked from the Artist folder dialog without a picked author (none picked, or the
 /// name edited away from the pick), an artist whose row carries no reference yet gets the MangaUpdates id of the one provider-backed
@@ -46,6 +47,12 @@ public sealed class ArtistFolderService
     /// <summary>The audit result of a folder marked with an author picked from an author search (1.45.0).</summary>
     public const string AuthorSearchAuditResult = "author_search";
 
+    /// <summary>
+    /// 1.47.0 (owner): the audit result of a folder marked with the author id a LOCAL match carried (Match folders by name, artists - the
+    /// id comes from stored records; nothing was searched). Distinct from <see cref="AuthorSearchAuditResult"/>.
+    /// </summary>
+    public const string LocalAuthorMatchAuditResult = "local_author_match";
+
     public ArtistFolderService(MangaPixerDbContext db, MetadataLinkService links, DeclaredFactsService declared, MetadataAutoMatchService autoMatch,
         Facets.IFacetIndexNudge? facetNudge = null)
     {
@@ -62,7 +69,7 @@ public sealed class ArtistFolderService
     /// MangaUpdates, a non-numeric id, or only one of the two); nothing changes on an error.
     /// </summary>
     public async Task<ArtistFolderOutcome> SetAsync(string nodePublicId, SetArtistFolderRequest? request, string? actor,
-        CancellationToken ct = default, string? auditResult = null)
+        CancellationToken ct = default, string? auditResult = null, bool localAuthorMatch = false)
     {
         var node = await _db.CatalogNodes.AsNoTracking().Where(n => n.PublicId == nodePublicId)
             .Select(n => new { n.Id, n.LibraryId, n.Kind, n.DisplayName }).FirstOrDefaultAsync(ct);
@@ -83,7 +90,7 @@ public sealed class ArtistFolderService
         if (refError is not null)
             return new(MetadataLinkResultCode.InvalidRequest, Error: refError);
         if (authorRef is not null)
-            auditResult = AuthorSearchAuditResult;
+            auditResult = localAuthorMatch ? LocalAuthorMatchAuditResult : AuthorSearchAuditResult;
         else if (auditResult is null && !await HasReferenceAsync(node.LibraryId, node.Id, name, role, ct)
             && await LocalAuthorRelink.FindAsync(_db, name, ct) is { } relinkId)
         {
@@ -114,7 +121,7 @@ public sealed class ArtistFolderService
             return new(code);
         if (facts is not null)
         {
-            var set = await _declared.SetFolderAsync(nodePublicId, facts, actor, ct);
+            var set = await _declared.SetFolderAsync(nodePublicId, facts, actor, ct, relinkNew: false);
             if (set.Code != MetadataLinkResultCode.Ok)
                 return new(set.Code, Error: set.Error);
         }

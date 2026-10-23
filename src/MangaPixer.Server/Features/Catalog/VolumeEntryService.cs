@@ -73,7 +73,7 @@ public sealed record FolderVolumeEntries(
     public IReadOnlyDictionary<string, long> CollectionRecords { get; init; } = new Dictionary<string, long>(StringComparer.Ordinal);
 
     /// <summary>At least one volume entry (a volume file, a stack or a placeholder).</summary>
-    public bool HasVolumes => Entries.Any(e => e.Rank == 0);
+    public bool HasVolumes => Entries.Any(e => e.Rank == 0 && !e.PlacedByNumber);
 }
 
 /// <summary>
@@ -480,7 +480,7 @@ public sealed class VolumeEntryService
             return false;
         var volume = built.Entries.Any(e => (e.Kind == VolumeEntryKind.Archive && e.Rank == 0 && e.Volume is not null && !built.ListedVolumes.Contains(e.Volume.Value))
             || (e.Stack is { HasVolumeArchive: true } s && !built.ListedVolumes.Contains(s.Volume)));
-        var chapter = built.Entries.Any(e => (e.Kind == VolumeEntryKind.Archive && e.Rank != 0 && e.Row is not null && VolumeGrouping.UnitsOf(e.Row).Chapter is not null)
+        var chapter = built.Entries.Any(e => (e.Kind == VolumeEntryKind.Archive && (e.Rank != 0 || e.PlacedByNumber) && e.Row is not null && VolumeGrouping.UnitsOf(e.Row).Chapter is not null)
             || (e.Stack is { } s && s.Members.Any(m => !m.IsVolumeArchive && m.Placement is not (VolumePlacement.Exact or VolumePlacement.Local))));
         return volume && chapter;
     }

@@ -229,6 +229,17 @@ export const READER_MENU_STYLES = `
      side margin must be at least that or the panel scrolls sideways (1.41.0 owner review). */
   ::ng-deep .reader-options-menu .mat-mdc-slider.menu-slider { display: block; width: auto; min-width: 168px; margin: 0 24px 4px; }
   ::ng-deep .reader-options-menu .menu-divider { height: 1px; margin: 4px 0; background: var(--mat-sys-outline-variant); }
+  /* The Display menu (1.47.0): its four groups were 808 px tall in one column. On a wide screen they sit two by two (the panel may
+     grow past Material's 280 px cap), and on a short one the items are closer together. A narrow screen keeps the one column. */
+  ::ng-deep .reader-display-menu .display-groups { display: grid; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 640px) {
+    ::ng-deep .mat-mdc-menu-panel.reader-display-menu { max-width: 600px; }
+    ::ng-deep .reader-display-menu .display-groups { grid-template-columns: repeat(2, minmax(0, auto)); column-gap: 8px; }
+  }
+  @media (max-height: 880px) {
+    ::ng-deep .reader-display-menu .mat-mdc-menu-item { min-height: 36px; }
+    ::ng-deep .reader-display-menu .menu-group-label { padding-top: 6px; }
+  }
 `;
 
 /**

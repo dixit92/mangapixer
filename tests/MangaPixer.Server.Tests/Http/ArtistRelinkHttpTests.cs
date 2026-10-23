@@ -36,7 +36,7 @@ public sealed class ArtistRelinkHttpTests
         var lib = new LibraryEntity { PublicId = LibPub, DisplayName = "Relink Lib", RootPath = "/synthetic/rl", CreatedAt = now };
         db.Libraries.Add(lib);
         await db.SaveChangesAsync();
-        foreach (var (pub, name) in new[] { ("rlRename", "Beta Painter"), ("rlGamma", "Gamma Inker"), ("rlShared", "Shared Pen"), ("rlNobody", "Nobody Here"), ("rlBulk", "Gamma Inker") })
+        foreach (var (pub, name) in new[] { ("rlRename", "Beta Painter"), ("rlGamma", "Gamma Inker"), ("rlShared", "Shared Pen"), ("rlNobody", "Nobody Here"), ("rlBulk", "Gamma Inker"), ("rlPlain", "Plain Folder"), ("rlCaps", "Caps Folder") })
         {
             db.CatalogNodes.Add(new CatalogNodeEntity
             {
@@ -140,6 +140,77 @@ public sealed class ArtistRelinkHttpTests
             Items = [new FolderMatchApplyItem { NodeId = "rlBulk", Name = "Gamma Inker", Role = "author" }],
         })).EnsureSuccessStatusCode();
         Assert.Equal(("Gamma Inker", (string?)null), await ArtistAsync(factory, "rlBulk"));
+        Assert.Equal(0, factory.Handler.CallCount);
+    }
+
+    [Fact]
+    public async Task APlainNewDeclaredCreator_TriesTheLocalRelink_WithoutARemovedRow_AndAnUnknownNameStaysEmpty()
+    {
+        using var factory = new MetadataNetworkWebApplicationFactory(failOnAnyRequest: true);
+        await SeedAsync(factory);
+        var admin = await factory.LoginAsAdminWithChangedPasswordAsync();
+
+        // A folder with no declared creator yet: adding "Delta Writer" (a tag-index creator with a MangaUpdates id) links it.
+        await RenameAsync(admin, "rlPlain", "Delta Writer");
+        Assert.Equal(("Delta Writer", "mangaupdates:444"), await ArtistAsync(factory, "rlPlain"));
+        Assert.Equal(["local_relink"], await AuditResultsAsync(factory, "metadata.declared.set", "rlPlain"));
+
+        // Not known here, or known under two ids: no reference, plain success.
+        await RenameAsync(admin, "rlCaps", "Nobody Known");
+        Assert.Equal(("Nobody Known", (string?)null), await ArtistAsync(factory, "rlCaps"));
+        Assert.Equal(["success"], await AuditResultsAsync(factory, "metadata.declared.set", "rlCaps"));
+        await RenameAsync(admin, "rlCaps", "Shared Pen");
+        Assert.Equal(("Shared Pen", (string?)null), await ArtistAsync(factory, "rlCaps"));
+        Assert.Equal(0, factory.Handler.CallCount);
+    }
+
+    [Fact]
+    public async Task ACapitalsOnlyRename_KeepsTheReference_ButARealRenameStillDropsIt()
+    {
+        using var factory = new MetadataNetworkWebApplicationFactory(failOnAnyRequest: true);
+        await SeedAsync(factory);
+        var admin = await factory.LoginAsAdminWithChangedPasswordAsync();
+        (await admin.PutAsJsonAsync("/api/v1/admin/metadata/nodes/rlCaps/artist-folder",
+            new SetArtistFolderRequest { Name = "Beta Painter", Role = "author", Provider = "mangaupdates", ExternalId = "4815162342" })).EnsureSuccessStatusCode();
+        Assert.Equal(("Beta Painter", "mangaupdates:4815162342"), await ArtistAsync(factory, "rlCaps"));
+
+        // Only capitals (and the word order, which the name key ignores) change: the reference is carried over, nothing is looked up again.
+        await RenameAsync(admin, "rlCaps", "BETA painter");
+        Assert.Equal(("BETA painter", "mangaupdates:4815162342"), await ArtistAsync(factory, "rlCaps"));
+        await RenameAsync(admin, "rlCaps", "Painter Beta");
+        Assert.Equal(("Painter Beta", "mangaupdates:4815162342"), await ArtistAsync(factory, "rlCaps"));
+        // Other punctuation / accents fold as well (the name key's own rule).
+        await RenameAsync(admin, "rlCaps", "Béta-Painter");
+        Assert.Equal(("Béta-Painter", "mangaupdates:4815162342"), await ArtistAsync(factory, "rlCaps"));
+
+        // A different name drops it (as before); a local relink may then give the new name another one - here none is known.
+        await RenameAsync(admin, "rlCaps", "Other Painter");
+        Assert.Equal(("Other Painter", (string?)null), await ArtistAsync(factory, "rlCaps"));
+        Assert.Equal(0, factory.Handler.CallCount);
+    }
+
+    [Fact]
+    public async Task MatchFoldersByName_AuditsALocalAuthorMatch_ApartFromAnAuthorSearchPick()
+    {
+        using var factory = new MetadataNetworkWebApplicationFactory(failOnAnyRequest: true);
+        await SeedAsync(factory);
+        var admin = await factory.LoginAsAdminWithChangedPasswordAsync();
+        var applied = await admin.PostAsJsonAsync("/api/v1/admin/metadata/folder-match/apply", new FolderMatchApplyRequest
+        {
+            Kind = FolderMatchKind.Artists,
+            Items =
+            [
+                new FolderMatchApplyItem { NodeId = "rlGamma", Name = "Gamma Inker", Role = "author", Provider = "mangaupdates", ExternalId = "111", LocalMatch = true },
+                new FolderMatchApplyItem { NodeId = "rlShared", Name = "Shared Pen", Role = "author", Provider = "mangaupdates", ExternalId = "222" },
+                new FolderMatchApplyItem { NodeId = "rlBulk", Name = "Gamma Inker", Role = "author" },
+            ],
+        });
+        applied.EnsureSuccessStatusCode();
+        Assert.Equal(("Gamma Inker", "mangaupdates:111"), await ArtistAsync(factory, "rlGamma"));
+        Assert.Equal(["local_author_match"], await AuditResultsAsync(factory, "metadata.artist_folder", "rlGamma"));
+        Assert.Equal(("Shared Pen", "mangaupdates:222"), await ArtistAsync(factory, "rlShared"));
+        Assert.Equal(["author_search"], await AuditResultsAsync(factory, "metadata.artist_folder", "rlShared"));
+        Assert.Equal(["folder_match"], await AuditResultsAsync(factory, "metadata.artist_folder", "rlBulk"));
         Assert.Equal(0, factory.Handler.CallCount);
     }
 }

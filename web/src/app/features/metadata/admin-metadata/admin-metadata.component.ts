@@ -11,6 +11,7 @@ import { ReviewDashboardComponent, ReviewLibraryOption } from '../review/review-
 import { MetadataFlagsComponent } from './flags/metadata-flags.component';
 import { ADMIN_METADATA_TABS, AdminMetadataTab, REVIEW_TABS, adminMetadataTabOf } from './metadata-admin-labels';
 import { MetadataRunsComponent } from './runs/metadata-runs.component';
+import { TakenDownRecordsComponent } from './runs/taken-down-records.component';
 import { MetadataSettingsComponent } from './settings/metadata-settings.component';
 import { MissingReportComponent } from '../missing/missing-report.component';
 import { OfficialReleasesComponent } from '../official/official-releases.component';
@@ -33,7 +34,7 @@ export { ADMIN_METADATA_TABS, type AdminMetadataTab };
   standalone: true,
   imports: [
     RouterLink, MatIconModule, MatTabsModule, MetadataSettingsComponent, ReviewDashboardComponent, MetadataFlagsComponent,
-    MetadataRunsComponent, MetadataSummaryTileComponent, MissingReportComponent, OfficialReleasesComponent, ConsentRenewalBannerComponent,
+    MetadataRunsComponent, TakenDownRecordsComponent, MetadataSummaryTileComponent, MissingReportComponent, OfficialReleasesComponent, ConsentRenewalBannerComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -72,7 +73,7 @@ export { ADMIN_METADATA_TABS, type AdminMetadataTab };
         </mat-tab>
         <mat-tab label="Runs">
           <ng-template matTabContent>
-            <div class="tab"><app-metadata-runs /></div>
+            <div class="tab"><app-taken-down-records /><app-metadata-runs /></div>
           </ng-template>
         </mat-tab>
         <mat-tab label="Missing">
