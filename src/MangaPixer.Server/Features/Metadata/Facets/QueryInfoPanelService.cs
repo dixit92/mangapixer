@@ -203,6 +203,9 @@ public sealed class InfoPanelService
             """, null, ReadEntry, ct);
     }
 
+    // 1.47.0 lane S2: CROSS JOIN keeps the walk as the outer loop (an index lookup of each walked node's entries); with a plain JOIN
+    // SQLite 3.53 scanned ALL of facet_entries behind a bloom filter (live copy, the largest category folder: 9.4 -> 4.9 ms). Same rows;
+    // the panel groups and fully sorts them (a container by place, so no row is taken by position).
     private Task<List<Entry>> EntriesBelowAsync(long nodeId, CancellationToken ct) =>
         QuerySql.ReadAsync(_db, $"""
             WITH RECURSIVE below(Id) AS (
@@ -212,7 +215,7 @@ public sealed class InfoPanelService
             )
             SELECT e.WorkId, e.ValueId, e.LocationNodeId, e.Roles, e.Conflict
             FROM below
-            JOIN facet_entries e ON e.LocationNodeId = below.Id
+            CROSS JOIN facet_entries e ON e.LocationNodeId = below.Id
             JOIN catalog_nodes n ON n.Id = e.LocationNodeId AND n.Availability != {QuerySql.Tombstoned}
             """, new Dictionary<string, object?> { ["@node"] = nodeId }, ReadEntry, ct);
 

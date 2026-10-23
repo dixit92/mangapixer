@@ -495,6 +495,8 @@ public sealed class CoverPickerService
             using var command = connection.CreateCommand();
             // The tree path joins the sort keys with U+0001: no key contains it before its own case tie-break, and sibling keys are
             // never prefixes of each other, so ordering by path ordinal is the folder's pre-order.
+            // 1.47.0 lane S2: CROSS JOIN keeps the walk as the outer loop; with a plain JOIN SQLite 3.53 scanned ALL of
+            // node_series_links behind a bloom filter (live copy, the largest category folder: 8.6 -> 4.5 ms). Same rows, sorted below.
             command.CommandText = $"""
                 WITH RECURSIVE d(NodeId, Path, Depth) AS (
                     SELECT cn.Id, cn.SortKey, 1 FROM catalog_nodes cn WHERE cn.ParentId = {folderId.ToString(CultureInfo.InvariantCulture)}
@@ -504,7 +506,7 @@ public sealed class CoverPickerService
                 )
                 SELECT cn.Id, cn.PublicId, cn.DisplayName, l.RecordId, d.Path
                 FROM d
-                JOIN catalog_nodes cn ON cn.Id = d.NodeId
+                CROSS JOIN catalog_nodes cn ON cn.Id = d.NodeId
                 JOIN node_series_links l ON l.NodeId = d.NodeId
                 WHERE cn.Availability != {(int)CatalogNodeAvailability.Tombstoned} AND l.RecordId IS NOT NULL
                   AND l.State IN ({SeriesStates});

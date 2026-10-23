@@ -624,6 +624,9 @@ public sealed class ReadingStateService
     /// <summary>
     /// Collects the internal node ids of every non-tombstoned archive under a folder,
     /// at any depth, via a recursive descent over <c>catalog_nodes.ParentId</c>.
+    /// 1.47.0 lane S2: the walk drives the join (<c>CROSS JOIN</c>); before, SQLite 3.53 scanned ALL of catalog_nodes behind a bloom
+    /// filter (live copy: the largest category folder 12.8 -> 4.1 ms, the largest series folder 8.7 -> 0.6 ms). <c>ORDER BY cn.Id</c>
+    /// keeps the order that scan gave (ascending id), so the read marks are written in the same order as before.
     /// </summary>
     private async Task<List<long>> GetDescendantArchiveIdsAsync(long folderNodeId, CancellationToken ct)
     {
@@ -642,9 +645,10 @@ public sealed class ReadingStateService
                     JOIN descendants d ON cn.ParentId = d.Id
                 )
                 SELECT cn.Id
-                FROM catalog_nodes cn
-                JOIN descendants d ON cn.Id = d.Id
-                WHERE cn.Kind = 1 AND cn.Availability != 5;
+                FROM descendants d
+                CROSS JOIN catalog_nodes cn ON cn.Id = d.Id
+                WHERE cn.Kind = 1 AND cn.Availability != 5
+                ORDER BY cn.Id;
                 """;
             var p = command.CreateParameter();
             p.ParameterName = "$root";

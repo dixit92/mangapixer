@@ -66,6 +66,8 @@ public static class LatestDescendantAddedAtMaintenance
         try
         {
             using var command = connection.CreateCommand();
+            // 1.47.0 lane S2: CROSS JOIN keeps the walk as the outer loop; with a plain JOIN SQLite 3.53 built an automatic index over
+            // every archive of the catalog for each run (plan: AUTOMATIC PARTIAL COVERING INDEX on catalog_nodes). Same maxima.
             command.CommandText = $"""
                 WITH RECURSIVE descendants(RootId, NodeId) AS (
                     {seed}
@@ -76,7 +78,7 @@ public static class LatestDescendantAddedAtMaintenance
                 maxes AS (
                     SELECT d.RootId AS RootId, MAX(a.CreatedAt) AS MaxCreated
                     FROM descendants d
-                    JOIN catalog_nodes a ON a.Id = d.NodeId AND a.Kind = 1 AND a.Availability != 5
+                    CROSS JOIN catalog_nodes a ON a.Id = d.NodeId AND a.Kind = 1 AND a.Availability != 5
                     GROUP BY d.RootId
                 )
                 UPDATE catalog_nodes

@@ -658,6 +658,9 @@ public sealed class RecentChaptersService
         {
             using var command = connection.CreateCommand();
             // Kind = 1 is Archive; Availability = 5 is Tombstoned (same literals as CatalogBrowseService's sibling CTE).
+            // 1.47.0 lane S2: CROSS JOIN keeps the walk as the outer loop (one primary-key lookup per walked row); with a plain JOIN
+            // SQLite 3.53 scanned ALL of catalog_nodes behind a bloom filter (live copy: 14.2 -> 4.6 ms for 27 stacks). Same rows; the
+            // caller only counts them per stack and tests membership.
             command.CommandText = $"""
                 WITH RECURSIVE subtree(RootId, NodeId) AS (
                     SELECT r.Id, r.Id FROM catalog_nodes r WHERE r.Id IN ({ids})
@@ -667,7 +670,7 @@ public sealed class RecentChaptersService
                 )
                 SELECT s.RootId, a.Id
                 FROM subtree s
-                JOIN catalog_nodes a ON a.Id = s.NodeId AND a.Kind = 1 AND a.Availability != 5;
+                CROSS JOIN catalog_nodes a ON a.Id = s.NodeId AND a.Kind = 1 AND a.Availability != 5;
                 """;
 
             using var reader = await command.ExecuteReaderAsync(ct);

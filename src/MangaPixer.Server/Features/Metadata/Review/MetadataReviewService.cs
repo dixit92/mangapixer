@@ -628,6 +628,9 @@ public sealed class MetadataReviewService
     /// different folders is not a duplicate - seasons restart), as the Volumes view and the Missing report read the names. Names
     /// only, one recursive query for the page; nothing is stored.
     /// </summary>
+    /// <remarks>1.47.0 lane S2: <c>CROSS JOIN</c> keeps the walk as the outer loop; with a plain JOIN SQLite 3.53 scanned ALL of
+    /// catalog_nodes behind a bloom filter (live copy, 50 root folders: 15.0 -> 6.9 ms). Same rows; the counts below do not depend on
+    /// their order (rows are grouped, the series head and the duplicates are chosen by sorted rules).</remarks>
     private async Task<Dictionary<long, (int Chapters, int Volumes)>> DuplicatesAsync(IReadOnlyList<long> folderIds, CancellationToken ct)
     {
         if (folderIds.Count == 0)
@@ -641,7 +644,7 @@ public sealed class MetadataReviewService
                 SELECT sub.root, c."Id" FROM catalog_nodes c JOIN sub ON c."ParentId" = sub.id WHERE c."Availability" != 5
             )
             SELECT sub.root AS "Root", c."ParentId" AS "ParentId", p."DisplayName" AS "ParentName", c."DisplayName" AS "Name"
-            FROM sub JOIN catalog_nodes c ON c."Id" = sub.id JOIN catalog_nodes p ON p."Id" = c."ParentId"
+            FROM sub CROSS JOIN catalog_nodes c ON c."Id" = sub.id JOIN catalog_nodes p ON p."Id" = c."ParentId"
             WHERE c."Kind" = 1
             """).ToListAsync(ct);
 #pragma warning restore EF1002
