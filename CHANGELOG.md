@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.47.0] - 2026-10-23
+
+### Added
+
+- **Creators in the metadata export.** Each item's `record` now lists its creators - one entry per person with `name`, `role` (`Author`, `Artist` or `Author, Artist`), the MangaUpdates author number (`muAuthorId`, `null` for MangaDex and Grand Comics Database credits) and `otherNames` (the pen names and other spellings MangaPixer stored after an admin ran **Artists' other names**; `[]` until then). A record without creators has no `creators` key, and every export page gains `recordFields` (`["creators"]`), so a client can tell "none known" from an older MangaPixer. Items without creators are unchanged; items with creators come back once from `updatedSince` after the update. See [Metadata export](docs/metadata-export.md#creators).
+- **Info for a whole library.** At a library's top level the browse bar now has **Info** too: it shows the tags of every work in the library you can see, and a tag opens the search filtered by it, as on a folder. Series at the top level keep their own Info and actions.
+- **"+N more" in the Info panel** now shows the rest of a row of tags in place (it was a plain count before).
+- **Read filter in tag search.** The **Reading** / **Read** / **Unread** chips now also work when the search is filtered by a tag. A work counts as read when you have read everything of it you can see - for a series kept in several folders, all of them - and as reading when you have started it; Incognito leaves your Private libraries out, as everywhere.
+- **Taken-down MangaDex records (admins).** **Metadata Manager** > **Runs** lists the MangaDex records that MangaDex no longer returns: how many, each record's title, the series here that use it, since when it has been missing, how many checks in a row missed it and when it was last found. It only shows what the new-chapter check already stored - nothing is requested, and no other site is asked for a replacement. See [Runs](docs/series-information.md#runs).
+
+### Changed
+
+- **Faster home and library pages.** Home's "New chapters" row is about 65 % faster (53 -> 19 ms on a 34k-item library copy): its covers are kept in memory until a cover, a cover setting, a series link, a poster or the library changes. Library pages and search are faster too (a library's top page 27-44 %, search 52-64 %, folders 16-24 %): every database connection now uses the same safe settings as the start-up connection (in-memory temporary tables, a 30-second lock wait, a 32 MiB page cache), and folder read badges, a folder's "Continue" archive and folder covers use cheaper queries with the same answers. Durability settings are unchanged: full sync, write-ahead log, foreign keys on, no memory-mapped I/O.
+- Mark read on a large folder, a folder's Info panel, the review page's duplicate counts, the cover picker's series list and the latest-added dates after a scan use cheaper database queries (same answers).
+- **Volumes view:** a loose chapter with a number is listed at its number between the volumes instead of after all of them (volume 9 ends at chapter 88.3, chapters 89 and 90 have no volume, volume 10 starts at 91: the two chapters now sit between the two volumes). Ordering only - no chapter is put in a volume. See [Volumes](docs/volumes.md).
+- The chapter list of a webtoon (the **Chapters** view) shows the chapters without the file extension.
+- **Artist reference:** a creator added in **Declared facts** now gets the MangaUpdates author your server already knows by that name (it used to happen only after a rename), and changing only the capitals (or word order, accents) of a declared artist's name keeps its reference. In **Match folders by name**, an artist matched from your own records is audited as `local_author_match` instead of `author_search`.
+- **Reader:** the paged reader's **Display** menu sits in two columns on wide screens and uses closer items on short ones, so it fits a 720 px high window without scrolling inside.
+- (Admins) A creator tag's **Rename** / **Merge into...** / **Split...** menu opens the creator directly, without looking it up by name first.
+- ASP.NET Core / Entity Framework Core 10.0.13, SharpCompress 0.50.6, Angular 22.2.3 (dependency updates).
+
+### Fixed
+
+- **Jump rail:** after a chip near the end of the list, the highlight stays on the chip you clicked (it used to move to the range of the top row when the page could not scroll further).
+- The admin diagnostics page and the diagnostics log export could rarely answer with an error while a new timing was first recorded at the same moment.
+
 ## [1.46.0] - 2026-10-21
 
 ### Changed
