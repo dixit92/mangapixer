@@ -39,6 +39,7 @@ public sealed class SeriesLinkStateReaderSweepTests
         ["src/MangaPixer.Server/Features/Catalog/VolumeEntryService.cs"] = "Volumes view: Confirmed / Auto only - an artist folder has no series; a unit walk stops at it",
         ["src/MangaPixer.Server/Features/Covers/CoverDecisionHostedService.cs"] = "any non-review row re-decides its subtree's covers (marking one too)",
         ["src/MangaPixer.Server/Features/Covers/CoverDecisionService.cs"] = "no record, not linked: the folder and everything below follow the unlinked rules",
+        ["src/MangaPixer.Server/Features/Covers/CoverLayerVersion.cs"] = "1.47.0 cover-layer version: any write to the table (any state) moves it; it reads no state",
         ["src/MangaPixer.Server/Features/Covers/CoverLinks.cs"] = "nearest-row walk stops at it; IsLinked / IsOwnCollection false (no record)",
         ["src/MangaPixer.Server/Features/Covers/CoverPickerService.cs"] = "not linked: the covers of the series linked below it (1.36.0 rule), else not_linked; the poster choice (1.39.0) needs Confirmed / Auto on a folder, nothing else",
         ["src/MangaPixer.Server/Features/Covers/CoverResolutionService.cs"] = "no poster layer (no record); series covers Confirmed / Auto only; a Poster choice shows only under a Confirmed / Auto link (1.39.0)",
