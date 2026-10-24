@@ -36,7 +36,7 @@
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.12" />
 
     <!-- Archive and image processing (versions vetted for compatibility) -->
-    <PackageVersion Include="SharpCompress" Version="0.50.6" />
+    <PackageVersion Include="SharpCompress" Version="0.50.7" />
     <PackageVersion Include="Magick.NET-Q8-AnyCPU" Version="15.0.0" />
 
     <!-- Transitive security pins: override vulnerable transitive versions -->
