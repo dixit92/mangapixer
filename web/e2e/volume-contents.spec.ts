@@ -58,6 +58,14 @@ async function ensureLibrary(page: Page): Promise<[string, string]> {
   return [lib!.id, folder];
 }
 
+/** The viewer's Volumes | Folders choice (null = follow the folder's default, which is Volumes here). */
+async function setSwitch(page: Page, mode: 'Volumes' | 'Folders' | null): Promise<void> {
+  const headers = await csrf(page.request);
+  const current = await (await page.request.get('/api/v1/reading/library-preferences')).json();
+  const res = await page.request.put('/api/v1/reading/library-preferences', { headers, data: { ...current, seriesViewMode: mode } });
+  expect(res.ok(), await res.text()).toBeTruthy();
+}
+
 async function shot(page: Page, name: string): Promise<void> {
   if (!SHOTS) return;
   await page.waitForTimeout(600);
@@ -68,17 +76,25 @@ test('the chapters inside a volume file join its stack, and the volume says so',
   test.setTimeout(300_000); // the library scan, its analysis and the background volume scan, each polled for up to 120 s
   await login(page);
   const [libraryId, folderId] = await ensureLibrary(page);
+  // The page lists what the viewer's switch says, the API poll below asks for the Volumes view itself: start from the default, as
+  // volume-stacks.spec.ts does - a Folders choice another spec left behind made the page flat while the API showed the stack (1.47.0
+  // lane T2).
+  await setSwitch(page, null);
 
   // The owner's path: the folder's Volumes view (opening it puts the folder first in the scan) -> the volume -> the line.
   // Before the scan nothing groups (one volume file, loose chapters): the folder lists its files.
   await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
   const volume = page.locator('.node-wrap', { hasText: 'Volume 2' });
-  // The scan runs in the background: reload until the volume file and the chapters found inside are one stack.
+  // The scan runs in the background. Wait for it on the API (the same Volumes-view browse the page makes, which also puts the folder
+  // first in the scan queue) instead of reloading the page every few seconds: the server of Verify-E2E.ps1 starts the scan at once
+  // and retries every 5 s, so the stack shows within seconds; the 120 s only covers a runner that left the quiet-server timers.
   await expect.poll(async () => {
-    await page.reload();
-    await page.locator('.node-wrap').first().waitFor();
-    return page.locator('app-stack-card').count();
-  }, { timeout: 120_000, intervals: [2000, 3000, 5000] }).toBe(1);
+    const view = await (await page.request.get(`/api/v1/libraries/${libraryId}/browse?parentId=${folderId}&pageSize=50&group=volumes`)).json();
+    return ((view.items ?? []) as Node[]).filter((n) => n.kind === 'VolumeStack').length;
+  }, { timeout: 120_000, intervals: [1000, 2000, 3000] }).toBe(1);
+  await page.reload();
+  await page.locator('.node-wrap').first().waitFor();
+  await expect(page.locator('app-stack-card')).toHaveCount(1);
   await expect(volume).toBeVisible();
   await expect(volume.locator('.node-sub')).toContainText('2 chapters');
   // Chapter 11 is not inside: it stays a loose chapter after the volumes.

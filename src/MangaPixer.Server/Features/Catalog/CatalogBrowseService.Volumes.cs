@@ -2,6 +2,7 @@ namespace com.lifepixer.mangapixer.Server.Features.Catalog;
 
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
+using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.Missing;
 using com.lifepixer.mangapixer.Core.Reading;
 using com.lifepixer.mangapixer.Server.Features.Covers;
@@ -47,7 +48,7 @@ public sealed partial class CatalogBrowseService
                 VolumeEntryKind.Stack => stacks[e.Stack!.Key],
                 VolumeEntryKind.CollectionStack => collections[e.Collection!.Key],
                 VolumeEntryKind.MissingVolume => MissingVolumeCard(view, e.Volume!.Value),
-                _ => VolumeStackService.WithAlsoInVolume(VolumeTitled(plainNodes[e.Row!.Id], e), view),
+                _ => VolumeStackService.WithAlsoInVolume(ChapterTitled(VolumeTitled(plainNodes[e.Row!.Id], e), e, view), view),
             })
             .ToList();
         // 1.43.0 (tracker sync): the cards' "read on <tracker>" flag.
@@ -60,7 +61,9 @@ public sealed partial class CatalogBrowseService
             HasMore = page.HasMore,
             PrevCursor = page.PrevCursor,
             HasPrevious = page.HasPrevious,
-            NextUnread = IsFirstPage(cursor, before) ? await ResolveNextUnreadAsync(view.LibraryId, view.FolderId, userId, ct) : null,
+            NextUnread = IsFirstPage(cursor, before) && await ResolveNextUnreadAsync(view.LibraryId, view.FolderId, userId, ct) is { } next
+                ? ChapterTitled(next, view)
+                : null,
         };
     }
 
@@ -297,6 +300,20 @@ public sealed partial class CatalogBrowseService
     private static CatalogNodeDto VolumeTitled(CatalogNodeDto card, VolumeEntry entry) =>
         entry is { Kind: VolumeEntryKind.Archive, Rank: 0, Volume: { } volume }
             ? card with { DisplayName = VolumeGrouping.LabelOf(volume, VolumeStackConfidence.Exact) }
+            : card;
+
+    /// <summary>
+    /// 1.47.0 (owner): in the Chapters view of a webtoon (a series in chapter mode, <see cref="FolderVolumeEntries.ChaptersOnly"/>) a chapter
+    /// archive is titled without its file extension ("0003 [0001 - Some Title]", not "...cbz") - display only; the folder view and the
+    /// reader's own title keep their rules, and the archive itself is untouched.
+    /// </summary>
+    internal static CatalogNodeDto ChapterTitled(CatalogNodeDto card, VolumeEntry entry, FolderVolumeEntries view) =>
+        entry.Kind == VolumeEntryKind.Archive ? ChapterTitled(card, view) : card;
+
+    /// <summary>The same title rule for an archive card outside the entry list (the Continue row's next chapter).</summary>
+    internal static CatalogNodeDto ChapterTitled(CatalogNodeDto card, FolderVolumeEntries view) =>
+        view.ChaptersOnly && card.Kind == CatalogNodeKind.Archive
+            ? card with { DisplayName = TitleNormalizer.StripArchiveExtension(card.DisplayName).TrimEnd() is { Length: > 0 } title ? title : card.DisplayName }
             : card;
 
     private async Task<List<CatalogNodeDto>> WithAlsoInVolumeAsync(List<CatalogNodeDto> nodes, long folderId, CancellationToken ct)

@@ -136,12 +136,19 @@ try {
         docker rm -f $ContainerName 2>$null | Out-Null
         foreach ($volume in $stateVolumes.Values) { docker volume rm -f $volume 2>$null | Out-Null }
 
+        # The volume contents scan (1.44.0) defaults to a 120 s start-up delay, a 30 s poll and a 60 s retry for a folder whose
+        # archives are not analysed yet: a quiet-server default that made volume-contents.spec.ts wait up to two minutes.
+        # The throwaway server scans at once and retries every 5 s (the real option names: VolumeContentScanService.InitialDelayKey,
+        # PollKey, RetryKey), so the spec waits for the scan, not for the timers. Mirror these three -e lines into any other runner.
         $volumeArgs = foreach ($mount in $stateVolumes.GetEnumerator()) { "-v"; "$($mount.Value):$($mount.Key)" }
         docker run -d --name $ContainerName `
             -p "127.0.0.1:${HostPort}:8080" `
             -v "${tempMedia}:/media:ro" `
             @volumeArgs `
             -e Logging__LogLevel__Default=Information `
+            -e MangaPixer__VolumeScan__InitialDelaySeconds=0 `
+            -e MangaPixer__VolumeScan__PollSeconds=2 `
+            -e MangaPixer__VolumeScan__RetrySeconds=5 `
             $ImageName 2>&1 | Out-Host
         if ($LASTEXITCODE -ne 0) { throw "docker run failed" }
 

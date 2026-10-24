@@ -521,11 +521,16 @@ public static class LogEvents
         public const int FreshnessFailed = 9467;
         public const int CrossTrigger = 9468;
         public const int LatestUploadMissing = 9469; // owner follow-up 2026-10-19: records MangaDex left out of the sweep answer
+        public const int TakenDownListed = 9470; // 1.47.0 (lane F, 9469-9479): the admin list of taken-down MangaDex records (counts only)
 
         // Tag query (1.45.0, lane Q, 9450-9459). Counts, ids and timings only - never search text, tag values or names.
         public const int FacetCountsComputed = 9450;
         public const int InfoPanelServed = 9451;
         public const int FacetSearchServed = 9452;
+
+        // Info panel follow-ups (1.47.0, lane P, 9453-9459). Counts, ids and timings only.
+        public const int InfoBucketPageServed = 9453;
+        public const int FacetWorkReadStateFiltered = 9454;
 
         // Tag index (1.45.0 lane F, 9440-9449). Library / creator ids, counts and timings only - never names, titles or tag values.
         public const int FacetIndexRebuilt = 9440;

@@ -130,6 +130,12 @@ public sealed class PerfRecorder : IDisposable
 
     public PerfDiagnostics Snapshot(int maxStatements = 1500)
     {
+        // Each map is copied with ConcurrentDictionary.ToArray (atomic) before LINQ touches it. A LINQ sort straight over the
+        // dictionary copies it by Count + CopyTo, and CopyTo throws ArgumentException when a key arrives in between - the hook is
+        // process-wide, so any SQL in the process can add a statement shape while a snapshot is taken (1.47.0 lane T2).
+        var routes = _routes.ToArray();
+        var statements = _statements.ToArray();
+        var transactions = _transactions.ToArray();
         var gc = GC.GetGCMemoryInfo();
         ThreadPool.GetAvailableThreads(out var workerAvail, out var ioAvail);
         ThreadPool.GetMaxThreads(out var workerMax, out var ioMax);
@@ -137,13 +143,13 @@ public sealed class PerfRecorder : IDisposable
         {
             UptimeSeconds = Stopwatch.GetElapsedTime(_startTimestamp).TotalSeconds,
             BucketUpperMs = BucketUpperMs.Select(b => double.IsInfinity(b) ? -1 : b).ToArray(),
-            Routes = _routes.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => kv.Value.ToRow(kv.Key, null)).ToArray(),
-            Statements = _statements
+            Routes = routes.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => kv.Value.ToRow(kv.Key, null)).ToArray(),
+            Statements = statements
                 .OrderByDescending(kv => kv.Value.MsSum)
                 .Take(maxStatements)
                 .Select(kv => kv.Value.ToRow(kv.Key.Origin, kv.Key.Shape))
                 .ToArray(),
-            Transactions = _transactions.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => kv.Value.ToRow(kv.Key, null)).ToArray(),
+            Transactions = transactions.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => kv.Value.ToRow(kv.Key, null)).ToArray(),
             Heap = new PerfHeap
             {
                 TotalMemoryBytes = GC.GetTotalMemory(false),

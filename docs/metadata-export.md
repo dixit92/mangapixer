@@ -54,6 +54,7 @@ All endpoints below are `GET`, under `/api/v1/export/`, and answer JSON. Times a
   "schemaVersion": 1,
   "serverTime": "2026-10-04T12:00:00.000Z",
   "sweeps": { "mangadexLatestUpload": "2026-10-04T09:00:00.000Z" },
+  "recordFields": ["creators"],
   "library": { "id": "lib0manga", "displayName": "Manga", "kind": "manga" },
   "items": [ { "nodeId": "...", "...": "..." } ],
   "removed": [ { "nodeId": "...", "reason": "linkCleared", "at": "2026-10-04T12:00:00.000Z" } ],
@@ -75,6 +76,12 @@ to slow down, a switch turned off) still counts for the libraries whose records 
 not move. A MangaDex record that MangaDex no longer returns keeps its last value here. With **Automatic matching** on, MangaPixer
 checks every 6 hours by default (an admin can choose every 1 to 6 hours: **Scheduled jobs** > **Series information refresh** > **Check
 for new chapters**).
+
+*1.47.0:* `recordFields` (on every page, next to `sweeps`) lists the **optional fields of `items[].record`** this server exports - today
+`["creators"]`. An optional field is left out of a record that has no value for it, so the key being absent means either "this record has
+none" or "this MangaPixer is older than the field". Read the page: when the field's name is in `recordFields`, an absent key means **none
+known**; when it is not (or `recordFields` itself is missing - a MangaPixer before 1.47.0), the server does not export that field at all.
+The list is about the server, not the item, so it never changes an item's `updatedAt`.
 
 ## Items
 
@@ -108,6 +115,40 @@ folder's declared creator in MangaPixer (not part of the export).
 | `refresh` | `lastFetchedAt`, `intervalDays`, `nextDueAt`: when MangaPixer read the record and looks at it again; `null` without a record and for `CollectionAbout` (its record is not refreshed automatically). `officialLinks` is `[]` and `volumes` / `completion` are `null` for `CollectionAbout` too. |
 | `tracking` | (1.39.0) `"off"` when an admin turned **Track completion** off for the folder (see [below](#completion-tracking-off)); the key is **left out** otherwise. |
 | `duplicates` | (1.38.0) Chapter or volume numbers that more than one file states - the same duplicates the Missing report lists - each with its files: `{ kind, number, files: [{ nodeId, name, folder }] }`. Open a file in the reader at `/reader/{nodeId}`. `kind` is `Volume` or `Chapter`; `number` is exact (`"12.5"`); `folder` is the unit subfolder (`Volumes`, `Season 2`) or `null` in the series folder itself (a number is a duplicate only within one folder). Only folders with a Confirmed or Auto link have it, and the key is **left out** when there are none. At most 50 numbers, 20 files each. *1.44.0:* a chapter file the volume contents scan found inside a volume file is listed too, with `inVolume` (the volume's number) and `files: [the chapter file, the volume file]` - the chapter file is a copy of part of the volume, so a client may offer to remove it; `inVolume` is left out on the other entries. |
+
+### Creators
+
+*New in 1.47.0.* `record.creators` lists the people the linked record credits, so a client can search by creator without asking
+MangaUpdates itself:
+
+```json
+"creators": [
+  { "name": "Synthetic Writer", "role": "Author, Artist", "muAuthorId": 20000001, "otherNames": ["Shinsetsu Sakka", "S. Writer"] },
+  { "name": "Sample Illustrator", "role": "Artist", "muAuthorId": 20000002, "otherNames": [] }
+]
+```
+
+| Field | |
+|---|---|
+| `name` | The name as the record credits it. |
+| `role` | `Author`, `Artist` or `Author, Artist`: one entry per **person**, not per credit - a person credited for both roles appears once. MangaUpdates' other credits (editors, translators, ...) are left out. |
+| `muAuthorId` | The MangaUpdates author number (a number), or `null` for a credit that has none (records read from MangaDex or the Grand Comics Database). |
+| `otherNames` | The person's other names (pen names, other spellings and scripts; at most 50): the main name of their MangaUpdates author page when it is not the name above, then the other names, as MangaPixer stored them. `[]` when none are stored. |
+
+- **Left out when empty.** A record with no creators has no `creators` key at all - never `null`, never `[]` - so such an item keeps its
+  exact form and does not come again from `updatedSince` because of this field. Use the page's `recordFields` (above)
+  to tell "none known" from an older MangaPixer.
+- **Order.** The people are in the order the record first credits them (a person's place is their first credit, whatever the role), so the
+  list is the same on every call.
+- **`otherNames` needs an admin.** MangaPixer reads a person's other names from the author pages MangaUpdates holds, and only when an admin
+  presses **Look up the rest** under [Artists' other names](series-information.md#artists-other-names) (never automatic). Until then, and for
+  a person without an author number, `otherNames` is `[]`; the names appear on the next rebuild after the admin's run.
+- **What moves an item.** An item changes (and so comes again from `updatedSince`) only when its `creators` list changes - a credit
+  added or removed, or a person's other names changed by an **Artists' other names** run. Other items do not move.
+- **After the upgrade to 1.47.0.** Every item whose record has creators gains the list once, so those items come again in the first
+  incremental call; items without creators are unchanged.
+- A **Collection about** item's `record` is the series the folder is about, so its `creators` are that series' creators (a label, like
+  the rest of that `record`).
 
 ### Volumes
 
@@ -214,5 +255,8 @@ Errors are `{ "error": "<code>" }`.
 `schemaVersion` is `1`. New fields may appear in any MangaPixer release without changing it - ignore fields you do not know. A field
 is never removed or renamed, and a value never changes meaning, without raising `schemaVersion`; a client should refuse a higher version
 than it knows.
+
+*1.47.0:* `record.creators` and the page's `recordFields` were added without changing `schemaVersion` (they are new fields). Later optional record
+fields follow the same rule: the field is left out when empty, and its name is added to `recordFields`.
 
 New `link.state` values may also appear without a new `schemaVersion`. **Treat a state you do not know as "not a series"**: the folder or archive is not matched by your own matcher, no numbers (behind, missing, complete) are computed from its `record`, and it stops inheritance like `DontMatch` - items below it without their own link are not part of a series either. Never fail a sync on an unknown state; store the item and show the state as it is.

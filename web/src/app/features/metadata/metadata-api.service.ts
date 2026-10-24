@@ -44,6 +44,7 @@ import {
   SeriesInfoDto,
   SetArtistFolderRequest,
   SetCollectionAboutRequest,
+  TakenDownRecordsDto,
   UpdateMetadataLibraryRequest,
   UpdateMetadataSettingsRequest,
 } from '../../core/api/api-types';
@@ -289,6 +290,11 @@ export class MetadataApiService {
 
   getRuns(libraryId: string | null = null, cursor: string | null = null, limit = 20): Observable<MetadataMatchRunsDto> {
     return this.get<MetadataMatchRunsDto>('/admin/metadata/runs', params({ library: libraryId, cursor, limit }));
+  }
+
+  /** 1.47.0: MangaDex records the latest-upload sweep stopped finding - stored rows only, nothing is requested. */
+  getTakenDown(): Observable<TakenDownRecordsDto> {
+    return this.get<TakenDownRecordsDto>('/admin/metadata/taken-down');
   }
 
   cancelRun(runId: string): Observable<MetadataMatchRunDto> {

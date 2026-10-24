@@ -66,6 +66,8 @@ Declared facts are stored in MangaPixer's own database. Reading or changing them
 
 *New in 1.37.0.* Marking a folder an [artist folder](series-information.md#artist-folders) declares the artist as the folder's creator in the same step - the folder's name by default, with the role **Story & art** - and keeps the folder's other declared facts. The artist then works like any declared creator: it flows down to the works inside, and their automatic matching prefers records by that artist. Removing the artist-folder mark leaves the declaration; change or remove it here.
 
+*New in 1.47.0:* a declared creator can carry a MangaUpdates author reference (set when you pick an author, or found on your server). A creator you add here (or rename) gets the reference of the one author your server already knows by that name - from the stored MangaUpdates authors or the tag index; two different authors by that name, or none, leave it empty - and nothing is sent to find it. Changing only the capitals, the word order or the accents of the name (`BETA painter` for `Beta Painter`) keeps the reference; a different name drops it, as before. In **Match folders by name** an author id that came from a local match is recorded in the audit log as `local_author_match`, apart from one you picked from the author search (`author_search`).
+
 ## Good to know
 
 - When a folder is renamed or moved, its declared facts go with it to the new folder, like its link and settings (see [Renamed and moved folders](series-information.md#renamed-and-moved-folders)); a new folder that already has declared facts of its own keeps them, and the old ones wait under **Missing folders**.

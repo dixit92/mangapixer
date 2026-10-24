@@ -55,6 +55,7 @@ public sealed class FacetSearchService
         long? libraryId,
         string? cursor,
         int pageSize,
+        BrowseReadStateFilter readState = BrowseReadStateFilter.All,
         CancellationToken ct = default)
     {
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -102,6 +103,10 @@ public sealed class FacetSearchService
             conditions.Add("w.Title LIKE @text ESCAPE '\\'");
             parameters["@text"] = "%" + EscapeLike(parsed.FreeText) + "%";
         }
+        // 1.47.0 (lane P): the read filter - the viewer's read state of each matching WORK over its visible locations
+        // (QueryWorkReadState), resolved in a pre-pass and folded in as an id list, so the page, the cursor and the count agree.
+        if (readState != BrowseReadStateFilter.All)
+            conditions.Add(await ReadStateConditionAsync(string.Join("\nAND ", conditions), parameters, scope, userId, readState, ct));
         var where = string.Join("\nAND ", conditions);
 
         var position = ParseCursor(cursor);
@@ -143,6 +148,23 @@ public sealed class FacetSearchService
             Filters = echo,
             Works = works,
         };
+    }
+
+    /// <summary>The works among those matching <paramref name="where"/> whose read state passes <paramref name="readState"/>, as a condition.</summary>
+    private async Task<string> ReadStateConditionAsync(
+        string where, IReadOnlyDictionary<string, object?> parameters, FacetViewerScope scope, long userId, BrowseReadStateFilter readState,
+        CancellationToken ct)
+    {
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        var matching = await QuerySql.ReadAsync(_db, $"""
+            SELECT w.Id FROM facet_works w WHERE {where}
+            """, parameters, r => r.GetInt64(0), ct);
+        var rollups = await QueryWorkReadState.OfWorksAsync(_db, matching, scope, userId, ct);
+        var kept = matching.Where(id => QueryWorkReadState.Matches(rollups, id, readState)).ToList();
+        _logger.LogDebug(LogEvents.Metadata.FacetWorkReadStateFiltered,
+            "Tag search read filter {ReadState}: {Kept} of {Matching} works, in {ElapsedMs} ms",
+            readState, kept.Count, matching.Count, (long)System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        return kept.Count == 0 ? "0" : $"w.Id IN ({QuerySql.List(kept)})";
     }
 
     private void Log(int filters, int works, long started) =>

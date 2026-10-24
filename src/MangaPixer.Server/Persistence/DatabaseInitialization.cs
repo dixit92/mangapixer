@@ -59,7 +59,8 @@ public static class DatabaseInitialization
     /// </summary>
     public static async Task ConfigureDatabaseAsync(MangaPixerDbContext db, CancellationToken ct = default)
     {
-        // Enable foreign keys on every connection
+        // Enable foreign keys on this connection (1.47.0: every other connection gets the same settings from
+        // SqliteConnectionSettingsInterceptor - before, only this start-up connection had them)
         await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = ON;", ct);
 
         // WAL mode for concurrent readers + single writer

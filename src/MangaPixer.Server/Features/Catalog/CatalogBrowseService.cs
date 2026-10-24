@@ -1386,7 +1386,7 @@ public sealed partial class CatalogBrowseService
     /// round trips. Classification of the three counts lives in
     /// <see cref="FolderReadRollupRules.Classify"/> (Core, unit-tested).
     /// </summary>
-    private async Task<Dictionary<long, FolderReadRollup>> ResolveFolderReadRollupsAsync(
+    internal async Task<Dictionary<long, FolderReadRollup>> ResolveFolderReadRollupsAsync(
         List<long> folderInternalIds,
         long userId,
         CancellationToken ct)
@@ -1405,6 +1405,9 @@ public sealed partial class CatalogBrowseService
             // Kind = 1 is Archive; Availability = 5 is Tombstoned; State = 1 is InProgress
             // (same literals as the sibling CTEs in this file). The root row itself is a
             // folder (Kind 0) so it is filtered out by the archive join.
+            // 1.47.0 lane S: CROSS JOIN (an inner join SQLite never reorders) keeps the walk as the outer loop - one primary-key
+            // lookup per walked row. With a plain JOIN the planner scanned ALL of catalog_nodes and probed the walk through an
+            // automatic index (~91 ms for 50 root cards of an 11k-node library; 4.6 ms now). Same rows, same counts.
             command.CommandText = $"""
                 WITH RECURSIVE subtree(RootId, NodeId) AS (
                     SELECT r.Id, r.Id FROM catalog_nodes r WHERE r.Id IN ({ids})
@@ -1417,7 +1420,7 @@ public sealed partial class CatalogBrowseService
                        SUM(CASE WHEN rm.ItemId IS NOT NULL THEN 1 ELSE 0 END) AS ReadCount,
                        SUM(CASE WHEN rm.ItemId IS NULL AND rp.State = 1 THEN 1 ELSE 0 END) AS InProgressCount
                 FROM subtree s
-                JOIN catalog_nodes a ON a.Id = s.NodeId AND a.Kind = 1 AND a.Availability != 5
+                CROSS JOIN catalog_nodes a ON a.Id = s.NodeId AND a.Kind = 1 AND a.Availability != 5
                 LEFT JOIN read_marks rm ON rm.ItemId = a.Id AND rm.UserId = $user
                 LEFT JOIN reading_progress rp ON rp.ItemId = a.Id AND rp.UserId = $user
                 GROUP BY s.RootId;
@@ -1650,12 +1653,17 @@ public sealed partial class CatalogBrowseService
             // browsing the library root); recursion reaches every descendant. Only
             // not-read archives (no read-mark) are candidates. An in-progress one wins
             // (resume the most recently updated); otherwise the first by SortKey.
-            command.CommandText = """
+            // 1.47.0 lane S: the seed names its own form. The former `($parent IS NULL AND ParentId IS NULL) OR ParentId = $parent` could
+            // not use the ParentId index for a bound parameter, so a folder's walk started by reading the WHOLE library through the
+            // LibraryId index (~11k rows in the largest live library) to find that folder's children. A folder seeds from its children
+            // (`+LibraryId`: the same filter, kept off the index); the root form is unchanged.
+            var seed = parentId is null
+                ? "cn.LibraryId = $lib AND cn.Availability != 5 AND cn.ParentId IS NULL"
+                : "+cn.LibraryId = $lib AND cn.Availability != 5 AND cn.ParentId = $parent";
+            command.CommandText = $"""
                 WITH RECURSIVE descendants(NodeId) AS (
                     SELECT cn.Id FROM catalog_nodes cn
-                    WHERE cn.LibraryId = $lib
-                      AND cn.Availability != 5
-                      AND (($parent IS NULL AND cn.ParentId IS NULL) OR cn.ParentId = $parent)
+                    WHERE {seed}
                     UNION ALL
                     SELECT cn.Id FROM descendants d
                     JOIN catalog_nodes cn ON cn.ParentId = d.NodeId
@@ -1692,10 +1700,13 @@ public sealed partial class CatalogBrowseService
             libParam.Value = libraryId;
             command.Parameters.Add(libParam);
 
-            var parentParam = command.CreateParameter();
-            parentParam.ParameterName = "$parent";
-            parentParam.Value = (object?)parentId ?? DBNull.Value;
-            command.Parameters.Add(parentParam);
+            if (parentId is not null)
+            {
+                var parentParam = command.CreateParameter();
+                parentParam.ParameterName = "$parent";
+                parentParam.Value = parentId.Value;
+                command.Parameters.Add(parentParam);
+            }
 
             var userParam = command.CreateParameter();
             userParam.ParameterName = "$user";

@@ -16,14 +16,27 @@ using Xunit;
 /// library and "only missing" filters, the per-node row, 404s, admin-only access, and the DI wiring. The report
 /// reads stored rows only. Synthetic names only.
 /// </summary>
-public sealed class MissingReportHttpTests : IClassFixture<MangaPixerWebApplicationFactory>
+[Collection(SerialCollection.Name)]
+public sealed class MissingReportHttpTests : IClassFixture<MissingReportHttpTests.QuietHost>
 {
     private const string LibPubId = "mrlib1";
     private readonly MangaPixerWebApplicationFactory _factory;
 
-    public MissingReportHttpTests(MangaPixerWebApplicationFactory factory)
+    /// <summary>
+    /// One host for the class, without hosted services (1.47.0 lane T): <c>Conversion_IsWired_AndGatedByTheFetchSwitch</c> answered
+    /// a 500 once in a while under a loaded full run, and this host's background passes were the only other writers on its
+    /// database. The class also runs in the serial collection, so no other host boots or burns CPU beside it.
+    /// </summary>
+    public sealed class QuietHost : IDisposable
     {
-        _factory = factory;
+        public MangaPixerWebApplicationFactory Factory { get; } = MangaPixerWebApplicationFactory.WithoutBackgroundServices();
+
+        public void Dispose() => Factory.Dispose();
+    }
+
+    public MissingReportHttpTests(QuietHost host)
+    {
+        _factory = host.Factory;
     }
 
     // mrBehind: v01-v03 linked to a record with an English total of 10; mrDone: v01-v02 of 2.

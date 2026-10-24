@@ -21,6 +21,12 @@ internal static class FolderCovers
     /// <summary>
     /// The same rule with the cover archive's internal id too (the cover layer resolves the archive's own layer):
     /// folder internal id -> (archive internal id, archive public id).
+    /// <para>
+    /// 1.47.0 lane S: the walk is ranked first and the public id read for the winners only (<c>CROSS JOIN</c> keeps the ranked rows as the
+    /// outer loop). Before, every walked row was joined back to <c>catalog_nodes</c> for its public id before ranking, and SQLite's planner
+    /// answered that join by scanning the public-id index of the WHOLE catalog. The same rows win (the rank reads only the walk's own
+    /// columns; the join is on the primary key of a row the walk read), so the answer is the same.
+    /// </para>
     /// </summary>
     public static async Task<Dictionary<long, (long Id, string PublicId)>> ResolveArchivesAsync(MangaPixerDbContext db,
         IReadOnlyCollection<long> folderInternalIds, CancellationToken ct)
@@ -48,13 +54,15 @@ internal static class FolderCovers
                     JOIN catalog_nodes cn ON cn.ParentId = d.NodeId
                 ),
                 ranked AS (
-                    SELECT d.RootId, cn.Id AS CoverId, cn.PublicId AS CoverPublicId,
+                    SELECT d.RootId, d.NodeId AS CoverId,
                            ROW_NUMBER() OVER (PARTITION BY d.RootId ORDER BY d.SortKey, d.NodeId) AS rn
                     FROM descendants d
-                    JOIN catalog_nodes cn ON d.NodeId = cn.Id
                     WHERE d.Kind = 1 AND d.Availability != 5
                 )
-                SELECT RootId, CoverId, CoverPublicId FROM ranked WHERE rn = 1;
+                SELECT r.RootId, r.CoverId, cn.PublicId
+                FROM ranked r
+                CROSS JOIN catalog_nodes cn ON cn.Id = r.CoverId
+                WHERE r.rn = 1;
                 """;
 
             using var reader = await command.ExecuteReaderAsync(ct);

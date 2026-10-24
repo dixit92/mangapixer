@@ -8,6 +8,7 @@ using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
+using Xunit.Abstractions;
 
 /// <summary>
 /// Service-with-DB tests for alt-title search (1.26.0): the series_search triggers
@@ -301,8 +302,15 @@ public sealed class AltTitleSearchTests : IDisposable
     }
 }
 
-/// <summary>Latency guard: the extra series query must not move search p95 on a ~20k-node library.</summary>
-public sealed class AltTitleSearchLatencyTests : IDisposable
+/// <summary>
+/// Latency guard: the extra series query must not move search latency on a ~20k-node library.
+/// Two identical databases are measured in alternation, one with the series index and one with it emptied, so both see the
+/// same machine load, cache warmth and ordering. The medians are compared with a relative-plus-floor bound: the series query
+/// costs about 4 ms on this data, the bound allows max(1.5x, +40 ms), and a node scan per hit (+80 ms) fails it. A fixed
+/// absolute margin on the p95 of two back-to-back phases failed under parallel load (1.47.0 lane T).
+/// </summary>
+[Collection(SerialCollection.Name)]
+public sealed class AltTitleSearchLatencyTests(ITestOutputHelper output) : IDisposable
 {
     private readonly string _tempDir = Path.Combine(Path.GetTempPath(), "mangapixer-altlat-" + Guid.NewGuid().ToString("N")[..8]);
 
@@ -312,20 +320,21 @@ public sealed class AltTitleSearchLatencyTests : IDisposable
         try { Directory.Delete(_tempDir, true); } catch { }
     }
 
-    private static double P95(List<double> ms)
+    private static double Median(List<double> ms)
     {
         ms.Sort();
-        return ms[(int)Math.Ceiling(ms.Count * 0.95) - 1];
+        return ms.Count % 2 == 1 ? ms[ms.Count / 2] : (ms[ms.Count / 2 - 1] + ms[ms.Count / 2]) / 2;
     }
 
-    [Fact]
-    public async Task Search_With20kNodes_SeriesQueryStaysWithinNoise()
+    private sealed record Searcher(MangaPixerDbContext Db, CatalogBrowseService Service, long UserId);
+
+    /// <summary>A 20k-node library with 300 linked records, in its own database file.</summary>
+    private static async Task<Searcher> SeedAsync(string dbPath)
     {
-        Directory.CreateDirectory(_tempDir);
         var options = new DbContextOptionsBuilder<MangaPixerDbContext>()
-            .UseSqlite(DatabaseInitialization.BuildConnectionString(Path.Combine(_tempDir, "lat.db")))
+            .UseSqlite(DatabaseInitialization.BuildConnectionString(dbPath))
             .Options;
-        using var db = new MangaPixerDbContext(options);
+        var db = new MangaPixerDbContext(options);
         await db.Database.EnsureCreatedAsync();
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
@@ -363,27 +372,64 @@ public sealed class AltTitleSearchLatencyTests : IDisposable
             FROM metadata_records r JOIN catalog_nodes cn ON cn.PublicId = 'n' || r.Id;
             """);
 
-        var svc = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
+        return new Searcher(db, new CatalogBrowseService(db, new LibraryAuthorizationService(db)), userId);
+    }
 
-        async Task<double> MeasureAsync()
+    private static async Task<double> TimeOneAsync(Searcher searcher, int i)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var r = await searcher.Service.SearchAsync(searcher.UserId, "Series Alias " + (i % 9 + 1));
+        sw.Stop();
+        Assert.NotNull(r.SeriesMatches);
+        return sw.Elapsed.TotalMilliseconds;
+    }
+
+    [Fact]
+    public async Task Search_With20kNodes_SeriesQueryStaysWithinNoise()
+    {
+        Directory.CreateDirectory(_tempDir);
+        var indexed = await SeedAsync(Path.Combine(_tempDir, "indexed.db"));
+        var bare = await SeedAsync(Path.Combine(_tempDir, "bare.db"));
+        try
         {
-            await svc.SearchAsync(userId, "Series Alias 1"); // warm
-            var samples = new List<double>();
-            for (var i = 0; i < 40; i++)
+            // The baseline database has no series index to hit: the series query finds nothing there.
+            await bare.Db.Database.ExecuteSqlRawAsync("DELETE FROM series_search");
+
+            // Warm both (JIT, EF query compilation, SQLite page cache).
+            for (var i = 0; i < 3; i++)
             {
-                var sw = System.Diagnostics.Stopwatch.StartNew();
-                var r = await svc.SearchAsync(userId, "Series Alias " + (i % 9 + 1));
-                sw.Stop();
-                samples.Add(sw.Elapsed.TotalMilliseconds);
-                Assert.NotNull(r.SeriesMatches);
+                await TimeOneAsync(indexed, i);
+                await TimeOneAsync(bare, i);
             }
-            return P95(samples);
+
+            // Alternate A/B, flipping which goes first each round: a load spike, a GC or a cold page lands on both sides alike.
+            var withMs = new List<double>();
+            var withoutMs = new List<double>();
+            for (var round = 0; round < 40; round++)
+            {
+                if (round % 2 == 0)
+                {
+                    withMs.Add(await TimeOneAsync(indexed, round));
+                    withoutMs.Add(await TimeOneAsync(bare, round));
+                }
+                else
+                {
+                    withoutMs.Add(await TimeOneAsync(bare, round));
+                    withMs.Add(await TimeOneAsync(indexed, round));
+                }
+            }
+
+            var medianWith = Median(withMs);
+            var medianWithout = Median(withoutMs);
+            var allowed = Math.Max(medianWithout * 1.5, medianWithout + 40);
+            output.WriteLine($"median with series index {medianWith:F1} ms, baseline {medianWithout:F1} ms, allowed {allowed:F1} ms");
+            Assert.True(medianWith <= allowed,
+                $"median with series index {medianWith:F1} ms vs baseline {medianWithout:F1} ms (allowed {allowed:F1} ms)");
         }
-
-        var withSeries = await MeasureAsync();
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM series_search");
-        var baseline = await MeasureAsync();
-
-        Assert.True(withSeries <= baseline + 100, $"p95 with series index {withSeries:F1} ms vs baseline {baseline:F1} ms");
+        finally
+        {
+            indexed.Db.Dispose();
+            bare.Db.Dispose();
+        }
     }
 }

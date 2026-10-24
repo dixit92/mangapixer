@@ -8,6 +8,7 @@ using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.Missing;
 using com.lifepixer.mangapixer.Core.Metadata.Reach;
 using com.lifepixer.mangapixer.Server.Features.Metadata;
+using com.lifepixer.mangapixer.Server.Features.Metadata.Authors;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Missing;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MangaDex;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MangaUpdates;
@@ -68,6 +69,9 @@ public sealed class ExportItemBuilder(MangaPixerDbContext db)
         var latestUploads = await db.MangaDexLatestUploads.AsNoTracking().Where(u => companionIds.Contains(u.RecordId))
             .ToDictionaryAsync(u => u.RecordId, ct);
         var aniListByMu = await AniListByMangaUpdatesIdAsync(ct);
+        // 1.47.0: the stored MangaUpdates author records of every creator the library's records credit - one batched read, no per-record query.
+        var authors = await new StoredAuthorAliases(db).GetAsync(
+            records.Values.SelectMany(r => ExportCreators.AuthorIdsOf(r.Provider, r.CreatorsJson)).ToHashSet(StringComparer.Ordinal), ct);
         var maps = (await db.SeriesVolumeMaps.AsNoTracking().Where(m => recordIds.Contains(m.RecordId)).ToListAsync(ct)).ToLookup(m => m.RecordId);
         var wikipedia = await db.WikipediaLists.AsNoTracking().Where(w => recordIds.Contains(w.RecordId))
             .Select(w => new { w.RecordId, w.DetailsJson, w.CheckedAt })
@@ -111,7 +115,7 @@ public sealed class ExportItemBuilder(MangaPixerDbContext db)
                     Score = link.Score is { } s ? Math.Round(s, 4) : null,
                     UpdatedAt = ExportJson.Truncate(link.UpdatedAt),
                 },
-                Record = record is null ? null : Record(record),
+                Record = record is null ? null : Record(record, authors),
                 Companions = new ExportCompanionsDto
                 {
                     Mangadex = mangadex?.ExternalId,
@@ -157,7 +161,7 @@ public sealed class ExportItemBuilder(MangaPixerDbContext db)
         return names;
     }
 
-    private static ExportRecordDto Record(MetadataRecordEntity r)
+    private static ExportRecordDto Record(MetadataRecordEntity r, IReadOnlyDictionary<string, AuthorAliases> authors)
     {
         var status = (MetadataOriginStatus?)r.OriginStatus;
         return new ExportRecordDto
@@ -202,6 +206,7 @@ public sealed class ExportItemBuilder(MangaPixerDbContext db)
                 })
                 .ToList(),
             FetchedAt = ExportJson.Truncate(r.FetchedAt),
+            Creators = ExportCreators.Group(r.Provider, r.CreatorsJson, authors),
         };
     }
 

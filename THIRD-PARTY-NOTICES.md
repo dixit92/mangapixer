@@ -42,55 +42,55 @@ The ASP.NET Core and .NET runtime assemblies themselves come from the base image
 
 - `Magick.NET-Q8-AnyCPU` - 15.0.0 - Apache-2.0 - https://github.com/dlemstra/Magick.NET
 - `Magick.NET.Core` - 15.0.0 - Apache-2.0 - https://github.com/dlemstra/Magick.NET
-- `Microsoft.AspNetCore.Identity.EntityFrameworkCore` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.AspNetCore.OpenApi` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Data.Sqlite.Core` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.EntityFrameworkCore.Abstractions` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.EntityFrameworkCore.Relational` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.EntityFrameworkCore.Sqlite.Core` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.EntityFrameworkCore.Sqlite` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.EntityFrameworkCore` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration.Abstractions` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration.Binder` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration.CommandLine` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration.EnvironmentVariables` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration.FileExtensions` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration.Json` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration.UserSecrets` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.DependencyInjection.Abstractions` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.DependencyInjection` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.DependencyModel` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Diagnostics.Abstractions` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Diagnostics` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.FileProviders.Abstractions` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.FileProviders.Physical` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.FileSystemGlobbing` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Hosting.Abstractions` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Hosting` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Logging.Abstractions` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Logging.Configuration` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Logging.Console` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Logging.Debug` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Logging.EventLog` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Logging.EventSource` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Logging` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Options.ConfigurationExtensions` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Options` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Primitives` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.AspNetCore.Identity.EntityFrameworkCore` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.AspNetCore.OpenApi` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Data.Sqlite.Core` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.EntityFrameworkCore.Abstractions` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.EntityFrameworkCore.Relational` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.EntityFrameworkCore.Sqlite.Core` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.EntityFrameworkCore.Sqlite` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.EntityFrameworkCore` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration.Abstractions` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration.Binder` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration.CommandLine` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration.EnvironmentVariables` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration.FileExtensions` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration.Json` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration.UserSecrets` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.DependencyInjection.Abstractions` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.DependencyInjection` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.DependencyModel` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Diagnostics.Abstractions` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Diagnostics` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.FileProviders.Abstractions` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.FileProviders.Physical` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.FileSystemGlobbing` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Hosting.Abstractions` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Hosting` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Logging.Abstractions` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Logging.Configuration` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Logging.Console` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Logging.Debug` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Logging.EventLog` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Logging.EventSource` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Logging` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Options.ConfigurationExtensions` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Options` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Primitives` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.OpenApi` - 2.12.2 - MIT - https://github.com/microsoft/OpenAPI.NET
 - `Serilog.Extensions.Hosting` - 10.0.0 - Apache-2.0 - https://github.com/serilog/serilog-extensions-hosting
 - `Serilog.Extensions.Logging` - 10.0.0 - Apache-2.0 - https://github.com/serilog/serilog-extensions-logging
 - `Serilog.Sinks.Console` - 6.1.1 - Apache-2.0 - https://github.com/serilog/serilog-sinks-console
 - `Serilog.Sinks.File` - 7.0.0 - Apache-2.0 - https://github.com/serilog/serilog-sinks-file
 - `Serilog` - 4.3.0 - Apache-2.0 - https://github.com/serilog/serilog
-- `SharpCompress` - 0.50.5 - MIT - https://github.com/adamhathcock/sharpcompress
+- `SharpCompress` - 0.50.6 - MIT - https://github.com/adamhathcock/sharpcompress
 - `SQLite` - 3.53.4 - blessing (SQLite public-domain dedication; the nuspec has no SPDX expression and points to https://sqlite.org/copyright.html) - https://sqlite.org/
 - `SQLitePCLRaw.bundle_e_sqlite3` - 3.0.5 - Apache-2.0 - https://github.com/ericsink/SQLitePCL.raw
 - `SQLitePCLRaw.config.e_sqlite3` - 3.0.5 - Apache-2.0 - https://github.com/ericsink/SQLitePCL.raw
 - `SQLitePCLRaw.core` - 3.0.5 - Apache-2.0 - https://github.com/ericsink/SQLitePCL.raw
 - `SQLitePCLRaw.provider.e_sqlite3` - 3.0.5 - Apache-2.0 - https://github.com/ericsink/SQLitePCL.raw
-- `System.Diagnostics.EventLog` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `System.Diagnostics.EventLog` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
 
 ### 1b. Shipped only through `Microsoft.EntityFrameworkCore.Design` (18)
 
@@ -104,7 +104,7 @@ is computed from the dependency graph in the published `MangaPixer.Server.deps.j
 - `Microsoft.CodeAnalysis.CSharp` - 5.0.0 - MIT - https://github.com/dotnet/roslyn
 - `Microsoft.CodeAnalysis.Workspaces.Common` - 5.0.0 - MIT - https://github.com/dotnet/roslyn
 - `Microsoft.CodeAnalysis.Workspaces.MSBuild` - 5.0.0 - MIT - https://github.com/dotnet/roslyn
-- `Microsoft.EntityFrameworkCore.Design` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.EntityFrameworkCore.Design` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.VisualStudio.SolutionPersistence` - 1.0.52 - MIT - https://github.com/microsoft/vs-solutionpersistence
 - `Mono.TextTemplating` - 3.0.0 - MIT - https://github.com/mono/t4
 - `Newtonsoft.Json` - 13.0.4 - MIT - https://github.com/JamesNK/Newtonsoft.Json
@@ -211,21 +211,21 @@ of them is in the publish output. Some `Microsoft.Extensions.*` and
 resolves them as packages. At runtime, the server uses the copies in the ASP.NET Core
 shared framework.
 
-- `Microsoft.AspNetCore.Cryptography.Internal` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.AspNetCore.Cryptography.KeyDerivation` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.AspNetCore.Cryptography.Internal` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.AspNetCore.Cryptography.KeyDerivation` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.AspNetCore.Mvc.Testing` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.AspNetCore.TestHost` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.CodeAnalysis.Analyzers` - 3.11.0 - MIT - https://github.com/dotnet/roslyn-analyzers
 - `xunit.abstractions` - 2.0.3 - Apache-2.0 (the nuspec has only a licenseUrl, which points at upstream xUnit's Apache-2.0 license) - https://github.com/xunit/xunit
-- `Microsoft.CodeCoverage` - 18.10.1 - MIT - https://github.com/microsoft/vstest
-- `Microsoft.EntityFrameworkCore.Analyzers` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Caching.Abstractions` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Caching.Memory` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Identity.Core` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Identity.Stores` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.NET.Test.Sdk` - 18.10.1 - MIT - https://github.com/microsoft/vstest
-- `Microsoft.TestPlatform.ObjectModel` - 18.10.1 - MIT - https://github.com/microsoft/vstest
-- `Microsoft.TestPlatform.TestHost` - 18.10.1 - MIT - https://github.com/microsoft/vstest
+- `Microsoft.CodeCoverage` - 18.11.0 - MIT - https://github.com/microsoft/vstest
+- `Microsoft.EntityFrameworkCore.Analyzers` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Caching.Abstractions` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Caching.Memory` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Identity.Core` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Identity.Stores` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.NET.Test.Sdk` - 18.11.0 - MIT - https://github.com/microsoft/vstest
+- `Microsoft.TestPlatform.ObjectModel` - 18.11.0 - MIT - https://github.com/microsoft/vstest
+- `Microsoft.TestPlatform.TestHost` - 18.11.0 - MIT - https://github.com/microsoft/vstest
 - `xunit.analyzers` - 1.18.0 - Apache-2.0 - https://github.com/xunit/xunit.analyzers
 - `xunit.assert` - 2.9.3 - Apache-2.0 - https://github.com/xunit/xunit
 - `xunit.core` - 2.9.3 - Apache-2.0 - https://github.com/xunit/xunit
@@ -247,15 +247,15 @@ and Enhance where WebGPU is missing) is another such chunk; it carries shader co
 ported or copied from two upstream projects, attributed under "Ported shader code"
 below.
 
-- `@angular/animations` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/animations` - 22.2.3 - MIT - https://github.com/angular/angular *(bundled)*
 - `@angular/cdk` - 22.2.3 - MIT - https://github.com/angular/components *(bundled)*
-- `@angular/common` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/compiler` - 22.2.2 - MIT - https://github.com/angular/angular
-- `@angular/core` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/forms` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/common` - 22.2.3 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/compiler` - 22.2.3 - MIT - https://github.com/angular/angular
+- `@angular/core` - 22.2.3 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/forms` - 22.2.3 - MIT - https://github.com/angular/angular *(bundled)*
 - `@angular/material` - 22.2.3 - MIT - https://github.com/angular/components *(bundled)*
-- `@angular/platform-browser` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/router` - 22.2.2 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/platform-browser` - 22.2.3 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/router` - 22.2.3 - MIT - https://github.com/angular/angular *(bundled)*
 - `@fontsource/roboto` - 5.3.0 - OFL-1.1 - https://github.com/fontsource/font-files *(bundled)*
 - `@standard-schema/spec` - 1.1.0 - MIT - https://github.com/standard-schema/standard-schema
 - `@webgpu/types` - 0.1.72 - BSD-3-Clause - https://github.com/gpuweb/types
@@ -265,7 +265,7 @@ below.
 - `parse5` - 8.0.1 - MIT - https://github.com/inikulin/parse5
 - `rxjs` - 7.8.2 - Apache-2.0 - https://github.com/reactivex/rxjs *(bundled)*
 - `tslib` - 2.8.1 - 0BSD - https://github.com/microsoft/tslib *(bundled)*
-- `zod` - 4.6.5 - MIT - https://github.com/colinhacks/zod
+- `zod` - 4.6.6 - MIT - https://github.com/colinhacks/zod
 - `zone.js` - 0.16.3 - MIT - https://github.com/angular/angular *(bundled)*
 
 Copyright notices for these packages (from their LICENSE files):
@@ -368,7 +368,7 @@ THE SOFTWARE.
   https://github.com/marella/material-icons. The icon fonts ship as
   `.woff`/`.woff2` in the SPA.
 
-## 4. Web build and test packages - npm (764)
+## 4. Web build and test packages - npm (759)
 
 These are dev dependencies and their transitive trees: the Angular CLI and build
 toolchain, TypeScript, ESLint, Vitest, jsdom and Playwright. None is in the shipped
@@ -378,13 +378,11 @@ places in `node_modules`. Platform-specific optional binaries such as
 `lightningcss-*`, `@esbuild/*` and `@rollup/*` differ on other operating systems.
 
 - `@ampproject/remapping` - 2.3.0 - Apache-2.0 - https://github.com/ampproject/remapping
-- `@angular-devkit/architect` - 0.2202.0 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/architect` - 0.2202.2 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/build-angular` - 22.2.0 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/build-webpack` - 0.2202.0 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/core` - 22.2.0 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/core` - 22.2.2 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/schematics` - 22.2.2 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/architect` - 0.2202.3 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/build-angular` - 22.2.3 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/build-webpack` - 0.2202.3 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/core` - 22.2.3 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/schematics` - 22.2.3 - MIT - https://github.com/angular/angular-cli
 - `@angular-eslint/builder` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/bundled-angular-compiler` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/eslint-plugin-template` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
@@ -392,12 +390,11 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `@angular-eslint/schematics` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/template-parser` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/utils` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular/build` - 22.2.0 - MIT - https://github.com/angular/angular-cli
-- `@angular/build` - 22.2.2 - MIT - https://github.com/angular/angular-cli
-- `@angular/cli` - 22.2.2 - MIT - https://github.com/angular/angular-cli
-- `@angular/compiler-cli` - 22.2.2 - MIT - https://github.com/angular/angular
+- `@angular/build` - 22.2.3 - MIT - https://github.com/angular/angular-cli
+- `@angular/cli` - 22.2.3 - MIT - https://github.com/angular/angular-cli
+- `@angular/compiler-cli` - 22.2.3 - MIT - https://github.com/angular/angular
 - `@asamuzakjp/css-color` - 7.1.3 - MIT - https://github.com/asamuzaK/cssColor
-- `@asamuzakjp/dom-selector` - 9.2.4 - MIT - https://github.com/asamuzaK/domSelector
+- `@asamuzakjp/dom-selector` - 10.0.4 - MIT - https://github.com/asamuzaK/domSelector
 - `@babel/code-frame` - 7.29.7 - MIT - https://github.com/babel/babel
 - `@babel/code-frame` - 8.0.6 - MIT - https://github.com/babel/babel
 - `@babel/compat-data` - 7.29.7 - MIT - https://github.com/babel/babel
@@ -561,14 +558,14 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `@jsonjoy.com/buffers` - 17.67.0 - Apache-2.0 - https://github.com/jsonjoy-com/buffers
 - `@jsonjoy.com/codegen` - 1.0.0 - Apache-2.0 - https://github.com/jsonjoy-com/codegen
 - `@jsonjoy.com/codegen` - 17.67.0 - Apache-2.0 - https://github.com/jsonjoy-com/codegen
-- `@jsonjoy.com/fs-core` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
-- `@jsonjoy.com/fs-fsa` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
-- `@jsonjoy.com/fs-node-builtins` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
-- `@jsonjoy.com/fs-node-to-fsa` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
-- `@jsonjoy.com/fs-node-utils` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
-- `@jsonjoy.com/fs-node` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
-- `@jsonjoy.com/fs-print` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
-- `@jsonjoy.com/fs-snapshot` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
+- `@jsonjoy.com/fs-core` - 4.80.0 - Apache-2.0 - https://github.com/streamich/memfs
+- `@jsonjoy.com/fs-fsa` - 4.80.0 - Apache-2.0 - https://github.com/streamich/memfs
+- `@jsonjoy.com/fs-node-builtins` - 4.80.0 - Apache-2.0 - https://github.com/streamich/memfs
+- `@jsonjoy.com/fs-node-to-fsa` - 4.80.0 - Apache-2.0 - https://github.com/streamich/memfs
+- `@jsonjoy.com/fs-node-utils` - 4.80.0 - Apache-2.0 - https://github.com/streamich/memfs
+- `@jsonjoy.com/fs-node` - 4.80.0 - Apache-2.0 - https://github.com/streamich/memfs
+- `@jsonjoy.com/fs-print` - 4.80.0 - Apache-2.0 - https://github.com/streamich/memfs
+- `@jsonjoy.com/fs-snapshot` - 4.80.0 - Apache-2.0 - https://github.com/streamich/memfs
 - `@jsonjoy.com/json-pack` - 1.21.0 - Apache-2.0 - https://github.com/jsonjoy-com/json-pack
 - `@jsonjoy.com/json-pack` - 17.67.0 - Apache-2.0 - https://github.com/jsonjoy-com/json-pack
 - `@jsonjoy.com/json-pointer` - 1.0.2 - Apache-2.0 - https://github.com/jsonjoy-com/json-pointer
@@ -583,29 +580,29 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `@msgpackr-extract/msgpackr-extract-linux-x64` - 3.0.4 - MIT - https://github.com/kriszyp/msgpackr-extract
 - `@napi-rs/nice-linux-x64-gnu` - 1.1.1 - MIT - https://github.com/Brooooooklyn/nice
 - `@napi-rs/nice` - 1.1.1 - MIT - https://github.com/Brooooooklyn/nice
-- `@ngtools/webpack` - 22.2.0 - MIT - https://github.com/angular/angular-cli
+- `@ngtools/webpack` - 22.2.3 - MIT - https://github.com/angular/angular-cli
 - `@noble/hashes` - 1.8.0 - MIT - https://github.com/paulmillr/noble-hashes
 - `@oxc-parser/binding-linux-x64-gnu` - 0.150.0 - MIT - https://github.com/oxc-project/oxc
 - `@oxc-project/types` - 0.149.0 - MIT - https://github.com/oxc-project/oxc
 - `@oxc-project/types` - 0.150.0 - MIT - https://github.com/oxc-project/oxc
 - `@parcel/watcher-linux-x64-glibc` - 2.6.0 - MIT - https://github.com/parcel-bundler/watcher
 - `@parcel/watcher` - 2.6.0 - MIT - https://github.com/parcel-bundler/watcher
-- `@peculiar/asn1-cms` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-csr` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-ecc` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-pfx` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-pkcs8` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-pkcs9` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-rsa` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-schema` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-x509-attr` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-x509` - 2.9.5 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-cms` - 2.11.0 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-csr` - 2.11.0 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-ecc` - 2.11.0 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-pfx` - 2.11.0 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-pkcs8` - 2.11.0 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-pkcs9` - 2.11.0 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-rsa` - 2.11.0 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-schema` - 2.11.0 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-x509-attr` - 2.11.0 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-x509` - 2.11.0 - MIT - https://github.com/PeculiarVentures/asn1-schema
 - `@peculiar/utils` - 2.0.3 - MIT - https://github.com/PeculiarVentures/pvtsutils
 - `@peculiar/x509` - 1.14.3 - MIT - https://github.com/PeculiarVentures/x509
 - `@playwright/test` - 1.64.1 - Apache-2.0 - https://github.com/microsoft/playwright
 - `@rolldown/binding-linux-x64-gnu` - 1.2.8 - MIT - https://github.com/rolldown/rolldown
 - `@rolldown/pluginutils` - 1.0.1 - MIT - https://github.com/rolldown/plugins
-- `@schematics/angular` - 22.2.2 - MIT - https://github.com/angular/angular-cli
+- `@schematics/angular` - 22.2.3 - MIT - https://github.com/angular/angular-cli
 - `@types/body-parser` - 1.19.6 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/bonjour` - 3.5.13 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/chai` - 5.2.3 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
@@ -627,7 +624,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `@types/send` - 1.2.1 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/serve-index` - 1.9.4 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/serve-static` - 2.2.0 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
-- `@types/ws` - 8.18.1 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
+- `@types/ws` - 8.18.2 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@typescript-eslint/eslint-plugin` - 8.69.0 - MIT - https://github.com/typescript-eslint/typescript-eslint
 - `@typescript-eslint/parser` - 8.69.0 - MIT - https://github.com/typescript-eslint/typescript-eslint
 - `@typescript-eslint/project-service` - 8.69.0 - MIT - https://github.com/typescript-eslint/typescript-eslint
@@ -639,13 +636,13 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `@typescript-eslint/utils` - 8.69.0 - MIT - https://github.com/typescript-eslint/typescript-eslint
 - `@typescript-eslint/visitor-keys` - 8.69.0 - MIT - https://github.com/typescript-eslint/typescript-eslint
 - `@vitejs/plugin-basic-ssl` - 2.3.0 - MIT - https://github.com/vitejs/vite-plugin-basic-ssl
-- `@vitest/expect` - 4.1.11 - MIT - https://github.com/vitest-dev/vitest
-- `@vitest/mocker` - 4.1.11 - MIT - https://github.com/vitest-dev/vitest
-- `@vitest/pretty-format` - 4.1.11 - MIT - https://github.com/vitest-dev/vitest
-- `@vitest/runner` - 4.1.11 - MIT - https://github.com/vitest-dev/vitest
-- `@vitest/snapshot` - 4.1.11 - MIT - https://github.com/vitest-dev/vitest
-- `@vitest/spy` - 4.1.11 - MIT - https://github.com/vitest-dev/vitest
-- `@vitest/utils` - 4.1.11 - MIT - https://github.com/vitest-dev/vitest
+- `@vitest/expect` - 4.1.12 - MIT - https://github.com/vitest-dev/vitest
+- `@vitest/mocker` - 4.1.12 - MIT - https://github.com/vitest-dev/vitest
+- `@vitest/pretty-format` - 4.1.12 - MIT - https://github.com/vitest-dev/vitest
+- `@vitest/runner` - 4.1.12 - MIT - https://github.com/vitest-dev/vitest
+- `@vitest/snapshot` - 4.1.12 - MIT - https://github.com/vitest-dev/vitest
+- `@vitest/spy` - 4.1.12 - MIT - https://github.com/vitest-dev/vitest
+- `@vitest/utils` - 4.1.12 - MIT - https://github.com/vitest-dev/vitest
 - `@webassemblyjs/ast` - 1.14.1 - MIT - https://github.com/xtuc/webassemblyjs
 - `@webassemblyjs/floating-point-hex-parser` - 1.13.2 - MIT - https://github.com/xtuc/webassemblyjs
 - `@webassemblyjs/helper-api-error` - 1.13.2 - MIT - https://github.com/xtuc/webassemblyjs
@@ -682,7 +679,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `ansi-styles` - 6.2.3 - MIT - https://github.com/chalk/ansi-styles
 - `argparse` - 2.0.1 - Python-2.0 - https://github.com/nodeca/argparse
 - `aria-query` - 5.3.2 - Apache-2.0 - https://github.com/A11yance/aria-query
-- `asn1js` - 3.0.10 - BSD-3-Clause - https://github.com/PeculiarVentures/ASN1.js
+- `asn1js` - 3.1.0 - BSD-3-Clause - https://github.com/PeculiarVentures/ASN1.js
 - `assertion-error` - 2.0.1 - MIT - https://github.com/chaijs/assertion-error
 - `autoprefixer` - 10.6.0 - MIT - https://github.com/postcss/autoprefixer
 - `axobject-query` - 4.1.0 - Apache-2.0 - https://github.com/A11yance/axobject-query
@@ -703,14 +700,14 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `braces` - 3.0.3 - MIT - https://github.com/micromatch/braces
 - `browserslist` - 4.28.9 - MIT - https://github.com/browserslist/browserslist
 - `buffer-from` - 1.1.2 - MIT - https://github.com/LinusU/buffer-from
-- `bundle-name` - 4.1.0 - MIT - https://github.com/sindresorhus/bundle-name
+- `bundle-name` - 4.1.1 - MIT - https://github.com/sindresorhus/bundle-name
 - `bytes` - 3.1.2 - MIT - https://github.com/visionmedia/bytes.js
 - `bytestreamjs` - 2.0.1 - BSD-3-Clause - https://github.com/PeculiarVentures/ByteStream.js
 - `call-bind-apply-helpers` - 1.0.2 - MIT - https://github.com/ljharb/call-bind-apply-helpers
 - `call-bound` - 1.0.4 - MIT - https://github.com/ljharb/call-bound
 - `callsites` - 3.1.0 - MIT - https://github.com/sindresorhus/callsites
 - `caniuse-lite` - 1.0.30001810 - CC-BY-4.0 - https://github.com/browserslist/caniuse-lite
-- `chai` - 6.2.2 - MIT - https://github.com/chaijs/chai
+- `chai` - 6.3.0 - MIT - https://github.com/chaijs/chai
 - `chalk` - 4.1.2 - MIT - https://github.com/chalk/chalk
 - `chalk` - 5.6.2 - MIT - https://github.com/chalk/chalk
 - `chardet` - 2.2.0 - MIT - https://github.com/runk/node-chardet
@@ -730,8 +727,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `compression` - 1.8.2 - MIT - https://github.com/expressjs/compression
 - `concat-map` - 0.0.1 - MIT - https://github.com/substack/node-concat-map
 - `connect-history-api-fallback` - 2.0.0 - MIT - https://github.com/bripkens/connect-history-api-fallback
-- `content-disposition` - 1.1.0 - MIT - https://github.com/jshttp/content-disposition
-- `content-type` - 1.0.5 - MIT - https://github.com/jshttp/content-type
+- `content-disposition` - 2.0.1 - MIT - https://github.com/jshttp/content-disposition
 - `content-type` - 2.1.0 - MIT - https://github.com/jshttp/content-type
 - `convert-source-map` - 1.9.0 - MIT - https://github.com/thlorenz/convert-source-map
 - `convert-source-map` - 2.0.0 - MIT - https://github.com/thlorenz/convert-source-map
@@ -801,7 +797,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `etag` - 1.8.1 - MIT - https://github.com/jshttp/etag
 - `events` - 3.3.0 - MIT - https://github.com/Gozala/events
 - `expect-type` - 1.4.0 - Apache-2.0 - https://github.com/mmkal/expect-type
-- `express` - 5.2.1 - MIT - https://github.com/expressjs/express
+- `express` - 5.3.0 - MIT - https://github.com/expressjs/express
 - `fast-deep-equal` - 3.1.3 - MIT - https://github.com/epoberezkin/fast-deep-equal
 - `fast-json-stable-stringify` - 2.1.0 - MIT - https://github.com/epoberezkin/fast-json-stable-stringify
 - `fast-levenshtein` - 2.0.6 - MIT - https://github.com/hiddentao/fast-levenshtein
@@ -883,7 +879,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `js-tokens` - 10.0.0 - MIT - https://github.com/lydell/js-tokens
 - `js-tokens` - 4.0.0 - MIT - https://github.com/lydell/js-tokens
 - `js-yaml` - 4.3.2 - MIT - https://github.com/nodeca/js-yaml
-- `jsdom` - 30.1.2 - MIT - https://github.com/jsdom/jsdom
+- `jsdom` - 30.1.3 - MIT - https://github.com/jsdom/jsdom
 - `jsesc` - 3.1.0 - MIT - https://github.com/mathiasbynens/jsesc
 - `json-buffer` - 3.0.1 - MIT - https://github.com/dominictarr/json-buffer
 - `json-parse-even-better-errors` - 2.3.1 - MIT - https://github.com/npm/json-parse-even-better-errors
@@ -895,7 +891,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `karma-source-map-support` - 1.4.0 - MIT - https://github.com/tschaub/karma-source-map-support
 - `keyv` - 4.5.4 - MIT - https://github.com/jaredwray/keyv
 - `kind-of` - 6.0.3 - MIT - https://github.com/jonschlinkert/kind-of
-- `launch-editor` - 2.14.1 - MIT - https://github.com/vitejs/launch-editor
+- `launch-editor` - 2.14.2 - MIT - https://github.com/vitejs/launch-editor
 - `less-loader` - 13.0.0 - MIT - https://github.com/webpack/less-loader
 - `less` - 4.9.1 - Apache-2.0 - https://github.com/less/less.js
 - `levn` - 0.4.1 - MIT - https://github.com/gkz/levn
@@ -920,7 +916,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `math-intrinsics` - 1.1.0 - MIT - https://github.com/es-shims/math-intrinsics
 - `mdn-data` - 2.27.1 - CC0-1.0 - https://github.com/mdn/data
 - `media-typer` - 1.1.1 - MIT - https://github.com/jshttp/media-typer
-- `memfs` - 4.79.0 - Apache-2.0 - https://github.com/streamich/memfs
+- `memfs` - 4.80.0 - Apache-2.0 - https://github.com/streamich/memfs
 - `merge-descriptors` - 2.0.0 - MIT - https://github.com/sindresorhus/merge-descriptors
 - `merge-stream` - 2.0.0 - MIT - https://github.com/grncdr/merge-stream
 - `micromatch` - 4.0.8 - MIT - https://github.com/micromatch/micromatch
@@ -996,18 +992,17 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `postcss-selector-parser` - 7.1.6 - MIT - https://github.com/postcss/postcss-selector-parser
 - `postcss-value-parser` - 4.2.0 - MIT - https://github.com/TrySound/postcss-value-parser
 - `postcss` - 8.5.28 - MIT - https://github.com/postcss/postcss
-- `powershell-utils` - 0.1.0 - MIT - https://github.com/sindresorhus/powershell-utils
 - `powershell-utils` - 0.2.1 - MIT - https://github.com/sindresorhus/powershell-utils
 - `prelude-ls` - 1.2.1 - MIT - https://github.com/gkz/prelude-ls
 - `probe-image-size` - 7.4.0 - MIT - https://github.com/nodeca/probe-image-size
 - `proc-log` - 7.0.0 - ISC - https://github.com/npm/proc-log
-- `proxy-addr` - 2.0.7 - MIT - https://github.com/jshttp/proxy-addr
+- `proxy-addr` - 2.0.8 - MIT - https://github.com/jshttp/proxy-addr
 - `proxy-agent-negotiate` - 1.1.0 - MIT - https://github.com/TooTallNate/proxy-agents
 - `prr` - 1.0.1 - MIT - https://github.com/rvagg/prr
 - `punycode` - 2.3.1 - MIT - https://github.com/mathiasbynens/punycode.js
 - `pvtsutils` - 1.3.6 - MIT - https://github.com/PeculiarVentures/pvtsutils
 - `pvutils` - 1.2.0 - MIT - https://github.com/PeculiarVentures/pvutils
-- `qs` - 6.16.0 - BSD-3-Clause - https://github.com/ljharb/qs
+- `qs` - 6.16.1 - BSD-3-Clause - https://github.com/ljharb/qs
 - `range-parser` - 1.3.0 - MIT - https://github.com/jshttp/range-parser
 - `raw-body` - 3.0.2 - MIT - https://github.com/stream-utils/raw-body
 - `readdirp` - 5.1.1 - MIT - https://github.com/paulmillr/readdirp
@@ -1045,7 +1040,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `shallow-clone` - 3.0.1 - MIT - https://github.com/jonschlinkert/shallow-clone
 - `shebang-command` - 2.0.0 - MIT - https://github.com/kevva/shebang-command
 - `shebang-regex` - 3.0.0 - MIT - https://github.com/sindresorhus/shebang-regex
-- `shell-quote` - 1.10.0 - MIT - https://github.com/ljharb/shell-quote
+- `shell-quote` - 1.12.0 - MIT - https://github.com/ljharb/shell-quote
 - `side-channel-list` - 1.0.1 - MIT - https://github.com/ljharb/side-channel-list
 - `side-channel-map` - 1.0.1 - MIT - https://github.com/ljharb/side-channel-map
 - `side-channel-weakmap` - 1.0.2 - MIT - https://github.com/ljharb/side-channel-weakmap
@@ -1079,7 +1074,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `tinybench` - 2.9.0 - MIT - https://github.com/tinylibs/tinybench
 - `tinyexec` - 1.3.1 - MIT - https://github.com/tinylibs/tinyexec
 - `tinyglobby` - 0.2.17 - MIT - https://github.com/SuperchupuDev/tinyglobby
-- `tinyrainbow` - 3.1.1 - MIT - https://github.com/tinylibs/tinyrainbow
+- `tinyrainbow` - 3.2.0 - MIT - https://github.com/tinylibs/tinyrainbow
 - `tldts-core` - 7.4.12 - MIT - https://github.com/remusao/tldts
 - `tldts` - 7.4.12 - MIT - https://github.com/remusao/tldts
 - `to-regex-range` - 5.0.1 - MIT - https://github.com/micromatch/to-regex-range
@@ -1096,7 +1091,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `typescript-eslint` - 8.69.0 - MIT - https://github.com/typescript-eslint/typescript-eslint
 - `typescript` - 6.0.3 - Apache-2.0 - https://github.com/microsoft/TypeScript
 - `undici-types` - 7.24.6 - MIT - https://github.com/nodejs/undici
-- `undici` - 8.11.2 - MIT - https://github.com/nodejs/undici
+- `undici` - 8.12.2 - MIT - https://github.com/nodejs/undici
 - `unicode-canonical-property-names-ecmascript` - 2.0.1 - MIT - https://github.com/mathiasbynens/unicode-canonical-property-names-ecmascript
 - `unicode-match-property-ecmascript` - 2.0.0 - MIT - https://github.com/mathiasbynens/unicode-match-property-ecmascript
 - `unicode-match-property-value-ecmascript` - 2.2.1 - MIT - https://github.com/mathiasbynens/unicode-match-property-value-ecmascript
@@ -1110,7 +1105,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `vary` - 1.1.2 - MIT - https://github.com/jshttp/vary
 - `verkit` - 0.3.2 - MIT - https://github.com/sxzz/verkit
 - `vite` - 8.3.0 - MIT - https://github.com/vitejs/vite
-- `vitest` - 4.1.11 - MIT - https://github.com/vitest-dev/vitest
+- `vitest` - 4.1.12 - MIT - https://github.com/vitest-dev/vitest
 - `w3c-xmlserializer` - 6.0.0 - MIT - https://github.com/jsdom/w3c-xmlserializer
 - `watchpack` - 2.5.2 - MIT - https://github.com/webpack/watchpack
 - `weak-lru-cache` - 1.2.2 - MIT - https://github.com/kriszyp/weak-lru-cache
@@ -1130,8 +1125,8 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `wrap-ansi` - 10.0.1 - MIT - https://github.com/chalk/wrap-ansi
 - `wrap-ansi` - 9.0.2 - MIT - https://github.com/chalk/wrap-ansi
 - `wrappy` - 1.0.2 - ISC - https://github.com/npm/wrappy
-- `ws` - 8.21.3 - MIT - https://github.com/websockets/ws
-- `wsl-utils` - 1.0.0 - MIT - https://github.com/sindresorhus/wsl-utils
+- `ws` - 8.22.0 - MIT - https://github.com/websockets/ws
+- `wsl-utils` - 1.0.1 - MIT - https://github.com/sindresorhus/wsl-utils
 - `xml-name-validator` - 5.0.0 - Apache-2.0 - https://github.com/jsdom/xml-name-validator
 - `xmlchars` - 2.2.0 - MIT - https://github.com/lddubeau/xmlchars
 - `xxhash-wasm` - 1.1.0 - MIT - https://github.com/jungomi/xxhash-wasm

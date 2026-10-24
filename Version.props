@@ -466,7 +466,7 @@
          Enhance black-output guard; "Official Volume Available". Migrations AddTrackerSync, AddTrackingPage,
          AddVolumeMapReadableChapters (additive); tracker consents v1 (new third privacy exception, AGENTS.md); metadata consents
          unchanged (main 6 / automatic 5); worker protocol unchanged (5). -->
-    <MangaPixerVersionMinor>46</MangaPixerVersionMinor>
+    <MangaPixerVersionMinor>47</MangaPixerVersionMinor>
     <!-- 1.31.1 - PATCH (2026-10-01, integrator-direct, owner live check of 1.31.0): content signatures backfilled for archives
          analysed before 1.5.0 (their moves were never recognised); Re-attach to a folder in another library; "Episode N" next
          to a volume is a part label, not a chapter; the review list shows the file's own page 1, never the cover layer's;
@@ -507,6 +507,12 @@
          home stack set cached per library, Continue on page 1 only, library counts per revision, search once, cover sweep writes only changes,
          start-up warm-up, precompressed + immutable static assets. Measured root 471 -> 126 ms, root + completion 741 -> 109, home 156 -> 49.
          Migration AddCatalogCreatedAtIndex (additive index); consent unchanged (main 7 / automatic 5). -->
+    <!-- 1.47.0 - MINOR over 1.46.0 (2026-10-23): creators in the metadata export (record.creators + page recordFields, for MangaList),
+         Info for a whole library, "+N more" bucket pages, the read filter in tag search, creatorId on creator chips; per-connection SQLite
+         settings (temp_store MEMORY, 32 MiB cache; durability unchanged), a home cover cache and walk-driven recursive joins (home 53 -> 19 ms);
+         loose chapters ordered between volumes, webtoon Chapters titles without the extension, artist-reference relink fixes, an admin list of
+         taken-down MangaDex records, jump-rail / Display-menu fixes; atomic metrics snapshots (a rare diagnostics 500). No migration;
+         consent unchanged (main 7 / automatic 5); worker protocol 6. -->
     <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 

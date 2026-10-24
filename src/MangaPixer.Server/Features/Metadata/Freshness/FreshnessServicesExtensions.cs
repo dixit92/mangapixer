@@ -10,6 +10,7 @@ public static class FreshnessServicesExtensions
         services.AddScoped<ReleasesFeedPoll>();
         services.AddScoped<ReadableBackfill>();
         services.AddScoped<NewChapterChecksRunner>();
+        services.AddScoped<TakenDownRecordsService>(); // 1.47.0: the Runs tab's taken-down list (stored rows only)
         return services;
     }
 }
