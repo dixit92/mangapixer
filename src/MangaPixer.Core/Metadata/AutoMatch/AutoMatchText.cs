@@ -554,6 +554,34 @@ public static partial class AutoMatchText
     {
         if (string.IsNullOrWhiteSpace(archiveName))
             return default;
+        if (UnitsMemo.TryGetValue(archiveName, out var known))
+            return known;
+        var parsed = ParseUnits(archiveName);
+        // Bounded: past the capacity the memo starts over (a library far larger than the cap only parses as before).
+        if (Interlocked.Increment(ref _unitsMemoCount) > UnitsMemoCapacity)
+        {
+            UnitsMemo.Clear();
+            Interlocked.Exchange(ref _unitsMemoCount, 0);
+        }
+        UnitsMemo.TryAdd(archiveName, parsed);
+        return parsed;
+    }
+
+    /// <summary>
+    /// 1.47.0 lane S: <see cref="UnitsOf(string?)"/> is a pure function of the name (culture-invariant patterns over the FormKC form), and
+    /// one evaluation reads the same archive name many times (the Missing report's units, the volume contents check, the reach, the
+    /// Volumes grouping, the series-head pass). The answers are kept by name (ordinal), at most <see cref="UnitsMemoCapacity"/> names.
+    /// </summary>
+    public const int UnitsMemoCapacity = 65_536;
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, UnitNumbers> UnitsMemo = new(StringComparer.Ordinal);
+    private static int _unitsMemoCount;
+
+    /// <summary>The parse behind <see cref="UnitsOf(string?)"/>, without the memo (the equivalence tests compare the two).</summary>
+    public static UnitNumbers ParseUnits(string? archiveName)
+    {
+        if (string.IsNullOrWhiteSpace(archiveName))
+            return default;
         // 1.42.0: a site's watermark at the end ("<Title> 001 Read Online") is not part of the name.
         var name = TitleNormalizer.WithoutSiteWatermark(ArchiveExtension().Replace(archiveName.Normalize(NormalizationForm.FormKC).Trim(), string.Empty));
         // 1.34.0 (owner): "0003 [0001 - Title]" numbers its files with a running index; the bracketed number is the chapter

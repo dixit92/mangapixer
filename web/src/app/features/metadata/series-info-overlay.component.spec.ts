@@ -146,4 +146,52 @@ describe('SeriesInfoOverlayComponent', () => {
     const { el } = create('error');
     expect(el.querySelector('.error')!.textContent).toContain('not available');
   });
+  // ---- 1.47.0 (lane P): a library root ----
+
+  function createLibrary(tags: InfoPanelDto | 'error', sheet = false) {
+    const api = { getSeriesInfo: vi.fn(), getMyFlag: vi.fn() };
+    const infoApi = {
+      getInfo: vi.fn(),
+      getLibraryInfo: vi.fn(() => (tags === 'error' ? throwError(() => ({ status: 404 })) : of(tags))),
+    };
+    const data = { libraryId: 'lib1', libraryName: 'Synthetic Manga' };
+    const providers: unknown[] = [
+      provideNoopAnimations(),
+      provideRouter([]),
+      { provide: MetadataApiService, useValue: api },
+      { provide: AuthService, useValue: { isAdmin: () => true } },
+      { provide: InfoApiService, useValue: infoApi },
+      sheet ? { provide: MAT_BOTTOM_SHEET_DATA, useValue: data } : { provide: MAT_DIALOG_DATA, useValue: data },
+      sheet ? { provide: MatBottomSheetRef, useValue: sheetRef } : { provide: MatDialogRef, useValue: dialogRef },
+    ];
+    TestBed.configureTestingModule({ imports: [SeriesInfoOverlayComponent], providers: providers as never[] });
+    const fixture = TestBed.createComponent(SeriesInfoOverlayComponent);
+    fixture.detectChanges();
+    return { fixture, api, infoApi, el: fixture.nativeElement as HTMLElement };
+  }
+
+  it('1.47.0: a library root shows its name and its tags only - no series information is asked for', () => {
+    const { api, infoApi, el } = createLibrary(panel({ nodeId: 'lib1', mode: 'Container', worksBelow: 7 }));
+    expect(api.getSeriesInfo).not.toHaveBeenCalled();
+    expect(infoApi.getLibraryInfo).toHaveBeenCalledWith('lib1');
+    expect(el.querySelector('.kicker')!.textContent).toBe('Info');
+    expect(el.querySelector('.library-name')!.textContent).toBe('Synthetic Manga');
+    expect(el.querySelector('[data-testid="library-works"]')!.textContent).toBe('7 works with tags');
+    expect(el.querySelector('[data-testid="info-chip"]')).not.toBeNull();
+    // No series parts: no summary, no sources footer, no series actions.
+    expect(el.querySelector('app-series-info-summary')).toBeNull();
+    expect(el.querySelector('.foot')).toBeNull();
+    expect(el.querySelector('mat-spinner')).toBeNull();
+  });
+
+  it('1.47.0: a library root with nothing indexed says so; a chip in the phone sheet dismisses it', () => {
+    const empty = createLibrary(emptyPanel('lib1'));
+    expect(empty.el.textContent).toContain('No tags in this library yet.');
+    TestBed.resetTestingModule();
+    sheetRef.dismiss.mockClear();
+    const phone = createLibrary(panel({ nodeId: 'lib1', mode: 'Container', worksBelow: 1 }), true);
+    expect(phone.el.querySelector('[data-testid="library-works"]')!.textContent).toBe('1 work with tags');
+    (phone.el.querySelector('[data-testid="info-chip"]') as HTMLAnchorElement).click();
+    expect(sheetRef.dismiss).toHaveBeenCalled();
+  });
 });

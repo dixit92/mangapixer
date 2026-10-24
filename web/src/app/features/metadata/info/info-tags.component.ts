@@ -8,19 +8,20 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { AuthService } from '../../../core/auth/auth.service';
 import { CreatorAdminService } from './creator-admin/creator-admin.service';
-import { InfoApiService } from './info-api.service';
+import { InfoApiService, InfoTarget } from './info-api.service';
 import { bucketLabel, bucketRank, chipCount, chipText, chipTitle, locationText, roleLabel } from './info-labels';
-import { FacetBucket, FacetChipDto, FacetLocationDto, InfoPanelDto } from './info-types';
+import { FacetBucket, FacetBucketDto, FacetChipDto, FacetLocationDto, InfoPanelDto } from './info-types';
 
 /**
  * The Info panel's Tags block (1.45.0, D1 2.6): one row per bucket in the owner's order - a label and wrapping chips. A chip opens the
  * tag view, which is the search page filtered by that value (`/search?f=<bucket>:<value id>`, decision 4). A chip shows its count only
  * when it is 2 or more (decision 5: quiet, still clickable); on a container the count is "N here" and each bucket shows its top 12 with
- * "+N more" (Q10). A declared value that disagrees with the linked record is amber, with the declared-facts line's Conflict wording.
+ * "+N more" (Q10) - a button since 1.47.0 that adds the rest of that bucket in place (the bucket page route, 100 at a time). A declared value that disagrees with the linked record is amber, with the declared-facts line's Conflict wording.
  * A single work kept in several places lists them ("2 locations"). Admins get a menu on creator chips: Rename, Merge into...,
  * Split... (lane F's routes).
  *
- * Hosted under the series summary by the Info overlay and the series page. Inside the overlay a chip also closes it (a router navigation
+ * Hosted under the series summary by the Info overlay and the series page; 1.47.0: also alone in the overlay of a library root
+ * (`libraryId` instead of `nodeId` - a library root is not a node). Inside the overlay a chip also closes it (a router navigation
  * does not close a Material dialog by itself). Nothing is shown while loading, when nothing is indexed, or when the server answers with
  * an error (the summary keeps its plain-text lines then).
  */
@@ -57,7 +58,8 @@ import { FacetBucket, FacetChipDto, FacetLocationDto, InfoPanelDto } from './inf
               }
               @if (b.more > 0) {
                 <li class="chip-wrap">
-                  <span class="more" data-testid="info-more">+{{ b.more }} more</span>
+                  <button type="button" class="more" data-testid="info-more" (click)="showMore(b)" [disabled]="loadingMore().has(b.bucket)"
+                          [attr.aria-label]="'Show ' + b.more + ' more in ' + label(b.bucket)">+{{ b.more }} more</button>
                 </li>
               }
             </ul>
@@ -121,7 +123,14 @@ import { FacetBucket, FacetChipDto, FacetLocationDto, InfoPanelDto } from './inf
     .conflict .chip, .conflict .chip-menu { border-color: var(--mp-warn); background: rgb(var(--mp-warn-rgb) / 0.12); }
     .conflict .name { color: var(--mp-warn); }
     .warn { flex: none; font-size: 16px; width: 16px; height: 16px; color: var(--mp-warn); }
-    .more { display: inline-flex; align-items: center; height: 32px; font-size: 12px; color: var(--mp-text-muted); white-space: nowrap; }
+    /* "+N more" (1.47.0): a quiet text button the size of a chip; it adds the rest of the bucket in place. */
+    .more {
+      display: inline-flex; align-items: center; box-sizing: border-box; height: 32px; padding: 0 10px; border: 0; border-radius: 16px;
+      background: transparent; color: var(--mp-accent); font: inherit; font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer;
+    }
+    .more:hover { background: rgb(var(--mp-ink-rgb) / 0.06); }
+    .more:focus-visible { outline: 2px solid var(--mp-accent); outline-offset: 1px; }
+    .more:disabled { color: var(--mp-text-muted); cursor: default; }
     .places { margin: 0; padding: 0; list-style: none; font-size: 13px; }
     .places li { min-width: 0; }
     .places a {
@@ -139,7 +148,21 @@ export class InfoTagsComponent {
   private readonly sheetRef = inject(MatBottomSheetRef, { optional: true });
 
   /** The node whose tags are shown (the folder or archive the panel is for). */
-  readonly nodeId = input.required<string>();
+  readonly nodeId = input<string | null>(null);
+
+  /** 1.47.0: a library root whose tags are shown (instead of a node). */
+  readonly libraryId = input<string | null>(null);
+
+  /** What the panel is for: the library root when one is given, else the node; null while neither is set. */
+  readonly target = computed<InfoTarget | null>(() => {
+    const library = this.libraryId();
+    if (library) return { libraryId: library };
+    const node = this.nodeId();
+    return node ? { nodeId: node } : null;
+  });
+
+  /** Buckets whose "+N more" request is running. */
+  readonly loadingMore = signal<ReadonlySet<FacetBucket>>(new Set());
 
   /** The panel as loaded (null: nothing indexed, or not available) - the summary hides its plain-text lines for buckets shown here. */
   readonly loaded = output<InfoPanelDto | null>();
@@ -162,8 +185,8 @@ export class InfoTagsComponent {
 
   constructor() {
     effect(() => {
-      const id = this.nodeId();
-      untracked(() => this.load(id));
+      const target = this.target();
+      untracked(() => this.load(target));
     });
   }
 
@@ -203,20 +226,64 @@ export class InfoTagsComponent {
   }
 
   async rename(chip: FacetChipDto): Promise<void> {
-    if (await this.creatorAdmin.rename(chip.id, chip.display)) this.load(this.nodeId());
+    if (await this.creatorAdmin.rename(chip)) this.load(this.target());
   }
 
   async merge(chip: FacetChipDto): Promise<void> {
-    if (await this.creatorAdmin.merge(chip.id, chip.display)) this.load(this.nodeId());
+    if (await this.creatorAdmin.merge(chip)) this.load(this.target());
   }
 
   async split(chip: FacetChipDto): Promise<void> {
-    if (await this.creatorAdmin.split(chip.id, chip.display)) this.load(this.nodeId());
+    if (await this.creatorAdmin.split(chip)) this.load(this.target());
   }
 
-  private load(nodeId: string): void {
+  /**
+   * "+N more" (1.47.0): the bucket's next chips, from the offset of the chips shown, appended in place (the server's order and the
+   * viewer's counts, as the panel). The button stays while more remain; a failed request leaves the bucket as it was.
+   */
+  showMore(bucket: FacetBucketDto): void {
+    const target = this.target();
+    if (!target || this.loadingMore().has(bucket.bucket)) return;
+    const generation = this.generation;
+    this.setLoadingMore(bucket.bucket, true);
+    this.api.getBucket(target, bucket.bucket, bucket.chips.length).subscribe({
+      next: (page) => {
+        this.setLoadingMore(bucket.bucket, false);
+        if (generation !== this.generation) return;
+        this.panel.update((panel) => {
+          if (!panel) return panel;
+          return {
+            ...panel,
+            buckets: panel.buckets.map((b) => {
+              if (b.bucket !== page.bucket) return b;
+              const known = new Set(b.chips.map((c) => c.id));
+              const chips = [...b.chips, ...page.chips.filter((c) => !known.has(c.id))];
+              return { ...b, chips, more: Math.max(0, page.total - chips.length) };
+            }),
+          };
+        });
+      },
+      error: () => this.setLoadingMore(bucket.bucket, false),
+    });
+  }
+
+  private setLoadingMore(bucket: FacetBucket, on: boolean): void {
+    this.loadingMore.update((set) => {
+      const next = new Set(set);
+      if (on) next.add(bucket);
+      else next.delete(bucket);
+      return next;
+    });
+  }
+
+  private load(target: InfoTarget | null): void {
     const generation = ++this.generation;
-    this.api.getInfo(nodeId).subscribe({
+    if (!target) {
+      this.panel.set(null);
+      return;
+    }
+    const answer = target.libraryId !== undefined ? this.api.getLibraryInfo(target.libraryId) : this.api.getInfo(target.nodeId);
+    answer.subscribe({
       next: (panel) => {
         if (generation !== this.generation) return;
         this.panel.set(panel);

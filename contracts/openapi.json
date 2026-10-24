@@ -7293,6 +7293,35 @@
         }
       }
     },
+    "/api/v1/admin/metadata/taken-down": {
+      "get": {
+        "tags": [
+          "TakenDownRecords"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TakenDownRecordsDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TakenDownRecordsDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TakenDownRecordsDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/metadata/folder-match/preview": {
       "post": {
         "tags": [
@@ -7804,6 +7833,152 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/InfoPanelDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/nodes/{nodeId}/info/buckets/{bucket}": {
+      "get": {
+        "tags": [
+          "InfoPanel"
+        ],
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bucket",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacetBucketPageDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacetBucketPageDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacetBucketPageDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/libraries/{libraryId}/info/buckets/{bucket}": {
+      "get": {
+        "tags": [
+          "InfoPanel"
+        ],
+        "parameters": [
+          {
+            "name": "libraryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bucket",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacetBucketPageDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacetBucketPageDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacetBucketPageDto"
                 }
               }
             }
@@ -14720,6 +14895,37 @@
           }
         }
       },
+      "ExportCreatorDto": {
+        "required": [
+          "name",
+          "role",
+          "otherNames"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "muAuthorId": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "otherNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "ExportDuplicateDto": {
         "required": [
           "kind",
@@ -15115,6 +15321,7 @@
           "schemaVersion",
           "serverTime",
           "sweeps",
+          "recordFields",
           "library",
           "items",
           "removed"
@@ -15135,6 +15342,12 @@
           },
           "sweeps": {
             "$ref": "#/components/schemas/ExportSweepsDto"
+          },
+          "recordFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "library": {
             "$ref": "#/components/schemas/ExportLibraryRefDto"
@@ -15342,6 +15555,15 @@
           "fetchedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "creators": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ExportCreatorDto"
+            }
           }
         }
       },
@@ -15524,6 +15746,51 @@
           }
         }
       },
+      "FacetBucketPageDto": {
+        "required": [
+          "bucket",
+          "chips",
+          "offset",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "bucket": {
+            "$ref": "#/components/schemas/FacetBucket"
+          },
+          "chips": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FacetChipDto"
+            }
+          },
+          "offset": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "nextOffset": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "FacetChipDto": {
         "required": [
           "id",
@@ -15564,6 +15831,12 @@
           },
           "filter": {
             "type": "string"
+          },
+          "creatorId": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -15699,6 +15972,9 @@
               "null",
               "string"
             ]
+          },
+          "localMatch": {
+            "type": "boolean"
           }
         }
       },
@@ -21976,6 +22252,108 @@
           }
         }
       },
+      "TakenDownRecordDto": {
+        "required": [
+          "recordId",
+          "title",
+          "since",
+          "sweeps",
+          "series"
+        ],
+        "type": "object",
+        "properties": {
+          "recordId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "since": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSeen": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "sweeps": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TakenDownSeriesDto"
+            }
+          },
+          "moreSeries": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "TakenDownRecordsDto": {
+        "required": [
+          "total",
+          "limit",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "limit": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TakenDownRecordDto"
+            }
+          }
+        }
+      },
+      "TakenDownSeriesDto": {
+        "required": [
+          "nodeId",
+          "libraryId",
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "libraryId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          }
+        }
+      },
       "TrackerAccountDto": {
         "required": [
           "tracker",
@@ -25038,6 +25416,9 @@
     },
     {
       "name": "NodeMissing"
+    },
+    {
+      "name": "TakenDownRecords"
     },
     {
       "name": "MetadataFolderMatch"

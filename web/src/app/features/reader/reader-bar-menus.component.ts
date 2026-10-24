@@ -27,7 +27,9 @@ const SliderKeys = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', '
  * Every pick applies at once and closes the menu (a menu item's normal behaviour); the slider keeps the menu open
  * while it is dragged, and Tab from an item moves to it (a menu otherwise closes on Tab), so it is reachable by
  * keyboard. The active option carries the accent highlight (F4); items are `menuitemradio` + `aria-checked`, named
- * with their group ("Image fit: Fit width").
+ * with their group ("Image fit: Fit width"). 1.47.0 (owner): the paged menu was 808 px tall, taller than a ~720 px viewport (it scrolled
+ * inside); on a wide screen its groups now sit in two columns (Layout | Image fit, Reading direction | Page transition), and on a
+ * short screen the items are a little closer together - no inner scrolling down to about 600 px. A narrow screen keeps one column.
  */
 @Component({
   selector: 'app-reader-display-menu',
@@ -38,8 +40,8 @@ const SliderKeys = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', '
             (menuOpened)="opened.emit()" (menuClosed)="closed.emit()">
       <mat-icon>{{ icon() }}</mat-icon>
     </button>
-    <mat-menu #displayMenu="matMenu" class="reader-options-menu">
-      <div tabindex="-1" (keydown)="onPanelKey($event)">
+    <mat-menu #displayMenu="matMenu" class="reader-options-menu reader-display-menu">
+      <div class="display-groups" tabindex="-1" (keydown)="onPanelKey($event)">
         <div role="group" aria-label="Layout">
           <div class="menu-group-label">Layout</div>
           @for (opt of layoutOptions; track opt.value) {

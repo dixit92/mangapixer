@@ -166,6 +166,12 @@ describe('LibraryBrowseComponent jump rail', () => {
     // getJumpIndex
     httpMock.match((req) => req.url.endsWith('/libraries/lib1/jump-index'))[0]
       .flush({ libraryId: 'lib1', buckets });
+    flushLibraryInfo(httpMock);
+  }
+
+  /** 1.47.0: the library root's Info slot asks the tag index for the library (nothing indexed here). */
+  function flushLibraryInfo(httpMock: HttpTestingController) {
+    for (const req of httpMock.match((r) => r.url.endsWith('/libraries/lib1/info'))) req.flush({ nodeId: 'lib1', mode: 'None', buckets: [] });
   }
 
   it('renders the rail with buckets from the jump-index endpoint', () => {
@@ -213,6 +219,7 @@ describe('LibraryBrowseComponent jump rail', () => {
     const browseReq = httpMock.match((req) =>
       req.url.includes('/libraries/lib1/browse') && req.params.get('cursor') === 'cursorA')[0];
     browseReq.flush({ items: [{ id: 'b1', displayName: 'Beta' }], totalCount: 1, nextCursor: null, hasMore: false });
+    flushLibraryInfo(httpMock);
     httpMock.verify();
 
     expect(comp.nodes().length).toBe(1);

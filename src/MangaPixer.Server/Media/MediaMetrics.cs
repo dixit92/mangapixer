@@ -171,6 +171,10 @@ public sealed class MediaMetrics : IDisposable
     {
         var pool = _pool?.Invoke();
         var cache = _cache?.Invoke();
+        // Atomic copies (ConcurrentDictionary.ToArray) before LINQ: a sort straight over the dictionary copies it by Count + CopyTo,
+        // which throws ArgumentException when the first value of a new name / kind arrives in between (1.47.0 lane T2).
+        var timings = _timings.ToArray();
+        var counts = _counts.ToArray();
         var held = Enum.GetValues<MediaSlotKind>()
             .Select(k => new MediaCountDiagnostics { Name = "slots_held", Kind = KindTag(k), Value = Volatile.Read(ref _slotsHeld[(int)k]) })
             .Where(c => c.Value != 0)
@@ -197,11 +201,11 @@ public sealed class MediaMetrics : IDisposable
                 TrackedEntries = cache?.TrackedEntries ?? 0,
             },
             TimingBucketBoundsMs = BucketBoundsMs,
-            Timings = _timings
+            Timings = timings
                 .OrderBy(t => t.Key.Name, StringComparer.Ordinal).ThenBy(t => t.Key.Kind, StringComparer.Ordinal)
                 .Select(t => t.Value.ToDiagnostics(t.Key.Name, t.Key.Kind))
                 .ToList(),
-            Counts = _counts
+            Counts = counts
                 .OrderBy(c => c.Key.Name, StringComparer.Ordinal).ThenBy(c => c.Key.Kind, StringComparer.Ordinal)
                 .Select(c => new MediaCountDiagnostics { Name = c.Key.Name, Kind = c.Key.Kind, Value = Interlocked.Read(ref c.Value[0]) })
                 .ToList(),

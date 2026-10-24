@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -30,6 +30,10 @@ export type SeriesSlot = 'info' | 'identify' | 'none';
  * - otherwise nothing (not every folder in a folder-native library is a series).
  * A link change for this folder (`MetadataStateService`) re-resolves the slot, so it
  * flips between "Identify..." and "Series info" without a refresh. Phone: icon only.
+ *
+ * 1.47.0: a LIBRARY ROOT is not a node - with `libraryId` instead of `nodeId` the slot asks only the tag index for the library
+ * (`GET libraries/{id}/info`): "Info" when it has tags the viewer may see (the overlay then shows the library's tags alone), otherwise
+ * nothing (a library root has no series information and nothing to identify).
  */
 @Component({
   selector: 'app-series-info-button',
@@ -40,7 +44,7 @@ export type SeriesSlot = 'info' | 'identify' | 'none';
     @switch (slot()) {
       @case ('info') {
         <button mat-stroked-button type="button" class="series-btn"
-                matTooltip="Information and tags for this folder" aria-label="Info"
+                [matTooltip]="libraryId() ? 'Tags of this library' : 'Information and tags for this folder'" aria-label="Info"
                 data-testid="series-info-button"
                 (click)="open()">
           <mat-icon>info_outline</mat-icon><span class="lbl">Info</span>
@@ -75,25 +79,52 @@ export class SeriesInfoButtonComponent {
   private readonly metadataState = inject(MetadataStateService);
 
   /** The folder currently being browsed. */
-  readonly nodeId = input.required<string>();
+  readonly nodeId = input<string | null>(null);
 
-  private readonly nodeId$ = toObservable(this.nodeId);
+  /** 1.47.0: the library whose ROOT is being browsed (instead of a folder). */
+  readonly libraryId = input<string | null>(null);
+
+  /** The library's name, shown as the library overlay's title. */
+  readonly libraryName = input<string>('');
+
+  private readonly target$ = toObservable(computed(() => ({ nodeId: this.nodeId(), libraryId: this.libraryId() })));
 
   readonly slot = toSignal(
     merge(
-      this.nodeId$,
-      this.metadataState.changed$.pipe(filter((c) => c.nodeId === this.nodeId()), map(() => this.nodeId())),
-    ).pipe(switchMap((id) => this.resolve(id))),
+      this.target$,
+      this.metadataState.changed$.pipe(
+        filter((c) => !!this.nodeId() && c.nodeId === this.nodeId()),
+        map(() => ({ nodeId: this.nodeId(), libraryId: this.libraryId() })),
+      ),
+    ).pipe(switchMap(({ nodeId, libraryId }) => {
+      if (libraryId) return this.resolveLibrary(libraryId);
+      return nodeId ? this.resolve(nodeId) : of<SeriesSlot>('none');
+    })),
     { initialValue: 'none' as SeriesSlot },
   );
 
   open(): void {
-    void this.overlayService.open(this.nodeId());
+    const libraryId = this.libraryId();
+    if (libraryId) {
+      void this.overlayService.openLibrary(libraryId, this.libraryName());
+      return;
+    }
+    const nodeId = this.nodeId();
+    if (nodeId) void this.overlayService.open(nodeId);
   }
 
   identify(): void {
     // A Link announces itself through MetadataStateService, which re-resolves the slot.
-    void this.identifyDialog.open(this.nodeId());
+    const nodeId = this.nodeId();
+    if (nodeId) void this.identifyDialog.open(nodeId);
+  }
+
+  /** A library root: "Info" when the tag index has tags there the viewer may see; never "Identify...". */
+  private resolveLibrary(libraryId: string): Observable<SeriesSlot> {
+    return this.infoApi.getLibraryInfo(libraryId).pipe(
+      map((p) => (p.mode !== 'None' && p.buckets.some((b) => b.chips.length > 0) ? 'info' as const : 'none' as const)),
+      catchError(() => of<SeriesSlot>('none')),
+    );
   }
 
   private resolve(id: string): Observable<SeriesSlot> {

@@ -3,22 +3,23 @@ import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
 import { MatDialogRef } from '@angular/material/dialog';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 
 import { AuthService } from '../../../core/auth/auth.service';
 import { CreatorAdminService } from './creator-admin/creator-admin.service';
 import { InfoApiService } from './info-api.service';
 import { InfoTagsComponent } from './info-tags.component';
-import { InfoPanelDto } from './info-types';
+import { FacetBucketPageDto, InfoPanelDto } from './info-types';
 import { bucket, chip, emptyPanel, panel } from './info.testing';
 
 @Component({
   standalone: true,
   imports: [InfoTagsComponent],
-  template: `<app-info-tags [nodeId]="nodeId()" (loaded)="loaded.push($event)" />`,
+  template: `<app-info-tags [nodeId]="nodeId()" [libraryId]="libraryId()" (loaded)="loaded.push($event)" />`,
 })
 class HostComponent {
-  readonly nodeId = signal('n1');
+  readonly nodeId = signal<string | null>('n1');
+  readonly libraryId = signal<string | null>(null);
   readonly loaded: (InfoPanelDto | null)[] = [];
 }
 
@@ -26,9 +27,22 @@ class HostComponent {
 describe('InfoTagsComponent', () => {
   const dialogRef = { close: vi.fn() };
 
-  function render(answer: InfoPanelDto | 'error', opts: { admin?: boolean; inDialog?: boolean } = {}) {
+  function render(
+    answer: InfoPanelDto | 'error',
+    opts: { admin?: boolean; inDialog?: boolean; pages?: (FacetBucketPageDto | 'error' | Subject<FacetBucketPageDto>)[] } = {},
+  ) {
     dialogRef.close.mockClear();
-    const api = { getInfo: vi.fn(() => (answer === 'error' ? throwError(() => ({ status: 404 })) : of(answer))) };
+    const reply = () => (answer === 'error' ? throwError(() => ({ status: 404 })) : of(answer));
+    const pages = [...(opts.pages ?? [])];
+    const api = {
+      getInfo: vi.fn(reply),
+      getLibraryInfo: vi.fn(reply),
+      getBucket: vi.fn(() => {
+        const next = pages.shift();
+        if (next === undefined || next === 'error') return throwError(() => ({ status: 500 }));
+        return next instanceof Subject ? next.asObservable() : of(next);
+      }),
+    };
     const creatorAdmin = { rename: vi.fn(() => Promise.resolve(null)), merge: vi.fn(() => Promise.resolve(null)), split: vi.fn(() => Promise.resolve(null)) };
     const providers: unknown[] = [
       provideNoopAnimations(),
@@ -144,7 +158,7 @@ describe('InfoTagsComponent', () => {
     expect(items).toEqual(['edit Rename…', 'call_merge Merge into…', 'call_split Split…']);
     (document.querySelector('[data-testid="creator-merge"]') as HTMLButtonElement).click();
     await admin.fixture.whenStable();
-    expect(admin.creatorAdmin.merge).toHaveBeenCalledWith('fv_a', 'Synthetic Author');
+    expect(admin.creatorAdmin.merge).toHaveBeenCalledWith(expect.objectContaining({ id: 'fv_a', display: 'Synthetic Author' }));
   });
 
   it('reloads the tags after an admin change was saved', async () => {
@@ -174,5 +188,60 @@ describe('InfoTagsComponent', () => {
     fixture.componentInstance.nodeId.set('n2');
     fixture.detectChanges();
     expect(api.getInfo).toHaveBeenLastCalledWith('n2');
+  });
+  // ---- 1.47.0 (lane P) ----
+
+  it('loads a library root\'s tags when given a library instead of a node', () => {
+    const { fixture, api } = render(panel({ mode: 'Container', nodeId: 'L1', worksBelow: 3 }));
+    fixture.componentInstance.nodeId.set(null);
+    fixture.componentInstance.libraryId.set('L1');
+    fixture.detectChanges();
+    expect(api.getLibraryInfo).toHaveBeenCalledWith('L1');
+    expect(api.getInfo).toHaveBeenCalledTimes(1); // only the first render's node
+  });
+
+  it('"+N more" is a button that adds the rest of the bucket in place, from the shown chips on', () => {
+    const shown = Array.from({ length: 12 }, (_, i) => chip({ id: `fv_${i}`, display: `Genre ${i}`, here: 2, filter: `genre:fv_${i}` }));
+    const rest = [chip({ id: 'fv_12', display: 'Genre 12', here: 1, filter: 'genre:fv_12' }), chip({ id: 'fv_13', display: 'Genre 13', here: 1, filter: 'genre:fv_13' })];
+    const { fixture, el, api, chips } = render(panel({ mode: 'Container', buckets: [bucket({ bucket: 'Genres', chips: shown, more: 2 })] }), {
+      pages: [{ bucket: 'Genres', chips: rest, offset: 12, total: 14, nextOffset: null }],
+    });
+    const more = el.querySelector<HTMLButtonElement>('[data-testid="info-more"]')!;
+    expect(more.tagName).toBe('BUTTON');
+    expect(more.getAttribute('aria-label')).toBe('Show 2 more in Genres');
+    more.click();
+    fixture.detectChanges();
+    expect(api.getBucket).toHaveBeenCalledWith({ nodeId: 'n1' }, 'Genres', 12);
+    expect(chips().map((c) => c.getAttribute('data-value'))).toEqual([...shown, ...rest].map((c) => c.id));
+    expect(chips()[13].getAttribute('href')).toBe('/search?f=genre:fv_13');
+    expect(el.querySelector('[data-testid="info-more"]')).toBeNull();
+  });
+
+  it('"+N more" keeps the button while more remain, asks the library route for a library root, and survives a failure', () => {
+    const shown = [chip({ id: 'fv_a' }), chip({ id: 'fv_b', display: 'Second' })];
+    const pending = new Subject<FacetBucketPageDto>();
+    const { fixture, el, api, chips } = render(panel({ mode: 'Container', nodeId: 'L1', buckets: [bucket({ chips: shown, more: 3 })] }), {
+      pages: ['error', pending],
+    });
+    fixture.componentInstance.nodeId.set(null);
+    fixture.componentInstance.libraryId.set('L1');
+    fixture.detectChanges();
+    const button = () => el.querySelector<HTMLButtonElement>('[data-testid="info-more"]');
+
+    button()!.click(); // the first request fails: nothing changes, the button is usable again
+    fixture.detectChanges();
+    expect(chips().length).toBe(2);
+    expect(button()!.disabled).toBe(false);
+
+    button()!.click();
+    fixture.detectChanges();
+    expect(api.getBucket).toHaveBeenLastCalledWith({ libraryId: 'L1' }, 'Creators', 2);
+    expect(button()!.disabled).toBe(true); // while the page loads
+    pending.next({ bucket: 'Creators', chips: [chip({ id: 'fv_c', display: 'Third' })], offset: 2, total: 5, nextOffset: 3 });
+    pending.complete();
+    fixture.detectChanges();
+    expect(chips().length).toBe(3);
+    expect(button()!.textContent!.trim()).toBe('+2 more');
+    expect(button()!.disabled).toBe(false);
   });
 });

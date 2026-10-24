@@ -177,8 +177,8 @@ describe('match folders by name', () => {
       expect(api.apply).toHaveBeenCalledWith({
         kind: 'Artists',
         items: [
-          { nodeId: 'a1', name: 'Qzv Painter', role: 'author', provider: 'mangaupdates', externalId: '501' },
-          { nodeId: 'a2', name: 'Other Person', role: 'artist', provider: 'mangaupdates', externalId: '602' },
+          { nodeId: 'a1', name: 'Qzv Painter', role: 'author', provider: 'mangaupdates', externalId: '501', localMatch: true },
+          { nodeId: 'a2', name: 'Other Person', role: 'artist', provider: 'mangaupdates', externalId: '602', localMatch: true },
         ],
         setDoujinContent: true,
       });

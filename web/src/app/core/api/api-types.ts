@@ -204,6 +204,8 @@ export interface FacetChipDto {
   conflict: boolean;
   /** One `f` query parameter value for the search (`creator:fv_...`). */
   filter: string;
+  /** 1.47.0: creator chips only - the live creator (`cr_...`) the chip names, for the admin creator routes. */
+  creatorId?: string | null;
 }
 
 export interface FacetBucketDto {
@@ -211,6 +213,19 @@ export interface FacetBucketDto {
   chips: FacetChipDto[];
   /** Further values beyond `chips` (container: top 12 per bucket). */
   more: number;
+}
+
+/**
+ * 1.47.0 "+N more": a page of one bucket (`GET /api/v1/nodes/{nodeId}/info/buckets/{bucket}`, `GET /api/v1/libraries/{libraryId}/info/buckets/{bucket}`),
+ * in the panel's order with the viewer's counts; the panel's chips are its first page.
+ */
+export interface FacetBucketPageDto {
+  bucket: FacetBucket;
+  chips: FacetChipDto[];
+  offset: number;
+  total: number;
+  /** The next page's offset; absent at the end of the bucket. */
+  nextOffset?: number | null;
 }
 
 export interface FacetLocationDto {
@@ -1759,6 +1774,8 @@ export interface FolderMatchApplyItem {
   role?: string | null;
   provider?: string | null;
   externalId?: string | null;
+  /** Artists (1.47.0): the id is from a local match of the preview (audit `local_author_match`), not an author search pick. */
+  localMatch?: boolean;
 }
 
 export interface FolderMatchApplyRequest {
@@ -3077,6 +3094,8 @@ export interface ExportMetadataPageDto {
   serverTime: string;
   /** 1.45.0: the library's new-chapter confirmation times (the same on every page). */
   sweeps: ExportSweepsDto;
+  /** 1.47.0: the optional record fields this server exports (today `["creators"]`); an absent one is "none known" when listed. */
+  recordFields: string[];
   library: ExportLibraryRefDto;
   items: ExportItemDto[];
   removed: ExportRemovalDto[];
@@ -3150,6 +3169,19 @@ export interface ExportRecordDto {
   completedInOrigin?: boolean | null;
   englishPublishers: ExportPublisherDto[];
   fetchedAt: string;
+  /** 1.47.0: one entry per credited person; left out when the record has none. */
+  creators?: ExportCreatorDto[] | null;
+}
+
+/** 1.47.0: one credited person of a record. */
+export interface ExportCreatorDto {
+  name: string;
+  /** `Author`, `Artist` or `Author, Artist`. */
+  role: string;
+  /** The MangaUpdates author id, or null (MangaDex / GCD credits). */
+  muAuthorId?: number | null;
+  /** At most 50; `[]` when none are stored. */
+  otherNames: string[];
 }
 
 export interface ExportPublisherDto {
@@ -3944,4 +3976,37 @@ export interface SplitCreatorRequest {
 /** `PUT /api/v1/admin/metadata/creators/{id}/display-name`: null or blank clears the admin name. */
 export interface SetCreatorDisplayNameRequest {
   displayName?: string | null;
+}
+
+/**
+ * 1.47.0 (owner decision 10a): MangaDex records the latest-upload sweep stopped finding (taken down), from stored rows only - no
+ * request, no fallback lookup. Admin page only (Metadata Manager, Runs tab).
+ */
+export interface TakenDownRecordsDto {
+  /** How many records are missing now (`items` holds at most `limit`, oldest first). */
+  total: number;
+  limit: number;
+  items: TakenDownRecordDto[];
+}
+
+/** One MangaDex record the sweep stopped finding. */
+export interface TakenDownRecordDto {
+  recordId: string;
+  title: string;
+  /** The first sweep of the current run that left the record out of MangaDex's answer. */
+  since: string;
+  /** The last sweep that still found it, or absent when it never did. */
+  lastSeen?: string | null;
+  /** How many sweeps in a row left it out. */
+  sweeps: number;
+  /** The series here that use the record (a few; see `moreSeries`). */
+  series: TakenDownSeriesDto[];
+  moreSeries?: number;
+}
+
+/** A linked series folder whose MangaDex record is missing. */
+export interface TakenDownSeriesDto {
+  nodeId: string;
+  libraryId: string;
+  displayName: string;
 }

@@ -30,7 +30,7 @@ using Microsoft.EntityFrameworkCore;
 /// 1.45.0: as artist folders, a row without a local match - and an Artist folder whose declared artist has no MangaUpdates reference yet -
 /// carries the text "Search MangaUpdates for the rest" would send (the author search, <see cref="Authors.AuthorSearchService"/>, driven by
 /// the dialog); an apply item may name the picked author (<c>provider</c> + <c>externalId</c>), stored as the declared artist's reference
-/// with audit result <c>author_search</c> - still no request.
+/// with audit result <c>author_search</c> - still no request. 1.47.0: an id from a LOCAL match (<c>localMatch</c>) is audited <c>local_author_match</c>.
 /// </summary>
 public sealed class FolderMatchService
 {
@@ -304,7 +304,8 @@ public sealed class FolderMatchService
     private async Task<(string Code, int Queued)> ApplyArtistAsync(FolderMatchApplyItem item, string? actor, CancellationToken ct)
     {
         var outcome = await _artists.SetAsync(item.NodeId,
-            new SetArtistFolderRequest { Name = item.Name, Role = item.Role, Provider = item.Provider, ExternalId = item.ExternalId }, actor, ct, AuditResult);
+            new SetArtistFolderRequest { Name = item.Name, Role = item.Role, Provider = item.Provider, ExternalId = item.ExternalId }, actor, ct, AuditResult,
+            localAuthorMatch: item.LocalMatch);
         return outcome switch
         {
             { Code: MetadataLinkResultCode.Ok, Result: { } result } => ("ok", result.Queued),

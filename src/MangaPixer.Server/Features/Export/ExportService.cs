@@ -151,6 +151,8 @@ public sealed class ExportService(MangaPixerDbContext db, ExportRebuildService r
             ["schemaVersion"] = ExportJson.SchemaVersion,
             ["serverTime"] = ExportJson.Format(state.LastRebuildAt),
             ["sweeps"] = Node(new ExportSweepsDto { MangadexLatestUpload = sweepAt is { } sweptAt ? ExportJson.Truncate(sweptAt) : null }),
+            // 1.47.0: the optional record fields this server exports - outside every item, so it never moves an item's fingerprint.
+            ["recordFields"] = Node(ExportCreators.RecordFields),
             ["library"] = Node(new ExportLibraryRefDto { Id = library.PublicId, DisplayName = library.DisplayName, Kind = kind }),
             ["items"] = items,
             ["removed"] = removed,

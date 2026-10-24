@@ -47,6 +47,10 @@ public sealed class ExportTokenEndToEndHttpTests
                 ExternalId = $"90{i}",
                 Title = $"Token Series {i}",
                 OriginStatus = (int)MetadataOriginStatus.Ongoing,
+                // 1.47.0: series 1 credits one person under both roles; series 2 has no creators.
+                CreatorsJson = i == 1
+                    ? "[{\"name\":\"Token Writer\",\"role\":\"author\",\"providerId\":\"4242\"},{\"name\":\"Token Writer\",\"role\":\"artist\",\"providerId\":\"4242\"}]"
+                    : null,
                 FetchedAt = now,
             };
             db.MetadataRecords.Add(record);
@@ -61,6 +65,15 @@ public sealed class ExportTokenEndToEndHttpTests
                 UpdatedAt = now,
             });
         }
+        db.MetadataAuthors.Add(new MetadataAuthorEntity
+        {
+            Provider = "mangaupdates",
+            ExternalId = "4242",
+            Name = "Token Writer",
+            OtherNamesJson = "[\"Writer Token\"]",
+            Status = 0,
+            FetchedAt = now,
+        });
         await db.SaveChangesAsync();
     }
 
@@ -90,6 +103,16 @@ public sealed class ExportTokenEndToEndHttpTests
             .Order(StringComparer.Ordinal)
             .ToList();
         Assert.Equal(["Token Series 1", "Token Series 2"], trails);
+
+        // 1.47.0: the page says the server exports creators, so an item without any simply has no key.
+        Assert.Equal(["creators"], page.GetProperty("recordFields").EnumerateArray().Select(f => f.GetString()));
+        var records = page.GetProperty("items").EnumerateArray().ToDictionary(
+            i => i.GetProperty("trail")[0].GetString()!, i => i.GetProperty("record"));
+        var creator = Assert.Single(records["Token Series 1"].GetProperty("creators").EnumerateArray());
+        Assert.Equal(("Token Writer", "Author, Artist", 4242L), (creator.GetProperty("name").GetString(), creator.GetProperty("role").GetString(),
+            creator.GetProperty("muAuthorId").GetInt64()));
+        Assert.Equal(["Writer Token"], creator.GetProperty("otherNames").EnumerateArray().Select(n => n.GetString()));
+        Assert.False(records["Token Series 2"].TryGetProperty("creators", out _));
 
         var tooOld = await mangaList.GetAsync($"/api/v1/export/metadata?library={LibPubId}&updatedSince=2001-01-01T00:00:00Z");
         Assert.Equal(HttpStatusCode.Conflict, tooOld.StatusCode);

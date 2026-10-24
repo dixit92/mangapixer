@@ -77,6 +77,22 @@ internal static class QueryValues
         return result;
     }
 
+    /// <summary>1.47.0 (lane P): the public id (<c>cr_...</c>) of each creator id that exists.</summary>
+    public static async Task<Dictionary<long, string>> CreatorPublicIdsAsync(MangaPixerDbContext db, IReadOnlyCollection<long> creatorIds, CancellationToken ct)
+    {
+        var result = new Dictionary<long, string>();
+        foreach (var chunk in creatorIds.Distinct().Chunk(QuerySql.Chunk))
+        {
+            var rows = await db.Creators.AsNoTracking()
+                .Where(c => chunk.Contains(c.Id))
+                .Select(c => new { c.Id, c.PublicId })
+                .ToListAsync(ct);
+            foreach (var row in rows)
+                result[row.Id] = row.PublicId;
+        }
+        return result;
+    }
+
     /// <summary>The values among <paramref name="valueIds"/> with at least one entry the viewer may see (shown library, not tombstoned).</summary>
     public static async Task<HashSet<long>> VisibleAsync(MangaPixerDbContext db, IReadOnlyCollection<long> valueIds, FacetViewerScope scope, CancellationToken ct)
     {

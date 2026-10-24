@@ -592,7 +592,7 @@ public static partial class TitleNormalizer
     }
 
     /// <summary>The name without a known archive extension (<c>.cbz</c>, <c>.zip</c>, ...).</summary>
-    internal static string StripArchiveExtension(string s)
+    public static string StripArchiveExtension(string s)
     {
         foreach (var ext in s_archiveExtensions)
         {

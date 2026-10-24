@@ -166,6 +166,29 @@ test.describe('desktop and tablet bar', () => {
   });
 });
 
+test.describe('the Display menu on a short screen (1.47.0)', () => {
+  // The paged menu was 808 px tall in one column and scrolled inside on a ~720 px viewport; now it fits without inner scrolling.
+  for (const [label, mode] of [['paged', undefined], ['webtoon', 'VerticalWebtoon']] as const) {
+    test(`${label}: the menu fits a 1280 x 720 viewport without scrolling inside`, async ({ page }) => {
+      await page.setViewportSize({ width: 1280, height: 720 });
+      await openReader(page, mode ? { mode } : {});
+      await page.getByRole('button', { name: 'Display', exact: true }).click();
+      const panel = page.locator('.mat-mdc-menu-panel.reader-options-menu');
+      await expect(panel).toBeVisible();
+      // Measure the settled panel (it animates in): no inner scroll either way, and every option is on screen.
+      await expect.poll(() => panel.evaluate((p) => ({
+        height: p.scrollHeight - p.clientHeight, width: p.scrollWidth - p.clientWidth,
+        top: p.getBoundingClientRect().top, bottom: p.getBoundingClientRect().bottom,
+      })), { timeout: 3_000 }).toEqual(expect.objectContaining({ height: 0, width: 0 }));
+      const box = await panel.evaluate((p) => ({ top: p.getBoundingClientRect().top, bottom: p.getBoundingClientRect().bottom }));
+      expect(box.top).toBeGreaterThanOrEqual(0);
+      expect(box.bottom).toBeLessThanOrEqual(720);
+      for (const item of await panel.getByRole('menuitemradio').all()) await expect(item).toBeInViewport();
+      await page.keyboard.press('Escape');
+    });
+  }
+});
+
 test.describe('double click / double tap in the centre', () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
