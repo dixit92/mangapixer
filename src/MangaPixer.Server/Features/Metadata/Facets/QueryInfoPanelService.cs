@@ -293,6 +293,21 @@ public sealed class InfoPanelService
         var targets = redirected.Count == 0
             ? new Dictionary<long, QueryValues.Value>()
             : await QueryValues.CreatorValuesAsync(_db, redirected, ct);
+        // 1.48.0 (lane A, owner decision 6a): a target is named only when the viewer may see a work carrying it. A target whose works are
+        // all in libraries the viewer cannot see (or in their Private library under Incognito) is neither named nor linked - the chip stays
+        // the merged value the viewer's own works carry, with that value's own creator (the admin creator routes resolve it to the live one).
+        var hiddenTargets = new HashSet<long>();
+        if (targets.Count > 0)
+        {
+            var visible = await _counts.CountAsync(scope, targets.Values.Select(t => t.Id).ToList(), ct);
+            foreach (var (creator, target) in targets.ToList())
+            {
+                if (visible.GetValueOrDefault(target.Id) > 0)
+                    continue;
+                targets.Remove(creator);
+                hiddenTargets.Add(creator);
+            }
+        }
         Value Resolve(long valueId)
         {
             var v = values[valueId];
@@ -322,7 +337,7 @@ public sealed class InfoPanelService
         // The live creator of each creator chip (a value whose merge target has no value of its own keeps its value, named by the
         // creator it was merged into), as public ids.
         long? LiveCreator(QueryValues.Value v) =>
-            v.CreatorId is { } c ? (live.TryGetValue(c, out var to) ? to : c) : null;
+            v.CreatorId is { } c ? (live.TryGetValue(c, out var to) && !hiddenTargets.Contains(to) ? to : c) : null;
         var creatorInternal = groups.Where(g => g.Shown.Bucket == FacetBucket.Creators)
             .Select(g => LiveCreator(g.Shown)).OfType<long>().Distinct().ToList();
         var creatorPublic = await QueryValues.CreatorPublicIdsAsync(_db, creatorInternal, ct);
