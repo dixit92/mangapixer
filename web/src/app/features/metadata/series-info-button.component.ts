@@ -65,8 +65,10 @@ export type SeriesSlot = 'info' | 'identify' | 'none';
     .series-btn mat-icon { margin-right: 4px; }
     @media (max-width: 599.98px) {
       .series-btn .lbl { display: none; }
-      .series-btn mat-icon { margin-right: 0; }
-      .series-btn { min-width: 0; padding: 0 8px; }
+      /* 1.48.0: the same 40 px square as the tracker button, and the icon centred - mat-stroked-button pulls a projected icon
+         8 px left (margin-left: -8px), which only the right margin was reset against (a narrow oval, the icon off-centre). */
+      .series-btn mat-icon { margin-inline: 0; }
+      .series-btn { flex: none; min-width: 40px; width: 40px; padding: 0; }
     }
   `],
 })

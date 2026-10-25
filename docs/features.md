@@ -55,7 +55,7 @@ Everything MangaPixer does today, by area. The [README](../README.md) has the sh
 
 - "Continue reading": one row across all your libraries.
 - "New chapters": recently added archives, grouped by library and stacked per series folder (latest chapter plus a "+N" badge): the folder with its own series link, or else the folder that holds the new archives, so a library whose top level is categories such as Manga and Manhwa shows one card per series, not per category. Each user chooses the time window in days (30 by default), how many stacks each library shows (6, 12, 24 or 50; 12 by default - *new in 1.41.0*) and which libraries contribute.
-- Continue reading and New chapters cards carry the same controls as the library view: the favorites star and, where there is series information, the (i) and the summary on hover.
+- Continue reading, New chapters and Favorites cards carry the same controls as the library view: the favorites star and, where there is series information, the (i) and the summary on hover. *New in 1.48.0:* the Favorites row and the Favorites page also show Read / Reading badges (a folder's or a stack's covers the whole folder), and a folder can be starred from inside it.
 - A New chapters card of a linked series, and a Continue reading card of one of its chapters, show the series cover (for example your volume 1's cover) rather than a chapter's first page - see [Covers](covers.md#on-the-home-page). *New in 1.39.0:* **Choose cover…** on a folder linked to a series also offers the series poster (see [The series poster](covers.md#the-series-poster)).
 - Tapping a New chapters card of a linked series opens it in the Volumes view (by name, the Continue row on top); other folders open sorted by Recently updated.
 - A grid of your libraries.

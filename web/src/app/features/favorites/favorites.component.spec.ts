@@ -9,6 +9,7 @@ import { By } from '@angular/platform-browser';
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { ApiService } from '../../core/api/api.service';
 import { FavoritesStateService } from '../../core/favorites/favorites-state.service';
+import { MetadataStateService } from '../metadata/metadata-state.service';
 import { CatalogNodeDto, PageResponse } from '../../core/api/api-types';
 import { favoriteQueryParams, favoriteTrackKey, isFavoriteStack } from './favorite-stack';
 
@@ -58,6 +59,40 @@ describe('FavoritesComponent stacks (1.27.0)', () => {
     const zones = fixture.debugElement.queryAll(By.directive(SeriesInfoHoverDirective))
       .map((d) => d.injector.get(SeriesInfoHoverDirective).nodeId() ?? '-');
     expect(zones).toEqual(['fold', 'fold', 'arc', 'arc', '-', '-']);
+  });
+
+  it('shows the read state as browse cards do: an archive\'s Read / Reading, a folder\'s and a stack\'s rollup (1.48.0)', () => {
+    const { el } = setup(page([
+      node('read', 'Archive', { isRead: true }),
+      node('now', 'Archive', { readingState: 'InProgress' }),
+      node('fresh', 'Archive'),
+      node('part', 'Folder', { readRollup: 'Reading' }),
+      node('done', 'Folder', { readRollup: 'Read' }),
+      node('none', 'Folder', { readRollup: 'Unread' }),
+      node('stack', 'Folder', { favoriteStackCount: 2, isFavorite: false, readRollup: 'Reading' }),
+    ]));
+    const cards = Array.from(el.querySelectorAll('.fav-card'));
+    const shown = cards.map((c) => Array.from(c.querySelectorAll('.badge')).map((b) => b.textContent?.trim()).join(','));
+    expect(shown).toEqual(['✓ Read', 'Reading', '', 'Reading', '✓ Read', '', 'Reading']);
+    // The kind badge stays on the single cards (moved to the top-left, so it no longer sits under the read badge).
+    expect(cards[0].querySelector('.kind-badge')).not.toBeNull();
+    expect(cards[3].querySelector('.kind-badge')).not.toBeNull();
+    // The stack keeps its count beside the folder's rollup.
+    expect(cards[6].querySelector('.count-badge')?.textContent?.trim()).toBe('2');
+  });
+
+  it('anchors the (i) of an archive to its series: a followed announcement of the archive\'s own rule does not hide it (1.48.0)', () => {
+    const { fixture, el } = setup(page([
+      node('arc', 'Archive', { hasSeriesInfo: true }),
+      node('fol', 'Folder', { hasSeriesInfo: true }),
+    ]));
+    const cards = el.querySelectorAll('.fav-card');
+    const state = TestBed.inject(MetadataStateService);
+    state.announce('arc', false); // the own-rule answer for the archive: the series above it still counts
+    state.announce('fol', false); // a folder follows its own rule
+    fixture.detectChanges();
+    expect(cards[0].querySelector('[data-testid="info-toggle"]')).not.toBeNull();
+    expect(cards[1].querySelector('[data-testid="info-toggle"]')).toBeNull();
   });
 
   it('renders a stack as a stacked card that opens the folder filtered to favorites', () => {

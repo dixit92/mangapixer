@@ -10,11 +10,12 @@ import { FavoritesStateService, FavoriteChange } from '../../core/favorites/favo
 @Component({
   standalone: true,
   imports: [StarToggleComponent],
-  template: `<div class="cover"><app-star-toggle [nodeId]="nodeId()" [favorite]="favorite()" /></div>`,
+  template: `<div class="cover"><app-star-toggle [nodeId]="nodeId()" [favorite]="favorite()" [bar]="bar()" /></div>`,
 })
 class HostComponent {
   readonly nodeId = signal('node-1');
   readonly favorite = signal(false);
+  readonly bar = signal(false);
 }
 
 /** Fake state service: records persistence calls and lets a test drive `changed$`. */
@@ -33,7 +34,7 @@ class FakeFavoritesStateService {
 describe('StarToggleComponent', () => {
   let fake: FakeFavoritesStateService;
 
-  function create(favorite = false) {
+  function create(favorite = false, bar = false) {
     fake = new FakeFavoritesStateService();
     TestBed.configureTestingModule({
       imports: [HostComponent],
@@ -44,6 +45,7 @@ describe('StarToggleComponent', () => {
     });
     const fixture = TestBed.createComponent(HostComponent);
     fixture.componentInstance.favorite.set(favorite);
+    fixture.componentInstance.bar.set(bar);
     fixture.detectChanges();
     return fixture;
   }
@@ -123,5 +125,50 @@ describe('StarToggleComponent', () => {
     fixture.componentInstance.favorite.set(true);
     fixture.detectChanges();
     expect(icon(fixture)).toBe('star');
+  });
+
+  // 1.48.0: the browse-bar variant.
+  describe('bar variant', () => {
+    it('is an outlined button with a label, shaped like the Info button, not the round icon button', () => {
+      const fixture = create(false, true);
+      const host = fixture.nativeElement.querySelector('app-star-toggle') as HTMLElement;
+      expect(host.classList).toContain('bar');
+      const btn = button(fixture);
+      expect(btn.hasAttribute('mat-stroked-button')).toBe(true);
+      expect(btn.hasAttribute('mat-icon-button')).toBe(false);
+      expect(btn.getAttribute('data-testid')).toBe('folder-star');
+      expect(btn.querySelector('.lbl')?.textContent?.trim()).toBe('Favorite');
+      expect(icon(fixture)).toBe('star_border');
+    });
+
+    it('toggles like the card star: optimistic, persisted, reverted on error, aria-pressed and label follow', () => {
+      const fixture = create(false, true);
+      button(fixture).click();
+      fixture.detectChanges();
+      expect(fake.setFavorite).toHaveBeenCalledWith('node-1', true);
+      expect(icon(fixture)).toBe('star');
+      expect(button(fixture).getAttribute('aria-pressed')).toBe('true');
+      expect(button(fixture).getAttribute('aria-label')).toBe('Remove from favorites');
+      expect(button(fixture).classList).toContain('active');
+
+      fake.result = throwError(() => new Error('boom'));
+      button(fixture).click();
+      fixture.detectChanges();
+      expect(icon(fixture)).toBe('star'); // the unstar failed: back to starred
+    });
+
+    it('follows the same node toggled elsewhere and the input on a re-fetch', () => {
+      const fixture = create(true, true);
+      expect(button(fixture).getAttribute('aria-pressed')).toBe('true');
+      fake.changedSubject.next({ nodeId: 'node-1', favorite: false });
+      fixture.detectChanges();
+      expect(icon(fixture)).toBe('star_border');
+      // The parent's server truth wins again when its input changes.
+      fixture.componentInstance.favorite.set(false);
+      fixture.detectChanges();
+      fixture.componentInstance.favorite.set(true);
+      fixture.detectChanges();
+      expect(icon(fixture)).toBe('star');
+    });
   });
 });
