@@ -163,6 +163,9 @@ describe('StarToggleComponent', () => {
       fake.changedSubject.next({ nodeId: 'node-1', favorite: false });
       fixture.detectChanges();
       expect(icon(fixture)).toBe('star_border');
+      // The parent's server truth wins again when its input changes.
+      fixture.componentInstance.favorite.set(false);
+      fixture.detectChanges();
       fixture.componentInstance.favorite.set(true);
       fixture.detectChanges();
       expect(icon(fixture)).toBe('star');
