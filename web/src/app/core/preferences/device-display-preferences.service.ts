@@ -35,12 +35,14 @@ export class DeviceDisplayPreferencesService {
   /** This device's own values; null while the device has none (the server value or the default shows). */
   private readonly deviceCardSize = signal<number | null>(readNumber(CARD_SIZE_STORAGE_KEY, validCardSize));
   private readonly deviceListColumns = signal<number | null>(readNumber(LIST_COLUMNS_STORAGE_KEY, validListColumns));
+  /** The size a pre-1.6.0 view mode implied (grid / poster): shown while the device has no copy, but never stored as a choice. */
+  private readonly legacyCardSize = signal<number | null>(null);
   /** A live preview while a slider is dragged: shown but neither stored nor sent. */
   private readonly previewCardSize = signal<number | null>(null);
   private readonly previewListColumns = signal<number | null>(null);
 
   /** The card size (px, min column width) shown on this device. */
-  readonly cardSize = computed(() => this.previewCardSize() ?? this.deviceCardSize() ?? DEFAULT_CARD_SIZE);
+  readonly cardSize = computed(() => this.previewCardSize() ?? this.deviceCardSize() ?? this.legacyCardSize() ?? DEFAULT_CARD_SIZE);
   /** The list-view column count (1-3) shown on this device. */
   readonly listColumns = computed(() => this.previewListColumns() ?? this.deviceListColumns() ?? DEFAULT_LIST_COLUMNS);
 
@@ -60,15 +62,17 @@ export class DeviceDisplayPreferencesService {
 
   /**
    * Called with every load of the per-user preferences. A value this device already has is left alone; a missing one is
-   * seeded from the server (the stored `cardSize`, else the size the legacy viewMode + density implied; `listColumns` when
-   * 1-3) and stored. When the server has nothing usable the device stays unset, so the default shows and a later server value
-   * can still seed it.
+   * seeded from the server (the stored `cardSize`, `listColumns` when 1-3) and stored. When the server has nothing usable the
+   * device stays unset, so the default shows and a later server value can still seed it. The size an account that never chose
+   * one implies through its legacy view mode (a server row's default is grid / comfortable = 150 px) is only SHOWN, not stored:
+   * storing it would pin a device that never chose anything before another device's choice could reach it.
    */
   seedFrom(prefs: LibraryViewPreferencesDto | null | undefined): void {
     if (!prefs) return;
     if (this.deviceCardSize() === null) {
-      const seed = cardSizeOf(prefs);
-      if (seed !== null) this.storeCardSize(seed);
+      const explicit = explicitCardSizeOf(prefs);
+      if (explicit !== null) this.storeCardSize(explicit);
+      this.legacyCardSize.set(explicit === null ? legacyCardSizeOf(prefs) : null);
     }
     if (this.deviceListColumns() === null) {
       const seed = listColumnsOf(prefs);
@@ -144,13 +148,14 @@ export function clampListColumns(count: number): number {
   return Math.min(LIST_COLUMNS_MAX, Math.max(LIST_COLUMNS_MIN, Math.round(count)));
 }
 
-/**
- * The card size a server blob stands for: its stored numeric `cardSize` (clamped), else the px width the legacy
- * viewMode + density combination used (poster 210 / 168, grid 150 / 112), else null (nothing to seed from).
- */
-function cardSizeOf(p: LibraryViewPreferencesDto): number | null {
+/** The server blob's own numeric `cardSize` (clamped), or null when it has none. */
+function explicitCardSizeOf(p: LibraryViewPreferencesDto): number | null {
   const stored = Number(p.cardSize);
-  if (p.cardSize != null && p.cardSize !== '' && Number.isFinite(stored)) return clampCardSize(stored);
+  return p.cardSize != null && p.cardSize !== '' && Number.isFinite(stored) ? clampCardSize(stored) : null;
+}
+
+/** The px width the legacy viewMode + density combination used (poster 210 / 168, grid 150 / 112), else null. */
+function legacyCardSizeOf(p: LibraryViewPreferencesDto): number | null {
   const compact = p.density === 'compact';
   if (p.viewMode === 'poster') return compact ? 168 : 210;
   if (p.viewMode === 'grid') return compact ? 112 : 150;

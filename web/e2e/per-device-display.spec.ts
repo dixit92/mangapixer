@@ -71,7 +71,7 @@ async function serverPrefs(page: Page): Promise<{ cardSize?: string; listColumns
 test('each device keeps its own card size and list columns; a new device starts from the last choice', async ({ browser, request }) => {
   const username = await createUser(request, 'devd');
   const a = await device(browser, username);
-  const b = await device(browser, username);
+  let b: Page | null = null;
   let c: Page | null = null;
   try {
     // Device A chooses 130 px and one column.
@@ -81,8 +81,8 @@ test('each device keeps its own card size and list columns; a new device starts 
     expect(await stored(a, 'mangapixer-list-columns')).toBe('1');
     expect(await serverPrefs(a)).toMatchObject({ cardSize: '130', listColumns: 1 });
 
-    // Device B had nothing of its own when A saved: reloading seeds it from the last choice, and stores it.
-    await b.reload();
+    // Device B is new: its first load starts from the last choice (A's) and stores it as its own.
+    b = await device(browser, username);
     await expect(cardSlider(b)).toHaveValue('130');
     await expect(columnsSlider(b)).toHaveValue('1');
     expect(await stored(b, 'mangapixer-card-size')).toBe('130');
@@ -110,7 +110,7 @@ test('each device keeps its own card size and list columns; a new device starts 
     expect(await stored(c, 'mangapixer-card-size')).toBe('220');
   } finally {
     await a.context().close();
-    await b.context().close();
+    await b?.context().close();
     await c?.context().close();
   }
 });

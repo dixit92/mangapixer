@@ -39,10 +39,15 @@ describe('DeviceDisplayPreferencesService', () => {
       expect(localStorage.getItem(LIST_COLUMNS_STORAGE_KEY)).toBe('3');
     });
 
-    it('derives the card size from the legacy view mode and density, as before', () => {
+    it('shows the size a legacy view mode implied, as before, but does not store it as the device\'s choice', () => {
       const svc = create();
       svc.seedFrom(prefs({ viewMode: 'poster', density: 'compact' }));
       expect(svc.cardSize()).toBe(168);
+      expect(localStorage.getItem(CARD_SIZE_STORAGE_KEY)).toBeNull();
+      // so another device's later choice still reaches this one
+      svc.seedFrom(prefs({ viewMode: 'poster', density: 'compact', cardSize: '200' }));
+      expect(svc.cardSize()).toBe(200);
+      expect(localStorage.getItem(CARD_SIZE_STORAGE_KEY)).toBe('200');
     });
 
     it('clamps an out-of-range server card size and ignores an out-of-range column count', () => {
