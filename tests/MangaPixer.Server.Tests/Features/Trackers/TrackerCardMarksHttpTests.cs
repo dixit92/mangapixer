@@ -126,4 +126,44 @@ public sealed class TrackerCardMarksHttpTests
         Assert.Equal(HttpStatusCode.Unauthorized, (await h.Factory.CreateClient().GetAsync(
             $"/api/v1/trackers/card-marks?libraryId={series.LibraryPublicId}&ids={ids[0]}")).StatusCode);
     }
+
+    /// <summary>
+    /// 1.48.0 lane A (owner decision 6b): under Incognito the rings follow the VISIBLE libraries, as browse does - the viewer's own Private
+    /// library answers no ring (its browse is empty), the same library without Incognito keeps them, and an ungranted one stays 404.
+    /// </summary>
+    [Fact]
+    public async Task CardMarks_UnderIncognito_AnswerNoRingForTheViewersPrivateLibrary_AsItsBrowseIsEmpty()
+    {
+        var (h, admin, userId) = await ConnectedAsync();
+        await using var _ = h;
+        var series = await h.SeedSeriesAsync(2);
+        await SeenAsync(h, userId, series, 2);
+        var ids = series.Archives.Select(a => a.PublicId).ToList();
+        await h.DbAsync(async db =>
+        {
+            db.PrivateLibraries.Add(new PrivateLibraryEntity { UserId = userId, LibraryId = series.LibraryId, MarkedAt = DateTimeOffset.UtcNow });
+            return await db.SaveChangesAsync();
+        });
+
+        // Without Incognito the Private library is the viewer's like any other: its rings answer.
+        var (status, marks) = await CardMarksAsync(admin, series.LibraryPublicId, series.FolderPublicId, ids);
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.All(ids, id => Assert.Equal("mangaupdates", marks[id]));
+
+        // Under Incognito: browse lists nothing there, and the rings say nothing either (no card, at the root or in the folder).
+        var incognito = admin;
+        incognito.DefaultRequestHeaders.Add("X-Incognito", "1");
+        using (var browse = await incognito.GetAsync($"/api/v1/libraries/{series.LibraryPublicId}/browse?pageSize=50&parentId={series.FolderPublicId}"))
+        {
+            Assert.Equal(HttpStatusCode.OK, browse.StatusCode);
+            using var json = JsonDocument.Parse(await browse.Content.ReadAsStringAsync());
+            Assert.Equal(0, json.RootElement.GetProperty("items").GetArrayLength());
+        }
+        (status, marks) = await CardMarksAsync(incognito, series.LibraryPublicId, series.FolderPublicId, ids);
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Empty(marks);
+        (status, marks) = await CardMarksAsync(incognito, series.LibraryPublicId, null, [series.FolderPublicId]);
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Empty(marks);
+    }
 }
