@@ -13,6 +13,9 @@ import { AuthService } from '../../core/auth/auth.service';
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { CatalogNodeDto, PageResponse, VolumeStackDto, VolumeStackSummaryDto, VolumeViewDto } from '../../core/api/api-types';
 
+// Card size and list columns are per-device (localStorage, 1.48.0): every test starts on a device with no copy.
+beforeEach(() => localStorage.clear());
+
 /**
  * The Volumes view in browse (1.29.0): stack cards on the shared stack card with the incomplete mark, the link into the stack
  * view, the Volumes | Folders switch (persisted through library-preferences, sent as `group`), and (1.30.0) selection of a

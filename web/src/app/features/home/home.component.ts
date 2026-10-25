@@ -30,6 +30,9 @@ import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-ho
 import { StackCardComponent } from '../../shared/stack-card/stack-card.component';
 import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/folder-rollup-badge.component';
 import { FavoritesStateService } from '../../core/favorites/favorites-state.service';
+import {
+  CARD_SIZE_MAX, CARD_SIZE_MIN, CARD_SIZE_STEP, DEFAULT_CARD_SIZE, DeviceDisplayPreferencesService,
+} from '../../core/preferences/device-display-preferences.service';
 import { MetadataStateService } from '../metadata/metadata-state.service';
 import {
   favoriteLink,
@@ -514,13 +517,14 @@ export class HomeComponent implements OnInit {
       ? 'Filter'
       : this.recentReadStateOptions.find((o) => o.value === this.recentReadStateFilter())?.label ?? 'Filter');
 
-  // Card size (1.12.0): the SAME preference the library browse view uses
-  // (LibraryViewPreferencesDto.cardSize, a stringified px value), same slider range.
-  readonly cardSizeMin = 110;
-  readonly cardSizeMax = 260;
-  readonly cardSizeStep = 10;
-  readonly defaultCardSize = 150;
-  readonly cardSize = signal<number>(this.defaultCardSize);
+  // Card size (1.12.0): the same setting the library browse view uses, same slider range. Per DEVICE since 1.48.0
+  // (DeviceDisplayPreferencesService: this device's copy wins, the per-user LibraryViewPreferencesDto.cardSize only seeds a new device).
+  private readonly display = inject(DeviceDisplayPreferencesService);
+  readonly cardSizeMin = CARD_SIZE_MIN;
+  readonly cardSizeMax = CARD_SIZE_MAX;
+  readonly cardSizeStep = CARD_SIZE_STEP;
+  readonly defaultCardSize = DEFAULT_CARD_SIZE;
+  readonly cardSize = this.display.cardSize;
   /** Last-loaded library-view preferences, echoed back on save so nothing else is lost. */
   private libraryPrefs: LibraryViewPreferencesDto | null = null;
 
@@ -558,7 +562,7 @@ export class HomeComponent implements OnInit {
     this.api.getLibraryPreferences().subscribe({
       next: (p) => {
         this.libraryPrefs = p;
-        this.cardSize.set(this.resolveCardSize(p));
+        this.display.seedFrom(p);
         // Home "Favorites" row (1.21.0): opt-in, off by default. Only fetch when on.
         this.showFavoritesRow.set(p.showFavoritesHomeRow ?? false);
         if (this.showFavoritesRow()) this.loadFavorites();
@@ -698,7 +702,7 @@ export class HomeComponent implements OnInit {
 
   /** Live preview while dragging: updates only the signal (no PUT per pixel). */
   onCardSizeInput(event: Event): void {
-    this.cardSize.set(this.clampCardSize(Number((event.target as HTMLInputElement).value)));
+    this.display.previewCardSizeOnly(Number((event.target as HTMLInputElement).value));
   }
 
   /** Commit the card size when the slider is released: persists it. */
@@ -707,42 +711,20 @@ export class HomeComponent implements OnInit {
   }
 
   /**
-   * Set the card size (clamped to the slider range) and persist it into the shared
-   * library-view preference, echoing the rest of the last-loaded blob so the browse
-   * view's viewMode / sort / direction / page size round-trip untouched.
+   * Set the card size (clamped to the slider range): kept on this device, and saved into the per-user library-view preference
+   * (so a new device starts from the last choice), echoing the rest of the last-loaded blob so the browse view's viewMode /
+   * sort / direction / page size round-trip untouched.
    */
   setCardSize(px: number): void {
-    const size = this.clampCardSize(px);
-    this.cardSize.set(size);
-    const body: LibraryViewPreferencesDto = {
+    const size = this.display.setCardSize(px);
+    const body: LibraryViewPreferencesDto = this.display.stamp({
       ...(this.libraryPrefs ?? this.defaultPrefs()),
       cardSize: String(size),
-    };
+    });
     this.api.setLibraryPreferences(body).subscribe({
       next: () => { this.libraryPrefs = body; },
-      error: () => { /* non-fatal: the size still applies this session */ },
+      error: () => { /* non-fatal: the size still applies on this device */ },
     });
-  }
-
-  private clampCardSize(px: number): number {
-    if (!Number.isFinite(px)) return this.defaultCardSize;
-    return Math.min(this.cardSizeMax, Math.max(this.cardSizeMin, Math.round(px)));
-  }
-
-  /**
-   * Resolve the initial card size the same way the browse view does: the stored
-   * numeric cardSize when usable, else the px width the legacy viewMode+density
-   * combination used, else the default - so home matches the library exactly.
-   */
-  private resolveCardSize(p: LibraryViewPreferencesDto): number {
-    const stored = Number(p.cardSize);
-    if (p.cardSize != null && p.cardSize !== '' && Number.isFinite(stored)) {
-      return this.clampCardSize(stored);
-    }
-    const compact = p.density === 'compact';
-    if (p.viewMode === 'poster') return compact ? 168 : 210;
-    if (p.viewMode === 'grid') return compact ? 112 : 150;
-    return this.defaultCardSize;
   }
 
   /** Fallback blob when the preferences never loaded (mirrors the server defaults). */

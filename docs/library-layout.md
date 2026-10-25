@@ -121,7 +121,7 @@ With Name ascending, folders come before archives. With Name descending, the who
 
 The **View** button (tooltip "Change how the library is displayed") holds:
 
-- **Card** or **List** view, plus a **Card size** slider.
+- **Card** or **List** view, plus a **Card size** slider (and, in List view, a **List columns** slider). The two sliders are saved for the browser or device you are using: a phone and a desktop can each keep their own. A device you have not set yet starts from the value you chose last somewhere else. The same two sliders are in **Settings** > **Library display**.
 - **Sort by:**
   - **Name.** Natural order, as above. **Order** can be **Ascending** or **Descending**.
   - **Recently added** ("New items appear"). Newest first, by when the server first found the item, not the file's modification date. Folders are listed first.

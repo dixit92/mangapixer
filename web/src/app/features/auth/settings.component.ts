@@ -13,6 +13,9 @@ import { ApiError, LibraryDto, LibraryViewPreferencesDto } from '../../core/api/
 import { ReadingPreferencesCardComponent } from './reading-preferences-card.component';
 import { AppearanceCardComponent } from './appearance-card.component';
 import { TrackingSettingsLinkComponent } from '../trackers/tracking-settings-link.component';
+import {
+  CARD_SIZE_MAX, CARD_SIZE_MIN, CARD_SIZE_STEP, DeviceDisplayPreferencesService, LIST_COLUMNS_MAX, LIST_COLUMNS_MIN, LIST_COLUMNS_STEP,
+} from '../../core/preferences/device-display-preferences.service';
 import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series-info-hover-preference.service';
 
 /**
@@ -254,6 +257,31 @@ import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series
       </mat-card-content>
     </mat-card>
 
+    <mat-card class="device-display-card" data-testid="device-display-card">
+      <mat-card-header>
+        <mat-card-title>Library display</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <p class="hint" data-testid="device-display-hint">
+          Card size and list columns apply to this device only; another browser or device keeps its own.
+        </p>
+        <div class="display-row">
+          <span class="display-label">Card size</span>
+          <input type="range" class="display-slider" aria-label="Card size" data-testid="settings-card-size"
+                 [min]="cardSizeMin" [max]="cardSizeMax" [step]="cardSizeStep" [value]="cardSize()"
+                 (input)="onCardSizeInput($event)" (change)="onCardSizeChange($event)">
+          <span class="display-value">{{ cardSize() }} px</span>
+        </div>
+        <div class="display-row">
+          <span class="display-label">List columns</span>
+          <input type="range" class="display-slider" aria-label="List columns" data-testid="settings-list-columns"
+                 [min]="listColumnsMin" [max]="listColumnsMax" [step]="listColumnsStep" [value]="listColumns()"
+                 (input)="onListColumnsInput($event)" (change)="onListColumnsChange($event)">
+          <span class="display-value">{{ listColumns() }}</span>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
     <mat-card class="performance-card">
       <mat-card-header>
         <mat-card-title>Performance</mat-card-title>
@@ -293,6 +321,11 @@ import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series
     .home-libraries { margin-top: 8px; }
     .home-libraries h4 { margin: 8px 0; font-size: 14px; }
     .home-library-list { display: flex; flex-direction: column; gap: 8px; }
+    .device-display-card { margin-top: 24px; }
+    .display-row { display: flex; align-items: center; gap: 12px; margin: 8px 0; }
+    .display-label { flex: 0 0 96px; font-size: 14px; }
+    .display-slider { flex: 1 1 auto; min-width: 0; }
+    .display-value { flex: 0 0 52px; text-align: right; font-size: 13px; color: var(--mp-text-muted); }
     .performance-card { margin-top: 24px; }
     .performance-card mat-form-field { width: 160px; }
     form { display: flex; flex-direction: column; gap: 16px; }
@@ -309,6 +342,16 @@ export class SettingsComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly api = inject(ApiService);
   private readonly hoverPreference = inject(SeriesInfoHoverPreferenceService);
+  /** Card size and list columns are per device (1.48.0): shown and edited here as this device's own values. */
+  private readonly display = inject(DeviceDisplayPreferencesService);
+  readonly cardSize = this.display.cardSize;
+  readonly listColumns = this.display.listColumns;
+  readonly cardSizeMin = CARD_SIZE_MIN;
+  readonly cardSizeMax = CARD_SIZE_MAX;
+  readonly cardSizeStep = CARD_SIZE_STEP;
+  readonly listColumnsMin = LIST_COLUMNS_MIN;
+  readonly listColumnsMax = LIST_COLUMNS_MAX;
+  readonly listColumnsStep = LIST_COLUMNS_STEP;
 
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
@@ -403,6 +446,7 @@ export class SettingsComponent implements OnInit {
     this.api.getLibraryPreferences().subscribe({
       next: (p) => {
         this.libraryPrefs = p;
+        this.display.seedFrom(p);
         this.pageSize.set(this.resolvePageSize(p.libraryPageSize));
         this.pageSizeLoaded.set(true);
         this.homeWindowDays.set(this.resolveHomeWindowDays(p.homeRecentWindowDays));
@@ -418,6 +462,36 @@ export class SettingsComponent implements OnInit {
         this.homeWindowLoaded.set(true); // show the default (30)
         this.favoritesLoaded.set(true); // show the defaults (both off)
       },
+    });
+  }
+
+  /** Dragging the card size slider: shown at once, stored and saved on release. */
+  onCardSizeInput(event: Event): void {
+    this.display.previewCardSizeOnly(Number((event.target as HTMLInputElement).value));
+  }
+
+  /** Card size released: kept on this device and saved as the per-user value a new device starts from. */
+  onCardSizeChange(event: Event): void {
+    const size = this.display.setCardSize(Number((event.target as HTMLInputElement).value));
+    this.saveDisplay({ cardSize: String(size) });
+  }
+
+  onListColumnsInput(event: Event): void {
+    this.display.previewListColumnsOnly(Number((event.target as HTMLInputElement).value));
+  }
+
+  onListColumnsChange(event: Event): void {
+    const columns = this.display.setListColumns(Number((event.target as HTMLInputElement).value));
+    this.saveDisplay({ listColumns: columns });
+  }
+
+  /** The device values are already applied; the server copy is best effort (a new device starts from it). */
+  private saveDisplay(change: Partial<LibraryViewPreferencesDto>): void {
+    if (!this.libraryPrefs) return; // the blob never loaded: do not PUT defaults over the user's other preferences
+    const body = this.display.stamp({ ...this.libraryPrefs, ...change });
+    this.api.setLibraryPreferences(body).subscribe({
+      next: () => { this.libraryPrefs = body; },
+      error: () => { /* non-fatal: the choice still applies on this device */ },
     });
   }
 
@@ -454,7 +528,7 @@ export class SettingsComponent implements OnInit {
       ...(this.libraryPrefs ?? { viewMode: 'card', density: 'comfortable', sort: 'name' }),
       libraryPageSize: next,
     };
-    this.api.setLibraryPreferences(body).subscribe({
+    this.api.setLibraryPreferences(this.display.stamp(body)).subscribe({
       next: () => { this.libraryPrefs = body; this.pageSizeSaving.set(false); },
       error: (err: ApiError) => {
         this.pageSize.set(previous);
@@ -499,7 +573,7 @@ export class SettingsComponent implements OnInit {
       ...(this.libraryPrefs ?? { viewMode: 'card', density: 'comfortable', sort: 'name' }),
       seriesInfoOnHover: next,
     };
-    this.api.setLibraryPreferences(body).subscribe({
+    this.api.setLibraryPreferences(this.display.stamp(body)).subscribe({
       next: () => { this.libraryPrefs = body; this.hoverSaving.set(false); },
       error: (err: ApiError) => {
         this.seriesInfoOnHover.set(previous);
@@ -526,7 +600,7 @@ export class SettingsComponent implements OnInit {
     this.favoritesError.set(null);
 
     const body = apply(this.libraryPrefs ?? { viewMode: 'card', density: 'comfortable', sort: 'name' });
-    this.api.setLibraryPreferences(body).subscribe({
+    this.api.setLibraryPreferences(this.display.stamp(body)).subscribe({
       next: () => { this.libraryPrefs = body; this.favoritesSaving.set(false); },
       error: (err: ApiError) => {
         control.set(previous);
@@ -557,7 +631,7 @@ export class SettingsComponent implements OnInit {
       ...(this.libraryPrefs ?? { viewMode: 'card', density: 'comfortable', sort: 'name' }),
       homeRecentWindowDays: next,
     };
-    this.api.setLibraryPreferences(body).subscribe({
+    this.api.setLibraryPreferences(this.display.stamp(body)).subscribe({
       next: () => { this.libraryPrefs = body; this.homeWindowSaving.set(false); },
       error: (err: ApiError) => {
         this.homeWindowDays.set(previous);
@@ -590,7 +664,7 @@ export class SettingsComponent implements OnInit {
       ...(this.libraryPrefs ?? { viewMode: 'card', density: 'comfortable', sort: 'name' }),
       homeStacksPerLibrary: next,
     };
-    this.api.setLibraryPreferences(body).subscribe({
+    this.api.setLibraryPreferences(this.display.stamp(body)).subscribe({
       next: () => { this.libraryPrefs = body; this.homeStacksSaving.set(false); },
       error: (err: ApiError) => {
         this.homeStacks.set(previous);

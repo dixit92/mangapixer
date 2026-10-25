@@ -13,6 +13,9 @@ import { VolumeStackViewComponent } from './volume-stack-view.component';
 import { ApiService } from '../../core/api/api.service';
 import { CatalogNodeDto, VolumeSlotDto, VolumeStackDto } from '../../core/api/api-types';
 
+// Card size and list columns are per-device (localStorage, 1.48.0): every test starts on a device with no copy.
+beforeEach(() => localStorage.clear());
+
 /**
  * The stack view (1.29.0): header, counts, source line, ordered slots with placeholders, previous / next volume. 1.30.0: the
  * viewer's Card / List preference, and the browse Select mode (tap, range, the shared selection bar with mark read / unread and
@@ -229,6 +232,20 @@ describe('VolumeStackViewComponent', () => {
     expect(list.getAttribute('aria-pressed')).toBe('true');
     const saved = apiSpy.setLibraryPreferences.mock.calls.at(-1)![0];
     expect(saved).toMatchObject({ stackViewMode: 'list', viewMode: 'card', listColumns: 2, sort: 'name' });
+  });
+
+  it('uses this device\'s own list columns over the server value, and sends them (not the stale ones) when the view mode is saved (1.48.0)', () => {
+    localStorage.setItem('mangapixer-list-columns', '3'); // the server blob says 2
+    const { el, fixture, apiSpy } = setup(stack(), { viewMode: 'card' });
+    expect((el.querySelector('[data-testid="stack-slots"]') as HTMLElement).style.getPropertyValue('--list-columns')).toBe('3');
+    (el.querySelector('[data-testid="stack-view-list"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(apiSpy.setLibraryPreferences.mock.calls.at(-1)![0]).toMatchObject({ stackViewMode: 'list', listColumns: 3 });
+  });
+
+  it('seeds a device without list columns from the server value (1.48.0)', () => {
+    setup(stack(), { viewMode: 'card' });
+    expect(localStorage.getItem('mangapixer-list-columns')).toBe('2');
   });
 
   it('prefers its own stored choice over the library view mode', () => {

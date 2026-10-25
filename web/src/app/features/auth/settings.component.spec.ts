@@ -12,6 +12,9 @@ import { MatSelectChange } from '@angular/material/select';
 import { SettingsComponent } from './settings.component';
 import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series-info-hover-preference.service';
 
+// Card size and list columns are per-device (localStorage, 1.48.0): every test starts on a device with no copy.
+beforeEach(() => localStorage.clear());
+
 function checkboxChange(checked: boolean): MatCheckboxChange {
   return { checked } as MatCheckboxChange;
 }
@@ -509,5 +512,90 @@ describe('SettingsComponent - Series information on hover', () => {
     expect(link.getAttribute('href')).toBe('/tracking');
     expect(el.querySelector('[data-testid="settings-tracking-link-card"]')!.textContent).toContain('Tracking page');
     httpMock.expectNone('/api/v1/trackers');
+  });
+});
+
+/**
+ * Card size and list columns are per device (1.48.0): Settings shows this device's values with a one-line hint, edits them on the
+ * device, saves them for the user (a new device starts from the last choice), and every other save carries them too.
+ */
+describe('SettingsComponent — Library display (per device)', () => {
+  let httpMock: HttpTestingController;
+
+  function createComponent(prefs: Record<string, unknown> = {}) {
+    TestBed.configureTestingModule({
+      imports: [SettingsComponent],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations(), provideRouter([])],
+    });
+    const fixture = TestBed.createComponent(SettingsComponent);
+    httpMock = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+    httpMock.expectOne('/api/v1/libraries').flush([]);
+    httpMock.expectOne('/api/v1/reading/private-libraries').flush({ libraryIds: [] });
+    httpMock.expectOne('/api/v1/reading/home-libraries').flush({ excludedLibraryIds: [] });
+    httpMock.expectOne('/api/v1/reading/library-preferences').flush({
+      viewMode: 'card', density: 'comfortable', sort: 'name', cardSize: '240', listColumns: 3, libraryPageSize: 50, ...prefs,
+    });
+    httpMock.expectOne('/api/v1/reading/preferences').flush({
+      defaultReaderMode: 'PagedLtr', preferDoubleSpread: false, reducedMotion: false,
+      preferredBackground: null, alwaysOpenReadFromStart: false,
+    });
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  afterEach(() => httpMock.verify());
+
+  it('shows the device values with a one-line hint that they apply to this device', () => {
+    localStorage.setItem('mangapixer-card-size', '130');
+    localStorage.setItem('mangapixer-list-columns', '1');
+    const el = createComponent().nativeElement as HTMLElement;
+    expect((el.querySelector('[data-testid="settings-card-size"]') as HTMLInputElement).value).toBe('130');
+    expect((el.querySelector('[data-testid="settings-list-columns"]') as HTMLInputElement).value).toBe('1');
+    expect(el.querySelector('[data-testid="device-display-hint"]')!.textContent).toContain('this device only');
+  });
+
+  it('shows the server value as the start on a device without a copy, and stores it', () => {
+    const el = createComponent().nativeElement as HTMLElement;
+    expect((el.querySelector('[data-testid="settings-card-size"]') as HTMLInputElement).value).toBe('240');
+    expect(localStorage.getItem('mangapixer-card-size')).toBe('240');
+  });
+
+  it('editing the card size keeps it on the device and saves it to the server with the rest of the blob', () => {
+    localStorage.setItem('mangapixer-list-columns', '1');
+    const fixture = createComponent();
+    const slider = fixture.nativeElement.querySelector('[data-testid="settings-card-size"]') as HTMLInputElement;
+
+    slider.value = '170';
+    slider.dispatchEvent(new Event('input'));
+    httpMock.expectNone('/api/v1/reading/library-preferences'); // a drag only previews
+    slider.dispatchEvent(new Event('change'));
+
+    expect(localStorage.getItem('mangapixer-card-size')).toBe('170');
+    const put = httpMock.expectOne('/api/v1/reading/library-preferences');
+    expect(put.request.method).toBe('PUT');
+    expect(put.request.body).toMatchObject({ cardSize: '170', listColumns: 1, libraryPageSize: 50 });
+    put.flush(null);
+  });
+
+  it('editing the list columns keeps it on the device and saves it to the server', () => {
+    const fixture = createComponent();
+    const slider = fixture.nativeElement.querySelector('[data-testid="settings-list-columns"]') as HTMLInputElement;
+    slider.value = '2';
+    slider.dispatchEvent(new Event('change'));
+    expect(localStorage.getItem('mangapixer-list-columns')).toBe('2');
+    const put = httpMock.expectOne('/api/v1/reading/library-preferences');
+    expect(put.request.body).toMatchObject({ listColumns: 2, cardSize: '240' });
+    put.flush(null);
+  });
+
+  it('an unrelated save (items per load) sends this device\'s values, not the stale ones the blob was loaded with', () => {
+    localStorage.setItem('mangapixer-card-size', '130');
+    localStorage.setItem('mangapixer-list-columns', '1');
+    const cmp = createComponent().componentInstance; // the loaded blob says 240 / 3
+    cmp.setPageSize(selectChange(100));
+    const put = httpMock.expectOne('/api/v1/reading/library-preferences');
+    expect(put.request.body).toMatchObject({ libraryPageSize: 100, cardSize: '130', listColumns: 1 });
+    put.flush(null);
   });
 });

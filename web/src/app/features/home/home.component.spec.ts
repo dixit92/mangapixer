@@ -15,6 +15,9 @@ import { ContinueReadingEntry, LibraryViewPreferencesDto, RecentChaptersDto } fr
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { MetadataStateService } from '../metadata/metadata-state.service';
 
+// Card size and list columns are per-device (localStorage, 1.48.0): every test starts on a device with no copy.
+beforeEach(() => localStorage.clear());
+
 /**
  * Home page tests. The library sidebar was promoted to the app shell, so home is
  * the consolidated continue-reading row, the New chapters row - STACKED cards per
@@ -509,6 +512,31 @@ describe('HomeComponent', () => {
     cmp.setCardSize(1);
     expect(cmp.cardSize()).toBe(cmp.cardSizeMin);
     httpMock.expectOne({ method: 'PUT', url: '/api/v1/reading/library-preferences' }).flush(null);
+  });
+
+  it('uses this device\'s own card size over the server value, and does not replace it', () => {
+    localStorage.setItem('mangapixer-card-size', '130');
+    const fixture = createComponent(); // the server blob says 180
+    expect(fixture.componentInstance.cardSize()).toBe(130);
+    expect((fixture.nativeElement.querySelector('.home') as HTMLElement).style.getPropertyValue('--card-size')).toBe('130px');
+    expect(localStorage.getItem('mangapixer-card-size')).toBe('130');
+  });
+
+  it('seeds a device without a copy from the server value', () => {
+    createComponent();
+    expect(localStorage.getItem('mangapixer-card-size')).toBe('180');
+  });
+
+  it('a card size change is kept on the device, and the saved blob carries this device\'s list columns, not the stale ones', () => {
+    localStorage.setItem('mangapixer-list-columns', '1');
+    const fixture = createComponent({
+      prefs: { viewMode: 'list', density: 'comfortable', sort: 'name', cardSize: '180', listColumns: 3, libraryPageSize: 100 },
+    });
+    fixture.componentInstance.setCardSize(210);
+    expect(localStorage.getItem('mangapixer-card-size')).toBe('210');
+    const put = httpMock.expectOne({ method: 'PUT', url: '/api/v1/reading/library-preferences' });
+    expect(put.request.body).toMatchObject({ cardSize: '210', listColumns: 1, libraryPageSize: 100 });
+    put.flush(null);
   });
 
   // --- Library visibility: home READS the per-user excluded set to filter which

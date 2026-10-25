@@ -19,6 +19,9 @@ import { SeriesInfoOverlayService } from '../metadata/series-info-overlay.servic
 import { seriesInfo } from '../metadata/series-info.testing';
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 
+// Card size and list columns are per-device (localStorage, 1.48.0): every test starts on a device with no copy.
+beforeEach(() => localStorage.clear());
+
 /**
  * Series-info wiring in browse (1.24.0): the card (i) (cover bottom-left) and the
  * list-row (i) only for nodes that carry their own information, hidden in select
