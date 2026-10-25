@@ -156,8 +156,12 @@ public sealed partial class CatalogBrowseService
             baseQuery = baseQuery.Where(n => n.ParentId == parentId);
 
         // 1.44.0 lane C: the level's linked series, before any filter - the Completion section shows only where there are some.
+        // 1.48.0: none while "Show series information" is off (library or global), as the (i) flags and search - so the
+        // Completion section, its counts and the filter are gone there for every user.
         var perfPhase = PerfPhase.Start(); // 1.46.0 lane M: measurement-only phase laps (no-op unless request timing is on)
-        var linkedSeries = await LinkedSeriesOfLevelAsync(baseQuery, ct);
+        var linkedSeries = await IsSeriesInfoHiddenAsync(libraryId, ct)
+            ? new Dictionary<long, long>()
+            : await LinkedSeriesOfLevelAsync(baseQuery, ct);
         perfPhase = perfPhase.Lap("browse.linked-series");
 
         // Favorites-only filter (1.21.0): keep only nodes the user has starred. Applied
@@ -908,6 +912,17 @@ public sealed partial class CatalogBrowseService
     }
 
     /// <summary>
+    /// "Show series information" is off for this library or globally (1.48.0: one query shared by the (i) flags and
+    /// the level's linked series, so browse hides both by the same rule).
+    /// </summary>
+    private Task<bool> IsSeriesInfoHiddenAsync(long libraryId, CancellationToken ct) =>
+        _db.Libraries
+            .Where(l => l.Id == libraryId)
+            .Select(l => l.MetadataSeriesInfoHidden
+                || _db.AppSettings.Any(s => s.Id == AppSettingsEntity.SingletonId && s.MetadataSeriesInfoHidden))
+            .FirstOrDefaultAsync(ct);
+
+    /// <summary>
     /// Sets <see cref="CatalogNodeDto.HasSeriesInfo"/> (1.24.0) for the page: a node's
     /// own confirmed web link, an archive's own parsed ComicInfo (current content
     /// version), or a folder with parsed ComicInfo on its child archives (depth 1) or
@@ -923,12 +938,7 @@ public sealed partial class CatalogBrowseService
         if (rows.Count == 0)
             return nodes;
 
-        var hidden = await _db.Libraries
-            .Where(l => l.Id == libraryId)
-            .Select(l => l.MetadataSeriesInfoHidden
-                || _db.AppSettings.Any(s => s.Id == AppSettingsEntity.SingletonId && s.MetadataSeriesInfoHidden))
-            .FirstOrDefaultAsync(ct);
-        if (hidden)
+        if (await IsSeriesInfoHiddenAsync(libraryId, ct))
             return nodes;
 
         var has = await _seriesInfoFlags.NodesWithOwnSeriesInfoAsync(rows.Select(r => (r.InternalId, r.Kind)).ToList(), ct);

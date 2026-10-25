@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- SharpCompress 0.50.7 (dependency update).
+
+### Fixed
+
+- **Completion filter with "Show series information" off.** Where series information is hidden (for the library or for the whole server), the library's **Completion** filter and its counts are gone too - as the (i) and search already did - so they no longer tell which folders are linked series and whether each is complete.
+
 ## [1.47.0] - 2026-10-23
 
 ### Added
