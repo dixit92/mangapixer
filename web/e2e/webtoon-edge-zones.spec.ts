@@ -4,9 +4,10 @@ import { expectFitsScreen } from './layout';
 import { login, readerPrefs, routeFakeItem } from './reader-fixture';
 
 /**
- * Vertical-mode edge tap zones (1.41.0, owner 2026-10-11). In vertical mode the middle third of the screen has a left
- * and a right edge (20 % of the width each) that step a screen; which one goes forward is the per-device "Edge taps"
- * setting (Right goes forward by default). The top and bottom thirds keep the full width, corners included.
+ * Vertical-mode tap zones (edges 1.41.0, owner 2026-10-11; reshaped 1.48.0, owner 2026-10-24). The left and right
+ * edges (20 % of the width each, full height, corners included) step a screen; which one goes forward is the
+ * per-device "Edge taps" setting (Right goes forward by default). The centre column has a short top band (15 %) = back
+ * and a short bottom band (15 %) = forward; the rest of the centre shows / hides the controls.
  *
  * Same rig as `reader-top-bar.spec.ts`: the SPA and sign-in are real, the item is a synthetic tall-page archive answered
  * by `page.route` (`reader-fixture.ts`). Reduced motion makes each step an instant scroll, so `scrollTop` can be read
@@ -51,7 +52,7 @@ test.afterEach(async ({ page }) => {
   await page.evaluate(() => localStorage.clear()).catch(() => undefined);
 });
 
-test('vertical mode: the left edge goes back by default, forward with "Left goes forward"; corners follow their band', async ({ page }) => {
+test('vertical mode: the left edge goes back by default, forward with "Left goes forward"; a tap near the top of an edge steps by the edge, the centre top band goes back', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await openVertical(page);
   const s = await step(page);
@@ -89,11 +90,25 @@ test('vertical mode: the left edge goes back by default, forward with "Left goes
   await tapAt(page, 0.92, 0.5);
   await expect.poll(() => scrollTop(page)).toBe(3000);
 
-  // A corner belongs to its band, not to the edge: top-left = back, bottom-left = forward (with either setting).
+  // 1.48.0: the edges are FULL height. A tap near the top of the left edge steps by the edge (forward now), where the
+  // old top third said back; the same height in the centre column (the short top band) goes back, and the bottom band
+  // forward.
   await tapAt(page, 0.03, 0.04);
-  await expect.poll(() => scrollTop(page)).toBe(3000 - s);
+  await expect.poll(() => scrollTop(page)).toBe(3000 + s);
+  await scrollTo(page, 3000);
   await tapAt(page, 0.03, 0.96);
-  await expect.poll(() => scrollTop(page)).toBe(3000);
+  await expect.poll(() => scrollTop(page)).toBe(3000 + s);
+  await scrollTo(page, 3000);
+  await tapAt(page, 0.5, 0.04);
+  await expect.poll(() => scrollTop(page)).toBe(3000 - s);
+  await scrollTo(page, 3000);
+  await tapAt(page, 0.5, 0.96);
+  await expect.poll(() => scrollTop(page)).toBe(3000 + s);
+  await scrollTo(page, 3000);
+  // Between the two bands the centre only shows / hides the controls (no scroll).
+  await tapAt(page, 0.5, 0.5);
+  await page.waitForTimeout(400);
+  expect(await scrollTop(page)).toBe(3000);
 
   // The setting is per device: it survives a reload.
   await page.reload();

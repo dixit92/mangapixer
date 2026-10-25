@@ -4,9 +4,10 @@ import { Injectable, computed, signal } from '@angular/core';
  * Webtoon (vertical) tap-to-scroll step, as a percentage of the viewport height
  * (1.11.0). `0` means OFF: the vertical reader progresses by free scroll only and
  * a tap anywhere toggles the chrome (the pre-1.11.0 behaviour). Any other value
- * turns on the tap zones (top third = back a screen, bottom third = forward,
- * the middle third's side edges = back / forward since 1.41.0, its centre = toggle
- * chrome) and the horizontal swipe, all moving by this step.
+ * turns on the tap zones (since 1.48.0: the two full-height side edges = back /
+ * forward, the centre column's short top band = back and bottom band = forward,
+ * the rest of the centre = toggle chrome) and the horizontal swipe, all moving by
+ * this step.
  *
  * Under 100% the step leaves a small overlap between consecutive screens so a
  * panel straddling the fold is never skipped - the established webtoon reader
@@ -19,15 +20,23 @@ export const WEBTOON_TAP_STEPS: readonly WebtoonTapStep[] = [0, 80, 90, 100];
 export type WebtoonTapZone = 'back' | 'toggle' | 'forward';
 
 /**
- * Which side edge of the middle band steps FORWARD (1.41.0, owner 2026-10-11): `right` (the default, like the paged
+ * Which side edge steps FORWARD (1.41.0, owner 2026-10-11): `right` (the default, like the paged
  * reader read left to right) or `left`. The other edge steps back. Per device, like the step; the vertical view
  * keeps ignoring the series' reading direction. The horizontal swipe follows it too.
  */
 export type WebtoonForwardEdge = 'right' | 'left';
 export const WEBTOON_FORWARD_EDGES: readonly WebtoonForwardEdge[] = ['right', 'left'];
 
-/** Width of each side edge of the middle band, as a fraction of the viewport width (owner: 20 %). */
+/** Width of each full-height side edge, as a fraction of the viewport width (owner: 20 %). */
 export const WebtoonEdgeFraction = 0.2;
+
+/**
+ * Height of the centre column's top (back) and bottom (forward) bands, each as a fraction of the visible height
+ * (1.48.0, owner 2026-10-24: "remove top and bottom from the left and right edge"; the bands were a third each
+ * across the full width before). 15 % of a 844 px phone screen is ~127 px, a comfortable thumb target; the rest of
+ * the centre column (70 %) shows / hides the controls.
+ */
+export const WebtoonBandFraction = 0.15;
 
 /**
  * Per-DEVICE webtoon navigation preference kept in `localStorage`, like the
@@ -92,17 +101,18 @@ export class WebtoonNavPreferencesService {
 
 /**
  * Resolve a tap's position within the webtoon viewport (fractions: x 0 = left edge, 1 = right; y 0 = top, 1 =
- * bottom) into a zone. By vertical thirds: the top band goes back a screen and the bottom band forward, each across
- * the full width, corners included. The middle band (1.41.0, owner 2026-10-11) has a left and a right edge, each
- * `WebtoonEdgeFraction` (20 %) of the width, stepping forward on `forwardEdge` and back on the other; the centre
- * between them shows / hides the controls. Each zone holds its lower boundary: y = 1/3 is the middle band, y = 2/3
- * the bottom band, x = 0.2 the centre, x = 0.8 the right edge. Pure, so it is unit-testable without the DOM.
+ * bottom) into a zone (1.48.0, owner 2026-10-24). Two full-height side edges, each `WebtoonEdgeFraction` (20 %) of
+ * the width, corners included, step forward on `forwardEdge` and back on the other. In the centre column between
+ * them a short top band (`WebtoonBandFraction`, 15 % of the height) goes back a screen and a bottom band of the same
+ * height forward; everything else in the centre shows / hides the controls. Each zone holds its lower boundary:
+ * x = 0.2 is the centre, x = 0.8 the right edge, y = 0.15 the toggle, y = 0.85 the bottom band. Pure, so it is
+ * unit-testable without the DOM.
  */
 export function webtoonTapZone(xFraction: number, yFraction: number, forwardEdge: WebtoonForwardEdge): WebtoonTapZone {
-  if (yFraction < 1 / 3) return 'back';
-  if (yFraction >= 2 / 3) return 'forward';
   if (xFraction < WebtoonEdgeFraction) return forwardEdge === 'left' ? 'forward' : 'back';
   if (xFraction >= 1 - WebtoonEdgeFraction) return forwardEdge === 'right' ? 'forward' : 'back';
+  if (yFraction < WebtoonBandFraction) return 'back';
+  if (yFraction >= 1 - WebtoonBandFraction) return 'forward';
   return 'toggle';
 }
 

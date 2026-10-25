@@ -123,8 +123,10 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
  *     right edge (20 % of the width each) that step a screen too; which edge goes
  *     forward is a second per-device setting ("Right goes forward", default /
  *     "Left goes forward"), never the series' reading direction, and the swipe
- *     follows it (the finger moves away from the forward edge). The top and bottom
- *     bands keep the full width, corners included. Off turns all of it off.
+ *     follows it (the finger moves away from the forward edge). Off turns all of it
+ *     off. Since 1.48.0 (owner 2026-10-24) the two edges run the FULL height
+ *     (corners included) and the back / forward bands shrink to 15 % each at the
+ *     top and bottom of the centre column only (`webtoonTapZone`).
  * 12. Adaptive double page (1.11.0): a synthetic two-up spread on a narrow portrait
  *     screen (CDK HandsetPortrait, < 600px wide) makes every page tiny, so the
  *     reader renders SINGLE pages there while the chosen mode stays "Double page"
@@ -287,8 +289,8 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
         </div>
       } @else if (view() === 'webtoon') {
         <!-- Vertical continuous scroll; progress tracked by scroll position.
-             Tap-to-scroll (added 1.11.0): a tap resolves by vertical thirds, the
-             middle third with 20 % side edges since 1.41.0 (onWebtoonTap), and a
+             Tap-to-scroll (added 1.11.0): a tap resolves by 20 % full-height side
+             edges and the centre column's 15 % top / bottom bands since 1.48.0 (onWebtoonTap), and a
              horizontal swipe steps a screen (the shared
              pointer tracking, see onReaderPointerDown). touch-action keeps the
              vertical pan + pinch native and claims only horizontal drags, and only
@@ -455,7 +457,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
            otherwise-invisible tap zones prominently plus the keyboard shortcuts.
            A full-size backdrop button dismisses it; zones/panel are click-through. -->
       @if (helpVisible()) {
-        <div class="help-overlay" role="dialog" aria-modal="true" aria-label="Reader controls">
+        <div class="help-overlay" [class.webtoon]="view() === 'webtoon'" role="dialog" aria-modal="true" aria-label="Reader controls">
           <button class="help-backdrop" (click)="closeHelp()" aria-label="Close help"></button>
           @if (view() !== 'webtoon') {
             <!-- Tap thirds (labels direction-aware) + a full-width swipe legend across
@@ -471,16 +473,16 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                 <b>←</b> {{ swipeLeftLabel() }} &nbsp;·&nbsp; <b>→</b> {{ swipeRightLabel() }}</span>
             </div>
           } @else if (webtoonNav.tapZonesEnabled()) {
-            <!-- Webtoon tap-to-scroll (1.11.0): horizontal BANDS by thirds; the middle
-                 one with a left and a right edge (1.41.0) labelled by the setting. -->
+            <!-- Webtoon tap-to-scroll (1.48.0): two full-height side edges labelled by the setting; between them a
+                 column with a short back band on top, a short forward band at the bottom and the toggle between. -->
             <div class="help-zones vertical" aria-hidden="true">
-              <div class="help-zone band"><mat-icon>touch_app</mat-icon><span>Tap<br>Back a screen</span></div>
-              <div class="help-mid">
-                <div class="help-zone side edge-left"><mat-icon>touch_app</mat-icon><span>Tap<br>{{ webtoonLeftEdgeLabel() }}</span></div>
+              <div class="help-zone side edge-left"><mat-icon>touch_app</mat-icon><span>Tap<br>{{ webtoonLeftEdgeLabel() }}</span></div>
+              <div class="help-col">
+                <div class="help-zone band top"><mat-icon>touch_app</mat-icon><span>Tap<br>Back a screen</span></div>
                 <div class="help-zone band center"><mat-icon>touch_app</mat-icon><span>Tap: show / hide controls<br>Double tap: fullscreen</span></div>
-                <div class="help-zone side edge-right"><mat-icon>touch_app</mat-icon><span>Tap<br>{{ webtoonRightEdgeLabel() }}</span></div>
+                <div class="help-zone band bottom"><mat-icon>touch_app</mat-icon><span>Tap<br>Forward a screen</span></div>
               </div>
-              <div class="help-zone band"><mat-icon>touch_app</mat-icon><span>Tap<br>Forward a screen</span></div>
+              <div class="help-zone side edge-right"><mat-icon>touch_app</mat-icon><span>Tap<br>{{ webtoonRightEdgeLabel() }}</span></div>
             </div>
           }
           <div class="help-panel">
@@ -504,10 +506,11 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                 <li><kbd>D</kbd> single / double page · <kbd>O</kbd> shift the double-page pairing
                   from this spread (saved for this archive, for everyone)</li>
               } @else if (webtoonNav.tapZonesEnabled()) {
-                <li>Scroll freely, or <b>tap</b> the lower part of the page to move forward a screen
-                  ({{ webtoonNav.tapStep() }}%), the upper part to go back, the centre to show / hide
-                  the controls. In the middle, the <b>{{ webtoonNav.forwardEdge() }} edge</b> moves forward
-                  and the {{ webtoonBackEdge() }} edge back (Display: Edge taps). <b>Double tap the centre</b>
+                <li>Scroll freely, or <b>tap</b> a side of the screen to move a screen
+                  ({{ webtoonNav.tapStep() }}%): the <b>{{ webtoonNav.forwardEdge() }} edge</b> moves forward
+                  and the {{ webtoonBackEdge() }} edge back, top to bottom (Display: Edge taps). In the
+                  centre, tap near the bottom to move forward and near the top to go back; tap the rest of
+                  it to show / hide the controls. <b>Double tap the centre</b>
                   (or double click): fullscreen. <b>Swipe</b> {{ webtoonBackEdge() }} to move forward,
                   {{ webtoonNav.forwardEdge() }} to go back. At the very end (start), the
                   same move <b>twice</b> opens the next (previous) archive.</li>
@@ -753,17 +756,23 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     .help-zone mat-icon { font-size: 36px; width: 36px; height: 36px; }
     .help-zone.side { flex: 0 0 30%; background: rgb(var(--mp-accent-strong-rgb) / 0.22); }
     .help-zone.center { flex: 0 0 40%; background: color-mix(in srgb, var(--mp-on-scrim) 10%, transparent); }
-    /* Webtoon tap-to-scroll legend (1.11.0): three horizontal bands by thirds. */
-    .help-zones.vertical { flex-direction: column; }
+    /* Webtoon tap-to-scroll legend (1.48.0): full-height 20 % side edges around a centre column holding a 15 % back
+       band, the toggle area and a 15 % forward band (the same fractions as webtoon-nav.service.ts). */
+    .help-zones.vertical > .help-zone.side {
+      flex: 0 0 20%; padding: 14vh 4px 0; font-size: 13px; /* labels sit high so the card below the toggle label never covers them */
+    }
+    .help-col { flex: 1 1 0; display: flex; flex-direction: column; min-width: 0; }
     .help-zone.band {
-      flex: 1 1 0; justify-content: center; padding: 0 8px;
-      border-inline: 0; border-block: 1px dashed color-mix(in srgb, var(--mp-on-scrim) 35%, transparent);
+      box-sizing: border-box; flex: 1 1 0; justify-content: center; padding: 0 8px;
+      border-block: 1px dashed color-mix(in srgb, var(--mp-on-scrim) 35%, transparent);
       background: rgb(var(--mp-accent-strong-rgb) / 0.22);
     }
-    .help-zone.band.center { background: color-mix(in srgb, var(--mp-on-scrim) 10%, transparent); }
-    /* 1.41.0: the middle band's 20 % side edges. */
-    .help-mid { flex: 1 1 0; display: flex; }
-    .help-mid .help-zone.side { flex: 0 0 20%; justify-content: center; padding: 0 4px; font-size: 13px; border-block: 1px dashed color-mix(in srgb, var(--mp-on-scrim) 35%, transparent); }
+    .help-zone.band.top, .help-zone.band.bottom { flex: 0 0 15%; }
+    .help-zone.band.center { background: color-mix(in srgb, var(--mp-on-scrim) 10%, transparent); justify-content: flex-start; padding-top: 12px; }
+    .help-zone.band.bottom { justify-content: flex-start; padding-top: 4px; gap: 4px; }
+    .help-zone.band.top mat-icon, .help-zone.band.bottom mat-icon { font-size: 28px; width: 28px; height: 28px; }
+    /* Vertical help: the card sits under the toggle label (not over the bottom band's label), as wide as its text allows. */
+    .help-overlay.webtoon .help-panel { bottom: auto; top: calc(15% + 104px); width: max-content; box-sizing: border-box; }
     /* Full-width swipe legend across the middle of the surface. */
     .help-swipe {
       position: absolute; left: 6%; right: 6%; top: 38%; z-index: 1; pointer-events: none;
@@ -3063,10 +3072,10 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
 
   /**
    * A tap on the webtoon scroller. With tap-to-scroll on, the tap resolves by
-   * the visible viewport (`webtoonTapZone`): the top third = back a screen, the
-   * bottom third = forward (full width, corners included), the middle third's
-   * 20 % side edges = back / forward by the "goes forward" setting (1.41.0), its
-   * centre = toggle chrome. Off, a tap anywhere toggles the chrome (the pre-1.11.0
+   * the visible viewport (`webtoonTapZone`, 1.48.0): the 20 % side edges (full
+   * height, corners included) = back / forward by the "goes forward" setting, the
+   * centre column's top 15 % = back a screen, its bottom 15 % = forward, the rest
+   * of the centre = toggle chrome. Off, a tap anywhere toggles the chrome (the pre-1.11.0
    * behaviour). Since 1.41.0 a double tap where a tap toggles the chrome is
    * fullscreen (`centerTaps`); a step (band or edge) is taken at once, never after
    * the double-tap window. Taps on the end-of-chapter footer's buttons are theirs
