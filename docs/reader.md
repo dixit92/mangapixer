@@ -239,10 +239,9 @@ The choice is remembered by this browser. Animations are skipped in vertical mod
 
 - **Scroll** freely. This is always available.
 - **Tap to scroll** adds tap zones. Options: **Off**, **80%**, **90%** (default) or **100%** of a screen per step. The setting is remembered by this browser.
-  - Tap the **bottom third** to move forward one step, across the full width (the corners too).
-  - Tap the **top third** to move back one step, across the full width (the corners too).
-  - In the **middle third**, the **left and right edges** (20% of the width each) move a step too: with **Right goes forward** (the default) the right edge moves forward and the left edge back; with **Left goes forward** it is the other way round. Choose it under **Edge taps** in the **Display** menu (on phones, in **Reader options**). The setting is remembered by this browser and does not follow the series' reading direction.
-  - Tap the **center of the middle third** to show or hide the controls; **double tap** it (or double click) for fullscreen. A tap on an edge or a band moves at once; only the center waits a moment to tell a single tap from a double tap.
+  - Tap the **left or right edge** (20% of the width each, from the top of the screen to the bottom) to move a step: with **Right goes forward** (the default) the right edge moves forward and the left edge back; with **Left goes forward** it is the other way round. Choose it under **Edge taps** in the **Display** menu (on phones, in **Reader options**). The setting is remembered by this browser and does not follow the series' reading direction.
+  - In the **center column** between the edges, tap the **top strip** (about 15% of the height) to move back one step and the **bottom strip** (about 15%) to move forward one step.
+  - Tap the **rest of the center** to show or hide the controls; **double tap** it (or double click) for fullscreen. A tap on an edge or a strip moves at once; only the center waits a moment to tell a single tap from a double tap.
   - A horizontal swipe moves a step too, following **Edge taps**: with **Right goes forward** swipe left to go forward and right to go back; with **Left goes forward** swipe right to go forward.
 - With **Tap to scroll** off, a tap anywhere shows or hides the controls, and a double tap anywhere enters or leaves fullscreen. The edges and the swipe are off too; **Edge taps** stays in the menu, greyed out, until you turn **Tap to scroll** back on.
 - At the bottom of the strip, **Previous archive** and **Next archive** buttons appear. Vertical mode never moves to another archive on its own.

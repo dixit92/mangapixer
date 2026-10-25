@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 
 import {
-  WebtoonNavPreferencesService, WEBTOON_TAP_STEPS, WebtoonForwardEdge, webtoonTapZone, webtoonScrollTarget, webtoonSwipeStep,
+  WebtoonNavPreferencesService, WEBTOON_TAP_STEPS, WebtoonEdgeFraction, WebtoonBandFraction, WebtoonForwardEdge, webtoonTapZone, webtoonScrollTarget, webtoonSwipeStep,
 } from './webtoon-nav.service';
 
 /**
@@ -10,69 +10,80 @@ import {
  * covered through `ReaderComponent`'s public handlers in reader.component.spec
  * and webtoon-edge-zones.spec (1.41.0 edges).
  */
-describe('webtoonTapZone', () => {
-  it('splits the viewport by thirds: top = back, middle = toggle, bottom = forward (centre column)', () => {
+describe('webtoonTapZone (1.48.0 geometry)', () => {
+  it('names the proportions: 20 % full-height edges, 15 % bands in the centre column', () => {
+    expect(WebtoonEdgeFraction).toBe(0.2);
+    expect(WebtoonBandFraction).toBe(0.15);
+  });
+
+  it('the centre column: a short top band = back, a short bottom band = forward, the rest = toggle', () => {
     for (const edge of ['right', 'left'] as const) {
       expect(webtoonTapZone(0.5, 0, edge)).toBe('back');
-      expect(webtoonTapZone(0.5, 0.33, edge)).toBe('back');
-      expect(webtoonTapZone(0.5, 1 / 3, edge)).toBe('toggle');
+      expect(webtoonTapZone(0.5, 0.14, edge)).toBe('back');
+      expect(webtoonTapZone(0.5, 0.15, edge)).toBe('toggle');
+      expect(webtoonTapZone(0.5, 0.3, edge)).toBe('toggle');
       expect(webtoonTapZone(0.5, 0.5, edge)).toBe('toggle');
-      expect(webtoonTapZone(0.5, 0.66, edge)).toBe('toggle');
-      expect(webtoonTapZone(0.5, 2 / 3, edge)).toBe('forward');
+      expect(webtoonTapZone(0.5, 0.7, edge)).toBe('toggle');
+      expect(webtoonTapZone(0.5, 0.8499, edge)).toBe('toggle');
+      expect(webtoonTapZone(0.5, 0.85, edge)).toBe('forward');
       expect(webtoonTapZone(0.5, 1, edge)).toBe('forward');
     }
   });
 
   /**
-   * 1.41.0 (owner 2026-10-11): every cell of the 3 x 3 grid - top and bottom bands keep the full width, the middle
-   * band's 20 % side edges step a screen (which one goes forward is the setting), its centre toggles the controls.
+   * Every cell of the 3 x 5 grid (left edge / centre / right edge x top band, upper, middle, lower, bottom band): the
+   * edges are full height, so only the centre column changes with the row.
    */
+  const rows = [0.05, 0.25, 0.5, 0.75, 0.95];
   const grid: Record<WebtoonForwardEdge, string[][]> = {
     //        left edge   centre     right edge
-    right: [['back',    'back',    'back'],      // top band
-            ['back',    'toggle',  'forward'],   // middle band
-            ['forward', 'forward', 'forward']],  // bottom band
-    left:  [['back',    'back',    'back'],
+    right: [['back',    'back',    'forward'],   // top band row
+            ['back',    'toggle',  'forward'],
+            ['back',    'toggle',  'forward'],
+            ['back',    'toggle',  'forward'],
+            ['back',    'forward', 'forward']],  // bottom band row
+    left:  [['forward', 'back',    'back'],
             ['forward', 'toggle',  'back'],
-            ['forward', 'forward', 'forward']],
+            ['forward', 'toggle',  'back'],
+            ['forward', 'toggle',  'back'],
+            ['forward', 'forward', 'back']],
   };
   for (const edge of ['right', 'left'] as const) {
     it(`"${edge === 'right' ? 'Right' : 'Left'} goes forward": every cell of the grid`, () => {
       const xs = [0.1, 0.5, 0.9];
-      const ys = [1 / 6, 0.5, 5 / 6];
-      ys.forEach((y, row) => xs.forEach((x, col) => {
-        expect(webtoonTapZone(x, y, edge), `x ${x}, y ${y.toFixed(2)}`).toBe(grid[edge][row][col]);
+      rows.forEach((y, row) => xs.forEach((x, col) => {
+        expect(webtoonTapZone(x, y, edge), `x ${x}, y ${y}`).toBe(grid[edge][row][col]);
       }));
     });
 
-    it(`"${edge}": the four corners follow their band, never the edge`, () => {
-      expect(webtoonTapZone(0, 0, edge)).toBe('back');
-      expect(webtoonTapZone(1, 0, edge)).toBe('back');
-      expect(webtoonTapZone(0, 1, edge)).toBe('forward');
-      expect(webtoonTapZone(1, 1, edge)).toBe('forward');
-      // The band's last pixel above / first pixel below the middle band, right at a side.
-      expect(webtoonTapZone(0.05, 0.3333, edge)).toBe('back');
-      expect(webtoonTapZone(0.95, 0.3333, edge)).toBe('back');
-      expect(webtoonTapZone(0.05, 2 / 3, edge)).toBe('forward');
-      expect(webtoonTapZone(0.95, 2 / 3, edge)).toBe('forward');
+    it(`"${edge}": the four corners belong to the edges, never to a band`, () => {
+      const leftEdge = edge === 'right' ? 'back' : 'forward';
+      const rightEdge = edge === 'right' ? 'forward' : 'back';
+      expect(webtoonTapZone(0, 0, edge)).toBe(leftEdge);
+      expect(webtoonTapZone(0, 1, edge)).toBe(leftEdge);
+      expect(webtoonTapZone(1, 0, edge)).toBe(rightEdge);
+      expect(webtoonTapZone(1, 1, edge)).toBe(rightEdge);
+      // Just inside the corner, at the band's height, still the edge.
+      expect(webtoonTapZone(0.05, 0.05, edge)).toBe(leftEdge);
+      expect(webtoonTapZone(0.95, 0.95, edge)).toBe(rightEdge);
     });
   }
 
-  it('the exact boundaries: 20 % and 80 % of the width, a third and two thirds of the height', () => {
-    // Left edge: [0, 0.2); centre: [0.2, 0.8); right edge: [0.8, 1].
-    expect(webtoonTapZone(0, 0.5, 'right')).toBe('back');
-    expect(webtoonTapZone(0.1999, 0.5, 'right')).toBe('back');
+  it('the exact boundaries: 20 % and 80 % of the width, 15 % and 85 % of the height', () => {
+    // Left edge: [0, 0.2); centre: [0.2, 0.8); right edge: [0.8, 1] - the same at every height.
+    for (const y of [0, 0.1, 0.5, 0.9, 1]) {
+      expect(webtoonTapZone(0.1999, y, 'right'), `y ${y}`).toBe('back');
+      expect(webtoonTapZone(0.8, y, 'right'), `y ${y}`).toBe('forward');
+      expect(webtoonTapZone(0.1999, y, 'left'), `y ${y}`).toBe('forward');
+      expect(webtoonTapZone(0.8, y, 'left'), `y ${y}`).toBe('back');
+    }
     expect(webtoonTapZone(0.2, 0.5, 'right')).toBe('toggle');
     expect(webtoonTapZone(0.7999, 0.5, 'right')).toBe('toggle');
-    expect(webtoonTapZone(0.8, 0.5, 'right')).toBe('forward');
-    expect(webtoonTapZone(1, 0.5, 'right')).toBe('forward');
-    expect(webtoonTapZone(0.1999, 0.5, 'left')).toBe('forward');
-    expect(webtoonTapZone(0.8, 0.5, 'left')).toBe('back');
-    // The middle band holds y = 1/3 and stops just below y = 2/3, at the edges as in the centre.
-    expect(webtoonTapZone(0.1, 1 / 3, 'left')).toBe('forward');
-    expect(webtoonTapZone(0.1, 0.6666, 'left')).toBe('forward');
-    expect(webtoonTapZone(0.9, 1 / 3, 'right')).toBe('forward');
-    expect(webtoonTapZone(0.9, 0.6666, 'left')).toBe('back');
+    // At x = 0.2 / 0.7999 the centre column's bands apply.
+    expect(webtoonTapZone(0.2, 0, 'right')).toBe('back');
+    expect(webtoonTapZone(0.7999, 1, 'right')).toBe('forward');
+    expect(webtoonTapZone(0.2, 0.15, 'right')).toBe('toggle');
+    expect(webtoonTapZone(0.2, 0.85, 'right')).toBe('forward');
   });
 });
 

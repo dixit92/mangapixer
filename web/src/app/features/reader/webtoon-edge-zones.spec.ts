@@ -13,11 +13,13 @@ import { DoubleTapWindowMs } from './double-tap';
 import { ManifestPageEntry } from '../../core/api/api-types';
 
 /**
- * Vertical-mode edge tap zones (1.41.0, owner 2026-10-11), through the reader's public handlers:
- *  - the top and bottom bands keep the full width (corners included) and step back / forward a screen;
- *  - the middle band has a left and a right edge, 20 % of the width each, stepping a screen by the per-device
- *    "Right goes forward" (default) / "Left goes forward" setting - at once, never after the double-tap window;
- *  - the centre keeps show / hide controls (single tap) and fullscreen (double tap);
+ * Vertical-mode tap zones (edges 1.41.0, owner 2026-10-11; reshaped 1.48.0, owner 2026-10-24), through the reader's
+ * public handlers:
+ *  - the left and right edges are full-height columns, 20 % of the width each, corners included, stepping a screen
+ *    by the per-device "Right goes forward" (default) / "Left goes forward" setting - at once, never after the
+ *    double-tap window;
+ *  - the centre column has a short top band (15 %) = back and a short bottom band (15 %) = forward;
+ *  - the rest of the centre keeps show / hide controls (single tap) and fullscreen (double tap);
  *  - the horizontal swipe follows the same setting; Tap to scroll Off turns all of it off.
  * Geometry: a fake scroller whose viewport is 400 x 600 px at (left 0, top 100), over a 5000 px strip at 1000 px.
  */
@@ -42,7 +44,7 @@ const Left = 0, Top = 100, Width = 400, Height = 600;
 const Forward = { top: 1540, behavior: 'smooth' };
 const Back = { top: 460, behavior: 'smooth' };
 
-describe('Webtoon edge tap zones (1.41.0)', () => {
+describe('Webtoon tap zones (edges 1.41.0, full-height edges + short bands 1.48.0)', () => {
   function create(opts: { forwardEdge?: 'right' | 'left'; stepOff?: boolean } = {}) {
     TestBed.configureTestingModule({
       imports: [ReaderComponent],
@@ -88,7 +90,7 @@ describe('Webtoon edge tap zones (1.41.0)', () => {
   });
   afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); localStorage.clear(); });
 
-  it('default "Right goes forward": the left edge of the middle band goes back a screen, the right edge forward', () => {
+  it('default "Right goes forward": the left edge goes back a screen, the right edge forward', () => {
     const { calls, tapAt } = create();
     tapAt(0.1, 0.5);
     expect(calls).toEqual([Back]);
@@ -123,7 +125,7 @@ describe('Webtoon edge tap zones (1.41.0)', () => {
     expect(c.chromeVisible()).toBe(true);
   });
 
-  it('corners follow their band, whatever the setting: top corners back, bottom corners forward', () => {
+  it('corners belong to the edges, whatever the setting: the full-height edge decides, top and bottom alike', () => {
     for (const forwardEdge of ['right', 'left'] as const) {
       TestBed.resetTestingModule();
       const { calls, tapAt } = create({ forwardEdge });
@@ -131,8 +133,30 @@ describe('Webtoon edge tap zones (1.41.0)', () => {
       tapAt(0.98, 0.05);  // top-right
       tapAt(0.02, 0.95);  // bottom-left
       tapAt(0.98, 0.95);  // bottom-right
-      expect(calls, forwardEdge).toEqual([Back, Back, Forward, Forward]);
+      const [l, r] = forwardEdge === 'right' ? [Back, Forward] : [Forward, Back];
+      expect(calls, forwardEdge).toEqual([l, r, l, r]);
     }
+  });
+
+  it('an edge tap near the top steps by the edge (not back by a top band); the same height in the centre goes back', () => {
+    const { calls, tapAt } = create();
+    tapAt(0.95, 0.05); // right edge, top: forward (the edge), where 1.41.0's top third said back
+    expect(calls).toEqual([Forward]);
+    tapAt(0.5, 0.05); // centre column, top band: back
+    expect(calls).toEqual([Forward, Back]);
+    tapAt(0.5, 0.95); // centre column, bottom band: forward
+    expect(calls).toEqual([Forward, Back, Forward]);
+  });
+
+  it('the centre column below the top band and above the bottom band only shows / hides the controls', () => {
+    const { c, calls, tapAt } = create();
+    for (const y of [0.15, 0.3, 0.5, 0.7, 0.84]) {
+      c.chromeVisible.set(true);
+      tapAt(0.5, y);
+      vi.advanceTimersByTime(DoubleTapWindowMs + 20);
+      expect(c.chromeVisible(), `y ${y}`).toBe(false);
+    }
+    expect(calls.length).toBe(0);
   });
 
   it('the centre between the edges keeps show / hide (after the window) and double tap = fullscreen; 20 % is the centre', () => {
@@ -219,6 +243,25 @@ describe('Webtoon edge tap zones (1.41.0)', () => {
       expect(labels(root)).toEqual({ left: 'Forward a screen', right: 'Back a screen' });
       expect(root.querySelector('.help-panel')?.textContent?.replace(/\s+/g, ' '))
         .toContain('Swipe right to move forward, left to go back');
+    });
+
+    it('the diagram is two full-height edges around a centre column: back band, toggle, forward band', () => {
+      const { fixture, c } = create();
+      c.toggleHelp();
+      fixture.detectChanges();
+      const zones = (fixture.nativeElement as HTMLElement).querySelector('.help-zones.vertical')!;
+      const kids = Array.from(zones.children).map((k) => k.className);
+      expect(kids[0]).toContain('edge-left');
+      expect(kids[1]).toContain('help-col');
+      expect(kids[2]).toContain('edge-right');
+      const col = Array.from(zones.querySelector('.help-col')!.children);
+      expect(col.map((k) => k.className.includes('top') ? 'top' : k.className.includes('bottom') ? 'bottom' : 'centre'))
+        .toEqual(['top', 'centre', 'bottom']);
+      expect(col.map((k) => k.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
+        'touch_app Tap Back a screen',
+        'touch_app Tap: show / hide controls Double tap: fullscreen',
+        'touch_app Tap Forward a screen',
+      ]);
     });
 
     it('with Tap to scroll Off there is no zone diagram (taps only show / hide the controls)', () => {
