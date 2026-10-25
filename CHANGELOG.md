@@ -6,13 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Reading state on favorites.** Archive cards carry **Read** / **Reading**, and a favorite folder - and a stack of favorites - carries Read or Reading for the whole folder, on the Favorites page and on the home Favorites row.
+- **Home Favorites row:** its cards carry the (i) with the series summary on hover, and a star (turning it off takes the card out of the row).
+- **Favorite a folder from inside it.** A star in a folder's top bar, right after **Info**, stars the folder you are viewing (icon only on a phone).
+
 ### Changed
 
+- **Vertical (webtoon) reading: bigger side taps.** The left and right edges of the screen now run the full height and are 20 % wide, so a tap anywhere along a side moves a screen (which edge goes forward is still **Edge taps**). The back and forward strips shrink to the top and bottom 15 % of the middle; the rest of the middle still shows or hides the controls (double tap: fullscreen). The reader's help overlay shows the new layout, and its card no longer covers the labels on phones.
+- A favorite archive inside a linked series now shows that series' (i), like the Continue reading row.
+- On the Favorites page the kind icon and a stack's count moved to the top-left of the cover, leaving the top-right for the read badge.
+- New automatic tests check who may see what on every route: admin and operations pages refuse other users, routes that take a library, folder, item or series refuse one you have no access to, and the shared caches are checked with two users.
 - SharpCompress 0.50.7 (dependency update).
 
 ### Fixed
 
 - **Completion filter with "Show series information" off.** Where series information is hidden (for the library or for the whole server), the library's **Completion** filter and its counts are gone too - as the (i) and search already did - so they no longer tell which folders are linked series and whether each is complete.
+- **Reader:** asking for the reader mode of an item in a library you have no access to now answers "not found", like any unknown item (it used to answer with that library's default reader mode).
+- **Incognito:** your Private libraries no longer show the gold "read on <tracker>" rings or the letters of their jump bar while Incognito is on - their browse is empty, and now these are too.
+- **Info panel - merged creators:** a creator chip no longer names the creator a merged creator was merged into when every work of that creator is in a library you cannot open (or in your Private library while Incognito is on); it shows the name your own works carry.
+- **Phone:** the **Info** button in a folder's top bar was a narrow oval with its icon off-centre, and the **Tracking** icon sat slightly left; both are now 40 px squares with the icon centred, and the **Chapters** / **Folders** switch is as tall as the buttons beside it.
 
 ## [1.47.0] - 2026-10-23
 
