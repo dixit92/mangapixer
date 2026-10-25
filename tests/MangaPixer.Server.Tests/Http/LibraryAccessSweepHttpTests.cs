@@ -128,7 +128,7 @@ public sealed class LibraryAccessSweepHttpTests
     public async Task Sweep_IdRoutes_AnswerUngrantedAndPrivateIdsAsDocumented_AndLeakNothing()
     {
         var w = await WorldAsync();
-        await using var _ = w.H;
+        await using var host = w.H;
         var endpoints = AccessSweepSupport.Endpoints(w.H.Factory.Services);
         var (idRoutes, _, _) = Classify(endpoints);
         var before = await SnapshotAsync(w, w.U);
@@ -189,7 +189,7 @@ public sealed class LibraryAccessSweepHttpTests
     public async Task Sweep_EveryOtherGet_ShowsNoUngrantedContent_AndNoPrivateContentUnderIncognito()
     {
         var w = await WorldAsync();
-        await using var _ = w.H;
+        await using var host = w.H;
         var (_, listings, _) = Classify(AccessSweepSupport.Endpoints(w.H.Factory.Services));
         var urls = listings.Select(k => "/" + k["GET ".Length..].Replace("{slug}", TrackerSlugs.MangaUpdates, StringComparison.Ordinal)).ToList();
         // The search without a library (its libraryId variant is an id route) and the tracker list's filters.
@@ -231,7 +231,7 @@ public sealed class LibraryAccessSweepHttpTests
     public async Task BodyIds_NeverReachAnUngrantedLibrary()
     {
         var w = await WorldAsync();
-        await using var _ = w.H;
+        await using var host = w.H;
         var reader = w.Reader.Client;
         var before = await SnapshotAsync(w, w.U);
 
