@@ -956,12 +956,22 @@ public sealed partial class CatalogBrowseService
     /// checked per node's library and globally. Batched in <see cref="SeriesInfoFlagService"/>.
     /// </summary>
     private async Task<List<CatalogNodeDto>> ApplyHasSeriesInfoByPublicIdAsync(
-        List<CatalogNodeDto> nodes, CancellationToken ct)
+        List<CatalogNodeDto> nodes, CancellationToken ct) =>
+        await ApplyHasSeriesInfoByPublicIdAsync(nodes, anchored: false, ct);
+
+    /// <summary>
+    /// The public-id flag under the own rule (<paramref name="anchored"/> false) or the anchor rule of the home Continue row
+    /// (true, 1.48.0: favorites) - see <see cref="SeriesInfoFlagService"/>.
+    /// </summary>
+    private async Task<List<CatalogNodeDto>> ApplyHasSeriesInfoByPublicIdAsync(
+        List<CatalogNodeDto> nodes, bool anchored, CancellationToken ct)
     {
         if (nodes.Count == 0)
             return nodes;
 
-        var publicIdsWithInfo = await _seriesInfoFlags.WithOwnSeriesInfoAsync(nodes.Select(n => n.Id), ct);
+        var publicIdsWithInfo = anchored
+            ? await _seriesInfoFlags.WithAnchoredSeriesInfoAsync(nodes.Select(n => n.Id), ct)
+            : await _seriesInfoFlags.WithOwnSeriesInfoAsync(nodes.Select(n => n.Id), ct);
         if (publicIdsWithInfo.Count == 0)
             return nodes;
         return nodes.Select(n => publicIdsWithInfo.Contains(n.Id) ? n with { HasSeriesInfo = true } : n).ToList();
@@ -1145,7 +1155,7 @@ public sealed partial class CatalogBrowseService
     /// grouping runs over the viewer's VISIBLE favorites only, so a count never reveals
     /// hidden content. <c>TotalCount</c> counts items (cards), not raw favorites. A
     /// single item carries <c>IsFavorite = true</c>; a stack carries the folder's own
-    /// star. A fixed number of queries per page: keys, page nodes, covers, read state.
+    /// star. A fixed number of queries per page: keys, page nodes, covers, read state (1.48.0: and the folder read rollups).
     /// </summary>
     public async Task<PageResponse<CatalogNodeDto>> ListFavoritesAsync(
         long userId,
@@ -1265,8 +1275,28 @@ public sealed partial class CatalogBrowseService
             }
         }
 
-        // Series information (1.27.0): the browse (i) flag, batched for the page.
-        nodes = await ApplyHasSeriesInfoByPublicIdAsync(nodes, ct);
+        // Folder read rollup (1.48.0): a favorited folder, and a stack (which stands for its parent folder), carry the same
+        // Read / Reading badge as a browse card. One batched query for the page; a stack's rollup covers the WHOLE folder
+        // (not only its starred members), exactly as browse. Only the viewer's own marks count.
+        var folderInternalIdByPublicId = rowsById.Values
+            .Where(r => r.Kind == (int)CatalogNodeKind.Folder)
+            .ToDictionary(r => r.Id, r => r.InternalId, StringComparer.Ordinal);
+        if (folderInternalIdByPublicId.Count > 0)
+        {
+            var rollups = await ResolveFolderReadRollupsAsync(folderInternalIdByPublicId.Values.ToList(), userId, ct);
+            if (rollups.Count > 0)
+            {
+                nodes = nodes.Select(n => n.Kind == CatalogNodeKind.Folder
+                    && folderInternalIdByPublicId.TryGetValue(n.Id, out var internalId)
+                    && rollups.TryGetValue(internalId, out var rollup)
+                        ? n with { ReadRollup = rollup }
+                        : n).ToList();
+            }
+        }
+
+        // Series information (1.27.0): the browse (i) flag, batched for the page. 1.48.0: ANCHORED to the series, as the home
+        // Continue row - an archive favorite inside a linked series gets that series' (i); "Show series information" off still wins.
+        nodes = await ApplyHasSeriesInfoByPublicIdAsync(nodes, anchored: true, ct);
 
         string? nextCursor = null;
         if (hasMore && pageEntries.Count > 0)
