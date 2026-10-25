@@ -457,7 +457,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
            otherwise-invisible tap zones prominently plus the keyboard shortcuts.
            A full-size backdrop button dismisses it; zones/panel are click-through. -->
       @if (helpVisible()) {
-        <div class="help-overlay" role="dialog" aria-modal="true" aria-label="Reader controls">
+        <div class="help-overlay" [class.webtoon]="view() === 'webtoon'" role="dialog" aria-modal="true" aria-label="Reader controls">
           <button class="help-backdrop" (click)="closeHelp()" aria-label="Close help"></button>
           @if (view() !== 'webtoon') {
             <!-- Tap thirds (labels direction-aware) + a full-width swipe legend across
@@ -768,7 +768,11 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
       background: rgb(var(--mp-accent-strong-rgb) / 0.22);
     }
     .help-zone.band.top, .help-zone.band.bottom { flex: 0 0 15%; }
-    .help-zone.band.center { background: color-mix(in srgb, var(--mp-on-scrim) 10%, transparent); }
+    .help-zone.band.center { background: color-mix(in srgb, var(--mp-on-scrim) 10%, transparent); justify-content: flex-start; padding-top: 12px; }
+    .help-zone.band.bottom { justify-content: flex-start; padding-top: 4px; gap: 4px; }
+    .help-zone.band.top mat-icon, .help-zone.band.bottom mat-icon { font-size: 28px; width: 28px; height: 28px; }
+    /* Vertical help: the card sits under the toggle label (not over the bottom band's label), as wide as its text allows. */
+    .help-overlay.webtoon .help-panel { bottom: auto; top: calc(15% + 104px); width: max-content; }
     /* Full-width swipe legend across the middle of the surface. */
     .help-swipe {
       position: absolute; left: 6%; right: 6%; top: 38%; z-index: 1; pointer-events: none;
