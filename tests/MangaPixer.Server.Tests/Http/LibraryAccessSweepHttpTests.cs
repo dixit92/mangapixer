@@ -203,7 +203,13 @@ public sealed class LibraryAccessSweepHttpTests
         /// node ids, not names, so the word canary alone missed it).
         /// </summary>
         public IEnumerable<string> AllIds =>
-            [PublicId, SeriesPublicId, ArtistPublicId, .. Chapters.Select(c => c.PublicId), .. Stories.Select(c => c.PublicId), RecordPublicId, TankPublicId];
+            [PublicId, SeriesPublicId, ArtistPublicId, .. Chapters.Select(c => c.PublicId), .. Stories.Select(c => c.PublicId), RecordPublicId, TankPublicId,
+                ShelfPublicId, .. ShelfArchives];
+
+        /// <summary>A plain folder (no link, no Volumes or collection view) with two archives - what the jump rail and the rings read.</summary>
+        public string ShelfPublicId => $"as{Key}shf";
+
+        public IReadOnlyList<string> ShelfArchives => [$"as{Key}sh1", $"as{Key}sh2"];
     }
 
     private sealed record World(TrackerTestHarness H, HttpClient Admin, AccessReader Reader, Lib G, Lib U, Lib P)
@@ -265,13 +271,13 @@ public sealed class LibraryAccessSweepHttpTests
                 codes[dimension] = (int)response.StatusCode;
                 // A listing's control must list something of G (an id it was not sent): an empty control would prove nothing about U / P.
                 if (dimension == Dimension.Control && IdRoutes.GetValueOrDefault(key)?.HiddenUnderIncognito == true
-                    && !w.G.AllIds.Except([w.G.PublicId, w.G.SeriesPublicId, w.G.ArtistPublicId]).Any(id => text.Contains(id, StringComparison.OrdinalIgnoreCase)))
+                    && !w.G.AllIds.Except([w.G.PublicId, w.G.SeriesPublicId, w.G.ArtistPublicId, w.G.ShelfPublicId]).Any(id => text.Contains(id, StringComparison.OrdinalIgnoreCase)))
                     failures.Add($"{key}: the granted control lists nothing of G - the sweep proves nothing for it");
                 if ((int)response.StatusCode >= 500)
                     failures.Add($"{key} [{dimension}] {url}: {(int)response.StatusCode}");
                 // A hidden listing may echo the library / folder it was asked about, nothing else of P - not even the card ids it was sent.
                 var sent = dimension == Dimension.Private && IdRoutes.GetValueOrDefault(key)?.HiddenUnderIncognito == true
-                    ? string.Join(" ", w.P.PublicId, w.P.SeriesPublicId, w.P.ArtistPublicId)
+                    ? string.Join(" ", w.P.PublicId, w.P.SeriesPublicId, w.P.ArtistPublicId, w.P.ShelfPublicId)
                     : url + " " + body;
                 foreach (var leak in Leaks(w, text, dimension, IdRoutes.GetValueOrDefault(key), sent))
                 {
@@ -455,11 +461,11 @@ public sealed class LibraryAccessSweepHttpTests
         {
             case "libraryId": return lib.PublicId;
             case "nodeId": return stacks ? lib.ArtistPublicId : lib.SeriesPublicId;
-            // The jump rail and the rings read a folder in the name sort: the artist's folder (the linked series opens in the Volumes view,
-            // where the rail is empty by design - the control would prove nothing).
-            case "parentId": return flat ? lib.ArtistPublicId : lib.SeriesPublicId;
+            // The jump rail and the rings read a plain folder in the name sort (the linked series and the artist's collection open in the
+            // Volumes / collection view, where the rail is empty by design - the control would prove nothing).
+            case "parentId": return flat ? lib.ShelfPublicId : lib.SeriesPublicId;
             case "itemId": return lib.Chapters[0].PublicId;
-            case "ids": return flat ? lib.Stories[0].PublicId : lib.Chapters[0].PublicId;
+            case "ids": return flat ? lib.ShelfArchives[0] : lib.Chapters[0].PublicId;
             case "entryKey": return OpaqueId.Encode(0);
             case "key": return stacks ? lib.TankPublicId : "1";
             case "bucket": return "creator";
@@ -604,8 +610,18 @@ public sealed class LibraryAccessSweepHttpTests
 
         var series = Node(library.Id, null, CatalogNodeKind.Folder, $"as{key}ser", $"{word} Saga");
         var artist = Node(library.Id, null, CatalogNodeKind.Folder, $"as{key}art", $"{word} Artist");
-        db.CatalogNodes.AddRange(series, artist);
+        var shelf = Node(library.Id, null, CatalogNodeKind.Folder, $"as{key}shf", $"{word} Shelf");
+        db.CatalogNodes.AddRange(series, artist, shelf);
         await db.SaveChangesAsync();
+        var shelved = new[]
+        {
+            Node(library.Id, shelf.Id, CatalogNodeKind.Archive, $"as{key}sh1", $"{word} Shelf - Alder"),
+            Node(library.Id, shelf.Id, CatalogNodeKind.Archive, $"as{key}sh2", $"{word} Shelf - Birch"),
+        };
+        db.CatalogNodes.AddRange(shelved);
+        await db.SaveChangesAsync();
+        foreach (var archive in shelved)
+            db.ArchiveItems.Add(new ArchiveItemEntity { NodeId = archive.Id, ContentVersion = 1, AnalysisState = 0, PageCount = 12, ByteLength = 1024 });
         var chapters = new List<CatalogNodeEntity>();
         for (var c = 1; c <= 4; c++)
             chapters.Add(Node(library.Id, series.Id, CatalogNodeKind.Archive, $"as{key}c{c}", $"{word} Saga - Chapter {c:000}"));
