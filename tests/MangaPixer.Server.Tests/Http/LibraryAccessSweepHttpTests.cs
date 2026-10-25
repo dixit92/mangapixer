@@ -7,7 +7,6 @@ using System.Text.Json;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.Facets;
-using com.lifepixer.mangapixer.Core.Ordering;
 using com.lifepixer.mangapixer.Core.Reading;
 using com.lifepixer.mangapixer.Core.Trackers;
 using com.lifepixer.mangapixer.Server.Features.Export;
@@ -574,7 +573,7 @@ public sealed class LibraryAccessSweepHttpTests
         DisplayName = name,
         RelativePath = publicId,
         PathKey = publicId,
-        SortKey = SortKey.ForNode(kind, name),
+        SortKey = com.lifepixer.mangapixer.Core.Ordering.SortKey.ForNode(kind, name),
         Availability = (int)CatalogNodeAvailability.Available,
         CreatedAt = DateTimeOffset.UtcNow,
     };
