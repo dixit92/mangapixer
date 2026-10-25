@@ -270,10 +270,10 @@ public sealed class LibraryAccessSweepHttpTests
                 if ((int)response.StatusCode >= 500)
                     failures.Add($"{key} [{dimension}] {url}: {(int)response.StatusCode}");
                 // A hidden listing may echo the library / folder it was asked about, nothing else of P - not even the card ids it was sent.
-                var request = dimension == Dimension.Private && IdRoutes.GetValueOrDefault(key)?.HiddenUnderIncognito == true
+                var sent = dimension == Dimension.Private && IdRoutes.GetValueOrDefault(key)?.HiddenUnderIncognito == true
                     ? string.Join(" ", w.P.PublicId, w.P.SeriesPublicId, w.P.ArtistPublicId)
                     : url + " " + body;
-                foreach (var leak in Leaks(w, text, dimension, IdRoutes.GetValueOrDefault(key), request))
+                foreach (var leak in Leaks(w, text, dimension, IdRoutes.GetValueOrDefault(key), sent))
                 {
                     failures.Add($"LEAK {key} [{dimension}] {url}: {(int)response.StatusCode} names {leak}");
                     notes.Append(CultureInfo.InvariantCulture, $" leak[{dimension}]={leak}");
