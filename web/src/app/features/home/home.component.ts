@@ -28,6 +28,8 @@ import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.compon
 import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.component';
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { StackCardComponent } from '../../shared/stack-card/stack-card.component';
+import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/folder-rollup-badge.component';
+import { FavoritesStateService } from '../../core/favorites/favorites-state.service';
 import { MetadataStateService } from '../metadata/metadata-state.service';
 import {
   favoriteLink,
@@ -96,6 +98,7 @@ import {
     InfoToggleComponent,
     SeriesInfoHoverDirective,
     StackCardComponent,
+    FolderRollupBadgeComponent,
   ],
   template: `
     <div class="home" [style.--card-size]="cardSize() + 'px'">
@@ -163,26 +166,42 @@ import {
           <h3>Favorites</h3>
           <div class="strip">
             @for (node of favorites(); track favTrack(node)) {
+              <!-- Card controls (1.48.0), as the Continue / New chapters cards: the (i) bottom-left (anchored to the series, as
+                   Continue), the star bottom-right, the read state top-right (an archive's Read / Reading, a folder's or a
+                   stack's rollup - a stack's covers the whole folder). Cover and title are hover zones for the series summary. -->
               @if (favIsStack(node)) {
                 <!-- Stack (1.27.0): starred archives sharing a folder; opens that folder
-                     with a transient "Favorites only" filter (?favorites=1). -->
-                <a class="stack-card" [routerLink]="favLink(node)" [queryParams]="favParams(node)"
+                     with a transient "Favorites only" filter (?favorites=1). It has no star (it would star the folder). -->
+                <a #favStackEl class="stack-card" [routerLink]="favLink(node)" [queryParams]="favParams(node)"
                    [attr.aria-label]="node.displayName + ', ' + favStackLabel(node)">
-                  <app-stack-card>
+                  <app-stack-card [appSeriesInfoHover]="favHoverId(node)" [hoverAnchor]="favStackEl">
                     @if (favCover(node); as src) { <img appCover [src]="src" alt="" loading="lazy"> }
                     <mat-icon class="cover-fallback">folder</mat-icon>
-                    <span class="badge" [matTooltip]="favStackLabel(node)">{{ node.favoriteStackCount }}</span>
+                    <span class="badge count" [matTooltip]="favStackLabel(node)">{{ node.favoriteStackCount }}</span>
+                    <app-folder-rollup-badge [rollup]="node.readRollup" />
+                    <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo" [overlay]="true" />
                   </app-stack-card>
-                  <div class="cont-title" [title]="node.displayName">{{ node.displayName }}</div>
+                  <div class="cont-title" [title]="node.displayName"
+                       [appSeriesInfoHover]="favHoverId(node)" [hoverAnchor]="favStackEl">{{ node.displayName }}</div>
                   <div class="cont-page">{{ favStackLabel(node) }}</div>
                 </a>
               } @else {
-                <a class="cont-card" [routerLink]="favLink(node)">
-                  <div class="cover">
+                <a #favEl class="cont-card" [routerLink]="favLink(node)">
+                  <div class="cover" [appSeriesInfoHover]="favHoverId(node)" [hoverAnchor]="favEl">
                     @if (favCover(node); as src) { <img appCover [src]="src" alt="" loading="lazy"> }
                     <mat-icon class="cover-fallback">{{ node.kind === 'Folder' ? 'folder' : 'menu_book' }}</mat-icon>
+                    @if (node.isRead) {
+                      <span class="badge read" matTooltip="Read">✓ Read</span>
+                    } @else if (node.readingState === 'InProgress') {
+                      <span class="badge reading">Reading</span>
+                    }
+                    <app-folder-rollup-badge [rollup]="node.readRollup" />
+                    <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo"
+                                     [anchored]="node.kind === 'Archive'" [overlay]="true" />
+                    <app-star-toggle [nodeId]="node.id" [favorite]="true" [overlay]="true" [compact]="true" />
                   </div>
-                  <div class="cont-title" [title]="node.displayName">{{ node.displayName }}</div>
+                  <div class="cont-title" [title]="node.displayName"
+                       [appSeriesInfoHover]="favHoverId(node)" [hoverAnchor]="favEl">{{ node.displayName }}</div>
                 </a>
               }
             }
@@ -427,7 +446,10 @@ import {
     }
     /* Read-state marker (1.20.0): top-left (browse's own Read/Reading colours), so it never
        collides with the top-right "+N new" badge; Unread renders nothing (quiet default). */
-    .badge.read-state { left: 6px; right: auto; }
+    .badge.read-state, .badge.count { left: 6px; right: auto; }
+    /* Favorites row (1.48.0): the read state sits top-right as on a browse card (Read green, Reading accent); a stack's count moves
+       top-left for the folder's own read badge. */
+    .badge.read { background: rgb(var(--mp-success-strong-rgb) / 0.95); }
     .badge.read-state.read { background: rgb(var(--mp-success-strong-rgb) / 0.95); }
     .library-grid {
       display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px;
@@ -515,6 +537,14 @@ export class HomeComponent implements OnInit {
     });
     changes$.pipe(debounceTime(300)).subscribe(() => {
       if (this.continueReading().length > 0) this.loadContinueReading();
+      if (this.showFavoritesRow() && this.favorites().length > 0) this.loadFavorites(); // anchored (i), like Continue
+    });
+    // A node unstarred anywhere (this row's own star included) leaves the Favorites row in place, as on the Favorites page; a stack
+    // stays (it stands for its starred children, not for the folder's own star). Starring elsewhere shows up on the next load.
+    inject(FavoritesStateService).changed$.pipe(takeUntilDestroyed()).subscribe((change) => {
+      if (!change.favorite) {
+        this.favorites.update((list) => list.filter((n) => n.id !== change.nodeId || isFavoriteStack(n)));
+      }
     });
   }
 
@@ -583,6 +613,11 @@ export class HomeComponent implements OnInit {
 
   favTrack(node: CatalogNodeDto): string {
     return favoriteTrackKey(node);
+  }
+
+  /** The node whose series summary the cover and title show on hover (1.48.0), or none while it has no information. */
+  favHoverId(node: CatalogNodeDto): string | null {
+    return node.hasSeriesInfo ? node.id : null;
   }
 
   /** Cover URL for a favorite row card: folder cover if resolved, else the archive cover. */

@@ -188,6 +188,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
           <!-- 1.43.0: the series' tracking (a gold button + popover) for a user with a connected tracker. -->
           <app-series-tracking-button [nodeId]="folderId" />
           <app-series-info-button [nodeId]="folderId" />
+          <!-- 1.48.0: favorite the folder being viewed (a library root has no node to star). -->
+          <app-star-toggle [nodeId]="folderId" [favorite]="currentFolderFavorite()" [bar]="true" />
         } @else if (libraryId()) {
           <!-- 1.47.0 (lane P): the library root's Info - its tags (a library root is not a node). -->
           <app-series-info-button [libraryId]="libraryId()" [libraryName]="libraryName()" />
@@ -809,6 +811,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
    * Empty at the library root (there is no current folder).
    */
   readonly currentFolderName = signal('');
+  /** 1.48.0: the folder being viewed is a favorite (from `getNode`); the browse-bar star seeds from it and then follows `FavoritesStateService`. */
+  readonly currentFolderFavorite = signal(false);
   readonly hasMore = signal(false);
   private cursor: string | null = null;
   /** True while a browse page (initial or append) is in flight; gates the sentinel. */
@@ -2407,8 +2411,12 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
    * showing a stale one.
    */
   private loadCurrentFolder(nodeId: string): void {
+    this.currentFolderFavorite.set(false);
     this.api.getNode(nodeId).subscribe({
-      next: (node) => this.currentFolderName.set(node.displayName),
+      next: (node) => {
+        this.currentFolderName.set(node.displayName);
+        this.currentFolderFavorite.set(!!node.isFavorite);
+      },
       error: () => this.currentFolderName.set(''),
     });
   }

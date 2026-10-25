@@ -162,13 +162,17 @@ The rail is not shown in the [Volumes view](volumes.md), which lists volumes ins
 
 ## Favorites
 
-Star any folder or archive to keep it within easy reach. The star appears on cards and rows in the library view, on search results, on the home page's **Continue reading** and **New chapters** cards (bottom-right of the cover; on a New chapters card it stars the folder, or the archive for a loose archive), and in the reader toolbar (for the archive you are reading).
+Star any folder or archive to keep it within easy reach. The star appears on cards and rows in the library view, on search results, on the home page's **Continue reading**, **New chapters** and **Favorites** cards (bottom-right of the cover; on a New chapters card it stars the folder, or the archive for a loose archive), and in the reader toolbar (for the archive you are reading).
+
+*New in 1.48.0:* inside a folder, a **Favorite** star sits in the top bar right after **Info** (icon only on a phone) and stars the folder you are viewing - handy for a series you open from a link or from search. It is not shown at the top of a library, which is not a folder. It is filled while the folder is a favorite, and the folder then appears on the **Favorites** page like any starred folder.
 
 - **Favorites** in the sidebar, above your libraries, lists everything you starred, most recently starred first.
 - **Favorites only** in the **Filter** menu narrows any library view to your starred items.
 - Two options in **Settings** > **Favorites**, both off by default: a **Favorites** row on the home page, and highlighting starred results in search (a star badge, and they move to the top).
 
 When you star two or more archives in the same folder, the Favorites page and the home **Favorites** row show them as one stacked card: the folder's cover and name, and how many favorites it holds. The stack sits where your most recently starred archive of that folder would be. Selecting it opens the folder with **Favorites only** turned on, so you see just the archives you starred there; turn the filter off to see the whole folder. Only archives stack, and only with the folder they are directly in: a starred folder always keeps its own card.
+
+Favorites show your reading state like the library view does: an archive card carries **Read** or **Reading**, and a folder card - and a stack - carries **Read** (every archive in the folder is read) or **Reading** (some are read or in progress), shown at the top right of the cover. A stack counts the **whole folder**, not only the archives you starred in it. The marks are your own: another user of the same server sees theirs. The same badges appear on the home page's **Favorites** row, whose cards also carry the (i) and the summary on hover when there is series information, and a star - turning it off takes the card out of the row.
 
 Favorites belong to your account and follow you to every device. They respect Private libraries: while Incognito is on, favorites in your Private libraries are hidden too.
 

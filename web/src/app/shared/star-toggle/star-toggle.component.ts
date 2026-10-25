@@ -16,6 +16,8 @@ import { FavoritesStateService } from '../../core/favorites/favorites-state.serv
  * `FavoritesStateService`, and reverts on error. It also subscribes to the service's
  * `changed$` so a toggle of the SAME node anywhere else updates this instance in place.
  *
+ * `bar` (1.48.0) renders the browse-bar variant: an outlined button shaped like the Info and tracker buttons.
+ *
  * All styling lives here (its own component budget) so the near-limit inline styles of
  * `library-browse.component.ts` and `reader.component.ts` are not touched. Set
  * `overlay` to position the star in a cover corner (host becomes `display: contents`
@@ -29,21 +31,39 @@ import { FavoritesStateService } from '../../core/favorites/favorites-state.serv
   host: {
     '[class.overlay]': 'overlay()',
     '[class.compact]': 'compact()',
+    '[class.bar]': 'bar()',
     '[class.bottom-right]': "corner() === 'bottom-right'",
   },
   template: `
-    <button
-      type="button"
-      mat-icon-button
-      class="star-btn"
-      [class.active]="isFav()"
-      [attr.aria-pressed]="isFav()"
-      [attr.aria-label]="label()"
-      [matTooltip]="label()"
-      (click)="toggle($event)"
-    >
-      <mat-icon>{{ isFav() ? 'star' : 'star_border' }}</mat-icon>
-    </button>
+    @if (bar()) {
+      <!-- Browse bar (1.48.0): the same outlined shape as the Info / tracker buttons beside it; icon only on a phone. -->
+      <button
+        type="button"
+        mat-stroked-button
+        class="star-btn bar-btn"
+        [class.active]="isFav()"
+        [attr.aria-pressed]="isFav()"
+        [attr.aria-label]="label()"
+        [matTooltip]="label()"
+        data-testid="folder-star"
+        (click)="toggle($event)"
+      >
+        <mat-icon>{{ isFav() ? 'star' : 'star_border' }}</mat-icon><span class="lbl">Favorite</span>
+      </button>
+    } @else {
+      <button
+        type="button"
+        mat-icon-button
+        class="star-btn"
+        [class.active]="isFav()"
+        [attr.aria-pressed]="isFav()"
+        [attr.aria-label]="label()"
+        [matTooltip]="label()"
+        (click)="toggle($event)"
+      >
+        <mat-icon>{{ isFav() ? 'star' : 'star_border' }}</mat-icon>
+      </button>
+    }
   `,
   styles: [`
     :host { display: inline-flex; }
@@ -55,6 +75,18 @@ import { FavoritesStateService } from '../../core/favorites/favorites-state.serv
     }
     :host(.overlay.bottom-right) .star-btn { top: auto; left: auto; bottom: 4px; right: 4px; }
     .star-btn.active mat-icon { color: var(--mp-warn-strong); }
+    /* Browse bar (1.48.0): flows with the bar's other buttons; the icon sits snug before the label (the same 4 px as the
+       Info button), and on a phone the label goes and the button is the 40 px square the tracker and Info buttons are -
+       Material pulls a projected icon 8 px left, which is reset with the label gone. */
+    :host(.bar) { display: contents; }
+    .bar-btn { flex: none; }
+    .bar-btn mat-icon { margin-right: 4px; }
+    .bar-btn.active { border-color: var(--mp-warn-strong); }
+    @media (max-width: 599.98px) {
+      .bar-btn .lbl { display: none; }
+      .bar-btn mat-icon { margin-inline: 0; }
+      .bar-btn { min-width: 40px; width: 40px; padding: 0; }
+    }
     /* theme-exempt: the favourite star over a cover keeps its own amber on the always-dark disc (--mp-warn-strong turns brown in light themes) */
     :host(.overlay) .star-btn.active mat-icon { color: #ffc107; }
     :host(.compact) .star-btn {
@@ -76,6 +108,9 @@ export class StarToggleComponent {
 
   /** Smaller footprint for dense list rows. */
   readonly compact = input<boolean>(false);
+
+  /** 1.48.0: an outlined bar button (label "Favorite", icon only on a phone) for the browse bar, instead of the round icon button. */
+  readonly bar = input<boolean>(false);
 
   /** Absolutely position the star in a cover corner (host becomes display:contents). */
   readonly overlay = input<boolean>(false);

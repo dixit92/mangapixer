@@ -32,8 +32,9 @@ import { MatIconModule } from '@angular/material/icon';
   styles: [`
     :host { display: inline-flex; flex: 0 0 auto; }
     .switch { display: inline-flex; border: 1px solid rgb(var(--mp-ink-rgb) / 0.18); border-radius: 8px; overflow: hidden; }
+    /* 1.48.0: 40 px tall (38 + the border) like the outlined buttons beside it in the browse bar. */
     button {
-      display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; border: 0; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; border: 0; cursor: pointer; min-height: 38px;
       background: transparent; color: var(--mp-text-secondary); font: inherit; font-size: 13px;
     }
     button + button { border-left: 1px solid rgb(var(--mp-ink-rgb) / 0.18); }
