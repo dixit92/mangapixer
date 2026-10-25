@@ -4,6 +4,8 @@ using System.Data.Common;
 using System.Globalization;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
+using com.lifepixer.mangapixer.Core.Reading;
+using com.lifepixer.mangapixer.Server.Features.Auth;
 using com.lifepixer.mangapixer.Server.Features.Covers;
 using com.lifepixer.mangapixer.Server.Features.Home;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Facets;
@@ -412,5 +414,121 @@ public sealed class RecursiveWalkJoinEquivalenceTests : IDisposable
             else
                 Assert.True(row[1] is DBNull, "a folder outside the affected set keeps its value");
         }
+    }
+
+    // ---- 1.48.0 lane A: the viewer dimension, through the SERVICES that run these walks (another library's rows and another user's
+    // marks never reach a viewer).
+
+    private sealed record Viewers(long AdminId, long ReaderId, long GrantedLibrary, long OtherLibrary);
+
+    /// <summary>An admin who has read every archive, and a reader granted the first library only who has read about a third of its archives.</summary>
+    private static async Task<Viewers> ViewersAsync(Seeded s, int seed)
+    {
+        var db = s.Db;
+        var libraries = await db.Libraries.OrderBy(l => l.Id).Select(l => l.Id).ToListAsync();
+        var admin = await VolumeTestData.AddUserAsync(db, "walkadmin", admin: true);
+        var reader = await VolumeTestData.AddUserAsync(db, "walkreader", admin: false);
+        db.LibraryGrants.Add(new LibraryGrantEntity { UserId = reader.Id, LibraryId = libraries[0], GrantedAt = DateTimeOffset.UtcNow });
+        var random = new Random(seed + 1000);
+        var archives = await db.CatalogNodes.Where(n => n.Kind == (int)CatalogNodeKind.Archive).Select(n => new { n.Id, n.LibraryId }).ToListAsync();
+        foreach (var archive in archives)
+        {
+            db.ReadMarks.Add(new ReadMarkEntity { UserId = admin.Id, ItemId = archive.Id, MarkedAt = DateTimeOffset.UtcNow, Source = "manual" });
+            if (archive.LibraryId == libraries[0] && random.NextDouble() < 0.33)
+                db.ReadMarks.Add(new ReadMarkEntity { UserId = reader.Id, ItemId = archive.Id, MarkedAt = DateTimeOffset.UtcNow, Source = "manual" });
+        }
+        await db.SaveChangesAsync();
+        return new Viewers(admin.Id, reader.Id, libraries[0], libraries[1]);
+    }
+
+    /// <summary>The reference rollup of <paramref name="nodeId"/> for <paramref name="userId"/>: the reference walk's readable archives and the user's marks.</summary>
+    private static async Task<string> ReferenceRollupAsync(Seeded s, long nodeId, long userId)
+    {
+        var archives = (await RowsAsync(s.Db, ReadableArchivesReference.Replace("{ids}", nodeId.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)))
+            .Select(r => (long)r[1]).ToList();
+        var read = await s.Db.ReadMarks.CountAsync(m => m.UserId == userId && archives.Contains(m.ItemId));
+        return FolderReadRollupRules.Classify(archives.Count, read, 0) switch
+        {
+            FolderReadRollup.Read => "read",
+            FolderReadRollup.Reading => "reading",
+            _ => "unread",
+        };
+    }
+
+    private static Task<List<long>> MarksAsync(Seeded s, long userId) =>
+        s.Db.ReadMarks.AsNoTracking().Where(m => m.UserId == userId).Select(m => m.ItemId).OrderBy(id => id).ToListAsync();
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(7)]
+    [InlineData(42)]
+    public async Task HomeStacks_ThroughTheService_ShowEachViewerOnlyTheirLibraries_WithTheirOwnReadState(int seed)
+    {
+        var s = await SeedAsync(seed);
+        await using var _ = s.Db;
+        var v = await ViewersAsync(s, seed);
+        var service = new RecentChaptersService(s.Db, new LibraryAuthorizationService(s.Db), stackCache: new HomeStackCache());
+
+        // The admin builds the shared per-library stack sources first; the reader is answered from the same sources.
+        var asAdmin = await service.GetRecentChaptersAsync(v.AdminId, perLibrary: 50);
+        var asReader = await service.GetRecentChaptersAsync(v.ReaderId, perLibrary: 50);
+        var libraries = await s.Db.Libraries.ToDictionaryAsync(l => l.PublicId, l => l.Id);
+        var nodes = await s.Db.CatalogNodes.ToDictionaryAsync(n => n.PublicId, n => (n.Id, n.LibraryId));
+
+        Assert.Equal(2, asAdmin.Libraries.Count);
+        Assert.Equal([v.GrantedLibrary], asReader.Libraries.Select(l => libraries[l.LibraryId]));
+        var readerStacks = asReader.Libraries.Single().Stacks;
+        Assert.NotEmpty(readerStacks);
+        Assert.Equal(asAdmin.Libraries.Single(l => libraries[l.LibraryId] == v.GrantedLibrary).Stacks.Select(x => x.Id), readerStacks.Select(x => x.Id));
+        Assert.All(readerStacks, stack => Assert.Equal(v.GrantedLibrary, nodes[stack.Id].LibraryId));
+
+        // Each viewer's read state is the reference rollup over THEIR marks: the admin read everything, the reader only some.
+        foreach (var (dto, userId) in new[] { (asAdmin, v.AdminId), (asReader, v.ReaderId) })
+        {
+            foreach (var stack in dto.Libraries.SelectMany(l => l.Stacks))
+                Assert.Equal(await ReferenceRollupAsync(s, nodes[stack.Id].Id, userId), stack.ReadState);
+        }
+        Assert.All(asAdmin.Libraries.SelectMany(l => l.Stacks), stack => Assert.Equal("read", stack.ReadState));
+        Assert.Contains(readerStacks, stack => stack.ReadState != "read");
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(7)]
+    [InlineData(42)]
+    public async Task FolderMarkRead_ThroughTheService_WritesOnlyTheCallersRows_AndOnlyInTheirLibrary(int seed)
+    {
+        var s = await SeedAsync(seed);
+        await using var _ = s.Db;
+        var v = await ViewersAsync(s, seed);
+        var service = new ReadingStateService(s.Db, new LibraryAuthorizationService(s.Db));
+        var adminBefore = await MarksAsync(s, v.AdminId);
+        var folders = await s.Db.CatalogNodes.AsNoTracking().Where(n => n.Kind == (int)CatalogNodeKind.Folder).Select(n => new { n.Id, n.LibraryId }).ToListAsync();
+
+        // The other library: refused (null), nothing marked.
+        foreach (var folder in folders.Where(f => f.LibraryId == v.OtherLibrary).Take(6))
+        {
+            var before = await MarksAsync(s, v.ReaderId);
+            Assert.Null(await service.SetFolderReadAsync(v.ReaderId, folder.Id, read: true));
+            Assert.Null(await service.SetFolderReadAsync(v.ReaderId, folder.Id, read: false));
+            Assert.Equal(before, await MarksAsync(s, v.ReaderId));
+        }
+
+        // The granted library: exactly the reference walk's archives are added (then removed) - the reader's rows only.
+        var marked = 0;
+        foreach (var folder in folders.Where(f => f.LibraryId == v.GrantedLibrary).Take(6))
+        {
+            var below = (await RowsAsync(s.Db, DescendantArchivesReference, ("$root", folder.Id))).Select(r => (long)r[0]).ToHashSet();
+            var before = await MarksAsync(s, v.ReaderId);
+            Assert.NotNull(await service.SetFolderReadAsync(v.ReaderId, folder.Id, read: true));
+            Assert.Equal(before.Union(below).Order().ToList(), await MarksAsync(s, v.ReaderId));
+            Assert.NotNull(await service.SetFolderReadAsync(v.ReaderId, folder.Id, read: false));
+            Assert.Equal(before.Where(id => !below.Contains(id)).ToList(), await MarksAsync(s, v.ReaderId));
+            marked += below.Count;
+        }
+        Assert.True(marked > 0);
+        Assert.Equal(adminBefore, await MarksAsync(s, v.AdminId));
+        var otherArchives = await s.Db.CatalogNodes.Where(n => n.LibraryId == v.OtherLibrary).Select(n => n.Id).ToListAsync();
+        Assert.Equal(0, await s.Db.ReadMarks.CountAsync(m => m.UserId == v.ReaderId && otherArchives.Contains(m.ItemId)));
     }
 }

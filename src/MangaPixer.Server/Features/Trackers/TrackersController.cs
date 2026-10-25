@@ -24,7 +24,8 @@ public sealed class TrackersController(
     TrackerListService list,
     TrackerPullService pull,
     TrackerBatchService batch,
-    Catalog.CatalogBrowseService browse) : ControllerBase
+    Catalog.CatalogBrowseService browse,
+    Auth.IncognitoAccessor incognito) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType<TrackersOverviewDto>(StatusCodes.Status200OK)]
@@ -242,7 +243,7 @@ public sealed class TrackersController(
             return Problem(TrackerProblem.Bad("invalid_request", "A library is required."));
         if (ids is { Length: > Catalog.CatalogBrowseService.MaxTrackerMarkIds })
             return Problem(TrackerProblem.Bad("too_many_ids", "Ask for at most 200 cards at a time."));
-        var marks = await browse.TrackerCardMarksAsync(userId, libraryId, parentId, ids ?? [], ct);
+        var marks = await browse.TrackerCardMarksAsync(userId, libraryId, parentId, ids ?? [], incognito.IsIncognito, ct);
         return marks is null ? Problem(TrackerProblem.NotFound("not_found", "There is no such library or folder.")) : Ok(marks);
     }
 

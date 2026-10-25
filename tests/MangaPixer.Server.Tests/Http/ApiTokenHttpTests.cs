@@ -2,7 +2,6 @@ namespace com.lifepixer.mangapixer.Tests.Server.Http;
 
 using System.Net;
 using System.Net.Http.Json;
-using System.Text;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Server.Features.Export;
 using com.lifepixer.mangapixer.Server.Persistence;
@@ -11,7 +10,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -187,19 +185,19 @@ public sealed class ApiTokenHttpTests
         var anonymous = factory.CreateClient();
         var bearer = factory.BearerClient(created.Secret);
 
-        var endpoints = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>().ToList();
+        var endpoints = AccessSweepSupport.Endpoints(factory.Services);
         var checkedRequests = 0;
         var mismatches = new List<string>();
         foreach (var endpoint in endpoints)
         {
-            var url = "/" + Concrete(endpoint.RoutePattern);
+            var url = "/" + AccessSweepSupport.Concrete(endpoint.RoutePattern);
             if (url.StartsWith("/" + ExportApi.RoutePrefix + "/", StringComparison.OrdinalIgnoreCase))
                 continue;
             var methods = endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods ?? ["GET"];
             foreach (var method in methods)
             {
-                var expected = await anonymous.SendAsync(Request(method, url));
-                var actual = await bearer.SendAsync(Request(method, url));
+                var expected = await anonymous.SendAsync(AccessSweepSupport.Request(method, url));
+                var actual = await bearer.SendAsync(AccessSweepSupport.Request(method, url));
                 checkedRequests++;
                 if (expected.StatusCode != actual.StatusCode)
                     mismatches.Add($"{method} {url}: {(int)expected.StatusCode} without credentials, {(int)actual.StatusCode} with a token");
@@ -231,7 +229,7 @@ public sealed class ApiTokenHttpTests
         var anonymous = factory.CreateClient();
         var bearer = factory.BearerClient(created.Secret);
 
-        var endpoints = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>().ToList();
+        var endpoints = AccessSweepSupport.Endpoints(factory.Services);
         static bool IsSafe(string method) => HttpMethods.IsGet(method) || HttpMethods.IsHead(method);
         static string Key(string method, RouteEndpoint e) => method + " " + e.RoutePattern.RawText?.TrimStart('/');
         static bool UnderExport(RouteEndpoint e) =>
@@ -263,13 +261,13 @@ public sealed class ApiTokenHttpTests
         var mismatches = new List<string>();
         foreach (var endpoint in endpoints)
         {
-            var url = "/" + Concrete(endpoint.RoutePattern);
+            var url = "/" + AccessSweepSupport.Concrete(endpoint.RoutePattern);
             foreach (var method in MethodsOf(endpoint))
             {
                 if (TokenWriteAllowlist.Contains(Key(method, endpoint)) || (UnderExport(endpoint) && IsSafe(method)))
                     continue;
-                var expected = await anonymous.SendAsync(Request(method, url));
-                var actual = await bearer.SendAsync(Request(method, url));
+                var expected = await anonymous.SendAsync(AccessSweepSupport.Request(method, url));
+                var actual = await bearer.SendAsync(AccessSweepSupport.Request(method, url));
                 checkedRequests++;
                 if (expected.StatusCode != actual.StatusCode)
                     mismatches.Add($"{method} {url}: {(int)expected.StatusCode} without credentials, {(int)actual.StatusCode} with a token");
@@ -329,7 +327,7 @@ public sealed class ApiTokenHttpTests
         var created = await factory.CreateTokenAsync(scopes: ExportApi.KnownScopes);
         var bearer = factory.BearerClient(created.Secret);
 
-        var endpoints = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>()
+        var endpoints = AccessSweepSupport.Endpoints(factory.Services)
             .Where(e => (e.RoutePattern.RawText?.TrimStart('/') ?? string.Empty) is var raw
                 && (raw.StartsWith("api/v1/trackers", StringComparison.OrdinalIgnoreCase) || raw.StartsWith("api/v1/admin/trackers", StringComparison.OrdinalIgnoreCase)))
             .ToList();
@@ -346,16 +344,10 @@ public sealed class ApiTokenHttpTests
             Assert.Null(endpoint.Metadata.GetMetadata<TokenWriteAllowedAttribute>());
             Assert.Null(endpoint.Metadata.GetMetadata<IgnoreAntiforgeryTokenAttribute>());
             Assert.Null(endpoint.Metadata.GetMetadata<IAllowAnonymous>());
-            var url = "/" + string.Join("/", endpoint.RoutePattern.PathSegments.Select(segment => string.Concat(segment.Parts.Select(part => part switch
-            {
-                RoutePatternLiteralPart literal => literal.Content,
-                RoutePatternParameterPart { Name: "slug" } => "mal",
-                RoutePatternParameterPart => "1",
-                _ => string.Empty,
-            }))));
+            var url = "/" + AccessSweepSupport.Concrete(endpoint.RoutePattern, name => name == "slug" ? "mal" : "1");
             foreach (var method in MethodsOf(endpoint))
             {
-                var response = await bearer.SendAsync(Request(method, url));
+                var response = await bearer.SendAsync(AccessSweepSupport.Request(method, url));
                 Assert.True(response.StatusCode == HttpStatusCode.Unauthorized, $"{method} {url}: {(int)response.StatusCode} with a token");
             }
         }
@@ -567,26 +559,5 @@ public sealed class ApiTokenHttpTests
         // Nothing left to clear: still 200, zero removed.
         var again = await admin.PostAsync("/api/v1/admin/tokens/clear-revoked", null);
         Assert.Equal(0, (await again.Content.ReadFromJsonAsync<ClearApiTokensResponse>(TestJson.Web))!.Removed);
-    }
-
-    /// <summary>The route pattern with every parameter filled with a placeholder.</summary>
-    private static string Concrete(RoutePattern pattern)
-    {
-        var segments = pattern.PathSegments.Select(segment => string.Concat(segment.Parts.Select(part => part switch
-        {
-            RoutePatternLiteralPart literal => literal.Content,
-            RoutePatternSeparatorPart separator => separator.Content,
-            RoutePatternParameterPart => "1",
-            _ => string.Empty,
-        })));
-        return string.Join("/", segments);
-    }
-
-    private static HttpRequestMessage Request(string method, string url)
-    {
-        var request = new HttpRequestMessage(new HttpMethod(method), url);
-        if (method is not ("GET" or "HEAD" or "DELETE" or "OPTIONS"))
-            request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
-        return request;
     }
 }

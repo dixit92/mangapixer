@@ -23,15 +23,18 @@ public sealed class JumpIndexController : ControllerBase
     private readonly JumpIndexService _jumpIndexService;
     private readonly CatalogIdResolver _idResolver;
     private readonly ILogger<JumpIndexController> _logger;
+    private readonly Auth.IncognitoAccessor _incognito;
 
     public JumpIndexController(
         JumpIndexService jumpIndexService,
         CatalogIdResolver idResolver,
-        ILogger<JumpIndexController> logger)
+        ILogger<JumpIndexController> logger,
+        Auth.IncognitoAccessor incognito)
     {
         _jumpIndexService = jumpIndexService;
         _idResolver = idResolver;
         _logger = logger;
+        _incognito = incognito;
     }
 
     /// <summary>
@@ -66,7 +69,7 @@ public sealed class JumpIndexController : ControllerBase
         }
 
         var descending = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase);
-        var result = await _jumpIndexService.GetJumpIndexAsync(userId.Value, library.Id, parentIdLong, descending, group, ct);
+        var result = await _jumpIndexService.GetJumpIndexAsync(userId.Value, library.Id, parentIdLong, descending, group, _incognito.IsIncognito, ct);
 
         // Re-stamp the public id so the DTO carries the caller-facing id even
         // when the level had no rows (or the Volumes view hid the rail).
