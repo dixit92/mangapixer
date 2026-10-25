@@ -21,14 +21,17 @@ public sealed class ReadingController : ControllerBase
     private readonly ReaderModeResolver _modeResolver;
     private readonly IncognitoAccessor _incognito;
     private readonly ILogger<ReadingController> _logger;
+    private readonly LibraryAuthorizationService _auth;
 
     public ReadingController(
         ReadingStateService stateService,
         CatalogIdResolver idResolver,
         ReaderModeResolver modeResolver,
         IncognitoAccessor incognito,
-        ILogger<ReadingController> logger)
+        ILogger<ReadingController> logger,
+        LibraryAuthorizationService auth)
     {
+        _auth = auth;
         _stateService = stateService;
         _idResolver = idResolver;
         _modeResolver = modeResolver;
@@ -48,6 +51,10 @@ public sealed class ReadingController : ControllerBase
 
         var node = await _idResolver.ResolveNodeAsync(itemId, ct);
         if (node is null) return NotFound();
+
+        // 1.48.0 (lane A, a leak the access sweep found): an item in a library the caller cannot open answers like an unknown one - its
+        // folder / library default reader mode is that library's data. Accessible, not visible: a direct reader URL works under Incognito.
+        if (!await _auth.CanAccessItemAsync(userId.Value, node.Id, ct)) return NotFound();
 
         var mode = await _modeResolver.ResolveAsync(userId.Value, node, ct);
         return Ok(new EffectiveReaderModeDto { ReaderMode = mode });
