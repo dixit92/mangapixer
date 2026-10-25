@@ -130,6 +130,7 @@ public sealed class LibraryAccessSweepHttpTests
         ["GET api/v1/items/{itemId}/pages/{entryKey}"] = "pages need an archive the media worker analysed; HTTP hosts run no worker (process tests cover pages)",
         ["GET api/v1/items/{itemId}/pages/{entryKey}/thumbnail"] = "as pages: no analysed archive without the worker",
         ["GET api/v1/nodes/{nodeId}/series-info/image"] = "no stored series image in the sweep's seed (SeriesInfoImage HTTP tests)",
+        ["DELETE api/v1/nodes/{nodeId}/favorite"] = "idempotent: 204 whether or not the star exists; the caller's own U star may go (RowChanges)",
         ["PUT api/v1/trackers/{slug}/entries/{seriesId}/dates"] = "only MyAnimeList keeps dates; the sweep connects MangaUpdates, refused before the series is read (TrackerRowDatesTests)",
     };
 
@@ -225,8 +226,8 @@ public sealed class LibraryAccessSweepHttpTests
         problems.AddRange(others.Where(k => !Excluded.ContainsKey(k) && !BodyIdRoutes.Contains(k)).Select(k => "write route not classified: " + k));
         problems.AddRange(Excluded.Keys.Concat(BodyIdRoutes).Where(k => !others.Contains(k)).Select(k => "classified route that does not exist: " + k));
         Assert.True(problems.Count == 0, string.Join("\n", problems));
-        // The audit's census at 1.47.0: 102 non-admin (method, route) pairs, 70 of them with a parameter.
-        Assert.True(idRoutes.Count + listings.Count + others.Count >= 95, $"only {idRoutes.Count + listings.Count + others.Count} routes classified");
+        // 1.48.0: 93 classified (56 id routes, 19 lists, 18 writes without ids); the audit's static census counted 102 incl. the export.
+        Assert.True(idRoutes.Count + listings.Count + others.Count >= 93, $"only {idRoutes.Count + listings.Count + others.Count} routes classified");
     }
 
     [Fact]
@@ -264,11 +265,15 @@ public sealed class LibraryAccessSweepHttpTests
                 codes[dimension] = (int)response.StatusCode;
                 // A listing's control must list something of G (an id it was not sent): an empty control would prove nothing about U / P.
                 if (dimension == Dimension.Control && IdRoutes.GetValueOrDefault(key)?.HiddenUnderIncognito == true
-                    && !w.G.AllIds.Any(id => !url.Contains(id, StringComparison.OrdinalIgnoreCase) && text.Contains(id, StringComparison.OrdinalIgnoreCase)))
+                    && !w.G.AllIds.Except([w.G.PublicId, w.G.SeriesPublicId, w.G.ArtistPublicId]).Any(id => text.Contains(id, StringComparison.OrdinalIgnoreCase)))
                     failures.Add($"{key}: the granted control lists nothing of G - the sweep proves nothing for it");
                 if ((int)response.StatusCode >= 500)
                     failures.Add($"{key} [{dimension}] {url}: {(int)response.StatusCode}");
-                foreach (var leak in Leaks(w, text, dimension, IdRoutes.GetValueOrDefault(key), url + " " + body))
+                // A hidden listing may echo the library / folder it was asked about, nothing else of P - not even the card ids it was sent.
+                var request = dimension == Dimension.Private && IdRoutes.GetValueOrDefault(key)?.HiddenUnderIncognito == true
+                    ? string.Join(" ", w.P.PublicId, w.P.SeriesPublicId, w.P.ArtistPublicId)
+                    : url + " " + body;
+                foreach (var leak in Leaks(w, text, dimension, IdRoutes.GetValueOrDefault(key), request))
                 {
                     failures.Add($"LEAK {key} [{dimension}] {url}: {(int)response.StatusCode} names {leak}");
                     notes.Append(CultureInfo.InvariantCulture, $" leak[{dimension}]={leak}");
@@ -445,13 +450,16 @@ public sealed class LibraryAccessSweepHttpTests
     {
         var lib = name == "libraryId" && dimension == Dimension.Mixed ? w.G : w.Of(dimension == Dimension.Mixed ? Dimension.Ungranted : dimension);
         var stacks = route.Contains("/collection-stacks/", StringComparison.Ordinal);
+        var flat = route.EndsWith("/jump-index", StringComparison.Ordinal) || route.EndsWith("/card-marks", StringComparison.Ordinal);
         switch (name)
         {
             case "libraryId": return lib.PublicId;
             case "nodeId": return stacks ? lib.ArtistPublicId : lib.SeriesPublicId;
-            case "parentId": return lib.SeriesPublicId;
+            // The jump rail and the rings read a folder in the name sort: the artist's folder (the linked series opens in the Volumes view,
+            // where the rail is empty by design - the control would prove nothing).
+            case "parentId": return flat ? lib.ArtistPublicId : lib.SeriesPublicId;
             case "itemId": return lib.Chapters[0].PublicId;
-            case "ids": return lib.Chapters[0].PublicId;
+            case "ids": return flat ? lib.Stories[0].PublicId : lib.Chapters[0].PublicId;
             case "entryKey": return OpaqueId.Encode(0);
             case "key": return stacks ? lib.TankPublicId : "1";
             case "bucket": return "creator";
