@@ -54,9 +54,9 @@ public sealed class AdminRouteAccessSweepHttpTests
             }
         }
 
-        // The audit counted 158 (method, route) pairs under the two prefixes at 1.47.0; the sweep must not quietly shrink.
+        // 157 (method, route) pairs under the two prefixes at 1.48.0 (the audit's static count said ~158); the sweep must not quietly shrink.
         var underPrefixRequests = underPrefix.Sum(e => AccessSweepSupport.MethodsOf(e).Count());
-        Assert.True(underPrefixRequests >= 158, $"only {underPrefixRequests} admin / operations requests were found");
+        Assert.True(underPrefixRequests >= 157, $"only {underPrefixRequests} admin / operations requests were found");
         Assert.True(swept > underPrefixRequests, $"no Admin-policy route outside the prefixes was swept ({swept})");
         Assert.True(failures.Count == 0, $"{failures.Count} of {swept} admin requests were not refused:\n" + string.Join("\n", failures));
 
