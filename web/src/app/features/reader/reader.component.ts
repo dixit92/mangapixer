@@ -759,11 +759,11 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     /* Webtoon tap-to-scroll legend (1.48.0): full-height 20 % side edges around a centre column holding a 15 % back
        band, the toggle area and a 15 % forward band (the same fractions as webtoon-nav.service.ts). */
     .help-zones.vertical > .help-zone.side {
-      flex: 0 0 20%; justify-content: center; padding: 0 4px; font-size: 13px;
+      flex: 0 0 20%; padding: 14vh 4px 0; font-size: 13px; /* labels sit high so the card below the toggle label never covers them */
     }
     .help-col { flex: 1 1 0; display: flex; flex-direction: column; min-width: 0; }
     .help-zone.band {
-      flex: 1 1 0; justify-content: center; padding: 0 8px;
+      box-sizing: border-box; flex: 1 1 0; justify-content: center; padding: 0 8px;
       border-block: 1px dashed color-mix(in srgb, var(--mp-on-scrim) 35%, transparent);
       background: rgb(var(--mp-accent-strong-rgb) / 0.22);
     }
@@ -772,7 +772,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     .help-zone.band.bottom { justify-content: flex-start; padding-top: 4px; gap: 4px; }
     .help-zone.band.top mat-icon, .help-zone.band.bottom mat-icon { font-size: 28px; width: 28px; height: 28px; }
     /* Vertical help: the card sits under the toggle label (not over the bottom band's label), as wide as its text allows. */
-    .help-overlay.webtoon .help-panel { bottom: auto; top: calc(15% + 104px); width: max-content; }
+    .help-overlay.webtoon .help-panel { bottom: auto; top: calc(15% + 104px); width: max-content; box-sizing: border-box; }
     /* Full-width swipe legend across the middle of the surface. */
     .help-swipe {
       position: absolute; left: 6%; right: 6%; top: 38%; z-index: 1; pointer-events: none;
