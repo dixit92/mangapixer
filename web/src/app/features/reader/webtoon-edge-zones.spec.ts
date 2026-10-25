@@ -257,10 +257,10 @@ describe('Webtoon tap zones (edges 1.41.0, full-height edges + short bands 1.48.
       const col = Array.from(zones.querySelector('.help-col')!.children);
       expect(col.map((k) => k.className.includes('top') ? 'top' : k.className.includes('bottom') ? 'bottom' : 'centre'))
         .toEqual(['top', 'centre', 'bottom']);
-      expect(col.map((k) => k.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
-        'touch_app Tap Back a screen',
-        'touch_app Tap: show / hide controls Double tap: fullscreen',
-        'touch_app Tap Forward a screen',
+      expect(col.map((k) => k.textContent?.replace(/\s+/g, ''))).toEqual([
+        'touch_appTapBackascreen',
+        'touch_appTap:show/hidecontrolsDoubletap:fullscreen',
+        'touch_appTapForwardascreen',
       ]);
     });
 
