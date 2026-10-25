@@ -119,6 +119,20 @@ describe('CollectionStackViewComponent', () => {
     expect(msg.querySelector('a')!.getAttribute('href')).toBe('/libraries/lib1/browse/f1');
   });
 
+  it('uses this device\'s own list columns over the server value, and sends them (not the stale ones) when the view mode is saved (1.48.0)', () => {
+    localStorage.setItem('mangapixer-list-columns', '3'); // the server blob says 2
+    const { el, fixture, apiSpy } = setup(stack(), { viewMode: 'card' });
+    expect((el.querySelector('[data-testid="stack-slots"]') as HTMLElement).style.getPropertyValue('--list-columns')).toBe('3');
+    (el.querySelector('[data-testid="stack-view-list"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(apiSpy.setLibraryPreferences.mock.calls.at(-1)![0]).toMatchObject({ stackViewMode: 'list', listColumns: 3 });
+  });
+
+  it('seeds a device without list columns from the server value (1.48.0)', () => {
+    setup(stack(), { viewMode: 'card' });
+    expect(localStorage.getItem('mangapixer-list-columns')).toBe('2');
+  });
+
   it('shows the stories as the shared list rows in List view', () => {
     const { el } = setup(stack(), { viewMode: 'list' });
 

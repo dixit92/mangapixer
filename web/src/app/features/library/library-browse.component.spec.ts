@@ -465,6 +465,81 @@ describe('LibraryBrowseComponent list columns', () => {
 });
 
 /**
+ * Per-device card size and list columns (1.48.0): this device's copy wins over the per-user server value, a device without a
+ * copy is seeded from it, a change goes to the device AND the server, and no PUT carries a stale size over the device value.
+ */
+describe('LibraryBrowseComponent per-device display', () => {
+  function setup(prefs: Partial<LibraryViewPreferencesDto>) {
+    const fullPrefs = { viewMode: 'card', density: 'comfortable', sort: 'name', ...prefs } as LibraryViewPreferencesDto;
+    const emptyPage: PageResponse<CatalogNodeDto> = { items: [], totalCount: 0, nextCursor: null, hasMore: false };
+    const setLibraryPreferences = vi.fn().mockReturnValue(of(undefined));
+    const apiSpy = {
+      getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
+      getLibraryPreferences: vi.fn().mockReturnValue(of(fullPrefs)),
+      setLibraryPreferences,
+      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'Test Lib', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
+      browseLibrary: vi.fn().mockReturnValue(of(emptyPage)),
+      getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
+      getNode: vi.fn().mockReturnValue(of({} as CatalogNodeDto)),
+    };
+    TestBed.configureTestingModule({
+      imports: [LibraryBrowseComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ApiService, useValue: apiSpy },
+        { provide: AuthService, useValue: { isAdmin: () => false } },
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: (k: string) => (k === 'libraryId' ? 'lib1' : null) }) } },
+      ],
+    });
+    const fixture = TestBed.createComponent(LibraryBrowseComponent);
+    fixture.detectChanges();
+    return { fixture, comp: fixture.componentInstance, setLibraryPreferences };
+  }
+
+  it('uses this device\'s own card size and columns over the server values', () => {
+    localStorage.setItem('mangapixer-card-size', '130');
+    localStorage.setItem('mangapixer-list-columns', '1');
+    const { comp, fixture } = setup({ cardSize: '240', listColumns: 3 });
+    expect(comp.cardSize()).toBe(130);
+    expect(comp.listColumns()).toBe(1);
+    expect((fixture.nativeElement.querySelector('.nodes') as HTMLElement).style.getPropertyValue('--card-size')).toBe('130px');
+  });
+
+  it('seeds a device without a copy from the server value and keeps it on the device', () => {
+    const { comp } = setup({ cardSize: '240', listColumns: 3 });
+    expect(comp.cardSize()).toBe(240);
+    expect(localStorage.getItem('mangapixer-card-size')).toBe('240');
+    expect(localStorage.getItem('mangapixer-list-columns')).toBe('3');
+  });
+
+  it('a sort change sends this device\'s values, not the stale ones the server blob carried', () => {
+    localStorage.setItem('mangapixer-card-size', '130');
+    localStorage.setItem('mangapixer-list-columns', '1');
+    const { comp, setLibraryPreferences } = setup({ cardSize: '240', listColumns: 3, homeRecentWindowDays: 9 });
+    comp.setSort('recentlyAdded');
+    expect(setLibraryPreferences).toHaveBeenCalledWith(
+      expect.objectContaining({ sort: 'recentlyAdded', cardSize: '130', listColumns: 1, homeRecentWindowDays: 9 }));
+  });
+
+  it('a card size change is kept on the device and saved to the server', () => {
+    const { comp, setLibraryPreferences } = setup({ cardSize: '240' });
+    comp.setCardSize(180);
+    expect(localStorage.getItem('mangapixer-card-size')).toBe('180');
+    expect(setLibraryPreferences).toHaveBeenLastCalledWith(expect.objectContaining({ cardSize: '180' }));
+  });
+
+  it('a list columns change is kept on the device and saved to the server', () => {
+    const { comp, setLibraryPreferences } = setup({ viewMode: 'list', listColumns: 3 });
+    comp.setListColumns(1);
+    expect(localStorage.getItem('mangapixer-list-columns')).toBe('1');
+    expect(setLibraryPreferences).toHaveBeenLastCalledWith(expect.objectContaining({ listColumns: 1 }));
+  });
+});
+
+/**
  * Mark-unread (1.9.0). Clearing the sticky read-mark is now a deliberate FULL RESET
  * server-side (DELETE .../read wipes both the mark and the reading position), so the
  * browse mark-unread path no longer issues a separate resetProgress call (rule 6
