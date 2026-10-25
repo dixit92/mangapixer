@@ -80,6 +80,12 @@ public sealed class LibraryAccessSweepHttpTests
         "PUT api/v1/trackers/sync-overrides",
     ];
 
+    /// <summary>Lists that name the caller's Private library itself (its id, never its content) under Incognito, by design.</summary>
+    private static readonly Dictionary<string, string> IncognitoMayNameItsLibrary = new(StringComparer.Ordinal)
+    {
+        ["/api/v1/reading/private-libraries"] = "the caller's own Private set (the Settings page edits it under Incognito too)",
+    };
+
     private enum Dimension
     {
         Control,
@@ -96,8 +102,13 @@ public sealed class LibraryAccessSweepHttpTests
         public long ReaderBookmarkId { get; set; }
         public long AdminBookmarkId { get; set; }
 
-        /// <summary>The library's ids never sent as a parameter: an answer that names one learnt it from the library itself.</summary>
-        public IEnumerable<string> UnrequestedIds => [Chapters[2].PublicId, Chapters[3].PublicId, Stories[0].PublicId, Stories[1].PublicId];
+        /// <summary>
+        /// Every public id of the library (the library, its nodes, its records). An answer that names one the request did not send learnt
+        /// it from the library itself (1.48.0 integrator note: the jump rail of a Private library under Incognito named its node ids -
+        /// node ids, not names, so the word canary alone missed it).
+        /// </summary>
+        public IEnumerable<string> AllIds =>
+            [PublicId, SeriesPublicId, ArtistPublicId, .. Chapters.Select(c => c.PublicId), .. Stories.Select(c => c.PublicId), RecordPublicId, TankPublicId];
     }
 
     private sealed record World(TrackerTestHarness H, HttpClient Admin, AccessReader Reader, Lib G, Lib U, Lib P)
@@ -159,7 +170,7 @@ public sealed class LibraryAccessSweepHttpTests
                 codes[dimension] = (int)response.StatusCode;
                 if ((int)response.StatusCode >= 500)
                     failures.Add($"{key} [{dimension}] {url}: {(int)response.StatusCode}");
-                foreach (var leak in Leaks(w, text, dimension, IdRoutes.GetValueOrDefault(key)))
+                foreach (var leak in Leaks(w, text, dimension, IdRoutes.GetValueOrDefault(key), url + " " + body))
                 {
                     failures.Add($"LEAK {key} [{dimension}] {url}: {(int)response.StatusCode} names {leak}");
                     notes.Append(CultureInfo.InvariantCulture, $" leak[{dimension}]={leak}");
@@ -207,7 +218,8 @@ public sealed class LibraryAccessSweepHttpTests
                 var text = await response.Content.ReadAsStringAsync();
                 if ((int)response.StatusCode >= 500)
                     failures.Add($"GET {url} (Incognito {incognito}): {(int)response.StatusCode}");
-                foreach (var leak in Leaks(w, text, incognito ? Dimension.Private : Dimension.Control, Answer(0, 0, 0, hidden: true)))
+                foreach (var leak in Leaks(w, text, incognito ? Dimension.Private : Dimension.Control, Answer(0, 0, 0, hidden: true),
+                             IncognitoMayNameItsLibrary.ContainsKey(url) ? url + " " + w.P.PublicId : url))
                     failures.Add($"LEAK GET {url} (Incognito {incognito}): {(int)response.StatusCode} names {leak}");
                 bodies[(incognito ? "I " : "N ") + url] = text;
             }
@@ -360,17 +372,28 @@ public sealed class LibraryAccessSweepHttpTests
 
     private static StringContent Json(string json) => new(json, Encoding.UTF8, "application/json");
 
-    /// <summary>What an answer must not name: U's canary and unrequested ids always; P's under Incognito where P is hidden.</summary>
-    private static IEnumerable<string> Leaks(World w, string text, Dimension dimension, Expect? expect)
+    /// <summary>
+    /// What an answer must not name: U's word and any U id the request did not send, always; P's word and any P id the request did not
+    /// send, under Incognito where P is documented hidden.
+    /// </summary>
+    private static IEnumerable<string> Leaks(World w, string text, Dimension dimension, Expect? expect, string request)
     {
-        foreach (var id in w.U.UnrequestedIds.Prepend(HiddenWord))
+        if (text.Contains(HiddenWord, StringComparison.OrdinalIgnoreCase))
+            yield return "the ungranted library's content";
+        foreach (var id in w.U.AllIds.Where(id => !request.Contains(id, StringComparison.OrdinalIgnoreCase)))
         {
             if (text.Contains(id, StringComparison.OrdinalIgnoreCase))
-                yield return id == HiddenWord ? "the ungranted library's content" : "an ungranted node id";
+                yield return "an ungranted id (" + id + ")";
         }
-        if (dimension == Dimension.Private && (expect?.HiddenUnderIncognito ?? true)
-            && text.Contains(PrivateWord, StringComparison.OrdinalIgnoreCase))
+        if (dimension != Dimension.Private || !(expect?.HiddenUnderIncognito ?? true))
+            yield break;
+        if (text.Contains(PrivateWord, StringComparison.OrdinalIgnoreCase))
             yield return "the Private library's content under Incognito";
+        foreach (var id in w.P.AllIds.Where(id => !request.Contains(id, StringComparison.OrdinalIgnoreCase)))
+        {
+            if (text.Contains(id, StringComparison.OrdinalIgnoreCase))
+                yield return "a Private library id under Incognito (" + id + ")";
+        }
     }
 
     /// <summary>Every row of anyone's that points into <paramref name="lib"/> (reading state, favourites, flags, tracker state), as text.</summary>
