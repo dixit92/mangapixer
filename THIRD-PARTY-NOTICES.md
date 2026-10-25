@@ -84,7 +84,7 @@ The ASP.NET Core and .NET runtime assemblies themselves come from the base image
 - `Serilog.Sinks.Console` - 6.1.1 - Apache-2.0 - https://github.com/serilog/serilog-sinks-console
 - `Serilog.Sinks.File` - 7.0.0 - Apache-2.0 - https://github.com/serilog/serilog-sinks-file
 - `Serilog` - 4.3.0 - Apache-2.0 - https://github.com/serilog/serilog
-- `SharpCompress` - 0.50.6 - MIT - https://github.com/adamhathcock/sharpcompress
+- `SharpCompress` - 0.50.7 - MIT - https://github.com/adamhathcock/sharpcompress
 - `SQLite` - 3.53.4 - blessing (SQLite public-domain dedication; the nuspec has no SPDX expression and points to https://sqlite.org/copyright.html) - https://sqlite.org/
 - `SQLitePCLRaw.bundle_e_sqlite3` - 3.0.5 - Apache-2.0 - https://github.com/ericsink/SQLitePCL.raw
 - `SQLitePCLRaw.config.e_sqlite3` - 3.0.5 - Apache-2.0 - https://github.com/ericsink/SQLitePCL.raw
