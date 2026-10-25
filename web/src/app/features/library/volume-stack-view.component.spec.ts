@@ -13,6 +13,9 @@ import { VolumeStackViewComponent } from './volume-stack-view.component';
 import { ApiService } from '../../core/api/api.service';
 import { CatalogNodeDto, VolumeSlotDto, VolumeStackDto } from '../../core/api/api-types';
 
+// Card size and list columns are per-device (localStorage, 1.48.0): every test starts on a device with no copy.
+beforeEach(() => localStorage.clear());
+
 /**
  * The stack view (1.29.0): header, counts, source line, ordered slots with placeholders, previous / next volume. 1.30.0: the
  * viewer's Card / List preference, and the browse Select mode (tap, range, the shared selection bar with mark read / unread and

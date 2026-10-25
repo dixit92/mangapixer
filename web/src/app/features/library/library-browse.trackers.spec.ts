@@ -15,6 +15,9 @@ import { TrackerStateService } from '../trackers/tracker-state.service';
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { seriesRow, summary, trackerAccount } from '../trackers/trackers.testing';
 
+// Card size and list columns are per-device (localStorage, 1.48.0): every test starts on a device with no copy.
+beforeEach(() => localStorage.clear());
+
 /**
  * Tracker sync in the folder browse (1.43.0 owner redesign): the card mark C - a gold strip on the top edge of a cover the user's
  * tracker counts as read (`trackerRead`), in card and list mode, never on the others - and the series header's gold "Tracking"

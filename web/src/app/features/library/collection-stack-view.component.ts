@@ -6,6 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { catchError, forkJoin, of } from 'rxjs';
 
+import { DeviceDisplayPreferencesService } from '../../core/preferences/device-display-preferences.service';
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { FavoritesStateService } from '../../core/favorites/favorites-state.service';
@@ -265,7 +266,9 @@ export class CollectionStackViewComponent implements OnInit {
   /** Card or List: this page shares the volume stack page's own choice (`stackViewMode`), else the browse preference. */
   readonly viewMode = signal<LibraryViewMode>('card');
   private prefs: LibraryViewPreferencesDto | null = null;
-  readonly listColumns = signal(2);
+  /** The list columns are a per-DEVICE setting (1.48.0): this device's copy, seeded once from the per-user preference. */
+  private readonly display = inject(DeviceDisplayPreferencesService);
+  readonly listColumns = this.display.listColumns;
 
   /** The stories, in folder order: what can be selected. */
   readonly items = computed<CatalogNodeDto[]>(() => this.stack()?.items ?? []);
@@ -300,7 +303,7 @@ export class CollectionStackViewComponent implements OnInit {
     this.viewMode.set(mode);
     if (!this.prefs) return;
     this.prefs = { ...this.prefs, stackViewMode: mode };
-    this.api.setLibraryPreferences(this.prefs).subscribe({ error: () => { /* non-fatal: the choice still applies this visit */ } });
+    this.api.setLibraryPreferences(this.display.stamp(this.prefs)).subscribe({ error: () => { /* non-fatal: the choice still applies this visit */ } });
   }
 
   ngOnInit(): void {
@@ -309,8 +312,7 @@ export class CollectionStackViewComponent implements OnInit {
       this.prefs = p;
       const mode = p.stackViewMode === 'card' || p.stackViewMode === 'list' ? p.stackViewMode : p.viewMode;
       this.viewMode.set(mode === 'list' ? 'list' : 'card');
-      const columns = Number(p.listColumns);
-      if (Number.isInteger(columns) && columns >= 1 && columns <= 3) this.listColumns.set(columns);
+      this.display.seedFrom(p);
     });
 
     this.route.paramMap.subscribe((params) => {

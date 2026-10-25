@@ -14,6 +14,9 @@ import { ApiService } from '../../core/api/api.service';
 import { CatalogNodeDto, CollectionStackDto } from '../../core/api/api-types';
 import { storiesLabel } from '../../shared/volume-stack/stories-label';
 
+// Card size and list columns are per-device (localStorage, 1.48.0): every test starts on a device with no copy.
+beforeEach(() => localStorage.clear());
+
 /**
  * The stack view of stories collected in one volume (1.37.0, tankoubon stacks): header (cover, title, "N stories"), the REAL folder in
  * the breadcrumbs, the stories in folder order with no volume / missing marks, previous / next stack, the Card / List choice and the

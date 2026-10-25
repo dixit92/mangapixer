@@ -12,6 +12,9 @@ import { MatSelectChange } from '@angular/material/select';
 import { SettingsComponent } from './settings.component';
 import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series-info-hover-preference.service';
 
+// Card size and list columns are per-device (localStorage, 1.48.0): every test starts on a device with no copy.
+beforeEach(() => localStorage.clear());
+
 function checkboxChange(checked: boolean): MatCheckboxChange {
   return { checked } as MatCheckboxChange;
 }

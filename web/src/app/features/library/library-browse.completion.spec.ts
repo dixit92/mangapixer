@@ -13,6 +13,9 @@ import { AuthService } from '../../core/auth/auth.service';
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { BrowseCompletionCountsDto, CatalogNodeDto, JumpIndexBucketDto, LibraryViewPreferencesDto, PageResponse } from '../../core/api/api-types';
 
+// Card size and list columns are per-device (localStorage, 1.48.0): every test starts on a device with no copy.
+beforeEach(() => localStorage.clear());
+
 /**
  * The library Filter menu's Completion section (1.44.0, lane C): shown only where the level holds linked series, sends the `completion`
  * browse param (the 13th `browseLibrary` argument), reloads from the top, labels the button, hides the jump rail while it applies,

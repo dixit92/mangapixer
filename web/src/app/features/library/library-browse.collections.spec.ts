@@ -12,6 +12,9 @@ import { AuthService } from '../../core/auth/auth.service';
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { CatalogNodeDto, CollectionStackDto, PageResponse, VolumeViewDto } from '../../core/api/api-types';
 
+// Card size and list columns are per-device (localStorage, 1.48.0): every test starts on a device with no copy.
+beforeEach(() => localStorage.clear());
+
 /**
  * Tankoubon stacks in browse (1.37.0): in a folder that is neither a series nor a collection, the stories linked to one collected
  * volume come as ONE stack card (`kind: 'VolumeStack'` with `collectionStack`) - the shared stacked card without volume badges, "N

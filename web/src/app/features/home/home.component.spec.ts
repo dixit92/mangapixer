@@ -15,6 +15,9 @@ import { ContinueReadingEntry, LibraryViewPreferencesDto, RecentChaptersDto } fr
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { MetadataStateService } from '../metadata/metadata-state.service';
 
+// Card size and list columns are per-device (localStorage, 1.48.0): every test starts on a device with no copy.
+beforeEach(() => localStorage.clear());
+
 /**
  * Home page tests. The library sidebar was promoted to the app shell, so home is
  * the consolidated continue-reading row, the New chapters row - STACKED cards per
