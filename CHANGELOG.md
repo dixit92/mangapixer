@@ -11,9 +11,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Reading state on favorites.** Archive cards carry **Read** / **Reading**, and a favorite folder - and a stack of favorites - carries Read or Reading for the whole folder, on the Favorites page and on the home Favorites row.
 - **Home Favorites row:** its cards carry the (i) with the series summary on hover, and a star (turning it off takes the card out of the row).
 - **Favorite a folder from inside it.** A star in a folder's top bar, right after **Info**, stars the folder you are viewing (icon only on a phone).
+- **Settings > Library display:** the card size and list columns sliders, with a note that they apply to this device only.
 
 ### Changed
 
+- **Card size and list columns per device.** They are now kept per browser or device instead of per account: a phone and a desktop can each keep their own. A device you have not set yet starts from the value you chose last somewhere else, and keeps it from then on; changing it on one device never moves another.
 - **Vertical (webtoon) reading: bigger side taps.** The left and right edges of the screen now run the full height and are 20 % wide, so a tap anywhere along a side moves a screen (which edge goes forward is still **Edge taps**). The back and forward strips shrink to the top and bottom 15 % of the middle; the rest of the middle still shows or hides the controls (double tap: fullscreen). The reader's help overlay shows the new layout, and its card no longer covers the labels on phones.
 - A favorite archive inside a linked series now shows that series' (i), like the Continue reading row.
 - On the Favorites page the kind icon and a stack's count moved to the top-left of the cover, leaving the top-right for the read badge.
