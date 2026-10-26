@@ -20,6 +20,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A favorite archive inside a linked series now shows that series' (i), like the Continue reading row.
 - On the Favorites page the kind icon and a stack's count moved to the top-left of the cover, leaving the top-right for the read badge.
 - New automatic tests check who may see what on every route: admin and operations pages refuse other users, routes that take a library, folder, item or series refuse one you have no access to, and the shared caches are checked with two users.
+- **Incognito - library Info:** with Incognito on, the **Info** panel at the top level of one of your Private libraries is empty, like its browse, letter jump bar and rings. A folder's Info inside it still opens from a direct link.
+- **Incognito - Tracking:** with Incognito on, the **Tracking** page, its chip counts and the account menu's Tracking badge leave out the series of your Private libraries.
+- **Tracking:** a series in a library you can no longer open is no longer listed on the Tracking page or counted in its badge. Its tracking is kept: if you get the library back, the series is listed again as it was.
 - SharpCompress 0.50.7 (dependency update).
 
 ### Fixed
@@ -28,6 +31,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Reader:** asking for the reader mode of an item in a library you have no access to now answers "not found", like any unknown item (it used to answer with that library's default reader mode).
 - **Incognito:** your Private libraries no longer show the gold "read on <tracker>" rings or the letters of their jump bar while Incognito is on - their browse is empty, and now these are too.
 - **Info panel - merged creators:** a creator chip no longer names the creator a merged creator was merged into when every work of that creator is in a library you cannot open (or in your Private library while Incognito is on); it shows the name your own works carry.
+- **Private libraries:** marking a library Private that you cannot open (or that does not exist) is refused as "not found", and nothing in that request is saved. Settings sends only the libraries it lists.
+- **Reading:** saving progress, a read mark, a bookmark or hiding an item from **Continue reading** for an item in a library you cannot open now answers "not found", like any unknown item (it used to answer "unauthorized").
 - **Phone:** the **Info** button in a folder's top bar was a narrow oval with its icon off-centre, and the **Tracking** icon sat slightly left; both are now 40 px squares with the icon centred, and the **Chapters** / **Folders** switch is as tall as the buttons beside it.
 
 ## [1.47.0] - 2026-10-23

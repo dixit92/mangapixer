@@ -68,7 +68,7 @@ Reading in a library a user marked **Private** (see below) is left out of that u
 These two features work together to keep some libraries out of sight. For example, you can keep a library off the home screen when you show someone your tablet.
 
 - **Private** is a personal flag. In **Settings** > **Private Libraries**, tick the libraries you want to mark. It only affects your own account. Other users are not affected, and it does not restrict access.
-- **Incognito** is a switch in the account menu (**Incognito: On** / **Incognito: Off**). While it is on, your Private libraries are hidden from the library list and sidebar, Home (**Continue reading** and new chapters), search, and browsing.
+- **Incognito** is a switch in the account menu (**Incognito: On** / **Incognito: Off**). While it is on, your Private libraries are hidden from the library list and sidebar, Home (**Continue reading** and new chapters), search, browsing, a library's top-level **Info** panel, and the **Tracking** page.
 
 Things to know:
 
