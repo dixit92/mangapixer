@@ -36,7 +36,7 @@ import { FavoritesStateService } from '../../core/favorites/favorites-state.serv
   },
   template: `
     @if (bar()) {
-      <!-- Browse bar (1.48.0): the same outlined shape as the Info / tracker buttons beside it; icon only on a phone. -->
+      <!-- Browse bar (1.48.0): the same outlined shape as the Info / tracker buttons beside it; icon only (owner, 2026-10-25). -->
       <button
         type="button"
         mat-stroked-button
@@ -48,7 +48,7 @@ import { FavoritesStateService } from '../../core/favorites/favorites-state.serv
         data-testid="folder-star"
         (click)="toggle($event)"
       >
-        <mat-icon>{{ isFav() ? 'star' : 'star_border' }}</mat-icon><span class="lbl">Favorite</span>
+        <mat-icon>{{ isFav() ? 'star' : 'star_border' }}</mat-icon>
       </button>
     } @else {
       <button
@@ -75,18 +75,12 @@ import { FavoritesStateService } from '../../core/favorites/favorites-state.serv
     }
     :host(.overlay.bottom-right) .star-btn { top: auto; left: auto; bottom: 4px; right: 4px; }
     .star-btn.active mat-icon { color: var(--mp-warn-strong); }
-    /* Browse bar (1.48.0): flows with the bar's other buttons; the icon sits snug before the label (the same 4 px as the
-       Info button), and on a phone the label goes and the button is the 40 px square the tracker and Info buttons are -
-       Material pulls a projected icon 8 px left, which is reset with the label gone. */
+    /* Browse bar (1.48.0): flows with the bar's other buttons as an icon-only 40 px square at every width (owner, 2026-10-25) -
+       the shape the tracker and Info buttons take on a phone. Material pulls a projected icon 8 px left; reset, as there is no label. */
     :host(.bar) { display: contents; }
-    .bar-btn { flex: none; }
-    .bar-btn mat-icon { margin-right: 4px; }
+    .bar-btn { flex: none; min-width: 40px; width: 40px; padding: 0; }
+    .bar-btn mat-icon { margin-inline: 0; }
     .bar-btn.active { border-color: var(--mp-warn-strong); }
-    @media (max-width: 599.98px) {
-      .bar-btn .lbl { display: none; }
-      .bar-btn mat-icon { margin-inline: 0; }
-      .bar-btn { min-width: 40px; width: 40px; padding: 0; }
-    }
     /* theme-exempt: the favourite star over a cover keeps its own amber on the always-dark disc (--mp-warn-strong turns brown in light themes) */
     :host(.overlay) .star-btn.active mat-icon { color: #ffc107; }
     :host(.compact) .star-btn {
@@ -109,7 +103,7 @@ export class StarToggleComponent {
   /** Smaller footprint for dense list rows. */
   readonly compact = input<boolean>(false);
 
-  /** 1.48.0: an outlined bar button (label "Favorite", icon only on a phone) for the browse bar, instead of the round icon button. */
+  /** 1.48.0: an outlined, icon-only bar button for the browse bar, instead of the round icon button. */
   readonly bar = input<boolean>(false);
 
   /** Absolutely position the star in a cover corner (host becomes display:contents). */

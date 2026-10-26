@@ -129,7 +129,7 @@ describe('StarToggleComponent', () => {
 
   // 1.48.0: the browse-bar variant.
   describe('bar variant', () => {
-    it('is an outlined button with a label, shaped like the Info button, not the round icon button', () => {
+    it('is an outlined, icon-only button shaped like the Info button, not the round icon button', () => {
       const fixture = create(false, true);
       const host = fixture.nativeElement.querySelector('app-star-toggle') as HTMLElement;
       expect(host.classList).toContain('bar');
@@ -137,7 +137,9 @@ describe('StarToggleComponent', () => {
       expect(btn.hasAttribute('mat-stroked-button')).toBe(true);
       expect(btn.hasAttribute('mat-icon-button')).toBe(false);
       expect(btn.getAttribute('data-testid')).toBe('folder-star');
-      expect(btn.querySelector('.lbl')?.textContent?.trim()).toBe('Favorite');
+      expect(btn.querySelector('.lbl')).toBeNull(); // icon only at every width (owner, 2026-10-25)
+      expect(btn.textContent?.trim()).toBe('star_border');
+      expect(btn.getAttribute('aria-label')).toBe('Add to favorites');
       expect(icon(fixture)).toBe('star_border');
     });
 

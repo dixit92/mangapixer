@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Reading state on favorites.** Archive cards carry **Read** / **Reading**, and a favorite folder - and a stack of favorites - carries Read or Reading for the whole folder, on the Favorites page and on the home Favorites row.
 - **Home Favorites row:** its cards carry the (i) with the series summary on hover, and a star (turning it off takes the card out of the row).
-- **Favorite a folder from inside it.** A star in a folder's top bar, right after **Info**, stars the folder you are viewing (icon only on a phone).
+- **Favorite a folder from inside it.** A star in a folder's top bar, right after **Info**, stars the folder you are viewing.
 - **Settings > Library display:** the card size and list columns sliders, with a note that they apply to this device only.
 
 ### Changed
