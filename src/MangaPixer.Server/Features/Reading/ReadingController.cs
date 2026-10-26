@@ -384,8 +384,8 @@ public sealed class ReadingController : ControllerBase
     }
 
     /// <summary>
-    /// Replaces the current user's Private library set (1.4.0). The entire list
-    /// is replaced on each call. Unknown library IDs are silently skipped.
+    /// Replaces the current user's Private library set (1.4.0). The entire list is replaced on each call (within the libraries the user can
+    /// open). 1.48.0 (owner answer L3): an id the user cannot open answers 404 as an unknown one, for the whole request - nothing is stored.
     /// </summary>
     [HttpPut("private-libraries")]
     public async Task<IActionResult> SetPrivateLibraries(
@@ -395,7 +395,8 @@ public sealed class ReadingController : ControllerBase
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
-        await _stateService.SetPrivateLibrariesAsync(userId.Value, request.LibraryIds, ct);
+        if (!await _stateService.SetPrivateLibrariesAsync(userId.Value, request.LibraryIds, ct))
+            return NotFound(new ApiError { Error = "not_found", Message = "There is no such library." });
         return NoContent();
     }
 
