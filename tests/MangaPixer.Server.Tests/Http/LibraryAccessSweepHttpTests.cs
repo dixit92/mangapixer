@@ -52,9 +52,8 @@ public sealed class LibraryAccessSweepHttpTests
     /// under Incognito P answers like an empty library and names nothing of P. Every other P answer is a direct URL to the reader's own
     /// library, reachable under Incognito by design (<c>LibraryAuthorizationService.GetVisibleLibraryIdsAsync</c>). Recorded 2026-10-25 (lane A).
     /// Ungranted answers: 404 (as unknown) for nearly all; 200 with nothing of U where the route lists (browse, jump rail, search, Continue by
-    /// library) or reports the caller's own state as "none" (read mark false, no bookmarks); 401 where the reading-state writes answer an
-    /// inaccessible item with "unauthorized" (open question in the lane note: a signed-in reader gets 401, not 404); 204 for removing one's
-    /// own favourite (idempotent, the caller's own row).
+    /// library) or reports the caller's own state as "none" (read mark false, no bookmarks); 204 for removing one's own favourite
+    /// (idempotent, the caller's own row). (Until 1.48.0 lane A2 - owner answer L4 - six reading-state writes answered 401 here.)
     /// </remarks>
     private static readonly Dictionary<string, Expect> IdRoutes = new(StringComparer.Ordinal)
     {
@@ -100,16 +99,16 @@ public sealed class LibraryAccessSweepHttpTests
         ["PUT api/v1/items/{itemId}/spread-layout"] = Answer(200, 404, 200),
         ["GET api/v1/reading/{itemId}/effective-mode"] = Answer(200, 404, 200), // 1.48.0: was 200 for U (the LEAK, 32213ef0)
         ["GET api/v1/reading/progress/{itemId}"] = Answer(200, 404, 200),
-        ["PUT api/v1/reading/progress/{itemId}"] = Answer(200, 401, 200),
-        ["DELETE api/v1/reading/progress/{itemId}"] = Answer(204, 401, 204),
+        ["PUT api/v1/reading/progress/{itemId}"] = Answer(200, 404, 200), // 1.48.0 lane A2 (L4): was 401
+        ["DELETE api/v1/reading/progress/{itemId}"] = Answer(204, 404, 204), // was 401
         ["GET api/v1/reading/{itemId}/read"] = Answer(200, 200, 200),
-        ["PUT api/v1/reading/{itemId}/read"] = Answer(200, 401, 200),
-        ["DELETE api/v1/reading/{itemId}/read"] = Answer(200, 401, 200),
+        ["PUT api/v1/reading/{itemId}/read"] = Answer(200, 404, 200), // was 401
+        ["DELETE api/v1/reading/{itemId}/read"] = Answer(200, 404, 200), // was 401
         ["PUT api/v1/reading/folders/{nodeId}/read"] = Answer(200, 404, 200),
         ["DELETE api/v1/reading/folders/{nodeId}/read"] = Answer(200, 404, 200),
-        ["DELETE api/v1/reading/continue/{itemId}"] = Answer(204, 401, 204),
+        ["DELETE api/v1/reading/continue/{itemId}"] = Answer(204, 404, 204), // was 401
         ["GET api/v1/reading/{itemId}/bookmarks"] = Answer(200, 200, 200),
-        ["POST api/v1/reading/{itemId}/bookmarks"] = Answer(200, 401, 200),
+        ["POST api/v1/reading/{itemId}/bookmarks"] = Answer(200, 404, 200), // was 401
         ["DELETE api/v1/reading/bookmarks/{bookmarkId}"] = Answer(204, 404, 204),
         // ---- the caller's tracker actions on a series (direct)
         ["GET api/v1/trackers/nodes/{nodeId}/summary"] = Answer(200, 404, 200),
