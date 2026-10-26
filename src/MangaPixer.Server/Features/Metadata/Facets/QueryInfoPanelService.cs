@@ -69,7 +69,7 @@ public sealed class InfoPanelService
     /// <summary>The panel of a library root (Container mode over the whole library); null when unknown or not accessible.</summary>
     public async Task<InfoPanelDto?> ForLibraryAsync(long userId, bool incognito, string libraryPublicId, CancellationToken ct = default)
     {
-        var (found, source) = await LibrarySourceAsync(userId, libraryPublicId, ct);
+        var (found, source) = await LibrarySourceAsync(userId, incognito, libraryPublicId, ct);
         if (!found)
             return null;
         if (source is null)
@@ -97,7 +97,7 @@ public sealed class InfoPanelService
     public async Task<FacetBucketPageDto?> BucketForLibraryAsync(
         long userId, bool incognito, string libraryPublicId, FacetBucket bucket, int offset, int limit, CancellationToken ct = default)
     {
-        var (found, source) = await LibrarySourceAsync(userId, libraryPublicId, ct);
+        var (found, source) = await LibrarySourceAsync(userId, incognito, libraryPublicId, ct);
         return found ? await BucketPageAsync(userId, incognito, source, bucket, offset, limit, ct) : null;
     }
 
@@ -165,8 +165,13 @@ public sealed class InfoPanelService
             : (true, new Source(nodePublicId, node.Id, node.LibraryId, atAncestors.Where(e => e.LocationNodeId == nearest).ToList(), false));
     }
 
-    /// <summary>A library root's panel source (the same Found / null rule as <see cref="NodeSourceAsync"/>).</summary>
-    private async Task<(bool Found, Source? Source)> LibrarySourceAsync(long userId, string libraryPublicId, CancellationToken ct)
+    /// <summary>
+    /// A library root's panel source (the same Found / null rule as <see cref="NodeSourceAsync"/>). 1.48.0 (lane A2, owner answer L1): the
+    /// root panel is a discovery surface of the library, like its browse, jump rail and rings - under <paramref name="incognito"/> the
+    /// viewer's own Private library has nothing to show (an empty panel; still found, as its browse answers an empty listing). Node panels
+    /// stay direct URLs (<see cref="NodeSourceAsync"/>), reachable under Incognito like a reader URL.
+    /// </summary>
+    private async Task<(bool Found, Source? Source)> LibrarySourceAsync(long userId, bool incognito, string libraryPublicId, CancellationToken ct)
     {
         var library = await _db.Libraries.AsNoTracking()
             .Where(l => l.PublicId == libraryPublicId)
@@ -174,6 +179,8 @@ public sealed class InfoPanelService
             .FirstOrDefaultAsync(ct);
         if (library is null || !await _auth.CanAccessLibraryAsync(userId, library.Id, ct))
             return (false, null);
+        if (incognito && !(await _auth.GetVisibleLibraryIdsAsync(userId, incognito: true, ct)).Contains(library.Id))
+            return (true, null);
         if (await _scopes.IsHiddenAsync(library.Id, ct))
             return (true, null);
 
