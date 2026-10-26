@@ -31,7 +31,7 @@ function selectChange(value: number): MatSelectChange {
 describe('SettingsComponent — Private libraries', () => {
   let httpMock: HttpTestingController;
 
-  function createComponent() {
+  function createComponent(privateIds: string[] = ['L2']) {
     TestBed.configureTestingModule({
       imports: [SettingsComponent],
       providers: [
@@ -49,7 +49,7 @@ describe('SettingsComponent — Private libraries', () => {
       { id: 'L1', name: 'Alpha', isScanning: false, itemCount: 3, lastScanCompleted: null, defaultReaderMode: null },
       { id: 'L2', name: 'Beta', isScanning: false, itemCount: 5, lastScanCompleted: null, defaultReaderMode: null },
     ]);
-    httpMock.expectOne('/api/v1/reading/private-libraries').flush({ libraryIds: ['L2'] });
+    httpMock.expectOne('/api/v1/reading/private-libraries').flush({ libraryIds: privateIds });
     httpMock.expectOne('/api/v1/reading/home-libraries').flush({ excludedLibraryIds: [] });
     // The Performance card (1.10.0) and New Chapters card (1.12.0 refinement) both load
     // the user's library-view preferences on init.
@@ -114,6 +114,33 @@ describe('SettingsComponent — Private libraries', () => {
 
     expect(cmp.privateLibraryIds().has('L1')).toBe(false);
     expect(cmp.privateLibrariesError()).toBe('Failed to update Private libraries');
+  });
+
+  it('1.48.0: sends only ids of the libraries it lists (an id it does not list would make the server refuse the whole set)', () => {
+    const fixture = createComponent(['L2', 'Lgone']);
+    const cmp = fixture.componentInstance;
+
+    cmp.togglePrivate('L1', checkboxChange(true));
+    const req = httpMock.expectOne('/api/v1/reading/private-libraries');
+    expect(new Set(req.request.body.libraryIds)).toEqual(new Set(['L1', 'L2']));
+    req.flush(null);
+    expect(cmp.privateLibrariesError()).toBeNull();
+  });
+
+  it('1.48.0: a 404 (a library no longer yours) reverts the checkbox and says so - nothing else happens', () => {
+    const fixture = createComponent();
+    const cmp = fixture.componentInstance;
+
+    cmp.togglePrivate('L1', checkboxChange(true));
+    httpMock.expectOne('/api/v1/reading/private-libraries').flush(
+      { error: 'not_found', message: 'There is no such library.' },
+      { status: 404, statusText: 'Not Found' },
+    );
+
+    expect(cmp.privateLibraryIds().has('L1')).toBe(false);
+    expect(cmp.privateLibraryIds().has('L2')).toBe(true);
+    expect(cmp.privateLibrariesError()).toBe('There is no such library.');
+    expect(cmp.privateSaving()).toBe(false);
   });
 });
 
