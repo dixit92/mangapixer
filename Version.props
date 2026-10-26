@@ -466,7 +466,7 @@
          Enhance black-output guard; "Official Volume Available". Migrations AddTrackerSync, AddTrackingPage,
          AddVolumeMapReadableChapters (additive); tracker consents v1 (new third privacy exception, AGENTS.md); metadata consents
          unchanged (main 6 / automatic 5); worker protocol unchanged (5). -->
-    <MangaPixerVersionMinor>47</MangaPixerVersionMinor>
+    <MangaPixerVersionMinor>48</MangaPixerVersionMinor>
     <!-- 1.31.1 - PATCH (2026-10-01, integrator-direct, owner live check of 1.31.0): content signatures backfilled for archives
          analysed before 1.5.0 (their moves were never recognised); Re-attach to a folder in another library; "Episode N" next
          to a volume is a part label, not a chapter; the review list shows the file's own page 1, never the cover layer's;
@@ -512,6 +512,13 @@
          settings (temp_store MEMORY, 32 MiB cache; durability unchanged), a home cover cache and walk-driven recursive joins (home 53 -> 19 ms);
          loose chapters ordered between volumes, webtoon Chapters titles without the extension, artist-reference relink fixes, an admin list of
          taken-down MangaDex records, jump-rail / Display-menu fixes; atomic metrics snapshots (a rare diagnostics 500). No migration;
+         consent unchanged (main 7 / automatic 5); worker protocol 6. -->
+    <!-- 1.48.0 - MINOR over 1.47.0 (2026-10-26): reading state + (i) on favorites (Favorites page and home row), a star for the folder you
+         are in and on the home row, phone browse-bar icons centred; webtoon edge taps full height with short back / forward bands (help
+         overlay redrawn); card size and list columns per device; access invariants: endpoint sweeps for readers / ungranted libraries /
+         Private-under-Incognito and two-user cache tests, which found and fixed effective-mode answering for an ungranted item; Private
+         libraries hidden under Incognito in the jump bar, rings, library Info and Tracking; tracker lists follow access; 404 for
+         inaccessible writes and Private marks; Completion hidden where series information is; SharpCompress 0.50.7. No migration;
          consent unchanged (main 7 / automatic 5); worker protocol 6. -->
     <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>

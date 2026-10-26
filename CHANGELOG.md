@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.48.0] - 2026-10-26
+
 ### Added
 
 - **Reading state on favorites.** Archive cards carry **Read** / **Reading**, and a favorite folder - and a stack of favorites - carries Read or Reading for the whole folder, on the Favorites page and on the home Favorites row.
