@@ -13,6 +13,7 @@ import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.compon
 import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.component';
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { StackCardComponent } from '../../shared/stack-card/stack-card.component';
+import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/folder-rollup-badge.component';
 import { CatalogNodeDto } from '../../core/api/api-types';
 import {
   favoriteLink,
@@ -30,7 +31,11 @@ import {
  * `FavoritesStateService.changed$`) drops it from the list in place.
  *
  * Series info (1.27.0): the (i) in the cover's bottom-left corner and the hover summary
- * (cover and title), for singles and stacks alike (a stack's is its folder's).
+ * (cover and title), for singles and stacks alike (a stack's is its folder's). 1.48.0: an archive's follows the series it
+ * sits in (anchored, as the home Continue row).
+ *
+ * Read state (1.48.0): per-card Read / Reading badges for archives and the folder rollup badge for folders and stacks (a stack's
+ * covers the whole folder), as browse cards; the kind badge and a stack's count moved to the top-left corner for them.
  *
  * Stacks (1.27.0): two or more starred archives in one folder arrive as ONE item for that
  * folder (`favoriteStackCount`), shown as a stacked card that opens the folder filtered to
@@ -50,6 +55,7 @@ import {
     InfoToggleComponent,
     SeriesInfoHoverDirective,
     StackCardComponent,
+    FolderRollupBadgeComponent,
   ],
   template: `
     <h2>Favorites</h2>
@@ -70,6 +76,7 @@ import {
                   }
                   <mat-icon class="cover-fallback">folder</mat-icon>
                   <span class="count-badge" [matTooltip]="stackLabel(node)">{{ node.favoriteStackCount }}</span>
+                  <app-folder-rollup-badge [rollup]="node.readRollup" />
                   <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo" [overlay]="true" />
                 </app-stack-card>
                 <div class="fav-title" [title]="node.displayName"
@@ -88,8 +95,16 @@ import {
                   <span class="kind-badge" [matTooltip]="kindLabel(node)" [attr.aria-label]="kindLabel(node)" role="img">
                     <mat-icon>{{ kindIcon(node) }}</mat-icon>
                   </span>
+                  <!-- Read state (1.48.0), as a browse card: an archive's Read / Reading, a folder's rollup. -->
+                  @if (node.isRead) {
+                    <span class="badge read" matTooltip="Read">✓ Read</span>
+                  } @else if (node.readingState === 'InProgress') {
+                    <span class="badge reading">Reading</span>
+                  }
+                  <app-folder-rollup-badge [rollup]="node.readRollup" />
                   <app-star-toggle [nodeId]="node.id" [favorite]="true" [overlay]="true" [compact]="true" />
-                  <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo" [overlay]="true" />
+                  <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo"
+                                   [anchored]="node.kind === 'Archive'" [overlay]="true" />
                 </div>
                 <div class="fav-title" [title]="node.displayName"
                      [appSeriesInfoHover]="hoverNodeId(node)" [hoverAnchor]="cardEl">{{ node.displayName }}</div>
@@ -128,22 +143,29 @@ import {
     }
     .cover img { width: 100%; height: 100%; object-fit: cover; position: relative; z-index: 1; }
     .cover-fallback { font-size: 44px; width: 44px; height: 44px; color: var(--mp-text-faint); position: absolute; z-index: 0; }
+    /* 1.48.0: top-left - the top-right corner belongs to the read badges, as on a browse card. */
     .kind-badge {
-      position: absolute; top: 4px; right: 4px; z-index: 2;
+      position: absolute; top: 4px; left: 4px; z-index: 2;
       display: flex; align-items: center; justify-content: center;
       width: 20px; height: 20px; border-radius: 50%;
       background: rgb(var(--mp-shade-rgb) / 0.65); color: var(--mp-on-scrim);
     }
     .kind-badge mat-icon { font-size: 14px; width: 14px; height: 14px; line-height: 14px; }
+    .badge {
+      position: absolute; top: 6px; right: 6px; z-index: 2;
+      font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 10px;
+      background: rgb(var(--mp-accent-strong-rgb) / 0.9); color: var(--mp-on-accent);
+    }
+    .badge.read { background: rgb(var(--mp-success-strong-rgb) / 0.95); }
     .fav-title {
       margin-top: 6px; font-size: 13px; font-weight: 500;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .fav-sub { font-size: 12px; color: var(--mp-text-muted); }
     /* Stack (1.27.0): the shared stacked card (app-stack-card, 1.29.0) draws the paper
-       edges; the number of favorites inside sits in the top-right corner. */
+       edges; the number of favorites inside sits in the top-left corner (1.48.0: the top-right one is the folder's read badge). */
     .count-badge {
-      position: absolute; top: 6px; right: 6px; z-index: 2;
+      position: absolute; top: 6px; left: 6px; z-index: 2;
       font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 10px;
       background: rgb(var(--mp-accent-strong-rgb) / 0.92); color: var(--mp-on-accent);
     }

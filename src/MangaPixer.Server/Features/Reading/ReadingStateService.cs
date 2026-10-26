@@ -1037,16 +1037,18 @@ public sealed class ReadingStateService
     // each PUT — the client sends the complete list of library public IDs.
 
     /// <summary>
-    /// Gets the current user's Private library designations as public IDs.
+    /// Gets the current user's Private library designations as public IDs - only libraries the user can open (1.48.0, owner answer L3):
+    /// a mark kept from a library the user lost is not listed (it counts again when the grant comes back).
     /// </summary>
     public async Task<PrivateLibrariesDto> GetPrivateLibrariesAsync(
         long userId,
         CancellationToken ct = default)
     {
+        var accessible = (await _auth.GetAccessibleLibraryIdsAsync(userId, ct)).ToList();
         var publicIds = await (
             from p in _db.PrivateLibraries
             join l in _db.Libraries on p.LibraryId equals l.Id
-            where p.UserId == userId
+            where p.UserId == userId && accessible.Contains(p.LibraryId)
             select l.PublicId)
             .ToListAsync(ct);
 
@@ -1054,28 +1056,32 @@ public sealed class ReadingStateService
     }
 
     /// <summary>
-    /// Replaces the current user's Private library set. Libraries are identified
-    /// by public ID; unknown IDs are silently skipped. The entire set is
-    /// replaced on each call.
+    /// Replaces the current user's Private library set. Libraries are identified by public ID. The entire set is replaced on each call -
+    /// within the libraries the user can open. 1.48.0 (lane A2, owner answer L3): every id must name a library the user can open; an
+    /// unknown id and an id of a library the user may not open are refused alike (false = 404 for the whole request, nothing stored).
+    /// A mark kept from a library the user lost is left as it is (it is not listed, and counts again when the grant comes back).
     /// </summary>
-    public async Task SetPrivateLibrariesAsync(
+    public async Task<bool> SetPrivateLibrariesAsync(
         long userId,
         IReadOnlyList<string> libraryPublicIds,
         CancellationToken ct = default)
     {
-        // Resolve public IDs to internal library IDs, skipping unknowns.
+        var requested = libraryPublicIds.Distinct(StringComparer.Ordinal).ToList();
         var libIds = await _db.Libraries
-            .Where(l => libraryPublicIds.Contains(l.PublicId))
+            .Where(l => requested.Contains(l.PublicId))
             .Select(l => l.Id)
             .ToListAsync(ct);
+        var accessible = (await _auth.GetAccessibleLibraryIdsAsync(userId, ct)).ToHashSet();
+        if (libIds.Count != requested.Count || !libIds.All(accessible.Contains))
+            return false;
         var libIdSet = libIds.ToHashSet();
 
-        // Remove existing designations not in the new set.
+        // Remove existing designations (of libraries the user can open) not in the new set.
         var existing = await _db.PrivateLibraries
             .Where(p => p.UserId == userId)
             .ToListAsync(ct);
 
-        var toRemove = existing.Where(p => !libIdSet.Contains(p.LibraryId)).ToList();
+        var toRemove = existing.Where(p => accessible.Contains(p.LibraryId) && !libIdSet.Contains(p.LibraryId)).ToList();
         var existingIds = existing.Select(p => p.LibraryId).ToHashSet();
         var toAdd = libIds.Where(id => !existingIds.Contains(id)).ToList();
 
@@ -1097,6 +1103,7 @@ public sealed class ReadingStateService
         }
 
         await _db.SaveChangesAsync(ct);
+        return true;
     }
 
     // --- Home library-visibility preference (1.12.0) ---

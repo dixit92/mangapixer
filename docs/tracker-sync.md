@@ -125,6 +125,8 @@ Below the cards, the **Tracking** page lists your series on each tracker you con
 | Not synced | You pressed **Don't sync this series**, or the series is not on your list and **Add series I start reading** is off. |
 | In sync, Not checked yet, Sync problem | Shown when they hold a series: both sides agree; MangaPixer has not read the tracker for it yet; the last attempt failed (the reason is shown). |
 
+The list shows only series you can open: a series in a library you no longer have access to is left out (its tracking is kept and comes back with the library), and while Incognito is on the series of your Private libraries are left out, from the chip counts and the account menu's badge too.
+
 Each row shows the series' cover and title (open it to go to the series), its state, **MangaPixer**'s chapters and volumes read (of how many, when known - a total below what MangaPixer counts is left out), the **tracker**'s numbers and status as MangaPixer last read them, and for MyAnimeList the start and finish dates. The tracker's numbers are a link (with an external-link icon) that opens the series on MyAnimeList or MangaUpdates in a new tab; it is there only when the tracker's number for the series is known. Your browser opens that page itself, without telling the site which address you came from (no referrer), and MangaPixer makes no request for it.
 
 ### Bring the two sides in line

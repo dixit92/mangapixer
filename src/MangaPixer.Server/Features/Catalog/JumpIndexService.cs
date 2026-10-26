@@ -38,18 +38,35 @@ public sealed class JumpIndexService
     /// given direction. Authorization is enforced: an inaccessible library yields an empty index. The caller has checked that the
     /// parent belongs to the library.
     /// </summary>
+    public Task<JumpIndexDto> GetJumpIndexAsync(
+        long userId,
+        long libraryId,
+        long? parentId,
+        bool descending,
+        string? group,
+        CancellationToken ct = default) =>
+        GetJumpIndexAsync(userId, libraryId, parentId, descending, group, incognito: false, ct);
+
+    /// <summary>
+    /// As above; 1.48.0 (lane A, owner decision 6b): under <paramref name="incognito"/> the VISIBLE libraries apply, as browse - the
+    /// viewer's own Private library answers an empty rail, exactly as an inaccessible one (its browse is empty too).
+    /// </summary>
     public async Task<JumpIndexDto> GetJumpIndexAsync(
         long userId,
         long libraryId,
         long? parentId,
         bool descending,
         string? group,
+        bool incognito,
         CancellationToken ct = default)
     {
         var direction = descending ? "desc" : "asc";
 
-        // Authorization - same rule as before 1.41.0: accessible libraries only.
+        // Authorization - accessible libraries (the rule before 1.41.0), minus the viewer's Private set under Incognito (1.48.0).
         var accessibleLibs = await GetAccessibleLibraryIdsAsync(userId, ct);
+        if (incognito && accessibleLibs.Contains(libraryId)
+            && await _db.PrivateLibraries.AsNoTracking().AnyAsync(p => p.UserId == userId && p.LibraryId == libraryId, ct))
+            return new JumpIndexDto { LibraryId = "", Buckets = [], Direction = direction };
         if (!accessibleLibs.Contains(libraryId))
             return new JumpIndexDto { LibraryId = "", Buckets = [], Direction = direction };
 

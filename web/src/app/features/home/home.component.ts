@@ -28,6 +28,11 @@ import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.compon
 import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.component';
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { StackCardComponent } from '../../shared/stack-card/stack-card.component';
+import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/folder-rollup-badge.component';
+import { FavoritesStateService } from '../../core/favorites/favorites-state.service';
+import {
+  CARD_SIZE_MAX, CARD_SIZE_MIN, CARD_SIZE_STEP, DEFAULT_CARD_SIZE, DeviceDisplayPreferencesService,
+} from '../../core/preferences/device-display-preferences.service';
 import { MetadataStateService } from '../metadata/metadata-state.service';
 import {
   favoriteLink,
@@ -96,6 +101,7 @@ import {
     InfoToggleComponent,
     SeriesInfoHoverDirective,
     StackCardComponent,
+    FolderRollupBadgeComponent,
   ],
   template: `
     <div class="home" [style.--card-size]="cardSize() + 'px'">
@@ -163,26 +169,42 @@ import {
           <h3>Favorites</h3>
           <div class="strip">
             @for (node of favorites(); track favTrack(node)) {
+              <!-- Card controls (1.48.0), as the Continue / New chapters cards: the (i) bottom-left (anchored to the series, as
+                   Continue), the star bottom-right, the read state top-right (an archive's Read / Reading, a folder's or a
+                   stack's rollup - a stack's covers the whole folder). Cover and title are hover zones for the series summary. -->
               @if (favIsStack(node)) {
                 <!-- Stack (1.27.0): starred archives sharing a folder; opens that folder
-                     with a transient "Favorites only" filter (?favorites=1). -->
-                <a class="stack-card" [routerLink]="favLink(node)" [queryParams]="favParams(node)"
+                     with a transient "Favorites only" filter (?favorites=1). It has no star (it would star the folder). -->
+                <a #favStackEl class="stack-card" [routerLink]="favLink(node)" [queryParams]="favParams(node)"
                    [attr.aria-label]="node.displayName + ', ' + favStackLabel(node)">
-                  <app-stack-card>
+                  <app-stack-card [appSeriesInfoHover]="favHoverId(node)" [hoverAnchor]="favStackEl">
                     @if (favCover(node); as src) { <img appCover [src]="src" alt="" loading="lazy"> }
                     <mat-icon class="cover-fallback">folder</mat-icon>
-                    <span class="badge" [matTooltip]="favStackLabel(node)">{{ node.favoriteStackCount }}</span>
+                    <span class="badge count" [matTooltip]="favStackLabel(node)">{{ node.favoriteStackCount }}</span>
+                    <app-folder-rollup-badge [rollup]="node.readRollup" />
+                    <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo" [overlay]="true" />
                   </app-stack-card>
-                  <div class="cont-title" [title]="node.displayName">{{ node.displayName }}</div>
+                  <div class="cont-title" [title]="node.displayName"
+                       [appSeriesInfoHover]="favHoverId(node)" [hoverAnchor]="favStackEl">{{ node.displayName }}</div>
                   <div class="cont-page">{{ favStackLabel(node) }}</div>
                 </a>
               } @else {
-                <a class="cont-card" [routerLink]="favLink(node)">
-                  <div class="cover">
+                <a #favEl class="cont-card" [routerLink]="favLink(node)">
+                  <div class="cover" [appSeriesInfoHover]="favHoverId(node)" [hoverAnchor]="favEl">
                     @if (favCover(node); as src) { <img appCover [src]="src" alt="" loading="lazy"> }
                     <mat-icon class="cover-fallback">{{ node.kind === 'Folder' ? 'folder' : 'menu_book' }}</mat-icon>
+                    @if (node.isRead) {
+                      <span class="badge read" matTooltip="Read">✓ Read</span>
+                    } @else if (node.readingState === 'InProgress') {
+                      <span class="badge reading">Reading</span>
+                    }
+                    <app-folder-rollup-badge [rollup]="node.readRollup" />
+                    <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo"
+                                     [anchored]="node.kind === 'Archive'" [overlay]="true" />
+                    <app-star-toggle [nodeId]="node.id" [favorite]="true" [overlay]="true" [compact]="true" />
                   </div>
-                  <div class="cont-title" [title]="node.displayName">{{ node.displayName }}</div>
+                  <div class="cont-title" [title]="node.displayName"
+                       [appSeriesInfoHover]="favHoverId(node)" [hoverAnchor]="favEl">{{ node.displayName }}</div>
                 </a>
               }
             }
@@ -427,7 +449,10 @@ import {
     }
     /* Read-state marker (1.20.0): top-left (browse's own Read/Reading colours), so it never
        collides with the top-right "+N new" badge; Unread renders nothing (quiet default). */
-    .badge.read-state { left: 6px; right: auto; }
+    .badge.read-state, .badge.count { left: 6px; right: auto; }
+    /* Favorites row (1.48.0): the read state sits top-right as on a browse card (Read green, Reading accent); a stack's count moves
+       top-left for the folder's own read badge. */
+    .badge.read { background: rgb(var(--mp-success-strong-rgb) / 0.95); }
     .badge.read-state.read { background: rgb(var(--mp-success-strong-rgb) / 0.95); }
     .library-grid {
       display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px;
@@ -492,13 +517,14 @@ export class HomeComponent implements OnInit {
       ? 'Filter'
       : this.recentReadStateOptions.find((o) => o.value === this.recentReadStateFilter())?.label ?? 'Filter');
 
-  // Card size (1.12.0): the SAME preference the library browse view uses
-  // (LibraryViewPreferencesDto.cardSize, a stringified px value), same slider range.
-  readonly cardSizeMin = 110;
-  readonly cardSizeMax = 260;
-  readonly cardSizeStep = 10;
-  readonly defaultCardSize = 150;
-  readonly cardSize = signal<number>(this.defaultCardSize);
+  // Card size (1.12.0): the same setting the library browse view uses, same slider range. Per DEVICE since 1.48.0
+  // (DeviceDisplayPreferencesService: this device's copy wins, the per-user LibraryViewPreferencesDto.cardSize only seeds a new device).
+  private readonly display = inject(DeviceDisplayPreferencesService);
+  readonly cardSizeMin = CARD_SIZE_MIN;
+  readonly cardSizeMax = CARD_SIZE_MAX;
+  readonly cardSizeStep = CARD_SIZE_STEP;
+  readonly defaultCardSize = DEFAULT_CARD_SIZE;
+  readonly cardSize = this.display.cardSize;
   /** Last-loaded library-view preferences, echoed back on save so nothing else is lost. */
   private libraryPrefs: LibraryViewPreferencesDto | null = null;
 
@@ -515,6 +541,14 @@ export class HomeComponent implements OnInit {
     });
     changes$.pipe(debounceTime(300)).subscribe(() => {
       if (this.continueReading().length > 0) this.loadContinueReading();
+      if (this.showFavoritesRow() && this.favorites().length > 0) this.loadFavorites(); // anchored (i), like Continue
+    });
+    // A node unstarred anywhere (this row's own star included) leaves the Favorites row in place, as on the Favorites page; a stack
+    // stays (it stands for its starred children, not for the folder's own star). Starring elsewhere shows up on the next load.
+    inject(FavoritesStateService).changed$.pipe(takeUntilDestroyed()).subscribe((change) => {
+      if (!change.favorite) {
+        this.favorites.update((list) => list.filter((n) => n.id !== change.nodeId || isFavoriteStack(n)));
+      }
     });
   }
 
@@ -528,7 +562,7 @@ export class HomeComponent implements OnInit {
     this.api.getLibraryPreferences().subscribe({
       next: (p) => {
         this.libraryPrefs = p;
-        this.cardSize.set(this.resolveCardSize(p));
+        this.display.seedFrom(p);
         // Home "Favorites" row (1.21.0): opt-in, off by default. Only fetch when on.
         this.showFavoritesRow.set(p.showFavoritesHomeRow ?? false);
         if (this.showFavoritesRow()) this.loadFavorites();
@@ -583,6 +617,11 @@ export class HomeComponent implements OnInit {
 
   favTrack(node: CatalogNodeDto): string {
     return favoriteTrackKey(node);
+  }
+
+  /** The node whose series summary the cover and title show on hover (1.48.0), or none while it has no information. */
+  favHoverId(node: CatalogNodeDto): string | null {
+    return node.hasSeriesInfo ? node.id : null;
   }
 
   /** Cover URL for a favorite row card: folder cover if resolved, else the archive cover. */
@@ -663,7 +702,7 @@ export class HomeComponent implements OnInit {
 
   /** Live preview while dragging: updates only the signal (no PUT per pixel). */
   onCardSizeInput(event: Event): void {
-    this.cardSize.set(this.clampCardSize(Number((event.target as HTMLInputElement).value)));
+    this.display.previewCardSizeOnly(Number((event.target as HTMLInputElement).value));
   }
 
   /** Commit the card size when the slider is released: persists it. */
@@ -672,42 +711,20 @@ export class HomeComponent implements OnInit {
   }
 
   /**
-   * Set the card size (clamped to the slider range) and persist it into the shared
-   * library-view preference, echoing the rest of the last-loaded blob so the browse
-   * view's viewMode / sort / direction / page size round-trip untouched.
+   * Set the card size (clamped to the slider range): kept on this device, and saved into the per-user library-view preference
+   * (so a new device starts from the last choice), echoing the rest of the last-loaded blob so the browse view's viewMode /
+   * sort / direction / page size round-trip untouched.
    */
   setCardSize(px: number): void {
-    const size = this.clampCardSize(px);
-    this.cardSize.set(size);
-    const body: LibraryViewPreferencesDto = {
+    const size = this.display.setCardSize(px);
+    const body: LibraryViewPreferencesDto = this.display.stamp({
       ...(this.libraryPrefs ?? this.defaultPrefs()),
       cardSize: String(size),
-    };
+    });
     this.api.setLibraryPreferences(body).subscribe({
       next: () => { this.libraryPrefs = body; },
-      error: () => { /* non-fatal: the size still applies this session */ },
+      error: () => { /* non-fatal: the size still applies on this device */ },
     });
-  }
-
-  private clampCardSize(px: number): number {
-    if (!Number.isFinite(px)) return this.defaultCardSize;
-    return Math.min(this.cardSizeMax, Math.max(this.cardSizeMin, Math.round(px)));
-  }
-
-  /**
-   * Resolve the initial card size the same way the browse view does: the stored
-   * numeric cardSize when usable, else the px width the legacy viewMode+density
-   * combination used, else the default - so home matches the library exactly.
-   */
-  private resolveCardSize(p: LibraryViewPreferencesDto): number {
-    const stored = Number(p.cardSize);
-    if (p.cardSize != null && p.cardSize !== '' && Number.isFinite(stored)) {
-      return this.clampCardSize(stored);
-    }
-    const compact = p.density === 'compact';
-    if (p.viewMode === 'poster') return compact ? 168 : 210;
-    if (p.viewMode === 'grid') return compact ? 112 : 150;
-    return this.defaultCardSize;
   }
 
   /** Fallback blob when the preferences never loaded (mirrors the server defaults). */

@@ -68,7 +68,7 @@ Reading in a library a user marked **Private** (see below) is left out of that u
 These two features work together to keep some libraries out of sight. For example, you can keep a library off the home screen when you show someone your tablet.
 
 - **Private** is a personal flag. In **Settings** > **Private Libraries**, tick the libraries you want to mark. It only affects your own account. Other users are not affected, and it does not restrict access.
-- **Incognito** is a switch in the account menu (**Incognito: On** / **Incognito: Off**). While it is on, your Private libraries are hidden from the library list and sidebar, Home (**Continue reading** and new chapters), search, and browsing.
+- **Incognito** is a switch in the account menu (**Incognito: On** / **Incognito: Off**). While it is on, your Private libraries are hidden from the library list and sidebar, Home (**Continue reading** and new chapters), search, browsing, a library's top-level **Info** panel, and the **Tracking** page.
 
 Things to know:
 
@@ -87,10 +87,11 @@ Settings saved to **your account** follow you to every device:
   - **Always open read archives from the start** (**Reading** card)
   - **Private Libraries**
   - **New Chapters**: how many **Days** count as new (default 30, 1–365) and which libraries contribute to the home row (**Show new chapters from**)
+  - **Library display**: **Card size** and **List columns**, for this browser or device only
   - **Items per load** (**Performance** card): 25, 50 (default), 100 or 200
   - **Favorites**: **Show a "Favorites" row on the home page** and **Highlight favorited results in search**, both off by default
   - **Series information**: **Show series information on hover**, on by default (see [Series information](series-information.md#summary-on-hover))
-- **Library view:** view mode, sort, sort order, card size and list columns.
+- **Library view:** view mode, sort and sort order. (Card size and list columns are kept per browser, below.)
 - **Favorites** themselves (see [Library layout](library-layout.md#favorites)).
 
 Saved **per archive, for everyone** who can read it: the double-page pairing (see [Fixing double-page pairing](reader.md#fixing-double-page-pairing)).
@@ -98,6 +99,7 @@ Saved **per archive, for everyone** who can read it: the double-page pairing (se
 Settings saved **in the current browser only**:
 
 - Reader layout (Auto / Single / Double / Double shifted), and the cover-alone default for archives nobody has adjusted
+- Card size and list columns (**Settings** > **Library display**, the card-size slider on the home page and the folder list's top bar, and the list-columns slider): each browser or device has its own. A browser you have not set yet starts from the value you chose last on another device, and keeps it from then on; changing it here never moves another device's.
 - Page transition
 - Page quality, downscale filter, Upscaling and Enhance quality (see [Image quality](reader.md#image-quality))
 - Vertical-mode page width and **Tap to scroll** step

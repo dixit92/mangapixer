@@ -287,6 +287,61 @@ public sealed class BrowseCompletionHttpTests : IClassFixture<MangaPixerWebAppli
         Assert.Equal(["bcAlpha", "bcEpsila"], page.Items.Select(i => i.Id).ToList());
     }
 
+    // 1.48.0: "Show series information" off hides the level's linked series as the (i) flags and search do - no Completion section, no
+    // counts, and an incoming filter is ignored as on a level without series. Warmed first, so a cached answer cannot leak past the switch.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Completion_SeriesInfoOff_GivesNoLinkedSeriesNorAnswers(bool everywhere)
+    {
+        var admin = await AdminAsync();
+        var warm = await BrowseAsync(admin, "pageSize=100&completion=HaveItAll");
+        Assert.Equal(6, warm.LinkedSeries);
+        Assert.NotNull(warm.CompletionCounts);
+
+        await SetSeriesInfoHiddenAsync(everywhere, true);
+        try
+        {
+            foreach (var query in new[] { "pageSize=100", "pageSize=100&completion=HaveItAll", "parentId=bcShelf&pageSize=100&completion=HaveItAll" })
+            {
+                var page = await BrowseAsync(admin, query);
+                Assert.Equal(0, page.LinkedSeries);
+                Assert.Null(page.CompletionCounts);
+            }
+            Assert.Equal(9, (await BrowseAsync(admin, "pageSize=100&completion=HaveItAll")).TotalCount); // the filter does nothing
+            Assert.Equal(2, (await BrowseAsync(admin, "parentId=bcShelf&pageSize=100&completion=MissingSome")).TotalCount);
+        }
+        finally
+        {
+            await SetSeriesInfoHiddenAsync(everywhere, false);
+        }
+
+        var back = await BrowseAsync(admin, "pageSize=100&completion=HaveItAll");
+        Assert.Equal(6, back.LinkedSeries);
+        Assert.Equal(["bcAlpha", "bcEpsila"], back.Items.Select(i => i.Id).ToList());
+    }
+
+    private async Task SetSeriesInfoHiddenAsync(bool everywhere, bool hidden)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+        if (everywhere)
+        {
+            var settings = await db.AppSettings.FirstOrDefaultAsync(s => s.Id == AppSettingsEntity.SingletonId);
+            if (settings is null)
+            {
+                settings = new AppSettingsEntity { Id = AppSettingsEntity.SingletonId };
+                db.AppSettings.Add(settings);
+            }
+            settings.MetadataSeriesInfoHidden = hidden;
+        }
+        else
+        {
+            (await db.Libraries.SingleAsync(l => l.PublicId == LibPubId)).MetadataSeriesInfoHidden = hidden;
+        }
+        await db.SaveChangesAsync();
+    }
+
     private async Task<HttpClient> LoginAndChangePasswordAsync(string username, string oldPassword, string newPassword)
     {
         var client = _factory.CreateClient();

@@ -14,6 +14,10 @@ import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { FavoritesStateService } from '../../core/favorites/favorites-state.service';
+import {
+  CARD_SIZE_MAX, CARD_SIZE_MIN, CARD_SIZE_STEP, DEFAULT_CARD_SIZE, DEFAULT_LIST_COLUMNS, DeviceDisplayPreferencesService,
+  LIST_COLUMNS_MAX, LIST_COLUMNS_MIN, LIST_COLUMNS_STEP,
+} from '../../core/preferences/device-display-preferences.service';
 import { MetadataStateService } from '../metadata/metadata-state.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/folder-rollup-badge.component';
@@ -188,6 +192,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
           <!-- 1.43.0: the series' tracking (a gold button + popover) for a user with a connected tracker. -->
           <app-series-tracking-button [nodeId]="folderId" />
           <app-series-info-button [nodeId]="folderId" />
+          <!-- 1.48.0: favorite the folder being viewed (a library root has no node to star). -->
+          <app-star-toggle [nodeId]="folderId" [favorite]="currentFolderFavorite()" [bar]="true" />
         } @else if (libraryId()) {
           <!-- 1.47.0 (lane P): the library root's Info - its tags (a library root is not a node). -->
           <app-series-info-button [libraryId]="libraryId()" [libraryName]="libraryName()" />
@@ -770,6 +776,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly zone = inject(NgZone);
   private readonly api = inject(ApiService);
+  private readonly display = inject(DeviceDisplayPreferencesService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly readState = inject(ReadStateService);
   private readonly favorites = inject(FavoritesStateService);
@@ -809,6 +816,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
    * Empty at the library root (there is no current folder).
    */
   readonly currentFolderName = signal('');
+  /** 1.48.0: the folder being viewed is a favorite (from `getNode`); the browse-bar star seeds from it and then follows `FavoritesStateService`. */
+  readonly currentFolderFavorite = signal(false);
   readonly hasMore = signal(false);
   private cursor: string | null = null;
   /** True while a browse page (initial or append) is in flight; gates the sentinel. */
@@ -987,24 +996,23 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   readonly viewIcon = computed(() =>
     this.viewOptions.find((o) => o.value === this.viewMode())?.icon ?? 'grid_view');
 
-  // Card size (1.6.0): the grid's min column width in px. The slider range spans the
-  // legacy grid/poster x density sizes (112-210px today) with a little headroom on
-  // each end. Persisted as a stringified px value in LibraryViewPreferencesDto.cardSize.
-  readonly cardSizeMin = 110;
-  readonly cardSizeMax = 260;
-  readonly cardSizeStep = 10;
-  readonly defaultCardSize = 150;
-  readonly cardSize = signal<number>(this.defaultCardSize);
+  // Card size (1.6.0): the grid's min column width in px; the slider range spans the legacy grid/poster x density sizes
+  // (112-210px today) with a little headroom on each end. Since 1.48.0 this is a per-DEVICE setting
+  // (DeviceDisplayPreferencesService: this device's copy wins, the per-user LibraryViewPreferencesDto.cardSize only seeds a new
+  // device and keeps the last choice).
+  readonly cardSizeMin = CARD_SIZE_MIN;
+  readonly cardSizeMax = CARD_SIZE_MAX;
+  readonly cardSizeStep = CARD_SIZE_STEP;
+  readonly defaultCardSize = DEFAULT_CARD_SIZE;
+  readonly cardSize = this.display.cardSize;
 
-  // List columns (1.18.0): the list-view column count on wide viewports, replacing
-  // the old media-query-only 1/2/3 breakpoints with a user-selectable value driven
-  // via the --list-columns CSS custom property. Persisted as an integer in
-  // LibraryViewPreferencesDto.listColumns, mirroring the cardSize pattern.
-  readonly listColumnsMin = 1;
-  readonly listColumnsMax = 3;
-  readonly listColumnsStep = 1;
-  readonly defaultListColumns = 2;
-  readonly listColumns = signal<number>(this.defaultListColumns);
+  // List columns (1.18.0): the list-view column count on wide viewports, driven via the --list-columns CSS custom property.
+  // Per device since 1.48.0, like the card size.
+  readonly listColumnsMin = LIST_COLUMNS_MIN;
+  readonly listColumnsMax = LIST_COLUMNS_MAX;
+  readonly listColumnsStep = LIST_COLUMNS_STEP;
+  readonly defaultListColumns = DEFAULT_LIST_COLUMNS;
+  readonly listColumns = this.display.listColumns;
 
   // Per-user browse sort (post-1.2.0). Folders stay first in every mode; the sort
   // orders within kind. Omitted on the request → the server uses the stored pref;
@@ -1198,40 +1206,16 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   private applyStoredView(p: LibraryViewPreferencesDto): void {
     this.viewMode.set(p.viewMode === 'list' ? 'list' : 'card');
     this.density.set(p.density === 'compact' ? 'compact' : 'comfortable');
-    this.cardSize.set(this.resolveCardSize(p));
+    // Card size and list columns are per device (1.48.0): this device's copy wins, the server value only seeds a device without one.
+    this.display.seedFrom(p);
     this.pageSize.set(this.resolvePageSize(p));
-    this.listColumns.set(this.resolveListColumns(p));
     this.seriesView.set(p.seriesViewMode === 'Volumes' || p.seriesViewMode === 'Folders' ? p.seriesViewMode : null);
-  }
-
-  /** Stored listColumns when it is a sane integer in range, else the default (2). */
-  private resolveListColumns(p: LibraryViewPreferencesDto): number {
-    const n = Number(p.listColumns);
-    return Number.isInteger(n) && n >= this.listColumnsMin && n <= this.listColumnsMax
-      ? n
-      : this.defaultListColumns;
   }
 
   /** Stored libraryPageSize when it is a sane integer, else the default (50). */
   private resolvePageSize(p: LibraryViewPreferencesDto): number {
     const n = Number(p.libraryPageSize);
     return Number.isInteger(n) && n >= this.pageSizeMin && n <= this.pageSizeMax ? n : this.defaultPageSize;
-  }
-
-  /**
-   * Resolve the initial card size: the stored numeric cardSize if usable, else the
-   * px width the legacy viewMode+density combination used (poster 210/168, grid
-   * 150/112), else the default. Keeps pre-1.6.0 stored prefs visually unchanged.
-   */
-  private resolveCardSize(p: LibraryViewPreferencesDto): number {
-    const stored = Number(p.cardSize);
-    if (p.cardSize != null && p.cardSize !== '' && Number.isFinite(stored)) {
-      return this.clampCardSize(stored);
-    }
-    const compact = p.density === 'compact';
-    if (p.viewMode === 'poster') return compact ? 168 : 210;
-    if (p.viewMode === 'grid') return compact ? 112 : 150;
-    return this.defaultCardSize;
   }
 
   /** Subscribe to the route params and load each folder as it is navigated. */
@@ -1814,7 +1798,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
    * so a drag doesn't fire a PUT per pixel. The commit happens on `change`.
    */
   onCardSizeInput(event: Event): void {
-    this.cardSize.set(this.clampCardSize(Number((event.target as HTMLInputElement).value)));
+    this.display.previewCardSizeOnly(Number((event.target as HTMLInputElement).value));
   }
 
   /** Commit the card size when the slider is released (change): persists it. */
@@ -1824,14 +1808,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
 
   /** Set the card size (clamped to the slider range) and persist the preference. */
   setCardSize(px: number): void {
-    const size = this.clampCardSize(px);
-    this.cardSize.set(size);
+    this.display.setCardSize(px);
     this.persistView();
-  }
-
-  private clampCardSize(px: number): number {
-    if (!Number.isFinite(px)) return this.defaultCardSize;
-    return Math.min(this.cardSizeMax, Math.max(this.cardSizeMin, Math.round(px)));
   }
 
   /**
@@ -1840,7 +1818,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
    * deliberately WITHOUT persisting. The commit happens on `change`.
    */
   onListColumnsInput(event: Event): void {
-    this.listColumns.set(this.clampListColumns(Number((event.target as HTMLInputElement).value)));
+    this.display.previewListColumnsOnly(Number((event.target as HTMLInputElement).value));
   }
 
   /** Commit the list column count when the slider is released (change): persists it. */
@@ -1850,14 +1828,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
 
   /** Set the list column count (clamped to 1-3) and persist the preference. */
   setListColumns(count: number): void {
-    const cols = this.clampListColumns(count);
-    this.listColumns.set(cols);
+    this.display.setListColumns(count);
     this.persistView();
-  }
-
-  private clampListColumns(count: number): number {
-    if (!Number.isFinite(count)) return this.defaultListColumns;
-    return Math.min(this.listColumnsMax, Math.max(this.listColumnsMin, Math.round(count)));
   }
 
   /** Change the browse sort: persist the preference and reorder from the top. */
@@ -1903,18 +1875,17 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     // stored home-window value untouched (1.12.0 fix): this component never changes
     // it, but the server overwrites the field unconditionally on every write, so
     // omitting it here would silently reset the user's window to the 30-day default.
-    this.api.setLibraryPreferences({
+    // cardSize / listColumns are per device (1.48.0): `stamp` puts this device's values over whatever the loaded blob carries.
+    this.api.setLibraryPreferences(this.display.stamp({
       ...this.storedPrefs,
       viewMode: this.viewMode(),
       density: this.density(),
       sort: this.storedSort,
       direction: this.storedDirection,
-      cardSize: String(this.cardSize()),
       libraryPageSize: this.pageSize(),
       homeRecentWindowDays: this.storedHomeRecentWindowDays,
-      listColumns: this.listColumns(),
       seriesViewMode: this.seriesView(),
-    }).subscribe({ error: () => { /* non-fatal: the choice still applies this session */ } });
+    })).subscribe({ error: () => { /* non-fatal: the choice still applies this session */ } });
   }
 
   // --- Selection mode (1.2.0; state and gestures in the shared NodeSelection since 1.30.0) ---
@@ -2407,8 +2378,12 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
    * showing a stale one.
    */
   private loadCurrentFolder(nodeId: string): void {
+    this.currentFolderFavorite.set(false);
     this.api.getNode(nodeId).subscribe({
-      next: (node) => this.currentFolderName.set(node.displayName),
+      next: (node) => {
+        this.currentFolderName.set(node.displayName);
+        this.currentFolderFavorite.set(!!node.isFavorite);
+      },
       error: () => this.currentFolderName.set(''),
     });
   }

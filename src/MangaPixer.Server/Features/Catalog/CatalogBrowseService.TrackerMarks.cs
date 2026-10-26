@@ -15,15 +15,19 @@ public sealed partial class CatalogBrowseService
     /// <summary>
     /// The rings of <paramref name="ids"/> (cards of the folder <paramref name="parentPublicId"/>, or of the library root): node ids of the
     /// library and the folder's volume-stack ids; anything else is left out. Null when the library or the folder is unknown, or the viewer
-    /// cannot open the library (no new data: the viewer's own tracker numbers for nodes the listing would show them).
+    /// cannot open the library (no new data: the viewer's own tracker numbers for nodes the listing would show them). 1.48.0 (lane A, owner
+    /// decision 6b): under <paramref name="incognito"/> the VISIBLE libraries apply, as browse: the viewer's own Private library answers no
+    /// ring at all (an empty list - its browse is empty too).
     /// </summary>
     public async Task<TrackerCardMarksDto?> TrackerCardMarksAsync(long userId, string libraryPublicId, string? parentPublicId,
-        IReadOnlyCollection<string> ids, CancellationToken ct)
+        IReadOnlyCollection<string> ids, bool incognito, CancellationToken ct)
     {
         var library = await _db.Libraries.AsNoTracking().Where(l => l.PublicId == libraryPublicId).Select(l => new { l.Id, l.PublicId })
             .FirstOrDefaultAsync(ct);
         if (library is null || !await _auth.CanAccessLibraryAsync(userId, library.Id, ct))
             return null;
+        if (incognito && !(await _auth.GetVisibleLibraryIdsAsync(userId, incognito: true, ct)).Contains(library.Id))
+            return new TrackerCardMarksDto { Items = [] };
         long? folderId = null;
         if (parentPublicId is not null)
         {

@@ -25,12 +25,19 @@ public sealed class TrackerEntriesService(
     TimeProvider time,
     ILogger<TrackerEntriesService> logger)
 {
-    public async Task<(IReadOnlyList<TrackerEntryDto>? Entries, TrackerProblem? Problem)> ListAsync(long userId, string tracker, CancellationToken ct)
+    /// <summary>
+    /// The caller's stored entries on this tracker. 1.48.0 (lane A2, owner answer L2): only series the caller can still open (a linked folder
+    /// in a library they may open - the Tracking list's rule), minus the series of their Private libraries under <paramref name="incognito"/>.
+    /// An entry left out is not deleted: when its library is granted again (or Incognito is off) it is listed again with its stored state.
+    /// </summary>
+    public async Task<(IReadOnlyList<TrackerEntryDto>? Entries, TrackerProblem? Problem)> ListAsync(long userId, string tracker, bool incognito,
+        CancellationToken ct)
     {
         if (!TrackerFacts.IsKnown(tracker))
             return (null, TrackerProblem.UnknownTracker);
         var rows = await db.TrackerEntries.AsNoTracking().Where(e => e.UserId == userId && e.Tracker == tracker).ToListAsync(ct);
-        return (await ToDtosAsync(userId, rows, ct), null);
+        var open = await resolver.FirstNodesAsync(userId, rows.Select(r => r.RecordId).Distinct().ToList(), incognito, ct);
+        return (await ToDtosAsync(userId, rows.Where(r => open.ContainsKey(r.RecordId)).ToList(), open, ct), null);
     }
 
     /// <summary>One per-series action. <paramref name="setTo"/> only for <see cref="TrackerSyncMode.SetTo"/>.</summary>
@@ -251,21 +258,21 @@ public sealed class TrackerEntriesService(
                       select (long?)r.Id).FirstOrDefaultAsync(ct);
     }
 
-    private async Task<IReadOnlyList<TrackerEntryDto>> ToDtosAsync(long userId, IReadOnlyList<TrackerEntryEntity> rows, CancellationToken ct)
+    private Task<IReadOnlyList<TrackerEntryDto>> ToDtosAsync(long userId, IReadOnlyList<TrackerEntryEntity> rows, CancellationToken ct) =>
+        ToDtosAsync(userId, rows, null, ct);
+
+    /// <summary>
+    /// The DTOs of stored entries, by title. <paramref name="nodes"/>: each record's first folder the caller can open, when the caller
+    /// already read them (<see cref="TrackerSeriesResolver.FirstNodesAsync(long, IReadOnlyCollection{long}, bool, CancellationToken)"/> -
+    /// the same rule as the query this used to run itself).
+    /// </summary>
+    private async Task<IReadOnlyList<TrackerEntryDto>> ToDtosAsync(long userId, IReadOnlyList<TrackerEntryEntity> rows,
+        IReadOnlyDictionary<long, string>? nodes, CancellationToken ct)
     {
         var recordIds = rows.Select(r => r.RecordId).Distinct().ToList();
         var records = await db.MetadataRecords.AsNoTracking().Where(r => recordIds.Contains(r.Id))
             .Select(r => new { r.Id, r.PublicId, r.Title }).ToDictionaryAsync(r => r.Id, ct);
-        var accessible = (await libraries.GetAccessibleLibraryIdsAsync(userId, ct)).ToList();
-        var states = new[] { (int)Core.Metadata.SeriesLinkState.Confirmed, (int)Core.Metadata.SeriesLinkState.Auto };
-        var tombstoned = (int)CatalogNodeAvailability.Tombstoned;
-        var nodes = (await (from l in db.NodeSeriesLinks.AsNoTracking()
-                            join n in db.CatalogNodes.AsNoTracking() on l.NodeId equals n.Id
-                            where l.RecordId != null && recordIds.Contains(l.RecordId.Value) && states.Contains(l.State)
-                                  && accessible.Contains(n.LibraryId) && n.Availability != tombstoned
-                            orderby n.Id
-                            select new { RecordId = l.RecordId!.Value, n.PublicId }).ToListAsync(ct))
-            .GroupBy(n => n.RecordId).ToDictionary(g => g.Key, g => g.First().PublicId);
+        nodes ??= await resolver.FirstNodesAsync(userId, recordIds, ct);
         return rows.Where(r => records.ContainsKey(r.RecordId))
             .OrderBy(r => records[r.RecordId].Title, StringComparer.OrdinalIgnoreCase)
             .Select(r => new TrackerEntryDto

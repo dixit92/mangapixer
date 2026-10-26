@@ -24,7 +24,8 @@ public sealed class TrackersController(
     TrackerListService list,
     TrackerPullService pull,
     TrackerBatchService batch,
-    Catalog.CatalogBrowseService browse) : ControllerBase
+    Catalog.CatalogBrowseService browse,
+    Auth.IncognitoAccessor incognito) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType<TrackersOverviewDto>(StatusCodes.Status200OK)]
@@ -92,7 +93,10 @@ public sealed class TrackersController(
         return problem is null ? Ok(account) : Problem(problem);
     }
 
-    /// <summary>The caller's series on this tracker with their states.</summary>
+    /// <summary>
+    /// The caller's series on this tracker with their states - only series the caller can open; under Incognito without the series of their
+    /// Private libraries (1.48.0, owner answer L2; as <see cref="Series"/>, <see cref="SeriesIds"/> and <see cref="Attention"/>).
+    /// </summary>
     [HttpGet("{slug}/entries")]
     [ProducesResponseType<IReadOnlyList<TrackerEntryDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiError>(StatusCodes.Status404NotFound)]
@@ -100,7 +104,7 @@ public sealed class TrackersController(
     {
         if (UserId() is not { } userId)
             return Forbid();
-        var (list, problem) = await entries.ListAsync(userId, slug, ct);
+        var (list, problem) = await entries.ListAsync(userId, slug, incognito.IsIncognito, ct);
         return problem is null ? Ok(list) : Problem(problem);
     }
 
@@ -180,7 +184,7 @@ public sealed class TrackersController(
     {
         if (UserId() is not { } userId)
             return Forbid();
-        var (result, problem) = await list.PageAsync(userId, slug, page, filter, q, ct);
+        var (result, problem) = await list.PageAsync(userId, slug, page, filter, q, incognito.IsIncognito, ct);
         return problem is null ? Ok(result) : Problem(problem);
     }
 
@@ -196,7 +200,7 @@ public sealed class TrackersController(
     {
         if (UserId() is not { } userId)
             return Forbid();
-        var (result, problem) = await list.SelectableAsync(userId, slug, filter, q, ct);
+        var (result, problem) = await list.SelectableAsync(userId, slug, filter, q, incognito.IsIncognito, ct);
         return problem is null ? Ok(result) : Problem(problem);
     }
 
@@ -221,7 +225,7 @@ public sealed class TrackersController(
     [HttpGet("attention")]
     [ProducesResponseType<TrackerAttentionDto>(StatusCodes.Status200OK)]
     public async Task<IActionResult> Attention(CancellationToken ct) =>
-        UserId() is { } userId ? Ok(await list.AttentionAsync(userId, ct)) : Forbid();
+        UserId() is { } userId ? Ok(await list.AttentionAsync(userId, incognito.IsIncognito, ct)) : Forbid();
 
     /// <summary>1.43.0: the series header popover - the caller's tracking of the series a folder belongs to (display only, no request).</summary>
     /// <summary>
@@ -242,7 +246,7 @@ public sealed class TrackersController(
             return Problem(TrackerProblem.Bad("invalid_request", "A library is required."));
         if (ids is { Length: > Catalog.CatalogBrowseService.MaxTrackerMarkIds })
             return Problem(TrackerProblem.Bad("too_many_ids", "Ask for at most 200 cards at a time."));
-        var marks = await browse.TrackerCardMarksAsync(userId, libraryId, parentId, ids ?? [], ct);
+        var marks = await browse.TrackerCardMarksAsync(userId, libraryId, parentId, ids ?? [], incognito.IsIncognito, ct);
         return marks is null ? Problem(TrackerProblem.NotFound("not_found", "There is no such library or folder.")) : Ok(marks);
     }
 
