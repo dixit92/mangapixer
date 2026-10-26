@@ -123,7 +123,8 @@ public sealed class ReadingController : ControllerBase
         return result.Status switch
         {
             UpdateStatus.Success => Ok(new { revision = result.Revision, alreadyApplied = result.AlreadyApplied }),
-            UpdateStatus.Unauthorized => Unauthorized(new ApiError { Error = "unauthorized", Message = result.Error ?? "Access denied" }),
+            // 1.48.0 (owner answer L4): an item in a library the caller cannot open answers as an unknown one (404), as the reads.
+            UpdateStatus.Unauthorized => NotFound(),
             UpdateStatus.NotFound => NotFound(new ApiError { Error = "not_found", Message = result.Error ?? "Item not found" }),
             UpdateStatus.StaleContent => Conflict(new ApiError { Error = "stale_content", Message = result.Error ?? "Content version mismatch" }),
             UpdateStatus.PreconditionFailed => StatusCode(412, new ApiError { Error = "precondition_failed", Message = result.Error ?? "Revision mismatch" }),
@@ -143,7 +144,7 @@ public sealed class ReadingController : ControllerBase
         if (node is null) return NotFound();
 
         var success = await _stateService.ResetProgressAsync(userId.Value, node.Id, ct);
-        if (!success) return Unauthorized();
+        if (!success) return NotFound(); // not the caller's library: as an unknown item (1.48.0, L4)
 
         return NoContent();
     }
@@ -179,7 +180,7 @@ public sealed class ReadingController : ControllerBase
         if (node is null) return NotFound();
 
         var ok = await _stateService.SetItemReadAsync(userId.Value, node.Id, read: true, ct);
-        if (!ok) return Unauthorized();
+        if (!ok) return NotFound(); // not the caller's library: as an unknown item (1.48.0, L4)
 
         return Ok(new ReadMarkDto { ItemId = itemId, IsRead = true });
     }
@@ -197,7 +198,7 @@ public sealed class ReadingController : ControllerBase
         if (node is null) return NotFound();
 
         var ok = await _stateService.SetItemReadAsync(userId.Value, node.Id, read: false, ct);
-        if (!ok) return Unauthorized();
+        if (!ok) return NotFound(); // not the caller's library: as an unknown item (1.48.0, L4)
 
         return Ok(new ReadMarkDto { ItemId = itemId, IsRead = false });
     }
@@ -252,7 +253,7 @@ public sealed class ReadingController : ControllerBase
         if (node is null) return NotFound();
 
         var ok = await _stateService.DismissFromContinueAsync(userId.Value, node.Id, ct);
-        if (!ok) return Unauthorized();
+        if (!ok) return NotFound(); // not the caller's library: as an unknown item (1.48.0, L4)
 
         return NoContent();
     }
@@ -384,8 +385,8 @@ public sealed class ReadingController : ControllerBase
     }
 
     /// <summary>
-    /// Replaces the current user's Private library set (1.4.0). The entire list
-    /// is replaced on each call. Unknown library IDs are silently skipped.
+    /// Replaces the current user's Private library set (1.4.0). The entire list is replaced on each call (within the libraries the user can
+    /// open). 1.48.0 (owner answer L3): an id the user cannot open answers 404 as an unknown one, for the whole request - nothing is stored.
     /// </summary>
     [HttpPut("private-libraries")]
     public async Task<IActionResult> SetPrivateLibraries(
@@ -395,7 +396,8 @@ public sealed class ReadingController : ControllerBase
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
-        await _stateService.SetPrivateLibrariesAsync(userId.Value, request.LibraryIds, ct);
+        if (!await _stateService.SetPrivateLibrariesAsync(userId.Value, request.LibraryIds, ct))
+            return NotFound(new ApiError { Error = "not_found", Message = "There is no such library." });
         return NoContent();
     }
 
@@ -458,7 +460,7 @@ public sealed class ReadingController : ControllerBase
 
         var bookmarkId = await _stateService.AddBookmarkAsync(
             userId.Value, node.Id, request.Ordinal, request.NormalizedAnchor, request.Label, ct);
-        if (bookmarkId is null) return Unauthorized();
+        if (bookmarkId is null) return NotFound(); // not the caller's library: as an unknown item (1.48.0, L4)
 
         return Ok(new { id = bookmarkId });
     }

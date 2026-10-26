@@ -24,14 +24,18 @@ public sealed class TrackerListService(
     /// <summary>The filter value that selects the chips needing the user (held + tracker ahead + problem).</summary>
     public const string AttentionFilter = "Attention";
 
+    /// <summary>
+    /// One page of the caller's list. 1.48.0 (lane A2, owner answer L2): under <paramref name="incognito"/> the series of the caller's Private
+    /// libraries are left out (rows and chip counts), as browse.
+    /// </summary>
     public async Task<(TrackerSeriesPageDto? Page, TrackerProblem? Problem)> PageAsync(long userId, string tracker, int? page, string? filter,
-        string? search, CancellationToken ct)
+        string? search, bool incognito, CancellationToken ct)
     {
         var number = page ?? 1;
         if (number < 1)
             return (null, TrackerProblem.Bad("invalid_page", "Pages start at 1."));
         var watch = Stopwatch.StartNew();
-        var (listed, problem) = await FilteredAsync(userId, tracker, filter, search, ct);
+        var (listed, problem) = await FilteredAsync(userId, tracker, filter, search, incognito, ct);
         if (problem is not null)
             return (null, problem);
         var (ordered, counts, context) = listed!.Value;
@@ -54,10 +58,10 @@ public sealed class TrackerListService(
     /// <see cref="PageAsync"/> pages through - with which batch actions apply to each, at most <see cref="TrackerFacts.MaxSelectableSeries"/>.
     /// </summary>
     public async Task<(TrackerSelectableSeriesListDto? List, TrackerProblem? Problem)> SelectableAsync(long userId, string tracker, string? filter,
-        string? search, CancellationToken ct)
+        string? search, bool incognito, CancellationToken ct)
     {
         var watch = Stopwatch.StartNew();
-        var (listed, problem) = await FilteredAsync(userId, tracker, filter, search, ct);
+        var (listed, problem) = await FilteredAsync(userId, tracker, filter, search, incognito, ct);
         if (problem is not null)
             return (null, problem);
         var (ordered, _, context) = listed!.Value;
@@ -74,7 +78,7 @@ public sealed class TrackerListService(
 
     /// <summary>The caller's rows of a tracker matching the chip and the search, ordered by title; the chip counts over the whole list.</summary>
     private async Task<((List<(TrackerEntryEntity Entry, TrackerListBucket Bucket)> Ordered, TrackerListCountsDto Counts, RowContext Context)? Listed,
-        TrackerProblem? Problem)> FilteredAsync(long userId, string tracker, string? filter, string? search, CancellationToken ct)
+        TrackerProblem? Problem)> FilteredAsync(long userId, string tracker, string? filter, string? search, bool incognito, CancellationToken ct)
     {
         if (!TrackerFacts.IsKnown(tracker))
             return (null, TrackerProblem.UnknownTracker);
@@ -94,8 +98,9 @@ public sealed class TrackerListService(
             return (null, TrackerProblem.Bad("invalid_search", "The search text is too long."));
 
         var entries = await db.TrackerEntries.AsNoTracking().Where(e => e.UserId == userId && e.Tracker == tracker).ToListAsync(ct);
-        var context = await ContextAsync(userId, tracker, entries.Select(e => e.RecordId).Distinct().ToList(), ct);
-        // Only series the user can still open (a linked folder in one of their libraries): no title from a library they lost.
+        var context = await ContextAsync(userId, tracker, entries.Select(e => e.RecordId).Distinct().ToList(), incognito, ct);
+        // Only series the user can still open (a linked folder in one of their libraries): no title from a library they lost. Under
+        // Incognito (1.48.0, L2) a folder in one of their Private libraries does not count.
         var rows = entries.Where(e => context.Titles.ContainsKey(e.RecordId) && context.Nodes.ContainsKey(e.RecordId))
             .Select(e => (Entry: e, Bucket: TrackerListRules.BucketOf(FactsOf(e, context.AddStartedSeries))))
             .ToList();
@@ -116,9 +121,10 @@ public sealed class TrackerListService(
 
     /// <summary>
     /// The account menu badge: per tracker the caller has an account on (and the server allows), the series that need the caller - a held
-    /// jump, a tracker ahead of MangaPixer, or a failed sync (<see cref="TrackerListRules.NeedsAttention"/>).
+    /// jump, a tracker ahead of MangaPixer, or a failed sync (<see cref="TrackerListRules.NeedsAttention"/>). Counts the list's rows: series
+    /// the caller can open, minus the Private libraries' under <paramref name="incognito"/> (1.48.0, L2).
     /// </summary>
-    public async Task<TrackerAttentionDto> AttentionAsync(long userId, CancellationToken ct)
+    public async Task<TrackerAttentionDto> AttentionAsync(long userId, bool incognito, CancellationToken ct)
     {
         var accounts = await db.TrackerAccounts.AsNoTracking().Where(a => a.UserId == userId)
             .Select(a => new { a.Tracker, a.AddStartedSeries, a.State }).ToListAsync(ct);
@@ -136,7 +142,7 @@ public sealed class TrackerListService(
                 .Where(e => e.UserId == userId && e.Tracker == account.Tracker && !e.DontSync
                     && (e.State == held || e.State == ahead || e.State == lower || e.State == error || e.HeldChapters != null || e.HeldVolumes != null))
                 .ToListAsync(ct);
-            var visible = await resolver.FirstNodesAsync(userId, candidates.Select(e => e.RecordId).Distinct().ToList(), ct);
+            var visible = await resolver.FirstNodesAsync(userId, candidates.Select(e => e.RecordId).Distinct().ToList(), incognito, ct);
             var count = candidates.Count(e => visible.ContainsKey(e.RecordId)
                 && TrackerListRules.NeedsAttention(TrackerListRules.BucketOf(FactsOf(e, account.AddStartedSeries))));
             result.Add(new TrackerAttentionCountDto { Tracker = account.Tracker, Count = count });
@@ -194,7 +200,7 @@ public sealed class TrackerListService(
                     UpdatedAt = time.GetUtcNow(),
                 };
             }
-            var context = await ContextAsync(userId, account.Tracker, [recordId], ct);
+            var context = await ContextAsync(userId, account.Tracker, [recordId], incognito: false, ct);
             if (context.Titles.ContainsKey(recordId))
                 rows.Add(RowOf(entry, context));
         }
@@ -207,7 +213,7 @@ public sealed class TrackerListService(
     public async Task<IReadOnlyList<TrackerSeriesRowDto>> RowsAsync(long userId, string tracker, IReadOnlyList<TrackerEntryEntity> entries,
         CancellationToken ct)
     {
-        var context = await ContextAsync(userId, tracker, entries.Select(e => e.RecordId).Distinct().ToList(), ct);
+        var context = await ContextAsync(userId, tracker, entries.Select(e => e.RecordId).Distinct().ToList(), incognito: false, ct);
         return entries.Where(e => context.Titles.ContainsKey(e.RecordId)).Select(e => RowOf(e, context)).ToList();
     }
 
@@ -224,7 +230,7 @@ public sealed class TrackerListService(
             entries.AddRange(await db.TrackerEntries.AsNoTracking()
                 .Where(e => e.UserId == userId && e.Tracker == tracker && chunk.Contains(e.RecordId)).ToListAsync(ct));
         }
-        var context = await ContextAsync(userId, tracker, entries.Select(e => e.RecordId).Distinct().ToList(), ct);
+        var context = await ContextAsync(userId, tracker, entries.Select(e => e.RecordId).Distinct().ToList(), incognito: false, ct);
         return entries.Where(e => context.Titles.ContainsKey(e.RecordId) && context.Nodes.ContainsKey(e.RecordId))
             .ToDictionary(e => e.RecordId, e => (e, FactsOf(e, context.AddStartedSeries)));
     }
@@ -242,7 +248,7 @@ public sealed class TrackerListService(
         bool AddStartedSeries,
         IReadOnlyDictionary<long, VolumeMapInput> Maps);
 
-    private async Task<RowContext> ContextAsync(long userId, string tracker, IReadOnlyList<long> recordIds, CancellationToken ct)
+    private async Task<RowContext> ContextAsync(long userId, string tracker, IReadOnlyList<long> recordIds, bool incognito, CancellationToken ct)
     {
         var titles = new Dictionary<long, string>();
         var seriesIds = new Dictionary<long, string>();
@@ -257,7 +263,7 @@ public sealed class TrackerListService(
                 totals[r.Id] = (r.LatestChapter is { } c && c >= 1 && c <= 100_000 ? (int)Math.Floor(c) : null, r.OriginVolumes is > 0 ? r.OriginVolumes : null);
             }
         }
-        var nodes = await resolver.FirstNodesAsync(userId, recordIds, ct);
+        var nodes = await resolver.FirstNodesAsync(userId, recordIds, incognito, ct);
         var addStarted = await db.TrackerAccounts.AsNoTracking().Where(a => a.UserId == userId && a.Tracker == tracker)
             .Select(a => (bool?)a.AddStartedSeries).FirstOrDefaultAsync(ct) ?? true;
         // 1.44.0: the volume lists for the "volumes from chapters" offers (one batched read for the page).

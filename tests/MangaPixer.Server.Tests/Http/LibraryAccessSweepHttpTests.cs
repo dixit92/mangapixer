@@ -52,9 +52,8 @@ public sealed class LibraryAccessSweepHttpTests
     /// under Incognito P answers like an empty library and names nothing of P. Every other P answer is a direct URL to the reader's own
     /// library, reachable under Incognito by design (<c>LibraryAuthorizationService.GetVisibleLibraryIdsAsync</c>). Recorded 2026-10-25 (lane A).
     /// Ungranted answers: 404 (as unknown) for nearly all; 200 with nothing of U where the route lists (browse, jump rail, search, Continue by
-    /// library) or reports the caller's own state as "none" (read mark false, no bookmarks); 401 where the reading-state writes answer an
-    /// inaccessible item with "unauthorized" (open question in the lane note: a signed-in reader gets 401, not 404); 204 for removing one's
-    /// own favourite (idempotent, the caller's own row).
+    /// library) or reports the caller's own state as "none" (read mark false, no bookmarks); 204 for removing one's own favourite
+    /// (idempotent, the caller's own row). (Until 1.48.0 lane A2 - owner answer L4 - six reading-state writes answered 401 here.)
     /// </remarks>
     private static readonly Dictionary<string, Expect> IdRoutes = new(StringComparer.Ordinal)
     {
@@ -64,10 +63,11 @@ public sealed class LibraryAccessSweepHttpTests
         ["GET api/v1/reading/continue/by-library/{libraryId}"] = Answer(200, 200, 200, hidden: true),
         ["GET api/v1/search"] = Answer(200, 200, 200, hidden: true),
         ["GET api/v1/trackers/card-marks"] = Answer(200, 404, 200, hidden: true),
-        // ---- the library itself and its root Info panel (direct; the panel under Incognito is an open question in the lane note)
+        // ---- the library-root Info panel (1.48.0 lane A2, owner answer L1: hidden under Incognito, as browse - an empty panel)
+        ["GET api/v1/libraries/{libraryId}/info"] = Answer(200, 404, 200, hidden: true),
+        ["GET api/v1/libraries/{libraryId}/info/buckets/{bucket}"] = Answer(200, 404, 200, hidden: true),
+        // ---- the library itself (direct)
         ["GET api/v1/libraries/{libraryId}"] = Answer(200, 404, 200),
-        ["GET api/v1/libraries/{libraryId}/info"] = Answer(200, 404, 200),
-        ["GET api/v1/libraries/{libraryId}/info/buckets/{bucket}"] = Answer(200, 404, 200),
         // ---- nodes (direct)
         ["GET api/v1/nodes/{nodeId}"] = Answer(200, 404, 200),
         ["GET api/v1/nodes/{nodeId}/breadcrumbs"] = Answer(200, 404, 200),
@@ -99,16 +99,16 @@ public sealed class LibraryAccessSweepHttpTests
         ["PUT api/v1/items/{itemId}/spread-layout"] = Answer(200, 404, 200),
         ["GET api/v1/reading/{itemId}/effective-mode"] = Answer(200, 404, 200), // 1.48.0: was 200 for U (the LEAK, 32213ef0)
         ["GET api/v1/reading/progress/{itemId}"] = Answer(200, 404, 200),
-        ["PUT api/v1/reading/progress/{itemId}"] = Answer(200, 401, 200),
-        ["DELETE api/v1/reading/progress/{itemId}"] = Answer(204, 401, 204),
+        ["PUT api/v1/reading/progress/{itemId}"] = Answer(200, 404, 200), // 1.48.0 lane A2 (L4): was 401
+        ["DELETE api/v1/reading/progress/{itemId}"] = Answer(204, 404, 204), // was 401
         ["GET api/v1/reading/{itemId}/read"] = Answer(200, 200, 200),
-        ["PUT api/v1/reading/{itemId}/read"] = Answer(200, 401, 200),
-        ["DELETE api/v1/reading/{itemId}/read"] = Answer(200, 401, 200),
+        ["PUT api/v1/reading/{itemId}/read"] = Answer(200, 404, 200), // was 401
+        ["DELETE api/v1/reading/{itemId}/read"] = Answer(200, 404, 200), // was 401
         ["PUT api/v1/reading/folders/{nodeId}/read"] = Answer(200, 404, 200),
         ["DELETE api/v1/reading/folders/{nodeId}/read"] = Answer(200, 404, 200),
-        ["DELETE api/v1/reading/continue/{itemId}"] = Answer(204, 401, 204),
+        ["DELETE api/v1/reading/continue/{itemId}"] = Answer(204, 404, 204), // was 401
         ["GET api/v1/reading/{itemId}/bookmarks"] = Answer(200, 200, 200),
-        ["POST api/v1/reading/{itemId}/bookmarks"] = Answer(200, 401, 200),
+        ["POST api/v1/reading/{itemId}/bookmarks"] = Answer(200, 404, 200), // was 401
         ["DELETE api/v1/reading/bookmarks/{bookmarkId}"] = Answer(204, 404, 204),
         // ---- the caller's tracker actions on a series (direct)
         ["GET api/v1/trackers/nodes/{nodeId}/summary"] = Answer(200, 404, 200),
@@ -169,17 +169,12 @@ public sealed class LibraryAccessSweepHttpTests
     };
 
     /// <summary>
-    /// Lists of the caller's OWN tracker data that name a series of U (an entry kept from a revoked grant: the record's title and id, no folder)
-    /// or of P under Incognito (the Tracking page does not apply Incognito). Recorded as found, by design today - open questions in the lane
-    /// note; the leak check still runs on them for everything else.
+    /// Lists of the caller's OWN tracker data allowed to name a series of U (an entry kept from a revoked grant) or of P under Incognito.
+    /// Empty since 1.48.0 lane A2 (owner answer L2): <c>entries</c> used to list U's series (title, series id, no folder) and all three lists
+    /// (<c>entries</c>, <c>series</c>, <c>series/ids</c>) P's series under Incognito; now each lists only series the caller can open, minus
+    /// the Private libraries under Incognito. Kept as the place to record a future exception, with its reason.
     /// </summary>
-    private static readonly Dictionary<string, (bool Ungranted, bool PrivateUnderIncognito, string Reason)> OwnTrackerLists = new(StringComparer.Ordinal)
-    {
-        ["/api/v1/trackers/mangaupdates/entries"] = (true, true,
-            "the caller's own tracker entries: an entry stays listed (title, series id, no folder) after the folder's library is no longer theirs"),
-        ["/api/v1/trackers/mangaupdates/series"] = (false, true, "the Tracking page lists the caller's series of every library they can open, Incognito or not"),
-        ["/api/v1/trackers/mangaupdates/series/ids"] = (false, true, "as the Tracking page's list"),
-    };
+    private static readonly Dictionary<string, (bool Ungranted, bool PrivateUnderIncognito, string Reason)> OwnTrackerLists = new(StringComparer.Ordinal);
 
     private enum Dimension
     {
@@ -269,9 +264,11 @@ public sealed class LibraryAccessSweepHttpTests
                 using var response = await client.SendAsync(request);
                 var text = await response.Content.ReadAsStringAsync();
                 codes[dimension] = (int)response.StatusCode;
-                // A listing's control must list something of G (an id it was not sent): an empty control would prove nothing about U / P.
+                // A listing's control must list something of G (an id it was not sent, or - a tag panel, which names values, not nodes - G's
+                // word): an empty control would prove nothing about U / P.
                 if (dimension == Dimension.Control && IdRoutes.GetValueOrDefault(key)?.HiddenUnderIncognito == true
-                    && !w.G.AllIds.Except([w.G.PublicId, w.G.SeriesPublicId, w.G.ArtistPublicId, w.G.ShelfPublicId]).Any(id => text.Contains(id, StringComparison.OrdinalIgnoreCase)))
+                    && !w.G.AllIds.Except([w.G.PublicId, w.G.SeriesPublicId, w.G.ArtistPublicId, w.G.ShelfPublicId]).Any(id => text.Contains(id, StringComparison.OrdinalIgnoreCase))
+                    && !text.Contains(GrantedWord, StringComparison.Ordinal))
                     failures.Add($"{key}: the granted control lists nothing of G - the sweep proves nothing for it");
                 if ((int)response.StatusCode >= 500)
                     failures.Add($"{key} [{dimension}] {url}: {(int)response.StatusCode}");
@@ -373,14 +370,16 @@ public sealed class LibraryAccessSweepHttpTests
             Assert.True((int)home.StatusCode < 500, $"home-libraries {(int)home.StatusCode}");
         Assert.DoesNotContain(w.U.PublicId, await reader.GetStringAsync("/api/v1/reading/home-libraries"), StringComparison.Ordinal);
 
-        // Private libraries: U cannot be marked Private by a reader without access; P stays the reader's.
+        // Private libraries: U cannot be marked Private by a reader without access - 1.48.0 lane A2 (owner answer L3): the request is refused
+        // as naming an unknown library (404) and nothing of it is stored; P stays the reader's. (Found 2026-10-25: the U id was stored and
+        // listed back.)
         using (var priv = await reader.PutAsync("/api/v1/reading/private-libraries",
                    Json($"{{\"libraryIds\":[\"{w.U.PublicId}\",\"{w.P.PublicId}\"]}}")))
-            Assert.True((int)priv.StatusCode < 500, $"private-libraries {(int)priv.StatusCode}");
-        // Found 2026-10-25: the U id is stored and listed back (a mark on a library the reader cannot open; it shows and hides nothing - the
-        // reader's lists below still name nothing of U). Open question in the lane note; pinned here as the current answer.
+            Assert.Equal(HttpStatusCode.NotFound, priv.StatusCode);
         var privateNow = await reader.GetStringAsync("/api/v1/reading/private-libraries");
         Assert.Contains(w.P.PublicId, privateNow, StringComparison.Ordinal);
+        Assert.DoesNotContain(w.U.PublicId, privateNow, StringComparison.Ordinal);
+        Assert.Equal(0, await w.H.DbAsync(db => db.PrivateLibraries.CountAsync(p => p.UserId == w.Reader.UserId && p.LibraryId == w.U.Id)));
         foreach (var list in new[] { "/api/v1/libraries", "/api/v1/favorites", "/api/v1/reading/continue", "/api/v1/home/recent-chapters" })
         {
             Assert.DoesNotContain(HiddenWord, await reader.GetStringAsync(list), StringComparison.Ordinal);

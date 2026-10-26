@@ -170,7 +170,8 @@ public sealed class FacetQueryDifferentialHttpTests : IClassFixture<MangaPixerWe
                         }
                         var panel = await FacetQueryTestSupport.GetAsync<InfoPanelDto>(viewer.Client, url, incognito);
                         var here = entries.Where(e => e.At.Library == l && !e.At.Tombstoned).ToList();
-                        if (hiddenEverywhere || hidden.Contains(l) || here.Count == 0)
+                        // 1.48.0 lane A2 (owner answer L1): the root panel of the viewer's Private library is empty under Incognito, as browse.
+                        if (hiddenEverywhere || hidden.Contains(l) || here.Count == 0 || (incognito && privateSet.Contains(l)))
                         {
                             Assert.Equal(InfoPanelMode.None, panel.Mode);
                             continue;

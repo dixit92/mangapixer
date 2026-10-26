@@ -9,7 +9,8 @@ using Microsoft.AspNetCore.Mvc;
 /// <summary>
 /// The Info panel's tags (1.45.0, lane Q). Cookie auth (the default scheme; never an API token). Follows series-info's access rule: a
 /// node or library the viewer may not open answers 404 (never 403), so a non-member cannot learn that it exists. Direct access works
-/// in Incognito; only the counts leave Private libraries out.
+/// in Incognito; only the counts leave Private libraries out - except a library ROOT's panel, a discovery surface like the library's
+/// browse: under Incognito the viewer's own Private library answers an empty panel (1.48.0 lane A2, owner answer L1).
 /// </summary>
 [ApiController]
 [Route("api/v1")]

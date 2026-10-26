@@ -352,12 +352,13 @@ public sealed class InfoPanelFollowUpsHttpTests : IClassFixture<MangaPixerWebApp
         await _support.SetPrivateAsync(seed.ReaderId, seed.LibP);
         try
         {
-            // The Private library's own root still opens in Incognito (direct access, as the panel), but its works leave the counts:
-            // Horror counts W3 / W5 only; "here" is the root's own works (W2, W9).
-            var direct = await BucketAsync(seed.Reader, "/api/v1/libraries/fpP/info/buckets/genre", incognito: true);
-            var horror = direct.Chips.Single(c => c.Id == seed.Horror);
-            Assert.Equal(2, horror.Count);
-            Assert.Equal(2, horror.Here);
+            // 1.48.0 lane A2 (owner answer L1): the Private library's ROOT is a discovery surface like its browse - under Incognito its
+            // bucket page is empty. (Before: it opened, with the Private works left out of the counts.) A node of it stays a direct URL.
+            var root = await BucketAsync(seed.Reader, "/api/v1/libraries/fpP/info/buckets/genre", incognito: true);
+            Assert.Empty(root.Chips);
+            Assert.Equal(0, root.Total);
+            var direct = await BucketAsync(seed.Reader, "/api/v1/nodes/fpp2/info/buckets/genre", incognito: true);
+            Assert.Contains(direct.Chips, c => c.Id == seed.Horror);
             // Not Incognito's business elsewhere: A's One Shots page answers as before.
             Assert.Equal(14, (await BucketAsync(seed.Reader, "/api/v1/nodes/fpaOne/info/buckets/genre", incognito: true)).Total);
         }

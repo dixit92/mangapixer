@@ -699,7 +699,10 @@ export class SettingsComponent implements OnInit {
     });
   }
 
-  /** Marks/unmarks a library Private. Sends the whole updated set (replacement semantics). */
+  /**
+   * Marks/unmarks a library Private. Sends the whole updated set (replacement semantics) - only ids of libraries this page lists
+   * (1.48.0: the server refuses the whole set with 404 when one id names a library the user cannot open, as an unknown one).
+   */
   togglePrivate(libraryId: string, change: MatCheckboxChange): void {
     const previous = this.privateLibraryIds();
     const next = new Set(previous);
@@ -709,7 +712,8 @@ export class SettingsComponent implements OnInit {
     this.privateSaving.set(true);
     this.privateLibrariesError.set(null);
 
-    this.api.setPrivateLibraries([...next]).subscribe({
+    const listed = new Set(this.libraries().map((l) => l.id));
+    this.api.setPrivateLibraries([...next].filter((id) => listed.has(id))).subscribe({
       next: () => this.privateSaving.set(false),
       error: (err: ApiError) => {
         this.privateLibraryIds.set(previous);
