@@ -530,4 +530,30 @@ describe('TrackingSeriesListComponent', () => {
     const third = create(seriesPage(page1, { totalCount: 120 }), { before: () => TestBed.overrideProvider(TrackingListMemory, { useValue: memory }) });
     expect(params(third.firstReq)).toEqual({ page: '1' });
   });
+
+  it('1.48.0 (L2): Back to a list that now has fewer rows (a library no longer yours, or Incognito on) asks for no page past the end', () => {
+    const page1 = Array.from({ length: 50 }, (_, i) => seriesRow({ seriesId: `a${i}`, title: `Series ${i}` }));
+    const page2 = Array.from({ length: 50 }, (_, i) => seriesRow({ seriesId: `b${i}`, title: `More ${i}` }));
+    const first = create(seriesPage(page1, { totalCount: 120 }));
+    first.c.loadMore();
+    first.http.expectOne((r) => r.url === `${BASE}/series`).flush(seriesPage(page2, { page: 2, totalCount: 120 }));
+    const memory = TestBed.inject(TrackingListMemory);
+    first.fixture.destroy();
+    first.http.verify();
+    TestBed.resetTestingModule();
+
+    // The server now lists 30 series: the restore stops at the total - no request for page 2 - and the list says so.
+    const fewer = Array.from({ length: 30 }, (_, i) => seriesRow({ seriesId: `a${i}`, title: `Series ${i}` }));
+    const counts = listCounts({ all: 30, inSync: 30 });
+    const second = create(seriesPage(fewer, { totalCount: 30, counts }), {
+      before: () => {
+        TestBed.overrideProvider(TrackingListMemory, { useValue: memory });
+        memory.arm(true);
+      },
+    });
+    second.http.expectNone((r) => r.url === `${BASE}/series`);
+    expect(second.el.querySelectorAll('.row:not(.header)')).toHaveLength(30);
+    expect((q(second.el, 'tracking-load-more-mal') as HTMLButtonElement).disabled).toBe(true);
+    expect(q(second.el, 'tracking-shown-mal').textContent).toContain('Showing 1–30 of 30');
+  });
 });

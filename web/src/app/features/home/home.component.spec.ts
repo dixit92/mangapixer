@@ -151,6 +151,20 @@ describe('HomeComponent', () => {
     expect(cmp.continueReading().map((e) => e.itemId)).toEqual(['i2']);
   });
 
+  it('1.48.0: a 404 on dismiss (an item in a library no longer yours) keeps the card and asks nothing more - no sign-out', () => {
+    const fixture = createComponent();
+    const cmp = fixture.componentInstance;
+
+    cmp.dismiss(new Event('click'), {
+      itemId: 'i1', displayName: 'One', pageIndex: 2, contentVersion: 1,
+      updatedAt: '2026-09-10T00:00:00Z', libraryId: 'L1', libraryName: 'Alpha',
+    });
+    httpMock.expectOne('/api/v1/reading/continue/i1').flush(null, { status: 404, statusText: 'Not Found' });
+
+    expect(cmp.continueReading().map((e) => e.itemId)).toEqual(['i1', 'i2']);
+    // afterEach verifies that no other request (a session re-check, a sign-out) followed.
+  });
+
   // --- Favorites home row (1.21.0), opt-in ---
 
   it('hides the Favorites row by default (opt-in off)', () => {
