@@ -371,14 +371,16 @@ public sealed class LibraryAccessSweepHttpTests
             Assert.True((int)home.StatusCode < 500, $"home-libraries {(int)home.StatusCode}");
         Assert.DoesNotContain(w.U.PublicId, await reader.GetStringAsync("/api/v1/reading/home-libraries"), StringComparison.Ordinal);
 
-        // Private libraries: U cannot be marked Private by a reader without access; P stays the reader's.
+        // Private libraries: U cannot be marked Private by a reader without access - 1.48.0 lane A2 (owner answer L3): the request is refused
+        // as naming an unknown library (404) and nothing of it is stored; P stays the reader's. (Found 2026-10-25: the U id was stored and
+        // listed back.)
         using (var priv = await reader.PutAsync("/api/v1/reading/private-libraries",
                    Json($"{{\"libraryIds\":[\"{w.U.PublicId}\",\"{w.P.PublicId}\"]}}")))
-            Assert.True((int)priv.StatusCode < 500, $"private-libraries {(int)priv.StatusCode}");
-        // Found 2026-10-25: the U id is stored and listed back (a mark on a library the reader cannot open; it shows and hides nothing - the
-        // reader's lists below still name nothing of U). Open question in the lane note; pinned here as the current answer.
+            Assert.Equal(HttpStatusCode.NotFound, priv.StatusCode);
         var privateNow = await reader.GetStringAsync("/api/v1/reading/private-libraries");
         Assert.Contains(w.P.PublicId, privateNow, StringComparison.Ordinal);
+        Assert.DoesNotContain(w.U.PublicId, privateNow, StringComparison.Ordinal);
+        Assert.Equal(0, await w.H.DbAsync(db => db.PrivateLibraries.CountAsync(p => p.UserId == w.Reader.UserId && p.LibraryId == w.U.Id)));
         foreach (var list in new[] { "/api/v1/libraries", "/api/v1/favorites", "/api/v1/reading/continue", "/api/v1/home/recent-chapters" })
         {
             Assert.DoesNotContain(HiddenWord, await reader.GetStringAsync(list), StringComparison.Ordinal);
