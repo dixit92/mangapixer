@@ -64,10 +64,11 @@ public sealed class LibraryAccessSweepHttpTests
         ["GET api/v1/reading/continue/by-library/{libraryId}"] = Answer(200, 200, 200, hidden: true),
         ["GET api/v1/search"] = Answer(200, 200, 200, hidden: true),
         ["GET api/v1/trackers/card-marks"] = Answer(200, 404, 200, hidden: true),
-        // ---- the library itself and its root Info panel (direct; the panel under Incognito is an open question in the lane note)
+        // ---- the library-root Info panel (1.48.0 lane A2, owner answer L1: hidden under Incognito, as browse - an empty panel)
+        ["GET api/v1/libraries/{libraryId}/info"] = Answer(200, 404, 200, hidden: true),
+        ["GET api/v1/libraries/{libraryId}/info/buckets/{bucket}"] = Answer(200, 404, 200, hidden: true),
+        // ---- the library itself (direct)
         ["GET api/v1/libraries/{libraryId}"] = Answer(200, 404, 200),
-        ["GET api/v1/libraries/{libraryId}/info"] = Answer(200, 404, 200),
-        ["GET api/v1/libraries/{libraryId}/info/buckets/{bucket}"] = Answer(200, 404, 200),
         // ---- nodes (direct)
         ["GET api/v1/nodes/{nodeId}"] = Answer(200, 404, 200),
         ["GET api/v1/nodes/{nodeId}/breadcrumbs"] = Answer(200, 404, 200),
@@ -269,9 +270,11 @@ public sealed class LibraryAccessSweepHttpTests
                 using var response = await client.SendAsync(request);
                 var text = await response.Content.ReadAsStringAsync();
                 codes[dimension] = (int)response.StatusCode;
-                // A listing's control must list something of G (an id it was not sent): an empty control would prove nothing about U / P.
+                // A listing's control must list something of G (an id it was not sent, or - a tag panel, which names values, not nodes - G's
+                // word): an empty control would prove nothing about U / P.
                 if (dimension == Dimension.Control && IdRoutes.GetValueOrDefault(key)?.HiddenUnderIncognito == true
-                    && !w.G.AllIds.Except([w.G.PublicId, w.G.SeriesPublicId, w.G.ArtistPublicId, w.G.ShelfPublicId]).Any(id => text.Contains(id, StringComparison.OrdinalIgnoreCase)))
+                    && !w.G.AllIds.Except([w.G.PublicId, w.G.SeriesPublicId, w.G.ArtistPublicId, w.G.ShelfPublicId]).Any(id => text.Contains(id, StringComparison.OrdinalIgnoreCase))
+                    && !text.Contains(GrantedWord, StringComparison.Ordinal))
                     failures.Add($"{key}: the granted control lists nothing of G - the sweep proves nothing for it");
                 if ((int)response.StatusCode >= 500)
                     failures.Add($"{key} [{dimension}] {url}: {(int)response.StatusCode}");
