@@ -170,17 +170,12 @@ public sealed class LibraryAccessSweepHttpTests
     };
 
     /// <summary>
-    /// Lists of the caller's OWN tracker data that name a series of U (an entry kept from a revoked grant: the record's title and id, no folder)
-    /// or of P under Incognito (the Tracking page does not apply Incognito). Recorded as found, by design today - open questions in the lane
-    /// note; the leak check still runs on them for everything else.
+    /// Lists of the caller's OWN tracker data allowed to name a series of U (an entry kept from a revoked grant) or of P under Incognito.
+    /// Empty since 1.48.0 lane A2 (owner answer L2): <c>entries</c> used to list U's series (title, series id, no folder) and all three lists
+    /// (<c>entries</c>, <c>series</c>, <c>series/ids</c>) P's series under Incognito; now each lists only series the caller can open, minus
+    /// the Private libraries under Incognito. Kept as the place to record a future exception, with its reason.
     /// </summary>
-    private static readonly Dictionary<string, (bool Ungranted, bool PrivateUnderIncognito, string Reason)> OwnTrackerLists = new(StringComparer.Ordinal)
-    {
-        ["/api/v1/trackers/mangaupdates/entries"] = (true, true,
-            "the caller's own tracker entries: an entry stays listed (title, series id, no folder) after the folder's library is no longer theirs"),
-        ["/api/v1/trackers/mangaupdates/series"] = (false, true, "the Tracking page lists the caller's series of every library they can open, Incognito or not"),
-        ["/api/v1/trackers/mangaupdates/series/ids"] = (false, true, "as the Tracking page's list"),
-    };
+    private static readonly Dictionary<string, (bool Ungranted, bool PrivateUnderIncognito, string Reason)> OwnTrackerLists = new(StringComparer.Ordinal);
 
     private enum Dimension
     {
