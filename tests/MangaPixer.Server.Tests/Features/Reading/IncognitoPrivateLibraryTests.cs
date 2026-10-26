@@ -433,19 +433,20 @@ public sealed class IncognitoPrivateLibraryTests : IDisposable
         finally { await db.DisposeAsync(); }
     }
 
+    /// <summary>1.48.0 (lane A2, owner answer L3): an unknown id refuses the whole request (404 at the route) - nothing is stored.</summary>
     [Fact]
-    public async Task SetPrivateLibraries_SkipsUnknownLibraryIds()
+    public async Task SetPrivateLibraries_RefusesARequestWithAnUnknownLibraryId_StoresNothing()
     {
-        var (db, userId, _, _, _, libBPubId, _, _) = await SetupAsync();
+        var (db, userId, _, libAPubId, _, libBPubId, _, _) = await SetupAsync();
         try
         {
             var auth = new LibraryAuthorizationService(db);
             var svc = new ReadingStateService(db, auth);
 
+            await svc.SetPrivateLibrariesAsync(userId, [libAPubId]);
             await svc.SetPrivateLibrariesAsync(userId, [libBPubId, "nonexistent"]);
             var prefs = await svc.GetPrivateLibrariesAsync(userId);
-            Assert.Single(prefs.LibraryIds);
-            Assert.Contains(libBPubId, prefs.LibraryIds);
+            Assert.Equal([libAPubId], prefs.LibraryIds);
         }
         finally { await db.DisposeAsync(); }
     }
