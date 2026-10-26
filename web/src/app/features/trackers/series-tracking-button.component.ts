@@ -129,8 +129,9 @@ const POSITIONS: ConnectedPosition[] = [
     .tracking-btn mat-icon { margin-right: 4px; color: var(--mp-warn); }
     @media (max-width: 599.98px) {
       .tracking-btn .lbl { display: none; }
-      .tracking-btn mat-icon { margin-right: 0; }
-      .tracking-btn { min-width: 40px; padding: 0 8px; }
+      /* 1.48.0: with the label gone the icon is centred (Material's -8px left margin on a projected icon is reset too). */
+      .tracking-btn mat-icon { margin-inline: 0; }
+      .tracking-btn { min-width: 40px; width: 40px; padding: 0; }
     }
     .tracking-popover:focus { outline: none; }
     .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0);

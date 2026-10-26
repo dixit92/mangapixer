@@ -15,6 +15,9 @@ import { ContinueReadingEntry, LibraryViewPreferencesDto, RecentChaptersDto } fr
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { MetadataStateService } from '../metadata/metadata-state.service';
 
+// Card size and list columns are per-device (localStorage, 1.48.0): every test starts on a device with no copy.
+beforeEach(() => localStorage.clear());
+
 /**
  * Home page tests. The library sidebar was promoted to the app shell, so home is
  * the consolidated continue-reading row, the New chapters row - STACKED cards per
@@ -148,6 +151,20 @@ describe('HomeComponent', () => {
     expect(cmp.continueReading().map((e) => e.itemId)).toEqual(['i2']);
   });
 
+  it('1.48.0: a 404 on dismiss (an item in a library no longer yours) keeps the card and asks nothing more - no sign-out', () => {
+    const fixture = createComponent();
+    const cmp = fixture.componentInstance;
+
+    cmp.dismiss(new Event('click'), {
+      itemId: 'i1', displayName: 'One', pageIndex: 2, contentVersion: 1,
+      updatedAt: '2026-09-10T00:00:00Z', libraryId: 'L1', libraryName: 'Alpha',
+    });
+    httpMock.expectOne('/api/v1/reading/continue/i1').flush(null, { status: 404, statusText: 'Not Found' });
+
+    expect(cmp.continueReading().map((e) => e.itemId)).toEqual(['i1', 'i2']);
+    // afterEach verifies that no other request (a session re-check, a sign-out) followed.
+  });
+
   // --- Favorites home row (1.21.0), opt-in ---
 
   it('hides the Favorites row by default (opt-in off)', () => {
@@ -201,6 +218,100 @@ describe('HomeComponent', () => {
     // Plain cards keep their plain links.
     const plain = Array.from(section.querySelectorAll('a.cont-card')).map((a) => a.getAttribute('href'));
     expect(plain).toEqual(['/libraries/L1/browse/fold', '/reader/favA']);
+  });
+
+  // --- Favorites row card controls and read state (1.48.0) ---
+
+  const favoritesPrefs: LibraryViewPreferencesDto = {
+    viewMode: 'card', density: 'comfortable', sort: 'name', showFavoritesHomeRow: true,
+  };
+
+  function favoritesSection(fixture: { nativeElement: HTMLElement }): HTMLElement {
+    return Array.from(fixture.nativeElement.querySelectorAll('.strip-section'))
+      .find((s) => s.querySelector('h3')?.textContent?.trim() === 'Favorites') as HTMLElement;
+  }
+
+  const rowFavorites = [
+    { id: 'arcRead', kind: 'Archive', libraryId: 'L1', displayName: 'Read One', coverUrl: null, isFavorite: true, isRead: true, hasSeriesInfo: true },
+    { id: 'arcNow', kind: 'Archive', libraryId: 'L1', displayName: 'Reading One', coverUrl: null, isFavorite: true, readingState: 'InProgress' },
+    { id: 'folPart', kind: 'Folder', libraryId: 'L1', displayName: 'Partly Read', coverUrl: null, isFavorite: true, readRollup: 'Reading', hasSeriesInfo: true },
+    { id: 'folDone', kind: 'Folder', libraryId: 'L1', displayName: 'All Read', coverUrl: null, isFavorite: true, readRollup: 'Read' },
+    { id: 'folNew', kind: 'Folder', libraryId: 'L1', displayName: 'Unread Folder', coverUrl: null, isFavorite: true, readRollup: 'Unread' },
+    { id: 'stk', kind: 'Folder', libraryId: 'L1', displayName: 'Stacked', coverUrl: null, isFavorite: false, favoriteStackCount: 2, readRollup: 'Reading', hasSeriesInfo: true },
+  ];
+
+  it('gives the Favorites row the read badges: an archive\'s Read / Reading, a folder\'s and a stack\'s rollup (1.48.0)', () => {
+    const fixture = createComponent({ prefs: favoritesPrefs, favorites: rowFavorites });
+    const cards = favoritesSection(fixture).querySelectorAll('.cont-card, .stack-card');
+    const badges = Array.from(cards).map((c) =>
+      Array.from(c.querySelectorAll('.badge')).map((b) => b.textContent?.trim()).filter((t) => t === '✓ Read' || t === 'Reading').join(','));
+    expect(badges).toEqual(['✓ Read', 'Reading', 'Reading', '✓ Read', '', 'Reading']);
+  });
+
+  it('gives the Favorites row the (i), the hover zones and a star on each single card, and no star on a stack (1.48.0)', () => {
+    const fixture = createComponent({ prefs: favoritesPrefs, favorites: rowFavorites });
+    const section = favoritesSection(fixture);
+    const cards = Array.from(section.querySelectorAll('.cont-card, .stack-card'));
+    const infos = cards.map((c) => c.querySelector('[data-testid="info-toggle"]') !== null);
+    expect(infos).toEqual([true, false, true, false, false, true]);
+
+    // Single cards: a filled star, bottom-right of the cover. The stack has none (it would star the folder itself).
+    const stars = cards.map((c) => c.querySelector('.star-btn')?.getAttribute('aria-pressed') ?? '-');
+    expect(stars).toEqual(['true', 'true', 'true', 'true', 'true', '-']);
+
+    // Hover zones (cover + title) exist for a card with series information only.
+    const zones = fixture.debugElement.queryAll(By.directive(SeriesInfoHoverDirective))
+      .filter((d) => section.contains(d.nativeElement))
+      .map((d) => d.injector.get(SeriesInfoHoverDirective).nodeId() ?? '-');
+    expect(zones).toEqual(['arcRead', 'arcRead', '-', '-', 'folPart', 'folPart', '-', '-', '-', '-', 'stk', 'stk']);
+  });
+
+  it('takes a card out of the Favorites row when it is unstarred, but keeps a stack (1.48.0)', () => {
+    const fixture = createComponent({ prefs: favoritesPrefs, favorites: rowFavorites });
+    const star = favoritesSection(fixture).querySelectorAll('.cont-card')[1].querySelector('.star-btn') as HTMLButtonElement;
+
+    star.click();
+    const req = httpMock.expectOne('/api/v1/nodes/arcNow/favorite');
+    expect(req.request.method).toBe('DELETE');
+    req.flush(null);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.favorites().map((n) => n.id)).toEqual(['arcRead', 'folPart', 'folDone', 'folNew', 'stk']);
+    expect(favoritesSection(fixture).querySelectorAll('.cont-card').length).toBe(4);
+
+  });
+
+  it('keeps a stack in the Favorites row when its folder\'s own star goes off (1.48.0)', () => {
+    // The stack stands for the starred children, not for the folder's own star.
+    const fixtureStack = createComponent({
+      prefs: favoritesPrefs,
+      favorites: [
+        { id: 'fold', kind: 'Folder', libraryId: 'L1', displayName: 'Stacked', coverUrl: null, isFavorite: false, favoriteStackCount: 2 },
+        { id: 'fold', kind: 'Folder', libraryId: 'L1', displayName: 'Stacked', coverUrl: null, isFavorite: true },
+      ],
+    });
+    const folderStar = favoritesSection(fixtureStack).querySelector('.cont-card .star-btn') as HTMLButtonElement;
+    folderStar.click();
+    httpMock.expectOne('/api/v1/nodes/fold/favorite').flush(null);
+    fixtureStack.detectChanges();
+    expect(fixtureStack.componentInstance.favorites().length).toBe(1);
+    expect(favoritesSection(fixtureStack).querySelectorAll('a.stack-card').length).toBe(1);
+  });
+
+  it('re-fetches the Favorites row after a link change, like Continue reading (the anchored flag, 1.48.0)', () => {
+    vi.useFakeTimers();
+    try {
+      const fixture = createComponent({ prefs: favoritesPrefs, favorites: rowFavorites, continueReading: [] });
+      TestBed.inject(MetadataStateService).announce('arcNow', true);
+      vi.advanceTimersByTime(300);
+      httpMock.expectOne((r) => r.url === '/api/v1/favorites').flush(
+        { items: [{ ...rowFavorites[1], hasSeriesInfo: true }], totalCount: 1, nextCursor: null, hasMore: false });
+      fixture.detectChanges();
+      expect(fixture.componentInstance.favorites().length).toBe(1);
+      expect(favoritesSection(fixture).querySelector('[data-testid="info-toggle"]')).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   // --- B1: stacked "New chapters" cards ---
@@ -415,6 +526,31 @@ describe('HomeComponent', () => {
     cmp.setCardSize(1);
     expect(cmp.cardSize()).toBe(cmp.cardSizeMin);
     httpMock.expectOne({ method: 'PUT', url: '/api/v1/reading/library-preferences' }).flush(null);
+  });
+
+  it('uses this device\'s own card size over the server value, and does not replace it', () => {
+    localStorage.setItem('mangapixer-card-size', '130');
+    const fixture = createComponent(); // the server blob says 180
+    expect(fixture.componentInstance.cardSize()).toBe(130);
+    expect((fixture.nativeElement.querySelector('.home') as HTMLElement).style.getPropertyValue('--card-size')).toBe('130px');
+    expect(localStorage.getItem('mangapixer-card-size')).toBe('130');
+  });
+
+  it('seeds a device without a copy from the server value', () => {
+    createComponent();
+    expect(localStorage.getItem('mangapixer-card-size')).toBe('180');
+  });
+
+  it('a card size change is kept on the device, and the saved blob carries this device\'s list columns, not the stale ones', () => {
+    localStorage.setItem('mangapixer-list-columns', '1');
+    const fixture = createComponent({
+      prefs: { viewMode: 'list', density: 'comfortable', sort: 'name', cardSize: '180', listColumns: 3, libraryPageSize: 100 },
+    });
+    fixture.componentInstance.setCardSize(210);
+    expect(localStorage.getItem('mangapixer-card-size')).toBe('210');
+    const put = httpMock.expectOne({ method: 'PUT', url: '/api/v1/reading/library-preferences' });
+    expect(put.request.body).toMatchObject({ cardSize: '210', listColumns: 1, libraryPageSize: 100 });
+    put.flush(null);
   });
 
   // --- Library visibility: home READS the per-user excluded set to filter which

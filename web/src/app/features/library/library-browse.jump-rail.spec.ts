@@ -12,6 +12,9 @@ import { AuthService } from '../../core/auth/auth.service';
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { CatalogNodeDto, JumpIndexBucketDto, JumpIndexDto, PageResponse } from '../../core/api/api-types';
 
+// Card size and list columns are per-device (localStorage, 1.48.0): every test starts on a device with no copy.
+beforeEach(() => localStorage.clear());
+
 /**
  * The smart jump rail in browse (1.41.0): requested for the listed FOLDER and the current name-sort DIRECTION (and the Volumes-view
  * choice, so the server can hide it there), rendered by `app-jump-rail` in letters or numbers mode, and a scroll-spy that follows

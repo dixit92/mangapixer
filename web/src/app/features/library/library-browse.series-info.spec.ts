@@ -19,6 +19,9 @@ import { SeriesInfoOverlayService } from '../metadata/series-info-overlay.servic
 import { seriesInfo } from '../metadata/series-info.testing';
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 
+// Card size and list columns are per-device (localStorage, 1.48.0): every test starts on a device with no copy.
+beforeEach(() => localStorage.clear());
+
 /**
  * Series-info wiring in browse (1.24.0): the card (i) (cover bottom-left) and the
  * list-row (i) only for nodes that carry their own information, hidden in select
@@ -36,7 +39,7 @@ describe('LibraryBrowseComponent series info (1.24.0)', () => {
     } as CatalogNodeDto;
   }
 
-  function setup(viewMode: 'card' | 'list', nodes: CatalogNodeDto[], parentId: string | null = null, admin = false, prefs: Record<string, unknown> = {}) {
+  function setup(viewMode: 'card' | 'list', nodes: CatalogNodeDto[], parentId: string | null = null, admin = false, prefs: Record<string, unknown> = {}, folder: Partial<CatalogNodeDto> = {}) {
     const page: PageResponse<CatalogNodeDto> = { items: nodes, totalCount: nodes.length, nextCursor: null, hasMore: false };
     const apiSpy = {
       getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
@@ -46,7 +49,7 @@ describe('LibraryBrowseComponent series info (1.24.0)', () => {
       browseLibrary: vi.fn().mockReturnValue(of(page)),
       getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
       getJumpIndex: vi.fn().mockReturnValue(of({ libraryId: 'lib1', buckets: [] })),
-      getNode: vi.fn().mockReturnValue(of({ displayName: 'Folder' } as CatalogNodeDto)),
+      getNode: vi.fn().mockReturnValue(of({ displayName: 'Folder', ...folder } as CatalogNodeDto)),
       setFavorite: vi.fn().mockReturnValue(of(undefined)),
     };
     const metadata = {
@@ -193,6 +196,39 @@ describe('LibraryBrowseComponent series info (1.24.0)', () => {
     atRoot.fixture.detectChanges();
     TestBed.inject(HttpTestingController).expectOne((r) => r.url.endsWith('/libraries/lib1/info'));
     expect(atRoot.el.querySelector('[data-testid="series-info-button"]')).toBeNull();
+  });
+
+  it('shows a star after the Info button for the folder being viewed, seeded from its lookup; none at a library root (1.48.0)', () => {
+    const starred = setup('card', [], 'folder-1', false, {}, { isFavorite: true });
+    const bar = starred.el.querySelector('app-star-toggle.bar') as HTMLElement;
+    expect(bar).not.toBeNull();
+    expect(bar.querySelector('button')!.getAttribute('aria-pressed')).toBe('true');
+    expect(bar.querySelector('button')!.getAttribute('data-testid')).toBe('folder-star');
+    // Right after the Info button, in the same bar.
+    const info = starred.el.querySelector('app-series-info-button')!;
+    expect(info.nextElementSibling).toBe(bar);
+    expect(starred.apiSpy.getNode).toHaveBeenCalledWith('folder-1');
+
+    TestBed.resetTestingModule();
+    const plain = setup('card', [], 'folder-2');
+    expect(plain.el.querySelector('app-star-toggle.bar button')!.getAttribute('aria-pressed')).toBe('false');
+
+    TestBed.resetTestingModule();
+    const atRoot = setup('card', [], null);
+    expect(atRoot.el.querySelector('app-star-toggle.bar')).toBeNull(); // a library root is not a node
+  });
+
+  it('the bar star stars and unstars the folder through the favorites endpoint', () => {
+    const { fixture, el, apiSpy } = setup('card', [], 'folder-1');
+    const button = el.querySelector('app-star-toggle.bar button') as HTMLButtonElement;
+    button.click();
+    fixture.detectChanges();
+    expect(apiSpy.setFavorite).toHaveBeenCalledWith('folder-1', true);
+    expect(button.getAttribute('aria-pressed')).toBe('true');
+    button.click();
+    fixture.detectChanges();
+    expect(apiSpy.setFavorite).toHaveBeenLastCalledWith('folder-1', false);
+    expect(button.getAttribute('aria-pressed')).toBe('false');
   });
 
   it('offers the Series selection menu to admins only', () => {

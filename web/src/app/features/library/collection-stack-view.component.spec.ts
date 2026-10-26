@@ -14,6 +14,9 @@ import { ApiService } from '../../core/api/api.service';
 import { CatalogNodeDto, CollectionStackDto } from '../../core/api/api-types';
 import { storiesLabel } from '../../shared/volume-stack/stories-label';
 
+// Card size and list columns are per-device (localStorage, 1.48.0): every test starts on a device with no copy.
+beforeEach(() => localStorage.clear());
+
 /**
  * The stack view of stories collected in one volume (1.37.0, tankoubon stacks): header (cover, title, "N stories"), the REAL folder in
  * the breadcrumbs, the stories in folder order with no volume / missing marks, previous / next stack, the Card / List choice and the
@@ -114,6 +117,20 @@ describe('CollectionStackViewComponent', () => {
     const msg = el.querySelector('[data-testid="stack-unavailable"]')!;
     expect(msg.textContent).toContain('not stacked here any more');
     expect(msg.querySelector('a')!.getAttribute('href')).toBe('/libraries/lib1/browse/f1');
+  });
+
+  it('uses this device\'s own list columns over the server value, and sends them (not the stale ones) when the view mode is saved (1.48.0)', () => {
+    localStorage.setItem('mangapixer-list-columns', '3'); // the server blob says 2
+    const { el, fixture, apiSpy } = setup(stack(), { viewMode: 'card' });
+    expect((el.querySelector('[data-testid="stack-slots"]') as HTMLElement).style.getPropertyValue('--list-columns')).toBe('3');
+    (el.querySelector('[data-testid="stack-view-list"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(apiSpy.setLibraryPreferences.mock.calls.at(-1)![0]).toMatchObject({ stackViewMode: 'list', listColumns: 3 });
+  });
+
+  it('seeds a device without list columns from the server value (1.48.0)', () => {
+    setup(stack(), { viewMode: 'card' });
+    expect(localStorage.getItem('mangapixer-list-columns')).toBe('2');
   });
 
   it('shows the stories as the shared list rows in List view', () => {

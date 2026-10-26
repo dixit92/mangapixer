@@ -651,12 +651,20 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
     }
 
     /// <summary>1.43.0 (lane G): per record, the first folder (or archive) with its own Confirmed / Auto link the user can open.</summary>
-    public async Task<Dictionary<long, string>> FirstNodesAsync(long userId, IReadOnlyCollection<long> recordIds, CancellationToken ct)
+    public Task<Dictionary<long, string>> FirstNodesAsync(long userId, IReadOnlyCollection<long> recordIds, CancellationToken ct) =>
+        FirstNodesAsync(userId, recordIds, incognito: false, ct);
+
+    /// <summary>
+    /// As above; 1.48.0 (lane A2, owner answer L2): under <paramref name="incognito"/> only the VISIBLE libraries count (the user's Private
+    /// libraries left out, as browse) - for the user's own tracker lists, which are discovery surfaces. A series also linked in a library
+    /// that is not Private keeps that folder.
+    /// </summary>
+    public async Task<Dictionary<long, string>> FirstNodesAsync(long userId, IReadOnlyCollection<long> recordIds, bool incognito, CancellationToken ct)
     {
         var result = new Dictionary<long, string>();
         if (recordIds.Count == 0)
             return result;
-        var accessible = (await libraries.GetAccessibleLibraryIdsAsync(userId, ct)).ToList();
+        var accessible = (await libraries.GetVisibleLibraryIdsAsync(userId, incognito, ct)).ToList();
         var states = new[] { (int)SeriesLinkState.Confirmed, (int)SeriesLinkState.Auto };
         var tombstoned = (int)CatalogNodeAvailability.Tombstoned;
         foreach (var chunk in recordIds.Distinct().Chunk(Batch))
