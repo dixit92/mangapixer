@@ -29,7 +29,9 @@ public sealed class DbRestoreOptions
 /// Security model (non-negotiable):
 /// 1. Admin-only — the endpoint is guarded by <c>[Authorize(Policy = "Admin")]</c>.
 /// 2. Validate before trusting — an uploaded stream is accepted ONLY if it is a
-///    genuine MangaPixer SQLite backup: SQLite magic header, enforced size cap,
+///    genuine MangaPixer SQLite backup (a gzip-compressed one, 1.49.0, is
+///    unpacked first - detected by its magic bytes - with the cap applied to the
+///    unpacked bytes): SQLite magic header, enforced size cap,
 ///    <c>PRAGMA integrity_check = ok</c>, and the expected MangaPixer schema
 ///    (core tables + a recognised <c>user_version</c> marker). A caller-supplied
 ///    filesystem path is NEVER accepted; the payload is written to a controlled
@@ -103,27 +105,47 @@ public sealed class DbRestoreService
         var stagedPath = Path.Combine(pendingDir, StagedFileName);
 
         // 1. Write the upload to the controlled staging location with an
-        //    enforced size cap. Never trust a caller-supplied path.
+        //    enforced size cap. Never trust a caller-supplied path. A gzip
+        //    stream (1.49.0: a compressed rotating backup, uploaded or picked
+        //    from the list) is recognised by its magic bytes, never its name,
+        //    and unpacked while it is written; the cap counts the UNPACKED
+        //    bytes, so a small stream that expands without end is refused
+        //    before anything beyond the cap is written.
+        var wasCompressed = false;
+        var tooLarge = false;
+        long unpackedBytes = 0;
         try
         {
+            var head = new byte[64 * 1024];
+            var headLength = await upload.ReadAtLeastAsync(head, head.Length, throwOnEndOfStream: false, ct);
+            wasCompressed = BackupCompression.HasGzipMagic(head.AsSpan(0, headLength));
+            Stream source = new BackupCompression.HeadThenStream(head.AsMemory(0, headLength), upload);
+            if (wasCompressed)
+                source = new System.IO.Compression.GZipStream(source, System.IO.Compression.CompressionMode.Decompress);
+
+            await using (source)
             await using (var fs = new FileStream(stagedPath, FileMode.Create, FileAccess.Write, FileShare.None))
             {
-                var written = 0L;
                 var buffer = new byte[64 * 1024];
                 int read;
-                while ((read = await upload.ReadAsync(buffer, ct)) > 0)
+                while ((read = await source.ReadAsync(buffer, ct)) > 0)
                 {
-                    written += read;
-                    if (written > _options.MaxUploadBytes)
+                    unpackedBytes += read;
+                    if (unpackedBytes > _options.MaxUploadBytes)
                     {
-                        _logger?.LogWarning(LogEvents.Backup.RestoreUploadRejected,
-                            "Restore upload rejected: exceeds size cap ({Cap} bytes)", _options.MaxUploadBytes);
-                        return RestoreStageResult.Failed("upload_too_large",
-                            $"Upload exceeds the maximum allowed size of {_options.MaxUploadBytes} bytes.");
+                        tooLarge = true;
+                        break;
                     }
                     await fs.WriteAsync(buffer.AsMemory(0, read), ct);
                 }
             }
+        }
+        catch (InvalidDataException)
+        {
+            // A damaged gzip stream (bad header, truncated data or a failed CRC-32).
+            TryDelete(stagedPath);
+            _logger?.LogWarning(LogEvents.Backup.RestoreCompressedRejected, "Restore upload rejected: the compressed backup is damaged");
+            return RestoreStageResult.Failed("invalid_backup", "The compressed backup is damaged (gzip check failed).");
         }
         catch (Exception ex)
         {
@@ -131,6 +153,22 @@ public sealed class DbRestoreService
             _logger?.LogWarning(LogEvents.Backup.RestoreUploadRejected, "Restore upload rejected: {Error}", ex.GetType().Name);
             return RestoreStageResult.Failed("upload_failed", "Could not read the uploaded file.");
         }
+
+        if (tooLarge)
+        {
+            // The staging file is closed now (Windows cannot delete an open file).
+            TryDelete(stagedPath);
+            _logger?.LogWarning(LogEvents.Backup.RestoreUploadRejected,
+                "Restore upload rejected: exceeds size cap ({Cap} bytes{Compressed})", _options.MaxUploadBytes, wasCompressed ? ", compressed upload" : "");
+            return RestoreStageResult.Failed("upload_too_large",
+                wasCompressed
+                    ? $"The backup unpacks to more than the maximum allowed size of {_options.MaxUploadBytes} bytes."
+                    : $"Upload exceeds the maximum allowed size of {_options.MaxUploadBytes} bytes.");
+        }
+
+        if (wasCompressed)
+            _logger?.LogInformation(LogEvents.Backup.RestoreDecompressed,
+                "Compressed restore upload unpacked ({UnpackedBytes} bytes)", unpackedBytes);
 
         // 2. Validate the staged file before trusting it.
         var validation = await ValidateBackupAsync(stagedPath, ct);

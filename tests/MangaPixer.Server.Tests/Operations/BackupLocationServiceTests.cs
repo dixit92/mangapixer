@@ -138,7 +138,7 @@ public sealed class BackupLocationServiceTests : IDisposable
         var run = await h.Rotating.RunAsync();
         Assert.True(run.Succeeded);
         Assert.True(File.Exists(Path.Combine(target, run.FileName!)));
-        Assert.False(Directory.Exists(_safetyDir) && Directory.EnumerateFiles(_safetyDir, "rotating-*.db").Any(),
+        Assert.False(Directory.Exists(_safetyDir) && Directory.EnumerateFiles(_safetyDir, "rotating-*").Any(),
             "A custom location must not also write into the data root.");
         Assert.Equal(1, await h.Db.AuditEvents.CountAsync(e => e.Action == AuditActions.BackupLocationChanged && e.Result == AuditResults.Success));
     }
@@ -176,7 +176,7 @@ public sealed class BackupLocationServiceTests : IDisposable
         Assert.False(first.Succeeded);
         Assert.Equal(BackupLocationCodes.Unavailable, first.FailureCode);
         Assert.Equal(BackupLocationCodes.Unavailable, second.FailureCode);
-        Assert.Empty(Directory.EnumerateFiles(target, "rotating-*.db"));
+        Assert.Empty(Directory.EnumerateFiles(target, "rotating-*"));
         Assert.Equal(BackupLocationStatuses.Unavailable, h.State.LocationStatus);
         Assert.Equal(BackupLocationCodes.Unavailable, h.State.LastFailureCode);
         Assert.Equal(1, await h.Db.AuditEvents.CountAsync(e => e.Action == AuditActions.BackupLocationUnavailable));

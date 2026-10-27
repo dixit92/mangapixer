@@ -5,7 +5,9 @@ using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 
 /// <summary>
 /// Online backup service. Creates safe point-in-time snapshots of the
@@ -77,6 +79,77 @@ public sealed class BackupService
             _logger?.LogError(LogEvents.Backup.BackupFailed, "Backup failed: {Error}", ex.GetType().Name);
             return BackupResult.Failed("backup_failed_" + ex.GetType().Name);
         }
+    }
+
+    /// <summary>
+    /// Creates a gzip-compressed online backup (1.49.0, rotating backups). The
+    /// snapshot is written (VACUUM INTO) to a temporary plain file in
+    /// <paramref name="tempDirectory"/> - the data root, never a tmpfs - and
+    /// verified there (table check + <c>PRAGMA integrity_check</c>); only then
+    /// is it stream-compressed to <c>&lt;target&gt;.partial</c>, flushed, read
+    /// back (CRC-32 + length + SHA-256 against the plain copy) and renamed to
+    /// <paramref name="gzipPath"/>. The temporary files are always removed. A
+    /// failure leaves no file under the final name.
+    /// </summary>
+    public async Task<BackupResult> BackupCompressedAsync(
+        string gzipPath,
+        string tempDirectory,
+        CompressionLevel level = CompressionLevel.Optimal,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(gzipPath) || string.IsNullOrWhiteSpace(tempDirectory))
+            return BackupResult.Failed("backup_path_required");
+
+        var temp = Path.Combine(tempDirectory, $"{RotatingBackupService.BuildTempPrefix}{Guid.NewGuid():N}{RotatingBackupService.BuildTempSuffix}");
+        var partial = gzipPath + ".partial";
+        try
+        {
+            Directory.CreateDirectory(tempDirectory);
+            var plain = await BackupAsync(temp, ct);
+            if (!plain.Succeeded)
+                return plain;
+
+            var validation = await DbRestoreService.ValidateBackupAsync(temp, ct);
+            if (!validation.IsValid)
+            {
+                _logger?.LogError(LogEvents.Backup.BackupVerificationFailed, "Database backup failed verification (integrity check)");
+                return BackupResult.Failed("backup_verification_failed");
+            }
+
+            var clock = Stopwatch.StartNew();
+            var (raw, packed) = await BackupCompression.CompressAndVerifyAsync(temp, partial, level, ct);
+            // Same directory: an atomic rename, and it never replaces an existing snapshot.
+            File.Move(partial, gzipPath, overwrite: false);
+            _logger?.LogInformation(LogEvents.Backup.BackupCompressed,
+                "Database backup compressed ({RawBytes} -> {GzipBytes} bytes, level {Level}, {Seconds:F1} s)",
+                raw, packed, level, clock.Elapsed.TotalSeconds);
+            return BackupResult.Success(gzipPath);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Exception type only: IO messages can embed the target path.
+            _logger?.LogError(LogEvents.Backup.BackupCompressionFailed, "Compressed backup failed: {Error}", ex.GetType().Name);
+            return BackupResult.Failed("backup_failed_" + ex.GetType().Name);
+        }
+        finally
+        {
+            TryDelete(temp);
+            TryDelete(temp + "-wal");
+            TryDelete(temp + "-shm");
+            TryDelete(temp + "-journal");
+            TryDelete(partial);
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try { if (File.Exists(path)) File.Delete(path); }
+        catch (IOException) { /* best effort; the next run clears stale temp files */ }
+        catch (UnauthorizedAccessException) { }
     }
 
     /// <summary>

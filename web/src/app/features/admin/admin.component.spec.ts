@@ -290,4 +290,26 @@ describe('AdminComponent directory browser row', () => {
     fixture.debugElement.query(By.directive(ScheduledJobsComponent)).componentInstance.trashChanged.emit();
     expect(apiSpy.getTrash.mock.calls.length).toBe(loads + 1);
   });
+  it('1.49.0: the snapshot list says "compressed" for a .db.gz and nothing for a plain .db; the picker accepts both', () => {
+    const { fixture, apiSpy } = setup({ name: 'x', path: '/library-root/x', hasChildren: false });
+    apiSpy.listRotatingBackups.mockReturnValue(of({
+      files: [
+        { fileName: 'rotating-20261026-120000.db.gz', byteSize: 2048, timestampUtc: '2026-10-26T12:00:00Z' },
+        { fileName: 'rotating-20261025-120000.db', byteSize: 4096, timestampUtc: '2026-10-25T12:00:00Z' },
+      ],
+    } as RotatingBackupListDto));
+    fixture.componentInstance.refreshBackups();
+    fixture.detectChanges();
+    const el: HTMLElement = fixture.nativeElement;
+    const rows = [...el.querySelectorAll('.snapshot-list mat-list-item')].map((r) => r.textContent!.replace(/\s+/g, ' '));
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toContain('2.0 KB (compressed)');
+    expect(rows[1]).toContain('4.0 KB');
+    expect(rows[1]).not.toContain('compressed');
+
+    const accept = el.querySelector<HTMLInputElement>('input[type="file"][accept*=".db"]')!.getAttribute('accept')!;
+    expect(accept).toContain('.db');
+    expect(accept).toContain('.db.gz');
+    expect(accept).toContain('.gz');
+  });
 });

@@ -125,6 +125,10 @@ public sealed class BackupSettingsResolverTests
     [InlineData("rotating-old-manual.db", false)]
     [InlineData("rotating-20260901-000000.db.bak", false)]
     [InlineData("rotating-20260901-000000-XYZW.db", false)]
+    [InlineData("rotating-20260901-000000.db.gz", true)]
+    [InlineData("rotating-20260901-000000-0a9f.db.gz", true)]
+    [InlineData("rotating-20260901-000000.db.gz.partial", false)]
+    [InlineData("rotating-20260901-000000.gz", false)]
     [InlineData("pre-migration-20260901-000000.db", false)]
     public void RotatingNamePattern_IsStrict(string name, bool matches)
     {

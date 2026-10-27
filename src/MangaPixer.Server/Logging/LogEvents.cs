@@ -355,6 +355,13 @@ public static class LogEvents
         public const int SnapshotMoveStarted = 6040;
         public const int SnapshotMoveCompleted = 6041;
         public const int SnapshotMoveFailed = 6042;
+
+        // 1.49.0 compressed rotating backups (6050-6069)
+        public const int BackupCompressed = 6050;
+        public const int BackupCompressionFailed = 6051;
+        public const int StaleBackupTempsRemoved = 6052;
+        public const int RestoreDecompressed = 6053;
+        public const int RestoreCompressedRejected = 6054;
     }
 
     /// <summary>Admin actions on users and server configuration.</summary>

@@ -350,7 +350,7 @@ public sealed class BackupSettingsConfigurationHttpTests
 
             var run = await client.PostAsync("/api/v1/operations/backups/rotating", content: null);
             run.EnsureSuccessStatusCode();
-            Assert.Single(Directory.EnumerateFiles(pinned, "rotating-*.db"));
+            Assert.Single(Directory.EnumerateFiles(pinned, "rotating-*.db.gz"));
             Assert.True(File.Exists(Path.Combine(pinned, BackupLocationValidator.MarkerFileName)));
         }
         finally
