@@ -210,42 +210,45 @@ public sealed class SearchSuggestService
         if (prefix.Contains('|', StringComparison.Ordinal) || prefix.Contains("..", StringComparison.Ordinal))
             return [];
         var query = SearchText.Parse(prefix);
-        SuggestValueDto Value(string label, int? count = null) =>
+        SuggestValueDto Value(string label, int? count) =>
             new() { Label = label, Insert = SearchSuggestSyntax.Token(field.Negated, field.Name, label), Count = count };
 
         switch (field.Name)
         {
             case SearchSuggestSyntax.IsField:
-                return ReadStates.Where(s => s.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).Select(s => Value(s)).ToList();
-
+                return ReadStates.Where(s => s.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).Select(s => Value(s, null)).ToList();
             case SearchSuggestSyntax.LibraryField:
-            {
-                var visible = await _auth.GetVisibleLibraryIdsAsync(userId, incognito, ct);
-                var names = await _db.Libraries.AsNoTracking().Where(l => visible.Contains(l.Id)).Select(l => l.DisplayName).ToListAsync(ct);
-                return names
-                    .Select(n => (Name: n, Tier: FacetSuggestService.ValueTier(query, n)))
-                    .Where(n => n.Tier is not null)
-                    .OrderBy(n => n.Tier).ThenBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
-                    .Take(PerField)
-                    .Select(n => Value(n.Name))
-                    .ToList();
-            }
-
+                return (await LibraryNamesAsync(userId, incognito, query, ct)).Select(n => Value(n, null)).ToList();
             case "series":
-            {
-                var titles = await _browse.SuggestSeriesTitlesAsync(userId, query, incognito, PerField, ct);
-                return titles.Select(t => Value(t)).ToList();
-            }
-
+                return (await _browse.SuggestSeriesTitlesAsync(userId, query, incognito, PerField, ct)).Select(t => Value(t, null)).ToList();
             default:
-            {
-                if (field.Bucket is not { } bucket || (!query.IsEmpty && query.AllWords.Sum(w => w.Length) < MinValueChars))
-                    return [];
-                var scope = await _scopes.ResolveAsync(userId, incognito, ct);
-                var values = await _facets.ValuesAsync(scope, [bucket], query, PerField, ct);
-                return values.Select(v => Value(v.Display, v.Count)).ToList();
-            }
+                return await BucketValuesAsync(userId, incognito, field, query, Value, ct);
         }
+    }
+
+    /// <summary>The names of the libraries the viewer may list (Incognito applied) that match the typed words.</summary>
+    private async Task<List<string>> LibraryNamesAsync(long userId, bool incognito, SearchQuery query, CancellationToken ct)
+    {
+        var visible = await _auth.GetVisibleLibraryIdsAsync(userId, incognito, ct);
+        var names = await _db.Libraries.AsNoTracking().Where(l => visible.Contains(l.Id)).Select(l => l.DisplayName).ToListAsync(ct);
+        return names
+            .Select(n => (Name: n, Tier: FacetSuggestService.ValueTier(query, n)))
+            .Where(n => n.Tier is not null)
+            .OrderBy(n => n.Tier).ThenBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
+            .Take(PerField)
+            .Select(n => n.Name)
+            .ToList();
+    }
+
+    /// <summary>The values of a tag bucket (creator, tag, genre, publisher, ...) for the typed prefix, in the viewer's scope.</summary>
+    private async Task<List<SuggestValueDto>> BucketValuesAsync(
+        long userId, bool incognito, TrailingField field, SearchQuery query, Func<string, int?, SuggestValueDto> value, CancellationToken ct)
+    {
+        if (field.Bucket is not { } bucket || (!query.IsEmpty && query.AllWords.Sum(w => w.Length) < MinValueChars))
+            return [];
+        var scope = await _scopes.ResolveAsync(userId, incognito, ct);
+        var values = await _facets.ValuesAsync(scope, [bucket], query, PerField, ct);
+        return values.Select(v => value(v.Display, v.Count)).ToList();
     }
 
     private static SearchSuggestDto Empty(string query) => new()

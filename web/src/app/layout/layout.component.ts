@@ -15,6 +15,7 @@ import { IncognitoService } from '../core/incognito/incognito.service';
 import { MetadataReviewStateService } from '../features/metadata/metadata-review-state.service';
 import { TrackerStateService } from '../features/trackers/tracker-state.service';
 import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
+import { HeaderSearchComponent } from './header-search.component';
 
 /**
  * Main layout shell. Toolbar + user menu, and (1.5.0) the persistent
@@ -47,6 +48,7 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
     MatBadgeModule,
     MatTooltipModule,
     LibrarySidebarComponent,
+    HeaderSearchComponent,
   ],
   template: `
     <mat-toolbar color="primary">
@@ -64,6 +66,10 @@ import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
       <span class="spacer"></span>
 
       @if (auth.isAuthenticated()) {
+        <!-- 1.49.0 (lane O): the quick-results search box (desktop and tablet; phones keep the Search page, which has the same results). -->
+        @if (!isPhone()) {
+          <app-header-search />
+        }
         @if (isPhone()) {
           <!-- Phones: the two text links touched each other, so they are icon buttons here (same order,
                same routes; the label stays for screen readers and as a tooltip). -->

@@ -121,7 +121,7 @@ public sealed class SearchSuggestHttpTests : IClassFixture<MangaPixerWebApplicat
 
     private static string[] AllLabels(SearchSuggestDto dto) =>
         dto.Series.Concat(dto.Folders).Concat(dto.Archives).Concat(dto.Creators).Concat(dto.Tags)
-            .SelectMany(i => new[] { i.Label, i.Detail ?? "" }).ToArray();
+            .SelectMany(i => new[] { i.Label, i.Detail ?? "" }).Where(l => l.Length > 0).ToArray();
 
     [Fact]
     public async Task Groups_ListFoldersAndArchives_FiveEach_InRankOrder()
@@ -151,7 +151,7 @@ public sealed class SearchSuggestHttpTests : IClassFixture<MangaPixerWebApplicat
         foreach (var q in new[] { "", "   ", "be" })
         {
             var dto = await SuggestAsync(seed.Admin, q);
-            Assert.Empty(AllLabels(dto).Where(l => l.Length > 0));
+            Assert.Empty(AllLabels(dto));
             Assert.Null(dto.Field);
         }
         var bare = await FacetQueryTestSupport.GetAsync<SearchSuggestDto>(seed.Admin, "/api/v1/search/suggest");
@@ -217,7 +217,7 @@ public sealed class SearchSuggestHttpTests : IClassFixture<MangaPixerWebApplicat
         foreach (var client in new[] { seed.Reader.Client, seed.Reader.Incognito })
         {
             var dto = await SuggestAsync(client, "zqsecret");
-            Assert.Empty(AllLabels(dto).Where(l => l.Length > 0));
+            Assert.Empty(AllLabels(dto));
             Assert.Empty((await SuggestAsync(client, "creator:zqs")).Field!.Items);
             Assert.Empty((await SuggestAsync(client, "tag:zqs")).Field!.Items);
             Assert.DoesNotContain("Quick Lib B", (await SuggestAsync(client, "library:")).Field!.Items.Select(i => i.Label));
@@ -234,7 +234,7 @@ public sealed class SearchSuggestHttpTests : IClassFixture<MangaPixerWebApplicat
         Assert.Contains("Quick Lib P", (await SuggestAsync(seed.Reader.Client, "library:quick")).Field!.Items.Select(i => i.Label));
 
         var incognito = await SuggestAsync(seed.Reader.Incognito, "xqprivate");
-        Assert.Empty(AllLabels(incognito).Where(l => l.Length > 0));
+        Assert.Empty(AllLabels(incognito));
         var libraries = (await SuggestAsync(seed.Reader.Incognito, "library:quick")).Field!.Items.Select(i => i.Label).ToArray();
         Assert.Equal(["Quick Lib A"], libraries);
     }
