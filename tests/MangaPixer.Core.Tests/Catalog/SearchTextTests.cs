@@ -133,4 +133,14 @@ public sealed class SearchTextTests
         Assert.Equal(1, Fuzzy("freiren", "Frieren: Beyond Journey's End"));
         Assert.Equal(1, Fuzzy("yotsubq", "Yotsuba&!"));
     }
+
+    [Theory]
+    [InlineData("domu akira", "ak", true)]
+    [InlineData("akira", "ak", true)]
+    [InlineData("kakashi", "ak", false)]
+    [InlineData("kak akira", "ak", true)]
+    [InlineData("re zero", "re z", true)]
+    [InlineData("x", "", true)]
+    public void HasWordStartingWith_MatchesAtTheStartOrAfterASpace(string name, string text, bool expected) =>
+        Assert.Equal(expected, SearchText.HasWordStartingWith(name, text));
 }

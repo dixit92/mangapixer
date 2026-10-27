@@ -113,7 +113,9 @@ public static class SearchText
             if (c > 0x7F) { ascii = false; break; }
         }
         var source = ascii ? text : text.Normalize(NormalizationForm.FormD);
-        var sb = new StringBuilder(source.Length);
+        // A stack buffer for the usual short name (this runs for every visible name in a short or typo search).
+        Span<char> buffer = source.Length <= 256 ? stackalloc char[source.Length] : new char[source.Length];
+        var n = 0;
         var pendingSpace = false;
         foreach (var c in source)
         {
@@ -122,17 +124,17 @@ public static class SearchText
                 continue;
             if (char.IsLetterOrDigit(c))
             {
-                if (pendingSpace && sb.Length > 0)
-                    sb.Append(' ');
+                if (pendingSpace && n > 0)
+                    buffer[n++] = ' ';
                 pendingSpace = false;
-                sb.Append(char.ToLowerInvariant(c));
+                buffer[n++] = char.ToLowerInvariant(c);
             }
             else
             {
                 pendingSpace = true;
             }
         }
-        return sb.ToString();
+        return new string(buffer[..n]);
     }
 
     /// <summary>The folded name a hit is ranked by: an archive's file extension is left out ("Alpha 001.cbz" ranks as "alpha 001").</summary>
@@ -158,30 +160,29 @@ public static class SearchText
     {
         if (query.IsEmpty)
             return null;
-        var padded = " " + foldedName;
         var shortSearch = IsShort(query);
         foreach (var word in query.Words)
         {
-            if ((shortSearch || word.Length < TrigramLength) && !padded.Contains(" " + word.Folded, StringComparison.Ordinal))
+            if ((shortSearch || word.Length < TrigramLength) && !HasWordStartingWith(foldedName, word.Folded))
                 return null;
         }
         foreach (var phrase in query.Phrases)
         {
             var text = string.Join(' ', phrase.Select(w => w.Folded));
-            if (!(shortSearch ? padded.Contains(" " + text, StringComparison.Ordinal) : foldedName.Contains(text, StringComparison.Ordinal)))
+            if (!(shortSearch ? HasWordStartingWith(foldedName, text) : foldedName.Contains(text, StringComparison.Ordinal)))
                 return null;
         }
-        return Tier(query, foldedName, padded);
+        return Tier(query, foldedName);
     }
 
-    private static int Tier(SearchQuery query, string foldedName, string padded)
+    private static int Tier(SearchQuery query, string foldedName)
     {
         var all = string.Join(' ', query.AllWords.Select(w => w.Folded));
         if (foldedName == all)
             return RankExact;
         if (foldedName.StartsWith(all, StringComparison.Ordinal))
             return RankStartsWith;
-        return query.AllWords.All(w => padded.Contains(" " + w.Folded, StringComparison.Ordinal)) ? RankWordStarts : RankContains;
+        return query.AllWords.All(w => HasWordStartingWith(foldedName, w.Folded)) ? RankWordStarts : RankContains;
     }
 
     /// <summary>
@@ -194,13 +195,12 @@ public static class SearchText
     {
         if (IsShort(query) || query.IsEmpty)
             return null;
-        var padded = " " + foldedName;
         var total = 0;
         foreach (var word in query.Words)
         {
             if (word.Length < TrigramLength)
             {
-                if (!padded.Contains(" " + word.Folded, StringComparison.Ordinal))
+                if (!HasWordStartingWith(foldedName, word.Folded))
                     return null;
                 continue;
             }
@@ -229,6 +229,24 @@ public static class SearchText
                 return null;
         }
         return total > 0 ? total : null;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="text"/> (folded) starts a word of <paramref name="foldedName"/> - at the start or after a space; no
+    /// allocation (it runs for every visible name in a short or typo search).
+    /// </summary>
+    public static bool HasWordStartingWith(string foldedName, string text)
+    {
+        if (text.Length == 0)
+            return true;
+        var at = foldedName.IndexOf(text, StringComparison.Ordinal);
+        while (at >= 0)
+        {
+            if (at == 0 || foldedName[at - 1] == ' ')
+                return true;
+            at = foldedName.IndexOf(text, at + 1, StringComparison.Ordinal);
+        }
+        return false;
     }
 
     /// <summary>The largest typo distance a word of this (folded) length may carry: none below 4 characters, 1 up to 7, 2 from 8.</summary>
