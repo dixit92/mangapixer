@@ -197,29 +197,14 @@ public sealed class CatalogController : ControllerBase
     /// 1.44.0 lane C: the Completion filter query param - a <see cref="SeriesAnswer"/> name ("HaveItAll", "FinishedMissing", "UpToDate",
     /// "MissingSome", "CantTell"; case-insensitive). Anything else, numbers included, means no filter (tolerant, like the read state).
     /// </summary>
-    private static SeriesAnswer? ParseCompletion(string? value) =>
-        !string.IsNullOrEmpty(value) && value.All(char.IsAsciiLetter)
-            && Enum.TryParse<SeriesAnswer>(value, ignoreCase: true, out var answer) && Enum.IsDefined(answer)
-            ? answer
-            : null;
+    private static SeriesAnswer? ParseCompletion(string? value) => LevelFilter.ParseCompletion(value);
 
     /// <summary>
     /// Parses the read-state filter query param (1.10.0). Tolerant of the wire values
     /// "reading"/"read"/"unread" (case-insensitive); anything else — including null and
     /// "all" — disables the filter, so older clients and omitted params behave as before.
     /// </summary>
-    private static BrowseReadStateFilter ParseReadState(string? value)
-    {
-        if (string.IsNullOrEmpty(value))
-            return BrowseReadStateFilter.All;
-        if (value.Equals("reading", StringComparison.OrdinalIgnoreCase))
-            return BrowseReadStateFilter.Reading;
-        if (value.Equals("read", StringComparison.OrdinalIgnoreCase))
-            return BrowseReadStateFilter.Read;
-        if (value.Equals("unread", StringComparison.OrdinalIgnoreCase))
-            return BrowseReadStateFilter.Unread;
-        return BrowseReadStateFilter.All;
-    }
+    private static BrowseReadStateFilter ParseReadState(string? value) => LevelFilter.ParseReadState(value);
 
     /// <summary>
     /// Resolves the effective sort direction: an explicit query param wins, then the
