@@ -5,6 +5,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { JumpIndexBucketDto, JumpIndexMode } from '../../core/api/api-types';
+import { JumpScrubStripComponent } from './jump-scrub-strip.component';
 
 /**
  * The jump rail of a browse level (1.41.0, moved out of `LibraryBrowseComponent`): a sticky row of chips on desktop / tablet, one
@@ -18,7 +19,7 @@ import { JumpIndexBucketDto, JumpIndexMode } from '../../core/api/api-types';
   selector: 'app-jump-rail',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule],
+  imports: [MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule, JumpScrubStripComponent],
   template: `
     @if (buckets().length > 1) {
       <!-- Sticky (1.8.0): stacked directly under the sticky top bar, whose measured height is the rail's sticky offset. -->
@@ -51,6 +52,8 @@ import { JumpIndexBucketDto, JumpIndexMode } from '../../core/api/api-types';
           }
         </div>
       </mat-menu>
+      <!-- Phone-only, long levels (1.49.0, lane P): a right-edge strip a thumb drags through the chips; the picker above stays the accessible path. -->
+      <app-jump-scrub-strip [buckets]="buckets()" [active]="active()" [top]="top()" (jump)="jump.emit($event)" />
     }
   `,
   styles: [`
