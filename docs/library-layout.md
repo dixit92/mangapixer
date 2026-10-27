@@ -168,13 +168,30 @@ Star any folder or archive to keep it within easy reach. The star appears on car
 
 - **Favorites** in the sidebar, above your libraries, lists everything you starred, most recently starred first.
 - **Favorites only** in the **Filter** menu narrows any library view to your starred items.
-- Two options in **Settings** > **Favorites**, both off by default: a **Favorites** row on the home page, and highlighting starred results in search (a star badge, and they move to the top).
+- Two options in **Settings** > **Favorites**, both off by default: a **Favorites** row on the home page, and highlighting starred results in search (a star badge, and they move to the top - *from 1.49.0* of the whole result list, not only of each page; a close match for a typo still comes after every exact hit).
 
 When you star two or more archives in the same folder, the Favorites page and the home **Favorites** row show them as one stacked card: the folder's cover and name, and how many favorites it holds. The stack sits where your most recently starred archive of that folder would be. Selecting it opens the folder with **Favorites only** turned on, so you see just the archives you starred there; turn the filter off to see the whole folder. Only archives stack, and only with the folder they are directly in: a starred folder always keeps its own card.
 
 Favorites show your reading state like the library view does: an archive card carries **Read** or **Reading**, and a folder card - and a stack - carries **Read** (every archive in the folder is read) or **Reading** (some are read or in progress), shown at the top right of the cover. A stack counts the **whole folder**, not only the archives you starred in it. The marks are your own: another user of the same server sees theirs. The same badges appear on the home page's **Favorites** row, whose cards also carry the (i) and the summary on hover when there is series information, and a star - turning it off takes the card out of the row.
 
 Favorites belong to your account and follow you to every device. They respect Private libraries: while Incognito is on, favorites in your Private libraries are hidden too.
+
+## Search
+
+The search icon in the top bar opens **Search**. It looks through the names of the folders and archives in the libraries you can see (Private libraries stay out while Incognito is on).
+
+*New in 1.49.0:*
+
+- **Words in any order.** Every word you type must be in the name, in any order: `piece one` finds `One Piece`. Upper and lower case, accents and punctuation do not matter: `pokemon` finds `Pokémon Adventures`, `re zero` finds `Re:Zero`. Put words in double quotes to keep them together and in that order: `"one piece" color`.
+- **Names, not paths.** A folder or archive is found by its own name, whether it is linked to series information or not. An archive that would match only because of the folder it sits in is not listed one by one: the folder's card says how many it holds, for example **+41 inside**. A sub-folder whose own name matches gets its own card.
+- **Best matches first.** An exact name comes first, then names that start with what you typed, then names with a word that starts with each word, then names that merely contain it; folders before archives, then by name. The line above the results counts them by kind, for example **1 folder, 65 archives**. The **Series matches** row (alternative titles) is ordered the same way.
+- **Typos.** When few names match exactly (fewer than 10), up to 50 close matches follow the exact ones, and the page says **Showing close matches for ...**. A word needs at least 4 letters to be matched with a typo: one wrong, missing, extra or swapped letter in words of 4 to 7 letters, two from 8 letters. Words of 3 letters or fewer, and words in quotes, must be typed as they are.
+- **One or two letters.** A search of only one or two letters lists the names with a word that starts with them (`ak` finds `Akira` and `Domu: Akira`), and says so.
+- **Favorites first** when you turned on highlighting starred results in **Settings** > **Favorites**.
+
+The search updates the first time MangaPixer 1.49.0 starts: it rebuilds its search index once (a few seconds for a large library) before the server opens.
+
+Search results show your read marks and can be filtered by **Reading** / **Read** / **Unread**; tags and the `creator:` / `genre:` ... syntax are described in [Series information](series-information.md).
 
 ## Rescans, moves and deletions
 
