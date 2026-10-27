@@ -132,6 +132,17 @@ describe('LibraryBrowseComponent smart jump rail (1.41.0)', () => {
     expect(comp.jumpBuckets().length).toBe(2);
   });
 
+  it('1.49.0: an answer still lands when the folder\'s Volumes view settles after the request (the e2e race)', () => {
+    const pending: Subject<JumpIndexDto>[] = [];
+    const { comp } = setup({ index: () => { const s = new Subject<JumpIndexDto>(); pending.push(s); return s; } });
+
+    // The request went out before the folder's volume view was known (group null); the view arrives, then the answer.
+    comp.volumeView.set({ nodeId: 'f1', available: true, active: false, consolidated: false, stackCount: 0, defaultActive: false } as never);
+    pending[0].next({ libraryId: 'lib1', parentId: 'f1', direction: 'asc', mode: 'numbers', buckets: numbers });
+
+    expect(comp.jumpBuckets().length).toBe(3);
+  });
+
   it('1.49.0: the date sorts ask for time chips with the viewer\'s UTC offset; Recently read has no rail', () => {
     const dates: JumpIndexDto = {
       libraryId: 'lib1', parentId: 'f1', direction: 'desc', mode: 'dates',

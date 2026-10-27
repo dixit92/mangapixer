@@ -1271,16 +1271,18 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * The state a rail answer is for (1.49.0): the level, the sort, the direction, the filters and the Volumes-view choice. A response
-   * whose key is no longer the current one belongs to a list the user has already left and is dropped.
+   * The state a rail answer is for (1.49.0): the level, the sort, the direction and the filters. A response whose key is no longer the
+   * current one belongs to a list the user has already left and is dropped. The Volumes-view choice (`groupParam`) is NOT part of it:
+   * it settles AFTER the first request (the folder's volume view arrives later), and that must not drop the answer (e2e, 1.49.0).
    */
   private jumpKey(libId: string): string {
     return JSON.stringify([libId, this.parentId(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders(),
-      this.favoritesOnly(), this.completionFilter(), this.groupParam()]);
+      this.favoritesOnly(), this.completionFilter()]);
   }
 
   /**
-   * Load the jump index of the listed level (root or folder) for the current sort, direction, filters and Volumes-view choice.
+   * Load the jump index of the listed level (root or folder) for the current sort, direction, filters and Volumes-view choice
+   * (the choice is read when the request is sent).
    * 1.49.0 (owner decisions 10, 14): the rail follows the FILTERED list - it sends the browse filters (the server applies them to a
    * level that holds no linked series as browse does: not at all) - and under the date sorts it is a row of time chips ("Today",
    * "This week" ...; `tzOffset` makes "Today" the viewer's day).
