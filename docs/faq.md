@@ -69,7 +69,7 @@ The cache and scratch limits are configurable (see [Configuration](configuration
 
 ### How much memory does it use?
 
-When nobody is reading, the server itself typically uses around 150-300 MB. Opening archives is done by separate helper processes, each a few hundred MB while it works (up to about 500 MB under steady reading); they start when needed and shut down after 3 minutes without work, so an idle server runs none. A reader waiting on a page always gets priority over background work. On a small NAS you can limit the helpers to one with `MangaPixer__Media__MaxConcurrentJobs=1`. See [Configuration](configuration.md#media-processing) and [How MangaPixer works](how-it-works.md).
+When nobody is reading, the server itself typically uses around 150-300 MB. Opening archives is done by separate helper processes, each about 150-200 MB while it works; they start when needed and shut down after 3 minutes without work, so an idle server runs none. Since 1.49.0 the image limits how many memory pools the C library keeps (`MALLOC_ARENA_MAX=2`, see [Configuration](configuration.md#memory-allocator)), so the server and the helpers no longer hold on to memory they have already finished with: in our test, two people reading for 12 minutes with four helpers running, the whole container (including the operating system's file cache) stood at about 0.8 GB instead of about 1.4 GB. A reader waiting on a page always gets priority over background work. On a small NAS you can limit the helpers to one with `MangaPixer__Media__MaxConcurrentJobs=1`. See [Configuration](configuration.md#media-processing) and [How MangaPixer works](how-it-works.md).
 
 ### Why SQLite? Do I need a database server?
 
