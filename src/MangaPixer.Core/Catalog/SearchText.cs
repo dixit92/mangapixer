@@ -96,33 +96,8 @@ public static class SearchText
     public static string? ExactFtsQuery(SearchQuery query) =>
         query.IndexWords.Count == 0 ? null : string.Join(" AND ", query.IndexWords.Select(w => Quote(w.Raw)));
 
-    /// <summary>
-    /// The FTS5 query for typo-tolerant candidates (decision 5 b): an unquoted word of 4+ characters becomes "the word OR any of its
-    /// trigrams"; every other index word stays an exact quoted string; all ANDed. Null when no word may carry a typo.
-    /// </summary>
-    public static string? FuzzyFtsQuery(SearchQuery query)
-    {
-        if (!query.Words.Any(w => w.Length >= MinFuzzyLength))
-            return null;
-        var parts = new List<string>();
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var word in query.Words.Concat(query.Phrases.SelectMany(p => p)))
-        {
-            if (word.Length < TrigramLength || !seen.Add(word.Folded))
-                continue;
-            var fuzzy = word.Length >= MinFuzzyLength && query.Words.Contains(word);
-            if (!fuzzy)
-            {
-                parts.Add(Quote(word.Raw));
-                continue;
-            }
-            var grams = new List<string> { Quote(word.Folded) };
-            for (var g = 0; g + TrigramLength <= word.Folded.Length; g++)
-                grams.Add(Quote(word.Folded.Substring(g, TrigramLength)));
-            parts.Add("(" + string.Join(" OR ", grams.Distinct(StringComparer.Ordinal)) + ")");
-        }
-        return parts.Count == 0 ? null : string.Join(" AND ", parts);
-    }
+    /// <summary>Whether the search may match with typos at all (decision 5 b): it has an unquoted word of 4+ characters.</summary>
+    public static bool AllowsTypos(SearchQuery query) => query.Words.Any(w => w.Length >= MinFuzzyLength);
 
     /// <summary>
     /// The folded form of a name or text: canonical decomposition, combining marks removed, lower-cased (invariant), every run of

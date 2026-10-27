@@ -30,9 +30,6 @@ public sealed partial class CatalogBrowseService
     /// <summary>At most this many close matches are listed, after every exact hit.</summary>
     public const int MaxCloseMatches = 50;
 
-    /// <summary>The close-match candidates read from the index: the best ones by FTS rank (shared trigrams).</summary>
-    private const int MaxCloseCandidates = 2000;
-
     private const int MaxSeriesMatches = 20;
 
     /// <summary>The 1.49.0 cursor prefix: <c>s2:&lt;group&gt;:&lt;rank&gt;:&lt;id&gt;:&lt;SortKey&gt;</c>.</summary>
@@ -127,17 +124,15 @@ public sealed partial class CatalogBrowseService
 
             // 2. Close matches (decision 5 b): only while the exact hits are few, always after them.
             var close = new List<SearchHit>();
-            if (exact.Count < CloseMatchesBelow && SearchText.FuzzyFtsQuery(parsed) is { } fuzzyFts)
+            if (exact.Count < CloseMatchesBelow && SearchText.AllowsTypos(parsed))
             {
+                // Every visible live name: a one-letter typo in a short word can leave no trigram in common with the name ("akra" /
+                // "Akira"), so the index cannot narrow the candidates without missing some. Measured on 40 k nodes (lane S note).
                 var fuzzyCandidates = await ReadSearchCandidatesAsync(connection, $"""
                     SELECT cn.Id, cn.Kind, cn.DisplayName, cn.SortKey
-                    FROM catalog_search cs
-                    JOIN catalog_nodes cn ON cn.Id = cs.node_id
-                    WHERE catalog_search MATCH @query
-                    AND cn.Availability != 5 AND cn.LibraryId IN ({libIds})
-                    ORDER BY cs.rank
-                    LIMIT {MaxCloseCandidates}
-                    """, fuzzyFts, ct);
+                    FROM catalog_nodes cn
+                    WHERE cn.Availability != 5 AND cn.LibraryId IN ({libIds})
+                    """, null, ct);
                 foreach (var c in fuzzyCandidates)
                 {
                     if (nameHitIds.Contains(c.Id))
@@ -275,7 +270,8 @@ public sealed partial class CatalogBrowseService
     /// <summary>
     /// "+N inside" (1.49.0, decision 4): per folder on the page, the live archives below it that are not hits of their own - archives
     /// found only through the folder's name. A sub-folder that is itself a hit has its own card: its archives are not counted again.
-    /// Independent of the read filter. One recursive walk per page; the hit ids travel as one JSON parameter.
+    /// Independent of the read filter. One recursive walk per page reads the folders' live subtrees (id, parent, kind); the counting
+    /// against the hit set happens here (a <c>NOT IN</c> over the hits inside the recursive step cost ~100 ms on 40 k nodes).
     /// </summary>
     private static async Task<Dictionary<long, int>> InsideCountsAsync(
         DbConnection connection, List<long> folderIds, HashSet<long> hitIds, CancellationToken ct)
@@ -283,30 +279,51 @@ public sealed partial class CatalogBrowseService
         var counts = new Dictionary<long, int>();
         if (folderIds.Count == 0)
             return counts;
-        using var command = connection.CreateCommand();
-        command.CommandText = $"""
-            WITH RECURSIVE hits(id) AS MATERIALIZED (SELECT value FROM json_each(@hits)),
-            d(root, id, kind) AS (
-                SELECT c.ParentId, c.Id, c.Kind FROM catalog_nodes c
-                WHERE c.ParentId IN ({string.Join(",", folderIds.Select(id => id.ToString(CultureInfo.InvariantCulture)))})
-                AND c.Availability != 5
-                UNION ALL
-                SELECT d.root, c.Id, c.Kind FROM d
-                CROSS JOIN catalog_nodes c ON c.ParentId = d.id
-                WHERE d.kind = {(int)CatalogNodeKind.Folder} AND c.Availability != 5 AND d.id NOT IN (SELECT id FROM hits)
-            )
-            SELECT root, COUNT(*) FROM d
-            WHERE kind = {(int)CatalogNodeKind.Archive} AND id NOT IN (SELECT id FROM hits)
-            GROUP BY root
-            """;
-        command.Parameters.Add(new SqliteParameter("@hits",
-            "[" + string.Join(",", hitIds.Select(id => id.ToString(CultureInfo.InvariantCulture))) + "]"));
-        using var reader = await command.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
+        var children = new Dictionary<long, List<(long Id, bool Folder)>>();
+        using (var command = connection.CreateCommand())
         {
-            var n = reader.GetInt32(1);
+            command.CommandText = $"""
+                WITH RECURSIVE d(id, parent, kind) AS (
+                    SELECT c.Id, c.ParentId, c.Kind FROM catalog_nodes c
+                    WHERE c.ParentId IN ({string.Join(",", folderIds.Select(id => id.ToString(CultureInfo.InvariantCulture)))})
+                    AND c.Availability != 5
+                    UNION
+                    SELECT c.Id, c.ParentId, c.Kind FROM d
+                    CROSS JOIN catalog_nodes c ON c.ParentId = d.id
+                    WHERE d.kind = {(int)CatalogNodeKind.Folder} AND c.Availability != 5
+                )
+                SELECT id, parent, kind FROM d
+                """;
+            using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                var parent = reader.GetInt64(1);
+                if (!children.TryGetValue(parent, out var list))
+                    children[parent] = list = [];
+                list.Add((reader.GetInt64(0), reader.GetInt32(2) == (int)CatalogNodeKind.Folder));
+            }
+        }
+        foreach (var root in folderIds)
+        {
+            var n = 0;
+            var stack = new Stack<long>();
+            stack.Push(root);
+            while (stack.Count > 0)
+            {
+                if (!children.TryGetValue(stack.Pop(), out var list))
+                    continue;
+                foreach (var (id, folder) in list)
+                {
+                    if (hitIds.Contains(id))
+                        continue; // a hit of its own: listed (an archive) or its own card (a folder, not descended)
+                    if (folder)
+                        stack.Push(id);
+                    else
+                        n++;
+                }
+            }
             if (n > 0)
-                counts[reader.GetInt64(0)] = n;
+                counts[root] = n;
         }
         return counts;
     }

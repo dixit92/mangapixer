@@ -45,12 +45,11 @@ public sealed class SearchTextTests
     }
 
     [Fact]
-    public void FuzzyFtsQuery_GivesALongWordItsTrigrams_AndKeepsShortWordsExact()
+    public void AllowsTypos_OnlyWithAnUnquotedWordOfFourOrMoreCharacters()
     {
-        Assert.Equal("(\"naruto\" OR \"nar\" OR \"aru\" OR \"rut\" OR \"uto\") AND \"vol\"",
-            SearchText.FuzzyFtsQuery(SearchText.Parse("Naruto vol")));
-        Assert.Null(SearchText.FuzzyFtsQuery(SearchText.Parse("one ab")));
-        Assert.Null(SearchText.FuzzyFtsQuery(SearchText.Parse("\"one piece\"")));
+        Assert.True(SearchText.AllowsTypos(SearchText.Parse("Naruto vol")));
+        Assert.False(SearchText.AllowsTypos(SearchText.Parse("one ab")));
+        Assert.False(SearchText.AllowsTypos(SearchText.Parse("\"one piece\"")));
     }
 
     [Theory]
