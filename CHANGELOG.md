@@ -71,6 +71,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   the first letter inside the tag with its bracket - `[A` ... `[Z` - instead of one `#` chip for the whole folder.
 - **Folders and files each get their own letters.** At a level that holds both, the smaller kind gets its own chips once it has 20 or more
   entries (below that it keeps the single **Folders** / **Files** chip); the rail labels each kind.
+- **Volumes view: chapter 1 joins volume 1.** When a series' volume list starts volume 1 at chapter 2-5 (an opening chapter listed without a
+  volume), your chapters from 1 up to that first listed chapter now sit at the start of the **Volume 1** stack instead of on their own. A
+  chapter 1 you do not have is still reported missing. See [Volumes](docs/volumes.md#how-chapters-are-placed-in-a-volume).
 - **Small folders have no rail.** A level with fewer than about 12 entries (after any filter) no longer shows a rail of one-entry chips.
 - **Lower memory use over long uptimes:** the server's shared in-memory cache now has a size budget, home "New chapters" data that can no
   longer be used is released, and failed sign-in attempts are forgotten once their lockout window has passed.
