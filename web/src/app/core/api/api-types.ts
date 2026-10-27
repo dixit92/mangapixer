@@ -180,6 +180,13 @@ export interface SearchResultsDto {
   filters?: SearchFilterDto[];
   /** 1.45.0 tag view: with a filter the results are WORK cards (`items` is empty, `totalCount` counts works); absent on a plain search. */
   works?: FacetWorkDto[];
+  /** 1.49.0 plain search: how many of `totalCount` are folders / archives (the counts line "N folders, M archives"). */
+  folderCount?: number | null;
+  archiveCount?: number | null;
+  /** 1.49.0 plain search: how many of `totalCount` are close (typo-tolerant) matches, listed after every exact hit. */
+  closeMatchCount?: number | null;
+  /** 1.49.0 plain search ("+N inside"): per folder on this page (node id), the archives found only through its name. */
+  insideCounts?: Record<string, number> | null;
 }
 
 // ---- 1.45.0 tag buckets (lane Q): Info panel tags and the tag view ----
