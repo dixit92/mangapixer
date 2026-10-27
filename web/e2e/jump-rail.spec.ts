@@ -205,3 +205,88 @@ test('phone: the picker lists the ranges and a tap lands on the range', async ({
     await setDirection(page, previous === 'desc' ? 'desc' : 'asc');
   }
 });
+
+/**
+ * The phone scrub strip (1.49.0, lane P): on a LONG level (this one has 65 rows) a thin strip sits on the right edge at 390 px; a
+ * touch-drag shows a bubble with the chip under the finger without scrolling the page, and letting go jumps there - the same jump as
+ * a tap on the picker's chip. A short level (a faked 30-row jump index) shows the picker only; tablet widths show no strip.
+ */
+test('phone: the scrub strip on a long level - drag shows a bubble, release lands on the range; a short level has none', async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  const previous = await setDirection(page, 'asc');
+  try {
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+    const strip = page.locator('.scrub');
+    await expect(strip).toBeVisible();
+    await expect(strip).toHaveAttribute('aria-hidden', 'true');
+    await expect(page.locator('.jump-menu-trigger')).toBeVisible(); // the accessible path stays
+    await expect(page.locator('.scrub .mark')).toHaveCount(ASC.length);
+    await expectFitsScreen(page, 'the folder with the scrub strip (phone)');
+
+    // The strip is a 44 px wide hit area on the right edge, on top of the cards.
+    const box = (await strip.boundingBox())!;
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.x + box.width).toBeLessThanOrEqual(390.5);
+    const touchAction = await strip.evaluate((el) => getComputedStyle(el).touchAction);
+    expect(touchAction).toBe('none');
+    const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('.scrub') !== null, [box.x + box.width - 10, box.y + box.height / 2]);
+    expect(hit).toBe(true);
+
+    // Drag to the slice of chip 40 (index 4 of 8): the bubble names it, the page does not scroll, nothing is jumped to yet.
+    const x = box.x + box.width - 10;
+    const sliceY = (i: number) => box.y + (box.height * (i + 0.5)) / ASC.length;
+    const scrollBefore = await page.evaluate(() => window.scrollY);
+    await page.mouse.move(x, sliceY(0));
+    await page.mouse.down();
+    await expect(page.locator('.scrub .bubble-label')).toHaveText('0-9');
+    await page.mouse.move(x, sliceY(2), { steps: 4 });
+    await page.mouse.move(x, sliceY(4), { steps: 4 });
+    await expect(page.locator('.scrub .bubble-label')).toHaveText('40-49');
+    await shot(page, 'jump-scrub-phone-drag');
+    expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore);
+    expect(await landsUnderRail(page, 'Jump Saga - Ch. 040.cbz')).toBe(false);
+
+    await page.mouse.up();
+    await expect(page.locator('.scrub .bubble')).toHaveCount(0);
+    await expect.poll(() => landsUnderRail(page, 'Jump Saga - Ch. 040.cbz')).toBe(true);
+    await expect(page.locator('.jump-menu-trigger')).toContainText('40-49');
+    await expectFitsScreen(page, 'the folder after a scrub jump (phone)');
+
+    // The last slice is "Other" (the one-shot); a release below the strip still lands on the last chip.
+    await page.mouse.move(x, sliceY(7));
+    await page.mouse.down();
+    await expect(page.locator('.scrub .bubble-label')).toHaveText('Other');
+    await page.mouse.move(x, box.y + box.height + 40, { steps: 3 });
+    await page.mouse.up();
+    await expect(page.locator('.node-wrap', { hasText: 'Jump Saga - Oneshot.cbz' })).toBeInViewport();
+
+    // A short level (30 rows by a faked jump index) has the picker only.
+    await page.route('**/jump-index*', async (route) => {
+      await route.fulfill({
+        json: {
+          libraryId, parentId: folderId, direction: 'asc', mode: 'letters',
+          buckets: [
+            { label: 'A', count: 10, firstCursor: null, firstNodeId: null },
+            { label: 'B', count: 10, firstCursor: 'x', firstNodeId: null },
+            { label: 'C', count: 10, firstCursor: 'y', firstNodeId: null },
+          ],
+        },
+      });
+    });
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+    await expect(page.locator('.jump-menu-trigger')).toBeVisible();
+    await expect(page.locator('.scrub')).toHaveCount(0);
+    await page.unroute('**/jump-index*');
+
+    // Tablet width: the rail shows and the strip does not.
+    await page.setViewportSize({ width: 820, height: 1180 });
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+    await expect(page.locator('nav.jump-rail')).toBeVisible();
+    await expect(page.locator('.scrub')).toBeHidden();
+  } finally {
+    await setDirection(page, previous === 'desc' ? 'desc' : 'asc');
+  }
+});
