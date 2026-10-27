@@ -85,3 +85,11 @@ Measurement-only server switches (all off by default; set them only on an instan
   hasher (`dotnet run --project scripts/perf/MeasureAccounts -- <copy.db> <password-file> [--local-backups] [--synthetic-tracking]`);
   it never reads or changes other users. `--synthetic-tracking` gives the reader a token-less tracker account with one entry per
   linked series (an upper bound for the tracker-mark cost).
+
+## Memory over time (1.49.0)
+
+`memory_sample.py` samples a container YOU created for measuring once a minute (or `--interval`): `docker stats` memory, the
+cgroup's anon / file / shmem, each MangaPixer process's RSS split (anon / file / shmem from `/proc/<pid>/status`, read with
+`docker exec ... cat`) and the admin diagnostics' working set plus, with `MangaPixer:Perf:RequestTiming=true`, the GC heap. The server's
+anonymous RSS minus the GC's committed bytes is native memory (SQLite page caches, allocator arenas, image buffers). Run it next to
+`reader_load.py` / `library_load.py`; `--summary <file>` prints the table. Sizes and counts only.

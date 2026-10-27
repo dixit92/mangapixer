@@ -12,6 +12,7 @@ using com.lifepixer.mangapixer.Server.Features.Metadata.Providers;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.Gcd;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MangaUpdates;
 using com.lifepixer.mangapixer.Server.Features.Reading;
+using com.lifepixer.mangapixer.Server.Hosting;
 using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
@@ -509,14 +510,15 @@ public sealed class MetadataIdentifyService
 
         var bytes = await _gateway.FetchImageAsync(candidate.Provider, candidate.LibraryId, candidate.Url, ct);
         var type = MetadataImageStore.ContentTypeFor(MetadataImageStore.DetectExtension(bytes)!);
-        _cache.Set(BytesKey(token), new CandidateBytes(bytes, type), CandidateTtl);
+        _cache.SetSized(BytesKey(token), new CandidateBytes(bytes, type), CandidateTtl, SharedMemoryCache.Kib(bytes.Length + 128L), CacheItemPriority.High);
         return (bytes, type);
     }
 
     internal string IssueImageToken(string provider, long libraryId, string url)
     {
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
-        _cache.Set(TokenKey(token), new CandidateImage(provider, libraryId, url), CandidateTtl);
+        _cache.SetSized(TokenKey(token), new CandidateImage(provider, libraryId, url), CandidateTtl, SharedMemoryCache.Kib(128L + (url.Length * 2L)),
+            CacheItemPriority.NeverRemove);
         return token;
     }
 
@@ -592,7 +594,8 @@ public sealed class MetadataIdentifyService
         fetched = await _gcd!.WithPublisherAsync(fetched, libraryId, null, ct);
         var issue = await _gcd.FirstIssueAsync(fetched, libraryId, null, ct);
         if (issue?.CoverUrl is { } cover)
-            _cache.Set(ComicsCoverKey(fetched.ExternalId), cover, CandidateTtl);
+            _cache.SetSized(ComicsCoverKey(fetched.ExternalId), cover, CandidateTtl, SharedMemoryCache.Kib(64L + (cover.Length * 2L)),
+                CacheItemPriority.NeverRemove);
         return GcdDetails.WithIssue(fetched, issue);
     }
 
@@ -602,7 +605,8 @@ public sealed class MetadataIdentifyService
     /// </summary>
     internal static bool IsCompanionOnly(MetadataRecordEntity record) => record.Provider == MangaDexProvider && record.Format is null;
 
-    private void RememberSearched(ProviderSeriesRecord record) => _cache.Set(SearchedKey(record.ExternalId), record, CandidateTtl);
+    private void RememberSearched(ProviderSeriesRecord record) =>
+        _cache.SetSized(SearchedKey(record.ExternalId), record, CandidateTtl, size: 4, CacheItemPriority.High);
 
     private static string SearchedKey(string externalId) => "metadata-gcd-searched:" + externalId;
     private static string ComicsCoverKey(string externalId) => "metadata-gcd-cover:" + externalId;

@@ -145,7 +145,8 @@ public static class AuthServicesExtensions
         services.AddSingleton<LoginRateLimiter>(sp =>
             new LoginRateLimiter(
                 sp.GetRequiredService<LoginRateLimitOptions>(),
-                sp.GetService<ILogger<LoginRateLimiter>>()));
+                sp.GetService<ILogger<LoginRateLimiter>>(),
+                sp.GetService<TimeProvider>()));
         services.AddSingleton<LoginRateLimitOptions>(sp =>
         {
             var config = sp.GetService<Microsoft.Extensions.Configuration.IConfiguration>();

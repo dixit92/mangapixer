@@ -7,19 +7,36 @@ using com.lifepixer.mangapixer.Server.Logging;
 /// Simple in-memory rate limiter for login attempts.
 /// Limits per-IP and per-username to prevent brute-force attacks.
 /// In production, this should be backed by distributed cache for multi-instance deployments.
+/// <para>
+/// 1.49.0 lane M: keys whose window has ended are dropped (an ended window counts exactly like no entry - the next attempt starts a
+/// new window - so dropping one changes no answer). Before, only a successful login removed a key, so every failed attempt with a new
+/// address or user name stayed in memory for the life of the process.
+/// </para>
 /// </summary>
 public sealed class LoginRateLimiter
 {
+    /// <summary>Above this many tracked keys (addresses and user names together), ended windows are dropped on a failed attempt.</summary>
+    internal const int PruneThreshold = 1024;
+
+    /// <summary>At most one sweep per this interval, so a flood of live keys above the threshold does not scan them on every attempt.</summary>
+    internal static readonly TimeSpan PruneInterval = TimeSpan.FromMinutes(1);
+
     private readonly ConcurrentDictionary<string, RateEntry> _ipAttempts = new();
     private readonly ConcurrentDictionary<string, RateEntry> _userAttempts = new();
     private readonly LoginRateLimitOptions _options;
     private readonly ILogger<LoginRateLimiter>? _logger;
+    private readonly TimeProvider _clock;
+    private long _lastPruneTicks = long.MinValue;
 
-    public LoginRateLimiter(LoginRateLimitOptions? options = null, ILogger<LoginRateLimiter>? logger = null)
+    public LoginRateLimiter(LoginRateLimitOptions? options = null, ILogger<LoginRateLimiter>? logger = null, TimeProvider? clock = null)
     {
         _options = options ?? new LoginRateLimitOptions();
         _logger = logger;
+        _clock = clock ?? TimeProvider.System;
     }
+
+    /// <summary>Tracked keys, addresses and user names together (tests).</summary>
+    internal int TrackedKeys => _ipAttempts.Count + _userAttempts.Count;
 
     /// <summary>
     /// Records a failed login attempt and checks if the rate limit has been exceeded.
@@ -30,7 +47,7 @@ public sealed class LoginRateLimiter
         if (_options.Disabled)
             return true;
 
-        var now = DateTimeOffset.UtcNow;
+        var now = _clock.GetUtcNow();
 
         if (!IsAllowed(_ipAttempts, $"ip:{ipAddress}", now, _options.MaxAttemptsPerIp, _options.Window))
         {
@@ -67,7 +84,8 @@ public sealed class LoginRateLimiter
     /// </summary>
     public void RecordFailure(string ipAddress, string username)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = _clock.GetUtcNow();
+        PruneEndedWindows(now);
         RecordFailure(_ipAttempts, $"ip:{ipAddress}", now, _options.Window);
         RecordFailure(_userAttempts, $"user:{username.ToLowerInvariant()}", now, _options.Window);
     }
@@ -77,7 +95,7 @@ public sealed class LoginRateLimiter
     /// </summary>
     public TimeSpan? GetRetryAfter(string ipAddress, string username)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = _clock.GetUtcNow();
         var ipRetry = GetRetryAfter(_ipAttempts, $"ip:{ipAddress}", now, _options.MaxAttemptsPerIp, _options.Window);
         var userRetry = GetRetryAfter(_userAttempts, $"user:{username.ToLowerInvariant()}", now, _options.MaxAttemptsPerUser, _options.Window);
 
@@ -85,6 +103,32 @@ public sealed class LoginRateLimiter
         if (ipRetry is null) return userRetry;
         if (userRetry is null) return ipRetry;
         return ipRetry > userRetry ? ipRetry : userRetry;
+    }
+
+    /// <summary>
+    /// Drops the keys whose window ended - only above <see cref="PruneThreshold"/> keys and at most once per <see cref="PruneInterval"/>.
+    /// A key is removed only if it still holds the ended entry that was read (a concurrent failure that renewed it keeps it).
+    /// </summary>
+    private void PruneEndedWindows(DateTimeOffset now)
+    {
+        if (_ipAttempts.Count + _userAttempts.Count <= PruneThreshold)
+            return;
+        var last = Interlocked.Read(ref _lastPruneTicks);
+        if (last != long.MinValue && now.UtcTicks - last < PruneInterval.Ticks)
+            return;
+        if (Interlocked.CompareExchange(ref _lastPruneTicks, now.UtcTicks, last) != last)
+            return;
+        Prune(_ipAttempts, now, _options.Window);
+        Prune(_userAttempts, now, _options.Window);
+    }
+
+    private static void Prune(ConcurrentDictionary<string, RateEntry> dict, DateTimeOffset now, TimeSpan window)
+    {
+        foreach (var pair in dict)
+        {
+            if (pair.Value.WindowStart + window <= now)
+                dict.TryRemove(pair);
+        }
     }
 
     private static bool IsAllowed(ConcurrentDictionary<string, RateEntry> dict, string key, DateTimeOffset now, int maxAttempts, TimeSpan window)

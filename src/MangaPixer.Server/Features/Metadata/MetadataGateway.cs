@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.RateLimiting;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers;
+using com.lifepixer.mangapixer.Server.Hosting;
 using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
@@ -236,7 +237,7 @@ public sealed class MetadataGateway
             c => provider.SearchSeriesAsync(
                 new ProviderSearchQuery(text, libraryId, page, SearchPageSize, hideDoujinshiAndNovels, hideDoujinshiAndNovels && allowDoujinshi, startYear), c),
             call, ct);
-        _cache.Set(key, result, SearchCacheTtl);
+        _cache.SetSized(key, result, SearchCacheTtl, SharedMemoryCache.Kib(256 + (result.Hits.Count * 1024L)), CacheItemPriority.High);
         return result;
     }
 

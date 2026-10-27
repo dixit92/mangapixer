@@ -615,7 +615,7 @@ public sealed partial class Program
     /// </summary>
     private static void AddMetadataNetwork(IServiceCollection services, string dataRoot)
     {
-        services.AddMemoryCache();
+        services.AddMemoryCache(o => o.SizeLimit = Hosting.SharedMemoryCache.SizeLimit); // 1.49.0 lane M: every entry is sized (SetSized)
         services.AddSingleton<Features.Metadata.MetadataRateLimitOptions>();
         services.AddSingleton<Features.Metadata.MetadataGatewayState>();
         services.AddScoped<Features.Metadata.MetadataBudget>();
