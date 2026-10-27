@@ -4,7 +4,9 @@
 Every --interval seconds it records one JSON line with:
 
 - `docker`: the container's memory use as `docker stats --no-stream` reports it (the cgroup's usage, page cache included);
-- `cgroup`: the container's `memory.stat` lines `anon`, `file`, `shmem`, `kernel` (bytes) - anon is what the processes hold;
+- `cgroup`: the container's `memory.stat` lines `anon`, `file`, `shmem`, `kernel`, `active_file`, `inactive_file` (bytes) - anon is
+  what the processes hold; `docker stats` counts the ACTIVE file pages too (archives read recently - page cache the kernel takes back
+  under pressure), so it is not only the processes' memory;
 - `procs`: per process inside the container (`dotnet` = the server, the media workers by their command line): VmRSS, RssAnon,
   RssFile, RssShmem (KiB, from `/proc/<pid>/status`);
 - `diag`: from the admin diagnostics snapshot (`GET /api/v1/operations/diagnostics`): the server's working set, and with
@@ -36,7 +38,7 @@ MIB = 1024 * 1024
 
 # One shell round trip per sample: memory.stat, then "pid|cmdline|status lines" per process.
 PROC_SCRIPT = r"""
-cat /sys/fs/cgroup/memory.stat 2>/dev/null | grep -E '^(anon|file|shmem|kernel) '
+cat /sys/fs/cgroup/memory.stat 2>/dev/null | grep -E '^(anon|file|shmem|kernel|active_file|inactive_file|active_anon|inactive_anon) '
 for d in /proc/[0-9]*; do
   [ -r "$d/status" ] || continue
   c=$(tr '\0' ' ' < "$d/cmdline" 2>/dev/null | cut -c1-200)
@@ -94,7 +96,7 @@ def sample_container(container: str) -> dict:
                     k, v = part.split(":", 1)
                     row[k.strip()] = int(v.strip().split(" ")[0])
             procs.append(row)
-        elif line.count(" ") == 1 and line.split(" ")[1].isdigit() and line.split(" ")[0] in ("anon", "file", "shmem", "kernel"):
+        elif line.count(" ") == 1 and line.split(" ")[1].isdigit() and line.split(" ")[0] in ("anon", "file", "shmem", "kernel", "active_file", "inactive_file", "active_anon", "inactive_anon"):
             k, v = line.split(" ", 1)
             cgroup[k] = int(v)
     out["cgroup"] = cgroup
@@ -124,7 +126,7 @@ def sample_diagnostics(session: Session, conn) -> dict:
 
 def summarize(path: str) -> None:
     rows = [json.loads(line) for line in open(path, encoding="utf-8") if line.strip()]
-    print(f"{'t(min)':>6} {'docker':>7} {'anon':>6} {'file':>6} {'srvRSS':>7} {'srvAnon':>7} {'gcComm':>7} {'gcHeap':>7} "
+    print(f"{'t(min)':>6} {'docker':>7} {'anon':>6} {'actF':>6} {'shmem':>6} {'srvRSS':>7} {'srvAnon':>7} {'gcComm':>7} {'gcHeap':>7} "
           f"{'native':>7} {'workers':>8}")
     t0 = rows[0]["t"] if rows else 0
     for r in rows:
@@ -138,8 +140,9 @@ def summarize(path: str) -> None:
 
         def mib(v, scale=1):
             return f"{v * scale / MIB:7.0f}" if isinstance(v, (int, float)) else f"{'-':>7}"
-        print(f"{(r['t'] - t0) / 60:6.1f} {mib(r.get('docker'))} {mib(r.get('cgroup', {}).get('anon')):>6} "
-              f"{mib(r.get('cgroup', {}).get('file')):>6} {mib(srv.get('VmRSS'), 1024)} {mib(anon, 1024)} {mib(comm)} "
+        cg = r.get("cgroup", {})
+        print(f"{(r['t'] - t0) / 60:6.1f} {mib(r.get('docker'))} {mib(cg.get('anon')):>6} {mib(cg.get('active_file')):>6} "
+              f"{mib(cg.get('shmem')):>6} {mib(srv.get('VmRSS'), 1024)} {mib(anon, 1024)} {mib(comm)} "
               f"{mib(heap.get('heapSizeBytes'))} {native if native is None else f'{native:7.0f}':>7} "
               f"{len(workers)}:{sum(w.get('VmRSS', 0) for w in workers) / 1024:5.0f}")
 
