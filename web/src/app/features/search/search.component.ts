@@ -16,8 +16,10 @@ import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.compon
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/folder-rollup-badge.component';
 import { MetadataStateService } from '../metadata/metadata-state.service';
-import { CatalogNodeDto, LibraryReadStateFilter, SearchResultsDto, SeriesMatchDto } from '../../core/api/api-types';
-import { bucketLabel, bucketToken, filterValueId, isFilterParam, locationText } from '../metadata/info/info-labels';
+import { CatalogNodeDto, FacetBucketDto, LibraryReadStateFilter, SearchResultsDto, SeriesMatchDto } from '../../core/api/api-types';
+import {
+  addFilterParam, bucketLabel, bucketRank, bucketToken, filterToken, filterValueId, isExcludeParam, isFilterParam, locationText, toggleExcludeParam,
+} from '../metadata/info/info-labels';
 import { FacetLocationDto, FacetSearchFields, FacetWorkDto, SearchFilterDto } from '../metadata/info/info-types';
 
 /**
@@ -61,7 +63,22 @@ interface FilterChip {
   label: string;
   /** False when the server did not know the value (or the viewer may not see it): the chip says so and can be removed. */
   known: boolean;
+  /** 1.49.0 (lane T): an exclusion (`-genre:fv_..`) - the works must not carry it. */
+  excluded: boolean;
 }
+
+/** 1.49.0 (lane T): the typed syntax the "?" panel lists - each line can be put into the field. */
+export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = [
+  { example: 'tag:"time travel"', meaning: 'Works with this tag' },
+  { example: 'genre:horror|mystery', meaning: 'Either genre (| = or)' },
+  { example: '-genre:horror', meaning: 'Without this genre (- = not)' },
+  { example: 'creator:urasawa', meaning: 'A creator with this name; quotes for the exact name' },
+  { example: 'year:2010..2015', meaning: 'Started in these years (also ..1999, 2020..)' },
+  { example: 'series:monster', meaning: 'Title, other titles or folder name' },
+  { example: 'publisher:"Big Comic" type:manga', meaning: 'Publisher, magazine:, type:' },
+  { example: 'is:unread', meaning: 'Read state: is:read, is:unread, is:reading' },
+  { example: 'library:manga', meaning: 'Only this library' },
+];
 
 /**
  * Search component. Uses the FTS5 trigram search via the API. 1.45.0 (lane P): the tag view - a chip of the Info panel opens this page
@@ -90,12 +107,21 @@ interface FilterChip {
   ],
   template: `
     <h2>Search</h2>
+    <!-- 1.49.0 (lane T): the field and its "?" syntax help side by side. -->
+    <div class="search-row">
     <mat-form-field appearance="outline" class="search-field" [class.has-filters]="filterChips().length > 0">
       <mat-label>Search libraries</mat-label>
       <!-- Tag filters (1.45.0): removable chips in the field, in their own row that scrolls sideways when it is full. -->
       <mat-chip-grid #filterGrid class="filter-chips" aria-label="Tag filters" data-testid="search-filters">
         @for (chip of filterChips(); track chip.param) {
-          <mat-chip-row (removed)="removeFilter(chip.param)" [class.unknown]="!chip.known" data-testid="search-filter-chip">
+          <mat-chip-row (removed)="removeFilter(chip.param)" [class.unknown]="!chip.known" [class.excluded]="chip.excluded"
+                        data-testid="search-filter-chip" [attr.data-excluded]="chip.excluded">
+            <!-- 1.49.0 (lane T): include <-> exclude this tag. -->
+            <button type="button" class="exclude-toggle" (click)="toggleExclude(chip.param); $event.stopPropagation()"
+                    [attr.aria-label]="(chip.excluded ? 'Include ' : 'Exclude ') + chip.label" [attr.aria-pressed]="chip.excluded"
+                    [matTooltip]="chip.excluded ? 'Excluded - click to include' : 'Click to exclude'" data-testid="search-filter-exclude">
+              <mat-icon>{{ chip.excluded ? 'block' : 'add_circle_outline' }}</mat-icon>
+            </button>
             <span class="filter-label">{{ chip.label }}</span>
             <button matChipRemove type="button" [attr.aria-label]="'Remove filter ' + chip.label"><mat-icon>cancel</mat-icon></button>
           </mat-chip-row>
@@ -107,6 +133,29 @@ interface FilterChip {
              data-testid="search-input">
       <mat-icon matSuffix>search</mat-icon>
     </mat-form-field>
+    <button mat-icon-button type="button" class="syntax-toggle" (click)="syntaxOpen.set(!syntaxOpen())" [attr.aria-expanded]="syntaxOpen()"
+            aria-controls="search-syntax" aria-label="Search syntax help" matTooltip="Search syntax" data-testid="search-syntax-toggle">
+      <mat-icon>help_outline</mat-icon>
+    </button>
+    </div>
+
+    <!-- 1.49.0 (lane T, S4): the typed syntax with examples (as YACReader's search help); an example goes into the field. -->
+    @if (syntaxOpen()) {
+      <section id="search-syntax" class="syntax" aria-label="Search syntax" data-testid="search-syntax" (keydown.escape)="syntaxOpen.set(false)">
+        <p class="syntax-intro">Plain words find names. Fields narrow by tags; combine any of them:</p>
+        <ul class="syntax-list">
+          @for (ex of syntaxExamples; track ex.example) {
+            <li>
+              <button type="button" class="syntax-example" (click)="useExample(ex.example)" data-testid="search-syntax-example">
+                <code>{{ ex.example }}</code>
+              </button>
+              <span class="syntax-meaning">{{ ex.meaning }}</span>
+            </li>
+          }
+        </ul>
+        <p class="syntax-intro">A word a field does not know stays plain text.</p>
+      </section>
+    }
 
     <!-- Read-state filter (1.45.0): the browse Show filter's choices as one chip row over the results, applied on the server before
          paging (the count and "Load more" stay right). Shown once there is search text or a tag, so a filter with no hits can be switched
@@ -118,6 +167,40 @@ interface FilterChip {
           <mat-chip-option [value]="opt.value">{{ opt.label }}</mat-chip-option>
         }
       </mat-chip-listbox>
+    }
+
+    <!-- 1.49.0 (lane T, owner decision 9 a): Refine - the tags of all the results with how many carry each; a chip adds it to the search,
+         "or" joins it to the bucket's tag already in the search (any of), the minus excludes it. -->
+    @if (tagView() && refine().length > 0) {
+      <details class="refine" open data-testid="search-refine">
+        <summary class="section-heading">Refine</summary>
+        @for (b of refine(); track b.bucket) {
+          <div class="refine-bucket" [attr.data-bucket]="b.bucket">
+            <h4 class="refine-label">{{ label(b.bucket) }}</h4>
+            <ul class="refine-chips">
+              @for (chip of b.chips; track chip.id) {
+                <li class="refine-chip">
+                  <button type="button" class="refine-add" (click)="addRefine(chip.filter, 'all')" data-testid="refine-chip"
+                          [attr.aria-label]="'Add ' + chip.display + ', ' + chip.count + ' of these results'">
+                    <span class="name">{{ chip.display }}</span><span class="count">{{ chip.count }}</span>
+                  </button>
+                  @if (canOr(chip.filter)) {
+                    <button type="button" class="refine-or" (click)="addRefine(chip.filter, 'any')" data-testid="refine-or"
+                            [attr.aria-label]="'Or ' + chip.display" matTooltip="Or: either tag">or</button>
+                  }
+                  <button type="button" class="refine-not" (click)="addRefine(chip.filter, 'not')" data-testid="refine-not"
+                          [attr.aria-label]="'Exclude ' + chip.display" matTooltip="Exclude">
+                    <mat-icon>remove_circle_outline</mat-icon>
+                  </button>
+                </li>
+              }
+              @if (b.more > 0) {
+                <li class="refine-more">+{{ b.more }} more</li>
+              }
+            </ul>
+          </div>
+        }
+      </details>
     }
 
     @if (seriesMatches().length > 0) {
@@ -242,7 +325,53 @@ interface FilterChip {
     </ng-template>
   `,
   styles: [`
-    .search-field { width: 100%; max-width: 600px; }
+    .search-row { display: flex; align-items: flex-start; gap: 4px; max-width: 648px; min-width: 0; }
+    .search-field { flex: 1 1 auto; width: 100%; max-width: 600px; min-width: 0; }
+    .syntax-toggle { flex: none; margin-top: 8px; color: var(--mp-text-muted); }
+    .syntax {
+      max-width: 600px; margin: -8px 0 12px; padding: 10px 12px; border-radius: 8px;
+      border: 1px solid rgb(var(--mp-ink-rgb) / 0.12); background: rgb(var(--mp-ink-rgb) / 0.03); font-size: 13px;
+    }
+    .syntax-intro { margin: 4px 0; color: var(--mp-text-muted); }
+    .syntax-list { margin: 4px 0; padding: 0; list-style: none; }
+    .syntax-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; padding: 2px 0; min-width: 0; }
+    .syntax-example {
+      padding: 4px 6px; border: 0; border-radius: 4px; background: rgb(var(--mp-ink-rgb) / 0.06); color: var(--mp-text);
+      font: inherit; cursor: pointer; max-width: 100%; overflow-wrap: anywhere; text-align: left;
+    }
+    .syntax-example:hover { background: rgb(var(--mp-ink-rgb) / 0.1); }
+    .syntax-example:focus-visible { outline: 2px solid var(--mp-accent); outline-offset: 1px; }
+    .syntax-meaning { color: var(--mp-text-muted); min-width: 0; }
+    .exclude-toggle {
+      display: inline-flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 24px; margin: 0 2px 0 -6px;
+      padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--mp-text-muted); cursor: pointer; vertical-align: middle;
+    }
+    .exclude-toggle mat-icon { font-size: 18px; width: 18px; height: 18px; }
+    .exclude-toggle:focus-visible { outline: 2px solid var(--mp-accent); }
+    .excluded .filter-label { text-decoration: line-through; }
+    .excluded .exclude-toggle { color: var(--mp-warn); }
+    .refine { max-width: 960px; margin: 4px 0 8px; min-width: 0; }
+    .refine summary { cursor: pointer; margin: 8px 0; }
+    .refine-bucket { margin: 0 0 8px; min-width: 0; }
+    .refine-label { margin: 0 0 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: var(--mp-text-dim); }
+    .refine-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; min-width: 0; }
+    .refine-chip {
+      display: inline-flex; align-items: center; max-width: 100%; min-width: 0; height: 32px; border-radius: 16px;
+      border: 1px solid rgb(var(--mp-ink-rgb) / 0.16); background: rgb(var(--mp-ink-rgb) / 0.04);
+    }
+    .refine-chip button {
+      display: inline-flex; align-items: center; gap: 6px; height: 100%; border: 0; background: transparent; color: var(--mp-text);
+      font: inherit; font-size: 13px; cursor: pointer; min-width: 0;
+    }
+    .refine-chip button:focus-visible { outline: 2px solid var(--mp-accent); outline-offset: -2px; }
+    .refine-add { padding: 0 6px 0 12px; border-radius: 16px 0 0 16px; }
+    .refine-add .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .refine-add .count { flex: none; font-size: 12px; color: var(--mp-text-muted); }
+    .refine-or { flex: none; padding: 0 6px; font-size: 12px !important; color: var(--mp-accent) !important; }
+    .refine-not { flex: none; width: 30px; justify-content: center; padding: 0 6px 0 0; border-radius: 0 16px 16px 0; color: var(--mp-text-muted) !important; }
+    .refine-not mat-icon { font-size: 18px; width: 18px; height: 18px; }
+    .refine-chip button:hover { background: rgb(var(--mp-ink-rgb) / 0.08); }
+    .refine-more { align-self: center; font-size: 12px; color: var(--mp-text-muted); }
     /* The filter chips get their own row inside the field; a full row scrolls sideways instead of growing the field (D1 2.6). */
     .filter-chips { display: block; width: 100%; min-width: 0; }
     .search-text { display: block; width: 100%; min-width: 0; }
@@ -359,11 +488,15 @@ export class SearchComponent {
 
   /** The field's filter chips, in URL order, named once the server has answered. */
   readonly filterChips = computed<FilterChip[]>(() => {
-    const byId = new Map(this.resolvedFilters().filter((r) => r.source === 'Chip' && r.id).map((r) => [r.id!, r]));
+    const key = (id: string, negated: boolean) => `${negated ? '-' : ''}${id}`;
+    const byId = new Map(this.resolvedFilters().filter((r) => r.source === 'Chip' && r.id).map((r) => [key(r.id!, !!r.negated), r]));
     return this.params().f.map((param) => {
-      const r = byId.get(filterValueId(param));
-      if (r?.matched && r.display) return { param, label: `${bucketLabel(r.bucket)}: ${r.display}`, known: true };
-      return { param, label: this.searched() ? 'Unknown tag' : '…', known: !this.searched() };
+      const excluded = isExcludeParam(param);
+      const r = byId.get(key(filterValueId(param), excluded));
+      if (r?.matched && r.display) {
+        return { param, label: `${excluded ? 'Not ' : ''}${bucketLabel(r.bucket)}: ${r.display}`, known: true, excluded };
+      }
+      return { param, label: this.searched() ? 'Unknown tag' : '…', known: !this.searched(), excluded };
     });
   });
 
@@ -371,6 +504,12 @@ export class SearchComponent {
     if (this.params().f.length > 0) return this.params().read === 'all' ? 'No works with these tags.' : 'No works with these tags and this filter.';
     return this.params().read === 'all' ? 'No results found.' : 'No results with this filter.';
   });
+
+  /** 1.49.0 (lane T): the tag view's Refine list (first page's answer). */
+  readonly refine = signal<FacetBucketDto[]>([]);
+  /** 1.49.0 (lane T): the "?" syntax panel. */
+  readonly syntaxOpen = signal(false);
+  readonly syntaxExamples = SYNTAX_EXAMPLES;
 
   /** Per-user opt-in (1.21.0): show the favorite star + boost favorited results to top. */
   readonly prominence = signal(false);
@@ -436,6 +575,48 @@ export class SearchComponent {
     if (!this.params().f.includes(param)) return;
     if (this.searchTimer) clearTimeout(this.searchTimer);
     this.params.update((p) => ({ ...p, q: this.query, f: p.f.filter((v) => v !== param) }));
+    this.writeUrl();
+    this.runSearch();
+  }
+
+  /** 1.49.0 (lane T): a filter chip's include / exclude toggle. */
+  toggleExclude(param: string): void {
+    if (!this.params().f.includes(param)) return;
+    const flipped = toggleExcludeParam(param);
+    this.setFilters(this.params().f.map((v) => (v === param ? flipped : v)));
+  }
+
+  /**
+   * 1.49.0 (lane T): a Refine chip - `all` adds it (must carry), `not` adds it as an exclusion, `any` joins it to the bucket's last
+   * included tag in the search (`genre:fv_a|fv_b`: either).
+   */
+  addRefine(filter: string, mode: 'all' | 'any' | 'not'): void {
+    const f = this.params().f;
+    if (mode === 'any') {
+      const target = this.orTarget(filter);
+      if (target) {
+        const id = filterValueId(filter);
+        this.setFilters(f.map((v) => (v === target ? `${v}|${id}` : v)));
+        return;
+      }
+    }
+    this.setFilters(addFilterParam(f, mode === 'not' ? `-${filter}` : filter));
+  }
+
+  /** 1.49.0: whether a Refine chip can join an included tag of its bucket already in the search ("or"). */
+  canOr(filter: string): boolean {
+    return this.orTarget(filter) !== null;
+  }
+
+  label(bucket: FacetBucketDto['bucket']): string {
+    return bucketLabel(bucket);
+  }
+
+  /** 1.49.0 (S4): an example of the "?" panel goes into the field (added to what is typed) and searches. */
+  useExample(example: string): void {
+    this.query = this.query.trim() ? `${this.query.trim()} ${example}` : example;
+    if (this.searchTimer) clearTimeout(this.searchTimer);
+    this.params.update((p) => ({ ...p, q: this.query }));
     this.writeUrl();
     this.runSearch();
   }
@@ -547,6 +728,22 @@ export class SearchComponent {
     return [...favorited, ...rest];
   }
 
+  /** The bucket's last included filter in the search (the one "or" joins), or null. */
+  private orTarget(filter: string): string | null {
+    const token = filterToken(filter);
+    const id = filterValueId(filter);
+    const candidates = this.params().f.filter((v) => !isExcludeParam(v) && filterToken(v) === token && !filterValueId(v).split('|').includes(id));
+    return candidates.length > 0 ? candidates[candidates.length - 1] : null;
+  }
+
+  /** Replaces the tag filters (keeping the typed text) and searches again from the first page. */
+  private setFilters(f: string[]): void {
+    if (this.searchTimer) clearTimeout(this.searchTimer);
+    this.params.update((p) => ({ ...p, q: this.query, f }));
+    this.writeUrl();
+    this.runSearch();
+  }
+
   private writeUrl(): void {
     void this.router.navigate([], { relativeTo: this.route, queryParams: searchParamsToQuery(this.params()), replaceUrl: true });
   }
@@ -565,7 +762,12 @@ export class SearchComponent {
       }
     }
     if (to.size === 0) return;
-    this.params.update((p) => ({ ...p, f: [...new Set(p.f.map((v) => to.get(filterValueId(v)) ?? v))] }));
+    // 1.49.0: an excluded old id stays excluded under its new id.
+    const redirect = (v: string) => {
+      const target = to.get(filterValueId(v));
+      return target ? `${isExcludeParam(v) ? '-' : ''}${target}` : v;
+    };
+    this.params.update((p) => ({ ...p, f: [...new Set(p.f.map(redirect))] }));
     // The answer is for the old id: the new id names the same value, so the chips keep their names.
     this.resolvedFilters.set(filters.map((r) => (r.redirectedFrom && to.has(r.redirectedFrom) ? { ...r, id: r.valueIds[0] } : r)));
     this.writeUrl();
@@ -585,6 +787,7 @@ export class SearchComponent {
     this.loadingMore.set(false);
     this.expanded.set(new Set());
     if (!q.trim() && f.length === 0) {
+      this.refine.set([]);
       this.results.set([]);
       this.works.set([]);
       this.seriesMatches.set([]);
@@ -601,6 +804,7 @@ export class SearchComponent {
         if (generation !== this.generation) return;
         const response = answer as SearchAnswer;
         this.takeFilters(response.filters ?? []);
+        this.refine.set([...(response.refine ?? [])].sort((a, b) => bucketRank(a.bucket) - bucketRank(b.bucket)));
         if (response.works) {
           this.works.set(response.works);
           this.results.set([]);
@@ -626,6 +830,7 @@ export class SearchComponent {
         if (generation !== this.generation) return;
         this.results.set([]);
         this.works.set([]);
+        this.refine.set([]);
         this.seriesMatches.set([]);
         this.totalCount.set(0);
         this.searched.set(true);
