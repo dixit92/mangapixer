@@ -116,6 +116,8 @@ Select a tag (or any other chip) to search for every work that carries it. **Ope
 | `is:read`, `is:unread`, `is:reading` | your read state - in any search, also a plain one |
 | `library:manga` | only this library (its name, or the start of it) - in any search |
 
+While you type one of these fields in the search box, the list of [quick results](library-layout.md#quick-results-while-you-type) suggests its values (`creator:ura` lists the creators with `ura` in their name) and choosing one completes the field.
+
 A word with a colon that is not one of these (such as `Re:Zero`) stays plain text. A tag search lists works, as before; without any field or tag, Search finds names as it always did. Nothing here is sent anywhere: tags are read from what is already stored on your server.
 
 ## Identify a series (admins)

@@ -203,6 +203,48 @@ export interface SearchResultsDto {
   refine?: FacetBucketDto[];
 }
 
+// ---- 1.49.0 quick results (lane O): GET /api/v1/search/suggest ----
+
+/** Quick results while typing: about five per group, or - when the text ends in a typed field - that field's values in `field`. */
+export interface SearchSuggestDto {
+  query: string;
+  series: SuggestItemDto[];
+  folders: SuggestItemDto[];
+  archives: SuggestItemDto[];
+  creators: SuggestItemDto[];
+  tags: SuggestItemDto[];
+  field?: SuggestFieldDto | null;
+}
+
+/**
+ * One quick result. A node (`series` / `folder` / `archive`) opens by `nodeKind` + `libraryId` + `id`; a value (`creator` / `tag` / `genre`)
+ * opens the tag view with `filter` (the ready `f` value) and says how many works carry it in `count`.
+ */
+export interface SuggestItemDto {
+  kind: string;
+  id: string;
+  label: string;
+  detail?: string | null;
+  libraryId?: string | null;
+  nodeKind?: string | null;
+  filter?: string | null;
+  count?: number | null;
+}
+
+/** The values of the typed field the text ends in; choosing one replaces the text from `start` with its `insert`. */
+export interface SuggestFieldDto {
+  name: string;
+  prefix: string;
+  start: number;
+  items: SuggestValueDto[];
+}
+
+export interface SuggestValueDto {
+  label: string;
+  insert: string;
+  count?: number | null;
+}
+
 // ---- 1.45.0 tag buckets (lane Q): Info panel tags and the tag view ----
 
 /**

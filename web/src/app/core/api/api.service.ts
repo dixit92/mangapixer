@@ -105,6 +105,7 @@ import {
   UserPreferencesDto,
   AppearancePreferencesDto,
   SeriesAnswer,
+  SearchSuggestDto,
 } from './api-types';
 
 /** Options of {@link ApiService.search} (1.45.0). */
@@ -285,6 +286,14 @@ export class ApiService {
     if (options.readState && options.readState !== 'all') params = params.set('readState', options.readState);
     for (const f of options.filters ?? []) params = params.append('f', f);
     return this.get<SearchResultsDto>('/search', params);
+  }
+
+  /**
+   * Quick results while typing (1.49.0, lane O): the best few series, folders, archives, creators and tags for `text`, or the values of
+   * the typed field it ends in. The caller debounces and unsubscribes from the request it replaces (the browser cancels it).
+   */
+  searchSuggest(text: string): Observable<SearchSuggestDto> {
+    return this.get<SearchSuggestDto>('/search/suggest', new HttpParams().set('q', text));
   }
 
   /**

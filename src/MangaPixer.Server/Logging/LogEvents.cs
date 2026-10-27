@@ -664,4 +664,20 @@ public static class LogEvents
         /// <summary>A plain search answered (Debug): words, hits, close matches, milliseconds.</summary>
         public const int Answered = 3301;
     }
+
+    /// <summary>
+    /// 1.49.0 lane O: quick results while typing (3330-3339, inside the 3xxx range; reserved for lane O). Counts and timings only -
+    /// never the typed text, a name or a path.
+    /// </summary>
+    public static class QuickResults
+    {
+        public const int Min = 3330;
+        public const int Max = 3339;
+
+        /// <summary>The node half (folders, archives, linked series) answered (Debug): words, candidates, hits, listed, milliseconds.</summary>
+        public const int NodesAnswered = 3330;
+
+        /// <summary>A quick-results request answered (Debug): typed field or groups, items listed per group, milliseconds.</summary>
+        public const int Answered = 3331;
+    }
 }

@@ -1,5 +1,7 @@
-import { Component, computed, inject, signal, viewChild } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Component, DestroyRef, computed, inject, signal, viewChild } from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { BreakpointObserver } from '@angular/cdk/layout';
+import { map } from 'rxjs/operators';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, ParamMap, Params, Router, RouterLink } from '@angular/router';
@@ -21,6 +23,8 @@ import {
   addFilterParam, bucketLabel, bucketRank, bucketToken, filterToken, filterValueId, isExcludeParam, isFilterParam, locationText, toggleExcludeParam,
 } from '../metadata/info/info-labels';
 import { FacetLocationDto, FacetSearchFields, FacetWorkDto, SearchFilterDto } from '../metadata/info/info-types';
+import { QuickResultsComponent } from './quick-results/quick-results.component';
+import { QuickEntry, QuickResults, completeToken } from './quick-results/quick-results.model';
 
 /**
  * The search page's state as it appears in the URL (1.45.0): `q` (the search text), `read` (the read-state filter; absent = all) and
@@ -105,6 +109,7 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
     InfoToggleComponent,
     SeriesInfoHoverDirective,
     FolderRollupBadgeComponent,
+    QuickResultsComponent,
   ],
   template: `
     <h2>Search</h2>
@@ -131,7 +136,7 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
       <!-- The text field under the chip row (not inside it): a full row scrolls sideways and the text stays in reach. -->
       <input class="search-text" [matChipInputFor]="filterGrid" [(ngModel)]="query" (ngModelChange)="onSearch()"
              [placeholder]="filterChips().length > 0 ? 'Add search text...' : 'Enter search text...'" aria-label="Search text"
-             data-testid="search-input">
+             (focus)="onQuickFocus()" (blur)="onQuickBlur()" (keydown.enter)="quickDismissed.set(true)" data-testid="search-input">
       <mat-icon matSuffix>search</mat-icon>
     </mat-form-field>
     <button mat-icon-button type="button" class="syntax-toggle" (click)="syntaxOpen.set(!syntaxOpen())" [attr.aria-expanded]="syntaxOpen()"
@@ -139,6 +144,14 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
       <mat-icon>help_outline</mat-icon>
     </button>
     </div>
+
+    <!-- 1.49.0 (lane O): on a phone the header has no search box, so the grouped quick results show here, under the field, while typing
+         (series, folders, archives, creators, tags - or the values of a typed field); a result opens, a field value completes the token. -->
+    @if (quickOpen()) {
+      <div class="quick-phone" data-testid="search-quick">
+        <app-quick-results [sections]="quick.sections()" idPrefix="sq-" label="Quick results" (picked)="pickQuick($event)" />
+      </div>
+    }
 
     <!-- 1.49.0 (lane T, S4): the typed syntax with examples (as YACReader's search help); an example goes into the field. -->
     @if (syntaxOpen()) {
@@ -341,6 +354,10 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
     .search-row { display: flex; align-items: flex-start; gap: 4px; max-width: 648px; min-width: 0; }
     .search-field { flex: 1 1 auto; width: 100%; max-width: 600px; min-width: 0; }
     .syntax-toggle { flex: none; margin-top: 8px; color: var(--mp-text-muted); }
+    .quick-phone {
+      max-width: 600px; margin: -8px 0 12px; border-radius: 8px; overflow: hidden; min-width: 0;
+      border: 1px solid rgb(var(--mp-ink-rgb) / 0.16); background: var(--mp-surface-high);
+    }
     .syntax {
       max-width: 600px; margin: -8px 0 12px; padding: 10px 12px; border-radius: 8px;
       border: 1px solid rgb(var(--mp-ink-rgb) / 0.12); background: rgb(var(--mp-ink-rgb) / 0.03); font-size: 13px;
@@ -466,6 +483,17 @@ export class SearchComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
+  /** 1.49.0 (lane O): the quick results under the field - phones only (desktop and tablet have the header box). */
+  readonly quick = new QuickResults();
+  private readonly phone = toSignal(
+    inject(BreakpointObserver).observe('(max-width: 599.98px)').pipe(map((state) => state.matches)),
+    { initialValue: false },
+  );
+  private readonly quickFocused = signal(false);
+  readonly quickDismissed = signal(false);
+  readonly quickOpen = computed(() => this.phone() && this.quickFocused() && !this.quickDismissed() && this.quick.entries().length > 0);
+  private quickBlurTimer: ReturnType<typeof setTimeout> | null = null;
+
   /** The text field (two-way bound); it becomes `params().q` when the debounce fires. */
   query = '';
   /** The searched state, mirrored in the URL (1.45.0). */
@@ -576,6 +604,12 @@ export class SearchComponent {
   private generation = 0;
 
   constructor() {
+    // Leaving the page (a result opened, the browser's Back) cancels the timers: a late fire would write this page's URL back.
+    inject(DestroyRef).onDestroy(() => {
+      if (this.searchTimer) clearTimeout(this.searchTimer);
+      if (this.quickBlurTimer) clearTimeout(this.quickBlurTimer);
+    });
+
     // A link change (identify dialog, admin menu) updates the result in place (1.27.0).
     inject(MetadataStateService).changed$.pipe(takeUntilDestroyed()).subscribe(({ nodeId, hasSeriesInfo }) => {
       const patch = (n: CatalogNodeDto) => (n.id === nodeId ? { ...n, hasSeriesInfo } : n);
@@ -601,7 +635,40 @@ export class SearchComponent {
     });
   }
 
+  onQuickFocus(): void {
+    if (this.quickBlurTimer) clearTimeout(this.quickBlurTimer);
+    this.quickFocused.set(true);
+  }
+
+  onQuickBlur(): void {
+    // A tap on a result is handled before the list goes (it never takes focus; this is the margin for touch).
+    this.quickBlurTimer = setTimeout(() => this.quickFocused.set(false), 120);
+  }
+
+  /** 1.49.0 (lane O): a quick result was chosen - open it, add its tag view, or complete the typed field's token. */
+  pickQuick(entry: QuickEntry): void {
+    const action = entry.action;
+    if (action.type === 'complete') {
+      this.query = completeToken(this.query, action.start, action.insert);
+      this.onSearch();
+      return;
+    }
+    this.quick.clear();
+    if (action.type === 'open') {
+      // The page is being left: a search still waiting on its 300 ms must not write this page's URL back over the navigation.
+      if (this.searchTimer) clearTimeout(this.searchTimer);
+      void this.router.navigate(action.commands);
+      return;
+    }
+    this.query = '';
+    this.setFilters(addFilterParam(this.params().f, action.filter));
+  }
+
   onSearch(): void {
+    if (this.phone()) {
+      this.quickDismissed.set(false);
+      this.quick.ask(this.query);
+    }
     if (this.searchTimer) clearTimeout(this.searchTimer);
     this.searchTimer = setTimeout(() => {
       this.params.update((p) => ({ ...p, q: this.query }));

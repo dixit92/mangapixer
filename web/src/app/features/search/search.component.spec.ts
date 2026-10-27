@@ -2,6 +2,7 @@ import { vi } from 'vitest';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { convertToParamMap, provideRouter, Router } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { BreakpointObserver } from '@angular/cdk/layout';
 import { of, Subject } from 'rxjs';
 
 import { SearchComponent, searchParamsFromQuery, searchParamsToQuery } from './search.component';
@@ -9,7 +10,7 @@ import { By } from '@angular/platform-browser';
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { MetadataStateService } from '../metadata/metadata-state.service';
 import { ApiService } from '../../core/api/api.service';
-import { CatalogNodeDto, SearchResultsDto } from '../../core/api/api-types';
+import { CatalogNodeDto, SearchResultsDto, SearchSuggestDto } from '../../core/api/api-types';
 import { FacetLocationDto, FacetSearchFields, FacetWorkDto, SearchFilterDto } from '../metadata/info/info-types';
 
 /**
@@ -894,5 +895,123 @@ describe('SearchComponent search by words (1.49.0)', () => {
     });
     runSearch('dungeon');
     expect(text('search-count')).toBe('1 archive');
+  });
+});
+
+/**
+ * 1.49.0 (lane O): on a phone the header has no search box, so the Search page shows the same grouped quick results under its field
+ * while typing - a result opens, a typed field's value completes the token. Desktop and tablet ask nothing extra here.
+ */
+describe('SearchComponent quick results on a phone', () => {
+  const answer: SearchSuggestDto = {
+    query: 'ber',
+    series: [],
+    folders: [{ kind: 'folder', id: 'f1', label: 'Berserk Deluxe', libraryId: 'L1', nodeKind: 'Folder' }],
+    archives: [],
+    creators: [{ kind: 'creator', id: 'fv_c', label: 'Naoki Urasawa', filter: 'creator:fv_c', count: 1 }],
+    tags: [],
+    field: null,
+  };
+
+  function setup(phone: boolean): { fixture: ComponentFixture<SearchComponent>; api: { search: ReturnType<typeof vi.fn>; searchSuggest: ReturnType<typeof vi.fn> } } {
+    const api = {
+      search: vi.fn().mockReturnValue(of({ query: 'q', items: [], totalCount: 0, nextCursor: null, hasMore: false })),
+      searchSuggest: vi.fn().mockReturnValue(of(answer)),
+      getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
+    };
+    TestBed.configureTestingModule({
+      imports: [SearchComponent],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        { provide: ApiService, useValue: api },
+        { provide: BreakpointObserver, useValue: { observe: () => of({ matches: phone, breakpoints: {} }) } },
+      ],
+    });
+    const fixture = TestBed.createComponent(SearchComponent);
+    fixture.detectChanges();
+    return { fixture, api };
+  }
+
+  function typeInto(fixture: ComponentFixture<SearchComponent>, text: string): void {
+    const input = fixture.nativeElement.querySelector('[data-testid="search-input"]') as HTMLInputElement;
+    input.dispatchEvent(new Event('focus'));
+    fixture.componentInstance.query = text;
+    fixture.componentInstance.onSearch();
+    vi.advanceTimersByTime(300);
+    fixture.detectChanges();
+  }
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); });
+
+  it('shows the grouped quick results under the field while typing', () => {
+    const { fixture, api } = setup(true);
+    typeInto(fixture, 'ber');
+
+    expect(api.searchSuggest).toHaveBeenCalledWith('ber');
+    const panel = fixture.nativeElement.querySelector('[data-testid="search-quick"]') as HTMLElement;
+    expect(panel).not.toBeNull();
+    expect([...panel.querySelectorAll('[role="group"]')].map((g) => g.getAttribute('data-group'))).toEqual(['folders', 'creators']);
+    expect([...panel.querySelectorAll('.qr-label')].map((e) => e.textContent)).toEqual(['Berserk Deluxe', 'Naoki Urasawa']);
+  });
+
+  it('opens a folder result, and adds a creator result as a tag view (clearing the text)', async () => {
+    const { fixture } = setup(true);
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    typeInto(fixture, 'ber');
+
+    (fixture.nativeElement.querySelectorAll('[data-testid="quick-result"]')[0] as HTMLElement).click();
+    expect(navigate).toHaveBeenCalledWith(['/libraries', 'L1', 'browse', 'f1']);
+
+    typeInto(fixture, 'ber2');
+    (fixture.nativeElement.querySelectorAll('[data-testid="quick-result"]')[1] as HTMLElement).click();
+    expect(fixture.componentInstance.query).toBe('');
+    expect(fixture.componentInstance.params().f).toEqual(['creator:fv_c']);
+  });
+
+  it('opening a result cancels the search still waiting on its 300 ms (it would write the page\'s URL back over the navigation)', () => {
+    const { fixture, api } = setup(true);
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    (fixture.nativeElement.querySelector('[data-testid="search-input"]') as HTMLInputElement).dispatchEvent(new Event('focus'));
+    fixture.componentInstance.query = 'ber';
+    fixture.componentInstance.onSearch();
+    vi.advanceTimersByTime(200); // the quick answer is in; the page's own search is still waiting
+    fixture.detectChanges();
+
+    (fixture.nativeElement.querySelector('[data-testid="quick-result"]') as HTMLElement).click();
+    vi.advanceTimersByTime(500);
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith(['/libraries', 'L1', 'browse', 'f1']);
+    expect(api.search).not.toHaveBeenCalled();
+  });
+
+  it('completes a typed field\'s token from its values', () => {
+    const { fixture, api } = setup(true);
+    api.searchSuggest.mockReturnValue(of({
+      ...answer, folders: [], creators: [],
+      field: { name: 'tag', prefix: 'tim', start: 8, items: [{ label: 'Time Travel', insert: 'tag:"Time Travel"', count: 2 }] },
+    }));
+    typeInto(fixture, 'berserk tag:tim');
+
+    (fixture.nativeElement.querySelector('[data-testid="quick-result"]') as HTMLElement).click();
+    expect(fixture.componentInstance.query).toBe('berserk tag:"Time Travel" ');
+  });
+
+  it('hides them on Enter, and asks nothing on desktop or tablet', () => {
+    const phone = setup(true);
+    typeInto(phone.fixture, 'ber');
+    const input = phone.fixture.nativeElement.querySelector('[data-testid="search-input"]') as HTMLInputElement;
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    phone.fixture.detectChanges();
+    expect(phone.fixture.nativeElement.querySelector('[data-testid="search-quick"]')).toBeNull();
+
+    TestBed.resetTestingModule();
+    const wide = setup(false);
+    typeInto(wide.fixture, 'ber');
+    expect(wide.api.searchSuggest).not.toHaveBeenCalled();
+    expect(wide.fixture.nativeElement.querySelector('[data-testid="search-quick"]')).toBeNull();
   });
 });

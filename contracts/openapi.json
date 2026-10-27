@@ -12114,6 +12114,44 @@
         }
       }
     },
+    "/api/v1/search/suggest": {
+      "get": {
+        "tags": [
+          "SearchSuggest"
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchSuggestDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchSuggestDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchSuggestDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/nodes/{nodeId}/volume-view": {
       "get": {
         "tags": [
@@ -21143,6 +21181,62 @@
           }
         }
       },
+      "SearchSuggestDto": {
+        "required": [
+          "query",
+          "series",
+          "folders",
+          "archives",
+          "creators",
+          "tags"
+        ],
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SuggestItemDto"
+            }
+          },
+          "folders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SuggestItemDto"
+            }
+          },
+          "archives": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SuggestItemDto"
+            }
+          },
+          "creators": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SuggestItemDto"
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SuggestItemDto"
+            }
+          },
+          "field": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SuggestFieldDto"
+              }
+            ]
+          }
+        }
+      },
       "SeriesAnswer": {
         "type": "integer"
       },
@@ -22305,6 +22399,113 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "SuggestFieldDto": {
+        "required": [
+          "name",
+          "prefix",
+          "start",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "start": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SuggestValueDto"
+            }
+          }
+        }
+      },
+      "SuggestItemDto": {
+        "required": [
+          "kind",
+          "id",
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "libraryId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "nodeKind": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "filter": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "SuggestValueDto": {
+        "required": [
+          "label",
+          "insert"
+        ],
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "insert": {
+            "type": "string"
+          },
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -25553,6 +25754,9 @@
     },
     {
       "name": "JumpIndex"
+    },
+    {
+      "name": "SearchSuggest"
     },
     {
       "name": "VolumeStack"
