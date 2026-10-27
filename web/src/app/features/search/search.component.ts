@@ -141,7 +141,7 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
 
     <!-- 1.49.0 (lane T, S4): the typed syntax with examples (as YACReader's search help); an example goes into the field. -->
     @if (syntaxOpen()) {
-      <section id="search-syntax" class="syntax" aria-label="Search syntax" data-testid="search-syntax" (keydown.escape)="syntaxOpen.set(false)">
+      <section id="search-syntax" class="syntax" aria-label="Search syntax" data-testid="search-syntax" tabindex="-1" (keydown.escape)="syntaxOpen.set(false)">
         <p class="syntax-intro">Plain words find names. Fields narrow by tags; combine any of them:</p>
         <ul class="syntax-list">
           @for (ex of syntaxExamples; track ex.example) {
