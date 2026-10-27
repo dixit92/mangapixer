@@ -524,10 +524,14 @@ public sealed class FacetIndexServiceTests(Xunit.Abstractions.ITestOutputHelper 
 
         // 1.49.0 (lane T): the Tags bucket's share of the index - every linked location carries its record's 20 categories, every
         // ComicInfo location its folded tags (two archives with "Found Family" / "found-family" / "Tag n" = 2 values per location).
-        var tagEntries = await (from e in db.FacetEntries join v in db.FacetValues on e.ValueId equals v.Id
-                                where v.Bucket == (int)FacetBucket.Tags select e).CountAsync();
-        var ciLocations = await (from e in db.FacetEntries join w in db.FacetWorks on e.WorkId equals w.Id
-                                 where w.Kind == (int)FacetWorkKind.ComicInfo select e.LocationNodeId).Distinct().CountAsync();
+        var tagEntries = await (from e in db.FacetEntries
+                                join v in db.FacetValues on e.ValueId equals v.Id
+                                where v.Bucket == (int)FacetBucket.Tags
+                                select e).CountAsync();
+        var ciLocations = await (from e in db.FacetEntries
+                                 join w in db.FacetWorks on e.WorkId equals w.Id
+                                 where w.Kind == (int)FacetWorkKind.ComicInfo
+                                 select e.LocationNodeId).Distinct().CountAsync();
         var tagValues = await db.FacetValues.CountAsync(v => v.Bucket == (int)FacetBucket.Tags);
         var expectedValues = Enumerable.Range(0, 600).SelectMany(i => Enumerable.Range(0, 20).Select(k => (i * 7 + k * 31) % 2756))
             .Concat(Enumerable.Range(700, 300).Select(f => f % 236)).Distinct().Count() + 1; // + "found family"

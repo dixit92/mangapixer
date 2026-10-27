@@ -14,7 +14,7 @@ public sealed class FacetVocabularyTests
     public void TheStoredNumbers_AreTheDesignsAndNeverMove()
     {
         Assert.Equal(
-            new[] { (1, "Creators"), (2, "Series"), (3, "Magazine"), (4, "Publisher"), (5, "Year"), (6, "Genres"), (7, "Type"), (8, "About"), (9, "Custom") },
+            new[] { (1, "Creators"), (2, "Series"), (3, "Magazine"), (4, "Publisher"), (5, "Year"), (6, "Genres"), (7, "Type"), (8, "About"), (9, "Custom"), (10, "Tags") },
             Enum.GetValues<FacetBucket>().Select(b => ((int)b, b.ToString())).ToArray());
         Assert.Equal(new[] { 0, 1, 2, 4, 8 }, Enum.GetValues<FacetSources>().Select(s => (int)s).ToArray());
         Assert.Equal((1, 2, 4, 8), ((int)FacetSources.Web, (int)FacetSources.ComicInfo, (int)FacetSources.Declared, (int)FacetSources.Admin));
