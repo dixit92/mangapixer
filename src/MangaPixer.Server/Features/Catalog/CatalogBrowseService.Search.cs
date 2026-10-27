@@ -102,7 +102,7 @@ public sealed partial class CatalogBrowseService
                     SELECT cn.Id, cn.Kind, cn.DisplayName, cn.SortKey
                     FROM catalog_nodes cn
                     WHERE cn.Availability != 5 AND cn.LibraryId IN ({libIds})
-                    {ShortSearchPrefilter(parsed)}
+                    {ContainsPrefilter(parsed.AllWords)}
                     """, null, ct)
                 : await ReadSearchCandidatesAsync(connection, $"""
                     SELECT cn.Id, cn.Kind, cn.DisplayName, cn.SortKey
@@ -129,10 +129,13 @@ public sealed partial class CatalogBrowseService
             {
                 // Every visible live name: a one-letter typo in a short word can leave no trigram in common with the name ("akra" /
                 // "Akira"), so the index cannot narrow the candidates without missing some. Measured on 40 k nodes (lane S note).
+                // The words that never carry a typo (shorter than 4, or in quotes) narrow it in SQL; the sort key is read for the hits only.
+                var exactWords = parsed.Words.Where(w => w.Length < SearchText.MinFuzzyLength).Concat(parsed.Phrases.SelectMany(p => p));
                 var fuzzyCandidates = await ReadSearchCandidatesAsync(connection, $"""
-                    SELECT cn.Id, cn.Kind, cn.DisplayName, cn.SortKey
+                    SELECT cn.Id, cn.Kind, cn.DisplayName, '' AS SortKey
                     FROM catalog_nodes cn
                     WHERE cn.Availability != 5 AND cn.LibraryId IN ({libIds})
+                    {ContainsPrefilter(exactWords)}
                     """, null, ct);
                 foreach (var c in fuzzyCandidates)
                 {
@@ -143,6 +146,7 @@ public sealed partial class CatalogBrowseService
                 }
                 if (readState != BrowseReadStateFilter.All)
                     close = await KeepByReadStateAsync(connection, close, userId, readState, ct);
+                close = await WithSortKeysAsync(connection, close, ct);
                 close = close.OrderBy(h => h.Rank).ThenBy(h => h.SortKey, StringComparer.Ordinal).ThenBy(h => h.Id).Take(MaxCloseMatches).ToList();
                 nameHitIds.UnionWith(close.Select(h => h.Id));
             }
@@ -242,14 +246,33 @@ public sealed partial class CatalogBrowseService
         return list;
     }
 
-    /// <summary>
-    /// A cheap SQL superset for a short search: for each word of plain ASCII letters and digits, the name contains it (LIKE folds ASCII
-    /// case) OR holds any character outside printable ASCII (an accented name may match it once folded - <see cref="SearchText.Rank"/>
-    /// decides). Words are letters and digits only, so they need no escaping.
-    /// </summary>
-    private static string ShortSearchPrefilter(SearchQuery parsed)
+    /// <summary>The hits with their sort keys (a scan reads names without them; few hits need one).</summary>
+    private static async Task<List<SearchHit>> WithSortKeysAsync(DbConnection connection, List<SearchHit> hits, CancellationToken ct)
     {
-        var parts = parsed.AllWords
+        if (hits.Count == 0)
+            return hits;
+        var keys = new Dictionary<long, string>();
+        foreach (var chunk in hits.Select(h => h.Id).Chunk(500))
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText =
+                $"SELECT Id, SortKey FROM catalog_nodes WHERE Id IN ({string.Join(",", chunk.Select(id => id.ToString(CultureInfo.InvariantCulture)))})";
+            using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                keys[reader.GetInt64(0)] = reader.GetString(1);
+        }
+        return hits.Select(h => h with { SortKey = keys.GetValueOrDefault(h.Id, "") }).ToList();
+    }
+
+    /// <summary>
+    /// A cheap SQL superset for words a name must contain (a short search's words; the words of a typo search that never carry a typo):
+    /// for each word of plain ASCII letters and digits, the name contains it (LIKE folds ASCII case) OR holds any character outside
+    /// printable ASCII (an accented name may match it once folded - <see cref="SearchText"/> decides). Words are letters and digits only,
+    /// so they need no escaping.
+    /// </summary>
+    private static string ContainsPrefilter(IEnumerable<SearchWord> words)
+    {
+        var parts = words
             .Select(w => w.Folded)
             .Where(w => w.All(char.IsAsciiLetterOrDigit))
             .Distinct(StringComparer.Ordinal)

@@ -195,7 +195,6 @@ public static class SearchText
         if (IsShort(query) || query.IsEmpty)
             return null;
         var padded = " " + foldedName;
-        string[]? nameWords = null;
         var total = 0;
         foreach (var word in query.Words)
         {
@@ -210,10 +209,12 @@ public static class SearchText
             var max = MaxDistance(word.Length);
             if (max == 0)
                 return null;
-            nameWords ??= foldedName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             var best = int.MaxValue;
-            foreach (var nameWord in nameWords)
+            foreach (var range in foldedName.AsSpan().Split(' '))
             {
+                var nameWord = foldedName.AsSpan(range);
+                if (nameWord.IsEmpty)
+                    continue;
                 best = Math.Min(best, BestPrefixDistance(word.Folded, nameWord, max));
                 if (best == 1)
                     break;
@@ -233,7 +234,7 @@ public static class SearchText
     /// <summary>The largest typo distance a word of this (folded) length may carry: none below 4 characters, 1 up to 7, 2 from 8.</summary>
     public static int MaxDistance(int length) => length >= 8 ? 2 : length >= MinFuzzyLength ? 1 : 0;
 
-    private static int BestPrefixDistance(string word, string nameWord, int max)
+    private static int BestPrefixDistance(ReadOnlySpan<char> word, ReadOnlySpan<char> nameWord, int max)
     {
         if (Math.Abs(nameWord.Length - word.Length) <= max)
             return Distance(word, nameWord, max);
@@ -251,9 +252,12 @@ public static class SearchText
     /// Damerau-Levenshtein distance (optimal string alignment: insert, delete, substitute, swap two neighbours), stopping early once
     /// every path exceeds <paramref name="max"/> (then any value above it is returned).
     /// </summary>
-    public static int Distance(string a, string b, int max = int.MaxValue)
+    public static int Distance(string a, string b, int max = int.MaxValue) => Distance(a.AsSpan(), b.AsSpan(), max);
+
+    /// <inheritdoc cref="Distance(string, string, int)"/>
+    public static int Distance(ReadOnlySpan<char> a, ReadOnlySpan<char> b, int max = int.MaxValue)
     {
-        if (a == b)
+        if (a.SequenceEqual(b))
             return 0;
         if (Math.Abs(a.Length - b.Length) > max)
             return max == int.MaxValue ? Math.Max(a.Length, b.Length) : max + 1;
@@ -261,9 +265,11 @@ public static class SearchText
         var m = b.Length;
         if (n == 0) return m;
         if (m == 0) return n;
-        var prev2 = new int[m + 1];
-        var prev = new int[m + 1];
-        var cur = new int[m + 1];
+        // Three rows; on the stack for the short words of names (the scan runs this for every word of every visible name).
+        Span<int> rows = m + 1 <= 64 ? stackalloc int[3 * (m + 1)] : new int[3 * (m + 1)];
+        var prev2 = rows[..(m + 1)];
+        var prev = rows.Slice(m + 1, m + 1);
+        var cur = rows.Slice(2 * (m + 1), m + 1);
         for (var j = 0; j <= m; j++)
             prev[j] = j;
         for (var i = 1; i <= n; i++)
@@ -281,7 +287,10 @@ public static class SearchText
             }
             if (max != int.MaxValue && rowMin > max)
                 return max + 1;
-            (prev2, prev, cur) = (prev, cur, prev2);
+            var spare = prev2;
+            prev2 = prev;
+            prev = cur;
+            cur = spare;
         }
         return prev[m];
     }
