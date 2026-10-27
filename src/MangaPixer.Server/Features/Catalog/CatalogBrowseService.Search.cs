@@ -136,6 +136,7 @@ public sealed partial class CatalogBrowseService
                     FROM catalog_nodes cn
                     WHERE cn.Availability != 5 AND cn.LibraryId IN ({libIds})
                     {ContainsPrefilter(exactWords)}
+                    {TypoPrefilter(parsed)}
                     """, null, ct);
                 foreach (var c in fuzzyCandidates)
                 {
@@ -277,6 +278,23 @@ public sealed partial class CatalogBrowseService
             .Where(w => w.All(char.IsAsciiLetterOrDigit))
             .Distinct(StringComparer.Ordinal)
             .Select(w => $"AND (cn.DisplayName LIKE '%{w}%' OR cn.DisplayName GLOB '*[^ -~]*')");
+        return string.Join(" ", parts);
+    }
+
+    /// <summary>
+    /// The typo scan's SQL narrowing (1.49.0): for each word that may carry a typo, the name contains one of its
+    /// <see cref="SearchText.TypoPatterns"/> OR holds a character outside printable ASCII (then C# decides). Patterns are letters, digits
+    /// and LIKE wildcards only.
+    /// </summary>
+    private static string TypoPrefilter(SearchQuery parsed)
+    {
+        var parts = new List<string>();
+        foreach (var word in parsed.Words.Where(w => w.Length >= SearchText.MinFuzzyLength).DistinctBy(w => w.Folded, StringComparer.Ordinal))
+        {
+            if (SearchText.TypoPatterns(word) is not { } patterns)
+                continue;
+            parts.Add("AND (" + string.Join(" OR ", patterns.Select(p => $"cn.DisplayName LIKE '{p}'")) + " OR cn.DisplayName GLOB '*[^ -~]*')");
+        }
         return string.Join(" ", parts);
     }
 

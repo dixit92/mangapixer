@@ -143,4 +143,50 @@ public sealed class SearchTextTests
     [InlineData("x", "", true)]
     public void HasWordStartingWith_MatchesAtTheStartOrAfterASpace(string name, string text, bool expected) =>
         Assert.Equal(expected, SearchText.HasWordStartingWith(name, text));
+
+    /// <summary>Every name within the typo distance of a word passes at least one of its SQL patterns (all one- and two-edit variants).</summary>
+    [Theory]
+    [InlineData("akra")]
+    [InlineData("frieren")]
+    [InlineData("naruto")]
+    [InlineData("berserk")]
+    [InlineData("vinland")]
+    [InlineData("hunterxhunter")]
+    [InlineData("yotsuba1")]
+    public void TypoPatterns_NeverDropANameWithinTheDistance(string word)
+    {
+        var patterns = SearchText.TypoPatterns(new SearchWord(word, word))!;
+        var regexes = patterns.Select(p => new System.Text.RegularExpressions.Regex(
+            "^" + System.Text.RegularExpressions.Regex.Escape(p).Replace("%", ".*").Replace("_", ".") + "$")).ToList();
+        var max = SearchText.MaxDistance(word.Length);
+        var variants = new HashSet<string> { word };
+        for (var round = 0; round < max; round++)
+            variants.UnionWith(variants.SelectMany(Edits).ToList());
+        foreach (var name in variants)
+        {
+            // As a whole name, inside a longer name, and as the start of a longer word: always found by a pattern.
+            foreach (var shaped in new[] { name, "the " + name + " saga", name + "xyz" })
+                Assert.True(regexes.Any(r => r.IsMatch(shaped)), $"'{shaped}' (from '{word}') passes no pattern");
+        }
+        Assert.Null(SearchText.TypoPatterns(new SearchWord("akí", "aki")));
+        Assert.Null(SearchText.TypoPatterns(new SearchWord("café", "café")));
+    }
+
+    private static IEnumerable<string> Edits(string w)
+    {
+        const string letters = "aekrz1";
+        for (var i = 0; i <= w.Length; i++)
+        {
+            foreach (var c in letters)
+                yield return w[..i] + c + w[i..];                         // insert
+            if (i < w.Length)
+            {
+                yield return w[..i] + w[(i + 1)..];                       // delete
+                foreach (var c in letters)
+                    yield return w[..i] + c + w[(i + 1)..];               // substitute
+            }
+            if (i + 1 < w.Length)
+                yield return w[..i] + w[i + 1] + w[i] + w[(i + 2)..];     // swap neighbours
+        }
+    }
 }

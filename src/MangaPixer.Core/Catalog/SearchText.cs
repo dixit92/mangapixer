@@ -96,6 +96,34 @@ public static class SearchText
     public static string? ExactFtsQuery(SearchQuery query) =>
         query.IndexWords.Count == 0 ? null : string.Join(" AND ", query.IndexWords.Select(w => Quote(w.Raw)));
 
+    /// <summary>
+    /// SQL <c>LIKE</c> patterns of which a name holding <paramref name="word"/> within its typo distance (or exactly) contains at least one
+    /// - a cheap SQL narrowing before the C# distance (1.49.0). Null when the word is not plain ASCII (LIKE folds ASCII case only) or may
+    /// carry no typo. The word is cut into pieces with one character between them: one edit (a swap of two neighbours included) touches
+    /// two adjacent positions at most, so it can break only one piece - two pieces for a distance of 1, three for 2. A 4-letter word adds
+    /// <c>%a__d%</c> for a swap of its two middle letters. Letters and digits only: nothing to escape.
+    /// </summary>
+    public static IReadOnlyList<string>? TypoPatterns(SearchWord word)
+    {
+        var w = word.Folded;
+        var max = MaxDistance(w.Length);
+        if (max == 0 || !w.All(char.IsAsciiLetterOrDigit))
+            return null;
+        if (w.Length == MinFuzzyLength)
+            return ["%" + w[..2] + "%", "%" + w[2..] + "%", "%" + w[0] + "__" + w[3] + "%"];
+        var pieces = max + 1;
+        var size = (w.Length - max) / pieces;   // pieces of `size` with one character between them; the last takes the rest
+        var patterns = new List<string>();
+        var at = 0;
+        for (var i = 0; i < pieces; i++)
+        {
+            var end = i == pieces - 1 ? w.Length : at + size;
+            patterns.Add("%" + w[at..end] + "%");
+            at = end + 1;
+        }
+        return patterns;
+    }
+
     /// <summary>Whether the search may match with typos at all (decision 5 b): it has an unquoted word of 4+ characters.</summary>
     public static bool AllowsTypos(SearchQuery query) => query.Words.Any(w => w.Length >= MinFuzzyLength);
 
