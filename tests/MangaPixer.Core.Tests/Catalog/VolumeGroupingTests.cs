@@ -396,6 +396,64 @@ public sealed class VolumeGroupingTests
     }
 
     [Fact]
+    public void AChapterBeforeVolumeOnesFirstListedChapter_JoinsVolumeOne()
+    {
+        // 1.49.0 (owner): the list starts volume 1 at chapter 2 (an opening chapter uploaded without a volume); nothing comes before
+        // volume 1, so chapter 1 (and its extra 1.5) sit at the start of its stack. Ongoing with one known volume: 6 and 7 stay loose.
+        var rows = Chapters(1, 7);
+        rows.Add(Archive("Synthetic - c001.5"));
+        var r = VolumeGrouping.Group(rows, Map(true, 1, 4.0, (1, 2, 5)));
+
+        var stack = Assert.Single(Stacks(r)).Stack!;
+        Assert.Equal("1", stack.Key);
+        Assert.Equal(["id:Synthetic - Chapter 001", "id:Synthetic - c001.5", "id:Synthetic - Chapter 002", "id:Synthetic - Chapter 003",
+            "id:Synthetic - Chapter 004", "id:Synthetic - Chapter 005"], stack.Members.Select(m => m.Row.Id));
+        Assert.Equal(VolumePlacement.Adjacent, stack.Members[0].Placement);
+        Assert.Equal(VolumePlacement.Exact, stack.Members[2].Placement);
+        // Inferred, not listed: never counted as missing, and not part of the volume's chapter count.
+        Assert.Equal(4, stack.ChapterCount);
+        Assert.Empty(stack.MissingChapters);
+        Assert.Equal(["id:Synthetic - Chapter 006", "id:Synthetic - Chapter 007"],
+            r.Entries.Where(e => e.Kind == VolumeEntryKind.Archive).Select(e => e.Row!.Id));
+    }
+
+    [Fact]
+    public void AMissingChapterOne_IsStillMissing_WhenVolumeOneStartsAtChapterTwo()
+    {
+        // The rule places a chapter 1 FILE in volume 1; it must not hide a chapter 1 that no file holds (the list does not require it there).
+        var with = VolumeGrouping.Group(Chapters(1, 5), Map(false, null, null, (1, 2, 5)));
+        var without = VolumeGrouping.Group(Chapters(2, 5), Map(false, null, null, (1, 2, 5)));
+
+        Assert.DoesNotContain(1m, with.MissingChapterUnits);
+        Assert.Contains(1m, without.MissingChapterUnits);
+    }
+
+    [Theory]
+    [InlineData(6)] // a later start is more often a gap in the list than where volume 1 begins
+    [InlineData(1)] // a list that starts at chapter 1 needs no rule
+    public void ChaptersBeforeVolumeOne_StayLoose_UnlessTheListStartsAtTwoToFive(int firstListed)
+    {
+        var rows = Chapters(0, 10);
+        var r = VolumeGrouping.Group(rows, Map(false, null, null, (1, firstListed, 10)));
+
+        var stack = Assert.Single(Stacks(r)).Stack!;
+        Assert.DoesNotContain(stack.Members, m => m.Placement == VolumePlacement.Adjacent);
+        Assert.Equal(11 - firstListed, stack.Members.Count);
+        // Chapter 0 is never pulled in, whatever the start.
+        Assert.Contains(r.Entries, e => e.Kind == VolumeEntryKind.Archive && e.Row!.Id == "id:Synthetic - Chapter 000");
+    }
+
+    [Fact]
+    public void ChapterZero_StaysLoose_WhenVolumeOneStartsAtChapterTwo()
+    {
+        var r = VolumeGrouping.Group(Chapters(0, 5), Map(false, null, null, (1, 2, 5)));
+
+        var stack = Assert.Single(Stacks(r)).Stack!;
+        Assert.Equal("id:Synthetic - Chapter 001", stack.Members[0].Row.Id);
+        Assert.Contains(r.Entries, e => e.Kind == VolumeEntryKind.Archive && e.Row!.Id == "id:Synthetic - Chapter 000");
+    }
+
+    [Fact]
     public void AFractionalVolumeFile_GoesAtTheEndOfThePreviousVolumesStack()
     {
         var r = VolumeGrouping.Group([Archive("Series v02"), Archive("Series v02.5"), Archive("Series v03")], null);
