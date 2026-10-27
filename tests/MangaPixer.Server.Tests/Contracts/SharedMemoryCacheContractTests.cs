@@ -82,11 +82,11 @@ public sealed partial class SharedMemoryCacheContractTests
             }
         }
 
-        // Not vacuous: the sweep sees the files that hold the shared cache and their sized writes.
+        // Not vacuous: the sweep sees the files that hold the shared cache (and, below, their sized writes).
         Assert.True(holders >= 6, $"expected the shared cache's holders, found {holders}");
-        Assert.True(sizedWrites >= 10, $"expected the sized writes, found {sizedWrites}");
         Assert.True(offenders.Count == 0,
             "Write the shared IMemoryCache through SharedMemoryCache.SetSized (it has a size limit; a sizeless entry throws): "
             + string.Join(", ", offenders));
+        Assert.True(sizedWrites >= 10, $"expected the sized writes, found {sizedWrites}");
     }
 }
