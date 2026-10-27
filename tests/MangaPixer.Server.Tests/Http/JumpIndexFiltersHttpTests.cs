@@ -122,7 +122,12 @@ public sealed class JumpIndexFiltersHttpTests
         // Two archives each of 2019, 2021 and 2023 (years, so the labels do not depend on today's date).
         var years = new Dictionary<string, int>
         {
-            ["Alder Story"] = 2019, ["Birch Story"] = 2019, ["Cedar Story"] = 2021, ["Dogwood Story"] = 2021, ["Elm Story"] = 2023, ["Fir Story"] = 2023,
+            ["Alder Story"] = 2019,
+            ["Birch Story"] = 2019,
+            ["Cedar Story"] = 2021,
+            ["Dogwood Story"] = 2021,
+            ["Elm Story"] = 2023,
+            ["Fir Story"] = 2023,
         };
         await s.WithDbAsync(async db =>
         {
