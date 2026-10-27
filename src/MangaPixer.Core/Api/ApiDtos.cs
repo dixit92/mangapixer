@@ -280,6 +280,14 @@ public sealed record SearchResultsDto
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<FacetWorkDto>? Works { get; init; }
+
+    /// <summary>
+    /// 1.49.0 (tag view, lane T, owner decision 9 a): "Refine" - the tags of ALL the results (not only this page), per bucket, each chip's
+    /// <see cref="FacetChipDto.Count"/> = how many of the results carry it (only locations the viewer may see count). Values already used
+    /// as a filter are left out. First page of a tag view only; left out of a plain search and of later pages.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<FacetBucketDto>? Refine { get; init; }
 }
 
 /// <summary>A catalog node found through a linked series' alternative title.</summary>

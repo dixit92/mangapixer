@@ -285,7 +285,7 @@ public static class TagViewText
                 word = text[start..i];
             }
             word = word.Trim();
-            if (word.Length > 0 && word.Trim('"').Length > 0)
+            if (word.Length > 0 && word.Trim('"').Length > 0 && word != "-")
                 words.Add(new Word(word, negated));
         }
         return words;
