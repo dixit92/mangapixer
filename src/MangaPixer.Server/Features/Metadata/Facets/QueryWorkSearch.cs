@@ -244,7 +244,7 @@ public sealed class FacetSearchService
     /// <summary>A <c>series:</c> field: its words (a quoted value is one phrase) as title words; always "matched" (it is text, not a value).</summary>
     private static Resolved SeriesField(TypedFacetField field)
     {
-        var words = field.Exact ? [new TagViewText.Word(field.Value, false)] : TagViewText.Words(field.Value).Select(w => w with { Negated = false }).ToList();
+        IReadOnlyList<TagViewText.Word> words = field.Exact ? [new TagViewText.Word(field.Value, false)] : TagViewText.Words(field.Value).Select(w => w with { Negated = false }).ToList();
         return new Resolved(new SearchFilterDto
         {
             Bucket = FacetBucket.Series,
