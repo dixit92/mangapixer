@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, computed, inject, signal, viewChild } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { map } from 'rxjs/operators';
@@ -604,6 +604,12 @@ export class SearchComponent {
   private generation = 0;
 
   constructor() {
+    // Leaving the page (a result opened, the browser's Back) cancels the timers: a late fire would write this page's URL back.
+    inject(DestroyRef).onDestroy(() => {
+      if (this.searchTimer) clearTimeout(this.searchTimer);
+      if (this.quickBlurTimer) clearTimeout(this.quickBlurTimer);
+    });
+
     // A link change (identify dialog, admin menu) updates the result in place (1.27.0).
     inject(MetadataStateService).changed$.pipe(takeUntilDestroyed()).subscribe(({ nodeId, hasSeriesInfo }) => {
       const patch = (n: CatalogNodeDto) => (n.id === nodeId ? { ...n, hasSeriesInfo } : n);
@@ -649,6 +655,8 @@ export class SearchComponent {
     }
     this.quick.clear();
     if (action.type === 'open') {
+      // The page is being left: a search still waiting on its 300 ms must not write this page's URL back over the navigation.
+      if (this.searchTimer) clearTimeout(this.searchTimer);
       void this.router.navigate(action.commands);
       return;
     }

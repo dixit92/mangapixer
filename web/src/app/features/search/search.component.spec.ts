@@ -971,6 +971,23 @@ describe('SearchComponent quick results on a phone', () => {
     expect(fixture.componentInstance.params().f).toEqual(['creator:fv_c']);
   });
 
+  it('opening a result cancels the search still waiting on its 300 ms (it would write the page\'s URL back over the navigation)', () => {
+    const { fixture, api } = setup(true);
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    (fixture.nativeElement.querySelector('[data-testid="search-input"]') as HTMLInputElement).dispatchEvent(new Event('focus'));
+    fixture.componentInstance.query = 'ber';
+    fixture.componentInstance.onSearch();
+    vi.advanceTimersByTime(200); // the quick answer is in; the page's own search is still waiting
+    fixture.detectChanges();
+
+    (fixture.nativeElement.querySelector('[data-testid="quick-result"]') as HTMLElement).click();
+    vi.advanceTimersByTime(500);
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith(['/libraries', 'L1', 'browse', 'f1']);
+    expect(api.search).not.toHaveBeenCalled();
+  });
+
   it('completes a typed field\'s token from its values', () => {
     const { fixture, api } = setup(true);
     api.searchSuggest.mockReturnValue(of({
