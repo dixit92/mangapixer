@@ -6,9 +6,11 @@ The server snapshots its database on a schedule. You do not need to set anything
 
 - **When:** 2 minutes after the server starts, then every 24 hours. After a restart the schedule continues from the newest snapshot, so frequent restarts do not each take a backup.
 - **Where:** `<data root>/backups` by default. That is `/data/backups` with the Docker setup and `/mnt/user/appdata/MangaPixer/data/backups` on Unraid. You can move them to another disk or a network share (see [Choosing where backups are kept](#choosing-where-backups-are-kept)).
-- **Name:** `rotating-<UTC date>-<UTC time>.db`, for example `rotating-20260915-024123.db`.
-- **Retention:** the newest 7 are kept, and older ones are deleted. Only files with exactly this generated name are ever deleted; anything else in the folder is left alone.
+- **Name:** `rotating-<UTC date>-<UTC time>.db.gz`, for example `rotating-20260915-024123.db.gz`. *New in 1.49.0:* a rotating backup is a gzip-compressed copy of the database, usually about half the size (the saving depends on your library). Backups from earlier versions are plain `rotating-<date>-<time>.db` files; they stay in the folder, in the list and in the count, and can be restored as before.
+- **Retention:** the newest 7 are kept (compressed and plain together, by the date in their name), and older ones are deleted. Only files with exactly this generated name are ever deleted; anything else in the folder is left alone.
 - **Safe while running:** each snapshot is a consistent, self-contained copy of the database. It is safe to take while people are reading, and safe to copy off the machine at any time.
+- **Checked before it counts:** the server first writes a plain copy next to the database (in the data root, never in memory), runs an integrity check on it, compresses it to a temporary `.partial` file, reads that file back to compare it with the copy, and only then gives it its final name and deletes the temporary files. A backup that fails any step is not kept, and **Back up now** reports the failure. While a backup runs it needs free space of about the database's size in the data root. To get plain `.db` backups again, set `MangaPixer__Backups__Compress=false` (see [Configuration](configuration.md#backups)).
+- **Reading one without MangaPixer:** a `.db.gz` is an ordinary gzip file: `gunzip -k rotating-20260915-024123.db.gz` unpacks it to the SQLite database next to it (`-k` keeps the `.gz`).
 
 In **MangaPixer Administration** > **Backups** you see the schedule ("Every 24 h · keeping last 7"), when the last backup succeeded and how many are on disk. **Back up now** takes one immediately; it is a normal rotating backup and counts toward the 7.
 
@@ -34,7 +36,7 @@ Before it saves, the server checks the folder: it must be absolute, its parent f
 
 The server writes a small `.mangapixer-backups.json` marker file into the folder. It is how the server recognizes the folder later; do not delete it. If another MangaPixer server already uses the folder, saving is refused so two servers never delete each other's snapshots; after a reinstall you can take the folder over through the API (`adoptExistingMarker`).
 
-When you change the location and the current folder holds rotating snapshots, the card offers **Move existing snapshots (N files, X MB)**, checked by default. The server then moves them in the background while the card shows the progress; settings are saved straight away and backups keep running. Each snapshot is copied to the new folder, checked (size and SHA-256), and only then removed from the old one, so a failure or a restart never loses a snapshot. Only `rotating-*.db` snapshots move: the marker, the safety snapshots and any other file stay. A file of the same name that is already in the new folder is never overwritten; if it is identical, the old copy is removed, otherwise both are kept. When the move is done, the normal **Keep the newest** limit applies in the new folder. Any snapshot that could not be moved is listed with the reason and stays in the old folder.
+When you change the location and the current folder holds rotating snapshots, the card offers **Move existing snapshots (N files, X MB)**, checked by default. The server then moves them in the background while the card shows the progress; settings are saved straight away and backups keep running. Each snapshot is copied to the new folder, checked (size and SHA-256), and only then removed from the old one, so a failure or a restart never loses a snapshot. Only `rotating-*` snapshots (`.db.gz` and older `.db`) move: the marker, the safety snapshots and any other file stay. A file of the same name that is already in the new folder is never overwritten; if it is identical, the old copy is removed, otherwise both are kept. When the move is done, the normal **Keep the newest** limit applies in the new folder. Any snapshot that could not be moved is listed with the reason and stays in the old folder.
 
 If you clear the box, nothing is moved or deleted: existing snapshots stay where they are and are no longer listed or pruned. Take a backup right after the change (the card offers **Back up now**) so the new folder has one. Switching back to the default folder picks up the snapshots that are still there.
 
@@ -59,6 +61,8 @@ The server also takes two kinds of one-off snapshot. They always stay in `<data 
 |---|---|
 | `pre-migration-<timestamp>.db` | Before an upgrade changes the database schema. |
 | `pre-restore-<timestamp>.db` | Right before a restore is staged, so you can undo it. |
+
+Safety snapshots are not compressed: the server restores from them at start-up, and they are only 3 of each kind.
 
 The newest 3 of each kind are kept; older ones of the same kind are deleted after a new one is taken successfully.
 
@@ -101,7 +105,7 @@ docker compose -f deploy/compose.yaml cp mangapixer:/data/backups ./mangapixer-b
 
 You can restore from the web app, with a single API call, or by swapping the file by hand while the server is stopped.
 
-In **MangaPixer Administration** > **Backups**, **Restore from a snapshot** lists the rotating snapshots on disk, each with a **Restore** button, and **Restore from an uploaded file** takes a backup file from your computer. Both work like the API upload below: the file is checked, the current database is saved as a `pre-restore-*.db` snapshot, and the restore applies when you restart the server.
+In **MangaPixer Administration** > **Backups**, **Restore from a snapshot** lists the rotating snapshots on disk (a compressed one is marked "compressed" next to its size), each with a **Restore** button, and **Restore from an uploaded file** takes a backup file from your computer: a `.db` or a compressed `.db.gz`. Both work like the API upload below: the file is checked, the current database is saved as a `pre-restore-*.db` snapshot, and the restore applies when you restart the server.
 
 ### Option 1: upload through the API
 
@@ -110,12 +114,14 @@ In **MangaPixer Administration** > **Backups**, **Restore from a snapshot** list
    ```sh
    curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/api/v1/operations/restore" \
      -H "X-MangaPixer-Csrf: $CSRF" \
-     -F "file=@rotating-20260915-024123.db"
+     -F "file=@rotating-20260915-024123.db.gz"
    ```
+
+   A plain `.db` file works the same way. MangaPixer recognizes a compressed file by its content, not by its name, and unpacks it into its own working folder before checking it.
 
    The server checks the upload before accepting it. It must:
 
-   - be a SQLite database,
+   - be a SQLite database (or a gzip file that unpacks to one),
    - pass an integrity check,
    - contain MangaPixer's tables,
    - not come from a newer version of MangaPixer.
@@ -136,7 +142,7 @@ In **MangaPixer Administration** > **Backups**, **Restore from a snapshot** list
 
    If anything fails, it puts the original back and logs "Pending DB restore did not apply".
 
-Uploads are limited to 512 MiB by default (`MangaPixer__Backups__MaxRestoreUploadBytes`, see [Configuration](configuration.md#backups)). For a larger database, use option 2.
+The limit is 512 MiB by default (`MangaPixer__Backups__MaxRestoreUploadBytes`, see [Configuration](configuration.md#backups)). For a compressed backup it applies to the unpacked database, not to the `.db.gz` file, so a small file that unpacks to more than the limit is refused before anything is staged; so is a damaged gzip file (its checksum is verified). For a larger database, use option 2, which has no limit: unpack the file first (`gunzip`) if it is compressed.
 
 ### Option 2: swap the file by hand
 
