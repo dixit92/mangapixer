@@ -316,6 +316,9 @@ public sealed class LibraryAccessSweepHttpTests
         urls.Add("/api/v1/search?q=Saga");
         urls.Add("/api/v1/search?q=" + HiddenWord);
         urls.Add("/api/v1/search?q=" + PrivateWord);
+        // 1.49.0 lane O: the quick results (a discovery GET with no id: listed here, swept with every canary and typed-field value).
+        foreach (var text in new[] { "Saga", HiddenWord, PrivateWord, GrantedWord, "library:", "creator:", "tag:", "genre:", "series:" + HiddenWord })
+            urls.Add("/api/v1/search/suggest?q=" + Uri.EscapeDataString(text));
 
         var failures = new List<string>();
         var bodies = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -351,6 +354,11 @@ public sealed class LibraryAccessSweepHttpTests
         Assert.Contains(PrivateWord, bodies["N /api/v1/favorites"], StringComparison.Ordinal);
         Assert.Contains(GrantedWord, bodies["N /api/v1/reading/continue"], StringComparison.Ordinal);
         Assert.Contains(PrivateWord, bodies["N /api/v1/search?q=Saga"], StringComparison.Ordinal);
+        // The quick results find the same canaries the search does (live), and name none of them under Incognito or from U.
+        Assert.Contains(PrivateWord, bodies["N /api/v1/search/suggest?q=" + PrivateWord], StringComparison.Ordinal);
+        Assert.Contains(GrantedWord, bodies["N /api/v1/search/suggest?q=" + GrantedWord], StringComparison.Ordinal);
+        Assert.DoesNotContain(PrivateWord, bodies["I /api/v1/search/suggest?q=" + PrivateWord], StringComparison.Ordinal);
+        Assert.DoesNotContain(HiddenWord, bodies["N /api/v1/search/suggest?q=" + HiddenWord], StringComparison.Ordinal);
         var adminLibraries = await w.Admin.GetStringAsync("/api/v1/libraries");
         Assert.Contains(HiddenWord, adminLibraries, StringComparison.Ordinal);
         Assert.True(urls.Count >= 20, $"only {urls.Count} list routes swept");
