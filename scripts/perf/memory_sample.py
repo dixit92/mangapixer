@@ -81,7 +81,10 @@ def sample_container(container: str) -> dict:
     cgroup, procs = {}, []
     for line in text.splitlines():
         if line.startswith("P|"):
-            _, pid, cmd, status = line.split("|", 3)
+            parts = line.split("|", 3)
+            if len(parts) != 4 or not parts[1].isdigit():
+                continue  # a multi-line command line (this very shell) - not a MangaPixer process
+            _, pid, cmd, status = parts
             kind = kind_of(cmd)
             if kind is None:
                 continue
@@ -91,7 +94,7 @@ def sample_container(container: str) -> dict:
                     k, v = part.split(":", 1)
                     row[k.strip()] = int(v.strip().split(" ")[0])
             procs.append(row)
-        elif " " in line:
+        elif line.count(" ") == 1 and line.split(" ")[1].isdigit() and line.split(" ")[0] in ("anon", "file", "shmem", "kernel"):
             k, v = line.split(" ", 1)
             cgroup[k] = int(v)
     out["cgroup"] = cgroup
