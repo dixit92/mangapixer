@@ -213,7 +213,7 @@ public sealed class BackupSettingsHttpTests : IDisposable
         var run = await client.PostAsync("/api/v1/operations/backups/rotating", content: null);
         Assert.Equal(HttpStatusCode.BadRequest, run.StatusCode);
         Assert.Equal("backup_location_unavailable", await ErrorCodeAsync(run));
-        Assert.Empty(Directory.EnumerateFiles(target, "rotating-*.db"));
+        Assert.Empty(Directory.EnumerateFiles(target, "rotating-*"));
 
         var status = await JsonAsync(await client.GetAsync("/api/v1/operations/backups"));
         Assert.Equal("unavailable", status.GetProperty("locationStatus").GetString());
@@ -350,7 +350,7 @@ public sealed class BackupSettingsConfigurationHttpTests
 
             var run = await client.PostAsync("/api/v1/operations/backups/rotating", content: null);
             run.EnsureSuccessStatusCode();
-            Assert.Single(Directory.EnumerateFiles(pinned, "rotating-*.db"));
+            Assert.Single(Directory.EnumerateFiles(pinned, "rotating-*.db.gz"));
             Assert.True(File.Exists(Path.Combine(pinned, BackupLocationValidator.MarkerFileName)));
         }
         finally

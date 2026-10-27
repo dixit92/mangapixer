@@ -59,7 +59,7 @@ public sealed class BackupSnapshotMoveServiceTests : IDisposable
         return names;
     }
 
-    private static string[] Names(string dir, string glob = "rotating-*.db") =>
+    private static string[] Names(string dir, string glob = "rotating-*.db*") =>
         Directory.EnumerateFiles(dir, glob).Select(Path.GetFileName).OrderBy(n => n, StringComparer.Ordinal).ToArray()!;
 
     private static async Task<BackupSnapshotMoveStatusDto> RunAsync(BackupSnapshotMoveService service, string from, string to)
