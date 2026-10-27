@@ -21,7 +21,8 @@ import { QuickEntry, QuickSection } from './quick-results.model';
           <div class="qr-heading" [attr.id]="idPrefix() + 'h-' + section.id" role="presentation">{{ section.title }}</div>
           @for (entry of section.entries; track entry.key) {
             <div class="qr-option" role="option" [attr.id]="idPrefix() + entry.key" [class.active]="entry.key === activeKey()"
-                 [attr.aria-selected]="entry.key === activeKey()" (click)="picked.emit(entry)" data-testid="quick-result">
+                 [attr.aria-selected]="entry.key === activeKey()" tabindex="-1" (click)="picked.emit(entry)"
+                 (keydown.enter)="picked.emit(entry)" data-testid="quick-result">
               <mat-icon class="qr-icon" aria-hidden="true">{{ entry.icon }}</mat-icon>
               <span class="qr-text">
                 <span class="qr-label">{{ entry.label }}</span>

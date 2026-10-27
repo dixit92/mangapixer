@@ -55,7 +55,7 @@ public sealed class SearchSuggestHttpTests : IClassFixture<MangaPixerWebApplicat
             var deluxe = await s.NodeAsync(libA, null, "qra1", "Berserk Deluxe");
             for (var i = 1; i <= 7; i++)
                 await s.NodeAsync(libA, deluxe, "qra1v" + i, $"Berserk Deluxe {i:00}.cbz", folder: false);
-            await s.NodeAsync(libA, null, "qra2", "Berserk Prototype");
+            var prototype = await s.NodeAsync(libA, null, "qra2", "Berserk Prototype");
             var monster = await s.NodeAsync(libA, null, "qra3", "Monster Perfect Edition");
             var b1 = await s.NodeAsync(libB, null, "qrb1", "Berserk Zqsecret");
             var p1 = await s.NodeAsync(libP, null, "qrp1", "Berserk Xqprivate");
@@ -97,7 +97,7 @@ public sealed class SearchSuggestHttpTests : IClassFixture<MangaPixerWebApplicat
             foreach (var (work, node, lib, value) in new[]
                      {
                          (w1, monster, libA, urasawaValue.Id), (w1, monster, libA, travel.Id), (w1, monster, libA, mystery.Id),
-                         (w2, monster, libA, travel.Id), (w2, monster, libA, loop.Id), (w2, monster, libA, mergedValue.Id),
+                         (w2, prototype, libA, travel.Id), (w2, prototype, libA, loop.Id), (w2, prototype, libA, mergedValue.Id),
                          (w3, b1, libB, secretCreatorValue.Id), (w3, b1, libB, secretTag.Id), (w3, b1, libB, loop.Id),
                          (w4, p1, libP, privateTag.Id),
                      })

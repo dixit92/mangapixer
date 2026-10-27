@@ -1,7 +1,7 @@
 import { signal, computed, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subject, of } from 'rxjs';
-import { catchError, debounceTime, distinctUntilChanged, map, switchMap } from 'rxjs/operators';
+import { Subject, of, timer } from 'rxjs';
+import { catchError, switchMap } from 'rxjs/operators';
 
 import { ApiService } from '../../../core/api/api.service';
 import { SearchSuggestDto, SuggestItemDto } from '../../../core/api/api-types';
@@ -122,6 +122,8 @@ export function completeToken(text: string, start: number, insert: string): stri
 export class QuickResults {
   private readonly api = inject(ApiService);
   private readonly typed = new Subject<string>();
+  /** The text last handed to the pipeline ('' = nothing to ask): the same text twice in a row asks once. */
+  private last = '';
 
   readonly answer = signal<SearchSuggestDto | null>(null);
   readonly sections = computed(() => quickSections(this.answer()));
@@ -131,12 +133,11 @@ export class QuickResults {
   readonly activeEntry = computed(() => this.entries()[this.active()] ?? null);
 
   constructor() {
+    // A newer text (or "nothing") cancels the wait and the request of the one before it - the debounce lives INSIDE the switch, so
+    // clearing never waits 200 ms and a late answer to an older text cannot arrive.
     this.typed.pipe(
-      map((text) => text.trim().length >= QUICK_MIN_CHARS ? text : ''),
-      debounceTime(QUICK_DEBOUNCE_MS),
-      distinctUntilChanged(),
       switchMap((text) => text
-        ? this.api.searchSuggest(text).pipe(catchError(() => of(null)))
+        ? timer(QUICK_DEBOUNCE_MS).pipe(switchMap(() => this.api.searchSuggest(text).pipe(catchError(() => of(null)))))
         : of(null)),
       takeUntilDestroyed(inject(DestroyRef)),
     ).subscribe((answer) => {
@@ -147,13 +148,15 @@ export class QuickResults {
 
   /** The text changed. */
   ask(text: string): void {
-    this.typed.next(text);
+    const next = text.trim().length >= QUICK_MIN_CHARS ? text : '';
+    if (next === this.last) return;
+    this.last = next;
+    this.typed.next(next);
   }
 
-  /** Forgets the answer (the box was cleared or closed). The next identical text asks again. */
+  /** Forgets the answer and cancels what is pending (the box was cleared or closed). The same text typed again asks again. */
   clear(): void {
-    this.answer.set(null);
-    this.active.set(-1);
+    this.last = '';
     this.typed.next('');
   }
 
