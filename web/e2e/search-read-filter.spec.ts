@@ -158,7 +158,8 @@ test('1.49.0: reversed words find the series, a typo shows close matches with a 
   await page.getByTestId('search-input').fill('ju');
   await answer;
   await expect(page.getByTestId('search-short-hint')).toContainText('Names with a word starting with "ju"');
-  await expect(cards.first().locator('.result-title')).toHaveText('Jump Saga');
+  // Among the "ju" names (other fixture folders start with "Jump" too - the jump-rail doujin folder sorts first), the series is listed.
+  await expect(cards.locator('.result-title').filter({ hasText: /^Jump Saga$/ })).toHaveCount(1);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expectFitsScreen(page);
