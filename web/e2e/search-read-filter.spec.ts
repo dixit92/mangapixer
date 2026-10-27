@@ -1,6 +1,6 @@
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
 
-import { expectFitsScreen } from './layout';
+import { expectFitsScreen, layoutProblems } from './layout';
 
 /**
  * Search paging + read status (1.45.0 phase K4), on the owner's path: search -> filter Unread -> Load more. 1.49.0 (lane S): the count
@@ -162,6 +162,8 @@ test('1.49.0: reversed words find the series, a typo shows close matches with a 
   await expect(cards.locator('.result-title').filter({ hasText: /^Jump Saga$/ })).toHaveCount(1);
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await expectFitsScreen(page);
+  // The shell switches to its phone layout a moment after a resize (BreakpointObserver); measure once it has settled.
+  await expect.poll(async () => (await layoutProblems(page)).length, { timeout: 5_000 }).toBe(0);
+  await expectFitsScreen(page, 'the Search page after a 2-letter search (phone)');
   await shot(page, 'search-words-390-short');
 });
