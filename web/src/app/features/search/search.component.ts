@@ -64,7 +64,8 @@ interface FilterChip {
 }
 
 /**
- * Search component. Uses the FTS5 trigram search via the API. 1.45.0 (lane P): the tag view - a chip of the Info panel opens this page
+ * Search component. Uses the FTS5 trigram search via the API (1.49.0, lane S: words in any order over names, close matches for a typo,
+ * "+N inside" on folder cards, counts by kind; favourites lifted by the server). 1.45.0 (lane P): the tag view - a chip of the Info panel opens this page
  * with `f=<bucket>:<value id>`; the filters show as removable chips in the field (they scroll sideways in their own row on a phone),
  * typed field syntax (`creator:"..."`) passes through `q`, and the results are WORK cards (cover, title, where the work lives as a
  * breadcrumb of display names, "2 locations" for a split series) with the same keyset "Load more" and (1.47.0) read filter. Without a filter the
@@ -185,7 +186,11 @@ interface FilterChip {
         </div>
       }
     } @else if (results().length > 0) {
-      <p class="result-count">{{ totalCount() }} results</p>
+      <!-- 1.49.0 (lane S): "N folders, M archives", and a note when close matches for a typo are listed (always after exact hits). -->
+      <p class="result-count" data-testid="search-count">{{ countText() }}</p>
+      @if (closeMatchText(); as hint) {
+        <p class="search-hint" data-testid="search-close-hint">{{ hint }}</p>
+      }
       <div class="results-grid">
         @for (node of results(); track node.id) {
           <ng-container *ngTemplateOutlet="card; context: { node: node, aka: null }" />
@@ -201,6 +206,10 @@ interface FilterChip {
       }
     } @else if (searched() && seriesMatches().length === 0) {
       <p class="no-results">{{ noResultsText() }}</p>
+    }
+    <!-- 1.49.0: a 1-2 character search matches names with a word starting with it - say so, it is not a typo search. -->
+    @if (shortSearch() && searched() && works().length === 0) {
+      <p class="search-hint" data-testid="search-short-hint">Names with a word starting with "{{ params().q.trim() }}". Type 3 or more characters to search inside words.</p>
     }
 
     <ng-template #card let-node="node" let-aka="aka">
@@ -220,7 +229,7 @@ interface FilterChip {
           </span>
           <!-- Favorites prominence (1.21.0): the star (badge + interactive toggle)
                appears in search only when the user opted in; when off, results render
-               normally. Boosting favorited results to the top is done in runSearch() and loadMore(). -->
+               normally. 1.49.0: the server lifts favourites to the top across pages (it was per page here). -->
           @if (prominence()) {
             <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" [overlay]="true" [compact]="true" />
           }
@@ -237,6 +246,10 @@ interface FilterChip {
              [appSeriesInfoHover]="node.hasSeriesInfo ? node.id : null" [hoverAnchor]="cardEl">{{ node.displayName }}</div>
         @if (aka) {
           <div class="result-aka" [matTooltip]="aka">aka {{ aka }}</div>
+        }
+        <!-- 1.49.0 "+N inside": archives found only through this folder's name are counted on its card instead of listed. -->
+        @if (insideCounts()[node.id]; as inside) {
+          <div class="result-inside" data-testid="search-inside">+{{ inside }} inside</div>
         }
       </a>
     </ng-template>
@@ -290,6 +303,8 @@ interface FilterChip {
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .no-results { color: var(--mp-text-muted); padding: 32px; text-align: center; }
+    .search-hint { color: var(--mp-text-muted); font-size: 13px; margin: -8px 0 16px; overflow-wrap: anywhere; }
+    .result-inside { margin-top: 2px; font-size: 12px; color: var(--mp-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     /* Read marks: the browse card badge (library-browse.component.ts), top-right - the kind badge has top-left, the star bottom-right. */
     .badge {
       position: absolute; top: 6px; right: 6px; z-index: 2;
@@ -335,6 +350,12 @@ export class SearchComponent {
   readonly expanded = signal<ReadonlySet<string>>(new Set());
   readonly seriesMatches = signal<SeriesMatchDto[]>([]);
   readonly totalCount = signal(0);
+  /** 1.49.0: the plain search's counts by kind (null when the server sent none) and its close (typo) matches. */
+  readonly folderCount = signal<number | null>(null);
+  readonly archiveCount = signal<number | null>(null);
+  readonly closeMatchCount = signal(0);
+  /** 1.49.0 "+N inside" per folder card, merged over the loaded pages. */
+  readonly insideCounts = signal<Readonly<Record<string, number>>>({});
   readonly searched = signal(false);
   /** Keyset paging (1.45.0): whether a next page exists, and a "Load more" request is running. */
   readonly hasMore = signal(false);
@@ -367,12 +388,39 @@ export class SearchComponent {
     });
   });
 
+  /** 1.49.0: the counts line - "1 folder, 65 archives" (a zero kind is left out); "N results" when the server sent no counts. */
+  readonly countText = computed(() => {
+    const folders = this.folderCount();
+    const archives = this.archiveCount();
+    if (folders === null || archives === null) return `${this.totalCount()} results`;
+    const parts: string[] = [];
+    if (folders > 0) parts.push(`${folders} folder${folders === 1 ? '' : 's'}`);
+    if (archives > 0 || parts.length === 0) parts.push(`${archives} archive${archives === 1 ? '' : 's'}`);
+    return parts.join(', ');
+  });
+
+  /** 1.49.0: the typo note. Close matches always follow the exact hits; with no exact hit at all, they are the whole answer. */
+  readonly closeMatchText = computed(() => {
+    const close = this.closeMatchCount();
+    if (close <= 0) return null;
+    const q = this.params().q.trim();
+    return close >= this.totalCount() ? `No exact matches. Showing close matches for "${q}".` : `Also showing close matches for "${q}".`;
+  });
+
+  /** 1.49.0: a search with no word of 3+ characters (matched by word starts, no typo tolerance). */
+  readonly shortSearch = computed(() => {
+    const q = this.params().q;
+    if (!q.trim() || this.params().f.length > 0) return false;
+    const words = q.normalize('NFC').split(/[^\p{L}\p{N}\p{M}]+/u).filter((w) => w.length > 0);
+    return words.length > 0 && words.every((w) => w.normalize('NFD').replace(/\p{M}/gu, '').length < 3);
+  });
+
   readonly noResultsText = computed(() => {
     if (this.params().f.length > 0) return this.params().read === 'all' ? 'No works with these tags.' : 'No works with these tags and this filter.';
     return this.params().read === 'all' ? 'No results found.' : 'No results with this filter.';
   });
 
-  /** Per-user opt-in (1.21.0): show the favorite star + boost favorited results to top. */
+  /** Per-user opt-in (1.21.0): show the favorite star; 1.49.0 the server lifts favourites to the top across pages when it is on. */
   readonly prominence = signal(false);
 
   private readonly readFilterBox = viewChild(MatChipListbox);
@@ -494,10 +542,11 @@ export class SearchComponent {
         }
         const shown = new Set(this.results().map((n) => n.id));
         const rest = response.items.filter((n) => !this.matchedIds.has(n.id) && !shown.has(n.id));
-        const anchors = response.items.filter((n) => this.matchedIds.has(n.id)).length;
-        // Boosted per page: favourites of a later page lead that page instead of jumping above what is already on screen.
-        this.results.update((list) => [...list, ...this.boost(rest)]);
-        this.totalCount.update((total) => total - anchors);
+        const anchors = response.items.filter((n) => this.matchedIds.has(n.id));
+        this.results.update((list) => [...list, ...rest]);
+        this.totalCount.update((total) => total - anchors.length);
+        this.dropAnchorCounts(anchors);
+        this.insideCounts.update((map) => ({ ...map, ...(response.insideCounts ?? {}) }));
         this.takePaging(response);
         this.loadingMore.set(false);
       },
@@ -535,16 +584,19 @@ export class SearchComponent {
     return node.kind === 'Folder' ? 'Folder' : 'Archive';
   }
 
-  /**
-   * When favorites search prominence is on, boost favorited results to the top while
-   * preserving the server's relative order within each group (a stable partition). When
-   * off, the server order is returned unchanged.
-   */
-  private boost(items: CatalogNodeDto[]): CatalogNodeDto[] {
-    if (!this.prominence()) return items;
-    const favorited = items.filter((n) => n.isFavorite);
-    const rest = items.filter((n) => !n.isFavorite);
-    return [...favorited, ...rest];
+  /** The kind counts without the series-match anchors that are shown in their own row (1.49.0). */
+  private dropAnchorCounts(anchors: CatalogNodeDto[]): void {
+    const folders = anchors.filter((n) => n.kind === 'Folder').length;
+    if (this.folderCount() !== null) this.folderCount.update((n) => Math.max(0, n! - folders));
+    if (this.archiveCount() !== null) this.archiveCount.update((n) => Math.max(0, n! - (anchors.length - folders)));
+  }
+
+  /** Takes a first page's plain-search counts (1.49.0). */
+  private takeCounts(response: SearchResultsDto): void {
+    this.folderCount.set(response.folderCount ?? null);
+    this.archiveCount.set(response.archiveCount ?? null);
+    this.closeMatchCount.set(response.closeMatchCount ?? 0);
+    this.insideCounts.set(response.insideCounts ?? {});
   }
 
   private writeUrl(): void {
@@ -590,6 +642,7 @@ export class SearchComponent {
       this.seriesMatches.set([]);
       this.resolvedFilters.set([]);
       this.totalCount.set(0);
+      this.takeCounts({ query: '', items: [], totalCount: 0, nextCursor: null, hasMore: false });
       this.searched.set(false);
       return;
     }
@@ -603,6 +656,7 @@ export class SearchComponent {
         this.takeFilters(response.filters ?? []);
         if (response.works) {
           this.works.set(response.works);
+          this.takeCounts({ query: '', items: [], totalCount: 0, nextCursor: null, hasMore: false });
           this.results.set([]);
           this.seriesMatches.set([]);
           this.matchedIds = new Set();
@@ -617,13 +671,16 @@ export class SearchComponent {
         this.matchedIds = new Set(matches.map((m) => m.node.id));
         const rest = response.items.filter((n) => !this.matchedIds.has(n.id));
         this.seriesMatches.set(matches);
-        this.results.set(this.boost(rest));
+        this.results.set(rest);
         this.totalCount.set(response.totalCount - (response.items.length - rest.length));
+        this.takeCounts(response);
+        this.dropAnchorCounts(response.items.filter((n) => this.matchedIds.has(n.id)));
         this.takePaging(response);
         this.searched.set(true);
       },
       error: () => {
         if (generation !== this.generation) return;
+        this.takeCounts({ query: '', items: [], totalCount: 0, nextCursor: null, hasMore: false });
         this.results.set([]);
         this.works.set([]);
         this.seriesMatches.set([]);

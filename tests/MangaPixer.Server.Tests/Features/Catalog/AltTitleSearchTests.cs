@@ -183,7 +183,7 @@ public sealed class AltTitleSearchTests : IDisposable
         Assert.Equal(folder.PublicId, match.Node.Id);
         Assert.Equal("Delicious in Dungeon", match.MatchedTitle);
 
-        var page2 = await Svc(db).SearchAsync(f.UserId, "delicious", cursor: "0", pageSize: 50);
+        var page2 = await Svc(db).SearchAsync(f.UserId, "delicious", cursor: "s2:0:0:0:0", pageSize: 50);
         Assert.Null(page2.SeriesMatches);
     }
 

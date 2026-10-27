@@ -12,6 +12,7 @@ Everything MangaPixer does today, by area. The [README](../README.md) has the sh
 - Multi-select, including shift/ctrl ranges and touch long-press, to mark items read or unread in bulk.
 - *New in 1.45.0:* search results show read marks, filter by **Reading** / **Read** / **Unread**, and **Load more**; the search, tags and filter are part of the page address.
 - Full-text search over titles and folder names (trigram search), with cover thumbnails and a folder-vs-archive badge. Series linked to MangaUpdates are also found by their alternative titles: a `Dungeon Meshi` folder turns up when you search for `Delicious in Dungeon`.
+- *New in 1.49.0:* [search by words](library-layout.md#search) - in any order, ignoring accents and punctuation, quotes for an exact phrase; close matches for a typo; one or two letters match the start of a word. Names come first: an archive found only through its folder is counted on the folder's card (**+41 inside**), the best matches are listed first, the count says **N folders, M archives**, and starred results move to the top of the whole list.
 
 ## Reader
 

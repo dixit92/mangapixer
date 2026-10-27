@@ -470,7 +470,7 @@ public sealed partial class Program
                 try
                 {
                     var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
-                    DatabaseInitialization.ConfigureDatabaseAsync(db).GetAwaiter().GetResult();
+                    DatabaseInitialization.ConfigureDatabaseAsync(db, scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("MangaPixer.DatabaseInitialization")).GetAwaiter().GetResult();
 
                     // Audit a completed DB restore (1.7.0). The swap happened
                     // before migrate; the audit row lands in the restored DB.

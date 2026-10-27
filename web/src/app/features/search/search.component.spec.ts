@@ -223,8 +223,8 @@ describe('SearchComponent kind badge (1.12.0)', () => {
 
 /**
  * Favorites search prominence (1.21.0): the per-user opt-in. When ON, favorited
- * results get the star (badge + interactive toggle) AND are boosted to the top; when
- * OFF, results render normally with no star and no reordering.
+ * results get the star (badge + interactive toggle); when OFF, results render normally with no star.
+ * 1.49.0: the SERVER lifts favourites to the top across pages - the page keeps the server's order either way.
  */
 describe('SearchComponent favorites prominence (1.21.0)', () => {
   let fixture: ComponentFixture<SearchComponent>;
@@ -256,15 +256,16 @@ describe('SearchComponent favorites prominence (1.21.0)', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); });
 
-  it('boosts favorited results to the top and shows the star when prominence is ON', () => {
+  it('keeps the server order (the server lifts favourites, 1.49.0) and shows the star when prominence is ON', () => {
     setupWith(true, [
-      makeNode({ id: 'plain', displayName: 'Plain', isFavorite: false }),
       makeNode({ id: 'fav', displayName: 'Favorited', isFavorite: true }),
+      makeNode({ id: 'plain', displayName: 'Plain', isFavorite: false }),
+      makeNode({ id: 'fav2', displayName: 'Favorited later', isFavorite: true }),
     ]);
     runSearch('x');
 
-    // Favorited result is boosted ahead of the earlier-listed plain one.
-    expect(fixture.componentInstance.results().map((n) => n.id)).toEqual(['fav', 'plain']);
+    // No client-side reordering any more: a page-local boost would contradict the server's order across pages.
+    expect(fixture.componentInstance.results().map((n) => n.id)).toEqual(['fav', 'plain', 'fav2']);
     // The star toggle renders on results when prominence is on.
     expect(fixture.nativeElement.querySelector('app-star-toggle')).not.toBeNull();
   });
@@ -711,5 +712,118 @@ describe('SearchComponent tag filters and work cards (1.45.0)', () => {
     expect(search).toHaveBeenLastCalledWith('creator:"Synthetic Author"', { cursor: 'w:1', readState: 'all' });
     expect(fixture.componentInstance.works().map((w) => w.title)).toEqual(['Series A', 'Series B']);
     expect(el.querySelector('.load-more')).toBeNull();
+  });
+});
+
+/**
+ * 1.49.0 (lane S): the plain search's counts by kind, "+N inside" on folder cards, the close-match (typo) note and the short-input note.
+ */
+describe('SearchComponent search by words (1.49.0)', () => {
+  let fixture: ComponentFixture<SearchComponent>;
+  let search: ReturnType<typeof vi.fn>;
+
+  function setup(...responses: SearchResultsDto[]): void {
+    search = vi.fn();
+    for (const r of responses) search.mockReturnValueOnce(of(r));
+    TestBed.configureTestingModule({
+      imports: [SearchComponent],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        {
+          provide: ApiService,
+          useValue: { search, getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })) },
+        },
+      ],
+    });
+    fixture = TestBed.createComponent(SearchComponent);
+    fixture.detectChanges();
+  }
+
+  function runSearch(query: string): void {
+    fixture.componentInstance.query = query;
+    fixture.componentInstance.onSearch();
+    vi.advanceTimersByTime(300);
+    fixture.detectChanges();
+  }
+
+  const el = (): HTMLElement => fixture.nativeElement as HTMLElement;
+  const text = (testId: string): string | null => el().querySelector(`[data-testid="${testId}"]`)?.textContent?.trim() ?? null;
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); });
+
+  it('says "N folders, M archives", leaving a zero kind out', () => {
+    setup(
+      {
+        query: 'q', items: [makeNode({ id: 'f', kind: 'Folder' }), makeNode({ id: 'a' })], totalCount: 66, nextCursor: null, hasMore: false,
+        folderCount: 1, archiveCount: 65,
+      },
+      { query: 'q', items: [makeNode({ id: 'a' })], totalCount: 60, nextCursor: null, hasMore: false, folderCount: 0, archiveCount: 60 },
+      { query: 'q', items: [makeNode({ id: 'f', kind: 'Folder' })], totalCount: 2, nextCursor: null, hasMore: false, folderCount: 2, archiveCount: 0 },
+    );
+    runSearch('jump saga');
+    expect(text('search-count')).toBe('1 folder, 65 archives');
+    runSearch('jump sagas');
+    expect(text('search-count')).toBe('60 archives');
+    runSearch('jump sag');
+    expect(text('search-count')).toBe('2 folders');
+  });
+
+  it('shows "+N inside" on a folder card and merges the next page\'s counts', () => {
+    setup(
+      {
+        query: 'q', items: [makeNode({ id: 'f1', kind: 'Folder', displayName: 'Berserk' })], totalCount: 2, nextCursor: 'c1', hasMore: true,
+        folderCount: 2, archiveCount: 0, insideCounts: { f1: 41 },
+      },
+      {
+        query: 'q', items: [makeNode({ id: 'f2', kind: 'Folder', displayName: 'Berserk Deluxe' })], totalCount: 2, nextCursor: null, hasMore: false,
+        folderCount: 2, archiveCount: 0, insideCounts: { f2: 1 },
+      },
+    );
+    runSearch('berserk');
+    expect(Array.from(el().querySelectorAll('[data-testid="search-inside"]')).map((e) => e.textContent?.trim())).toEqual(['+41 inside']);
+    fixture.componentInstance.loadMore();
+    fixture.detectChanges();
+    expect(search).toHaveBeenLastCalledWith('berserk', { cursor: 'c1', readState: 'all' });
+    expect(Array.from(el().querySelectorAll('[data-testid="search-inside"]')).map((e) => e.textContent?.trim()))
+      .toEqual(['+41 inside', '+1 inside']);
+  });
+
+  it('notes close matches for a typo - all of them, or after the exact hits', () => {
+    setup(
+      { query: 'q', items: [makeNode({ id: 'a' })], totalCount: 1, nextCursor: null, hasMore: false, folderCount: 0, archiveCount: 1, closeMatchCount: 1 },
+      { query: 'q', items: [makeNode({ id: 'a' }), makeNode({ id: 'b' })], totalCount: 2, nextCursor: null, hasMore: false, folderCount: 0, archiveCount: 2, closeMatchCount: 1 },
+      { query: 'q', items: [makeNode({ id: 'a' })], totalCount: 1, nextCursor: null, hasMore: false, folderCount: 0, archiveCount: 1, closeMatchCount: 0 },
+    );
+    runSearch('berserc');
+    expect(text('search-close-hint')).toBe('No exact matches. Showing close matches for "berserc".');
+    runSearch('berserk');
+    expect(text('search-close-hint')).toBe('Also showing close matches for "berserk".');
+    runSearch('akira');
+    expect(text('search-close-hint')).toBeNull();
+  });
+
+  it('explains a 1-2 character search (word starts, no typo search) and not a longer one', () => {
+    const one = { query: 'q', items: [makeNode({ id: 'a' })], totalCount: 1, nextCursor: null, hasMore: false, folderCount: 0, archiveCount: 1 };
+    setup(one, one, one, one);
+    runSearch('ak');
+    expect(text('search-short-hint')).toContain('Names with a word starting with "ak"');
+    runSearch('re z');
+    expect(text('search-short-hint')).toContain('"re z"');
+    runSearch('é');
+    expect(text('search-short-hint')).not.toBeNull();
+    runSearch('aki');
+    expect(text('search-short-hint')).toBeNull();
+  });
+
+  it('counts a series-match anchor once, in its own row, not in the kind counts', () => {
+    const anchor = makeNode({ id: 'f1', kind: 'Folder', displayName: 'Dungeon Folder' });
+    setup({
+      query: 'q', items: [anchor, makeNode({ id: 'a1' })], totalCount: 2, nextCursor: null, hasMore: false, folderCount: 1, archiveCount: 1,
+      seriesMatches: [{ node: anchor, matchedTitle: 'Delicious in Dungeon' }],
+    });
+    runSearch('dungeon');
+    expect(text('search-count')).toBe('1 archive');
   });
 });
