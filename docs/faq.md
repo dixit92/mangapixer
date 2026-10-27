@@ -69,7 +69,7 @@ The cache and scratch limits are configurable (see [Configuration](configuration
 
 ### How much memory does it use?
 
-When nobody is reading, the server itself typically uses around 150-300 MB. Opening archives is done by separate helper processes, each around 100-200 MB while it works; they start when needed and shut down after 3 minutes without work, so an idle server runs none. A reader waiting on a page always gets priority over background work. On a small NAS you can limit the helpers to one with `MangaPixer__Media__MaxConcurrentJobs=1`. See [Configuration](configuration.md#media-processing) and [How MangaPixer works](how-it-works.md).
+When nobody is reading, the server itself typically uses around 150-300 MB. Opening archives is done by separate helper processes, each a few hundred MB while it works (up to about 500 MB under steady reading); they start when needed and shut down after 3 minutes without work, so an idle server runs none. A reader waiting on a page always gets priority over background work. On a small NAS you can limit the helpers to one with `MangaPixer__Media__MaxConcurrentJobs=1`. See [Configuration](configuration.md#media-processing) and [How MangaPixer works](how-it-works.md).
 
 ### Why SQLite? Do I need a database server?
 

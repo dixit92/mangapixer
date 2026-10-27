@@ -68,8 +68,8 @@ In every case, add your libraries under **Administration** after signing in. In 
 
 ## Features
 
-- **Folder-native library:** card and list views, sorting, read-state filters, a filter by series completion (*new in 1.44.0*), an A-Z rail, bulk read marks and full-text search - with read marks and a read filter in search (*new in 1.45.0*).
-- **Tags** (*new in 1.45.0*): the **Info** panel shows each folder's creators, magazine, publisher, year, genres and type as clickable tags that count the works you can open; select one to search by it. Creators are joined across spellings and can be merged or split by admins.
+- **Folder-native library:** card and list views, sorting, read-state filters, a filter by series completion (*new in 1.44.0*), an A-Z rail that follows your filters (*new in 1.49.0*), bulk read marks and search by words with typo tolerance and quick results while you type (*new in 1.49.0*) - with read marks and a read filter in search (*new in 1.45.0*).
+- **Tags** (*new in 1.45.0*): the **Info** panel shows each folder's creators, magazine, publisher, year, genres and type as clickable tags that count the works you can open; select one to search by it. Creators are joined across spellings and can be merged or split by admins. *New in 1.49.0:* a **Tags** row, and tags that combine (not / or / Refine).
 - **A reader for every screen:** paged (left-to-right or manga), double-page spreads and vertical webtoon, with touch and keyboard controls and on-device upscaling (**Crisp** and **Enhance**).
 - **Per-user reading state:** progress, read marks, "Continue reading" and "New chapters" for every user - and, *new in 1.40.0*, your own theme: Dark, Light, Black, Sepia or System, with an accent colour.
 - **Series information:** read from `ComicInfo.xml`, and optionally from MangaUpdates, linked by hand or automatically, with volume covers and volume lists from MangaDex - also the series record of a series MangaUpdates does not list yet - and chapters per volume from AniList (all off by default). A linked series shows what you have, what is missing in your language and when it is finished; webtoons and manhwa are counted in chapters, not guessed volumes. An omnibus or other edition can declare its own volume count, and a series you do not collect to the end can stop being tracked without unlinking it.
@@ -77,7 +77,7 @@ In every case, add your libraries under **Administration** after signing in. In 
 - **For other apps:** a read-only [metadata export](docs/metadata-export.md) with admin-created [API tokens](docs/api-tokens.md), so a tool such as MangaList can use what MangaPixer already knows instead of looking it up again - and, with a token allowed to, ask for a library scan after it files new downloads.
 - **Tracker sync** (*new in 1.43.0*): each user can send their reading progress to their own MyAnimeList or MangaUpdates list while they read - off until an admin allows it, never lowering a number without asking. See [Tracker sync](docs/tracker-sync.md).
 - **Multi-user:** admin and reader roles, per-library access, activation links, private libraries and Incognito.
-- **Low-maintenance:** scheduled scans, persistent thumbnails, automatic database backups, and YACReader progress import.
+- **Low-maintenance:** scheduled scans, persistent thumbnails, automatic compressed database backups, and YACReader progress import.
 - **Private by default:** no telemetry or analytics, no default credentials, and your media folders are only ever read. Nothing leaves your server until an admin turns on an optional internet feature ([details](docs/privacy-and-security.md)).
 - **Formats:** ZIP (`.cbz`, `.zip`) and RAR (`.cbr`, `.rar`) with JPEG, PNG, WebP, AVIF, GIF, BMP or TIFF pages. Solid RAR and 7-Zip archives, PDF and EPUB are not supported yet.
 
