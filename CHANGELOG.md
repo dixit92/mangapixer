@@ -77,6 +77,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Small folders have no rail.** A level with fewer than about 12 entries (after any filter) no longer shows a rail of one-entry chips.
 - **Lower memory use over long uptimes:** the server's shared in-memory cache now has a size budget, home "New chapters" data that can no
   longer be used is released, and failed sign-in attempts are forgotten once their lockout window has passed.
+- **Much less memory held after heavy work:** the container image limits glibc's memory pools (`MALLOC_ARENA_MAX=2`) for the server and its
+  helper processes - container memory under steady reading fell by more than 40 percent in our measurements, with unchanged page times. Set
+  `MALLOC_ARENA_MAX=` (empty) to go back to glibc's default; see [Memory allocator](docs/configuration.md#memory-allocator).
 - **Upgrade note:** the first start of this version rebuilds the search index once (a few seconds for a large library) before the server
   opens. No database migration. A "Load more" left open in a browser across the update starts again from the first page.
 - Angular 22.2.4 and .NET 10.0.14 (dependency updates).
