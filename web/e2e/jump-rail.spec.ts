@@ -259,7 +259,7 @@ test('phone: the scrub strip on a long level - drag shows a bubble, release land
     await page.mouse.move(x, sliceY(7));
     await page.mouse.down();
     await expect(page.locator('.scrub .bubble-label')).toHaveText('Other');
-    await page.mouse.move(x, box.y + box.height + 40, { steps: 3 });
+    await page.mouse.move(x, box.y + box.height + 8, { steps: 3 });
     await page.mouse.up();
     await expect(page.locator('.node-wrap', { hasText: 'Jump Saga - Oneshot.cbz' })).toBeInViewport();
 
