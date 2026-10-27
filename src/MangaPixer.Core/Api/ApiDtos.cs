@@ -280,6 +280,28 @@ public sealed record SearchResultsDto
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<FacetWorkDto>? Works { get; init; }
+
+    /// <summary>1.49.0 (plain search): how many of <see cref="TotalCount"/> are folders. Left out of the tag view.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? FolderCount { get; init; }
+
+    /// <summary>1.49.0 (plain search): how many of <see cref="TotalCount"/> are archives. Left out of the tag view.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? ArchiveCount { get; init; }
+
+    /// <summary>
+    /// 1.49.0 (plain search): how many of <see cref="TotalCount"/> are close (typo-tolerant) matches - listed after every exact hit, only
+    /// when the exact hits are few. Left out of the tag view.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? CloseMatchCount { get; init; }
+
+    /// <summary>
+    /// 1.49.0 (plain search, "+N inside"): per folder on this page (public id), the archives below it found only through its name - not
+    /// hits of their own and not inside a sub-folder that is a hit. Folders with none are left out; null when no folder has any.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyDictionary<string, int>? InsideCounts { get; init; }
 }
 
 /// <summary>A catalog node found through a linked series' alternative title.</summary>
