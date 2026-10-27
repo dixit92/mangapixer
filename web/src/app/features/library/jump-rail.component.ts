@@ -5,6 +5,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { JumpIndexBucketDto, JumpIndexMode } from '../../core/api/api-types';
+import { JumpScrubStripComponent } from './jump-scrub-strip.component';
 
 /**
  * A level shorter than this has no rail (1.49.0, owner decision 13): a handful of rows needs no navigation aid. The level's rows are the
@@ -29,7 +30,7 @@ export const MIN_ROWS_FOR_RAIL = 12;
   selector: 'app-jump-rail',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule],
+  imports: [MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule, JumpScrubStripComponent],
   template: `
     @if (shown()) {
       <!-- Sticky (1.8.0): stacked directly under the sticky top bar, whose measured height is the rail's sticky offset. -->
@@ -68,6 +69,8 @@ export const MIN_ROWS_FOR_RAIL = 12;
           }
         </div>
       </mat-menu>
+      <!-- Phone-only, long levels (1.49.0, lane P): a right-edge strip a thumb drags through the chips; the picker above stays the accessible path. -->
+      <app-jump-scrub-strip [buckets]="buckets()" [active]="active()" [top]="top()" (jump)="jump.emit($event)" />
     }
   `,
   styles: [`

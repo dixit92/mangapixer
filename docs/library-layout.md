@@ -164,6 +164,12 @@ The rail adapts to what the folder holds (*new in 1.41.0*):
 
 The rail is not shown in the [Volumes view](volumes.md), which lists volumes instead of files, or when it would have a single chip.
 
+#### Scrubbing a long list on a phone
+
+*New in 1.49.0.* On a phone, a folder or library with **50 or more entries** also shows a thin strip on the right edge of the screen, with the rail's chips drawn small along it (every few chips when there are too many to fit). Put a finger on the strip and slide it up or down: a bubble beside your finger names the chip you are on and how many entries it holds, and the list does not move. Lift your finger to jump there - the same jump as choosing that chip in the picker. A single tap on the strip jumps to the chip you tapped. If the screen is taken over mid-drag (a call, a swipe from the edge) nothing is jumped to. The strip's touch area is about 44 px wide, so a tap on the far right edge of a card goes to the strip instead.
+
+The picker button stays on every level, short or long: it shows where you are, and it is the way to jump with a screen reader or without a touchscreen (the strip is touch only and is hidden from screen readers). Folders with fewer than 50 entries show the picker button alone; on tablets and computers the rail is unchanged.
+
 ## Favorites
 
 Star any folder or archive to keep it within easy reach. The star appears on cards and rows in the library view, on search results, on the home page's **Continue reading**, **New chapters** and **Favorites** cards (bottom-right of the cover; on a New chapters card it stars the folder, or the archive for a loose archive), and in the reader toolbar (for the archive you are reading).
