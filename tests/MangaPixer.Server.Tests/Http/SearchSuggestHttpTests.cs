@@ -287,7 +287,8 @@ public sealed class SearchSuggestHttpTests : IClassFixture<MangaPixerWebApplicat
         // The token starts where the field starts; words before it stay.
         var tag = (await SuggestAsync(seed.Reader.Client, "berserk tag:tim")).Field!;
         Assert.Equal(("tag", "tim", 8), (tag.Name, tag.Prefix, tag.Start));
-        Assert.Equal(["Time Travel", "Time Loop", "Time Mystery", "Time Xqprivate"], tag.Items.Select(i => i.Label).ToArray());
+        // tag: lists the Tags bucket only - the genre "Time Mystery" is for genre:.
+        Assert.Equal(["Time Travel", "Time Loop", "Time Xqprivate"], tag.Items.Select(i => i.Label).ToArray());
         Assert.Equal("tag:\"Time Travel\"", tag.Items[0].Insert);
 
         // An empty value lists the field's most used values; a negated field keeps its minus; an unfinished quote is a prefix.

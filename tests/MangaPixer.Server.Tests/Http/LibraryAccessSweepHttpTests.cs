@@ -354,11 +354,18 @@ public sealed class LibraryAccessSweepHttpTests
         Assert.Contains(PrivateWord, bodies["N /api/v1/favorites"], StringComparison.Ordinal);
         Assert.Contains(GrantedWord, bodies["N /api/v1/reading/continue"], StringComparison.Ordinal);
         Assert.Contains(PrivateWord, bodies["N /api/v1/search?q=Saga"], StringComparison.Ordinal);
-        // The quick results find the same canaries the search does (live), and name none of them under Incognito or from U.
-        Assert.Contains(PrivateWord, bodies["N /api/v1/search/suggest?q=" + PrivateWord], StringComparison.Ordinal);
-        Assert.Contains(GrantedWord, bodies["N /api/v1/search/suggest?q=" + GrantedWord], StringComparison.Ordinal);
-        Assert.DoesNotContain(PrivateWord, bodies["I /api/v1/search/suggest?q=" + PrivateWord], StringComparison.Ordinal);
-        Assert.DoesNotContain(HiddenWord, bodies["N /api/v1/search/suggest?q=" + HiddenWord], StringComparison.Ordinal);
+        // The quick results find the same canaries the search does (live), and name none of them under Incognito or from U. The answer echoes
+        // the typed text in "query", which proves nothing: only the listed items count.
+        static string Listed(string body)
+        {
+            using var doc = JsonDocument.Parse(body);
+            return string.Join(" ", doc.RootElement.EnumerateObject().Where(p => p.Name != "query").Select(p => p.Value.GetRawText()));
+        }
+        Assert.Contains(PrivateWord, Listed(bodies["N /api/v1/search/suggest?q=" + PrivateWord]), StringComparison.Ordinal);
+        Assert.Contains(GrantedWord, Listed(bodies["N /api/v1/search/suggest?q=" + GrantedWord]), StringComparison.Ordinal);
+        Assert.DoesNotContain(PrivateWord, Listed(bodies["I /api/v1/search/suggest?q=" + PrivateWord]), StringComparison.Ordinal);
+        Assert.DoesNotContain(HiddenWord, Listed(bodies["N /api/v1/search/suggest?q=" + HiddenWord]), StringComparison.Ordinal);
+        Assert.DoesNotContain(HiddenWord, Listed(bodies["N /api/v1/search/suggest?q=library%3A"]), StringComparison.Ordinal);
         var adminLibraries = await w.Admin.GetStringAsync("/api/v1/libraries");
         Assert.Contains(HiddenWord, adminLibraries, StringComparison.Ordinal);
         Assert.True(urls.Count >= 20, $"only {urls.Count} list routes swept");
