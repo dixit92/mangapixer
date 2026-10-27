@@ -127,6 +127,7 @@ public sealed class FtsDefinitionStampTests : IDisposable
         Assert.Equal(1, await ScalarAsync(db, "SELECT COUNT(*) FROM catalog_search WHERE catalog_search MATCH '\"CAFE\"'"));
         Assert.Equal(2, await ScalarAsync(db, "SELECT COUNT(*) FROM series_search"));
         Assert.Equal(1, await ScalarAsync(db, "SELECT COUNT(*) FROM series_search WHERE series_search MATCH '\"pokemon\"'"));
+        Assert.Equal(1, await ScalarAsync(db, "SELECT COUNT(*) FROM series_search s JOIN metadata_records r ON r.Id = s.record_id WHERE series_search MATCH '\"pocket monsters\"'"));
         Assert.Equal(2, await ScalarAsync(db, "SELECT COUNT(*) FROM fts_definitions"));
 
         // The recreated triggers keep the index in sync: insert, rename (the path alone no longer re-indexes), delete.

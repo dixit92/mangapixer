@@ -203,9 +203,9 @@ public static class DatabaseInitialization
         ],
         """
         INSERT INTO series_search(title, record_id)
-        SELECT r.Id AS id, r.Title FROM metadata_records r
+        SELECT r.Title, r.Id FROM metadata_records r
         UNION ALL
-        SELECT r.Id, j.value
+        SELECT j.value, r.Id
         FROM metadata_records r,
              json_each(CASE WHEN json_valid(r.AltTitlesJson) THEN r.AltTitlesJson ELSE '[]' END) j
         WHERE j.type = 'text' AND j.value <> '';
