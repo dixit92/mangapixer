@@ -19,7 +19,10 @@ public sealed record FacetCredit(string Name, string? Role, string? ProviderRef 
 /// <summary>A publisher credit of a record: the name and its kind (<c>original</c> / <c>english</c> / <c>other</c>).</summary>
 public sealed record FacetPublisher(string Name, string Kind);
 
-/// <summary>A stored web record, as far as the index reads it.</summary>
+/// <summary>1.49.0 (lane T): a stored provider category (a crowd tag) and its net vote count (one number; no plus / minus split is stored).</summary>
+public sealed record FacetCategory(string Name, int Votes);
+
+/// <summary>A stored web record, as far as the index reads it (1.49.0: with its categories, strongest first).</summary>
 public sealed record FacetRecord(
     long Id,
     string Title,
@@ -30,9 +33,10 @@ public sealed record FacetRecord(
     IReadOnlyList<FacetCredit> Creators,
     IReadOnlyList<string> Genres,
     IReadOnlyList<FacetPublisher> Publishers,
-    IReadOnlyList<string> Magazines);
+    IReadOnlyList<string> Magazines,
+    IReadOnlyList<FacetCategory>? Categories = null);
 
-/// <summary>The CURRENT parsed ComicInfo of one archive (a row of the archive's content version in state parsed).</summary>
+/// <summary>The CURRENT parsed ComicInfo of one archive (a row of the archive's content version in state parsed; 1.49.0: with its Tags).</summary>
 public sealed record FacetComicInfo(
     long ArchiveId,
     string? Series,
@@ -40,7 +44,8 @@ public sealed record FacetComicInfo(
     IReadOnlyList<string> Genres,
     string? Publisher,
     string? Imprint,
-    int? Year);
+    int? Year,
+    IReadOnlyList<string>? Tags = null);
 
 /// <summary>One declared fact row (<c>declared_facts</c>): on a folder (<see cref="NodeId"/>) or the library (null).</summary>
 public sealed record FacetDeclaredFact(long? NodeId, string Key, string Value, string? Role, int Position, string? ExternalRef = null);
@@ -115,6 +120,18 @@ public static class FacetText
         if (result.Length > max)
             result = result[..max].TrimEnd();
         return result.Length == 0 ? null : result;
+    }
+
+    /// <summary>
+    /// 1.49.0 (lane T): the key text of a tag (bucket <see cref="FacetBucket.Tags"/>, after the <c>tg:</c> prefix): <see cref="Fold"/> with
+    /// <c>_</c> and <c>-</c> read as spaces, so "Time Travel", "time-travel" and "TIME_TRAVEL" are one value; null when nothing is left.
+    /// </summary>
+    public static string? TagKey(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return null;
+        var spaced = text.Replace('_', ' ').Replace('-', ' ').Replace('\u2010', ' ').Replace('\u2011', ' ');
+        return Fold(spaced);
     }
 
     /// <summary>Display text: trimmed, inner white space collapsed, at most <see cref="MaxDisplayLength"/> characters; null when blank.</summary>

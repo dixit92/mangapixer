@@ -532,6 +532,10 @@ public static class LogEvents
         public const int InfoBucketPageServed = 9453;
         public const int FacetWorkReadStateFiltered = 9454;
 
+        // Tags that combine (1.49.0, lane T, 9480-9489). Counts, ids and timings only - never search text, tag values or names.
+        public const int FacetRefineComputed = 9480;
+        public const int FacetSearchScopeUnmatched = 9481;
+
         // Tag index (1.45.0 lane F, 9440-9449). Library / creator ids, counts and timings only - never names, titles or tag values.
         public const int FacetIndexRebuilt = 9440;
         public const int FacetIndexSkippedScan = 9441;
