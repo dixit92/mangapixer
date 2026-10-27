@@ -96,7 +96,7 @@ public sealed class RotatingBackupSchedulerTests : IDisposable
     }
 
     private static int CountSnapshots(string dir) =>
-        Directory.Exists(dir) ? Directory.EnumerateFiles(dir, "rotating-*.db").Count() : 0;
+        Directory.Exists(dir) ? Directory.EnumerateFiles(dir, "rotating-*.db*").Count(f => RotatingBackupService.FileNamePattern().IsMatch(Path.GetFileName(f))) : 0;
 
     private static async Task WaitUntilAsync(Func<bool> condition)
     {

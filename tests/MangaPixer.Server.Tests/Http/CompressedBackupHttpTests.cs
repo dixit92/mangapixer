@@ -129,6 +129,7 @@ public sealed class CompressedBackupHttpTests : IDisposable
         var fromList = await client.PostAsJsonAsync("/api/v1/operations/backups/restore", new { fileName = oldName });
         Assert.Equal(HttpStatusCode.Accepted, fromList.StatusCode);
         File.Delete(StagedPath);
+        await Task.Delay(1100); // the pre-restore snapshot is named by the second
 
         var uploaded = await client.PostAsync("/api/v1/operations/restore", Upload(plain, oldName));
         Assert.Equal(HttpStatusCode.Accepted, uploaded.StatusCode);

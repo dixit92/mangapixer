@@ -69,7 +69,8 @@ public sealed class RotatingBackupServiceTests : IDisposable
             Assert.True(outcome.Succeeded);
             Assert.NotNull(outcome.FileName);
             Assert.StartsWith(RotatingBackupService.FileNamePrefix, outcome.FileName);
-            Assert.EndsWith(".db", outcome.FileName);
+            // 1.49.0: a new rotating backup is gzip-compressed by default.
+            Assert.EndsWith(".db.gz", outcome.FileName);
             Assert.True(File.Exists(Path.Combine(_backupsDir, outcome.FileName)));
             Assert.Equal(1, outcome.RetainedCount);
         }
