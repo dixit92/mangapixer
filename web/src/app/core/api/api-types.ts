@@ -152,6 +152,11 @@ export interface JumpIndexBucketDto {
   firstNodeId?: string | null;
   /** 1.41.0: in `numbers` mode the bucket's round range (`50-99`, `7`); null for letters and the Other / Folders / Files chips. */
   range?: string | null;
+  /**
+   * 1.49.0: at a level whose folders AND archives both carry their own chips (the smaller kind has 20+ rows, or both kinds list under
+   * "Recently added"), which kind the chip belongs to; null elsewhere.
+   */
+  group?: 'folders' | 'files' | null;
 }
 
 /** The jump rail of one listed level - a library root or (1.41.0) a folder, name sort ascending or descending. */
@@ -162,11 +167,14 @@ export interface JumpIndexDto {
   parentId?: string | null;
   /** 1.41.0: the name-sort direction the buckets (display order) and cursors are for. */
   direction?: 'asc' | 'desc';
-  /** 1.41.0: `letters` (A-Z, #, scripts) or `numbers` (round ranges, a common prefix such as `Ch. ` ignored). */
+  /**
+   * 1.41.0: `letters` (A-Z, #, scripts) or `numbers` (round ranges, a common prefix such as `Ch. ` ignored); 1.49.0: `dates` under the
+   * date sorts (Today, This week, This month, This year, then years). A doujin level's letters carry the bracket (`[A` ... `[Z`).
+   */
   mode?: JumpIndexMode;
 }
 
-export type JumpIndexMode = 'letters' | 'numbers';
+export type JumpIndexMode = 'letters' | 'numbers' | 'dates';
 
 export interface SearchResultsDto {
   query: string;

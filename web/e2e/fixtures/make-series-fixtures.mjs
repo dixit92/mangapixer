@@ -25,6 +25,7 @@
 // And <outDir>-jump (1.41.0, the smart jump rail e2e spec; offline, no ComicInfo):
 //   Jump Saga/Jump Saga - Ch. 001.cbz .. Ch. 064.cbz   numbered chapters behind a common prefix -> number ranges 0, 10 ... 60
 //   Jump Saga/Jump Saga - Oneshot.cbz                  an extra without a number -> its own "Other" chip after the ranges
+//   Jump Doujin/[<Circle> Circle] Synthetic Tale <Word>.cbz   24 tag-led names (1.49.0) -> bracket chips [A ... [F
 // And <outDir>-volume-contents (1.44.0, the volume contents scan e2e spec; offline, no ComicInfo; patterned pages so each page has its
 // own perceptual hash):
 //   Contents Saga/Contents Saga v02.cbz            2 cover pages, the pages of chapters 9 and 10, 2 back pages
@@ -183,6 +184,12 @@ for (let c = 1; c <= 64; c++) {
   archive('Jump Saga', `Jump Saga - Ch. ${String(c).padStart(3, '0')}.cbz`, [40 + (c * 3) % 200, 120, 220 - (c * 2) % 200], null, jumpDir);
 }
 archive('Jump Saga', 'Jump Saga - Oneshot.cbz', [220, 180, 60], null, jumpDir);
+// 1.49.0: a doujin-style level - every name opens with a "[Circle]" tag (six synthetic circles, four tales each) -> bracket chips [A ... [F.
+const doujinCircles = ['Alder', 'Birch', 'Cedar', 'Dogwood', 'Elm', 'Fir'];
+const doujinTales = ['Alpha', 'Bravo', 'Charlie', 'Delta'];
+doujinCircles.forEach((circle, ci) => doujinTales.forEach((tale, ti) => {
+  archive('Jump Doujin', `[${circle} Circle] Synthetic Tale ${tale}.cbz`, [60 + ci * 30, 90 + ti * 40, 150], null, jumpDir);
+}));
 
 // 1.44.0: the volume contents scan. A patterned page (seeded grey blocks on white) - unlike the solid-colour pages above, every page
 // has its own perceptual hash; `jitter` changes the pixels slightly (another release of the same page: other bytes, the same picture).

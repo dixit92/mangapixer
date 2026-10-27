@@ -145,7 +145,9 @@ Choose **Select** to pick several items for a bulk action, such as marking them 
 
 ### Jump navigation
 
-Sorted by Name with no filter active, a **jump rail** appears above the list (on phones, a button that opens a picker) - at the library root and inside folders (*new in 1.41.0*), in ascending and in descending order (descending reverses the rail). Each chip shows how many entries it holds; selecting it scrolls to the first one, or reloads the list from there when it is further down. The chips follow the list from top to bottom, and each one covers one unbroken stretch of it.
+A **jump rail** appears above the list (on phones, a button that opens a picker) - at the library root and inside folders (*new in 1.41.0*), in ascending and in descending order (descending reverses the rail). Each chip shows how many entries it holds; selecting it scrolls to the first one, or reloads the list from there when it is further down. The chips follow the list from top to bottom, and each one covers one unbroken stretch of it.
+
+*New in 1.49.0:* the rail stays while a **Filter** is on (read state, hide empty folders, **Favorites only**, **Completion**) and then covers exactly the entries the filter keeps - with **Unread** on, the chips are the letters or number ranges of the unread entries, and a chip lands on the first of them. It also appears under the **Recently added** and **Recently updated** sorts as time chips (see below). Only **Recently read** has no rail. A folder with fewer than about 12 entries (after the filter) has no rail: there is nothing to jump over.
 
 The rail adapts to what the folder holds (*new in 1.41.0*):
 
@@ -155,8 +157,10 @@ The rail adapts to what the folder holds (*new in 1.41.0*):
     - `A`-`Z` for Latin letters. Accented letters such as `É` go to **Other**.
     - Script groups for other writing systems: **Kana**, **Hangul**, **CJK**, **Cyrillic**, **Greek**, **Arabic**, **Hebrew**, **Thai**.
     - **Other** for everything else.
+- **Tags in brackets.** In a folder where most names open with a tag - `[Circle] Title`, `(Event) Title`, typical for doujinshi - the chips show the first letter inside that tag with its bracket, `[A` to `[Z` (and `(A` ... for round brackets), instead of one `#` chip for the whole folder. A tag that starts with a digit or a symbol is `[#`. Each chip is still one unbroken stretch of the list.
 - **A common start is ignored.** When most names start the same way - `Ch. `, `Vol. `, `<Series> - `, `[Group] <Series> v` - the rail looks at what follows, so `<Series> - Alpha` and `<Series> - Beta` give `A` and `B` instead of one chip.
-- **Folders and files.** When a folder holds both subfolders and archives (folders are listed first), the kind with more entries gets the rail and the other one a single **Folders** or **Files** chip at its place in the list.
+- **Folders and files.** When a folder holds both subfolders and archives (folders are listed first), the kind with more entries gets the rail and the other one a single **Folders** or **Files** chip at its place in the list. *New in 1.49.0:* once the smaller kind has 20 or more entries it gets its own letters or numbers too, and the rail labels each kind (**Folders**, **Files**) before its chips.
+- **Time chips.** Under **Recently added** and **Recently updated** the chips are **Today**, **This week** (since Monday), **This month**, **This year**, then one chip per older year, newest first, each with its count (*new in 1.49.0*). Today and the week follow your own clock and time zone. Under **Recently added**, where folders are listed before files, each kind has its own time chips. Under **Recently updated**, a folder with nothing inside yet is last, under **Other**. When every entry falls in the same period there is no rail. Selecting a chip lands on its first entry; scrolling up from there is not available under these sorts (select an earlier chip, such as **Today**, to go back).
 
 The rail is not shown in the [Volumes view](volumes.md), which lists volumes instead of files, or when it would have a single chip.
 

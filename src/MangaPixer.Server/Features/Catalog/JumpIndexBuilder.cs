@@ -6,16 +6,30 @@ using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 
 namespace com.lifepixer.mangapixer.Server.Features.Catalog;
 
-/// <summary>One listed row of a level, as the jump index reads it (in the listing's ascending SortKey order).</summary>
-public sealed record JumpRow(string Id, CatalogNodeKind Kind, string Name, string SortKey);
+/// <summary>
+/// One listed row of a level, as the jump index reads it (in the listing's ascending SortKey order). The last three fields are read only
+/// by the date rail (<see cref="JumpIndexBuilder.BuildByDate"/>): the row's internal id, its <c>CreatedAt</c> and a folder's
+/// <c>LatestDescendantAddedAt</c> - the parts of browse's date cursors.
+/// </summary>
+public sealed record JumpRow(
+    string Id,
+    CatalogNodeKind Kind,
+    string Name,
+    string SortKey,
+    long InternalId = 0,
+    DateTimeOffset? CreatedAt = null,
+    DateTimeOffset? LatestDescendantAddedAt = null);
 
 /// <summary>
 /// One chip of the rail: a contiguous run of the level's rows. <see cref="FirstCursor"/> is the browse name-sort cursor that lands on
 /// <see cref="FirstNodeId"/> (null when the run starts the listing); <see cref="Range"/> is the numeric range (<c>50-99</c>) or null.
 /// </summary>
-public sealed record JumpBucket(string Label, int Count, string? FirstCursor, string FirstNodeId, string? Range);
+public sealed record JumpBucket(string Label, int Count, string? FirstCursor, string FirstNodeId, string? Range, string? Group = null);
 
-/// <summary>The rail of one level: <see cref="JumpIndexBuilder.Letters"/> or <see cref="JumpIndexBuilder.Numbers"/>, buckets in display order.</summary>
+/// <summary>
+/// The rail of one level: <see cref="JumpIndexBuilder.Letters"/>, <see cref="JumpIndexBuilder.Numbers"/> or <see cref="JumpIndexBuilder.Dates"/>,
+/// buckets in display order.
+/// </summary>
 public sealed record JumpRail(string Mode, IReadOnlyList<JumpBucket> Buckets);
 
 /// <summary>
@@ -42,6 +56,21 @@ public static partial class JumpIndexBuilder
     /// <summary>The rail lists round number ranges.</summary>
     public const string Numbers = "numbers";
 
+    /// <summary>The rail lists time chips (1.49.0: Today, This week, This month, This year, then years) under the date sorts.</summary>
+    public const string Dates = "dates";
+
+    /// <summary>Bucket group of the folders' chips at a level whose both kinds carry their own rail (1.49.0).</summary>
+    public const string FoldersGroup = "folders";
+
+    /// <summary>Bucket group of the archives' chips at a level whose both kinds carry their own rail (1.49.0).</summary>
+    public const string FilesGroup = "files";
+
+    /// <summary>
+    /// At a level with both kinds, the smaller kind gets its own letters / numbers once it has at least this many rows (1.49.0, owner
+    /// decision 14); below it keeps the single <see cref="FoldersLabel"/> / <see cref="FilesLabel"/> chip.
+    /// </summary>
+    internal const int OwnRailMinRows = 20;
+
     /// <summary>Label of the single chip of the folders of a level whose archives carry the rail.</summary>
     public const string FoldersLabel = "Folders";
 
@@ -63,7 +92,7 @@ public static partial class JumpIndexBuilder
     private static readonly long[] s_stepBases = [1, 2, 5];
 
     /// <summary>A span of a level's rows (ascending indices) that forms one chip.</summary>
-    private readonly record struct Span(int Start, int Count, string Label, string? Range);
+    private readonly record struct Span(int Start, int Count, string Label, string? Range, string? Group = null);
 
     /// <summary>
     /// Builds the rail of one level. <paramref name="rows"/> must be in the listing's ascending <c>SortKey</c> order (as the database
@@ -89,12 +118,24 @@ public static partial class JumpIndexBuilder
             var (first, second) = (kindRuns[0], kindRuns[1]);
             var main = second.Count >= first.Count ? second : first;
             var minor = ReferenceEquals(main, second) ? first : second;
-            var minorSpan = new Span(minor.Start, minor.Count, rows[minor.Start].Kind == CatalogNodeKind.Folder ? FoldersLabel : FilesLabel, null);
-            if (minor.Start < main.Start)
-                spans.Add(minorSpan);
-            mode = Segment(rows, main.Start, main.Count, containerName, spans);
-            if (minor.Start > main.Start)
-                spans.Add(minorSpan);
+            if (minor.Count >= OwnRailMinRows)
+            {
+                // 1.49.0 (owner decision 14): the smaller kind has enough rows for its own chips - each kind is its own segment (folders
+                // first, as listed), and the chips say which kind they belong to. The level's mode is the bigger kind's.
+                var folderFirst = rows[first.Start].Kind == CatalogNodeKind.Folder;
+                var firstMode = Segment(rows, first.Start, first.Count, containerName, spans, folderFirst ? FoldersGroup : FilesGroup);
+                var secondMode = Segment(rows, second.Start, second.Count, containerName, spans, folderFirst ? FilesGroup : FoldersGroup);
+                mode = ReferenceEquals(main, first) ? firstMode : secondMode;
+            }
+            else
+            {
+                var minorSpan = new Span(minor.Start, minor.Count, rows[minor.Start].Kind == CatalogNodeKind.Folder ? FoldersLabel : FilesLabel, null);
+                if (minor.Start < main.Start)
+                    spans.Add(minorSpan);
+                mode = Segment(rows, main.Start, main.Count, containerName, spans);
+                if (minor.Start > main.Start)
+                    spans.Add(minorSpan);
+            }
         }
 
         var buckets = new List<JumpBucket>(spans.Count);
@@ -102,12 +143,112 @@ public static partial class JumpIndexBuilder
         {
             var end = span.Start + span.Count; // exclusive
             buckets.Add(descending
-                ? new JumpBucket(span.Label, span.Count, end < rows.Count ? rows[end].SortKey : null, rows[end - 1].Id, span.Range)
-                : new JumpBucket(span.Label, span.Count, span.Start > 0 ? rows[span.Start - 1].SortKey : null, rows[span.Start].Id, span.Range));
+                ? new JumpBucket(span.Label, span.Count, end < rows.Count ? rows[end].SortKey : null, rows[end - 1].Id, span.Range, span.Group)
+                : new JumpBucket(span.Label, span.Count, span.Start > 0 ? rows[span.Start - 1].SortKey : null, rows[span.Start].Id, span.Range, span.Group));
         }
         if (descending)
             buckets.Reverse();
         return new JumpRail(mode, buckets);
+    }
+
+    // ---- dates (1.49.0, owner decision 14 b) ----------------------------------------------------------------------------------------
+
+    /// <summary>The date sort whose rows are ranked by their own <c>CreatedAt</c>: folders first, then archives, newest first.</summary>
+    public const string RecentlyAddedSort = "recentlyAdded";
+
+    /// <summary>The date sort whose rows interleave by effective recency (a folder's newest descendant, an archive's <c>CreatedAt</c>).</summary>
+    public const string RecentlyUpdatedSort = "recentlyUpdated";
+
+    internal const string TodayLabel = "Today";
+    internal const string ThisWeekLabel = "This week";
+    internal const string ThisMonthLabel = "This month";
+    internal const string ThisYearLabel = "This year";
+
+    /// <summary>
+    /// The time-chip rail of a level listed under a date sort: <c>Today</c>, <c>This week</c> (since Monday), <c>This month</c>,
+    /// <c>This year</c>, then one chip per older year, newest first - each chip one contiguous run of the listing, so its cursor is browse's
+    /// own date cursor (<c>a:</c> for recentlyAdded, <c>u:</c> for recentlyUpdated) of the row just before its first row. No new cursor shape.
+    /// <paramref name="rowsInDisplayOrder"/> must be in the browse order of <paramref name="sort"/> (recentlyAdded: folders first, each kind
+    /// newest first; recentlyUpdated: interleaved by effective recency, folders without a descendant last), carrying the internal id and
+    /// the dates. Where both kinds list under recentlyAdded each kind has its own chips (<c>Group</c> says which). Rows without a date
+    /// (a folder with no descendant archive, under recentlyUpdated) form a trailing <see cref="OtherLabel"/> chip. The rail is empty when every
+    /// chip would carry the same label - nothing to jump between. <paramref name="now"/> and <paramref name="utcOffset"/> place the
+    /// boundaries in the viewer's day.
+    /// </summary>
+    public static JumpRail BuildByDate(IReadOnlyList<JumpRow> rowsInDisplayOrder, string sort, DateTimeOffset now, TimeSpan utcOffset)
+    {
+        ArgumentNullException.ThrowIfNull(rowsInDisplayOrder);
+        var rows = rowsInDisplayOrder;
+        if (rows.Count == 0 || sort is not (RecentlyAddedSort or RecentlyUpdatedSort))
+            return new JumpRail(Dates, []);
+
+        var local = now.ToOffset(utcOffset);
+        var today = local.Date;
+        var week = today.AddDays(-(((int)today.DayOfWeek + 6) % 7)); // Monday
+        var month = new DateTime(today.Year, today.Month, 1);
+        var year = new DateTime(today.Year, 1, 1);
+
+        string LabelOf(JumpRow row)
+        {
+            var at = sort == RecentlyAddedSort || row.Kind != CatalogNodeKind.Folder ? row.CreatedAt : row.LatestDescendantAddedAt;
+            if (at is null)
+                return OtherLabel;
+            var day = at.Value.ToOffset(utcOffset).Date;
+            if (day >= today) return TodayLabel;
+            if (day >= week) return ThisWeekLabel;
+            if (day >= month) return ThisMonthLabel;
+            if (day >= year) return ThisYearLabel;
+            return day.Year.ToString(CultureInfo.InvariantCulture);
+        }
+
+        // recentlyAdded lists the kinds one after the other (folders first), so each kind is a segment; recentlyUpdated interleaves.
+        var segments = new List<(int Start, int Count)>();
+        if (sort == RecentlyAddedSort)
+            segments.AddRange(KindRuns(rows).Select(k => (k.Start, k.Count)));
+        else
+            segments.Add((0, rows.Count));
+        var grouped = segments.Count == 2;
+
+        var buckets = new List<JumpBucket>();
+        foreach (var (start, count) in segments)
+        {
+            var group = grouped ? (rows[start].Kind == CatalogNodeKind.Folder ? FoldersGroup : FilesGroup) : null;
+            void Close(int from, int to, string label) =>
+                buckets.Add(new JumpBucket(label, to - from, from > 0 ? DateCursorOf(sort, rows[from - 1]) : null, rows[from].Id, null, group));
+
+            var runStart = start;
+            var runLabel = LabelOf(rows[start]);
+            for (var i = start + 1; i < start + count; i++)
+            {
+                var label = LabelOf(rows[i]);
+                if (label == runLabel)
+                    continue;
+                Close(runStart, i, runLabel);
+                runStart = i;
+                runLabel = label;
+            }
+            Close(runStart, start + count, runLabel);
+        }
+
+        // Every chip alike (all rows in one period, or one chip per kind of the same period): nothing to jump between.
+        if (buckets.Select(b => b.Label).Distinct(StringComparer.Ordinal).Count() < 2)
+            return new JumpRail(Dates, []);
+        return new JumpRail(Dates, buckets);
+    }
+
+    /// <summary>
+    /// Browse's date cursor of a row (<c>CatalogBrowseService.EncodeCursor</c>): <c>a:{kind}:{createdAtBinary}:{id}</c> under recentlyAdded,
+    /// <c>u:{hasValue}:{effectiveBinary}:{id}:{sortKey}</c> under recentlyUpdated. Pinned against browse by the landing tests.
+    /// </summary>
+    internal static string DateCursorOf(string sort, JumpRow row)
+    {
+        var created = row.CreatedAt ?? DateTimeOffset.UnixEpoch;
+        if (sort == RecentlyAddedSort)
+            return string.Create(CultureInfo.InvariantCulture, $"a:{(int)row.Kind}:{created.UtcDateTime.ToBinary()}:{row.InternalId}");
+        var effective = row.Kind == CatalogNodeKind.Folder ? row.LatestDescendantAddedAt : created;
+        return effective is null
+            ? string.Create(CultureInfo.InvariantCulture, $"u:0:0:{row.InternalId}:{row.SortKey}")
+            : string.Create(CultureInfo.InvariantCulture, $"u:1:{effective.Value.UtcDateTime.ToBinary()}:{row.InternalId}:{row.SortKey}");
     }
 
     private sealed record KindRun(int Start, int Count);
@@ -128,7 +269,7 @@ public static partial class JumpIndexBuilder
     }
 
     /// <summary>Adds the chips of one segment (<paramref name="count"/> rows from <paramref name="offset"/>) and returns its mode.</summary>
-    private static string Segment(IReadOnlyList<JumpRow> rows, int offset, int count, string? containerName, List<Span> spans)
+    private static string Segment(IReadOnlyList<JumpRow> rows, int offset, int count, string? containerName, List<Span> spans, string? group = null)
     {
         var names = new string[count];
         for (var i = 0; i < count; i++)
@@ -145,11 +286,14 @@ public static partial class JumpIndexBuilder
         if (numeric is not null)
         {
             foreach (var s in numeric)
-                spans.Add(s with { Start = s.Start + offset });
+                spans.Add(s with { Start = s.Start + offset, Group = group });
             return Numbers;
         }
-        foreach (var s in LetterSpans(stripped))
-            spans.Add(s with { Start = s.Start + offset });
+        // A common prefix that is only the opening bracket of a doujin level ("[Circle] Title" names) is not cut for the letters: the
+        // bracket labels (J2, "[A" ... "[Z") need it, and they say what the letters are.
+        var letterNames = prefix is "[" or "(" ? names : stripped;
+        foreach (var s in LetterSpans(LetterLabels(letterNames)))
+            spans.Add(s with { Start = s.Start + offset, Group = group });
         return Letters;
     }
 
@@ -376,12 +520,12 @@ public static partial class JumpIndexBuilder
     /// The letter spans of a segment (relative indices): runs of one label; a label found in more than one run keeps its biggest run as
     /// the chip, and its other runs join the chip before them (the first chip when none precedes), so every chip stays contiguous.
     /// </summary>
-    private static List<Span> LetterSpans(string[] stripped)
+    private static List<Span> LetterSpans(string[] labels)
     {
         var runs = new List<(string Label, int Start, int Count)>();
-        for (var i = 0; i < stripped.Length; i++)
+        for (var i = 0; i < labels.Length; i++)
         {
-            var label = LetterLabelFor(stripped[i]);
+            var label = labels[i];
             if (runs.Count > 0 && runs[^1].Label == label)
                 runs[^1] = (label, runs[^1].Start, runs[^1].Count + 1);
             else
@@ -413,6 +557,34 @@ public static partial class JumpIndexBuilder
             }
         }
         return spans;
+    }
+
+    /// <summary>
+    /// The letter labels of a segment's (prefix-stripped) names. Doujin levels (1.49.0, owner decision 11): when at least two thirds of the
+    /// names open with <c>[</c> or <c>(</c> - which sort before every letter, so every name would be <c>#</c> - each name is labelled by the
+    /// first letter INSIDE its leading tag with the bracket kept (<c>[A</c> ... <c>[Z</c>, <c>[#</c>, <c>(A</c> ...). The names sort by that
+    /// tag's text, so each label is still one contiguous run.
+    /// </summary>
+    internal static string[] LetterLabels(string[] stripped)
+    {
+        var tagged = stripped.Count(n => n.Length > 0 && n[0] is ('[' or '('));
+        var labels = new string[stripped.Length];
+        var byTag = stripped.Length > 0 && tagged >= TwoThirds(stripped.Length);
+        for (var i = 0; i < stripped.Length; i++)
+            labels[i] = byTag ? TagLetterLabelFor(stripped[i]) : LetterLabelFor(stripped[i]);
+        return labels;
+    }
+
+    /// <summary>
+    /// The label of a name in a doujin level: the opening bracket plus the label of the first character inside the leading tag
+    /// (<c>[Circle] Title</c> -> <c>[C</c>; <c>[2nd] x</c> -> <c>[#</c>); a name without an opening bracket keeps its plain letter label.
+    /// </summary>
+    internal static string TagLetterLabelFor(string name)
+    {
+        if (name.Length == 0 || name[0] is not ('[' or '('))
+            return LetterLabelFor(name);
+        var inner = name[1..].TrimStart();
+        return name[0] + (inner.Length == 0 ? "#" : LetterLabelFor(inner));
     }
 
     /// <summary>

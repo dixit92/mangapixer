@@ -10,7 +10,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable, forkJoin, of, catchError, filter, map, switchMap } from 'rxjs';
 
-import { ApiService } from '../../core/api/api.service';
+import { ApiService, JumpIndexFilters } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { FavoritesStateService } from '../../core/favorites/favorites-state.service';
@@ -1254,8 +1254,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
       this.linkedSeries.set(0);
       this.completionCounts.set(null);
       this.loadNodes();
-      // The jump rail is a name-sort navigation aid over the UNFILTERED listing (1.10.0); since 1.41.0 in folders and both
-      // directions too (the index is built for this folder and direction).
+      // The jump rail (1.10.0; 1.41.0 folders and both directions; 1.49.0 under the filters and the date sorts): built for this level,
+      // sort, direction and filters.
       if (this.shouldShowJumpRail()) this.loadJumpIndex(libId);
       else this.jumpBuckets.set([]);
       if (parentId) {
@@ -1270,17 +1270,38 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** Load the jump index of the listed level (root or folder) for the current name-sort direction and Volumes-view choice. */
+  /**
+   * The state a rail answer is for (1.49.0): the level, the sort, the direction, the filters and the Volumes-view choice. A response
+   * whose key is no longer the current one belongs to a list the user has already left and is dropped.
+   */
+  private jumpKey(libId: string): string {
+    return JSON.stringify([libId, this.parentId(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders(),
+      this.favoritesOnly(), this.completionFilter(), this.groupParam()]);
+  }
+
+  /**
+   * Load the jump index of the listed level (root or folder) for the current sort, direction, filters and Volumes-view choice.
+   * 1.49.0 (owner decisions 10, 14): the rail follows the FILTERED list - it sends the browse filters (the server applies them to a
+   * level that holds no linked series as browse does: not at all) - and under the date sorts it is a row of time chips ("Today",
+   * "This week" ...; `tzOffset` makes "Today" the viewer's day).
+   */
   private loadJumpIndex(libId: string): void {
     const parentId = this.parentId();
     const direction = this.sortDirection();
+    const key = this.jumpKey(libId);
     this.jumpBuckets.set([]);
     this.activeJump.set(null);
-    this.api.getJumpIndex(libId, parentId, direction, this.groupParam()).subscribe({
+    const filters: JumpIndexFilters = {
+      sort: this.sort(),
+      readState: this.readStateFilter(),
+      hideEmpty: this.hideEmptyFolders(),
+      favoritesOnly: this.favoritesOnly(),
+      completion: this.completionFilter(),
+      tzOffset: -new Date().getTimezoneOffset(),
+    };
+    this.api.getJumpIndex(libId, parentId, direction, this.groupParam(), filters).subscribe({
       next: (res) => {
-        // A response for a level / direction the user has already left is dropped.
-        if (this.libraryId() !== libId || this.parentId() !== parentId || this.sortDirection() !== direction) return;
-        if (this.completionApplies()) return; // 1.44.0: the Completion filter narrows this level
+        if (this.jumpKey(libId) !== key) return;
         this.jumpMode.set(res.mode ?? 'letters');
         this.jumpBuckets.set(res.buckets);
       },
@@ -1514,10 +1535,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
 
   /**
    * Change the read-state filter (1.10.0, F1): reload the list from the top at the new
-   * filter. Not persisted (a transient view control). The jump rail is a name-sort
-   * navigation aid built over the UNFILTERED listing, so it is hidden while a filter is
-   * active and restored when the filter returns to All (subject to the usual name+asc+
-   * root conditions).
+   * filter. Not persisted (a transient view control). The jump rail (1.49.0) follows the
+   * filtered list: it reloads with the filter, so its chips are the filtered rows' letters.
    */
   setReadStateFilter(filter: LibraryReadStateFilter): void {
     if (this.readStateFilter() === filter) return;
@@ -1531,8 +1550,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
 
   /**
    * Toggle the hide-empty-folders filter (1.11.0): reload the list from the top. Like
-   * the read-state filter, this narrows the listing, so the A-Z jump rail (built over
-   * the unfiltered listing) is hidden while it is active and restored when it is off.
+   * the read-state filter, this narrows the listing, so the jump rail reloads over the
+   * narrowed list (1.49.0).
    * `$event` is swallowed so the mat-menu stays open for further toggling. Not persisted.
    */
   toggleHideEmpty(event?: Event): void {
@@ -1547,7 +1566,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
 
   /**
    * Toggle the favorites-only filter (1.21.0): reload from the top. Like the other
-   * filters this narrows the listing, so the A-Z jump rail is hidden while it is active.
+   * filters this narrows the listing, so the jump rail reloads over the starred rows (1.49.0).
    * `$event` is swallowed so the menu stays open for further toggling. Not persisted.
    */
   toggleFavoritesOnly(event?: Event): void {
@@ -1563,7 +1582,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
 
   /**
    * Choose the Completion answer (1.44.0), or null for Any: reload from the top. Like the other filters it narrows the listing, so the
-   * jump rail hides while it applies. `$event` is swallowed so the menu stays open. Not persisted.
+   * jump rail reloads over it (1.49.0). `$event` is swallowed so the menu stays open. Not persisted.
    */
   setCompletionFilter(answer: SeriesAnswer | null, event?: Event): void {
     event?.stopPropagation();
@@ -1618,17 +1637,13 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Whether the jump rail applies: it is a name-sort navigation aid whose bucket cursors
-   * assume the full, unfiltered listing, so it is meaningless under another sort or while a
-   * read-state, hide-empty, or favorites filter is narrowing the listing. 1.41.0: folders
-   * and the descending direction have their own index (the Volumes view gets none).
+   * Whether the jump rail applies. 1.49.0: under the name sort AND the two date sorts (time chips) - and under every filter, because the
+   * server builds the rail over the filtered rows with browse's own cursor of each chip's first row. Only "Recently read" has none (its
+   * cursor is an offset into an in-memory order). 1.41.0: folders and the descending direction have their own index (the Volumes view
+   * gets none).
    */
   private shouldShowJumpRail(): boolean {
-    return this.sort() === 'name'
-      && this.readStateFilter() === 'all'
-      && !this.hideEmptyFolders()
-      && !this.favoritesOnly()
-      && !this.completionApplies();
+    return this.sort() !== 'recentlyRead';
   }
 
   /** The hover-summary zone id (1.27.0): only items that show the (i), never in select mode. */
@@ -1850,8 +1865,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     this.persistView();
     this.resetList();
     this.loadNodes();
-    // The jump rail is only valid for the name sort (the cursor is a raw SortKey;
-    // other sorts ignore it).
+    // The rail follows the sort (1.49.0): letters / numbers under Name, time chips under the date sorts, none under Recently read.
     if (this.shouldShowJumpRail()) this.loadJumpIndex(this.libraryId());
     else this.jumpBuckets.set([]);
   }
@@ -2145,6 +2159,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
           if (response.effectiveSort === 'name') {
             this.sort.set('name');
             this.sortDirection.set('asc');
+            // The rail asked for was the date sort's: ask again for this visit's Name sort (an answer for the old key is dropped).
+            this.loadJumpIndex(libId);
           }
         }
         this.nodes.update((current) => isAppend ? [...current, ...response.items] : [...response.items]);
@@ -2156,7 +2172,6 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
         if (initial) {
           this.linkedSeries.set(response.linkedSeries ?? 0);
           this.completionCounts.set(response.completionCounts ?? null);
-          if (this.completionApplies()) this.jumpBuckets.set([]);
         }
         if (!isAppend) {
           // Window-top backward-paging state: a jump lands mid-list (hasPrevious true),

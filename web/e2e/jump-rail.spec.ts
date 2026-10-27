@@ -205,3 +205,82 @@ test('phone: the picker lists the ranges and a tap lands on the range', async ({
     await setDirection(page, previous === 'desc' ? 'desc' : 'asc');
   }
 });
+
+/** The id of a folder of the jump library once its scan has listed `count` children (the doujin folder is scanned with the rest). */
+async function folderWithChildren(page: Page, libraryId: string, name: string, count: number): Promise<string> {
+  let folder = '';
+  await expect.poll(async () => {
+    const root = await (await page.request.get(`/api/v1/libraries/${libraryId}/browse?pageSize=50`)).json();
+    folder = ((root.items as Node[]).find((n) => n.displayName === name)?.id) ?? '';
+    if (!folder) return 0;
+    const inside = await (await page.request.get(`/api/v1/libraries/${libraryId}/browse?parentId=${folder}&pageSize=100`)).json();
+    return inside.totalCount as number;
+  }, { timeout: 120_000, intervals: [1000, 2000, 5000] }).toBe(count);
+  return folder;
+}
+
+// 1.49.0 (owner decision 11): a doujin level - every name opens with "[Circle]" - lists bracket chips, one per circle letter.
+test('desktop: a doujin level (names opening with a [Circle] tag) shows bracket chips and a chip lands on its circle', async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await login(page);
+  const [libraryId] = await ensureLibrary(page);
+  const doujinId = await folderWithChildren(page, libraryId, 'Jump Doujin', 24);
+  const previous = await setDirection(page, 'asc');
+  try {
+    await page.goto(`/libraries/${libraryId}/browse/${doujinId}`);
+    const rail = page.locator('nav.jump-rail');
+    await expect(rail).toBeVisible();
+    await expect(rail).toHaveAttribute('aria-label', 'Jump to letter');
+    await expect.poll(() => chips(page)).toEqual(['[A', '[B', '[C', '[D', '[E', '[F']);
+    await expect(page.locator('.node-wrap').first().locator('.node-title')).toHaveText('[Alder Circle] Synthetic Tale Alpha.cbz');
+
+    await rail.getByRole('button', { name: '[D', exact: true }).click();
+    await expect.poll(() => landed(page, '[Dogwood Circle] Synthetic Tale Alpha.cbz')).toBe(true);
+    await expect(rail.locator('.jump-chip.active')).toHaveText('[D');
+    await expectFitsScreen(page, 'the doujin level with bracket chips (desktop)');
+    await shot(page, 'jump-rail-doujin');
+  } finally {
+    await setDirection(page, previous === 'desc' ? 'desc' : 'asc');
+  }
+});
+
+// 1.49.0 (owner decision 10): the rail follows the filtered list - under Unread (30 of 64 chapters marked read) it lists only the ranges
+// that still hold unread chapters, and a chip lands on that range's first unread row.
+test('desktop: the rail under a read-state filter covers the filtered rows and a chip lands on the right row', async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  const previous = await setDirection(page, 'asc');
+  const inside = await (await page.request.get(`/api/v1/libraries/${libraryId}/browse?parentId=${folderId}&pageSize=100&sort=name&direction=asc`)).json();
+  const chapters = (inside.items as Node[]).filter((n) => /Ch\. 0(0[1-9]|[12]\d|30)\.cbz$/.test(n.displayName));
+  expect(chapters.length).toBe(30);
+  const headers = await csrf(page.request);
+  try {
+    for (const c of chapters) expect((await page.request.put(`/api/v1/reading/${c.id}/read`, { headers, data: {} })).ok()).toBeTruthy();
+
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+    const rail = page.locator('nav.jump-rail');
+    await expect(rail).toBeVisible();
+    await expect.poll(() => chips(page)).toEqual(ASC); // unfiltered: the whole level
+
+    await page.locator('.filter-toggle').click();
+    await page.getByRole('menuitemradio', { name: 'Unread' }).click();
+    // Filtered: the ranges that hold only read chapters are gone; the rail is still there.
+    await expect.poll(async () => (await chips(page)).includes('0')).toBe(false);
+    const filtered = await chips(page);
+    expect(filtered).not.toContain('10');
+    expect(filtered).not.toContain('20');
+    expect(filtered).toContain('60');
+    await expect(rail).toBeVisible();
+
+    await rail.getByRole('button', { name: '60', exact: true }).click();
+    await expect.poll(() => landed(page, 'Jump Saga - Ch. 060.cbz')).toBe(true);
+    await expect(page.locator('.node-wrap', { hasText: 'Jump Saga - Ch. 005.cbz' })).toHaveCount(0); // read chapters are not listed
+    await shot(page, 'jump-rail-filtered');
+  } finally {
+    for (const c of chapters) await page.request.delete(`/api/v1/reading/${c.id}/read`, { headers });
+    await setDirection(page, previous === 'desc' ? 'desc' : 'asc');
+  }
+});

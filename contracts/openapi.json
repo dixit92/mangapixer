@@ -12038,6 +12038,56 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "readState",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "hideEmpty",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "favoritesOnly",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "completion",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tzOffset",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 0
+            }
           }
         ],
         "responses": {
@@ -17069,6 +17119,12 @@
             ]
           },
           "range": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "group": {
             "type": [
               "null",
               "string"

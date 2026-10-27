@@ -181,8 +181,8 @@ describe('LibraryBrowseComponent jump rail', () => {
     const { fixture, httpMock } = create();
     fixture.detectChanges();
     flushInitial(httpMock, [
-      { label: 'A', count: 3, firstCursor: null },
-      { label: 'B', count: 2, firstCursor: 'cursorA' },
+      { label: 'A', count: 6, firstCursor: null },
+      { label: 'B', count: 4, firstCursor: 'cursorA' },
       { label: 'Kana', count: 5, firstCursor: 'cursorB' },
     ]);
     fixture.detectChanges();
@@ -233,8 +233,8 @@ describe('LibraryBrowseComponent jump rail', () => {
     const { fixture, httpMock } = create();
     fixture.detectChanges();
     flushInitial(httpMock, [
-      { label: 'A', count: 1, firstCursor: null },
-      { label: 'B', count: 1, firstCursor: 'cursorA' },
+      { label: 'A', count: 7, firstCursor: null },
+      { label: 'B', count: 7, firstCursor: 'cursorA' },
     ]);
     fixture.detectChanges();
 
@@ -246,24 +246,37 @@ describe('LibraryBrowseComponent jump rail', () => {
     expect(chips[1].classList.contains('active')).toBe(true);
   });
 
-  it('hides the rail when the sort changes away from name', () => {
+  it('1.49.0: changing to a date sort reloads the rail as time chips; Recently read has none', () => {
     const { fixture, httpMock } = create();
     fixture.detectChanges();
     flushInitial(httpMock, [
-      { label: 'A', count: 1, firstCursor: null },
+      { label: 'A', count: 10, firstCursor: null },
+      { label: 'B', count: 10, firstCursor: 'cursorA' },
     ]);
     fixture.detectChanges();
 
     const comp = fixture.componentInstance;
-    expect(comp.jumpBuckets().length).toBe(1);
+    expect(comp.jumpBuckets().length).toBe(2);
 
-    // setSort fires a persist + a browse; flush both.
+    // setSort fires a persist + a browse + a jump-index request; flush them.
     comp.setSort('recentlyAdded');
     httpMock.match((req) => req.url.endsWith('/reading/library-preferences') && req.method === 'PUT')[0]
       .flush({});
     httpMock.match((req) => req.url.includes('/libraries/lib1/browse'))[0]
       .flush({ items: [], totalCount: 0, nextCursor: null, hasMore: false });
+    const jump = httpMock.match((req) => req.url.endsWith('/libraries/lib1/jump-index'))[0];
+    expect(jump.request.params.get('sort')).toBe('recentlyAdded');
+    expect(jump.request.params.get('tzOffset') ?? '0').toBe(String(-new Date().getTimezoneOffset()));
+    jump.flush({ libraryId: 'lib1', mode: 'dates', direction: 'desc', buckets: [
+      { label: 'Today', count: 10, firstCursor: null }, { label: '2025', count: 10, firstCursor: 'a:1:1:1' }] });
+    expect(comp.jumpMode()).toBe('dates');
+    expect(comp.jumpBuckets().length).toBe(2);
 
+    comp.setSort('recentlyRead');
+    httpMock.match((req) => req.url.endsWith('/reading/library-preferences') && req.method === 'PUT')[0].flush({});
+    httpMock.match((req) => req.url.includes('/libraries/lib1/browse'))[0]
+      .flush({ items: [], totalCount: 0, nextCursor: null, hasMore: false });
+    expect(httpMock.match((req) => req.url.endsWith('/libraries/lib1/jump-index')).length).toBe(0);
     expect(comp.jumpBuckets().length).toBe(0);
   });
 });
@@ -1210,7 +1223,7 @@ describe('LibraryBrowseComponent infinite scroll + sticky nav (1.8.0)', () => {
     });
     const fixture = TestBed.createComponent(LibraryBrowseComponent);
     fixture.detectChanges();
-    return { fixture, comp: fixture.componentInstance, browseLibrary, setLibraryPreferences, el: fixture.nativeElement as HTMLElement };
+    return { fixture, comp: fixture.componentInstance, browseLibrary, setLibraryPreferences, getJumpIndex: apiSpy.getJumpIndex, el: fixture.nativeElement as HTMLElement };
   }
 
   afterEach(() => vi.unstubAllGlobals());
@@ -1346,13 +1359,14 @@ describe('LibraryBrowseComponent infinite scroll + sticky nav (1.8.0)', () => {
     expect(browseLibrary).toHaveBeenCalledTimes(1);
   });
 
-  it('hides the jump rail while a filter is active and restores it at All', () => {
-    const { comp } = setup({ buckets: [{ label: 'A', count: 1, firstCursor: null }] });
+  it('1.49.0: keeps the jump rail under a read-state filter and reloads it with the filter', () => {
+    const { comp, getJumpIndex } = setup({ buckets: [{ label: 'A', count: 20, firstCursor: null }] });
     expect(comp.jumpBuckets().length).toBe(1);
     comp.setReadStateFilter('read');
-    expect(comp.jumpBuckets().length).toBe(0); // rail hidden under a filter
+    expect(comp.jumpBuckets().length).toBe(1); // the server answers the filtered level's rail
+    expect(getJumpIndex.mock.calls.at(-1)![4]).toEqual(expect.objectContaining({ readState: 'read' }));
     comp.setReadStateFilter('all');
-    expect(comp.jumpBuckets().length).toBe(1); // restored (name+asc+root)
+    expect(getJumpIndex.mock.calls.at(-1)![4]).toEqual(expect.objectContaining({ readState: 'all' }));
   });
 
   // --- Hide-empty-folders filter (1.11.0, A2) ---
@@ -1410,22 +1424,24 @@ describe('LibraryBrowseComponent infinite scroll + sticky nav (1.8.0)', () => {
     expect(last[9]).toBe(true);     // favorites-only on top of it
   });
 
-  it('hides the jump rail while favorites-only is active and restores it when off (1.21.0)', () => {
-    const { comp } = setup({ buckets: [{ label: 'A', count: 1, firstCursor: null }] });
+  it('1.49.0: favorites-only keeps the jump rail and reloads it with the filter (1.21.0 hid it)', () => {
+    const { comp, getJumpIndex } = setup({ buckets: [{ label: 'A', count: 20, firstCursor: null }] });
     expect(comp.jumpBuckets().length).toBe(1);
     comp.toggleFavoritesOnly();
-    expect(comp.jumpBuckets().length).toBe(0); // rail hidden under a filter
+    expect(comp.jumpBuckets().length).toBe(1);
+    expect(getJumpIndex.mock.calls.at(-1)![4]).toEqual(expect.objectContaining({ favoritesOnly: true }));
     comp.toggleFavoritesOnly();
-    expect(comp.jumpBuckets().length).toBe(1); // restored
+    expect(getJumpIndex.mock.calls.at(-1)![4]).toEqual(expect.objectContaining({ favoritesOnly: false }));
   });
 
-  it('hides the jump rail while hide-empty is active and restores it when off', () => {
-    const { comp } = setup({ buckets: [{ label: 'A', count: 1, firstCursor: null }] });
+  it('1.49.0: hide-empty keeps the jump rail and reloads it with the filter', () => {
+    const { comp, getJumpIndex } = setup({ buckets: [{ label: 'A', count: 20, firstCursor: null }] });
     expect(comp.jumpBuckets().length).toBe(1);
     comp.toggleHideEmpty();
-    expect(comp.jumpBuckets().length).toBe(0); // rail hidden under a filter
+    expect(comp.jumpBuckets().length).toBe(1);
+    expect(getJumpIndex.mock.calls.at(-1)![4]).toEqual(expect.objectContaining({ hideEmpty: true }));
     comp.toggleHideEmpty();
-    expect(comp.jumpBuckets().length).toBe(1); // restored (name+asc+root, no filter)
+    expect(getJumpIndex.mock.calls.at(-1)![4]).toEqual(expect.objectContaining({ hideEmpty: false }));
   });
 
   it('does not expose the removed items-per-load browse control (moved to Settings)', () => {
