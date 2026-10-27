@@ -32,6 +32,16 @@ These are read by the container's start-up script, not by the server.
 
 Set them to the owner of your host folders so the files on the host belong to you. See [Install on Unraid](install-unraid.md#step-2-set-puid-and-pgid).
 
+## Memory allocator
+
+*1.49.0.* The container image sets one more environment variable. It is read by the C library (glibc) that the server and its helper processes use to hand out memory, not by MangaPixer itself, so it is not a `MangaPixer__` key and it is not changed on the **Performance** card.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `MALLOC_ARENA_MAX` | `2` in the image | How many separate memory pools (arenas) glibc may use for the server and for each helper process. glibc normally opens up to eight per processor and keeps the memory freed in each of them, so after heavy work (a big scan, a long reading session) the container held far more memory than the programs were using. With `2`, in our test (two people reading for 12 minutes) the container ended at about 0.8 GB instead of about 1.4 GB, and page times were unchanged. |
+
+To use glibc's own default again, set the variable to an empty value (`MALLOC_ARENA_MAX=` in the template, or `MALLOC_ARENA_MAX: ""` under `environment:` in the compose file); any other number replaces the `2`. Restart the container after you change it. The helper processes inherit it from the server.
+
 ## Network
 
 | Key (environment variable) | Default | Meaning |
