@@ -131,7 +131,7 @@ Port 6266 is published on every interface, but the server itself only speaks pla
 └── scratch/                  temporary work folders (disposable)
 ```
 
-Your normal appdata backup covers all of it. The `data/backups/rotating-*.db` files are consistent snapshots taken by the server, so they are safe to restore from even if your appdata backup ran while the container was up. See [Backup and restore](backup-and-restore.md).
+Your normal appdata backup covers all of it. The `data/backups/rotating-*.db.gz` files (older versions wrote `.db`) are consistent snapshots taken by the server, so they are safe to restore from even if your appdata backup ran while the container was up. See [Backup and restore](backup-and-restore.md).
 
 To keep the rotating snapshots off the cache pool, for example on an archive share on the array, add a path mapping such as `/mnt/user/archive/mangapixer-backups` to `/backups` (read/write, owned by your `PUID`:`PGID`), then choose **Custom folder** `/backups` in **Administration** > **Backup settings**. If the share is not available, backups pause and the admin page shows **Backup location unavailable**; they never fall back to appdata. The pre-migration and pre-restore snapshots stay in `data/backups`.
 
