@@ -102,6 +102,7 @@ public sealed partial class CatalogBrowseService
                     SELECT cn.Id, cn.Kind, cn.DisplayName, cn.SortKey
                     FROM catalog_nodes cn
                     WHERE cn.Availability != 5 AND cn.LibraryId IN ({libIds})
+                    {ShortSearchPrefilter(parsed)}
                     """, null, ct)
                 : await ReadSearchCandidatesAsync(connection, $"""
                     SELECT cn.Id, cn.Kind, cn.DisplayName, cn.SortKey
@@ -219,19 +220,41 @@ public sealed partial class CatalogBrowseService
         }
     }
 
-    /// <summary>Reads search candidates (id, kind, name, sort key) for one SQL text; <paramref name="ftsQuery"/> binds <c>@query</c>.</summary>
+    /// <summary>
+    /// Reads search candidates (id, kind, name, sort key) for one SQL text; <paramref name="ftsQuery"/> binds <c>@query</c>. Each node once,
+    /// even if the index holds a stray second row for it (the FTS table has no key).
+    /// </summary>
     private static async Task<List<SearchCandidate>> ReadSearchCandidatesAsync(
         DbConnection connection, string sql, string? ftsQuery, CancellationToken ct)
     {
         var list = new List<SearchCandidate>();
+        var seen = new HashSet<long>();
         using var command = connection.CreateCommand();
         command.CommandText = sql;
         if (ftsQuery is not null)
             command.Parameters.Add(new SqliteParameter("@query", ftsQuery));
         using var reader = await command.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
-            list.Add(new SearchCandidate(reader.GetInt64(0), reader.GetInt32(1), reader.GetString(2), reader.GetString(3)));
+        {
+            if (seen.Add(reader.GetInt64(0)))
+                list.Add(new SearchCandidate(reader.GetInt64(0), reader.GetInt32(1), reader.GetString(2), reader.GetString(3)));
+        }
         return list;
+    }
+
+    /// <summary>
+    /// A cheap SQL superset for a short search: for each word of plain ASCII letters and digits, the name contains it (LIKE folds ASCII
+    /// case) OR holds any character outside printable ASCII (an accented name may match it once folded - <see cref="SearchText.Rank"/>
+    /// decides). Words are letters and digits only, so they need no escaping.
+    /// </summary>
+    private static string ShortSearchPrefilter(SearchQuery parsed)
+    {
+        var parts = parsed.AllWords
+            .Select(w => w.Folded)
+            .Where(w => w.All(char.IsAsciiLetterOrDigit))
+            .Distinct(StringComparer.Ordinal)
+            .Select(w => $"AND (cn.DisplayName LIKE '%{w}%' OR cn.DisplayName GLOB '*[^ -~]*')");
+        return string.Join(" ", parts);
     }
 
     /// <summary>The page's nodes (public ids, parent and library public ids) in the hits' order.</summary>
