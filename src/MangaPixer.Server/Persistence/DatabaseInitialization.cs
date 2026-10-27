@@ -265,9 +265,11 @@ public static class DatabaseInitialization
         int rows;
         await using (var transaction = await db.Database.BeginTransactionAsync(ct))
         {
-            foreach (var trigger in definition.TriggerNames)
-                await db.Database.ExecuteSqlRawAsync("DROP TRIGGER IF EXISTS " + trigger + ";", ct);
-            await db.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS " + definition.Name + ";", ct);
+            // Names are the definition's own constants, never input.
+            var drops = definition.TriggerNames.Select(t => "DROP TRIGGER IF EXISTS " + t + ";")
+                .Append("DROP TABLE IF EXISTS " + definition.Name + ";");
+            foreach (var drop in drops)
+                await db.Database.ExecuteSqlRawAsync(drop, ct);
             await db.Database.ExecuteSqlRawAsync(definition.CreateTable, ct);
             foreach (var trigger in definition.CreateTriggers)
                 await db.Database.ExecuteSqlRawAsync(trigger, ct);
