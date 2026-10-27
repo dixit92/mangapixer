@@ -501,10 +501,15 @@ export class SearchComponent {
   });
 
   readonly noResultsText = computed(() => {
-    if (this.params().f.length > 0) return this.params().read === 'all' ? 'No works with these tags.' : 'No works with these tags and this filter.';
+    // 1.49.0 (lane T): also a tag search made only of typed fields (`-genre:action`, `year:..1999`) answers in works.
+    if (this.params().f.length > 0 || this.tagAnswer()) {
+      return this.params().read === 'all' ? 'No works with these tags.' : 'No works with these tags and this filter.';
+    }
     return this.params().read === 'all' ? 'No results found.' : 'No results with this filter.';
   });
 
+  /** 1.49.0 (lane T): the last answer was a tag search (it carried `works`, even an empty list). */
+  private readonly tagAnswer = signal(false);
   /** 1.49.0 (lane T): the tag view's Refine list (first page's answer). */
   readonly refine = signal<FacetBucketDto[]>([]);
   /** 1.49.0 (lane T): the "?" syntax panel. */
@@ -788,6 +793,7 @@ export class SearchComponent {
     this.expanded.set(new Set());
     if (!q.trim() && f.length === 0) {
       this.refine.set([]);
+      this.tagAnswer.set(false);
       this.results.set([]);
       this.works.set([]);
       this.seriesMatches.set([]);
@@ -805,6 +811,7 @@ export class SearchComponent {
         const response = answer as SearchAnswer;
         this.takeFilters(response.filters ?? []);
         this.refine.set([...(response.refine ?? [])].sort((a, b) => bucketRank(a.bucket) - bucketRank(b.bucket)));
+        this.tagAnswer.set(!!response.works);
         if (response.works) {
           this.works.set(response.works);
           this.results.set([]);
@@ -831,6 +838,7 @@ export class SearchComponent {
         this.results.set([]);
         this.works.set([]);
         this.refine.set([]);
+        this.tagAnswer.set(false);
         this.seriesMatches.set([]);
         this.totalCount.set(0);
         this.searched.set(true);

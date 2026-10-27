@@ -761,6 +761,12 @@ describe('SearchComponent tag filters and work cards (1.45.0)', () => {
     expect(search).toHaveBeenLastCalledWith('', { readState: 'all', filters: ['genre:fv_2|fv_5', 'tag:fv_9'] });
   });
 
+  it('1.49.0: a typed-only tag search with no works says so in the tag words', async () => {
+    const typed = filter({ bucket: 'Genres', source: 'Typed', id: undefined, text: 'action', negated: true });
+    const { el } = await open('/?q=synthetic%20-genre:action', answer([], [typed]));
+    expect(el.querySelector('.no-results')!.textContent!.trim()).toBe('No works with these tags.');
+  });
+
   it('1.49.0: the "?" panel lists the syntax; an example goes into the field and searches', async () => {
     const { el, fixture, search } = await open('/?q=alpha', answer([], []));
     expect(el.querySelector('[data-testid="search-syntax"]')).toBeNull();
