@@ -7,6 +7,7 @@ using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using com.lifepixer.mangapixer.Server.Storage;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 /// <summary>
@@ -145,7 +146,7 @@ public sealed class CompressedBackupServiceTests : IDisposable
     {
         static RotatingBackupOptions Parse(string? value)
         {
-            var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+            var config = new ConfigurationBuilder()
                 .AddInMemoryCollection(value is null ? new Dictionary<string, string?>() : new() { ["MangaPixer:Backups:Compress"] = value })
                 .Build();
             return RotatingBackupOptions.FromConfiguration(config, "/backups");
