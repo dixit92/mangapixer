@@ -211,18 +211,18 @@ of them is in the publish output. Some `Microsoft.Extensions.*` and
 resolves them as packages. At runtime, the server uses the copies in the ASP.NET Core
 shared framework.
 
-- `Microsoft.AspNetCore.Cryptography.Internal` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.AspNetCore.Cryptography.KeyDerivation` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.AspNetCore.Cryptography.Internal` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.AspNetCore.Cryptography.KeyDerivation` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.AspNetCore.Mvc.Testing` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.AspNetCore.TestHost` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.CodeAnalysis.Analyzers` - 3.11.0 - MIT - https://github.com/dotnet/roslyn-analyzers
 - `xunit.abstractions` - 2.0.3 - Apache-2.0 (the nuspec has only a licenseUrl, which points at upstream xUnit's Apache-2.0 license) - https://github.com/xunit/xunit
 - `Microsoft.CodeCoverage` - 18.11.0 - MIT - https://github.com/microsoft/vstest
-- `Microsoft.EntityFrameworkCore.Analyzers` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Caching.Abstractions` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Caching.Memory` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Identity.Core` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Identity.Stores` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.EntityFrameworkCore.Analyzers` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Caching.Abstractions` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Caching.Memory` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Identity.Core` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Identity.Stores` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.NET.Test.Sdk` - 18.11.0 - MIT - https://github.com/microsoft/vstest
 - `Microsoft.TestPlatform.ObjectModel` - 18.11.0 - MIT - https://github.com/microsoft/vstest
 - `Microsoft.TestPlatform.TestHost` - 18.11.0 - MIT - https://github.com/microsoft/vstest
