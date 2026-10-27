@@ -153,8 +153,8 @@ public sealed class SearchSinglePassHttpTests
         Assert.Single(second.GetProperty("items").EnumerateArray());
         Assert.False(second.TryGetProperty("seriesMatches", out var later) && later.ValueKind == JsonValueKind.Array); // first page only
 
-        // A page past the end (a bare SortKey cursor after every result) still counts the whole match.
-        var past = await SearchAsync(client, "&pageSize=2&cursor=" + Uri.EscapeDataString("1zzzz"));
+        // A page past the end (a cursor after every result) still counts the whole match. 1.49.0: the cursor is (group, rank, id, SortKey).
+        var past = await SearchAsync(client, "&pageSize=2&cursor=" + Uri.EscapeDataString("s2:9:0:0:1zzzz"));
         Assert.Empty(past.GetProperty("items").EnumerateArray());
         Assert.Equal(3, past.GetProperty("totalCount").GetInt32());
         Assert.False(past.GetProperty("hasMore").GetBoolean());
