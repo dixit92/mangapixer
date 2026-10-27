@@ -57,7 +57,7 @@ public static class DatabaseInitialization
     /// Runs post-migration pragmas and FTS5 index creation.
     /// Called after migrations are applied.
     /// </summary>
-    public static async Task ConfigureDatabaseAsync(MangaPixerDbContext db, CancellationToken ct = default)
+    public static async Task ConfigureDatabaseAsync(MangaPixerDbContext db, ILogger? logger = null, CancellationToken ct = default)
     {
         // Enable foreign keys on this connection (1.47.0: every other connection gets the same settings from
         // SqliteConnectionSettingsInterceptor - before, only this start-up connection had them)
@@ -75,64 +75,11 @@ public static class DatabaseInitialization
         // Temp store in memory for performance
         await db.Database.ExecuteSqlRawAsync("PRAGMA temp_store = MEMORY;", ct);
 
-        // Create FTS5 trigram search index for catalog nodes
-        // Indexes display_name and relative_path for literal substring search
-        await db.Database.ExecuteSqlRawAsync("""
-            CREATE VIRTUAL TABLE IF NOT EXISTS catalog_search USING fts5(
-                display_name,
-                relative_path,
-                library_id UNINDEXED,
-                node_id UNINDEXED,
-                tokenize='trigram'
-            );
-            """, ct);
+        // The plain search index (1.49.0, lane S): FTS5 trigram over the display NAME only, accents folded. Rebuilt once when its
+        // definition changes (the stamp in fts_definitions) - CREATE ... IF NOT EXISTS alone never changed an existing table.
+        await EnsureFtsDefinitionAsync(db, CatalogSearch, logger, ct);
 
-        // FTS5 triggers to keep catalog_search in sync with catalog_nodes
-        // (audit defect D28 — the FTS table was created but never populated).
-        // Column names are PascalCase (EF Core default for SQLite).
-        await db.Database.ExecuteSqlRawAsync("""
-            CREATE TRIGGER IF NOT EXISTS catalog_search_ai
-            AFTER INSERT ON catalog_nodes
-            BEGIN
-                INSERT INTO catalog_search(display_name, relative_path, library_id, node_id)
-                VALUES (new.DisplayName, new.RelativePath, new.LibraryId, new.Id);
-            END;
-            """, ct);
-
-        // The update trigger fires only when a searchable column changes (1.5.0).
-        // Every scan touches every node's LastSeenScanRevision; with an
-        // unconditional AFTER UPDATE trigger that re-tokenised the trigram index
-        // for the whole library on each rescan (~1 ms/node — the dominant cost of
-        // a no-change rescan). Dropped and recreated so existing databases pick
-        // up the narrowed column list.
-        await db.Database.ExecuteSqlRawAsync("DROP TRIGGER IF EXISTS catalog_search_au;", ct);
-        await db.Database.ExecuteSqlRawAsync("""
-            CREATE TRIGGER IF NOT EXISTS catalog_search_au
-            AFTER UPDATE OF DisplayName, RelativePath, LibraryId ON catalog_nodes
-            BEGIN
-                DELETE FROM catalog_search WHERE node_id = old.Id;
-                INSERT INTO catalog_search(display_name, relative_path, library_id, node_id)
-                VALUES (new.DisplayName, new.RelativePath, new.LibraryId, new.Id);
-            END;
-            """, ct);
-
-        await db.Database.ExecuteSqlRawAsync("""
-            CREATE TRIGGER IF NOT EXISTS catalog_search_ad
-            AFTER DELETE ON catalog_nodes
-            BEGIN
-                DELETE FROM catalog_search WHERE node_id = old.Id;
-            END;
-            """, ct);
-
-        // One-time backfill for nodes created before the triggers existed
-        await db.Database.ExecuteSqlRawAsync("""
-            INSERT INTO catalog_search(display_name, relative_path, library_id, node_id)
-            SELECT DisplayName, RelativePath, LibraryId, Id
-            FROM catalog_nodes
-            WHERE Id NOT IN (SELECT node_id FROM catalog_search);
-            """, ct);
-
-        await ConfigureSeriesSearchAsync(db, ct);
+        await ConfigureSeriesSearchAsync(db, logger, ct);
 
         // Set the schema version so startup validation can detect incompatible databases
         await SetSchemaVersionAsync(db, CurrentSchemaVersion, ct);
@@ -144,8 +91,9 @@ public static class DatabaseInitialization
     /// triggers on metadata_records only. catalog_search and the catalog_nodes
     /// triggers are deliberately untouched (scan-performance invariant). The JSON
     /// is guarded with json_valid so a malformed value can never fail a record write.
+    /// 1.49.0: accents folded (<c>remove_diacritics 1</c>), rebuilt once through the definition stamp.
     /// </summary>
-    private static async Task ConfigureSeriesSearchAsync(MangaPixerDbContext db, CancellationToken ct)
+    private static async Task ConfigureSeriesSearchAsync(MangaPixerDbContext db, ILogger? logger, CancellationToken ct)
     {
         // Databases migrated only to a point before metadata_records exists (tests) have nothing to index.
         var connection = db.Database.GetDbConnection();
@@ -158,15 +106,71 @@ public static class DatabaseInitialization
                 return;
         }
 
-        await db.Database.ExecuteSqlRawAsync("""
-            CREATE VIRTUAL TABLE IF NOT EXISTS series_search USING fts5(
-                title,
-                record_id UNINDEXED,
-                tokenize='trigram'
-            );
-            """, ct);
+        await EnsureFtsDefinitionAsync(db, SeriesSearch, logger, ct);
+    }
 
-        await db.Database.ExecuteSqlRawAsync("""
+    /// <summary>
+    /// A raw-SQL FTS5 table with its sync triggers and backfills (1.49.0, lane S). <see cref="CreateTable"/> is also the definition
+    /// stamped in <c>fts_definitions</c>: when the stored text differs (or there is none - a database from before 1.49.0), the table is
+    /// dropped, recreated and backfilled at start-up (<see cref="EnsureFtsDefinitionAsync"/>). Change the text to rebuild the table once.
+    /// </summary>
+    internal sealed record FtsDefinition(
+        string Name, string CreateTable, IReadOnlyList<string> TriggerNames, IReadOnlyList<string> CreateTriggers, string FullBackfill,
+        string MissingBackfill);
+
+    /// <summary>
+    /// The plain search index (1.49.0): the display NAME only (decision 4 - names before paths; an archive found only through its folder
+    /// is counted on that folder's card from the tree), accents folded. The update trigger fires only when a searchable column changes
+    /// (1.5.0: every scan touches every node's LastSeenScanRevision).
+    /// </summary>
+    internal static readonly FtsDefinition CatalogSearch = new(
+        "catalog_search",
+        "CREATE VIRTUAL TABLE catalog_search USING fts5(display_name, library_id UNINDEXED, node_id UNINDEXED, tokenize='trigram remove_diacritics 1');",
+        ["catalog_search_ai", "catalog_search_au", "catalog_search_ad"],
+        [
+            """
+            CREATE TRIGGER IF NOT EXISTS catalog_search_ai
+            AFTER INSERT ON catalog_nodes
+            BEGIN
+                INSERT INTO catalog_search(display_name, library_id, node_id)
+                VALUES (new.DisplayName, new.LibraryId, new.Id);
+            END;
+            """,
+            """
+            CREATE TRIGGER IF NOT EXISTS catalog_search_au
+            AFTER UPDATE OF DisplayName, LibraryId ON catalog_nodes
+            BEGIN
+                DELETE FROM catalog_search WHERE node_id = old.Id;
+                INSERT INTO catalog_search(display_name, library_id, node_id)
+                VALUES (new.DisplayName, new.LibraryId, new.Id);
+            END;
+            """,
+            """
+            CREATE TRIGGER IF NOT EXISTS catalog_search_ad
+            AFTER DELETE ON catalog_nodes
+            BEGIN
+                DELETE FROM catalog_search WHERE node_id = old.Id;
+            END;
+            """,
+        ],
+        """
+        INSERT INTO catalog_search(display_name, library_id, node_id)
+        SELECT DisplayName, LibraryId, Id FROM catalog_nodes;
+        """,
+        """
+        INSERT INTO catalog_search(display_name, library_id, node_id)
+        SELECT DisplayName, LibraryId, Id
+        FROM catalog_nodes
+        WHERE Id NOT IN (SELECT node_id FROM catalog_search);
+        """);
+
+    /// <summary>The alt-title index (1.26.0; 1.49.0 accents folded): every title of each metadata record.</summary>
+    internal static readonly FtsDefinition SeriesSearch = new(
+        "series_search",
+        "CREATE VIRTUAL TABLE series_search USING fts5(title, record_id UNINDEXED, tokenize='trigram remove_diacritics 1');",
+        ["series_search_ai", "series_search_au", "series_search_ad"],
+        [
+            """
             CREATE TRIGGER IF NOT EXISTS series_search_ai
             AFTER INSERT ON metadata_records
             BEGIN
@@ -176,9 +180,8 @@ public static class DatabaseInitialization
                 FROM json_each(CASE WHEN json_valid(new.AltTitlesJson) THEN new.AltTitlesJson ELSE '[]' END)
                 WHERE type = 'text' AND value <> '';
             END;
-            """, ct);
-
-        await db.Database.ExecuteSqlRawAsync("""
+            """,
+            """
             CREATE TRIGGER IF NOT EXISTS series_search_au
             AFTER UPDATE OF Title, AltTitlesJson ON metadata_records
             BEGIN
@@ -189,30 +192,95 @@ public static class DatabaseInitialization
                 FROM json_each(CASE WHEN json_valid(new.AltTitlesJson) THEN new.AltTitlesJson ELSE '[]' END)
                 WHERE type = 'text' AND value <> '';
             END;
-            """, ct);
-
-        await db.Database.ExecuteSqlRawAsync("""
+            """,
+            """
             CREATE TRIGGER IF NOT EXISTS series_search_ad
             AFTER DELETE ON metadata_records
             BEGIN
                 DELETE FROM series_search WHERE record_id = old.Id;
             END;
-            """, ct);
+            """,
+        ],
+        """
+        INSERT INTO series_search(title, record_id)
+        SELECT r.Id AS id, r.Title FROM metadata_records r
+        UNION ALL
+        SELECT r.Id, j.value
+        FROM metadata_records r,
+             json_each(CASE WHEN json_valid(r.AltTitlesJson) THEN r.AltTitlesJson ELSE '[]' END) j
+        WHERE j.type = 'text' AND j.value <> '';
+        """,
+        // One statement so the NOT IN list is built once (record_id is UNINDEXED).
+        """
+        INSERT INTO series_search(title, record_id)
+        SELECT t, id FROM (
+            SELECT r.Id AS id, r.Title AS t FROM metadata_records r
+            UNION ALL
+            SELECT r.Id, j.value
+            FROM metadata_records r,
+                 json_each(CASE WHEN json_valid(r.AltTitlesJson) THEN r.AltTitlesJson ELSE '[]' END) j
+            WHERE j.type = 'text' AND j.value <> ''
+        )
+        WHERE id NOT IN (SELECT record_id FROM series_search);
+        """);
 
-        // One-time backfill for records that existed before the table did. One
-        // statement so the NOT IN list is built once (record_id is UNINDEXED).
-        await db.Database.ExecuteSqlRawAsync("""
-            INSERT INTO series_search(title, record_id)
-            SELECT t, id FROM (
-                SELECT r.Id AS id, r.Title AS t FROM metadata_records r
-                UNION ALL
-                SELECT r.Id, j.value
-                FROM metadata_records r,
-                     json_each(CASE WHEN json_valid(r.AltTitlesJson) THEN r.AltTitlesJson ELSE '[]' END) j
-                WHERE j.type = 'text' AND j.value <> ''
-            )
-            WHERE id NOT IN (SELECT record_id FROM series_search);
-            """, ct);
+    /// <summary>
+    /// Brings one FTS table to its current definition (1.49.0, lane S). Same stamp and the table exists: the triggers are made sure of and
+    /// only missing rows are added (as before 1.49.0). Otherwise - a changed definition, no stamp (a database from before 1.49.0) or no
+    /// table - the triggers and the table are dropped, recreated and fully backfilled, and the stamp written, in ONE transaction (a crash
+    /// leaves the old table and stamp, so the next start rebuilds again). Returns whether it rebuilt.
+    /// </summary>
+    internal static async Task<bool> EnsureFtsDefinitionAsync(MangaPixerDbContext db, FtsDefinition definition, ILogger? logger, CancellationToken ct)
+    {
+        await db.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE IF NOT EXISTS fts_definitions (name TEXT NOT NULL PRIMARY KEY, definition TEXT NOT NULL);", ct);
+
+        var connection = db.Database.GetDbConnection();
+        if (connection.State != ConnectionState.Open)
+            await connection.OpenAsync(ct);
+        string? stored;
+        bool tableExists;
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = """
+                SELECT (SELECT definition FROM fts_definitions WHERE name = $name),
+                       EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = $name);
+                """;
+            command.Parameters.Add(new SqliteParameter("$name", definition.Name));
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            await reader.ReadAsync(ct);
+            stored = reader.IsDBNull(0) ? null : reader.GetString(0);
+            tableExists = reader.GetInt64(1) != 0;
+        }
+
+        if (tableExists && string.Equals(stored, definition.CreateTable, StringComparison.Ordinal))
+        {
+            foreach (var trigger in definition.CreateTriggers)
+                await db.Database.ExecuteSqlRawAsync(trigger, ct);
+            await db.Database.ExecuteSqlRawAsync(definition.MissingBackfill, ct);
+            return false;
+        }
+
+        var started = System.Diagnostics.Stopwatch.StartNew();
+        int rows;
+        await using (var transaction = await db.Database.BeginTransactionAsync(ct))
+        {
+            foreach (var trigger in definition.TriggerNames)
+                await db.Database.ExecuteSqlRawAsync("DROP TRIGGER IF EXISTS " + trigger + ";", ct);
+            await db.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS " + definition.Name + ";", ct);
+            await db.Database.ExecuteSqlRawAsync(definition.CreateTable, ct);
+            foreach (var trigger in definition.CreateTriggers)
+                await db.Database.ExecuteSqlRawAsync(trigger, ct);
+            rows = await db.Database.ExecuteSqlRawAsync(definition.FullBackfill, ct);
+            await db.Database.ExecuteSqlRawAsync(
+                "INSERT INTO fts_definitions(name, definition) VALUES ({0}, {1}) ON CONFLICT(name) DO UPDATE SET definition = excluded.definition;",
+                new object[] { definition.Name, definition.CreateTable }, ct);
+            await transaction.CommitAsync(ct);
+        }
+        logger?.LogInformation(LogEvents.Search.FtsRebuilt,
+            "Search index {Index} rebuilt for its new definition: {Rows} rows in {ElapsedMs} ms (stamp was {Previous})",
+            definition.Name, rows, started.ElapsedMilliseconds, stored is null ? (tableExists ? "missing" : "new") : "older");
+        return true;
     }
 
     /// <summary>

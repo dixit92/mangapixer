@@ -637,4 +637,20 @@ public static class LogEvents
         /// <summary>The warm-up stopped on an unexpected error (Warning): exception type.</summary>
         public const int WarmupFailed = 3292;
     }
+
+    /// <summary>
+    /// 1.49.0 lane S: plain search and its FTS indexes (3300-3319, inside the 3xxx range; reserved for lane S). Index names, counts and
+    /// timings only - never the search text, a name or a path.
+    /// </summary>
+    public static class Search
+    {
+        public const int Min = 3300;
+        public const int Max = 3319;
+
+        /// <summary>An FTS index was rebuilt at start-up for a new definition: index name, rows, milliseconds, previous stamp state.</summary>
+        public const int FtsRebuilt = 3300;
+
+        /// <summary>A plain search answered (Debug): words, hits, close matches, milliseconds.</summary>
+        public const int Answered = 3301;
+    }
 }
