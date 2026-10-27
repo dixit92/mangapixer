@@ -113,10 +113,13 @@ public sealed class LevelFilterEquivalenceTests : IDisposable
         };
         var narrowedByCompletion = false;
         var checkedCombos = 0;
-        foreach (var readState in Enum.GetValues<BrowseReadStateFilter>())
-        foreach (var hideEmpty in new[] { false, true })
-        foreach (var favoritesOnly in new[] { false, true })
-        foreach (var completion in completions)
+        var combos =
+            from readState in Enum.GetValues<BrowseReadStateFilter>()
+            from hideEmpty in new[] { false, true }
+            from favoritesOnly in new[] { false, true }
+            from completion in completions
+            select (readState, hideEmpty, favoritesOnly, completion);
+        foreach (var (readState, hideEmpty, favoritesOnly, completion) in combos)
         {
             // Browse, page by page (3 rows a page, so cursors and the total are exercised).
             var browsed = new List<string>();
