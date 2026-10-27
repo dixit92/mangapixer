@@ -7,12 +7,23 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { JumpIndexBucketDto, JumpIndexMode } from '../../core/api/api-types';
 
 /**
+ * A level shorter than this has no rail (1.49.0, owner decision 13): a handful of rows needs no navigation aid. The level's rows are the
+ * sum of the buckets' counts - the FILTERED level while a filter is on.
+ */
+export const MIN_ROWS_FOR_RAIL = 12;
+
+/**
  * The jump rail of a browse level (1.41.0, moved out of `LibraryBrowseComponent`): a sticky row of chips on desktop / tablet, one
- * picker button + menu on the phone breakpoint (1.10.1). The server decides the chips - letters (A-Z, `#`, script groups) or round
- * number ranges (`0`, `50`, `100` ... with `50-99` in the tooltip and the phone menu), plus `Other` / `Folders` / `Files` - and each
- * chip is one contiguous run of the listing, so the chips follow the listing (reversed in descending order). The host owns the
- * cursor jump and the scroll-spy (`active` is the bucket of the topmost visible card); a single chip navigates nowhere, so the rail
- * shows only with two or more.
+ * picker button + menu on the phone breakpoint (1.10.1). The server decides the chips - letters (A-Z, `#`, script groups; `[A` ... `[Z`
+ * in a doujin level whose names open with a tag), round number ranges (`0`, `50`, `100` ... with `50-99` in the tooltip and the phone
+ * menu) or, under the date sorts, time chips (`Today`, `This week`, `This month`, `This year`, years), plus `Other` / `Folders` /
+ * `Files` - and each chip is one contiguous run of the listing, so the chips follow the listing (reversed in descending order). At a
+ * level whose folders and files both carry their own chips (`group`), a small label names each kind's run. The host owns the cursor
+ * jump and the scroll-spy (`active` is the bucket of the topmost visible card); a single chip navigates nowhere and a level under
+ * {@link MIN_ROWS_FOR_RAIL} rows needs none, so the rail shows only with two or more chips over that many rows.
+ *
+ * Inputs (stable; lane P's phone strip mounts beside this component with the same data): `buckets` (required, display order),
+ * `mode`, `active`, `top`. Output: `jump` (the clicked bucket).
  */
 @Component({
   selector: 'app-jump-rail',
@@ -20,10 +31,13 @@ import { JumpIndexBucketDto, JumpIndexMode } from '../../core/api/api-types';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule],
   template: `
-    @if (buckets().length > 1) {
+    @if (shown()) {
       <!-- Sticky (1.8.0): stacked directly under the sticky top bar, whose measured height is the rail's sticky offset. -->
       <nav class="jump-rail" [attr.aria-label]="ariaLabel()" [style.top.px]="top()">
         @for (bucket of buckets(); track $index) {
+          @if (groupLabel($index); as heading) {
+            <span class="jump-group">{{ heading }}</span>
+          }
           <button class="jump-chip" type="button"
                   (click)="jump.emit(bucket)"
                   [class.active]="active() === bucket"
@@ -37,12 +51,15 @@ import { JumpIndexBucketDto, JumpIndexMode } from '../../core/api/api-types';
       <!-- No focus restore on close: the trigger scrolls with the list, so focusing it would undo the jump just made. -->
       <button mat-stroked-button class="jump-menu-trigger" [matMenuTriggerFor]="jumpMenu" [matMenuTriggerRestoreFocus]="false"
               [attr.aria-label]="ariaLabel()">
-        <mat-icon>{{ numbers() ? 'format_list_numbered' : 'sort_by_alpha' }}</mat-icon> {{ triggerText() }}
+        <mat-icon>{{ icon() }}</mat-icon> {{ triggerText() }}
       </button>
       <mat-menu #jumpMenu="matMenu" class="jump-picker-menu">
         <!-- A pick closes the menu (1.41.0; it used to stay open over the list it had just moved). -->
         <div class="jump-picker">
           @for (bucket of buckets(); track $index) {
+            @if (groupLabel($index); as heading) {
+              <span class="jump-group jump-group-menu">{{ heading }}</span>
+            }
             <button class="jump-chip" type="button"
                     (click)="jump.emit(bucket)"
                     [class.active]="active() === bucket">
@@ -70,6 +87,13 @@ import { JumpIndexBucketDto, JumpIndexMode } from '../../core/api/api-types';
     }
     .jump-chip { min-width: 28px; padding: 4px 8px; font-size: 12px; transition: background 0.1s; }
     .jump-chip.wide { padding: 4px 10px; }
+    /* The label in front of a kind's chips at a level where folders and files both have their own (1.49.0). */
+    .jump-group {
+      align-self: center; padding: 0 4px 0 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+      text-transform: uppercase; color: var(--mp-text-muted);
+    }
+    .jump-group:first-child { padding-left: 0; }
+    ::ng-deep .jump-picker-menu .jump-group-menu { flex-basis: 100%; padding: 4px 4px 0; }
     .jump-chip:hover { background: rgb(var(--mp-accent-strong-rgb) / 0.18); }
     /* Declared after :hover (same specificity) so an active chip stays solid even while hovered. */
     .jump-chip.active,
@@ -99,12 +123,29 @@ export class JumpRailComponent {
   readonly jump = output<JumpIndexBucketDto>();
 
   readonly numbers = computed(() => this.mode() === 'numbers');
-  readonly ariaLabel = computed(() => (this.numbers() ? 'Jump to number' : 'Jump to letter'));
+  readonly dates = computed(() => this.mode() === 'dates');
+  /** The rail has something to navigate: two or more chips over at least {@link MIN_ROWS_FOR_RAIL} rows. */
+  readonly shown = computed(() => {
+    const buckets = this.buckets();
+    return buckets.length > 1 && buckets.reduce((rows, b) => rows + b.count, 0) >= MIN_ROWS_FOR_RAIL;
+  });
+  readonly icon = computed(() => (this.numbers() ? 'format_list_numbered' : this.dates() ? 'schedule' : 'sort_by_alpha'));
+  readonly ariaLabel = computed(() => (this.numbers() ? 'Jump to number' : this.dates() ? 'Jump to date' : 'Jump to letter'));
   readonly triggerText = computed(() => {
     const active = this.active();
     if (active) return this.titleOf(active);
-    return this.numbers() ? 'Jump' : 'A-Z';
+    return this.numbers() || this.dates() ? 'Jump' : 'A-Z';
   });
+
+  /**
+   * The heading to show before bucket `index`: `Folders` / `Files` where a bucket's `group` differs from the previous one's (1.49.0), else
+   * null. Groups appear only at a level whose two kinds both have their own chips.
+   */
+  groupLabel(index: number): string | null {
+    const group = this.buckets()[index]?.group ?? null;
+    if (!group || group === (index > 0 ? this.buckets()[index - 1]?.group ?? null : null)) return null;
+    return group === 'folders' ? 'Folders' : 'Files';
+  }
 
   /** The chip's long form: the range of a number chip (`50-99`), else its label. */
   titleOf(bucket: JumpIndexBucketDto): string {

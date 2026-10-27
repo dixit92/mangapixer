@@ -72,7 +72,7 @@ describe('LibraryBrowseComponent Completion filter (1.44.0)', () => {
     });
     const fixture = TestBed.createComponent(LibraryBrowseComponent);
     fixture.detectChanges();
-    return { fixture, comp: fixture.componentInstance, browseLibrary, el: fixture.nativeElement as HTMLElement };
+    return { fixture, comp: fixture.componentInstance, browseLibrary, getJumpIndex, el: fixture.nativeElement as HTMLElement };
   }
 
   function openFilterMenu(fixture: ReturnType<typeof setup>['fixture'], el: HTMLElement): void {
@@ -108,8 +108,8 @@ describe('LibraryBrowseComponent Completion filter (1.44.0)', () => {
     expect(item('completion-HaveItAll')).toBeNull();
   });
 
-  it('choosing an answer reloads from the top with it, labels the button and hides the jump rail', () => {
-    const { comp, browseLibrary, fixture, el } = setup(3, [{ label: 'A', count: 1, firstCursor: null } as JumpIndexBucketDto]);
+  it('choosing an answer reloads from the top with it, labels the button and reloads the jump rail with it', () => {
+    const { comp, browseLibrary, getJumpIndex, fixture, el } = setup(3, [{ label: 'A', count: 20, firstCursor: null } as JumpIndexBucketDto]);
     expect(comp.jumpBuckets().length).toBe(1);
     openFilterMenu(fixture, el);
     item('completion-MissingSome')!.click();
@@ -123,7 +123,8 @@ describe('LibraryBrowseComponent Completion filter (1.44.0)', () => {
     expect(comp.readStateLabel()).toBe('Filtered');
     expect(comp.filterIcon()).toBe('error_outline');
     expect(comp.filterTooltip()).toContain('Completion: Missing some');
-    expect(comp.jumpBuckets().length).toBe(0);
+    expect(getJumpIndex.mock.calls.at(-1)![4]).toEqual(expect.objectContaining({ completion: 'MissingSome' }));
+    expect(comp.jumpBuckets().length).toBe(1);
     expect(item('completion-MissingSome')?.getAttribute('aria-checked')).toBe('true');
   });
 
