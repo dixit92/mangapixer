@@ -186,7 +186,7 @@ public sealed class SchemaIntegrationTests : IDisposable
 
         // Insert into FTS5 table
         await db.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO catalog_search (display_name, relative_path, library_id, node_id) VALUES ('Test Manga Volume 1', 'manga/test_vol1', 1, 1)");
+            $"INSERT INTO catalog_search (display_name, library_id, node_id) VALUES ('Test Manga Volume 1', 1, 1)");
 
         // Query using trigram tokenizer
         var results = await db.Database.SqlQueryRaw<string>(
@@ -204,7 +204,7 @@ public sealed class SchemaIntegrationTests : IDisposable
         await DatabaseInitialization.ConfigureDatabaseAsync(db);
 
         await db.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO catalog_search (display_name, relative_path, library_id, node_id) VALUES ('MangaPixer Chapter One', 'pixe/ch1', 1, 1)");
+            $"INSERT INTO catalog_search (display_name, library_id, node_id) VALUES ('MangaPixer Chapter One', 1, 1)");
 
         // Trigram substring search for 'pixe'
         var results = await db.Database.SqlQueryRaw<string>(
