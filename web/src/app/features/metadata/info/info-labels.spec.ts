@@ -1,13 +1,16 @@
 import {
-  BUCKET_ORDER, bucketLabel, bucketToken, chipCount, chipText, chipTitle, filterParam, filterValueId, isFilterParam, locationText, roleLabel,
+  BUCKET_ORDER, addFilterParam, bucketLabel, bucketToken, chipCount, chipText, chipTitle, filterParam, filterToken, filterValueId, filterValueIds,
+  isExcludeParam, isFilterParam, locationText, roleLabel, toggleExcludeParam,
 } from './info-labels';
 import { chip } from './info.testing';
 
 /** Info panel labels (1.45.0): the bucket order and words, the count-of-1 rule, roles, the filter parameter, places. */
 describe('info labels', () => {
   it('keeps the owner\'s bucket order: creators first, About before custom tags', () => {
-    expect(BUCKET_ORDER).toEqual(['Creators', 'Series', 'Magazine', 'Publisher', 'Year', 'Genres', 'Type', 'About', 'Custom']);
+    expect(BUCKET_ORDER).toEqual(['Creators', 'Series', 'Magazine', 'Publisher', 'Year', 'Genres', 'Tags', 'Type', 'About', 'Custom']);
     expect(bucketLabel('Year')).toBe('Year started');
+    expect(bucketLabel('Tags')).toBe('Tags');
+    expect(bucketLabel('Custom')).toBe('Custom tags');
   });
 
   it('builds and reads the f parameter with lane Q\'s bucket tokens', () => {
@@ -19,6 +22,27 @@ describe('info labels', () => {
     expect(isFilterParam('creator:')).toBe(false);
     expect(isFilterParam('creator: x')).toBe(false);
     expect(isFilterParam('fv_1a')).toBe(false);
+  });
+
+  // 1.49.0 (lane T): exclusion, any-of and "add to this search".
+  it('reads exclusions and alternatives in the f parameter', () => {
+    expect(bucketToken('Tags')).toBe('tag');
+    expect(isFilterParam('-genre:fv_1')).toBe(true);
+    expect(isFilterParam('genre:fv_1|fv_2')).toBe(true);
+    expect(isFilterParam('--genre:fv_1')).toBe(false);
+    expect(isFilterParam('genre:fv_1|')).toBe(false);
+    expect(isExcludeParam('-genre:fv_1')).toBe(true);
+    expect(toggleExcludeParam('genre:fv_1')).toBe('-genre:fv_1');
+    expect(toggleExcludeParam('-genre:fv_1')).toBe('genre:fv_1');
+    expect(filterToken('-genre:fv_1|fv_2')).toBe('genre');
+    expect(filterValueId('-genre:fv_1|fv_2')).toBe('fv_1|fv_2');
+    expect(filterValueIds('genre:fv_1|fv_2')).toEqual(['fv_1', 'fv_2']);
+  });
+
+  it('adds a filter once: an included or excluded copy is replaced, the others are kept', () => {
+    expect(addFilterParam(['creator:fv_a'], 'genre:fv_b')).toEqual(['creator:fv_a', 'genre:fv_b']);
+    expect(addFilterParam(['creator:fv_a', '-genre:fv_b'], 'genre:fv_b')).toEqual(['creator:fv_a', 'genre:fv_b']);
+    expect(addFilterParam(['genre:fv_b'], 'genre:fv_b')).toEqual(['genre:fv_b']);
   });
 
   it('shows a count only from 2: "(n)" on a work, "n here" (works below) on a container', () => {

@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Params, Router, RouterLink } from '@angular/router';
 import { MatBottomSheetRef } from '@angular/material/bottom-sheet';
 import { MatDialogRef } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
@@ -9,7 +9,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from '../../../core/auth/auth.service';
 import { CreatorAdminService } from './creator-admin/creator-admin.service';
 import { InfoApiService, InfoTarget } from './info-api.service';
-import { bucketLabel, bucketRank, chipCount, chipText, chipTitle, locationText, roleLabel } from './info-labels';
+import { addFilterParam, bucketLabel, bucketRank, chipCount, chipText, chipTitle, isFilterParam, locationText, roleLabel } from './info-labels';
 import { FacetBucket, FacetBucketDto, FacetChipDto, FacetLocationDto, InfoPanelDto } from './info-types';
 
 /**
@@ -19,6 +19,9 @@ import { FacetBucket, FacetBucketDto, FacetChipDto, FacetLocationDto, InfoPanelD
  * "+N more" (Q10) - a button since 1.47.0 that adds the rest of that bucket in place (the bucket page route, 100 at a time). A declared value that disagrees with the linked record is amber, with the declared-facts line's Conflict wording.
  * A single work kept in several places lists them ("2 locations"). Admins get a menu on creator chips: Rename, Merge into...,
  * Split... (lane F's routes).
+ *
+ * 1.49.0 (lane T, owner decision 9 a, "add to this search"): opened over the search page, a chip ADDS its tag to the search there - the
+ * text (`q`), the read filter and the other tags stay - instead of replacing it; anywhere else it opens the tag view of that one tag.
  *
  * Hosted under the series summary by the Info overlay and the series page; 1.47.0: also alone in the overlay of a library root
  * (`libraryId` instead of `nodeId` - a library root is not a node). Inside the overlay a chip also closes it (a router navigation
@@ -39,7 +42,7 @@ import { FacetBucket, FacetBucketDto, FacetChipDto, FacetLocationDto, InfoPanelD
             <ul class="chips">
               @for (chip of b.chips; track chip.id) {
                 <li class="chip-wrap" [class.conflict]="chip.conflict">
-                  <a class="chip" [routerLink]="['/search']" [queryParams]="{ f: chip.filter }"
+                  <a class="chip" [routerLink]="['/search']" [queryParams]="chipQuery(chip)"
                      [attr.aria-label]="title(b.bucket, chip)" [matTooltip]="title(b.bucket, chip)" matTooltipShowDelay="600"
                      [class.has-menu]="menuFor(b.bucket)" data-testid="info-chip" [attr.data-value]="chip.id"
                      (click)="opened()">
@@ -143,6 +146,7 @@ export class InfoTagsComponent {
   private readonly api = inject(InfoApiService);
   private readonly auth = inject(AuthService);
   private readonly creatorAdmin = inject(CreatorAdminService);
+  private readonly router = inject(Router);
   /** Set when the block is inside the Info overlay: a chip closes it on the way to the search page. */
   private readonly dialogRef = inject(MatDialogRef, { optional: true });
   private readonly sheetRef = inject(MatBottomSheetRef, { optional: true });
@@ -212,6 +216,19 @@ export class InfoTagsComponent {
 
   place(loc: FacetLocationDto): string {
     return locationText(loc);
+  }
+
+  /**
+   * The query a chip opens (1.49.0, "add to this search"): over the search page, that page's query with the chip's tag added (a tag
+   * already there - included or excluded - is replaced); elsewhere just the tag.
+   */
+  chipQuery(chip: FacetChipDto): Params {
+    const tree = this.router.parseUrl(this.router.url);
+    const path = (tree.root.children['primary']?.segments ?? []).map((s) => s.path).join('/');
+    if (path !== 'search') return { f: chip.filter };
+    const raw = tree.queryParams['f'];
+    const current = (Array.isArray(raw) ? raw : raw ? [raw] : []).filter((v: unknown): v is string => typeof v === 'string' && isFilterParam(v));
+    return { ...tree.queryParams, f: addFilterParam(current, chip.filter) };
   }
 
   /** Admins: creator chips carry the Rename / Merge / Split menu. */

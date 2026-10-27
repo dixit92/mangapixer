@@ -72,12 +72,13 @@ internal sealed class FacetQueryTestSupport
             return node.Id;
         });
 
-    public Task<long> WorkAsync(string key, string title) => WithDbAsync(async db =>
+    public Task<long> WorkAsync(string key, string title, long? recordId = null) => WithDbAsync(async db =>
     {
         var work = new FacetWorkEntity
         {
             WorkKey = key,
-            Kind = (int)FacetWorkKind.Node,
+            Kind = recordId is null ? (int)FacetWorkKind.Node : (int)FacetWorkKind.Record,
+            RecordId = recordId,
             Title = title,
             SortKey = title.ToLowerInvariant(),
             UpdatedAt = DateTimeOffset.UtcNow,
@@ -86,6 +87,25 @@ internal sealed class FacetQueryTestSupport
         await db.SaveChangesAsync();
         return work.Id;
     });
+
+    /// <summary>1.49.0 (lane T): a stored web record with alternative titles and categories (<c>[{name, votes}]</c>).</summary>
+    public Task<long> RecordAsync(string externalId, string title, string? altTitlesJson = null, string? categoriesJson = null) =>
+        WithDbAsync(async db =>
+        {
+            var record = new MetadataRecordEntity
+            {
+                PublicId = "rec" + externalId,
+                Provider = "mangaupdates",
+                ExternalId = externalId,
+                Title = title,
+                AltTitlesJson = altTitlesJson,
+                CategoriesJson = categoriesJson,
+                FetchedAt = DateTimeOffset.UtcNow,
+            };
+            db.MetadataRecords.Add(record);
+            await db.SaveChangesAsync();
+            return record.Id;
+        });
 
     public Task<long> CreatorAsync(string displayName, IEnumerable<string> names, long? mergedInto = null) => WithDbAsync(async db =>
     {

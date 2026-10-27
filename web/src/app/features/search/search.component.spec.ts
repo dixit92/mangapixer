@@ -548,6 +548,11 @@ describe('search URL parameters (1.45.0)', () => {
     expect(searchParamsFromQuery(convertToParamMap({}))).toEqual({ q: '', read: 'all', f: [] });
   });
 
+  it('1.49.0: keeps exclusions and any-of filters from the URL', () => {
+    const p = searchParamsFromQuery(convertToParamMap({ f: ['-genre:fv_1', 'tag:fv_2|fv_3', '--x:fv_4', 'tag:fv_5|'] }));
+    expect(p.f).toEqual(['-genre:fv_1', 'tag:fv_2|fv_3']);
+  });
+
   it('1.45.0: reads repeated tag filters in order, dropping malformed and repeated ones', () => {
     const map = convertToParamMap({ f: ['creator:fv_1', 'bogus', 'genre:fv_2', 'creator:fv_1', 'year:'] });
     expect(searchParamsFromQuery(map)).toEqual({ q: '', read: 'all', f: ['creator:fv_1', 'genre:fv_2'] });
@@ -712,6 +717,70 @@ describe('SearchComponent tag filters and work cards (1.45.0)', () => {
     expect(search).toHaveBeenLastCalledWith('creator:"Synthetic Author"', { cursor: 'w:1', readState: 'all' });
     expect(fixture.componentInstance.works().map((w) => w.title)).toEqual(['Series A', 'Series B']);
     expect(el.querySelector('.load-more')).toBeNull();
+  });
+
+  // 1.49.0 (lane T, owner decision 9 a): exclusion, any-of and the Refine list.
+  it('1.49.0: names an excluded and an any-of filter, and toggles a chip to exclude it', async () => {
+    const { el, fixture, search, navigate } = await open('/?q=alpha&f=-genre:fv_2&f=tag:fv_3%7Cfv_4', answer(
+      [work()],
+      [filter({ bucket: 'Genres', id: 'fv_2', display: 'Horror', valueIds: ['fv_2'], negated: true }),
+        filter({ bucket: 'Tags', id: 'fv_3|fv_4', display: 'Robots or Space', valueIds: ['fv_3', 'fv_4'] })],
+    ));
+    expect(search).toHaveBeenCalledWith('alpha', { readState: 'all', filters: ['-genre:fv_2', 'tag:fv_3|fv_4'] });
+    expect(chipLabels(el)).toEqual(['Not Genres: Horror', 'Tags: Robots or Space']);
+    const chips = el.querySelectorAll('[data-testid="search-filter-chip"]');
+    expect(chips[0].getAttribute('data-excluded')).toBe('true');
+    const toggle = chips[1].querySelector<HTMLButtonElement>('[data-testid="search-filter-exclude"]')!;
+    expect(toggle.getAttribute('aria-label')).toBe('Exclude Tags: Robots or Space');
+    toggle.click();
+    fixture.detectChanges();
+    expect(search).toHaveBeenLastCalledWith('alpha', { readState: 'all', filters: ['-genre:fv_2', '-tag:fv_3|fv_4'] });
+    expect(navigate).toHaveBeenLastCalledWith([], expect.objectContaining({ queryParams: { q: 'alpha', read: null, f: ['-genre:fv_2', '-tag:fv_3|fv_4'] } }));
+  });
+
+  it('1.49.0: lists Refine by bucket with counts; a chip adds, "or" joins the bucket\'s tag, the minus excludes', async () => {
+    const refine = [
+      { bucket: 'Tags' as const, more: 3, chips: [{ id: 'fv_9', display: 'Robots', count: 4, roles: 'None', conflict: false, filter: 'tag:fv_9' }] },
+      { bucket: 'Genres' as const, more: 0, chips: [{ id: 'fv_5', display: 'Drama', count: 2, roles: 'None', conflict: false, filter: 'genre:fv_5' }] },
+    ];
+    const { el, fixture, search } = await open('/?f=genre:fv_2', answer([work()], [filter({ bucket: 'Genres', id: 'fv_2', display: 'Comedy', valueIds: ['fv_2'] })], { refine }));
+    const box = el.querySelector('[data-testid="search-refine"]')!;
+    // Buckets in the panel's order (Genres before Tags), each with its label and counts.
+    expect(Array.from(box.querySelectorAll('.refine-bucket')).map((b) => b.getAttribute('data-bucket'))).toEqual(['Genres', 'Tags']);
+    expect(box.querySelector('.refine-bucket[data-bucket="Tags"] .count')!.textContent).toBe('4');
+    expect(box.querySelector('.refine-bucket[data-bucket="Tags"] .refine-more')!.textContent!.trim()).toBe('+3 more');
+    // "or" only where the search already includes a tag of that bucket.
+    expect(box.querySelector('.refine-bucket[data-bucket="Tags"] [data-testid="refine-or"]')).toBeNull();
+    box.querySelector<HTMLButtonElement>('.refine-bucket[data-bucket="Genres"] [data-testid="refine-or"]')!.click();
+    fixture.detectChanges();
+    expect(search).toHaveBeenLastCalledWith('', { readState: 'all', filters: ['genre:fv_2|fv_5'] });
+    expect(fixture.componentInstance.params().f).toEqual(['genre:fv_2|fv_5']);
+
+    fixture.componentInstance.addRefine('tag:fv_9', 'not');
+    expect(search).toHaveBeenLastCalledWith('', { readState: 'all', filters: ['genre:fv_2|fv_5', '-tag:fv_9'] });
+    fixture.componentInstance.addRefine('tag:fv_9', 'all');
+    expect(search).toHaveBeenLastCalledWith('', { readState: 'all', filters: ['genre:fv_2|fv_5', 'tag:fv_9'] });
+  });
+
+  it('1.49.0: a typed-only tag search with no works says so in the tag words', async () => {
+    const typed = filter({ bucket: 'Genres', source: 'Typed', id: undefined, text: 'action', negated: true });
+    const { el } = await open('/?q=synthetic%20-genre:action', answer([], [typed]));
+    expect(el.querySelector('.no-results')!.textContent!.trim()).toBe('No works with these tags.');
+  });
+
+  it('1.49.0: the "?" panel lists the syntax; an example goes into the field and searches', async () => {
+    const { el, fixture, search } = await open('/?q=alpha', answer([], []));
+    expect(el.querySelector('[data-testid="search-syntax"]')).toBeNull();
+    const toggle = el.querySelector<HTMLButtonElement>('[data-testid="search-syntax-toggle"]')!;
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    toggle.click();
+    fixture.detectChanges();
+    const examples = Array.from(el.querySelectorAll<HTMLButtonElement>('[data-testid="search-syntax-example"]'));
+    expect(examples.map((b) => b.textContent!.trim())).toContain('-genre:horror');
+    expect(examples.map((b) => b.textContent!.trim())).toContain('year:2010..2015');
+    examples.find((b) => b.textContent!.trim() === '-genre:horror')!.click();
+    fixture.detectChanges();
+    expect(search).toHaveBeenLastCalledWith('alpha -genre:horror', { readState: 'all' });
   });
 });
 

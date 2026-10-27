@@ -187,12 +187,21 @@ export interface SearchResultsDto {
   closeMatchCount?: number | null;
   /** 1.49.0 plain search ("+N inside"): per folder on this page (node id), the archives found only through its name. */
   insideCounts?: Record<string, number> | null;
+
+  /**
+   * 1.49.0 tag view (lane T): "Refine" - the tags of ALL the results per bucket, each chip's `count` = how many of the results carry it
+   * (only what the viewer may see); values already filtered on are left out. First page of a tag view only.
+   */
+  refine?: FacetBucketDto[];
 }
 
 // ---- 1.45.0 tag buckets (lane Q): Info panel tags and the tag view ----
 
-/** Info panel buckets, in the owner's display order. URL / typed token: creator, series, magazine, publisher, year, genre, type, about, custom. */
-export type FacetBucket = 'Creators' | 'Series' | 'Magazine' | 'Publisher' | 'Year' | 'Genres' | 'Type' | 'About' | 'Custom';
+/**
+ * Info panel buckets, in the owner's display order. URL / typed token: creator, series, magazine, publisher, year, genre, type, about, custom,
+ * tag (1.49.0: Tags - MangaUpdates categories + ComicInfo Tags).
+ */
+export type FacetBucket = 'Creators' | 'Series' | 'Magazine' | 'Publisher' | 'Year' | 'Genres' | 'Type' | 'About' | 'Custom' | 'Tags';
 
 /** A creator's roles on a chip: comma-separated flag names ('Writer', 'Artist', 'Writer, Artist' = Story & art, 'None'). */
 export type FacetRoles = string;
@@ -218,7 +227,7 @@ export interface FacetChipDto {
 export interface FacetBucketDto {
   bucket: FacetBucket;
   chips: FacetChipDto[];
-  /** Further values beyond `chips` (container: top 12 per bucket). */
+  /** Further values beyond `chips` (container: top 12 per bucket; 1.49.0 a single work's Tags: top 8; search Refine: top 12). */
   more: number;
 }
 
@@ -281,6 +290,8 @@ export interface SearchFilterDto {
   matched: boolean;
   valueIds: string[];
   redirectedFrom?: string;
+  /** 1.49.0: an exclusion (`f=-genre:fv_...`, typed `-genre:horror`) - the works carry none of `valueIds`. Absent = false. */
+  negated?: boolean;
 }
 
 export interface SeriesMatchDto {

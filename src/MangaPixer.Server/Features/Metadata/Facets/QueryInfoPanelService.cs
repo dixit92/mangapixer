@@ -29,6 +29,12 @@ public sealed class InfoPanelService
     /// <summary>Locations listed on a work.</summary>
     public const int MaxWorkLocations = 10;
 
+    /// <summary>
+    /// 1.49.0 (lane T, owner decision 8 a): a single work's Tags row shows its strongest few - the record's categories by net votes, then
+    /// its ComicInfo tags - and "+N more" for the rest (the bucket page serves them in the same order).
+    /// </summary>
+    public const int WorkTagChips = 8;
+
     private readonly MangaPixerDbContext _db;
     private readonly LibraryAuthorizationService _auth;
     private readonly FacetViewerScopeResolver _scopes;
@@ -250,7 +256,9 @@ public sealed class InfoPanelService
         var buckets = ordered
             .Select(b =>
             {
-                var shown = container ? b.Chips.Take(ContainerChipsPerBucket).ToList() : b.Chips;
+                var shown = container ? b.Chips.Take(ContainerChipsPerBucket).ToList()
+                    : b.Bucket == FacetBucket.Tags ? b.Chips.Take(WorkTagChips).ToList()
+                    : b.Chips;
                 return new FacetBucketDto { Bucket = b.Bucket, Chips = shown, More = b.Chips.Count - shown.Count };
             })
             .ToList();
@@ -341,6 +349,12 @@ public sealed class InfoPanelService
 
         var counts = await _counts.CountAsync(scope, groups.Select(g => g.Shown.Id).ToList(), ct);
 
+        // 1.49.0 (lane T): a single work's tags by the record's net votes (strongest first); a tag the record does not give (ComicInfo
+        // only) after them, by name.
+        var votes = !container && groups.Any(g => g.Shown.Bucket == FacetBucket.Tags)
+            ? await TagVotesAsync(works[0], ct)
+            : new Dictionary<string, int>(StringComparer.Ordinal);
+
         // The live creator of each creator chip (a value whose merge target has no value of its own keeps its value, named by the
         // creator it was merged into), as public ids.
         long? LiveCreator(QueryValues.Value v) =>
@@ -356,6 +370,10 @@ public sealed class InfoPanelService
             {
                 var ordered = container
                     ? b.OrderByDescending(g => g.Here).ThenByDescending(g => counts.GetValueOrDefault(g.Shown.Id))
+                        .ThenBy(g => g.Shown.Display, StringComparer.OrdinalIgnoreCase).ThenBy(g => g.Shown.Id).ToList()
+                    : b.Key == FacetBucket.Tags
+                    ? b.OrderBy(g => votes.ContainsKey(g.Shown.ValueKey) ? 0 : 1)
+                        .ThenByDescending(g => votes.GetValueOrDefault(g.Shown.ValueKey))
                         .ThenBy(g => g.Shown.Display, StringComparer.OrdinalIgnoreCase).ThenBy(g => g.Shown.Id).ToList()
                     : b.OrderBy(g => g.Shown.Display, StringComparer.OrdinalIgnoreCase).ThenBy(g => g.Shown.Id).ToList();
                 var chips = ordered.Select(g =>
@@ -379,6 +397,28 @@ public sealed class InfoPanelService
             })
             .ToList();
         return (buckets, container);
+    }
+
+    /// <summary>
+    /// 1.49.0 (lane T): the net votes of a work's record categories by Tags value key (<c>tg:&lt;tag key&gt;</c>); the highest when two
+    /// spellings fold to one key. Empty for a work without a record.
+    /// </summary>
+    private async Task<Dictionary<string, int>> TagVotesAsync(long workId, CancellationToken ct)
+    {
+        var json = await (from w in _db.FacetWorks.AsNoTracking()
+                          join r in _db.MetadataRecords.AsNoTracking() on w.RecordId equals r.Id
+                          where w.Id == workId
+                          select r.CategoriesJson).FirstOrDefaultAsync(ct);
+        var votes = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var category in Index.FacetIndexData.Categories(json))
+        {
+            if (FacetExtractor.TagValueKey(category.Name) is not { } key)
+                continue;
+            if (key.Length > FacetText.MaxValueKeyLength)
+                key = key[..FacetText.MaxValueKeyLength];
+            votes[key] = votes.TryGetValue(key, out var seen) ? Math.Max(seen, category.Votes) : category.Votes;
+        }
+        return votes;
     }
 
     /// <summary>A value as the chip shows it (<see cref="Shown"/>) and the merged value it stands in for, if any.</summary>

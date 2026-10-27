@@ -352,6 +352,9 @@ public sealed class CatalogController : ControllerBase
     /// <c>cursor</c> / <c>pageSize</c>. 1.47.0 (lane P): <c>readState</c> applies to works too - a work is read by the browse folder rule
     /// over its locations the viewer may see (<c>QueryWorkReadState</c>). Without either, search is unchanged. A malformed
     /// <c>f</c> is 400 <c>invalid_filter</c>; a value the viewer cannot see answers like an unknown one (empty).
+    /// 1.49.0 (lane T): <c>f</c> also takes exclusions (<c>-genre:fv_..</c>) and any-of (<c>genre:fv_a|fv_b</c>); the tag view's first page
+    /// carries <c>refine</c>; <c>q</c> takes <c>tag:</c>, <c>series:</c>, <c>-field:</c>, <c>year:2010..2015</c>, and the scope words
+    /// <c>is:read|unread|reading</c> and <c>library:&lt;name&gt;</c> for every search (plain too).
     /// </remarks>
     [HttpGet("search")]
     public async Task<IActionResult> Search(
@@ -376,12 +379,36 @@ public sealed class CatalogController : ControllerBase
             libId = library.Id;
         }
 
-        if (facetSearch is not null && Metadata.Facets.FacetSearchService.IsFacetSearch(q, f))
+        // 1.49.0 (lane T, S4): the scope words of the typed syntax apply to every search - is:read / is:unread / is:reading as the read
+        // filter (the typed word wins over the readState parameter), library:<name> as the library (one the viewer may list; a name that
+        // names none of them, or another library than libraryId, answers empty - like an unmatched typed field).
+        var typed = Metadata.Facets.FacetSearchSyntax.Parse(q);
+        var read = typed.ReadState is { } readWord ? ParseReadState(readWord) : ParseReadState(readState);
+        var isFacet = facetSearch is not null && Metadata.Facets.FacetSearchService.IsFacetSearch(q, f);
+        if (typed.Library is { } libraryName)
+        {
+            var named = await LibraryByNameAsync(userId.Value, libraryName, ct);
+            if (named is null || (libId is { } given && given != named))
+            {
+                _logger.LogDebug(Logging.LogEvents.Metadata.FacetSearchScopeUnmatched, "Search library word matched no visible library");
+                return Ok(new SearchResultsDto
+                {
+                    Query = q ?? "",
+                    Items = [],
+                    TotalCount = 0,
+                    Filters = isFacet ? [] : null,
+                    Works = isFacet ? [] : null,
+                });
+            }
+            libId = named;
+        }
+
+        if (isFacet)
         {
             try
             {
-                return Ok(await facetSearch.SearchAsync(
-                    userId.Value, _incognito.IsIncognito, q, f, libId, cursor, pageSize, ParseReadState(readState), ct));
+                return Ok(await facetSearch!.SearchAsync(
+                    userId.Value, _incognito.IsIncognito, q, f, libId, cursor, pageSize, read, ct));
             }
             catch (Metadata.Facets.FacetFilterFormatException ex)
             {
@@ -392,9 +419,44 @@ public sealed class CatalogController : ControllerBase
         if (q is null)
             return BadRequest(new ApiError { Error = "invalid_request", Message = "q is required." });
 
+        // Scope words are not search text: the plain search gets what is left (nothing left = nothing to search for).
+        var text = typed.HasScope ? typed.FreeText : q;
+        if (typed.HasScope && string.IsNullOrWhiteSpace(text))
+            return Ok(new SearchResultsDto { Query = q, Items = [], TotalCount = 0 });
+
         var result = await _browseService.SearchAsync(
-            userId.Value, q, libId, cursor, pageSize, incognito: _incognito.IsIncognito, readState: ParseReadState(readState), ct: ct);
+            userId.Value, text, libId, cursor, pageSize, incognito: _incognito.IsIncognito, readState: read, ct: ct);
         return Ok(result);
+    }
+
+    /// <summary>
+    /// 1.49.0 (lane T): the library a <c>library:</c> word names, among the libraries the viewer may list (Incognito applied): the one
+    /// whose folded name equals the word, else the first by name whose folded name starts with it; null when none.
+    /// </summary>
+    private async Task<long?> LibraryByNameAsync(long userId, string name, CancellationToken ct)
+    {
+        var key = com.lifepixer.mangapixer.Core.Metadata.DeclaredFactsComparer.NameKey(name);
+        if (key.Length == 0)
+            return null;
+        var visible = await _libraryAuth.GetVisibleLibraryIdsAsync(userId, _incognito.IsIncognito, ct);
+        if (visible.Count == 0)
+            return null;
+        var libraries = await _db.Libraries.AsNoTracking()
+            .Where(l => visible.Contains(l.Id))
+            .Select(l => new { l.Id, l.DisplayName })
+            .ToListAsync(ct);
+        var folded = libraries
+            .Select(l => (l.Id, l.DisplayName, Key: com.lifepixer.mangapixer.Core.Metadata.DeclaredFactsComparer.NameKey(l.DisplayName)))
+            .OrderBy(l => l.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy(l => l.Id)
+            .ToList();
+        var exact = folded.FirstOrDefault(l => l.Key == key);
+        if (exact.Id != 0)
+            return exact.Id;
+        var simple = SimpleFold(name);
+        var prefix = folded.FirstOrDefault(l => SimpleFold(l.DisplayName).StartsWith(simple, StringComparison.Ordinal));
+        return prefix.Id != 0 ? prefix.Id : null;
+
+        static string SimpleFold(string text) => string.Join(' ', text.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries));
     }
 
     private long? GetUserId()

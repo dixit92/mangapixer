@@ -1,5 +1,6 @@
 namespace com.lifepixer.mangapixer.Server.Features.Metadata.Facets;
 
+using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Persistence;
 using Microsoft.Extensions.Caching.Memory;
@@ -25,6 +26,25 @@ public sealed class FacetCountCache : IDisposable
 
     internal void Set(Key key, int count) =>
         _cache.Set(key, count, new MemoryCacheEntryOptions { Size = 1, AbsoluteExpirationRelativeToNow = TimeToLive });
+
+    /// <summary>
+    /// 1.49.0 (lane T): the key of a tag view's Refine counts = (index generation, the viewer's shown-set hash, a hash of the exact
+    /// result-set statement). The statement already names the shown libraries and every resolved filter; a read filter enters it as the
+    /// literal ids of the works it kept - so a cached answer is exactly what the same statement computes for any viewer, never a
+    /// viewer-blind number.
+    /// </summary>
+    internal readonly record struct RefineKey(long Generation, string ScopeHash, string StatementHash);
+
+    /// <summary>The cached Refine list (per bucket, the chips with their counts among the results).</summary>
+    internal bool TryGet(RefineKey key, out IReadOnlyList<FacetBucketDto>? refine) => _cache.TryGetValue(key, out refine);
+
+    /// <summary>Caches a Refine list; the entry's size is its chip count (at least 1), so a big list takes its share of the cap.</summary>
+    internal void Set(RefineKey key, IReadOnlyList<FacetBucketDto> refine) =>
+        _cache.Set(key, refine, new MemoryCacheEntryOptions
+        {
+            Size = Math.Max(1, refine.Sum(b => b.Chips.Count)),
+            AbsoluteExpirationRelativeToNow = TimeToLive,
+        });
 
     /// <summary>For tests: how many counts are held.</summary>
     public int Count => _cache.Count;

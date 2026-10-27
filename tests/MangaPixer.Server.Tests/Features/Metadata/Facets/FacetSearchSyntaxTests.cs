@@ -27,7 +27,9 @@ public sealed class FacetSearchSyntaxTests
 
     [Theory]
     [InlineData("Re:Zero", " || Re:Zero")]
-    [InlineData("series:Pluto", " || series:Pluto")] // series / about / custom are chip-only, not typed (owner Q12's list)
+    [InlineData("about:Pluto", " || about:Pluto")] // about / custom are chip-only, not typed (owner Q12's list; 1.49.0 adds tag + series)
+    [InlineData("is:favorite", " || is:favorite")] // 1.49.0: an unknown is: word stays text
+    [InlineData("- genre:x", "genre=x || -")]
     [InlineData("creator:", " || creator:")]
     [InlineData("creator:\"\"", " || creator:\"\"")]
     [InlineData("\"quoted text\" plain", " || \"quoted text\" plain")]
@@ -82,11 +84,96 @@ public sealed class FacetSearchSyntaxTests
     [Fact]
     public void ChipFilter_IsBucketColonValueId()
     {
-        var (bucket, id) = FacetSearchService.ParseChip("creator:fv_abc123");
-        Assert.Equal(FacetBucket.Creators, bucket);
-        Assert.Equal("fv_abc123", id);
-        foreach (var bad in new[] { "creator:abc", "nope:fv_abc", "fv_abc", ":fv_abc", "creator:fv_", "creator:fv_ABC" })
+        var chip = FacetSearchService.ParseChip("creator:fv_abc123");
+        Assert.Equal((FacetBucket.Creators, false, "fv_abc123"), (chip.Bucket, chip.Negated, chip.Raw));
+        Assert.Equal(["fv_abc123"], chip.ValueIds);
+        foreach (var bad in new[] { "creator:abc", "nope:fv_abc", "fv_abc", ":fv_abc", "creator:fv_", "creator:fv_ABC", "--genre:fv_a",
+                     "genre:fv_a|", "genre:fv_a||fv_b", "-:fv_a", "genre:fv_a|abc" })
             Assert.Throws<FacetFilterFormatException>(() => FacetSearchService.ParseChip(bad));
+    }
+
+    // 1.49.0 (lane T, T2): exclusion and any-of in the f grammar; the 1.45.0 form above stays valid.
+    [Fact]
+    public void ChipFilter_ExcludeAndAnyOf()
+    {
+        var excluded = FacetSearchService.ParseChip("-genre:fv_a");
+        Assert.Equal((FacetBucket.Genres, true, "fv_a"), (excluded.Bucket, excluded.Negated, excluded.Raw));
+        var anyOf = FacetSearchService.ParseChip("tag:fv_a|fv_b|fv_a");
+        Assert.Equal((FacetBucket.Tags, false), (anyOf.Bucket, anyOf.Negated));
+        Assert.Equal(["fv_a", "fv_b"], anyOf.ValueIds);
+        var both = FacetSearchService.ParseChip("-tags:fv_a|fv_b");
+        Assert.True(both.Negated);
+        Assert.Equal(2, both.ValueIds.Count);
+        var tooMany = "genre:" + string.Join('|', Enumerable.Range(1, FacetSearchService.MaxAlternatives + 1).Select(i => "fv_a" + i));
+        Assert.Throws<FacetFilterFormatException>(() => FacetSearchService.ParseChip(tooMany));
+    }
+
+    // 1.49.0 (lane T, S4): tag:, series:, a leading -, quotes for an exact value, | for alternatives, year ranges, is: and library:.
+    [Theory]
+    [InlineData("tag:isekai", "tag=isekai || ")]
+    [InlineData("tags:\"time travel\" pluto", "tag=time travel || pluto")]
+    [InlineData("series:Pluto", "series=Pluto || ")]
+    [InlineData("-genre:horror monster", "-genre=horror || monster")]
+    [InlineData("-creator:\"Naoki Urasawa\"", "-creator=Naoki Urasawa || ")]
+    [InlineData("genre:horror|mystery", "genre=horror|mystery || ")]
+    [InlineData("year:2010..2015", "year=2010..2015 || ")]
+    [InlineData("-word plain", " || -word plain")]
+    public void Parse_Lane149Fields(string input, string expected)
+    {
+        var parsed = FacetSearchSyntax.Parse(input);
+        var shape = string.Join(" | ", parsed.Fields.Select(f => $"{(f.Negated ? "-" : "")}{FacetBucketTokens.Token(f.Bucket)}={f.Value}"))
+            + " || " + parsed.FreeText;
+        Assert.Equal(expected, shape);
+    }
+
+    [Fact]
+    public void Parse_QuotedValueIsExact_AndHasOneAlternative()
+    {
+        var quoted = Assert.Single(FacetSearchSyntax.Parse("genre:\"horror|mystery\"").Fields);
+        Assert.True(quoted.Exact);
+        Assert.Equal(["horror|mystery"], quoted.Alternatives);
+        var bare = Assert.Single(FacetSearchSyntax.Parse("genre:horror|mystery").Fields);
+        Assert.False(bare.Exact);
+        Assert.Equal(["horror", "mystery"], bare.Alternatives);
+        Assert.Equal("-genre:\"horror|mystery\"", FacetSearchSyntax.Render(quoted with { Negated = true }));
+    }
+
+    [Theory]
+    [InlineData("is:read monster", "read", null, "monster")]
+    [InlineData("IS:Unread", "unread", null, "")]
+    [InlineData("is:reading library:\"Manga Shelf\" x", "reading", "Manga Shelf", "x")]
+    [InlineData("library:Comics genre:drama", null, "Comics", "")]
+    [InlineData("-is:read", null, null, "-is:read")]
+    public void Parse_ScopeWords(string input, string? read, string? library, string free)
+    {
+        var parsed = FacetSearchSyntax.Parse(input);
+        Assert.Equal((read, library, free), (parsed.ReadState, parsed.Library, parsed.FreeText));
+        Assert.Equal(read is not null || library is not null, parsed.HasScope);
+    }
+
+    [Theory]
+    [InlineData("2004", 2004, 2004)]
+    [InlineData("2010..2015", 2010, 2015)]
+    [InlineData("2015..2010", 2010, 2015)]
+    [InlineData("..1999", 1000, 1999)]
+    [InlineData("2020..", 2020, 9999)]
+    public void YearRange_Parses(string value, int from, int to) =>
+        Assert.Equal((from, to), FacetSearchSyntax.YearRange(value));
+
+    [Theory]
+    [InlineData("..")]
+    [InlineData("20")]
+    [InlineData("abcd..2000")]
+    [InlineData("nineteen")]
+    public void YearRange_RefusesOtherText(string value) => Assert.Null(FacetSearchSyntax.YearRange(value));
+
+    [Fact]
+    public void TagViewText_SplitsWords_QuotesAndNegation()
+    {
+        var words = TagViewText.Words("Pluto \"big comic\" -saga - x");
+        Assert.Equal([("Pluto", false), ("big comic", false), ("saga", true), ("x", false)],
+            words.Select(w => (w.Text, w.Negated)).ToArray());
+        Assert.Empty(TagViewText.Words("  \"\" "));
     }
 
     [Fact]

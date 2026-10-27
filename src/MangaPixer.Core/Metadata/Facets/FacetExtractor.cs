@@ -55,8 +55,10 @@ public sealed record FacetEntryDraft(
 /// China / Taiwan manhua, a Western origin comic; a webtoon record also webtoon; a novel only novel). A declared type the record contradicts
 /// (<see cref="DeclaredFactsComparer.TypeConflicts"/>) shows BOTH, the declared one flagged.</item>
 /// <item>About <c>a:&lt;record id&gt;</c> - works inside a "Collection about" folder; the display is the series' title (Q8).</item>
+/// <item>Tags <c>tg:&lt;tag key&gt;</c> (1.49.0, lane T; owner decision 8 a + a) - the record's stored categories, strongest (most net
+/// votes) first, then the ComicInfo <c>Tags</c> in archive order; one value per <see cref="FacetText.TagKey"/>.</item>
 /// </list>
-/// Not indexed in v1: provider crowd categories, ComicInfo Tags, the record's <c>other</c> credits and the minor ComicInfo roles.
+/// Not indexed: the record's <c>other</c> credits and the minor ComicInfo roles.
 /// </summary>
 public static class FacetExtractor
 {
@@ -165,8 +167,17 @@ public static class FacetExtractor
         if (input.About is { } about && FacetText.Display(about.Title) is { } aboutTitle)
             Add(FacetBucket.About, "a:" + FacetText.Invariant(about.RecordId), aboutTitle, FacetSources.Web);
 
+        // 10. Tags (1.49.0): the record's categories by net votes (a stable order: ties by name), then ComicInfo Tags.
+        foreach (var category in (record?.Categories ?? []).OrderByDescending(c => c.Votes).ThenBy(c => c.Name, StringComparer.Ordinal))
+            Add(FacetBucket.Tags, TagValueKey(category.Name), FacetText.Display(category.Name), FacetSources.Web);
+        foreach (var tag in comicInfo.SelectMany(c => c.Tags ?? []))
+            Add(FacetBucket.Tags, TagValueKey(tag), FacetText.Display(tag), FacetSources.ComicInfo);
+
         return order.Select(id => entries[id]).ToList();
     }
+
+    /// <summary>1.49.0: the value key of a tag (<c>tg:&lt;tag key&gt;</c>), or null for a blank tag.</summary>
+    public static string? TagValueKey(string? tag) => FacetText.TagKey(tag) is { } key ? "tg:" + key : null;
 
     /// <summary>The types a record's origin, format and webtoon flag give (none when it says nothing).</summary>
     public static IReadOnlyList<DeclaredType> TypesOf(FacetRecord record)
