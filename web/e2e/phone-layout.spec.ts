@@ -180,7 +180,7 @@ function longPanel(nodeId: string) {
   };
 }
 
-test('the Info sheet with chips and the tag search with two filters fit a phone and a tablet screen (1.45.0)', async ({ page }) => {
+test('the Info sheet with chips and the tag search with two filters, Refine and the syntax help fit a phone and a tablet screen (1.45.0, 1.49.0)', async ({ page }) => {
   test.setTimeout(120_000);
   const failures: string[] = [];
   await login(page);
@@ -203,6 +203,13 @@ test('the Info sheet with chips and the tag search with two filters fit a phone 
       { title: 'A One-shot', node: { ...folder, id: 'n_os', displayName: 'A One-shot' }, coverUrl: null, locationCount: 1, locations: [
         { nodeId: 'n_os', libraryId, libraryName: 'Volume Stacks', trail: [{ id: 'y', displayName: 'One Shots' }, { id: 'n_os', displayName: 'A One-shot' }] },
       ] },
+    ],
+    // 1.49.0 (lane T): the Refine list - long names, an "or" (Genres has a tag in the search) and "+N more".
+    refine: [
+      { bucket: 'Genres', more: 0, chips: [{ id: 'fv_g1', display: 'Drama', count: 2, roles: 'None', conflict: false, filter: 'genre:fv_g1' }] },
+      { bucket: 'Tags', more: 40, chips: Array.from({ length: 12 }, (_, i) => ({
+        id: `fv_t${i}`, display: i === 0 ? UNBROKEN : `Tag number ${i} with words`, count: 12 - i, roles: 'None', conflict: false, filter: `tag:fv_t${i}`,
+      })) },
     ],
   } }));
   for (const size of SIZES) {
@@ -235,6 +242,13 @@ test('the Info sheet with chips and the tag search with two filters fit a phone 
     await settle(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-tag-search.png` });
     for (const p of await layoutProblems(page)) failures.push(`${size.width} px tag search: ${p.kind}: ${p.what} - ${p.detail}`);
+    // 1.49.0 (lane T): the Refine list and the "?" syntax panel.
+    await expect(page.getByTestId('search-refine')).toBeVisible();
+    await page.getByTestId('search-syntax-toggle').click();
+    await expect(page.getByTestId('search-syntax')).toBeVisible();
+    await settle(page);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-tag-search-refine-syntax.png`, fullPage: true });
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px refine + syntax: ${p.kind}: ${p.what} - ${p.detail}`);
   }
   expect(failures, `Info sheet / tag search do not fit the screen:\n${failures.join('\n')}`).toEqual([]);
 });
