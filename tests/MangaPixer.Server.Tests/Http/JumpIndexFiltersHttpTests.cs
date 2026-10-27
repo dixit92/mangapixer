@@ -112,4 +112,46 @@ public sealed class JumpIndexFiltersHttpTests
         Assert.Equal(["F", "D", "B"], desc.Buckets.Select(b => b.Label));
         Assert.Null(desc.Buckets[0].FirstCursor);
     }
+
+    [Fact]
+    public async Task TheRail_UnderADateSort_ListsYearChips_AndEachCursorLandsBrowseOnItsFirstRow()
+    {
+        var (factory, r) = await SeedAsync();
+        await using var _ = factory;
+        var s = new FacetQueryTestSupport(factory);
+        // Two archives each of 2019, 2021 and 2023 (years, so the labels do not depend on today's date).
+        var years = new Dictionary<string, int>
+        {
+            ["Alder Story"] = 2019, ["Birch Story"] = 2019, ["Cedar Story"] = 2021, ["Dogwood Story"] = 2021, ["Elm Story"] = 2023, ["Fir Story"] = 2023,
+        };
+        await s.WithDbAsync(async db =>
+        {
+            foreach (var (name, year) in years)
+                db.CatalogNodes.Single(n => n.DisplayName == name).CreatedAt = new DateTimeOffset(year, 6, 15, 12, 0, 0, TimeSpan.Zero);
+            await db.SaveChangesAsync();
+        });
+
+        foreach (var sort in new[] { "recentlyAdded", "recentlyUpdated" })
+        {
+            var rail = await RailAsync(r.A, $"?sort={sort}&tzOffset=120");
+            Assert.Equal("dates", rail.Mode);
+            Assert.Equal("desc", rail.Direction);
+            Assert.Equal(["2023", "2021", "2019"], rail.Buckets.Select(b => b.Label));
+            Assert.All(rail.Buckets, b => Assert.Equal(2, b.Count));
+            Assert.Null(rail.Buckets[0].FirstCursor);
+            foreach (var bucket in rail.Buckets)
+            {
+                var query = $"?sort={sort}&pageSize=1" + (bucket.FirstCursor is null ? string.Empty : "&cursor=" + Uri.EscapeDataString(bucket.FirstCursor));
+                Assert.Equal(bucket.FirstNodeId, (await BrowseAsync(r.A, query)).Items.Single().Id);
+            }
+        }
+
+        // Under a filter the date rail follows it too (Unread leaves Alder, Cedar, Elm: one per year).
+        var unread = await RailAsync(r.A, "?sort=recentlyAdded&readState=unread");
+        Assert.Equal(["2023", "2021", "2019"], unread.Buckets.Select(b => b.Label));
+        Assert.All(unread.Buckets, b => Assert.Equal(1, b.Count));
+
+        // Recently read has no rail.
+        Assert.Empty((await RailAsync(r.A, "?sort=recentlyRead")).Buckets);
+    }
 }
