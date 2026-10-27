@@ -121,7 +121,7 @@ public sealed class JumpIndexDateRailTests : IDisposable
         var added = await service.GetJumpIndexAsync(userId, libraryId, null, false, null, false, LevelFilter.None, "recentlyAdded", 0);
         Assert.Equal(["Today", "This month", "2025", "Today", "This week", "This month", "This year", "2025", "2024"],
             added.Buckets.Select(b => b.Label));
-        Assert.Equal(Enumerable.Repeat("folders", 3).Concat(Enumerable.Repeat("files", 6)), added.Buckets.Select(b => b.Group));
+        Assert.Equal(Enumerable.Repeat("folders", 3).Concat(Enumerable.Repeat("files", 6)), added.Buckets.Select(b => b.Group ?? string.Empty));
 
         var updated = await service.GetJumpIndexAsync(userId, libraryId, null, false, null, false, LevelFilter.None, "recentlyUpdated", 0);
         // One interleaved list: no groups. The folder without a newest descendant closes the rail as "Other".

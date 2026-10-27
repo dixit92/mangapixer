@@ -310,6 +310,7 @@ describe('LibraryBrowseComponent card view', () => {
       setLibraryPreferences,
       getLibraries: vi.fn().mockReturnValue(of(libs)),
       browseLibrary: vi.fn().mockReturnValue(of(emptyPage)),
+      getJumpIndex: vi.fn().mockReturnValue(of({ libraryId: 'lib1', buckets: [] })),
       getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
       getNode: vi.fn().mockReturnValue(of({} as CatalogNodeDto)),
     };
@@ -417,6 +418,7 @@ describe('LibraryBrowseComponent list columns', () => {
       setLibraryPreferences,
       getLibraries: vi.fn().mockReturnValue(of(libs)),
       browseLibrary: vi.fn().mockReturnValue(of(emptyPage)),
+      getJumpIndex: vi.fn().mockReturnValue(of({ libraryId: 'lib1', buckets: [] })),
       getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
       getNode: vi.fn().mockReturnValue(of({} as CatalogNodeDto)),
     };
@@ -492,6 +494,7 @@ describe('LibraryBrowseComponent per-device display', () => {
       setLibraryPreferences,
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'Test Lib', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary: vi.fn().mockReturnValue(of(emptyPage)),
+      getJumpIndex: vi.fn().mockReturnValue(of({ libraryId: 'lib1', buckets: [] })),
       getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
       getNode: vi.fn().mockReturnValue(of({} as CatalogNodeDto)),
     };
@@ -1533,7 +1536,7 @@ describe('LibraryBrowseComponent infinite scroll + sticky nav (1.8.0)', () => {
   // --- sticky rail + scroll-spy ---
 
   it('binds the rail\'s sticky offset to the measured top-bar height', () => {
-    const { comp, el, fixture } = setup({ buckets: [{ label: 'A', count: 1, firstCursor: null }, { label: 'B', count: 1, firstCursor: 'cA' }] });
+    const { comp, el, fixture } = setup({ buckets: [{ label: 'A', count: 10, firstCursor: null }, { label: 'B', count: 10, firstCursor: 'cA' }] });
     comp.barHeight.set(57);
     fixture.detectChanges();
     expect((el.querySelector('.jump-rail') as HTMLElement).style.top).toBe('57px');
@@ -1550,7 +1553,7 @@ describe('LibraryBrowseComponent infinite scroll + sticky nav (1.8.0)', () => {
 
   it('scroll-spy marks the bucket of the topmost card still below the sticky stack', () => {
     const { comp, el } = setup({
-      buckets: [{ label: 'A', count: 2, firstCursor: null, firstNodeId: 'a1' }, { label: 'B', count: 1, firstCursor: 'cA', firstNodeId: 'b1' }],
+      buckets: [{ label: 'A', count: 10, firstCursor: null, firstNodeId: 'a1' }, { label: 'B', count: 10, firstCursor: 'cA', firstNodeId: 'b1' }],
       browse: () => of(page([node('a1', 'Alpha'), node('a2', 'Apex'), node('b1', 'Beta')], null)),
     });
     // Row 1 (Alpha, Apex) has scrolled under the rail; row 2 (Beta) is the first visible.
@@ -1566,7 +1569,7 @@ describe('LibraryBrowseComponent infinite scroll + sticky nav (1.8.0)', () => {
 
   it('scroll-spy keeps the current letter while a row that ends it is still the first visible row', () => {
     const { comp, el } = setup({
-      buckets: [{ label: 'A', count: 1, firstCursor: null, firstNodeId: 'a1' }, { label: 'B', count: 1, firstCursor: 'cA', firstNodeId: 'b1' }],
+      buckets: [{ label: 'A', count: 10, firstCursor: null, firstNodeId: 'a1' }, { label: 'B', count: 10, firstCursor: 'cA', firstNodeId: 'b1' }],
       browse: () => of(page([node('a1', 'Alpha'), node('b1', 'Beta')], null)),
     });
     // One row holding [Alpha, Beta]; the user jumped to B, so B stays highlighted.
@@ -1582,7 +1585,7 @@ describe('LibraryBrowseComponent infinite scroll + sticky nav (1.8.0)', () => {
 
   it('a rail click for a bucket whose first card is loaded scrolls in place instead of reloading', () => {
     const { comp, el, browseLibrary } = setup({
-      buckets: [{ label: 'A', count: 1, firstCursor: null, firstNodeId: 'a1' }, { label: 'B', count: 1, firstCursor: 'cA', firstNodeId: 'b1' }],
+      buckets: [{ label: 'A', count: 10, firstCursor: null, firstNodeId: 'a1' }, { label: 'B', count: 10, firstCursor: 'cA', firstNodeId: 'b1' }],
       browse: () => of(page([node('a1', 'Alpha'), node('b1', 'Beta')], null)),
     });
     // A responsive fake scroll: each scrollBy shifts the cards, as the real
@@ -1604,10 +1607,10 @@ describe('LibraryBrowseComponent infinite scroll + sticky nav (1.8.0)', () => {
 
   it('a rail click for a letter outside the loaded window still reloads from the bucket cursor', () => {
     const { comp, browseLibrary } = setup({
-      buckets: [{ label: 'A', count: 1, firstCursor: null }, { label: 'Z', count: 1, firstCursor: 'cY' }],
+      buckets: [{ label: 'A', count: 10, firstCursor: null }, { label: 'Z', count: 10, firstCursor: 'cY' }],
       browse: () => of(page([node('a1', 'Alpha')], 'c1')),
     });
-    comp.jumpToBucket({ label: 'Z', count: 1, firstCursor: 'cY' });
+    comp.jumpToBucket({ label: 'Z', count: 10, firstCursor: 'cY' });
     expect(browseLibrary).toHaveBeenCalledTimes(2);
     expect(browseLibrary.mock.calls[1][2]).toBe('cY');
     expect(comp.activeJump()?.label).toBe('Z');

@@ -1,4 +1,3 @@
-using System.Globalization;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Ordering;
 using com.lifepixer.mangapixer.Server.Features.Catalog;
@@ -140,7 +139,7 @@ public sealed class JumpIndexRailRulesTests
         Assert.Equal(JumpIndexBuilder.Letters, rail.Mode);
         Assert.Equal(["A", "B", "C", "D", "E", "F", "A", "B", "C", "D", "E", "F"], rail.Buckets.Select(b => b.Label).ToArray());
         Assert.Equal(Enumerable.Repeat(JumpIndexBuilder.FoldersGroup, 6).Concat(Enumerable.Repeat(JumpIndexBuilder.FilesGroup, 6)),
-            rail.Buckets.Select(b => b.Group));
+            rail.Buckets.Select(b => b.Group ?? string.Empty));
         Assert.DoesNotContain(rail.Buckets, b => b.Label is JumpIndexBuilder.FoldersLabel or JumpIndexBuilder.FilesLabel);
         AssertContiguous(rows, rail);
     }
@@ -196,7 +195,7 @@ public sealed class JumpIndexRailRulesTests
         new("n" + id, kind, name, SortKey.ForNode(kind, name), 100 + id, created, latest);
 
     private static List<JumpRow> NewestFirstArchives(params string[] timestamps) =>
-        timestamps.Select((t, i) => DatedRow(i, CatalogNodeKind.Archive, $"Row {Tag(i)}", DateTimeOffset.Parse(t, CultureInfo.InvariantCulture))).ToList();
+        timestamps.Select((t, i) => DatedRow(i, CatalogNodeKind.Archive, $"Row {Tag(i)}", DateTimeOffset.Parse(t, System.Globalization.CultureInfo.InvariantCulture))).ToList();
 
     [Fact]
     public void Dates_ChipsAreTodayWeekMonthYearThenYears_WithBrowseCursors()
@@ -264,16 +263,16 @@ public sealed class JumpIndexRailRulesTests
     {
         var rows = new List<JumpRow>
         {
-            DatedRow(0, CatalogNodeKind.Folder, "F1", DateTimeOffset.Parse("2026-10-28T09:00:00Z", CultureInfo.InvariantCulture)),
-            DatedRow(1, CatalogNodeKind.Folder, "F2", DateTimeOffset.Parse("2025-10-28T09:00:00Z", CultureInfo.InvariantCulture)),
-            DatedRow(2, CatalogNodeKind.Archive, "A1", DateTimeOffset.Parse("2026-10-28T09:00:00Z", CultureInfo.InvariantCulture)),
-            DatedRow(3, CatalogNodeKind.Archive, "A2", DateTimeOffset.Parse("2026-10-27T09:00:00Z", CultureInfo.InvariantCulture)),
+            DatedRow(0, CatalogNodeKind.Folder, "F1", DateTimeOffset.Parse("2026-10-28T09:00:00Z", System.Globalization.CultureInfo.InvariantCulture)),
+            DatedRow(1, CatalogNodeKind.Folder, "F2", DateTimeOffset.Parse("2025-10-28T09:00:00Z", System.Globalization.CultureInfo.InvariantCulture)),
+            DatedRow(2, CatalogNodeKind.Archive, "A1", DateTimeOffset.Parse("2026-10-28T09:00:00Z", System.Globalization.CultureInfo.InvariantCulture)),
+            DatedRow(3, CatalogNodeKind.Archive, "A2", DateTimeOffset.Parse("2026-10-27T09:00:00Z", System.Globalization.CultureInfo.InvariantCulture)),
         };
 
         var rail = JumpIndexBuilder.BuildByDate(rows, JumpIndexBuilder.RecentlyAddedSort, s_now, TimeSpan.Zero);
 
         Assert.Equal(["Today", "2025", "Today", "This week"], rail.Buckets.Select(b => b.Label).ToArray());
-        Assert.Equal(["folders", "folders", "files", "files"], rail.Buckets.Select(b => b.Group).ToArray());
+        Assert.Equal(["folders", "folders", "files", "files"], rail.Buckets.Select(b => b.Group ?? string.Empty).ToArray());
         // The files' first chip starts after the last folder: browse's cursor of that folder (kind 0).
         Assert.Equal($"a:0:{rows[1].CreatedAt!.Value.UtcDateTime.ToBinary()}:{rows[1].InternalId}", rail.Buckets[2].FirstCursor);
     }
@@ -281,7 +280,7 @@ public sealed class JumpIndexRailRulesTests
     [Fact]
     public void Dates_RecentlyAddedWithBothKindsOfTheSamePeriod_HasNoRail()
     {
-        var at = DateTimeOffset.Parse("2026-10-28T09:00:00Z", CultureInfo.InvariantCulture);
+        var at = DateTimeOffset.Parse("2026-10-28T09:00:00Z", System.Globalization.CultureInfo.InvariantCulture);
         var rows = new List<JumpRow> { DatedRow(0, CatalogNodeKind.Folder, "F1", at), DatedRow(1, CatalogNodeKind.Archive, "A1", at) };
 
         Assert.Empty(JumpIndexBuilder.BuildByDate(rows, JumpIndexBuilder.RecentlyAddedSort, s_now, TimeSpan.Zero).Buckets);
@@ -292,12 +291,12 @@ public sealed class JumpIndexRailRulesTests
     {
         var rows = new List<JumpRow>
         {
-            DatedRow(0, CatalogNodeKind.Folder, "Series", DateTimeOffset.Parse("2020-01-01T00:00:00Z", CultureInfo.InvariantCulture),
-                latest: DateTimeOffset.Parse("2026-10-28T10:00:00Z", CultureInfo.InvariantCulture)),
-            DatedRow(1, CatalogNodeKind.Archive, "File", DateTimeOffset.Parse("2026-10-20T10:00:00Z", CultureInfo.InvariantCulture)),
-            DatedRow(2, CatalogNodeKind.Folder, "Old", DateTimeOffset.Parse("2020-01-01T00:00:00Z", CultureInfo.InvariantCulture),
-                latest: DateTimeOffset.Parse("2024-04-04T00:00:00Z", CultureInfo.InvariantCulture)),
-            DatedRow(3, CatalogNodeKind.Folder, "Empty", DateTimeOffset.Parse("2020-01-01T00:00:00Z", CultureInfo.InvariantCulture)),
+            DatedRow(0, CatalogNodeKind.Folder, "Series", DateTimeOffset.Parse("2020-01-01T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture),
+                latest: DateTimeOffset.Parse("2026-10-28T10:00:00Z", System.Globalization.CultureInfo.InvariantCulture)),
+            DatedRow(1, CatalogNodeKind.Archive, "File", DateTimeOffset.Parse("2026-10-20T10:00:00Z", System.Globalization.CultureInfo.InvariantCulture)),
+            DatedRow(2, CatalogNodeKind.Folder, "Old", DateTimeOffset.Parse("2020-01-01T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture),
+                latest: DateTimeOffset.Parse("2024-04-04T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture)),
+            DatedRow(3, CatalogNodeKind.Folder, "Empty", DateTimeOffset.Parse("2020-01-01T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture)),
         };
 
         var rail = JumpIndexBuilder.BuildByDate(rows, JumpIndexBuilder.RecentlyUpdatedSort, s_now, TimeSpan.Zero);
