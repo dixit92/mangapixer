@@ -22,7 +22,7 @@ import { QuickEntry, QuickResults, completeToken } from '../features/search/quic
     <div class="hs" role="search">
       <mat-icon class="hs-icon" aria-hidden="true">search</mat-icon>
       <input #box class="hs-input" type="text" role="combobox" autocomplete="off" autocapitalize="off" spellcheck="false"
-             aria-label="Search libraries" aria-autocomplete="list" aria-haspopup="listbox" aria-controls="header-search-list"
+             aria-label="Quick search" aria-autocomplete="list" aria-haspopup="listbox" aria-controls="header-search-list"
              [attr.aria-expanded]="expanded()" [attr.aria-activedescendant]="activeId()"
              placeholder="Search" [value]="text()" data-testid="header-search-input"
              (input)="onInput($any($event.target).value)" (keydown)="onKey($event)" (focus)="onFocus()" (blur)="onBlur()">

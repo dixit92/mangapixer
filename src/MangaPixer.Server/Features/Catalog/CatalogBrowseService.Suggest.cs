@@ -4,6 +4,7 @@ using System.Data.Common;
 using System.Globalization;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Server.Logging;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 /// <summary>
