@@ -8,6 +8,7 @@ using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Admin;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.AniList;
+using com.lifepixer.mangapixer.Server.Hosting;
 using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
@@ -285,7 +286,7 @@ public sealed class MissingConversionService
 
     private MissingConversionOutcome Miss(MetadataRecordEntity mu)
     {
-        _cache.Set(MissKey(mu.ExternalId), true, MissMemory);
+        _cache.SetSized(MissKey(mu.ExternalId), true, MissMemory, size: 1, CacheItemPriority.High);
         return MissingConversionOutcome.NoMatch;
     }
 

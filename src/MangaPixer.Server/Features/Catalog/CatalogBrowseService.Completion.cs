@@ -5,6 +5,7 @@ using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Reach;
+using com.lifepixer.mangapixer.Server.Hosting;
 using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Operations.Perf;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
@@ -36,7 +37,11 @@ public sealed partial class CatalogBrowseService
     /// stamps of their inputs (<see cref="CompletionInputs"/>) and the scope folders the ComicInfo stamp is read over.
     /// </summary>
     private sealed record LevelAnswers(IReadOnlyDictionary<long, SeriesAnswer?> Answers, DateTimeOffset At, DateTimeOffset ComputedAt,
-        string Inputs, IReadOnlyList<long> ScopeFolders, string ComicInfo);
+        string Inputs, IReadOnlyList<long> ScopeFolders, string ComicInfo)
+    {
+        /// <summary>The shared cache's size of these answers (1.49.0 lane M; <see cref="SharedMemoryCache.Kib"/>, an estimate).</summary>
+        public long EstimatedSize => SharedMemoryCache.Kib(256 + (Answers.Count * 64L) + (ScopeFolders.Count * 8L) + ((Inputs.Length + ComicInfo.Length) * 2L));
+    }
 
     /// <summary>
     /// The level's linked series folders by node id, with their record: child FOLDERS with their own <c>Confirmed</c> or <c>Auto</c> link
@@ -91,7 +96,7 @@ public sealed partial class CatalogBrowseService
             {
                 answers = cached.Answers;
                 reused = true;
-                _cache?.Set(key, cached with { At = now }, CompletionAnswersMaxAge);
+                _cache?.SetSized(key, cached with { At = now }, CompletionAnswersMaxAge, cached.EstimatedSize);
                 phase.Lap("completion.reuse");
             }
             else
@@ -102,8 +107,8 @@ public sealed partial class CatalogBrowseService
                 answers = linked.Keys.ToDictionary(id => id, id => progress.TryGetValue(id, out var e) && !e.Result.Facts.TrackingOff
                     ? e.Result.Answer
                     : (SeriesAnswer?)null);
-                _cache?.Set(key, new LevelAnswers(answers, now, now, inputs, loaded.ScopeFolders, CompletionInputs.ComicInfo(loaded.ComicInfo)),
-                    CompletionAnswersMaxAge);
+                var level = new LevelAnswers(answers, now, now, inputs, loaded.ScopeFolders, CompletionInputs.ComicInfo(loaded.ComicInfo));
+                _cache?.SetSized(key, level, CompletionAnswersMaxAge, level.EstimatedSize);
                 phase.Lap("completion.compute");
             }
         }
