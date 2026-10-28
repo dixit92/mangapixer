@@ -5,7 +5,7 @@ import { FacetBucket, FacetChipDto, FacetLocationDto, FacetRoles } from './info-
  * already; the web sorts again so a reordered answer never reorders the panel.
  */
 export const BUCKET_ORDER: readonly FacetBucket[] = [
-  'Creators', 'Series', 'Magazine', 'Publisher', 'Year', 'Genres', 'Type', 'About', 'Custom',
+  'Creators', 'Series', 'Magazine', 'Publisher', 'Year', 'Genres', 'Tags', 'Type', 'About', 'Custom',
 ];
 
 const BUCKET_LABELS: Record<FacetBucket, string> = {
@@ -17,7 +17,9 @@ const BUCKET_LABELS: Record<FacetBucket, string> = {
   Genres: 'Genres',
   Type: 'Type',
   About: 'About',
-  Custom: 'Tags',
+  // 1.49.0 (lane T): "Tags" is the MangaUpdates categories + ComicInfo Tags bucket; the admin's own tags (later) are "Custom tags".
+  Custom: 'Custom tags',
+  Tags: 'Tags',
 };
 
 /** The bucket's word in a search filter (`f=<token>:<value id>`) and in typed field syntax - lane Q's tokens. */
@@ -31,6 +33,7 @@ const BUCKET_TOKENS: Record<FacetBucket, string> = {
   Type: 'type',
   About: 'about',
   Custom: 'custom',
+  Tags: 'tag',
 };
 
 export function bucketLabel(bucket: FacetBucket): string {
@@ -51,14 +54,47 @@ export function filterParam(bucket: FacetBucket, valueId: string): string {
   return `${bucketToken(bucket)}:${valueId}`;
 }
 
-/** A well-formed `f` value (`<token>:<id>`, both non-empty, no spaces); anything else is dropped from the URL model (the server answers 400). */
+/**
+ * A well-formed `f` value (`<token>:<id>`, both non-empty, no spaces); anything else is dropped from the URL model (the server answers 400).
+ * 1.49.0 (lane T): a leading `-` excludes the value (`-genre:fv_..`) and `|` lists alternatives in one filter (`genre:fv_a|fv_b`).
+ */
 export function isFilterParam(value: string): boolean {
-  return /^[a-z]+:[A-Za-z0-9_-]+$/.test(value);
+  return /^-?[a-z]+:[A-Za-z0-9_-]+(\|[A-Za-z0-9_-]+)*$/.test(value) && !value.startsWith('--');
 }
 
-/** The value id part of an `f` parameter. */
+/** The value id part of an `f` parameter (with any `|` alternatives, without the leading `-`). */
 export function filterValueId(param: string): string {
   return param.slice(param.indexOf(':') + 1);
+}
+
+/** 1.49.0: whether an `f` parameter excludes its value(s). */
+export function isExcludeParam(param: string): boolean {
+  return param.startsWith('-');
+}
+
+/** 1.49.0: the same filter, include <-> exclude. */
+export function toggleExcludeParam(param: string): string {
+  return isExcludeParam(param) ? param.slice(1) : `-${param}`;
+}
+
+/** 1.49.0: the bucket token of an `f` parameter (`genre` for `-genre:fv_a|fv_b`). */
+export function filterToken(param: string): string {
+  const bare = param.replace(/^-/, '');
+  return bare.slice(0, bare.indexOf(':'));
+}
+
+/** 1.49.0: the value ids of an `f` parameter (its `|` alternatives). */
+export function filterValueIds(param: string): string[] {
+  return filterValueId(param).split('|').filter((id) => id.length > 0);
+}
+
+/**
+ * 1.49.0 (lane T, "add to this search"): the `f` list with `filter` added - a filter already there (included or excluded) is replaced, so
+ * a chip never appears twice and adding an excluded value includes it again.
+ */
+export function addFilterParam(current: readonly string[], filter: string): string[] {
+  const bare = filter.replace(/^-/, '');
+  return [...current.filter((v) => v.replace(/^-/, '') !== bare), filter];
 }
 
 /**

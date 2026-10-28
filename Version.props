@@ -466,7 +466,7 @@
          Enhance black-output guard; "Official Volume Available". Migrations AddTrackerSync, AddTrackingPage,
          AddVolumeMapReadableChapters (additive); tracker consents v1 (new third privacy exception, AGENTS.md); metadata consents
          unchanged (main 6 / automatic 5); worker protocol unchanged (5). -->
-    <MangaPixerVersionMinor>48</MangaPixerVersionMinor>
+    <MangaPixerVersionMinor>49</MangaPixerVersionMinor>
     <!-- 1.31.1 - PATCH (2026-10-01, integrator-direct, owner live check of 1.31.0): content signatures backfilled for archives
          analysed before 1.5.0 (their moves were never recognised); Re-attach to a folder in another library; "Episode N" next
          to a volume is a part label, not a chapter; the review list shows the file's own page 1, never the cover layer's;
@@ -520,6 +520,14 @@
          libraries hidden under Incognito in the jump bar, rings, library Info and Tracking; tracker lists follow access; 404 for
          inaccessible writes and Private marks; Completion hidden where series information is; SharpCompress 0.50.7. No migration;
          consent unchanged (main 7 / automatic 5); worker protocol 6. -->
+    <!-- 1.49.0 - MINOR over 1.48.0 (2026-10-28): search by words (any order, accents / punctuation ignored, quotes, typo tolerance,
+         word-start for 1-2 letters, names before paths with "+N inside", ranking, server-side favourites; the FTS tables rebuilt from a
+         definition stamp); quick results while typing (GET search/suggest, header box, phone groups); a Tags bucket from MangaUpdates
+         categories + ComicInfo Tags, tags that combine (not / or / Refine counts), the full typed syntax with a "?" list; the jump rail
+         under filters, doujin bracket chips, own letters per kind, date chips, no rail under ~12 rows, a phone scrub strip; gzip-compressed
+         rotating backups (restore takes .db and .db.gz); a size-capped shared memory cache and MALLOC_ARENA_MAX=2 in the image; chapter 1
+         before a volume 1 that starts at chapter 2-5 joins it; a Docker Hub mirror of the image; Angular 22.2.4, .NET 10.0.14. No
+         migration; consent unchanged (main 7 / automatic 5); worker protocol 6; OpenAPI 370 schemas. -->
     <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 

@@ -17,6 +17,8 @@ public static class QueryServicesExtensions
         services.TryAddScoped<FacetCountService>();
         services.TryAddScoped<InfoPanelService>();
         services.TryAddScoped<FacetSearchService>();
+        services.TryAddScoped<FacetSuggestService>(); // 1.49.0 lane O: creator / tag values for the quick results
+        services.TryAddScoped<Catalog.SearchSuggestService>(); // 1.49.0 lane O: the quick-results route's service
         return services;
     }
 }

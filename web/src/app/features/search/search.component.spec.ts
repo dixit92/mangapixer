@@ -2,6 +2,7 @@ import { vi } from 'vitest';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { convertToParamMap, provideRouter, Router } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { BreakpointObserver } from '@angular/cdk/layout';
 import { of, Subject } from 'rxjs';
 
 import { SearchComponent, searchParamsFromQuery, searchParamsToQuery } from './search.component';
@@ -9,7 +10,7 @@ import { By } from '@angular/platform-browser';
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { MetadataStateService } from '../metadata/metadata-state.service';
 import { ApiService } from '../../core/api/api.service';
-import { CatalogNodeDto, SearchResultsDto } from '../../core/api/api-types';
+import { CatalogNodeDto, SearchResultsDto, SearchSuggestDto } from '../../core/api/api-types';
 import { FacetLocationDto, FacetSearchFields, FacetWorkDto, SearchFilterDto } from '../metadata/info/info-types';
 
 /**
@@ -223,8 +224,8 @@ describe('SearchComponent kind badge (1.12.0)', () => {
 
 /**
  * Favorites search prominence (1.21.0): the per-user opt-in. When ON, favorited
- * results get the star (badge + interactive toggle) AND are boosted to the top; when
- * OFF, results render normally with no star and no reordering.
+ * results get the star (badge + interactive toggle); when OFF, results render normally with no star.
+ * 1.49.0: the SERVER lifts favourites to the top across pages - the page keeps the server's order either way.
  */
 describe('SearchComponent favorites prominence (1.21.0)', () => {
   let fixture: ComponentFixture<SearchComponent>;
@@ -256,15 +257,16 @@ describe('SearchComponent favorites prominence (1.21.0)', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); });
 
-  it('boosts favorited results to the top and shows the star when prominence is ON', () => {
+  it('keeps the server order (the server lifts favourites, 1.49.0) and shows the star when prominence is ON', () => {
     setupWith(true, [
-      makeNode({ id: 'plain', displayName: 'Plain', isFavorite: false }),
       makeNode({ id: 'fav', displayName: 'Favorited', isFavorite: true }),
+      makeNode({ id: 'plain', displayName: 'Plain', isFavorite: false }),
+      makeNode({ id: 'fav2', displayName: 'Favorited later', isFavorite: true }),
     ]);
     runSearch('x');
 
-    // Favorited result is boosted ahead of the earlier-listed plain one.
-    expect(fixture.componentInstance.results().map((n) => n.id)).toEqual(['fav', 'plain']);
+    // No client-side reordering any more: a page-local boost would contradict the server's order across pages.
+    expect(fixture.componentInstance.results().map((n) => n.id)).toEqual(['fav', 'plain', 'fav2']);
     // The star toggle renders on results when prominence is on.
     expect(fixture.nativeElement.querySelector('app-star-toggle')).not.toBeNull();
   });
@@ -547,6 +549,11 @@ describe('search URL parameters (1.45.0)', () => {
     expect(searchParamsFromQuery(convertToParamMap({}))).toEqual({ q: '', read: 'all', f: [] });
   });
 
+  it('1.49.0: keeps exclusions and any-of filters from the URL', () => {
+    const p = searchParamsFromQuery(convertToParamMap({ f: ['-genre:fv_1', 'tag:fv_2|fv_3', '--x:fv_4', 'tag:fv_5|'] }));
+    expect(p.f).toEqual(['-genre:fv_1', 'tag:fv_2|fv_3']);
+  });
+
   it('1.45.0: reads repeated tag filters in order, dropping malformed and repeated ones', () => {
     const map = convertToParamMap({ f: ['creator:fv_1', 'bogus', 'genre:fv_2', 'creator:fv_1', 'year:'] });
     expect(searchParamsFromQuery(map)).toEqual({ q: '', read: 'all', f: ['creator:fv_1', 'genre:fv_2'] });
@@ -711,5 +718,300 @@ describe('SearchComponent tag filters and work cards (1.45.0)', () => {
     expect(search).toHaveBeenLastCalledWith('creator:"Synthetic Author"', { cursor: 'w:1', readState: 'all' });
     expect(fixture.componentInstance.works().map((w) => w.title)).toEqual(['Series A', 'Series B']);
     expect(el.querySelector('.load-more')).toBeNull();
+  });
+
+  // 1.49.0 (lane T, owner decision 9 a): exclusion, any-of and the Refine list.
+  it('1.49.0: names an excluded and an any-of filter, and toggles a chip to exclude it', async () => {
+    const { el, fixture, search, navigate } = await open('/?q=alpha&f=-genre:fv_2&f=tag:fv_3%7Cfv_4', answer(
+      [work()],
+      [filter({ bucket: 'Genres', id: 'fv_2', display: 'Horror', valueIds: ['fv_2'], negated: true }),
+        filter({ bucket: 'Tags', id: 'fv_3|fv_4', display: 'Robots or Space', valueIds: ['fv_3', 'fv_4'] })],
+    ));
+    expect(search).toHaveBeenCalledWith('alpha', { readState: 'all', filters: ['-genre:fv_2', 'tag:fv_3|fv_4'] });
+    expect(chipLabels(el)).toEqual(['Not Genres: Horror', 'Tags: Robots or Space']);
+    const chips = el.querySelectorAll('[data-testid="search-filter-chip"]');
+    expect(chips[0].getAttribute('data-excluded')).toBe('true');
+    const toggle = chips[1].querySelector<HTMLButtonElement>('[data-testid="search-filter-exclude"]')!;
+    expect(toggle.getAttribute('aria-label')).toBe('Exclude Tags: Robots or Space');
+    toggle.click();
+    fixture.detectChanges();
+    expect(search).toHaveBeenLastCalledWith('alpha', { readState: 'all', filters: ['-genre:fv_2', '-tag:fv_3|fv_4'] });
+    expect(navigate).toHaveBeenLastCalledWith([], expect.objectContaining({ queryParams: { q: 'alpha', read: null, f: ['-genre:fv_2', '-tag:fv_3|fv_4'] } }));
+  });
+
+  it('1.49.0: lists Refine by bucket with counts; a chip adds, "or" joins the bucket\'s tag, the minus excludes', async () => {
+    const refine = [
+      { bucket: 'Tags' as const, more: 3, chips: [{ id: 'fv_9', display: 'Robots', count: 4, roles: 'None', conflict: false, filter: 'tag:fv_9' }] },
+      { bucket: 'Genres' as const, more: 0, chips: [{ id: 'fv_5', display: 'Drama', count: 2, roles: 'None', conflict: false, filter: 'genre:fv_5' }] },
+    ];
+    const { el, fixture, search } = await open('/?f=genre:fv_2', answer([work()], [filter({ bucket: 'Genres', id: 'fv_2', display: 'Comedy', valueIds: ['fv_2'] })], { refine }));
+    const box = el.querySelector('[data-testid="search-refine"]')!;
+    // Buckets in the panel's order (Genres before Tags), each with its label and counts.
+    expect(Array.from(box.querySelectorAll('.refine-bucket')).map((b) => b.getAttribute('data-bucket'))).toEqual(['Genres', 'Tags']);
+    expect(box.querySelector('.refine-bucket[data-bucket="Tags"] .count')!.textContent).toBe('4');
+    expect(box.querySelector('.refine-bucket[data-bucket="Tags"] .refine-more')!.textContent!.trim()).toBe('+3 more');
+    // "or" only where the search already includes a tag of that bucket.
+    expect(box.querySelector('.refine-bucket[data-bucket="Tags"] [data-testid="refine-or"]')).toBeNull();
+    box.querySelector<HTMLButtonElement>('.refine-bucket[data-bucket="Genres"] [data-testid="refine-or"]')!.click();
+    fixture.detectChanges();
+    expect(search).toHaveBeenLastCalledWith('', { readState: 'all', filters: ['genre:fv_2|fv_5'] });
+    expect(fixture.componentInstance.params().f).toEqual(['genre:fv_2|fv_5']);
+
+    fixture.componentInstance.addRefine('tag:fv_9', 'not');
+    expect(search).toHaveBeenLastCalledWith('', { readState: 'all', filters: ['genre:fv_2|fv_5', '-tag:fv_9'] });
+    fixture.componentInstance.addRefine('tag:fv_9', 'all');
+    expect(search).toHaveBeenLastCalledWith('', { readState: 'all', filters: ['genre:fv_2|fv_5', 'tag:fv_9'] });
+  });
+
+  it('1.49.0: a typed-only tag search with no works says so in the tag words', async () => {
+    const typed = filter({ bucket: 'Genres', source: 'Typed', id: undefined, text: 'action', negated: true });
+    const { el } = await open('/?q=synthetic%20-genre:action', answer([], [typed]));
+    expect(el.querySelector('.no-results')!.textContent!.trim()).toBe('No works with these tags.');
+  });
+
+  it('1.49.0: the "?" panel lists the syntax; an example goes into the field and searches', async () => {
+    const { el, fixture, search } = await open('/?q=alpha', answer([], []));
+    expect(el.querySelector('[data-testid="search-syntax"]')).toBeNull();
+    const toggle = el.querySelector<HTMLButtonElement>('[data-testid="search-syntax-toggle"]')!;
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    toggle.click();
+    fixture.detectChanges();
+    const examples = Array.from(el.querySelectorAll<HTMLButtonElement>('[data-testid="search-syntax-example"]'));
+    expect(examples.map((b) => b.textContent!.trim())).toContain('-genre:horror');
+    expect(examples.map((b) => b.textContent!.trim())).toContain('year:2010..2015');
+    examples.find((b) => b.textContent!.trim() === '-genre:horror')!.click();
+    fixture.detectChanges();
+    expect(search).toHaveBeenLastCalledWith('alpha -genre:horror', { readState: 'all' });
+  });
+});
+
+/**
+ * 1.49.0 (lane S): the plain search's counts by kind, "+N inside" on folder cards, the close-match (typo) note and the short-input note.
+ */
+describe('SearchComponent search by words (1.49.0)', () => {
+  let fixture: ComponentFixture<SearchComponent>;
+  let search: ReturnType<typeof vi.fn>;
+
+  function setup(...responses: SearchResultsDto[]): void {
+    search = vi.fn();
+    for (const r of responses) search.mockReturnValueOnce(of(r));
+    TestBed.configureTestingModule({
+      imports: [SearchComponent],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        {
+          provide: ApiService,
+          useValue: { search, getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })) },
+        },
+      ],
+    });
+    fixture = TestBed.createComponent(SearchComponent);
+    fixture.detectChanges();
+  }
+
+  function runSearch(query: string): void {
+    fixture.componentInstance.query = query;
+    fixture.componentInstance.onSearch();
+    vi.advanceTimersByTime(300);
+    fixture.detectChanges();
+  }
+
+  const el = (): HTMLElement => fixture.nativeElement as HTMLElement;
+  const text = (testId: string): string | null => el().querySelector(`[data-testid="${testId}"]`)?.textContent?.trim() ?? null;
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); });
+
+  it('says "N folders, M archives", leaving a zero kind out', () => {
+    setup(
+      {
+        query: 'q', items: [makeNode({ id: 'f', kind: 'Folder' }), makeNode({ id: 'a' })], totalCount: 66, nextCursor: null, hasMore: false,
+        folderCount: 1, archiveCount: 65,
+      },
+      { query: 'q', items: [makeNode({ id: 'a' })], totalCount: 60, nextCursor: null, hasMore: false, folderCount: 0, archiveCount: 60 },
+      { query: 'q', items: [makeNode({ id: 'f', kind: 'Folder' })], totalCount: 2, nextCursor: null, hasMore: false, folderCount: 2, archiveCount: 0 },
+    );
+    runSearch('jump saga');
+    expect(text('search-count')).toBe('1 folder, 65 archives');
+    runSearch('jump sagas');
+    expect(text('search-count')).toBe('60 archives');
+    runSearch('jump sag');
+    expect(text('search-count')).toBe('2 folders');
+  });
+
+  it('shows "+N inside" on a folder card and merges the next page\'s counts', () => {
+    setup(
+      {
+        query: 'q', items: [makeNode({ id: 'f1', kind: 'Folder', displayName: 'Berserk' })], totalCount: 2, nextCursor: 'c1', hasMore: true,
+        folderCount: 2, archiveCount: 0, insideCounts: { f1: 41 },
+      },
+      {
+        query: 'q', items: [makeNode({ id: 'f2', kind: 'Folder', displayName: 'Berserk Deluxe' })], totalCount: 2, nextCursor: null, hasMore: false,
+        folderCount: 2, archiveCount: 0, insideCounts: { f2: 1 },
+      },
+    );
+    runSearch('berserk');
+    expect(Array.from(el().querySelectorAll('[data-testid="search-inside"]')).map((e) => e.textContent?.trim())).toEqual(['+41 inside']);
+    fixture.componentInstance.loadMore();
+    fixture.detectChanges();
+    expect(search).toHaveBeenLastCalledWith('berserk', { cursor: 'c1', readState: 'all' });
+    expect(Array.from(el().querySelectorAll('[data-testid="search-inside"]')).map((e) => e.textContent?.trim()))
+      .toEqual(['+41 inside', '+1 inside']);
+  });
+
+  it('notes close matches for a typo - all of them, or after the exact hits', () => {
+    setup(
+      { query: 'q', items: [makeNode({ id: 'a' })], totalCount: 1, nextCursor: null, hasMore: false, folderCount: 0, archiveCount: 1, closeMatchCount: 1 },
+      { query: 'q', items: [makeNode({ id: 'a' }), makeNode({ id: 'b' })], totalCount: 2, nextCursor: null, hasMore: false, folderCount: 0, archiveCount: 2, closeMatchCount: 1 },
+      { query: 'q', items: [makeNode({ id: 'a' })], totalCount: 1, nextCursor: null, hasMore: false, folderCount: 0, archiveCount: 1, closeMatchCount: 0 },
+    );
+    runSearch('berserc');
+    expect(text('search-close-hint')).toBe('No exact matches. Showing close matches for "berserc".');
+    runSearch('berserk');
+    expect(text('search-close-hint')).toBe('Also showing close matches for "berserk".');
+    runSearch('akira');
+    expect(text('search-close-hint')).toBeNull();
+  });
+
+  it('explains a 1-2 character search (word starts, no typo search) and not a longer one', () => {
+    const one = { query: 'q', items: [makeNode({ id: 'a' })], totalCount: 1, nextCursor: null, hasMore: false, folderCount: 0, archiveCount: 1 };
+    setup(one, one, one, one);
+    runSearch('ak');
+    expect(text('search-short-hint')).toContain('Names with a word starting with "ak"');
+    runSearch('re z');
+    expect(text('search-short-hint')).toContain('"re z"');
+    runSearch('é');
+    expect(text('search-short-hint')).not.toBeNull();
+    runSearch('aki');
+    expect(text('search-short-hint')).toBeNull();
+  });
+
+  it('counts a series-match anchor once, in its own row, not in the kind counts', () => {
+    const anchor = makeNode({ id: 'f1', kind: 'Folder', displayName: 'Dungeon Folder' });
+    setup({
+      query: 'q', items: [anchor, makeNode({ id: 'a1' })], totalCount: 2, nextCursor: null, hasMore: false, folderCount: 1, archiveCount: 1,
+      seriesMatches: [{ node: anchor, matchedTitle: 'Delicious in Dungeon' }],
+    });
+    runSearch('dungeon');
+    expect(text('search-count')).toBe('1 archive');
+  });
+});
+
+/**
+ * 1.49.0 (lane O): on a phone the header has no search box, so the Search page shows the same grouped quick results under its field
+ * while typing - a result opens, a typed field's value completes the token. Desktop and tablet ask nothing extra here.
+ */
+describe('SearchComponent quick results on a phone', () => {
+  const answer: SearchSuggestDto = {
+    query: 'ber',
+    series: [],
+    folders: [{ kind: 'folder', id: 'f1', label: 'Berserk Deluxe', libraryId: 'L1', nodeKind: 'Folder' }],
+    archives: [],
+    creators: [{ kind: 'creator', id: 'fv_c', label: 'Naoki Urasawa', filter: 'creator:fv_c', count: 1 }],
+    tags: [],
+    field: null,
+  };
+
+  function setup(phone: boolean): { fixture: ComponentFixture<SearchComponent>; api: { search: ReturnType<typeof vi.fn>; searchSuggest: ReturnType<typeof vi.fn> } } {
+    const api = {
+      search: vi.fn().mockReturnValue(of({ query: 'q', items: [], totalCount: 0, nextCursor: null, hasMore: false })),
+      searchSuggest: vi.fn().mockReturnValue(of(answer)),
+      getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
+    };
+    TestBed.configureTestingModule({
+      imports: [SearchComponent],
+      providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
+        { provide: ApiService, useValue: api },
+        { provide: BreakpointObserver, useValue: { observe: () => of({ matches: phone, breakpoints: {} }) } },
+      ],
+    });
+    const fixture = TestBed.createComponent(SearchComponent);
+    fixture.detectChanges();
+    return { fixture, api };
+  }
+
+  function typeInto(fixture: ComponentFixture<SearchComponent>, text: string): void {
+    const input = fixture.nativeElement.querySelector('[data-testid="search-input"]') as HTMLInputElement;
+    input.dispatchEvent(new Event('focus'));
+    fixture.componentInstance.query = text;
+    fixture.componentInstance.onSearch();
+    vi.advanceTimersByTime(300);
+    fixture.detectChanges();
+  }
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); });
+
+  it('shows the grouped quick results under the field while typing', () => {
+    const { fixture, api } = setup(true);
+    typeInto(fixture, 'ber');
+
+    expect(api.searchSuggest).toHaveBeenCalledWith('ber');
+    const panel = fixture.nativeElement.querySelector('[data-testid="search-quick"]') as HTMLElement;
+    expect(panel).not.toBeNull();
+    expect([...panel.querySelectorAll('[role="group"]')].map((g) => g.getAttribute('data-group'))).toEqual(['folders', 'creators']);
+    expect([...panel.querySelectorAll('.qr-label')].map((e) => e.textContent)).toEqual(['Berserk Deluxe', 'Naoki Urasawa']);
+  });
+
+  it('opens a folder result, and adds a creator result as a tag view (clearing the text)', async () => {
+    const { fixture } = setup(true);
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    typeInto(fixture, 'ber');
+
+    (fixture.nativeElement.querySelectorAll('[data-testid="quick-result"]')[0] as HTMLElement).click();
+    expect(navigate).toHaveBeenCalledWith(['/libraries', 'L1', 'browse', 'f1']);
+
+    typeInto(fixture, 'ber2');
+    (fixture.nativeElement.querySelectorAll('[data-testid="quick-result"]')[1] as HTMLElement).click();
+    expect(fixture.componentInstance.query).toBe('');
+    expect(fixture.componentInstance.params().f).toEqual(['creator:fv_c']);
+  });
+
+  it('opening a result cancels the search still waiting on its 300 ms (it would write the page\'s URL back over the navigation)', () => {
+    const { fixture, api } = setup(true);
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    (fixture.nativeElement.querySelector('[data-testid="search-input"]') as HTMLInputElement).dispatchEvent(new Event('focus'));
+    fixture.componentInstance.query = 'ber';
+    fixture.componentInstance.onSearch();
+    vi.advanceTimersByTime(200); // the quick answer is in; the page's own search is still waiting
+    fixture.detectChanges();
+
+    (fixture.nativeElement.querySelector('[data-testid="quick-result"]') as HTMLElement).click();
+    vi.advanceTimersByTime(500);
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith(['/libraries', 'L1', 'browse', 'f1']);
+    expect(api.search).not.toHaveBeenCalled();
+  });
+
+  it('completes a typed field\'s token from its values', () => {
+    const { fixture, api } = setup(true);
+    api.searchSuggest.mockReturnValue(of({
+      ...answer, folders: [], creators: [],
+      field: { name: 'tag', prefix: 'tim', start: 8, items: [{ label: 'Time Travel', insert: 'tag:"Time Travel"', count: 2 }] },
+    }));
+    typeInto(fixture, 'berserk tag:tim');
+
+    (fixture.nativeElement.querySelector('[data-testid="quick-result"]') as HTMLElement).click();
+    expect(fixture.componentInstance.query).toBe('berserk tag:"Time Travel" ');
+  });
+
+  it('hides them on Enter, and asks nothing on desktop or tablet', () => {
+    const phone = setup(true);
+    typeInto(phone.fixture, 'ber');
+    const input = phone.fixture.nativeElement.querySelector('[data-testid="search-input"]') as HTMLInputElement;
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    phone.fixture.detectChanges();
+    expect(phone.fixture.nativeElement.querySelector('[data-testid="search-quick"]')).toBeNull();
+
+    TestBed.resetTestingModule();
+    const wide = setup(false);
+    typeInto(wide.fixture, 'ber');
+    expect(wide.api.searchSuggest).not.toHaveBeenCalled();
+    expect(wide.fixture.nativeElement.querySelector('[data-testid="search-quick"]')).toBeNull();
   });
 });

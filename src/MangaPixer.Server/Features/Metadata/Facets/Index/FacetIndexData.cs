@@ -17,10 +17,10 @@ internal static class FacetIndexData
 
     public sealed record RecordRow(
         long Id, string Provider, string Title, int? Origin, int? Format, bool? Webtoon, int? StartYear,
-        string? CreatorsJson, string? GenresJson, string? PublishersJson, string? PublicationsJson);
+        string? CreatorsJson, string? GenresJson, string? PublishersJson, string? PublicationsJson, string? CategoriesJson = null);
 
     public sealed record ComicInfoRow(long NodeId, long LibraryId, string? Series, string? CreatorsJson, string? GenresJson,
-        string? Publisher, string? Imprint, int? Year);
+        string? Publisher, string? Imprint, int? Year, string? TagsJson = null);
 
     public sealed record LinkRow(long NodeId, long LibraryId, int State, long? RecordId);
 
@@ -58,10 +58,19 @@ internal static class FacetIndexData
         MetadataJson.ReadList<MetadataJson.Publication>(r.PublicationsJson)
             .Where(p => !string.IsNullOrWhiteSpace(p.Name))
             .Select(p => p.Name)
-            .ToList());
+            .ToList(),
+        Categories(r.CategoriesJson));
+
+    /// <summary>1.49.0 (lane T): a record's stored categories (<c>[{name, votes}]</c>), blank names left out.</summary>
+    public static IReadOnlyList<FacetCategory> Categories(string? categoriesJson) =>
+        MetadataJson.ReadList<MetadataJson.Category>(categoriesJson)
+            .Where(c => !string.IsNullOrWhiteSpace(c.Name))
+            .Select(c => new FacetCategory(c.Name, c.Votes))
+            .ToList();
 
     public static FacetComicInfo ToComicInfo(ComicInfoRow r) => new(
-        r.NodeId, r.Series, ComicInfoCredits(r.CreatorsJson), MetadataJson.ReadList<string>(r.GenresJson), r.Publisher, r.Imprint, r.Year);
+        r.NodeId, r.Series, ComicInfoCredits(r.CreatorsJson), MetadataJson.ReadList<string>(r.GenresJson), r.Publisher, r.Imprint, r.Year,
+        MetadataJson.ReadList<string>(r.TagsJson));
 
     public static FacetLink? ToLink(LinkRow r) =>
         Enum.IsDefined((SeriesLinkState)r.State) ? new FacetLink((SeriesLinkState)r.State, r.RecordId) : null;
@@ -85,7 +94,7 @@ internal static class FacetIndexData
 
         static IQueryable<RecordRow> Project(IQueryable<Persistence.Entities.MetadataRecordEntity> q) =>
             q.Select(r => new RecordRow(r.Id, r.Provider, r.Title, r.Origin, r.Format, r.Webtoon, r.StartYear,
-                r.CreatorsJson, r.GenresJson, r.PublishersJson, r.PublicationsJson));
+                r.CreatorsJson, r.GenresJson, r.PublishersJson, r.PublicationsJson, r.CategoriesJson));
     }
 
     /// <summary>The CURRENT parsed ComicInfo rows of live archives (of one library, or all): the row of the archive's content version.</summary>
@@ -100,7 +109,7 @@ internal static class FacetIndexData
                       join a in db.ArchiveItems.AsNoTracking() on n.Id equals a.NodeId
                       join e in db.EmbeddedMetadata.AsNoTracking() on n.Id equals e.NodeId
                       where e.State == ComicInfoParsed && e.ContentVersion == a.ContentVersion
-                      select new ComicInfoRow(n.Id, n.LibraryId, e.Series, e.CreatorsJson, e.GenresJson, e.Publisher, e.Imprint, e.Year))
+                      select new ComicInfoRow(n.Id, n.LibraryId, e.Series, e.CreatorsJson, e.GenresJson, e.Publisher, e.Imprint, e.Year, e.TagsJson))
             .ToListAsync(ct);
     }
 

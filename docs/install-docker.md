@@ -61,7 +61,7 @@ Compose only reads the override file when you pass it with `-f`, as in the comma
 
 ## Step 3: choose the image tag
 
-The Compose file pulls `ghcr.io/dixit92/mangapixer:${MANGAPIXER_VERSION}`. When the variable is unset it falls back to `latest`, which moves with every release; pin the version you want so upgrades happen when you decide. Released versions are listed on the [Releases page](https://github.com/dixit92/mangapixer/releases). In a clone, this script prints the version of the checked-out source:
+The Compose file pulls `ghcr.io/dixit92/mangapixer:${MANGAPIXER_VERSION}`. When the variable is unset it falls back to `latest`, which moves with every release; pin the version you want so upgrades happen when you decide. Released versions are listed on the [Releases page](https://github.com/dixit92/mangapixer/releases). *From 1.49.0* every release is also mirrored on Docker Hub as `dixit92/mangapixer` (same image, same tags), for tools that read image details from Docker Hub; ghcr.io stays the primary registry. In a clone, this script prints the version of the checked-out source:
 
 ```sh
 pwsh ./scripts/Get-MangaPixerVersion.ps1
@@ -70,11 +70,11 @@ pwsh ./scripts/Get-MangaPixerVersion.ps1
 Then set it in your shell. Set it again in every new shell before you run `docker compose`, or Compose looks for an image under the fallback tag.
 
 ```sh
-export MANGAPIXER_VERSION=1.48.0          # bash / zsh
+export MANGAPIXER_VERSION=1.49.0          # bash / zsh
 ```
 
 ```powershell
-$env:MANGAPIXER_VERSION = "1.48.0"         # PowerShell
+$env:MANGAPIXER_VERSION = "1.49.0"         # PowerShell
 ```
 
 ## Step 4: start

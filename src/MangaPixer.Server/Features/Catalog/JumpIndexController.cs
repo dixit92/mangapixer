@@ -44,6 +44,11 @@ public sealed class JumpIndexController : ControllerBase
     /// contiguous run of the listing, and its firstCursor is a valid keyset cursor for the browse name sort in
     /// <paramref name="direction"/> (<c>asc</c> default, <c>desc</c>). <paramref name="group"/> is the browse Volumes-view override
     /// (<c>volumes</c> / <c>flat</c>): where the Volumes view is shown the index is empty. Authorization is enforced by the service.
+    /// 1.49.0: the filter params of browse (<paramref name="readState"/>, <paramref name="hideEmpty"/>, <paramref name="favoritesOnly"/>,
+    /// <paramref name="completion"/>) give the rail of the FILTERED level - the same rows browse lists, each cursor the key of the
+    /// previous filtered row. <paramref name="sort"/> is browse's sort: <c>recentlyAdded</c> / <c>recentlyUpdated</c> answer time chips
+    /// (<c>Today</c>, <c>This week</c> ... years; cursors in browse's date form, boundaries in the viewer's day by
+    /// <paramref name="tzOffset"/>, minutes east of UTC), <c>recentlyRead</c> none; anything else is the name sort.
     /// </summary>
     [HttpGet("libraries/{libraryId}/jump-index")]
     [ProducesResponseType(typeof(JumpIndexDto), StatusCodes.Status200OK)]
@@ -52,7 +57,13 @@ public sealed class JumpIndexController : ControllerBase
         [FromQuery] string? parentId,
         [FromQuery] string? direction,
         [FromQuery] string? group,
-        CancellationToken ct)
+        [FromQuery] string? readState = null,
+        [FromQuery] bool hideEmpty = false,
+        [FromQuery] bool favoritesOnly = false,
+        [FromQuery] string? completion = null,
+        [FromQuery] string? sort = null,
+        [FromQuery] int tzOffset = 0,
+        CancellationToken ct = default)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
@@ -69,7 +80,9 @@ public sealed class JumpIndexController : ControllerBase
         }
 
         var descending = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase);
-        var result = await _jumpIndexService.GetJumpIndexAsync(userId.Value, library.Id, parentIdLong, descending, group, _incognito.IsIncognito, ct);
+        var filter = new LevelFilter(LevelFilter.ParseReadState(readState), hideEmpty, favoritesOnly, LevelFilter.ParseCompletion(completion));
+        var result = await _jumpIndexService.GetJumpIndexAsync(userId.Value, library.Id, parentIdLong, descending, group, _incognito.IsIncognito,
+            filter, sort ?? "name", tzOffset, ct);
 
         // Re-stamp the public id so the DTO carries the caller-facing id even
         // when the level had no rows (or the Volumes view hid the rail).

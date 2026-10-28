@@ -8,6 +8,7 @@ using com.lifepixer.mangapixer.Core.Metadata.Missing;
 using com.lifepixer.mangapixer.Core.Metadata.Reach;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Missing;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Reach;
+using com.lifepixer.mangapixer.Server.Hosting;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -123,6 +124,10 @@ public sealed class VolumeEntryService
 
     private static readonly TimeSpan s_ttl = TimeSpan.FromMinutes(5);
 
+    /// <summary>The shared cache's size of a folder's entry list (1.49.0 lane M; <see cref="SharedMemoryCache.Kib"/>, an estimate).</summary>
+    internal static long EstimatedSize(FolderVolumeEntries built) =>
+        SharedMemoryCache.Kib(1024 + (built.Entries.Count * 256L) + (built.Rows.Count * 512L) + (built.AlsoInVolume.Count * 128L));
+
     private readonly MangaPixerDbContext _db;
     private readonly IMemoryCache? _cache;
     private readonly VolumeScan.VolumeScanQueue? _scanQueue;
@@ -184,7 +189,7 @@ public sealed class VolumeEntryService
             return cached;
 
         var built = await BuildAsync(info, context, language, stories, ct);
-        _cache?.Set(key, built, s_ttl);
+        _cache?.SetSized(key, built, s_ttl, EstimatedSize(built));
         // 1.44.0: a folder with a volume file next to chapter files no list places goes to the front of the volume contents scan.
         if (_scanQueue is not null && MayHoldScanTarget(built))
             _scanQueue.Enqueue(info.Id);

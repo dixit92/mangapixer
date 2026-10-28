@@ -70,6 +70,10 @@ public sealed class PerfTimingHttpTests
         // The process-wide hook ends with the host: later hosts in the same process (other tests) record nothing into it.
         Assert.Same(recorder, PerfRecorder.Active);
         factory.Dispose();
+        // The host's singletons are disposed when the app's own entry thread finishes shutting down, which under CI load can be a
+        // moment after Dispose() returns (1.48.0 PR #46: once in CI, never on the box) - wait for the hook to clear, up to 10 s.
+        for (var attempt = 0; attempt < 100 && ReferenceEquals(recorder, PerfRecorder.Active); attempt++)
+            await Task.Delay(100);
         Assert.NotSame(recorder, PerfRecorder.Active);
     }
 

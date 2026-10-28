@@ -9,6 +9,7 @@ using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MangaUpdates;
+using com.lifepixer.mangapixer.Server.Hosting;
 using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -123,7 +124,7 @@ public sealed class AuthorSearchService
                 throw new MetadataGatewayException(StatusCodes.Status400BadRequest, "unknown_provider", "No such metadata provider.");
             page = await _gateway.DetailCallAsync(MangaUpdatesProvider.ProviderId, Operation, node.LibraryId,
                 c => provider.SearchAuthorsAsync(query, c), new MetadataCallContext { Origin = MetadataCallOrigin.Interactive }, ct);
-            _cache.Set(key, page, MetadataGateway.SearchCacheTtl);
+            _cache.SetSized(key, page, MetadataGateway.SearchCacheTtl, SharedMemoryCache.Kib(256 + (page.Hits.Count * 512L)), CacheItemPriority.High);
         }
 
         _logger.LogInformation(LogEvents.Metadata.AuthorSearchServed,

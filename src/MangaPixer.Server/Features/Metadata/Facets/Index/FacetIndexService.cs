@@ -50,8 +50,11 @@ public sealed record FacetRebuildResult(FacetRebuildOutcome Outcome, int Works =
 /// </summary>
 public sealed class FacetIndexService
 {
-    /// <summary>The index rules version: part of every inputs key, so a release that changes the rules rebuilds every library once.</summary>
-    public const int RulesVersion = 1;
+    /// <summary>
+    /// The index rules version: part of every inputs key, so a release that changes the rules rebuilds every library once. 2 = 1.49.0
+    /// (lane T): the Tags bucket (record categories + ComicInfo Tags).
+    /// </summary>
+    public const int RulesVersion = 2;
 
     /// <summary>Rows per write transaction.</summary>
     public const int BatchSize = 500;

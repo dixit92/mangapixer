@@ -568,7 +568,7 @@ public sealed class StorageIntegrationTests : IDisposable
 
         // FTS row for the item node (the AFTER-DELETE trigger does not fire on cascade).
         await db.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO catalog_search (display_name, relative_path, library_id, node_id) VALUES ('vol1', 'Series/vol1.cbz', {library.Id}, {item.Id})");
+            $"INSERT INTO catalog_search (display_name, library_id, node_id) VALUES ('vol1', {library.Id}, {item.Id})");
 
         // Durable thumbnail file on disk for the item.
         var thumbRoot = Path.Combine(_tempDir, "data", "thumbnails");

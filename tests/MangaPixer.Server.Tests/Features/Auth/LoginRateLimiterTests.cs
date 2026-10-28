@@ -90,4 +90,72 @@ public sealed class LoginRateLimiterTests
         Assert.False(limiter.AllowAttempt("203.0.113.7", "__activation__:token-aaa-hash"));
         Assert.True(limiter.AllowAttempt("203.0.113.7", "__activation__:token-bbb-hash"));
     }
+    // ---------------------------------------------------------------- 1.49.0 lane M: ended windows are dropped
+
+    [Fact]
+    public void RecordFailure_AboveThreshold_DropsKeysWhoseWindowEnded()
+    {
+        var clock = new Clock(new DateTimeOffset(2026, 10, 27, 12, 0, 0, TimeSpan.Zero));
+        var limiter = new LoginRateLimiter(Options(), clock: clock);
+        var distinct = (LoginRateLimiter.PruneThreshold / 2) + 50;
+        for (var i = 0; i < distinct; i++)
+            limiter.RecordFailure($"198.51.100.{i}", $"user-{i}");
+        Assert.Equal(distinct * 2, limiter.TrackedKeys);
+
+        // Every window has ended: the next failure sweeps them; only its own two keys remain.
+        clock.Now += TimeSpan.FromMinutes(5) + TimeSpan.FromSeconds(1);
+        limiter.RecordFailure("203.0.113.9", "late-user");
+        Assert.Equal(2, limiter.TrackedKeys);
+    }
+
+    [Fact]
+    public void RecordFailure_AboveThreshold_KeepsLiveWindows_AndTheBlockStands()
+    {
+        var clock = new Clock(new DateTimeOffset(2026, 10, 27, 12, 0, 0, TimeSpan.Zero));
+        var limiter = new LoginRateLimiter(Options(maxAttemptsPerIp: 3), clock: clock);
+        for (var i = 0; i < 3; i++)
+            limiter.RecordFailure("203.0.113.1", $"blocked-{i}");
+        var distinct = (LoginRateLimiter.PruneThreshold / 2) + 50;
+        for (var i = 0; i < distinct; i++)
+            limiter.RecordFailure($"198.51.100.{i}", $"user-{i}");
+        var tracked = limiter.TrackedKeys;
+
+        // Past the sweep interval but inside the window: nothing is dropped and the blocked address stays blocked.
+        clock.Now += LoginRateLimiter.PruneInterval + TimeSpan.FromSeconds(1);
+        limiter.RecordFailure("203.0.113.9", "late-user");
+        Assert.Equal(tracked + 2, limiter.TrackedKeys);
+        Assert.False(limiter.AllowAttempt("203.0.113.1", "someone-else"));
+        Assert.NotNull(limiter.GetRetryAfter("203.0.113.1", "someone-else"));
+    }
+
+    [Fact]
+    public void EndedWindow_DroppedOrKept_GivesTheSameAnswers()
+    {
+        // The blocked address after its window: allowed, no retry time - with the key swept (above the threshold) and without (below).
+        foreach (var sweep in new[] { false, true })
+        {
+            var clock = new Clock(new DateTimeOffset(2026, 10, 27, 12, 0, 0, TimeSpan.Zero));
+            var limiter = new LoginRateLimiter(Options(maxAttemptsPerIp: 2), clock: clock);
+            limiter.RecordFailure("203.0.113.1", "a");
+            limiter.RecordFailure("203.0.113.1", "b");
+            Assert.False(limiter.AllowAttempt("203.0.113.1", "c"));
+            if (sweep)
+            {
+                for (var i = 0; i < LoginRateLimiter.PruneThreshold; i++)
+                    limiter.RecordFailure($"198.51.100.{i}", $"user-{i}");
+            }
+            clock.Now += TimeSpan.FromMinutes(5) + TimeSpan.FromSeconds(1);
+            limiter.RecordFailure("203.0.113.9", "late-user");
+            Assert.Equal(sweep, limiter.TrackedKeys == 2);
+            Assert.Null(limiter.GetRetryAfter("203.0.113.1", "c"));
+            Assert.True(limiter.AllowAttempt("203.0.113.1", "c"));
+        }
+    }
+
+    private sealed class Clock(DateTimeOffset now) : TimeProvider
+    {
+        public DateTimeOffset Now { get; set; } = now;
+
+        public override DateTimeOffset GetUtcNow() => Now;
+    }
 }

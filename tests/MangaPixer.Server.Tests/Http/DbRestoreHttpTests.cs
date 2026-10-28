@@ -181,8 +181,16 @@ public sealed class DbRestoreHttpTests : IDisposable
         var fileName = await TakeBackupViaApiAsync(client);
 
         // Corrupt the backup bytes past the header so integrity_check fails.
+        // (1.49.0: the snapshot is gzip; unpack it so the damage is in the SQLite file, not in the gzip stream.)
         var backupPath = Path.Combine(_factory.DataRoot, "backups", fileName);
-        var bytes = await File.ReadAllBytesAsync(backupPath);
+        byte[] bytes;
+        await using (var packed = File.OpenRead(backupPath))
+        await using (var unpack = new System.IO.Compression.GZipStream(packed, System.IO.Compression.CompressionMode.Decompress))
+        await using (var plain = new MemoryStream())
+        {
+            await unpack.CopyToAsync(plain);
+            bytes = plain.ToArray();
+        }
         if (bytes.Length > 4096)
         {
             bytes[4096] = 0xFF;

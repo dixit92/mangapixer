@@ -1,7 +1,8 @@
-import { Component, signal } from '@angular/core';
+import { ChangeDetectorRef, Component, signal } from '@angular/core';
+import { By } from '@angular/platform-browser';
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { MatDialogRef } from '@angular/material/dialog';
 import { Subject, of, throwError } from 'rxjs';
 
@@ -11,6 +12,9 @@ import { InfoApiService } from './info-api.service';
 import { InfoTagsComponent } from './info-tags.component';
 import { FacetBucketPageDto, InfoPanelDto } from './info-types';
 import { bucket, chip, emptyPanel, panel } from './info.testing';
+
+@Component({ standalone: true, template: '' })
+class SearchStubComponent {}
 
 @Component({
   standalone: true,
@@ -46,7 +50,7 @@ describe('InfoTagsComponent', () => {
     const creatorAdmin = { rename: vi.fn(() => Promise.resolve(null)), merge: vi.fn(() => Promise.resolve(null)), split: vi.fn(() => Promise.resolve(null)) };
     const providers: unknown[] = [
       provideNoopAnimations(),
-      provideRouter([]),
+      provideRouter([{ path: 'search', component: SearchStubComponent }]),
       { provide: InfoApiService, useValue: api },
       { provide: AuthService, useValue: { isAdmin: () => !!opts.admin } },
       { provide: CreatorAdminService, useValue: creatorAdmin },
@@ -79,6 +83,22 @@ describe('InfoTagsComponent', () => {
   it('links each chip to the search with the chip\'s own filter', () => {
     const { chips } = render(panel({ buckets: [bucket({ bucket: 'Genres', chips: [chip({ id: 'fv_g', display: 'Comedy', filter: 'genre:fv_g' })] })] }));
     expect(chips()[0].getAttribute('href')).toBe('/search?f=genre:fv_g');
+  });
+
+  // 1.49.0 (lane T, owner decision 9 a): over the search page a chip ADDS its tag; the text, the read filter and the other tags stay.
+  it('adds the chip\'s tag to the search it is opened over, keeping q, read and the other tags', async () => {
+    const { chips, fixture } = render(panel({ buckets: [bucket({ bucket: 'Genres', chips: [chip({ id: 'fv_g', display: 'Comedy', filter: 'genre:fv_g' })] })] }));
+    expect(chips()[0].getAttribute('href')).toBe('/search?f=genre:fv_g'); // not on the search page: just the tag
+    await TestBed.inject(Router).navigateByUrl('/search?q=pluto&read=unread&f=creator:fv_a&f=-genre:fv_g');
+    fixture.debugElement.query(By.directive(InfoTagsComponent)).injector.get(ChangeDetectorRef).markForCheck();
+    fixture.detectChanges();
+    const href = decodeURIComponent(chips()[0].getAttribute('href')!);
+    expect(href.startsWith('/search?')).toBe(true);
+    const params = new URLSearchParams(href.slice('/search?'.length));
+    expect(params.get('q')).toBe('pluto');
+    expect(params.get('read')).toBe('unread');
+    // The excluded copy of the same tag is replaced by the included one; the creator tag stays.
+    expect(params.getAll('f')).toEqual(['creator:fv_a', 'genre:fv_g']);
   });
 
   it('shows a count only when it is 2 or more, in its own span; a count of 1 stays quiet but the chip still links', () => {

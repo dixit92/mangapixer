@@ -1,5 +1,7 @@
-import { Component, computed, inject, signal, viewChild } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Component, DestroyRef, computed, inject, signal, viewChild } from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { BreakpointObserver } from '@angular/cdk/layout';
+import { map } from 'rxjs/operators';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, ParamMap, Params, Router, RouterLink } from '@angular/router';
@@ -16,9 +18,13 @@ import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.compon
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/folder-rollup-badge.component';
 import { MetadataStateService } from '../metadata/metadata-state.service';
-import { CatalogNodeDto, LibraryReadStateFilter, SearchResultsDto, SeriesMatchDto } from '../../core/api/api-types';
-import { bucketLabel, bucketToken, filterValueId, isFilterParam, locationText } from '../metadata/info/info-labels';
+import { CatalogNodeDto, FacetBucketDto, LibraryReadStateFilter, SearchResultsDto, SeriesMatchDto } from '../../core/api/api-types';
+import {
+  addFilterParam, bucketLabel, bucketRank, bucketToken, filterToken, filterValueId, isExcludeParam, isFilterParam, locationText, toggleExcludeParam,
+} from '../metadata/info/info-labels';
 import { FacetLocationDto, FacetSearchFields, FacetWorkDto, SearchFilterDto } from '../metadata/info/info-types';
+import { QuickResultsComponent } from './quick-results/quick-results.component';
+import { QuickEntry, QuickResults, completeToken } from './quick-results/quick-results.model';
 
 /**
  * The search page's state as it appears in the URL (1.45.0): `q` (the search text), `read` (the read-state filter; absent = all) and
@@ -61,10 +67,26 @@ interface FilterChip {
   label: string;
   /** False when the server did not know the value (or the viewer may not see it): the chip says so and can be removed. */
   known: boolean;
+  /** 1.49.0 (lane T): an exclusion (`-genre:fv_..`) - the works must not carry it. */
+  excluded: boolean;
 }
 
+/** 1.49.0 (lane T): the typed syntax the "?" panel lists - each line can be put into the field. */
+export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = [
+  { example: 'tag:"time travel"', meaning: 'Works with this tag' },
+  { example: 'genre:horror|mystery', meaning: 'Either genre (| = or)' },
+  { example: '-genre:horror', meaning: 'Without this genre (- = not)' },
+  { example: 'creator:urasawa', meaning: 'A creator with this name; quotes for the exact name' },
+  { example: 'year:2010..2015', meaning: 'Started in these years (also ..1999, 2020..)' },
+  { example: 'series:monster', meaning: 'Title, other titles or folder name' },
+  { example: 'publisher:"Big Comic" type:manga', meaning: 'Publisher, magazine:, type:' },
+  { example: 'is:unread', meaning: 'Read state: is:read, is:unread, is:reading' },
+  { example: 'library:manga', meaning: 'Only this library' },
+];
+
 /**
- * Search component. Uses the FTS5 trigram search via the API. 1.45.0 (lane P): the tag view - a chip of the Info panel opens this page
+ * Search component. Uses the FTS5 trigram search via the API (1.49.0, lane S: words in any order over names, close matches for a typo,
+ * "+N inside" on folder cards, counts by kind; favourites lifted by the server). 1.45.0 (lane P): the tag view - a chip of the Info panel opens this page
  * with `f=<bucket>:<value id>`; the filters show as removable chips in the field (they scroll sideways in their own row on a phone),
  * typed field syntax (`creator:"..."`) passes through `q`, and the results are WORK cards (cover, title, where the work lives as a
  * breadcrumb of display names, "2 locations" for a split series) with the same keyset "Load more" and (1.47.0) read filter. Without a filter the
@@ -87,15 +109,25 @@ interface FilterChip {
     InfoToggleComponent,
     SeriesInfoHoverDirective,
     FolderRollupBadgeComponent,
+    QuickResultsComponent,
   ],
   template: `
     <h2>Search</h2>
+    <!-- 1.49.0 (lane T): the field and its "?" syntax help side by side. -->
+    <div class="search-row">
     <mat-form-field appearance="outline" class="search-field" [class.has-filters]="filterChips().length > 0">
       <mat-label>Search libraries</mat-label>
       <!-- Tag filters (1.45.0): removable chips in the field, in their own row that scrolls sideways when it is full. -->
       <mat-chip-grid #filterGrid class="filter-chips" aria-label="Tag filters" data-testid="search-filters">
         @for (chip of filterChips(); track chip.param) {
-          <mat-chip-row (removed)="removeFilter(chip.param)" [class.unknown]="!chip.known" data-testid="search-filter-chip">
+          <mat-chip-row (removed)="removeFilter(chip.param)" [class.unknown]="!chip.known" [class.excluded]="chip.excluded"
+                        data-testid="search-filter-chip" [attr.data-excluded]="chip.excluded">
+            <!-- 1.49.0 (lane T): include <-> exclude this tag. -->
+            <button type="button" class="exclude-toggle" (click)="toggleExclude(chip.param); $event.stopPropagation()"
+                    [attr.aria-label]="(chip.excluded ? 'Include ' : 'Exclude ') + chip.label" [attr.aria-pressed]="chip.excluded"
+                    [matTooltip]="chip.excluded ? 'Excluded - click to include' : 'Click to exclude'" data-testid="search-filter-exclude">
+              <mat-icon>{{ chip.excluded ? 'block' : 'add_circle_outline' }}</mat-icon>
+            </button>
             <span class="filter-label">{{ chip.label }}</span>
             <button matChipRemove type="button" [attr.aria-label]="'Remove filter ' + chip.label"><mat-icon>cancel</mat-icon></button>
           </mat-chip-row>
@@ -104,9 +136,40 @@ interface FilterChip {
       <!-- The text field under the chip row (not inside it): a full row scrolls sideways and the text stays in reach. -->
       <input class="search-text" [matChipInputFor]="filterGrid" [(ngModel)]="query" (ngModelChange)="onSearch()"
              [placeholder]="filterChips().length > 0 ? 'Add search text...' : 'Enter search text...'" aria-label="Search text"
-             data-testid="search-input">
+             (focus)="onQuickFocus()" (blur)="onQuickBlur()" (keydown.enter)="quickDismissed.set(true)" data-testid="search-input">
       <mat-icon matSuffix>search</mat-icon>
     </mat-form-field>
+    <button mat-icon-button type="button" class="syntax-toggle" (click)="syntaxOpen.set(!syntaxOpen())" [attr.aria-expanded]="syntaxOpen()"
+            aria-controls="search-syntax" aria-label="Search syntax help" matTooltip="Search syntax" data-testid="search-syntax-toggle">
+      <mat-icon>help_outline</mat-icon>
+    </button>
+    </div>
+
+    <!-- 1.49.0 (lane O): on a phone the header has no search box, so the grouped quick results show here, under the field, while typing
+         (series, folders, archives, creators, tags - or the values of a typed field); a result opens, a field value completes the token. -->
+    @if (quickOpen()) {
+      <div class="quick-phone" data-testid="search-quick">
+        <app-quick-results [sections]="quick.sections()" idPrefix="sq-" label="Quick results" (picked)="pickQuick($event)" />
+      </div>
+    }
+
+    <!-- 1.49.0 (lane T, S4): the typed syntax with examples (as YACReader's search help); an example goes into the field. -->
+    @if (syntaxOpen()) {
+      <section id="search-syntax" class="syntax" aria-label="Search syntax" data-testid="search-syntax" tabindex="-1" (keydown.escape)="syntaxOpen.set(false)">
+        <p class="syntax-intro">Plain words find names. Fields narrow by tags; combine any of them:</p>
+        <ul class="syntax-list">
+          @for (ex of syntaxExamples; track ex.example) {
+            <li>
+              <button type="button" class="syntax-example" (click)="useExample(ex.example)" data-testid="search-syntax-example">
+                <code>{{ ex.example }}</code>
+              </button>
+              <span class="syntax-meaning">{{ ex.meaning }}</span>
+            </li>
+          }
+        </ul>
+        <p class="syntax-intro">A word a field does not know stays plain text.</p>
+      </section>
+    }
 
     <!-- Read-state filter (1.45.0): the browse Show filter's choices as one chip row over the results, applied on the server before
          paging (the count and "Load more" stay right). Shown once there is search text or a tag, so a filter with no hits can be switched
@@ -118,6 +181,40 @@ interface FilterChip {
           <mat-chip-option [value]="opt.value">{{ opt.label }}</mat-chip-option>
         }
       </mat-chip-listbox>
+    }
+
+    <!-- 1.49.0 (lane T, owner decision 9 a): Refine - the tags of all the results with how many carry each; a chip adds it to the search,
+         "or" joins it to the bucket's tag already in the search (any of), the minus excludes it. -->
+    @if (tagView() && refine().length > 0) {
+      <details class="refine" open data-testid="search-refine">
+        <summary class="section-heading">Refine</summary>
+        @for (b of refine(); track b.bucket) {
+          <div class="refine-bucket" [attr.data-bucket]="b.bucket">
+            <h4 class="refine-label">{{ label(b.bucket) }}</h4>
+            <ul class="refine-chips">
+              @for (chip of b.chips; track chip.id) {
+                <li class="refine-chip">
+                  <button type="button" class="refine-add" (click)="addRefine(chip.filter, 'all')" data-testid="refine-chip"
+                          [attr.aria-label]="'Add ' + chip.display + ', ' + chip.count + ' of these results'">
+                    <span class="name">{{ chip.display }}</span><span class="count">{{ chip.count }}</span>
+                  </button>
+                  @if (canOr(chip.filter)) {
+                    <button type="button" class="refine-or" (click)="addRefine(chip.filter, 'any')" data-testid="refine-or"
+                            [attr.aria-label]="'Or ' + chip.display" matTooltip="Or: either tag">or</button>
+                  }
+                  <button type="button" class="refine-not" (click)="addRefine(chip.filter, 'not')" data-testid="refine-not"
+                          [attr.aria-label]="'Exclude ' + chip.display" matTooltip="Exclude">
+                    <mat-icon>remove_circle_outline</mat-icon>
+                  </button>
+                </li>
+              }
+              @if (b.more > 0) {
+                <li class="refine-more">+{{ b.more }} more</li>
+              }
+            </ul>
+          </div>
+        }
+      </details>
     }
 
     @if (seriesMatches().length > 0) {
@@ -185,7 +282,11 @@ interface FilterChip {
         </div>
       }
     } @else if (results().length > 0) {
-      <p class="result-count">{{ totalCount() }} results</p>
+      <!-- 1.49.0 (lane S): "N folders, M archives", and a note when close matches for a typo are listed (always after exact hits). -->
+      <p class="result-count" data-testid="search-count">{{ countText() }}</p>
+      @if (closeMatchText(); as hint) {
+        <p class="search-hint" data-testid="search-close-hint">{{ hint }}</p>
+      }
       <div class="results-grid">
         @for (node of results(); track node.id) {
           <ng-container *ngTemplateOutlet="card; context: { node: node, aka: null }" />
@@ -201,6 +302,10 @@ interface FilterChip {
       }
     } @else if (searched() && seriesMatches().length === 0) {
       <p class="no-results">{{ noResultsText() }}</p>
+    }
+    <!-- 1.49.0: a 1-2 character search matches names with a word starting with it - say so, it is not a typo search. -->
+    @if (shortSearch() && searched() && works().length === 0) {
+      <p class="search-hint" data-testid="search-short-hint">Names with a word starting with "{{ params().q.trim() }}". Type 3 or more characters to search inside words.</p>
     }
 
     <ng-template #card let-node="node" let-aka="aka">
@@ -220,7 +325,7 @@ interface FilterChip {
           </span>
           <!-- Favorites prominence (1.21.0): the star (badge + interactive toggle)
                appears in search only when the user opted in; when off, results render
-               normally. Boosting favorited results to the top is done in runSearch() and loadMore(). -->
+               normally. 1.49.0: the server lifts favourites to the top across pages (it was per page here). -->
           @if (prominence()) {
             <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" [overlay]="true" [compact]="true" />
           }
@@ -238,11 +343,65 @@ interface FilterChip {
         @if (aka) {
           <div class="result-aka" [matTooltip]="aka">aka {{ aka }}</div>
         }
+        <!-- 1.49.0 "+N inside": archives found only through this folder's name are counted on its card instead of listed. -->
+        @if (insideCounts()[node.id]; as inside) {
+          <div class="result-inside" data-testid="search-inside">+{{ inside }} inside</div>
+        }
       </a>
     </ng-template>
   `,
   styles: [`
-    .search-field { width: 100%; max-width: 600px; }
+    .search-row { display: flex; align-items: flex-start; gap: 4px; max-width: 648px; min-width: 0; }
+    .search-field { flex: 1 1 auto; width: 100%; max-width: 600px; min-width: 0; }
+    .syntax-toggle { flex: none; margin-top: 8px; color: var(--mp-text-muted); }
+    .quick-phone {
+      max-width: 600px; margin: -8px 0 12px; border-radius: 8px; overflow: hidden; min-width: 0;
+      border: 1px solid rgb(var(--mp-ink-rgb) / 0.16); background: var(--mp-surface-high);
+    }
+    .syntax {
+      max-width: 600px; margin: -8px 0 12px; padding: 10px 12px; border-radius: 8px;
+      border: 1px solid rgb(var(--mp-ink-rgb) / 0.12); background: rgb(var(--mp-ink-rgb) / 0.03); font-size: 13px;
+    }
+    .syntax-intro { margin: 4px 0; color: var(--mp-text-muted); }
+    .syntax-list { margin: 4px 0; padding: 0; list-style: none; }
+    .syntax-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; padding: 2px 0; min-width: 0; }
+    .syntax-example {
+      padding: 4px 6px; border: 0; border-radius: 4px; background: rgb(var(--mp-ink-rgb) / 0.06); color: var(--mp-text);
+      font: inherit; cursor: pointer; max-width: 100%; overflow-wrap: anywhere; text-align: left;
+    }
+    .syntax-example:hover { background: rgb(var(--mp-ink-rgb) / 0.1); }
+    .syntax-example:focus-visible { outline: 2px solid var(--mp-accent); outline-offset: 1px; }
+    .syntax-meaning { color: var(--mp-text-muted); min-width: 0; }
+    .exclude-toggle {
+      display: inline-flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 24px; margin: 0 2px 0 -6px;
+      padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--mp-text-muted); cursor: pointer; vertical-align: middle;
+    }
+    .exclude-toggle mat-icon { font-size: 18px; width: 18px; height: 18px; }
+    .exclude-toggle:focus-visible { outline: 2px solid var(--mp-accent); }
+    .excluded .filter-label { text-decoration: line-through; }
+    .excluded .exclude-toggle { color: var(--mp-warn); }
+    .refine { max-width: 960px; margin: 4px 0 8px; min-width: 0; }
+    .refine summary { cursor: pointer; margin: 8px 0; }
+    .refine-bucket { margin: 0 0 8px; min-width: 0; }
+    .refine-label { margin: 0 0 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: var(--mp-text-dim); }
+    .refine-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; min-width: 0; }
+    .refine-chip {
+      display: inline-flex; align-items: center; max-width: 100%; min-width: 0; height: 32px; border-radius: 16px;
+      border: 1px solid rgb(var(--mp-ink-rgb) / 0.16); background: rgb(var(--mp-ink-rgb) / 0.04);
+    }
+    .refine-chip button {
+      display: inline-flex; align-items: center; gap: 6px; height: 100%; border: 0; background: transparent; color: var(--mp-text);
+      font: inherit; font-size: 13px; cursor: pointer; min-width: 0;
+    }
+    .refine-chip button:focus-visible { outline: 2px solid var(--mp-accent); outline-offset: -2px; }
+    .refine-add { padding: 0 6px 0 12px; border-radius: 16px 0 0 16px; }
+    .refine-add .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .refine-add .count { flex: none; font-size: 12px; color: var(--mp-text-muted); }
+    .refine-or { flex: none; padding: 0 6px; font-size: 12px !important; color: var(--mp-accent) !important; }
+    .refine-not { flex: none; width: 30px; justify-content: center; padding: 0 6px 0 0; border-radius: 0 16px 16px 0; color: var(--mp-text-muted) !important; }
+    .refine-not mat-icon { font-size: 18px; width: 18px; height: 18px; }
+    .refine-chip button:hover { background: rgb(var(--mp-ink-rgb) / 0.08); }
+    .refine-more { align-self: center; font-size: 12px; color: var(--mp-text-muted); }
     /* The filter chips get their own row inside the field; a full row scrolls sideways instead of growing the field (D1 2.6). */
     .filter-chips { display: block; width: 100%; min-width: 0; }
     .search-text { display: block; width: 100%; min-width: 0; }
@@ -290,6 +449,8 @@ interface FilterChip {
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .no-results { color: var(--mp-text-muted); padding: 32px; text-align: center; }
+    .search-hint { color: var(--mp-text-muted); font-size: 13px; margin: -8px 0 16px; overflow-wrap: anywhere; }
+    .result-inside { margin-top: 2px; font-size: 12px; color: var(--mp-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     /* Read marks: the browse card badge (library-browse.component.ts), top-right - the kind badge has top-left, the star bottom-right. */
     .badge {
       position: absolute; top: 6px; right: 6px; z-index: 2;
@@ -322,6 +483,17 @@ export class SearchComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
+  /** 1.49.0 (lane O): the quick results under the field - phones only (desktop and tablet have the header box). */
+  readonly quick = new QuickResults();
+  private readonly phone = toSignal(
+    inject(BreakpointObserver).observe('(max-width: 599.98px)').pipe(map((state) => state.matches)),
+    { initialValue: false },
+  );
+  private readonly quickFocused = signal(false);
+  readonly quickDismissed = signal(false);
+  readonly quickOpen = computed(() => this.phone() && this.quickFocused() && !this.quickDismissed() && this.quick.entries().length > 0);
+  private quickBlurTimer: ReturnType<typeof setTimeout> | null = null;
+
   /** The text field (two-way bound); it becomes `params().q` when the debounce fires. */
   query = '';
   /** The searched state, mirrored in the URL (1.45.0). */
@@ -335,6 +507,12 @@ export class SearchComponent {
   readonly expanded = signal<ReadonlySet<string>>(new Set());
   readonly seriesMatches = signal<SeriesMatchDto[]>([]);
   readonly totalCount = signal(0);
+  /** 1.49.0: the plain search's counts by kind (null when the server sent none) and its close (typo) matches. */
+  readonly folderCount = signal<number | null>(null);
+  readonly archiveCount = signal<number | null>(null);
+  readonly closeMatchCount = signal(0);
+  /** 1.49.0 "+N inside" per folder card, merged over the loaded pages. */
+  readonly insideCounts = signal<Readonly<Record<string, number>>>({});
   readonly searched = signal(false);
   /** Keyset paging (1.45.0): whether a next page exists, and a "Load more" request is running. */
   readonly hasMore = signal(false);
@@ -359,20 +537,62 @@ export class SearchComponent {
 
   /** The field's filter chips, in URL order, named once the server has answered. */
   readonly filterChips = computed<FilterChip[]>(() => {
-    const byId = new Map(this.resolvedFilters().filter((r) => r.source === 'Chip' && r.id).map((r) => [r.id!, r]));
+    const key = (id: string, negated: boolean) => `${negated ? '-' : ''}${id}`;
+    const byId = new Map(this.resolvedFilters().filter((r) => r.source === 'Chip' && r.id).map((r) => [key(r.id!, !!r.negated), r]));
     return this.params().f.map((param) => {
-      const r = byId.get(filterValueId(param));
-      if (r?.matched && r.display) return { param, label: `${bucketLabel(r.bucket)}: ${r.display}`, known: true };
-      return { param, label: this.searched() ? 'Unknown tag' : '…', known: !this.searched() };
+      const excluded = isExcludeParam(param);
+      const r = byId.get(key(filterValueId(param), excluded));
+      if (r?.matched && r.display) {
+        return { param, label: `${excluded ? 'Not ' : ''}${bucketLabel(r.bucket)}: ${r.display}`, known: true, excluded };
+      }
+      return { param, label: this.searched() ? 'Unknown tag' : '…', known: !this.searched(), excluded };
     });
   });
 
+  /** 1.49.0: the counts line - "1 folder, 65 archives" (a zero kind is left out); "N results" when the server sent no counts. */
+  readonly countText = computed(() => {
+    const folders = this.folderCount();
+    const archives = this.archiveCount();
+    if (folders === null || archives === null) return `${this.totalCount()} results`;
+    const parts: string[] = [];
+    if (folders > 0) parts.push(`${folders} folder${folders === 1 ? '' : 's'}`);
+    if (archives > 0 || parts.length === 0) parts.push(`${archives} archive${archives === 1 ? '' : 's'}`);
+    return parts.join(', ');
+  });
+
+  /** 1.49.0: the typo note. Close matches always follow the exact hits; with no exact hit at all, they are the whole answer. */
+  readonly closeMatchText = computed(() => {
+    const close = this.closeMatchCount();
+    if (close <= 0) return null;
+    const q = this.params().q.trim();
+    return close >= this.totalCount() ? `No exact matches. Showing close matches for "${q}".` : `Also showing close matches for "${q}".`;
+  });
+
+  /** 1.49.0: a search with no word of 3+ characters (matched by word starts, no typo tolerance). */
+  readonly shortSearch = computed(() => {
+    const q = this.params().q;
+    if (!q.trim() || this.params().f.length > 0) return false;
+    const words = q.normalize('NFC').split(/[^\p{L}\p{N}\p{M}]+/u).filter((w) => w.length > 0);
+    return words.length > 0 && words.every((w) => w.normalize('NFD').replace(/\p{M}/gu, '').length < 3);
+  });
+
   readonly noResultsText = computed(() => {
-    if (this.params().f.length > 0) return this.params().read === 'all' ? 'No works with these tags.' : 'No works with these tags and this filter.';
+    // 1.49.0 (lane T): also a tag search made only of typed fields (`-genre:action`, `year:..1999`) answers in works.
+    if (this.params().f.length > 0 || this.tagAnswer()) {
+      return this.params().read === 'all' ? 'No works with these tags.' : 'No works with these tags and this filter.';
+    }
     return this.params().read === 'all' ? 'No results found.' : 'No results with this filter.';
   });
 
-  /** Per-user opt-in (1.21.0): show the favorite star + boost favorited results to top. */
+  /** 1.49.0 (lane T): the last answer was a tag search (it carried `works`, even an empty list). */
+  private readonly tagAnswer = signal(false);
+  /** 1.49.0 (lane T): the tag view's Refine list (first page's answer). */
+  readonly refine = signal<FacetBucketDto[]>([]);
+  /** 1.49.0 (lane T): the "?" syntax panel. */
+  readonly syntaxOpen = signal(false);
+  readonly syntaxExamples = SYNTAX_EXAMPLES;
+
+  /** Per-user opt-in (1.21.0): show the favorite star; 1.49.0 the server lifts favourites to the top across pages when it is on. */
   readonly prominence = signal(false);
 
   private readonly readFilterBox = viewChild(MatChipListbox);
@@ -384,6 +604,12 @@ export class SearchComponent {
   private generation = 0;
 
   constructor() {
+    // Leaving the page (a result opened, the browser's Back) cancels the timers: a late fire would write this page's URL back.
+    inject(DestroyRef).onDestroy(() => {
+      if (this.searchTimer) clearTimeout(this.searchTimer);
+      if (this.quickBlurTimer) clearTimeout(this.quickBlurTimer);
+    });
+
     // A link change (identify dialog, admin menu) updates the result in place (1.27.0).
     inject(MetadataStateService).changed$.pipe(takeUntilDestroyed()).subscribe(({ nodeId, hasSeriesInfo }) => {
       const patch = (n: CatalogNodeDto) => (n.id === nodeId ? { ...n, hasSeriesInfo } : n);
@@ -409,7 +635,40 @@ export class SearchComponent {
     });
   }
 
+  onQuickFocus(): void {
+    if (this.quickBlurTimer) clearTimeout(this.quickBlurTimer);
+    this.quickFocused.set(true);
+  }
+
+  onQuickBlur(): void {
+    // A tap on a result is handled before the list goes (it never takes focus; this is the margin for touch).
+    this.quickBlurTimer = setTimeout(() => this.quickFocused.set(false), 120);
+  }
+
+  /** 1.49.0 (lane O): a quick result was chosen - open it, add its tag view, or complete the typed field's token. */
+  pickQuick(entry: QuickEntry): void {
+    const action = entry.action;
+    if (action.type === 'complete') {
+      this.query = completeToken(this.query, action.start, action.insert);
+      this.onSearch();
+      return;
+    }
+    this.quick.clear();
+    if (action.type === 'open') {
+      // The page is being left: a search still waiting on its 300 ms must not write this page's URL back over the navigation.
+      if (this.searchTimer) clearTimeout(this.searchTimer);
+      void this.router.navigate(action.commands);
+      return;
+    }
+    this.query = '';
+    this.setFilters(addFilterParam(this.params().f, action.filter));
+  }
+
   onSearch(): void {
+    if (this.phone()) {
+      this.quickDismissed.set(false);
+      this.quick.ask(this.query);
+    }
     if (this.searchTimer) clearTimeout(this.searchTimer);
     this.searchTimer = setTimeout(() => {
       this.params.update((p) => ({ ...p, q: this.query }));
@@ -436,6 +695,48 @@ export class SearchComponent {
     if (!this.params().f.includes(param)) return;
     if (this.searchTimer) clearTimeout(this.searchTimer);
     this.params.update((p) => ({ ...p, q: this.query, f: p.f.filter((v) => v !== param) }));
+    this.writeUrl();
+    this.runSearch();
+  }
+
+  /** 1.49.0 (lane T): a filter chip's include / exclude toggle. */
+  toggleExclude(param: string): void {
+    if (!this.params().f.includes(param)) return;
+    const flipped = toggleExcludeParam(param);
+    this.setFilters(this.params().f.map((v) => (v === param ? flipped : v)));
+  }
+
+  /**
+   * 1.49.0 (lane T): a Refine chip - `all` adds it (must carry), `not` adds it as an exclusion, `any` joins it to the bucket's last
+   * included tag in the search (`genre:fv_a|fv_b`: either).
+   */
+  addRefine(filter: string, mode: 'all' | 'any' | 'not'): void {
+    const f = this.params().f;
+    if (mode === 'any') {
+      const target = this.orTarget(filter);
+      if (target) {
+        const id = filterValueId(filter);
+        this.setFilters(f.map((v) => (v === target ? `${v}|${id}` : v)));
+        return;
+      }
+    }
+    this.setFilters(addFilterParam(f, mode === 'not' ? `-${filter}` : filter));
+  }
+
+  /** 1.49.0: whether a Refine chip can join an included tag of its bucket already in the search ("or"). */
+  canOr(filter: string): boolean {
+    return this.orTarget(filter) !== null;
+  }
+
+  label(bucket: FacetBucketDto['bucket']): string {
+    return bucketLabel(bucket);
+  }
+
+  /** 1.49.0 (S4): an example of the "?" panel goes into the field (added to what is typed) and searches. */
+  useExample(example: string): void {
+    this.query = this.query.trim() ? `${this.query.trim()} ${example}` : example;
+    if (this.searchTimer) clearTimeout(this.searchTimer);
+    this.params.update((p) => ({ ...p, q: this.query }));
     this.writeUrl();
     this.runSearch();
   }
@@ -494,10 +795,11 @@ export class SearchComponent {
         }
         const shown = new Set(this.results().map((n) => n.id));
         const rest = response.items.filter((n) => !this.matchedIds.has(n.id) && !shown.has(n.id));
-        const anchors = response.items.filter((n) => this.matchedIds.has(n.id)).length;
-        // Boosted per page: favourites of a later page lead that page instead of jumping above what is already on screen.
-        this.results.update((list) => [...list, ...this.boost(rest)]);
-        this.totalCount.update((total) => total - anchors);
+        const anchors = response.items.filter((n) => this.matchedIds.has(n.id));
+        this.results.update((list) => [...list, ...rest]);
+        this.totalCount.update((total) => total - anchors.length);
+        this.dropAnchorCounts(anchors);
+        this.insideCounts.update((map) => ({ ...map, ...(response.insideCounts ?? {}) }));
         this.takePaging(response);
         this.loadingMore.set(false);
       },
@@ -535,16 +837,35 @@ export class SearchComponent {
     return node.kind === 'Folder' ? 'Folder' : 'Archive';
   }
 
-  /**
-   * When favorites search prominence is on, boost favorited results to the top while
-   * preserving the server's relative order within each group (a stable partition). When
-   * off, the server order is returned unchanged.
-   */
-  private boost(items: CatalogNodeDto[]): CatalogNodeDto[] {
-    if (!this.prominence()) return items;
-    const favorited = items.filter((n) => n.isFavorite);
-    const rest = items.filter((n) => !n.isFavorite);
-    return [...favorited, ...rest];
+  /** The kind counts without the series-match anchors that are shown in their own row (1.49.0). */
+  private dropAnchorCounts(anchors: CatalogNodeDto[]): void {
+    const folders = anchors.filter((n) => n.kind === 'Folder').length;
+    if (this.folderCount() !== null) this.folderCount.update((n) => Math.max(0, n! - folders));
+    if (this.archiveCount() !== null) this.archiveCount.update((n) => Math.max(0, n! - (anchors.length - folders)));
+  }
+
+  /** Takes a first page's plain-search counts (1.49.0). */
+  private takeCounts(response: SearchResultsDto): void {
+    this.folderCount.set(response.folderCount ?? null);
+    this.archiveCount.set(response.archiveCount ?? null);
+    this.closeMatchCount.set(response.closeMatchCount ?? 0);
+    this.insideCounts.set(response.insideCounts ?? {});
+  }
+
+  /** The bucket's last included filter in the search (the one "or" joins), or null. */
+  private orTarget(filter: string): string | null {
+    const token = filterToken(filter);
+    const id = filterValueId(filter);
+    const candidates = this.params().f.filter((v) => !isExcludeParam(v) && filterToken(v) === token && !filterValueId(v).split('|').includes(id));
+    return candidates.length > 0 ? candidates[candidates.length - 1] : null;
+  }
+
+  /** Replaces the tag filters (keeping the typed text) and searches again from the first page. */
+  private setFilters(f: string[]): void {
+    if (this.searchTimer) clearTimeout(this.searchTimer);
+    this.params.update((p) => ({ ...p, q: this.query, f }));
+    this.writeUrl();
+    this.runSearch();
   }
 
   private writeUrl(): void {
@@ -565,7 +886,12 @@ export class SearchComponent {
       }
     }
     if (to.size === 0) return;
-    this.params.update((p) => ({ ...p, f: [...new Set(p.f.map((v) => to.get(filterValueId(v)) ?? v))] }));
+    // 1.49.0: an excluded old id stays excluded under its new id.
+    const redirect = (v: string) => {
+      const target = to.get(filterValueId(v));
+      return target ? `${isExcludeParam(v) ? '-' : ''}${target}` : v;
+    };
+    this.params.update((p) => ({ ...p, f: [...new Set(p.f.map(redirect))] }));
     // The answer is for the old id: the new id names the same value, so the chips keep their names.
     this.resolvedFilters.set(filters.map((r) => (r.redirectedFrom && to.has(r.redirectedFrom) ? { ...r, id: r.valueIds[0] } : r)));
     this.writeUrl();
@@ -585,11 +911,14 @@ export class SearchComponent {
     this.loadingMore.set(false);
     this.expanded.set(new Set());
     if (!q.trim() && f.length === 0) {
+      this.refine.set([]);
+      this.tagAnswer.set(false);
       this.results.set([]);
       this.works.set([]);
       this.seriesMatches.set([]);
       this.resolvedFilters.set([]);
       this.totalCount.set(0);
+      this.takeCounts({ query: '', items: [], totalCount: 0, nextCursor: null, hasMore: false });
       this.searched.set(false);
       return;
     }
@@ -601,8 +930,11 @@ export class SearchComponent {
         if (generation !== this.generation) return;
         const response = answer as SearchAnswer;
         this.takeFilters(response.filters ?? []);
+        this.refine.set([...(response.refine ?? [])].sort((a, b) => bucketRank(a.bucket) - bucketRank(b.bucket)));
+        this.tagAnswer.set(!!response.works);
         if (response.works) {
           this.works.set(response.works);
+          this.takeCounts({ query: '', items: [], totalCount: 0, nextCursor: null, hasMore: false });
           this.results.set([]);
           this.seriesMatches.set([]);
           this.matchedIds = new Set();
@@ -617,15 +949,20 @@ export class SearchComponent {
         this.matchedIds = new Set(matches.map((m) => m.node.id));
         const rest = response.items.filter((n) => !this.matchedIds.has(n.id));
         this.seriesMatches.set(matches);
-        this.results.set(this.boost(rest));
+        this.results.set(rest);
         this.totalCount.set(response.totalCount - (response.items.length - rest.length));
+        this.takeCounts(response);
+        this.dropAnchorCounts(response.items.filter((n) => this.matchedIds.has(n.id)));
         this.takePaging(response);
         this.searched.set(true);
       },
       error: () => {
         if (generation !== this.generation) return;
+        this.takeCounts({ query: '', items: [], totalCount: 0, nextCursor: null, hasMore: false });
         this.results.set([]);
         this.works.set([]);
+        this.refine.set([]);
+        this.tagAnswer.set(false);
         this.seriesMatches.set([]);
         this.totalCount.set(0);
         this.searched.set(true);

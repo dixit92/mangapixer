@@ -470,7 +470,7 @@ public sealed partial class Program
                 try
                 {
                     var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
-                    DatabaseInitialization.ConfigureDatabaseAsync(db).GetAwaiter().GetResult();
+                    DatabaseInitialization.ConfigureDatabaseAsync(db, scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("MangaPixer.DatabaseInitialization")).GetAwaiter().GetResult();
 
                     // Audit a completed DB restore (1.7.0). The swap happened
                     // before migrate; the audit row lands in the restored DB.
@@ -615,7 +615,7 @@ public sealed partial class Program
     /// </summary>
     private static void AddMetadataNetwork(IServiceCollection services, string dataRoot)
     {
-        services.AddMemoryCache();
+        services.AddMemoryCache(o => o.SizeLimit = Hosting.SharedMemoryCache.SizeLimit); // 1.49.0 lane M: every entry is sized (SetSized)
         services.AddSingleton<Features.Metadata.MetadataRateLimitOptions>();
         services.AddSingleton<Features.Metadata.MetadataGatewayState>();
         services.AddScoped<Features.Metadata.MetadataBudget>();

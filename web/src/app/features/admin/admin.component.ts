@@ -542,7 +542,7 @@ import { ScanPhaseDirective } from './scan-phase.directive';
               <mat-list-item>
                 <span matListItemTitle>{{ f.fileName }}</span>
                 <span matListItemLine>
-                  {{ f.timestampUtc | date:'short' }} · {{ formatSize(f.byteSize) }}
+                  {{ f.timestampUtc | date:'short' }} · {{ formatSize(f.byteSize) }}{{ isCompressedBackup(f.fileName) ? ' (compressed)' : '' }}
                 </span>
                 <span matListItemMeta class="snapshot-actions">
                   <button mat-stroked-button type="button"
@@ -558,10 +558,10 @@ import { ScanPhaseDirective } from './scan-phase.directive';
 
         <h4>Restore from an uploaded file</h4>
         <p class="backup-info">
-          Upload a MangaPixer SQLite backup. It is validated before anything is
-          replaced; the restore applies on the next restart.
+          Upload a MangaPixer SQLite backup (.db) or a compressed one (.db.gz). It is
+          validated before anything is replaced; the restore applies on the next restart.
         </p>
-        <input #restoreFile type="file" accept=".db,application/octet-stream"
+        <input #restoreFile type="file" accept=".db,.gz,.db.gz,application/gzip,application/octet-stream"
                (change)="onRestoreFileSelected(restoreFile)"
                [disabled]="restoreBusy()">
 
@@ -1562,6 +1562,11 @@ export class AdminComponent implements OnInit, OnDestroy {
       },
       error: () => this.backupFilesLoading.set(false),
     });
+  }
+
+  /** 1.49.0: new rotating backups are gzip-compressed (.db.gz); older ones are plain .db. */
+  isCompressedBackup(fileName: string): boolean {
+    return fileName.endsWith('.db.gz');
   }
 
   /** Human-readable byte size, e.g. "1.4 MB". */

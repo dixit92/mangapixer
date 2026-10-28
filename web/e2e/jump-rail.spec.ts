@@ -205,3 +205,167 @@ test('phone: the picker lists the ranges and a tap lands on the range', async ({
     await setDirection(page, previous === 'desc' ? 'desc' : 'asc');
   }
 });
+
+/** The id of a folder of the jump library once its scan has listed `count` children (the doujin folder is scanned with the rest). */
+async function folderWithChildren(page: Page, libraryId: string, name: string, count: number): Promise<string> {
+  let folder = '';
+  await expect.poll(async () => {
+    const root = await (await page.request.get(`/api/v1/libraries/${libraryId}/browse?pageSize=50`)).json();
+    folder = ((root.items as Node[]).find((n) => n.displayName === name)?.id) ?? '';
+    if (!folder) return 0;
+    const inside = await (await page.request.get(`/api/v1/libraries/${libraryId}/browse?parentId=${folder}&pageSize=100`)).json();
+    return inside.totalCount as number;
+  }, { timeout: 120_000, intervals: [1000, 2000, 5000] }).toBe(count);
+  return folder;
+}
+
+// 1.49.0 (owner decision 11): a doujin level - every name opens with "[Circle]" - lists bracket chips, one per circle letter.
+test('desktop: a doujin level (names opening with a [Circle] tag) shows bracket chips and a chip lands on its circle', async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await login(page);
+  const [libraryId] = await ensureLibrary(page);
+  const doujinId = await folderWithChildren(page, libraryId, 'Jump Doujin', 24);
+  const previous = await setDirection(page, 'asc');
+  try {
+    await page.goto(`/libraries/${libraryId}/browse/${doujinId}`);
+    const rail = page.locator('nav.jump-rail');
+    await expect(rail).toBeVisible();
+    await expect(rail).toHaveAttribute('aria-label', 'Jump to letter');
+    await expect.poll(() => chips(page)).toEqual(['[A', '[B', '[C', '[D', '[E', '[F']);
+    await expect(page.locator('.node-wrap').first().locator('.node-title')).toHaveText('[Alder Circle] Synthetic Tale Alpha.cbz');
+
+    await rail.getByRole('button', { name: '[D', exact: true }).click();
+    await expect.poll(() => landed(page, '[Dogwood Circle] Synthetic Tale Alpha.cbz')).toBe(true);
+    await expect(rail.locator('.jump-chip.active')).toHaveText('[D');
+    await expectFitsScreen(page, 'the doujin level with bracket chips (desktop)');
+    await shot(page, 'jump-rail-doujin');
+  } finally {
+    await setDirection(page, previous === 'desc' ? 'desc' : 'asc');
+  }
+});
+
+// 1.49.0 (owner decision 10): the rail follows the filtered list - under Unread (30 of 64 chapters marked read) it lists only the ranges
+// that still hold unread chapters, and a chip lands on that range's first unread row.
+test('desktop: the rail under a read-state filter covers the filtered rows and a chip lands on the right row', async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  const previous = await setDirection(page, 'asc');
+  const inside = await (await page.request.get(`/api/v1/libraries/${libraryId}/browse?parentId=${folderId}&pageSize=100&sort=name&direction=asc`)).json();
+  const chapters = (inside.items as Node[]).filter((n) => /Ch\. 0(0[1-9]|[12]\d|30)\.cbz$/.test(n.displayName));
+  expect(chapters.length).toBe(30);
+  const headers = await csrf(page.request);
+  try {
+    for (const c of chapters) expect((await page.request.put(`/api/v1/reading/${c.id}/read`, { headers, data: {} })).ok()).toBeTruthy();
+
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+    const rail = page.locator('nav.jump-rail');
+    await expect(rail).toBeVisible();
+    await expect.poll(() => chips(page)).toEqual(ASC); // unfiltered: the whole level
+
+    await page.locator('.filter-toggle').click();
+    await page.getByRole('menuitemradio', { name: 'Unread' }).click();
+    // Filtered: the ranges that hold only read chapters are gone; the rail is still there.
+    await expect.poll(async () => (await chips(page)).includes('0')).toBe(false);
+    const filtered = await chips(page);
+    expect(filtered).not.toContain('10');
+    expect(filtered).not.toContain('20');
+    expect(filtered).toContain('60');
+    await expect(rail).toBeVisible();
+
+    await rail.getByRole('button', { name: '60', exact: true }).click();
+    await expect.poll(() => landed(page, 'Jump Saga - Ch. 060.cbz')).toBe(true);
+    await expect(page.locator('.node-wrap', { hasText: 'Jump Saga - Ch. 005.cbz' })).toHaveCount(0); // read chapters are not listed
+    await shot(page, 'jump-rail-filtered');
+  } finally {
+    for (const c of chapters) await page.request.delete(`/api/v1/reading/${c.id}/read`, { headers });
+    await setDirection(page, previous === 'desc' ? 'desc' : 'asc');
+  }
+});
+
+/**
+ * The phone scrub strip (1.49.0, lane P): on a LONG level (this one has 65 rows) a thin strip sits on the right edge at 390 px; a
+ * touch-drag shows a bubble with the chip under the finger without scrolling the page, and letting go jumps there - the same jump as
+ * a tap on the picker's chip. A short level (a faked 30-row jump index) shows the picker only; tablet widths show no strip.
+ */
+test('phone: the scrub strip on a long level - drag shows a bubble, release lands on the range; a short level has none', async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  const previous = await setDirection(page, 'asc');
+  try {
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+    const strip = page.locator('.scrub');
+    await expect(strip).toBeVisible();
+    await expect(strip).toHaveAttribute('aria-hidden', 'true');
+    await expect(page.locator('.jump-menu-trigger')).toBeVisible(); // the accessible path stays
+    await expect(page.locator('.scrub .mark')).toHaveCount(ASC.length);
+    await expectFitsScreen(page, 'the folder with the scrub strip (phone)');
+
+    // The strip is a 44 px wide hit area on the right edge, on top of the cards.
+    const box = (await strip.boundingBox())!;
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.x + box.width).toBeLessThanOrEqual(390.5);
+    const touchAction = await strip.evaluate((el) => getComputedStyle(el).touchAction);
+    expect(touchAction).toBe('none');
+    const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('.scrub') !== null, [box.x + box.width - 10, box.y + box.height / 2]);
+    expect(hit).toBe(true);
+
+    // Drag to the slice of chip 40 (index 4 of 8): the bubble names it, the page does not scroll, nothing is jumped to yet.
+    const x = box.x + box.width - 10;
+    const sliceY = (i: number) => box.y + (box.height * (i + 0.5)) / ASC.length;
+    const scrollBefore = await page.evaluate(() => window.scrollY);
+    await page.mouse.move(x, sliceY(0));
+    await page.mouse.down();
+    await expect(page.locator('.scrub .bubble-label')).toHaveText('0-9');
+    await page.mouse.move(x, sliceY(2), { steps: 4 });
+    await page.mouse.move(x, sliceY(4), { steps: 4 });
+    await expect(page.locator('.scrub .bubble-label')).toHaveText('40-49');
+    await shot(page, 'jump-scrub-phone-drag');
+    expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore);
+    expect(await landsUnderRail(page, 'Jump Saga - Ch. 040.cbz')).toBe(false);
+
+    await page.mouse.up();
+    await expect(page.locator('.scrub .bubble')).toHaveCount(0);
+    await expect.poll(() => landsUnderRail(page, 'Jump Saga - Ch. 040.cbz')).toBe(true);
+    await expect(page.locator('.jump-menu-trigger')).toContainText('40-49');
+    await expectFitsScreen(page, 'the folder after a scrub jump (phone)');
+
+    // The last slice is "Other" (the one-shot); a release below the strip still lands on the last chip.
+    await page.mouse.move(x, sliceY(7));
+    await page.mouse.down();
+    await expect(page.locator('.scrub .bubble-label')).toHaveText('Other');
+    await page.mouse.move(x, box.y + box.height + 8, { steps: 3 });
+    await page.mouse.up();
+    await expect(page.locator('.node-wrap', { hasText: 'Jump Saga - Oneshot.cbz' })).toBeInViewport();
+
+    // A short level (30 rows by a faked jump index) has the picker only.
+    await page.route('**/jump-index*', async (route) => {
+      await route.fulfill({
+        json: {
+          libraryId, parentId: folderId, direction: 'asc', mode: 'letters',
+          buckets: [
+            { label: 'A', count: 10, firstCursor: null, firstNodeId: null },
+            { label: 'B', count: 10, firstCursor: 'x', firstNodeId: null },
+            { label: 'C', count: 10, firstCursor: 'y', firstNodeId: null },
+          ],
+        },
+      });
+    });
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+    await expect(page.locator('.jump-menu-trigger')).toBeVisible();
+    await expect(page.locator('.scrub')).toHaveCount(0);
+    await page.unroute('**/jump-index*');
+
+    // Tablet width: the rail shows and the strip does not.
+    await page.setViewportSize({ width: 820, height: 1180 });
+    await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+    await expect(page.locator('nav.jump-rail')).toBeVisible();
+    await expect(page.locator('.scrub')).toBeHidden();
+  } finally {
+    await setDirection(page, previous === 'desc' ? 'desc' : 'asc');
+  }
+});

@@ -132,6 +132,9 @@ public sealed class HomeStackCache
     /// <summary>Sources built (tests).</summary>
     internal int Builds => Volatile.Read(ref _builds);
 
+    /// <summary>Kept sources, stale ones included until they are dropped (tests).</summary>
+    internal int Count => _entries.Count;
+
     /// <summary>The stored binary form of <paramref name="value"/> - the value SQL compares a <c>CreatedAt</c> column by.</summary>
     internal static long StoredKey(DateTimeOffset value) => Encode(value);
 
@@ -141,7 +144,13 @@ public sealed class HomeStackCache
         ArgumentNullException.ThrowIfNull(stamp);
         if (stamp.ScanActive || !_entries.TryGetValue((libraryId, windowDays), out var entry))
             return null;
-        if (!entry.Stamp.SameInputs(stamp) || entry.CutoffKey > cutoffKey || now < entry.BuiltAt || now - entry.BuiltAt >= MaxAge)
+        if (now - entry.BuiltAt >= MaxAge)
+        {
+            // 1.49.0 lane M: past the age bound a source can never serve again - drop it instead of keeping it until the next build.
+            _entries.TryRemove(new KeyValuePair<(long, int), Entry>((libraryId, windowDays), entry));
+            return null;
+        }
+        if (!entry.Stamp.SameInputs(stamp) || entry.CutoffKey > cutoffKey || now < entry.BuiltAt)
             return null;
         Interlocked.Increment(ref _hits);
         return entry.Source;
@@ -162,5 +171,20 @@ public sealed class HomeStackCache
             return;
         }
         _entries[(libraryId, windowDays)] = new Entry(stamp, cutoffKey, stampedAt, source);
+        DropExpired(stampedAt);
+    }
+
+    /// <summary>
+    /// 1.49.0 lane M: drops every kept source past <see cref="MaxAge"/> at <paramref name="now"/> - other windows and libraries nobody
+    /// asks for any more (a window setting changed, a library deleted) - which <see cref="TryGet"/> would refuse anyway. Before, a stale
+    /// source stayed in memory until the same library and window were built again.
+    /// </summary>
+    internal void DropExpired(DateTimeOffset now)
+    {
+        foreach (var pair in _entries)
+        {
+            if (now - pair.Value.BuiltAt >= MaxAge)
+                _entries.TryRemove(pair);
+        }
     }
 }

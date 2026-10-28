@@ -6,6 +6,88 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.49.0] - 2026-10-28
+
+### Added
+
+- **Search by words.** Search now finds every word you type, in any order: `piece one` finds `One Piece`. Upper and lower case, accents
+  and punctuation no longer matter (`pokemon` finds `Pokémon Adventures`, `re zero` finds `Re:Zero`); put words in double quotes to keep
+  them together and in order. See [Search](docs/library-layout.md#search).
+- **Typos.** When few names match exactly, close matches follow the exact ones - one wrong, missing, extra or swapped letter in a word of 4
+  to 7 letters, two from 8 letters - and the page says **Showing close matches for ...**.
+- **One or two letters** now find the names with a word that starts with them (before, such a search silently found nothing), and the page
+  says so.
+- **Quick results while you type.** On desktop and tablet the top bar has a search box. Pause for a moment and a list opens with the best few
+  **series**, **folders**, **archives**, **creators** and **tags** (with how many works carry each); **Up** / **Down** and **Enter** open one,
+  **Enter** with nothing chosen opens the full **Search** page with what you typed, **Escape** closes the list, and **/** jumps into the box.
+  On a phone the **Search** page shows the same list under its field. Typing a field such as `creator:ura`, `tag:`, `genre:`, `series:` or
+  `library:` lists the values of that field instead, and choosing one completes it. Only what you can open is listed. See
+  [Quick results](docs/library-layout.md#quick-results-while-you-type).
+- **Tags.** The Info panel has a **Tags** row: the categories MangaUpdates lists for a linked series (the 20 with the most votes) and the
+  ComicInfo `Tags` of its archives, in one row - spellings that differ only in case, spacing, `-` or `_` are one tag. A series shows its
+  strongest tags first with **+N more**; a folder of many works shows the tags most of them share. Select a tag to find every work that
+  carries it. The tag index is rebuilt once per library in the background after the update.
+- **Tags that combine.** Opened from the Search page, an Info chip now adds its tag to that search instead of replacing it (your text,
+  the read filter and the other tags stay). A tag in the search box can be switched to **Not** (works without it), and a new **Refine**
+  list shows the tags of all the results with how many carry each - add one, accept either it **or** a tag already searched, or leave it
+  out. Counts only include what you can open.
+- **Typed search, complete and listed.** `tag:`, `series:`, `-` for not (`-genre:horror`), `|` for or (`genre:horror|mystery`),
+  quotes for an exact value, `year:2010..2015`, and in any search `is:read` / `is:unread` / `is:reading` and `library:<name>`. A **?**
+  next to the search box lists them with examples. A word with a colon MangaPixer does not know stays plain text.
+- **Time chips under the date sorts.** *Recently added* and *Recently updated* now show a jump rail of **Today**, **This week**, **This month**,
+  **This year** and one chip per older year (in your own time zone); a chip lands on its first entry. No rail when everything falls in one
+  period.
+- **Phones: a scrub strip for long lists.** Folders and libraries with 50 entries or more get a thin strip on the right edge. Slide a finger
+  along it to run through the jump rail's chips - a bubble shows the letter or number range you are on - and lift to jump there. The picker
+  button stays on every list, and shorter lists keep it alone.
+- **Compressed database backups.** Scheduled and "Back up now" backups are now gzip-compressed (`rotating-<date>-<time>.db.gz`) - on a real
+  library about a quarter of the plain size. Each backup is checked before it is kept: the server writes a plain copy in the data folder, runs
+  an integrity check, compresses it, reads the compressed file back to compare it with the copy, and only then gives it its final name.
+  Backups from earlier versions (`.db`) stay in the list, count towards "keep the newest" and can still be restored. The safety snapshots
+  taken before an upgrade or a restore stay plain `.db`. Set `MangaPixer__Backups__Compress=false` to keep writing plain `.db` backups.
+- **Restore accepts compressed backups.** "Restore from an uploaded file" and the restore API take a `.db` or a `.db.gz` (recognized by
+  content). A compressed file is unpacked into the server's own working folder with the 512 MiB limit applied to the unpacked size, and a
+  damaged or oversized file is refused before anything is staged. The Backups card marks compressed snapshots.
+- API (additive): `GET /api/v1/search/suggest?q=` (the signed-in session only - an API token never reaches it); `GET /api/v1/search` adds
+  `folderCount`, `archiveCount`, `closeMatchCount`, `insideCounts` and, in a tag search, `refine`; `GET /libraries/{id}/jump-index` accepts
+  `readState`, `hideEmpty`, `favoritesOnly`, `completion`, `sort` and `tzOffset`, a bucket may carry `group` (`folders` / `files`), and `mode`
+  may be `dates`.
+
+### Changed
+
+- **Search lists names, not paths.** Every folder and archive is still found by its own name, linked to series information or not. An archive
+  that matched only because of the folder it sits in is no longer listed one by one: the folder's card says how many it holds, for example
+  **+41 inside**.
+- **Best matches first.** Results are ordered exact name, then names that start with your search, then names with a word that starts with
+  each word, then the rest; folders before archives, then by name. The **Series matches** row is ordered the same way, and the count says
+  **N folders, M archives**.
+- **Starred results move to the top of the whole result list** (with highlighting starred results on in **Settings** > **Favorites**) -
+  before, only within each page.
+- In a tag search, text typed next to the tags also finds a work by its series' other titles and by its folder's name (before: only the
+  work's title), every word in any order; `-word` leaves matching works out. `creator:urasawa` now finds "Naoki Urasawa" (a name with
+  all the typed words; quotes keep the exact match).
+- **The jump rail stays under filters.** With a read-state filter, *Hide empty folders*, *Favorites only* or a *Completion* answer on, the rail
+  above the list now covers exactly the entries the filter keeps - with **Unread** on, its chips are the letters or number ranges of the
+  unread entries, and a chip lands on the first of them. Before, the rail disappeared whenever a filter was on.
+- **Doujin-style folders get a useful rail.** In a folder where most names open with a tag (`[Circle] Title`, `(Event) Title`) the chips show
+  the first letter inside the tag with its bracket - `[A` ... `[Z` - instead of one `#` chip for the whole folder.
+- **Folders and files each get their own letters.** At a level that holds both, the smaller kind gets its own chips once it has 20 or more
+  entries (below that it keeps the single **Folders** / **Files** chip); the rail labels each kind.
+- **Volumes view: chapter 1 joins volume 1.** When a series' volume list starts volume 1 at chapter 2-5 (an opening chapter listed without a
+  volume), your chapters from 1 up to that first listed chapter now sit at the start of the **Volume 1** stack instead of on their own. A
+  chapter 1 you do not have is still reported missing. See [Volumes](docs/volumes.md#how-chapters-are-placed-in-a-volume).
+- **Small folders have no rail.** A level with fewer than about 12 entries (after any filter) no longer shows a rail of one-entry chips.
+- **Lower memory use over long uptimes:** the server's shared in-memory cache now has a size budget, home "New chapters" data that can no
+  longer be used is released, and failed sign-in attempts are forgotten once their lockout window has passed.
+- **Much less memory held after heavy work:** the container image limits glibc's memory pools (`MALLOC_ARENA_MAX=2`) for the server and its
+  helper processes - container memory under steady reading fell by more than 40 percent in our measurements, with unchanged page times. Set
+  `MALLOC_ARENA_MAX=` (empty) to go back to glibc's default; see [Memory allocator](docs/configuration.md#memory-allocator).
+- **Upgrade note:** the first start of this version rebuilds the search index once (a few seconds for a large library) before the server
+  opens. No database migration. A "Load more" left open in a browser across the update starts again from the first page.
+- **Docker Hub mirror:** each release image is also published as `dixit92/mangapixer` on Docker Hub (same tags as ghcr.io, which stays the
+  primary registry), so Unraid Community Applications can show the app's **Last Update**.
+- Angular 22.2.4 and .NET 10.0.14 (dependency updates).
+
 ## [1.48.0] - 2026-10-26
 
 ### Added
