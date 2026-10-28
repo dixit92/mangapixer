@@ -82,7 +82,8 @@ public enum VolumePlacement
     Estimated = 3,
 
     /// <summary>
-    /// Between two adjacent known volumes (the list places it in neither): the end of the previous volume (owner, 1.29.0 RC).
+    /// Between two adjacent known volumes (the list places it in neither): the end of the previous volume (owner, 1.29.0 RC). 1.49.0: also a
+    /// chapter below the first chapter of a listed volume 1 that starts at chapter 2-5 - the start of volume 1 (owner).
     /// </summary>
     Adjacent = 4,
 
@@ -529,7 +530,8 @@ public static class VolumeGrouping
                 : Math.Max(1, chapterUnits.Where(u => !u.IsExtra).Select(u => (int?)decimal.Ceiling(u.Chapter!.Value)).Min() ?? 1);
             for (var n = from; n < top && n <= MissingUnits.MaxNumber; n++)
             {
-                if (!have.Contains(n) && !missingChapters.Contains(n) && (!resolver.HasData || resolver.Resolve(n) is null))
+                if (!have.Contains(n) && !missingChapters.Contains(n)
+                    && (!resolver.HasData || resolver.Resolve(n) is null || resolver.IsBeforeListedVolumeOne(n)))
                     missingChapters.Add(n);
             }
         }

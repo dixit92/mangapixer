@@ -7,7 +7,8 @@ using com.lifepixer.mangapixer.Core.Metadata.Missing;
 /// two known volumes with exactly one volume missing between them, or inside a known volume's own span) and Estimated (several
 /// missing volumes split evenly; after the last known volume in steps of the average chapters per volume, never past the
 /// highest volume the provider knows). A chapter between two ADJACENT known volumes (no volume missing between them) goes to the
-/// previous one (owner, 1.29.0 RC: at the end of its stack). Anything else stays loose (null). Extras (a fractional chapter)
+/// previous one (owner, 1.29.0 RC: at the end of its stack); a chapter from 1 up to the first chapter of a listed volume 1 that starts at
+/// chapter 2-5 goes to volume 1 (owner, 1.49.0: nothing comes before volume 1). Anything else stays loose (null). Extras (a fractional chapter)
 /// follow their integer chapter unless the list places them. Pure.
 /// </summary>
 internal sealed class VolumeResolver
@@ -125,6 +126,11 @@ internal sealed class VolumeResolver
             if (n >= r.Lo && n <= r.Hi)
                 return (r.Volume, r.Placement);
         }
+        // Before volume 1's first listed chapter (owner, 1.49.0): nothing comes before volume 1, so chapters 1 .. first-1 belong to it - only
+        // when the list starts volume 1 at chapter 2-5 (MangaDex often uploads an opening chapter without a volume; a later start is more
+        // often a gap in the list than where the volume really begins). Inferred, like the adjacent rule: never counted as missing.
+        if (IsBeforeListedVolumeOne(chapter))
+            return (1m, VolumePlacement.Adjacent);
         // Between two adjacent known volumes (a whole chapter the list does not place): the end of the previous one.
         for (var i = 0; i + 1 < _wholeExact.Count; i++)
         {
@@ -134,6 +140,14 @@ internal sealed class VolumeResolver
         }
         return null;
     }
+
+    /// <summary>
+    /// 1.49.0 (owner): a chapter from 1 up to the first chapter of a listed volume 1 that starts at chapter 2-5 - placed at the start of volume 1
+    /// by <see cref="Resolve"/>, but still counted as a missing chapter when no file holds it (the list does not require it in volume 1).
+    /// </summary>
+    public bool IsBeforeListedVolumeOne(decimal chapter) =>
+        _wholeExact.Count > 0 && _wholeExact[0].Volume == 1m && _wholeExact[0].Min is >= 2m and <= 5m
+        && chapter >= 1m && chapter < _wholeExact[0].Min;
 
     /// <summary>
     /// The chapter units a volume should hold, or null when the map does not say (a volume named only by file names). From the

@@ -85,6 +85,10 @@ ENV ASPNETCORE_URLS=http://+:8080
 ENV ASPNETCORE_HTTP_PORTS=
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=true
+# glibc keeps freed memory in per-thread arenas (up to 8 per CPU) and never gives it back; the server's SQLite caches and the media workers'
+# image buffers grew the container to ~2 GiB under load. Two arenas hold about half of that with no measured cost (1.49.0 lane M / M2).
+# The media workers are child processes and inherit it. Unset it (MALLOC_ARENA_MAX=) to get glibc's default back.
+ENV MALLOC_ARENA_MAX=2
 # Point the storage roots at the mounted volumes. Without these the roots resolve
 # to AppContext.BaseDirectory/{data,cache,scratch} inside the image's writable
 # layer, so the /data, /cache, /scratch volume mounts are unused and all state

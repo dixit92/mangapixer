@@ -91,6 +91,35 @@ Once a folder or archive is linked to a series, **Search** also finds it by any 
 - When **Show series information** is off, globally or for a library, that library's alternative titles are not searchable.
 - Searching runs entirely on your server; nothing is sent to MangaUpdates.
 
+## Tags and tag search
+
+*New in 1.49.0.* The **Info** panel has a **Tags** row next to the genres: the categories MangaUpdates lists for the linked series (the 20 with the most votes, as stored with the series) and the `Tags` of the archives' ComicInfo, in one row. Spellings that differ only in case, spacing, `-` or `_` are one tag (`Time Travel`, `time-travel`). On a single series the row shows its strongest tags first - most votes on MangaUpdates, then the ComicInfo tags - and **+N more** shows the rest; on a folder of many works it shows the tags most of them share, as the other rows do. MangaUpdates' categories are crowd votes, so a few can be surprising or give away a plot point. After the update the tag index is rebuilt once per library, in the background; until then the row may be missing.
+
+Select a tag (or any other chip) to search for every work that carries it. **Opened from the Search page** - the (i) on a result - a chip **adds** its tag to the search there: your text, the **Reading** / **Read** / **Unread** choice and the other tags stay.
+
+**Combining tags** in the tag search:
+
+- Every tag in the field must match (and). The small button at the start of a tag in the field switches it to **Not** - the works must not carry it - and back.
+- **Refine** lists the tags of all the results, with how many of them carry each: select one to add it, **or** to accept either it or the tag of the same row already in the search, or the minus to leave out works that carry it. Counts are yours: only works you can open count, Private libraries are left out while Incognito is on, and libraries with **Show series information** off show no tags at all.
+- Text typed next to tags narrows the works by title, by the series' other titles and by the folder's name; every word must match, in any order. A word with a `-` in front must not match.
+
+**Typed search** (the **?** next to the search box lists these too):
+
+| Type | Finds |
+| --- | --- |
+| `tag:"time travel"` | works with this tag (also `genre:`, `creator:`, `publisher:`, `magazine:`, `type:`) |
+| `creator:urasawa` | a value with all of these words; in quotes (`creator:"Naoki Urasawa"`) only the exact name |
+| `genre:horror\|mystery` | either value (`\|` = or) |
+| `-genre:horror` | works without it (`-` = not); alone, every work with tags you can open except those |
+| `year:2010..2015` | started in these years (`year:2004`, `year:..1999`, `year:2020..`) |
+| `series:monster` | works whose title, other title or folder name has these words |
+| `is:read`, `is:unread`, `is:reading` | your read state - in any search, also a plain one |
+| `library:manga` | only this library (its name, or the start of it) - in any search |
+
+While you type one of these fields in the search box, the list of [quick results](library-layout.md#quick-results-while-you-type) suggests its values (`creator:ura` lists the creators with `ura` in their name) and choosing one completes the field.
+
+A word with a colon that is not one of these (such as `Re:Zero`) stays plain text. A tag search lists works, as before; without any field or tag, Search finds names as it always did. Nothing here is sent anywhere: tags are read from what is already stored on your server.
+
 ## Identify a series (admins)
 
 Before you can look anything up, turn on **Fetch series information from the web** (see [Admin settings](#admin-settings)) and the **Fetch** switch of the library. Folders waiting in the [Review](#review) list open the same dialog from **Identify…**.

@@ -120,4 +120,47 @@ public sealed class FacetExtractorTests
         var about = Assert.Single(FacetExtractor.Extract(input, Name));
         Assert.Equal((FacetBucket.About, "a:50", "The Original"), (about.Bucket, about.ValueKey, about.Display));
     }
+
+    // 1.49.0 (lane T, owner decision 8 a + a): the Tags bucket - record categories by net votes, then ComicInfo Tags, one value per folded tag.
+    [Fact]
+    public void Tags_RecordCategoriesByVotes_ThenComicInfoTags_FoldedToOneValue()
+    {
+        var record = Record() with
+        {
+            Categories = [new FacetCategory("Time Travel", 3), new FacetCategory("Strong Female Lead", 41), new FacetCategory("Revenge", 3)],
+        };
+        var input = new FacetLocationInput(record, [], [
+            Ci(100) with { Tags = ["time-travel", "Found Family"] },
+            Ci(101) with { Tags = ["  STRONG   female_lead ", ""] },
+        ], [], null, [], false, null);
+
+        var tags = FacetExtractor.Extract(input, Name).Where(e => e.Bucket == FacetBucket.Tags).ToList();
+
+        Assert.Equal(
+            new[]
+            {
+                ("tg:strong female lead", "Strong Female Lead", FacetSources.Web | FacetSources.ComicInfo),
+                ("tg:revenge", "Revenge", FacetSources.Web),
+                ("tg:time travel", "Time Travel", FacetSources.Web | FacetSources.ComicInfo),
+                ("tg:found family", "Found Family", FacetSources.ComicInfo),
+            },
+            tags.Select(t => (t.ValueKey, t.Display, t.Sources)).ToArray());
+    }
+
+    [Fact]
+    public void Tags_NoneWithoutCategoriesOrComicInfoTags()
+    {
+        var input = new FacetLocationInput(Record(), [], [Ci(100)], [], null, [], false, null);
+        Assert.DoesNotContain(FacetExtractor.Extract(input, Name), e => e.Bucket == FacetBucket.Tags);
+    }
+
+    [Theory]
+    [InlineData("Time Travel", "time travel")]
+    [InlineData("time-travel", "time travel")]
+    [InlineData("TIME_TRAVEL", "time travel")]
+    [InlineData("  Time \t  Travel ", "time travel")]
+    [InlineData("Ｔｉｍｅ Travel", "time travel")]
+    [InlineData(" - _ ", null)]
+    [InlineData(null, null)]
+    public void TagKey_FoldsCaseSpacingAndSeparators(string? text, string? expected) => Assert.Equal(expected, FacetText.TagKey(text));
 }

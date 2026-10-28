@@ -5,6 +5,7 @@ using com.lifepixer.mangapixer.Server.Logging;
 using com.lifepixer.mangapixer.Server.Persistence;
 using System.Globalization;
 using System.IO;
+using System.IO.Compression;
 using System.Text.RegularExpressions;
 
 /// <summary>Location health of the rotating backups, as reported to the UI and readiness check.</summary>
@@ -95,9 +96,26 @@ public sealed partial class RotatingBackupService
 {
     public const string FileNamePrefix = "rotating-";
 
-    /// <summary>Generated rotating snapshot names: <c>rotating-yyyyMMdd-HHmmss[-xxxx].db</c>.</summary>
-    [GeneratedRegex(@"^rotating-(\d{8}-\d{6})(-[0-9a-f]{4})?\.db$", RegexOptions.CultureInvariant)]
+    /// <summary>
+    /// Generated rotating snapshot names: <c>rotating-yyyyMMdd-HHmmss[-xxxx].db</c> (plain, every version before 1.49.0)
+    /// or <c>.db.gz</c> (gzip, 1.49.0 on). Both kinds are listed, pruned and restorable side by side.
+    /// </summary>
+    [GeneratedRegex(@"^rotating-(\d{8}-\d{6})(-[0-9a-f]{4})?\.db(\.gz)?$", RegexOptions.CultureInvariant)]
     public static partial Regex FileNamePattern();
+
+    /// <summary>True for a generated compressed snapshot name (<c>.db.gz</c>).</summary>
+    public static bool IsCompressedName(string fileName) => fileName.EndsWith(".db.gz", StringComparison.Ordinal);
+
+    /// <summary>Temporary plain copy written in the data root while a compressed snapshot is made.</summary>
+    public const string BuildTempPrefix = "rotating-build-";
+    public const string BuildTempSuffix = ".tmp";
+
+    /// <summary>Leftover <c>.db.gz.partial</c> of an interrupted compression (never a valid snapshot name).</summary>
+    [GeneratedRegex(@"^rotating-\d{8}-\d{6}(-[0-9a-f]{4})?\.db\.gz\.partial$", RegexOptions.CultureInvariant)]
+    private static partial Regex GzipPartialPattern();
+
+    [GeneratedRegex(@"^rotating-build-[0-9a-f]{32}\.tmp(-wal|-shm|-journal)?$", RegexOptions.CultureInvariant)]
+    private static partial Regex BuildTempPattern();
 
     private readonly BackupService _backup;
     private readonly BackupSettingsResolver _settings;
@@ -184,20 +202,37 @@ public sealed partial class RotatingBackupService
         // Safe here: the run gate is held, so no move is mid-copy.
         BackupSnapshotMover.DeleteStaleTemps(dir);
 
+        var compress = _settings.Configuration.Compress;
+        // The plain working copy lives in the data root's safety folder (same disk as the database, never a tmpfs).
+        var workDir = settings.SafetyDirectory;
+        if (compress)
+        {
+            var stale = DeleteStaleCompressionTemps(dir) + (PathsEqual(dir, workDir) ? 0 : DeleteStaleCompressionTemps(workDir));
+            if (stale > 0)
+                _logger?.LogInformation(LogEvents.Backup.StaleBackupTempsRemoved,
+                    "Removed {Count} leftover temporary backup file(s) of an interrupted run", stale);
+        }
+
         var now = _time.GetUtcNow().UtcDateTime;
-        var fileName = $"{FileNamePrefix}{now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}.db";
+        var extension = compress ? ".db.gz" : ".db";
+        var stem = $"{FileNamePrefix}{now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}";
+        var fileName = stem + extension;
         var path = Path.Combine(dir, fileName);
         // Same-second collision (a manual trigger racing the scheduled run, or a very
         // fast DB): append a short suffix and re-derive the path. Both fileName AND
         // path must advance together, or the guard below never clears (VACUUM INTO
-        // refuses a pre-existing target, so this branch must terminate).
-        while (File.Exists(path))
+        // refuses a pre-existing target, so this branch must terminate). A plain and a
+        // compressed snapshot of the same second count as the same name.
+        while (File.Exists(path) || File.Exists(Path.Combine(dir, stem + ".db")) || File.Exists(Path.Combine(dir, stem + ".db.gz")))
         {
-            fileName = $"{FileNamePrefix}{now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}-{Guid.NewGuid().ToString("N")[..4]}.db";
+            stem = $"{FileNamePrefix}{now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}-{Guid.NewGuid().ToString("N")[..4]}";
+            fileName = stem + extension;
             path = Path.Combine(dir, fileName);
         }
 
-        var result = await _backup.BackupAsync(path, ct);
+        var result = compress
+            ? await _backup.BackupCompressedAsync(path, workDir, CompressionLevel.Optimal, ct)
+            : await _backup.BackupAsync(path, ct);
 
         if (!result.Succeeded)
         {
@@ -237,6 +272,35 @@ public sealed partial class RotatingBackupService
     }
 
     public int CountBackups(string directory) => EnumerateGenerated(directory).Count();
+
+    private static bool PathsEqual(string a, string b) =>
+        string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(a)), Path.TrimEndingDirectorySeparator(Path.GetFullPath(b)),
+            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+
+    /// <summary>
+    /// Deletes the leftovers of an interrupted compression (strict names only: the <c>.db.gz.partial</c> next to the
+    /// snapshots and the <c>rotating-build-*.tmp</c> plain copy in the work folder). Callers hold the run gate.
+    /// </summary>
+    internal static int DeleteStaleCompressionTemps(string directory)
+    {
+        try
+        {
+            if (!Directory.Exists(directory))
+                return 0;
+            var deleted = 0;
+            foreach (var file in new DirectoryInfo(directory).EnumerateFiles(FileNamePrefix + "*"))
+            {
+                if (!GzipPartialPattern().IsMatch(file.Name) && !BuildTempPattern().IsMatch(file.Name))
+                    continue;
+                try { file.Delete(); deleted++; }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+            return deleted;
+        }
+        catch (IOException) { return 0; }
+        catch (UnauthorizedAccessException) { return 0; }
+    }
 
     /// <summary>
     /// Enumerates the on-disk rotating snapshots newest-first, exposing only the
@@ -284,10 +348,15 @@ public sealed partial class RotatingBackupService
         {
             if (!Directory.Exists(directory))
                 return new List<FileInfo>();
+            // Newest first by the UTC timestamp in the name (plain .db and .db.gz mix), then the full name for a
+            // same-second pair. Ordinal name order alone would put "-xxxx.db" and ".db.gz" in the wrong order.
             return new DirectoryInfo(directory)
-                .EnumerateFiles(FileNamePrefix + "*.db")
-                .Where(fi => FileNamePattern().IsMatch(fi.Name))
-                .OrderByDescending(fi => fi.Name, StringComparer.Ordinal)
+                .EnumerateFiles(FileNamePrefix + "*")
+                .Select(fi => (File: fi, Match: FileNamePattern().Match(fi.Name)))
+                .Where(x => x.Match.Success)
+                .OrderByDescending(x => x.Match.Groups[1].Value, StringComparer.Ordinal)
+                .ThenByDescending(x => x.File.Name, StringComparer.Ordinal)
+                .Select(x => x.File)
                 .ToList();
         }
         catch (IOException) { return new List<FileInfo>(); }

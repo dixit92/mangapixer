@@ -67,7 +67,7 @@ describe('LibraryBrowseComponent smart jump rail (1.41.0)', () => {
   it('asks for the jump index of the open folder in the current direction and shows its number chips', () => {
     const { el, apiSpy, comp } = setup();
 
-    expect(apiSpy.getJumpIndex).toHaveBeenCalledWith('lib1', 'f1', 'asc', null);
+    expect(apiSpy.getJumpIndex).toHaveBeenCalledWith('lib1', 'f1', 'asc', null, expect.objectContaining({ sort: 'name', readState: 'all', hideEmpty: false, favoritesOnly: false, completion: null }));
     expect(comp.jumpMode()).toBe('numbers');
     const rail = el.querySelector('nav.jump-rail')!;
     expect(rail.getAttribute('aria-label')).toBe('Jump to number');
@@ -80,7 +80,7 @@ describe('LibraryBrowseComponent smart jump rail (1.41.0)', () => {
 
     comp.setSortDirection('desc');
 
-    expect(apiSpy.getJumpIndex).toHaveBeenLastCalledWith('lib1', 'f1', 'desc', null);
+    expect(apiSpy.getJumpIndex).toHaveBeenLastCalledWith('lib1', 'f1', 'desc', null, expect.objectContaining({ sort: 'name' }));
     expect(comp.jumpBuckets().length).toBe(3);
   });
 
@@ -92,6 +92,76 @@ describe('LibraryBrowseComponent smart jump rail (1.41.0)', () => {
     expect(pending.length).toBe(2);
     pending[0].next({ libraryId: 'lib1', parentId: 'f1', direction: 'asc', mode: 'numbers', buckets: numbers });
 
+    expect(comp.jumpBuckets().length).toBe(0);
+  });
+
+  it('1.49.0: every filter keeps the rail and reloads it with the filter (read state, hide empty, favorites, Completion)', () => {
+    const { comp, apiSpy } = setup();
+    const lastFilters = () => apiSpy.getJumpIndex.mock.calls.at(-1)![4];
+    const callsBefore = apiSpy.getJumpIndex.mock.calls.length;
+
+    comp.setReadStateFilter('read');
+    expect(lastFilters()).toEqual(expect.objectContaining({ readState: 'read', hideEmpty: false, favoritesOnly: false, completion: null }));
+    expect(comp.jumpBuckets().length).toBe(3);
+
+    comp.toggleHideEmpty();
+    expect(lastFilters()).toEqual(expect.objectContaining({ readState: 'read', hideEmpty: true }));
+
+    comp.toggleFavoritesOnly();
+    expect(lastFilters()).toEqual(expect.objectContaining({ favoritesOnly: true }));
+
+    comp.setCompletionFilter('MissingSome');
+    expect(lastFilters()).toEqual(expect.objectContaining({ completion: 'MissingSome' }));
+    expect(comp.jumpBuckets().length).toBe(3);
+
+    comp.clearFilters();
+    expect(lastFilters()).toEqual(expect.objectContaining({ readState: 'all', hideEmpty: false, favoritesOnly: false, completion: null }));
+    expect(apiSpy.getJumpIndex.mock.calls.length).toBe(callsBefore + 5);
+  });
+
+  it('1.49.0: an answer for a filter the user has already left is dropped', () => {
+    const pending: Subject<JumpIndexDto>[] = [];
+    const { comp } = setup({ index: () => { const s = new Subject<JumpIndexDto>(); pending.push(s); return s; } });
+
+    comp.setReadStateFilter('read');
+    expect(pending.length).toBe(2);
+    pending[0].next({ libraryId: 'lib1', parentId: 'f1', direction: 'asc', mode: 'numbers', buckets: numbers });
+    expect(comp.jumpBuckets().length).toBe(0); // the unfiltered answer arrived after the filter was set
+
+    pending[1].next({ libraryId: 'lib1', parentId: 'f1', direction: 'asc', mode: 'letters', buckets: [numbers[0], numbers[1]] });
+    expect(comp.jumpBuckets().length).toBe(2);
+  });
+
+  it('1.49.0: an answer still lands when the folder\'s Volumes view settles after the request (the e2e race)', () => {
+    const pending: Subject<JumpIndexDto>[] = [];
+    const { comp } = setup({ index: () => { const s = new Subject<JumpIndexDto>(); pending.push(s); return s; } });
+
+    // The request went out before the folder's volume view was known (group null); the view arrives, then the answer.
+    comp.volumeView.set({ nodeId: 'f1', available: true, active: false, consolidated: false, stackCount: 0, defaultActive: false } as never);
+    pending[0].next({ libraryId: 'lib1', parentId: 'f1', direction: 'asc', mode: 'numbers', buckets: numbers });
+
+    expect(comp.jumpBuckets().length).toBe(3);
+  });
+
+  it('1.49.0: the date sorts ask for time chips with the viewer\'s UTC offset; Recently read has no rail', () => {
+    const dates: JumpIndexDto = {
+      libraryId: 'lib1', parentId: 'f1', direction: 'desc', mode: 'dates',
+      buckets: [
+        { label: 'Today', count: 8, firstCursor: null, firstNodeId: 'n1' },
+        { label: 'This year', count: 8, firstCursor: 'a:1:5:9', firstNodeId: 'n2' },
+      ],
+    };
+    const { comp, apiSpy } = setup({ index: dates });
+
+    comp.setSort('recentlyUpdated');
+    const filters = apiSpy.getJumpIndex.mock.calls.at(-1)![4];
+    expect(filters).toEqual(expect.objectContaining({ sort: 'recentlyUpdated', tzOffset: -new Date().getTimezoneOffset() }));
+    expect(comp.jumpMode()).toBe('dates');
+    expect(comp.jumpBuckets().length).toBe(2);
+
+    const calls = apiSpy.getJumpIndex.mock.calls.length;
+    comp.setSort('recentlyRead');
+    expect(apiSpy.getJumpIndex.mock.calls.length).toBe(calls);
     expect(comp.jumpBuckets().length).toBe(0);
   });
 

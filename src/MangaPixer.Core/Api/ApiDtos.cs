@@ -280,6 +280,36 @@ public sealed record SearchResultsDto
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<FacetWorkDto>? Works { get; init; }
+
+    /// <summary>1.49.0 (plain search): how many of <see cref="TotalCount"/> are folders. Left out of the tag view.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? FolderCount { get; init; }
+
+    /// <summary>1.49.0 (plain search): how many of <see cref="TotalCount"/> are archives. Left out of the tag view.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? ArchiveCount { get; init; }
+
+    /// <summary>
+    /// 1.49.0 (plain search): how many of <see cref="TotalCount"/> are close (typo-tolerant) matches - listed after every exact hit, only
+    /// when the exact hits are few. Left out of the tag view.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? CloseMatchCount { get; init; }
+
+    /// <summary>
+    /// 1.49.0 (plain search, "+N inside"): per folder on this page (public id), the archives below it found only through its name - not
+    /// hits of their own and not inside a sub-folder that is a hit. Folders with none are left out; null when no folder has any.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyDictionary<string, int>? InsideCounts { get; init; }
+
+    /// <summary>
+    /// 1.49.0 (tag view, lane T, owner decision 9 a): "Refine" - the tags of ALL the results (not only this page), per bucket, each chip's
+    /// <see cref="FacetChipDto.Count"/> = how many of the results carry it (only locations the viewer may see count). Values already used
+    /// as a filter are left out. First page of a tag view only; left out of a plain search and of later pages.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<FacetBucketDto>? Refine { get; init; }
 }
 
 /// <summary>A catalog node found through a linked series' alternative title.</summary>

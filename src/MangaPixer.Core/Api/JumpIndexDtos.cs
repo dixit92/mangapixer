@@ -48,7 +48,9 @@ public sealed record JumpIndexDto
 
     /// <summary>
     /// 1.41.0: what the chips stand for: <c>letters</c> (A-Z, <c>#</c>, script groups) or <c>numbers</c> (round number ranges of the
-    /// level's chapters / volumes / leading numbers, a common prefix such as <c>Ch. </c> ignored).
+    /// level's chapters / volumes / leading numbers, a common prefix such as <c>Ch. </c> ignored). 1.49.0: <c>dates</c> under the date
+    /// sorts (<c>Today</c>, <c>This week</c>, <c>This month</c>, <c>This year</c>, then years). In a bracketed (doujin) level the letter
+    /// labels carry the bracket: <c>[A</c> ... <c>[Z</c>, <c>[#</c>, <c>(A</c> ...
     /// </summary>
     public string Mode { get; init; } = "letters";
 }
@@ -89,4 +91,10 @@ public sealed record JumpIndexBucketDto
     /// start. Null for a letter bucket and for the <c>Other</c> / <c>Folders</c> / <c>Files</c> chips.
     /// </summary>
     public string? Range { get; init; }
+
+    /// <summary>
+    /// 1.49.0: at a level whose folders AND archives both carry their own chips (the smaller kind has 20+ rows, or both kinds list under
+    /// the recentlyAdded sort) which kind the chip belongs to: <c>folders</c> or <c>files</c>. Null everywhere else. Additive.
+    /// </summary>
+    public string? Group { get; init; }
 }

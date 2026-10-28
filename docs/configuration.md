@@ -32,6 +32,16 @@ These are read by the container's start-up script, not by the server.
 
 Set them to the owner of your host folders so the files on the host belong to you. See [Install on Unraid](install-unraid.md#step-2-set-puid-and-pgid).
 
+## Memory allocator
+
+*1.49.0.* The container image sets one more environment variable. It is read by the C library (glibc) that the server and its helper processes use to hand out memory, not by MangaPixer itself, so it is not a `MangaPixer__` key and it is not changed on the **Performance** card.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `MALLOC_ARENA_MAX` | `2` in the image | How many separate memory pools (arenas) glibc may use for the server and for each helper process. glibc normally opens up to eight per processor and keeps the memory freed in each of them, so after heavy work (a big scan, a long reading session) the container held far more memory than the programs were using. With `2`, in our test (two people reading for 12 minutes) the container ended at about 0.8 GB instead of about 1.4 GB, and page times were unchanged. |
+
+To use glibc's own default again, set the variable to an empty value (`MALLOC_ARENA_MAX=` in the template, or `MALLOC_ARENA_MAX: ""` under `environment:` in the compose file); any other number replaces the `2`. Restart the container after you change it. The helper processes inherit it from the server.
+
 ## Network
 
 | Key (environment variable) | Default | Meaning |
@@ -93,10 +103,11 @@ How often each library is scanned is set per library in **MangaPixer Administrat
 | `MangaPixer:Backups:Enabled` (`MangaPixer__Backups__Enabled`) | `true` | Turns the scheduled database backups on or off. **Back up now** keeps working either way. |
 | `MangaPixer:Backups:IntervalHours` (`MangaPixer__Backups__IntervalHours`) | `24` | Hours between scheduled backups. Decimals are allowed (`0.5` = 30 minutes). The first backup runs 2 minutes after the server starts. |
 | `MangaPixer:Backups:Hour` (`MangaPixer__Backups__Hour`) | not set (any time) | *1.32.0.* Hour of the day (0-23, server time) for backups whose interval is whole days (24, 48, ... hours): they then run at that hour every 1, 2, ... days. Ignored for shorter intervals. When set, the hour cannot be changed in [Scheduled jobs](scheduled-jobs.md). |
-| `MangaPixer:Backups:RetentionCount` (`MangaPixer__Backups__RetentionCount`) | `7` | How many `rotating-*.db` snapshots to keep. Older ones are deleted. Pre-migration and pre-restore snapshots are kept separately (the newest 3 of each). |
+| `MangaPixer:Backups:RetentionCount` (`MangaPixer__Backups__RetentionCount`) | `7` | How many rotating snapshots (`rotating-*.db.gz` and older `rotating-*.db`) to keep. Older ones are deleted. Pre-migration and pre-restore snapshots are kept separately (the newest 3 of each). |
 | `MangaPixer:Backups:Location` (`MangaPixer__Backups__Location`) | not set (`<DataRoot>/backups`) | Absolute folder for the rotating backups, for example `/backups` next to a bind mount. It must pass the same checks as a folder chosen in the web app. If it fails them, backups stop (they never fall back to the data folder) and `/health/ready` reports `Degraded`. |
 | `MangaPixer:Backups:AllowLocationChange` (`MangaPixer__Backups__AllowLocationChange`) | `true` | `false` locks the backup location in the web app, even when no `Location` is set. |
-| `MangaPixer:Backups:MaxRestoreUploadBytes` (`MangaPixer__Backups__MaxRestoreUploadBytes`) | `536870912` (512 MiB) | Largest backup file you can upload for a restore (at most 1 GiB, the server's limit for the whole upload request). |
+| `MangaPixer:Backups:Compress` (`MangaPixer__Backups__Compress`) | `true` | *1.49.0.* New rotating backups are gzip-compressed (`.db.gz`). `false` writes plain `.db` files as before. Backups of either kind are listed, kept and restorable together. |
+| `MangaPixer:Backups:MaxRestoreUploadBytes` (`MangaPixer__Backups__MaxRestoreUploadBytes`) | `536870912` (512 MiB) | Largest backup you can restore, counted in the database's own size: for a compressed `.db.gz` the limit applies to the unpacked bytes (at most 1 GiB, the server's limit for the whole upload request). |
 
 The schedule, retention and location can also be changed in the **Backup settings** card in the web app. Each setting is resolved on its own: a value in this configuration wins (the web app shows it as **Managed by server configuration**), then the value saved in the web app, then the default. A value that cannot be read (for example `IntervalHours: daily`) is ignored with a warning in the log. Pre-migration and pre-restore snapshots always stay in `<DataRoot>/backups`. See [Backup and restore](backup-and-restore.md#choosing-where-backups-are-kept).
 

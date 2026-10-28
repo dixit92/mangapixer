@@ -22,7 +22,7 @@ using Xunit;
 /// written while a scan of the library runs; the inputs key moves with the library's inputs; the index observers hear every write; and
 /// a synthetic 30k-node library builds within a time bound. Migrated SQLite per test; synthetic names only.
 /// </summary>
-public sealed class FacetIndexServiceTests
+public sealed class FacetIndexServiceTests(Xunit.Abstractions.ITestOutputHelper output)
 {
     /// <summary>Lane Q's seam as the tests see it: counts the bumps.</summary>
     private sealed class Generation : IFacetIndexGeneration
@@ -436,6 +436,8 @@ public sealed class FacetIndexServiceTests
             StartYear = 1980 + (i % 40),
             Origin = (int)MetadataOrigin.Japan,
             FetchedAt = now,
+            // 1.49.0 (lane T): the stored top 20 categories, net votes 20 .. 1, from a vocabulary of 2756 (the live distinct count).
+            CategoriesJson = "[" + string.Join(",", Enumerable.Range(0, 20).Select(k => $"{{\"name\":\"Tag {(i * 7 + k * 31) % 2756}\",\"votes\":{20 - k}}}")) + "]",
         }).ToList();
         db.MetadataRecords.AddRange(records);
         await db.SaveChangesAsync();
@@ -501,6 +503,7 @@ public sealed class FacetIndexServiceTests
                     Year = 2000 + (f % 20),
                     CreatorsJson = $"[{{\"name\":\"Writer {f % 300} Name\",\"role\":\"writer\"}},{{\"name\":\"Solo{f % 97}\",\"role\":\"penciller\"}}]",
                     GenresJson = "[\"action\",\"Slice of Life\"]",
+                    TagsJson = $"[\"Found Family\",\"found-family\",\"Tag {f % 236}\"]",
                     ReadAt = now,
                 });
             }
@@ -519,8 +522,60 @@ public sealed class FacetIndexServiceTests
         Assert.Equal(600, await db.FacetWorks.CountAsync(w => w.Kind == (int)FacetWorkKind.Record));
         Assert.True(first.Entries > 6000, $"{first.Entries} entries");
 
+        // 1.49.0 (lane T): the Tags bucket's share of the index - every linked location carries its record's 20 categories, every
+        // ComicInfo location its folded tags (two archives with "Found Family" / "found-family" / "Tag n" = 2 values per location).
+        var tagEntries = await (from e in db.FacetEntries
+                                join v in db.FacetValues on e.ValueId equals v.Id
+                                where v.Bucket == (int)FacetBucket.Tags
+                                select e).CountAsync();
+        var ciLocations = await (from e in db.FacetEntries
+                                 join w in db.FacetWorks on e.WorkId equals w.Id
+                                 where w.Kind == (int)FacetWorkKind.ComicInfo
+                                 select e.LocationNodeId).Distinct().CountAsync();
+        var tagValues = await db.FacetValues.CountAsync(v => v.Bucket == (int)FacetBucket.Tags);
+        var expectedValues = Enumerable.Range(0, 600).SelectMany(i => Enumerable.Range(0, 20).Select(k => (i * 7 + k * 31) % 2756))
+            .Concat(Enumerable.Range(700, 300).Select(f => f % 236)).Distinct().Count() + 1; // + "found family"
+        Assert.Equal((700 * 20) + (2 * ciLocations), tagEntries);
+        Assert.Equal(expectedValues, tagValues);
+        output.WriteLine($"Tag index growth (synthetic 30k nodes): {first.Entries} entries, of them {tagEntries} Tags " +
+            $"(+{100.0 * tagEntries / (first.Entries - tagEntries):0}% over the other buckets), {tagValues} Tags values; {ciLocations} ComicInfo locations; " +
+            $"first build {watch.Elapsed.TotalSeconds:0.0} s");
+
         var second = await kit.RebuildAsync();
         Assert.Equal((0, 0, 0), (second.Inserted, second.Updated, second.Deleted));
         Assert.True(second.ElapsedMs < 90_000);
     }
+
+    // 1.49.0 (lane T, T1): a linked series' categories and its archives' ComicInfo Tags land in ONE Tags bucket, case / spacing folded.
+    [Fact]
+    public async Task Tags_FromRecordCategoriesAndComicInfoTags_OneValuePerFoldedTag()
+    {
+        await using var kit = await Kit.CreateAsync();
+        var (folder, record) = await LinkedSeriesAsync(kit);
+        record.CategoriesJson = "[{\"name\":\"Time Travel\",\"votes\":12},{\"name\":\"Revenge\",\"votes\":-2}]";
+        await kit.Meta.Db.SaveChangesAsync();
+        var archive = await kit.Meta.Db.CatalogNodes.FirstAsync(n => n.ParentId == folder.Id);
+        await kit.Meta.AddComicInfoAsync(archive, "Series Alpha");
+        var row = await kit.Meta.Db.EmbeddedMetadata.SingleAsync(e => e.NodeId == archive.Id);
+        row.TagsJson = "[\"time-travel\",\"Found  Family\"]";
+        await kit.Meta.Db.SaveChangesAsync();
+
+        var result = await kit.RebuildAsync();
+
+        Assert.Equal(FacetRebuildOutcome.Rebuilt, result.Outcome);
+        var tags = await (from e in kit.Meta.Db.FacetEntries
+                          join v in kit.Meta.Db.FacetValues on e.ValueId equals v.Id
+                          where v.Bucket == (int)FacetBucket.Tags
+                          orderby v.ValueKey
+                          select new { v.ValueKey, v.Display, e.Sources, e.LocationNodeId }).ToListAsync();
+        Assert.Equal(
+            new[] { ("tg:found family", "Found Family", (int)FacetSources.ComicInfo), ("tg:revenge", "Revenge", (int)FacetSources.Web),
+                ("tg:time travel", "Time Travel", (int)(FacetSources.Web | FacetSources.ComicInfo)) },
+            tags.Select(t => (t.ValueKey, t.Display, t.Sources)).ToArray());
+        Assert.All(tags, t => Assert.Equal(folder.Id, t.LocationNodeId));
+    }
+
+    // 1.49.0: the rules version is part of the inputs key, so the release that adds Tags rebuilds every library once.
+    [Fact]
+    public void RulesVersion_IsBumpedForTheTagsBucket() => Assert.True(FacetIndexService.RulesVersion >= 2);
 }

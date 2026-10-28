@@ -152,6 +152,11 @@ export interface JumpIndexBucketDto {
   firstNodeId?: string | null;
   /** 1.41.0: in `numbers` mode the bucket's round range (`50-99`, `7`); null for letters and the Other / Folders / Files chips. */
   range?: string | null;
+  /**
+   * 1.49.0: at a level whose folders AND archives both carry their own chips (the smaller kind has 20+ rows, or both kinds list under
+   * "Recently added"), which kind the chip belongs to; null elsewhere.
+   */
+  group?: 'folders' | 'files' | null;
 }
 
 /** The jump rail of one listed level - a library root or (1.41.0) a folder, name sort ascending or descending. */
@@ -162,11 +167,14 @@ export interface JumpIndexDto {
   parentId?: string | null;
   /** 1.41.0: the name-sort direction the buckets (display order) and cursors are for. */
   direction?: 'asc' | 'desc';
-  /** 1.41.0: `letters` (A-Z, #, scripts) or `numbers` (round ranges, a common prefix such as `Ch. ` ignored). */
+  /**
+   * 1.41.0: `letters` (A-Z, #, scripts) or `numbers` (round ranges, a common prefix such as `Ch. ` ignored); 1.49.0: `dates` under the
+   * date sorts (Today, This week, This month, This year, then years). A doujin level's letters carry the bracket (`[A` ... `[Z`).
+   */
   mode?: JumpIndexMode;
 }
 
-export type JumpIndexMode = 'letters' | 'numbers';
+export type JumpIndexMode = 'letters' | 'numbers' | 'dates';
 
 export interface SearchResultsDto {
   query: string;
@@ -180,12 +188,70 @@ export interface SearchResultsDto {
   filters?: SearchFilterDto[];
   /** 1.45.0 tag view: with a filter the results are WORK cards (`items` is empty, `totalCount` counts works); absent on a plain search. */
   works?: FacetWorkDto[];
+  /** 1.49.0 plain search: how many of `totalCount` are folders / archives (the counts line "N folders, M archives"). */
+  folderCount?: number | null;
+  archiveCount?: number | null;
+  /** 1.49.0 plain search: how many of `totalCount` are close (typo-tolerant) matches, listed after every exact hit. */
+  closeMatchCount?: number | null;
+  /** 1.49.0 plain search ("+N inside"): per folder on this page (node id), the archives found only through its name. */
+  insideCounts?: Record<string, number> | null;
+
+  /**
+   * 1.49.0 tag view (lane T): "Refine" - the tags of ALL the results per bucket, each chip's `count` = how many of the results carry it
+   * (only what the viewer may see); values already filtered on are left out. First page of a tag view only.
+   */
+  refine?: FacetBucketDto[];
+}
+
+// ---- 1.49.0 quick results (lane O): GET /api/v1/search/suggest ----
+
+/** Quick results while typing: about five per group, or - when the text ends in a typed field - that field's values in `field`. */
+export interface SearchSuggestDto {
+  query: string;
+  series: SuggestItemDto[];
+  folders: SuggestItemDto[];
+  archives: SuggestItemDto[];
+  creators: SuggestItemDto[];
+  tags: SuggestItemDto[];
+  field?: SuggestFieldDto | null;
+}
+
+/**
+ * One quick result. A node (`series` / `folder` / `archive`) opens by `nodeKind` + `libraryId` + `id`; a value (`creator` / `tag` / `genre`)
+ * opens the tag view with `filter` (the ready `f` value) and says how many works carry it in `count`.
+ */
+export interface SuggestItemDto {
+  kind: string;
+  id: string;
+  label: string;
+  detail?: string | null;
+  libraryId?: string | null;
+  nodeKind?: string | null;
+  filter?: string | null;
+  count?: number | null;
+}
+
+/** The values of the typed field the text ends in; choosing one replaces the text from `start` with its `insert`. */
+export interface SuggestFieldDto {
+  name: string;
+  prefix: string;
+  start: number;
+  items: SuggestValueDto[];
+}
+
+export interface SuggestValueDto {
+  label: string;
+  insert: string;
+  count?: number | null;
 }
 
 // ---- 1.45.0 tag buckets (lane Q): Info panel tags and the tag view ----
 
-/** Info panel buckets, in the owner's display order. URL / typed token: creator, series, magazine, publisher, year, genre, type, about, custom. */
-export type FacetBucket = 'Creators' | 'Series' | 'Magazine' | 'Publisher' | 'Year' | 'Genres' | 'Type' | 'About' | 'Custom';
+/**
+ * Info panel buckets, in the owner's display order. URL / typed token: creator, series, magazine, publisher, year, genre, type, about, custom,
+ * tag (1.49.0: Tags - MangaUpdates categories + ComicInfo Tags).
+ */
+export type FacetBucket = 'Creators' | 'Series' | 'Magazine' | 'Publisher' | 'Year' | 'Genres' | 'Type' | 'About' | 'Custom' | 'Tags';
 
 /** A creator's roles on a chip: comma-separated flag names ('Writer', 'Artist', 'Writer, Artist' = Story & art, 'None'). */
 export type FacetRoles = string;
@@ -211,7 +277,7 @@ export interface FacetChipDto {
 export interface FacetBucketDto {
   bucket: FacetBucket;
   chips: FacetChipDto[];
-  /** Further values beyond `chips` (container: top 12 per bucket). */
+  /** Further values beyond `chips` (container: top 12 per bucket; 1.49.0 a single work's Tags: top 8; search Refine: top 12). */
   more: number;
 }
 
@@ -274,6 +340,8 @@ export interface SearchFilterDto {
   matched: boolean;
   valueIds: string[];
   redirectedFrom?: string;
+  /** 1.49.0: an exclusion (`f=-genre:fv_...`, typed `-genre:horror`) - the works carry none of `valueIds`. Absent = false. */
+  negated?: boolean;
 }
 
 export interface SeriesMatchDto {

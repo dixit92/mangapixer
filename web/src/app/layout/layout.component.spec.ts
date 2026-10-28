@@ -181,6 +181,35 @@ describe('LayoutComponent sidebar visibility', () => {
     });
   });
 
+  describe('quick-results search box (1.49.0, lane O)', () => {
+    it('desktop and tablet show the header search box beside the Libraries / Search links', async () => {
+      const { fixture, router } = create({ authenticated: true, phone: false });
+      await go(router, '/', fixture);
+
+      const box = fixture.nativeElement.querySelector('app-header-search input[role="combobox"]') as HTMLInputElement;
+      expect(box).not.toBeNull();
+      expect(box.getAttribute('aria-label')).toBe('Quick search');
+      // It sits in the toolbar before the nav links.
+      const toolbar = fixture.nativeElement.querySelector('mat-toolbar') as HTMLElement;
+      const order = Array.from(toolbar.querySelectorAll('app-header-search, .nav-link')).map((e) => e.tagName.toLowerCase());
+      expect(order).toEqual(['app-header-search', 'button', 'button']);
+    });
+
+    it('phones keep the header as it was: no search box (their Search page has the quick results)', async () => {
+      const { fixture, router } = create({ authenticated: true, phone: true });
+      await go(router, '/', fixture);
+
+      expect(fixture.nativeElement.querySelector('app-header-search')).toBeNull();
+    });
+
+    it('signed-out visitors get no search box', async () => {
+      const { fixture, router } = create({ authenticated: false, phone: false });
+      await go(router, '/', fixture);
+
+      expect(fixture.nativeElement.querySelector('app-header-search')).toBeNull();
+    });
+  });
+
   describe('phone breakpoint (1.10.0, F3)', () => {
     it('desktop/tablet (non-phone) is unchanged: shell sidebar shown, no mobile nav control', async () => {
       const { fixture, router } = create({ authenticated: true, phone: false });

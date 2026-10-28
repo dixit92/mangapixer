@@ -99,8 +99,8 @@ public sealed class PrivacyGateTests : IDisposable
 
         // Add FTS5 index entry for search
         await db.Database.ExecuteSqlRawAsync(
-            "INSERT INTO catalog_search (display_name, relative_path, library_id, node_id) VALUES ({0}, {1}, {2}, {3});",
-            node.DisplayName, node.RelativePath, node.LibraryId, node.Id);
+            "INSERT INTO catalog_search (display_name, library_id, node_id) VALUES ({0}, {1}, {2});",
+            node.DisplayName, node.LibraryId, node.Id);
 
         return (db, user.Id, library.Id, node.Id, node.PublicId);
     }

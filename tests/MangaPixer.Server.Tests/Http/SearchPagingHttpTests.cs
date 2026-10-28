@@ -104,11 +104,12 @@ public sealed class SearchPagingHttpTests : IClassFixture<MangaPixerWebApplicati
             await db.SaveChangesAsync();
         }
 
+        // 1.49.0: "Other 01" matches only through its folder's name - it is counted on Pager Saga Three's card, not listed.
         var seed = new Seeded(
-            All: ["pgOne", "pgTwo", "pgThree", "pg1a", "pg1b", "pg1c", "pg2a", "pg2b", "pg2c", "pg3a"],
+            All: ["pgOne", "pgTwo", "pgThree", "pg1a", "pg1b", "pg1c", "pg2a", "pg2b", "pg2c"],
             Read: ["pgOne", "pg1a", "pg1b", "pg1c"],
             Reading: ["pgTwo", "pg2a"],
-            Unread: ["pgThree", "pg3a", "pg2b", "pg2c"],
+            Unread: ["pgThree", "pg2b", "pg2c"],
             InProgressId: "pg2a");
         return (client, seed);
     }
@@ -151,6 +152,7 @@ public sealed class SearchPagingHttpTests : IClassFixture<MangaPixerWebApplicati
         Assert.All(pages, p => Assert.Equal(seed.All.Count, p.TotalCount));
         Assert.False(pages[^1].HasMore);
         Assert.Null(pages[^1].NextCursor);
+        Assert.Equal(1, pages.Select(p => p.InsideCounts).First(c => c is not null && c.ContainsKey("pgThree"))!["pgThree"]);
     }
 
     [Fact]

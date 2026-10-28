@@ -36,6 +36,12 @@ public sealed class RotatingBackupOptions
     /// </summary>
     public int? Hour { get; set; }
 
+    /// <summary>
+    /// <c>MangaPixer:Backups:Compress</c> (default true, 1.49.0): new rotating backups are gzip-compressed
+    /// (<c>.db.gz</c>); false writes plain <c>.db</c> files as before. An operator switch only (no stored setting).
+    /// </summary>
+    public bool Compress { get; set; } = true;
+
     /// <summary>Operator-pinned rotating backup directory (<c>MangaPixer:Backups:Location</c>).</summary>
     public string? Location { get; set; }
 
@@ -91,6 +97,13 @@ public sealed class RotatingBackupOptions
                 options.Hour = value;
             else
                 options.InvalidKeys.Add("MangaPixer:Backups:Hour");
+        }
+
+        var compress = config["MangaPixer:Backups:Compress"];
+        if (!string.IsNullOrWhiteSpace(compress))
+        {
+            if (bool.TryParse(compress, out var value)) options.Compress = value;
+            else options.InvalidKeys.Add("MangaPixer:Backups:Compress");
         }
 
         var location = config["MangaPixer:Backups:Location"];

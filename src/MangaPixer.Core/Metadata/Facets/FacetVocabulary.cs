@@ -38,6 +38,13 @@ public enum FacetBucket
 
     /// <summary>Admin custom tags (decision 9, later; same tables, source <see cref="FacetSources.Admin"/>).</summary>
     Custom = 9,
+
+    /// <summary>
+    /// 1.49.0 (lane T, owner decision 8 a + a): tags - the stored MangaUpdates categories of the record (its top 20 by net votes) and the
+    /// ComicInfo <c>Tags</c> of the location's archives, in one bucket; case and spacing folded so one tag is one value
+    /// (<see cref="FacetText.TagKey"/>).
+    /// </summary>
+    Tags = 10,
 }
 
 /// <summary>Where an entry's value came from (<c>facet_entries.Sources</c>, a bit set: one entry may have several sources).</summary>

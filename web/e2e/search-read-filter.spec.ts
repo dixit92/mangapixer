@@ -1,9 +1,10 @@
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
 
-import { expectFitsScreen } from './layout';
+import { expectFitsScreen, layoutProblems } from './layout';
 
 /**
- * Search paging + read status (1.45.0 phase K4), on the owner's path: search -> filter Unread -> Load more. The jump-rail library
+ * Search paging + read status (1.45.0 phase K4), on the owner's path: search -> filter Unread -> Load more. 1.49.0 (lane S): the count
+ * says "N folders, M archives"; reversed words find the series and a typo shows close matches. The jump-rail library
  * (`e2e/fixtures/make-series-fixtures.mjs`, `<E2E_SERIES_FIXTURE_ROOT>-jump`: `Jump Saga/Jump Saga - Ch. 001 .. 064.cbz` + a one-shot) gives
  * 66 hits for "Jump Saga" (the folder and its 65 archives) - more than one 50-result page. Five chapters are marked read first (and unmarked
  * at the end): the cards show "Read" marks; Unread then keeps 60 archives (the folder is partly read, so it is Reading), the first page
@@ -88,7 +89,7 @@ test('search -> filter Unread -> Load more: every page is unread, the count and 
     const first = page.waitForResponse((r) => r.url().includes('/api/v1/search?') && r.ok());
     await page.goto('/search?q=Jump%20Saga');
     await first;
-    await expect(page.locator('.result-count')).toHaveText('66 results');
+    await expect(page.locator('.result-count')).toHaveText('1 folder, 65 archives');
     await expect(cards).toHaveCount(50);
     await expect(page.locator('.results-grid .badge.read')).not.toHaveCount(0);
     await shot(page, 'search-read-1280-all');
@@ -99,7 +100,7 @@ test('search -> filter Unread -> Load more: every page is unread, the count and 
     await filtered;
     await expect(page).toHaveURL(/[?&]read=unread/);
     await expect(page).toHaveURL(/[?&]q=Jump(%20|\+)Saga/);
-    await expect(page.locator('.result-count')).toHaveText('60 results');
+    await expect(page.locator('.result-count')).toHaveText('60 archives');
     await expect(cards).toHaveCount(50);
     await expect(page.locator('.results-grid .badge')).toHaveCount(0);
 
@@ -117,7 +118,7 @@ test('search -> filter Unread -> Load more: every page is unread, the count and 
 
     // A reload opens the same filtered search (the URL is the state).
     await page.reload();
-    await expect(page.locator('.result-count')).toHaveText('60 results');
+    await expect(page.locator('.result-count')).toHaveText('60 archives');
     await expect(page.locator('.read-filter').getByRole('option', { name: 'Unread' })).toHaveAttribute('aria-selected', 'true');
 
     // The chip row fits a phone.
@@ -128,4 +129,41 @@ test('search -> filter Unread -> Load more: every page is unread, the count and 
   } finally {
     await setRead(page, read, false);
   }
+});
+
+test('1.49.0: reversed words find the series, a typo shows close matches with a note, a 2-letter search explains itself', async ({ page }) => {
+  test.setTimeout(180_000);
+  await login(page);
+  await ensureLibrary(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const cards = page.locator('.results-grid .result-card');
+
+  // The words in the other order: one literal phrase before 1.49.0 found nothing.
+  let answer = page.waitForResponse((r) => r.url().includes('/api/v1/search?') && r.ok());
+  await page.goto('/search?q=saga%20jump');
+  await answer;
+  await expect(page.locator('.result-count')).toHaveText('1 folder, 65 archives');
+  await expect(cards.first().locator('.result-title')).toHaveText('Jump Saga');
+  await expect(page.getByTestId('search-close-hint')).toHaveCount(0);
+
+  // A swapped letter: close matches only, said so.
+  answer = page.waitForResponse((r) => r.url().includes('/api/v1/search?') && new URL(r.url()).searchParams.get('q') === 'jump sgaa' && r.ok());
+  await page.getByTestId('search-input').fill('jump sgaa');
+  await answer;
+  await expect(page.getByTestId('search-close-hint')).toHaveText('No exact matches. Showing close matches for "jump sgaa".');
+  await expect(cards.first().locator('.result-title')).toHaveText('Jump Saga');
+
+  // Two letters: names with a word starting with them, and a note.
+  answer = page.waitForResponse((r) => r.url().includes('/api/v1/search?') && new URL(r.url()).searchParams.get('q') === 'ju' && r.ok());
+  await page.getByTestId('search-input').fill('ju');
+  await answer;
+  await expect(page.getByTestId('search-short-hint')).toContainText('Names with a word starting with "ju"');
+  // Among the "ju" names (other fixture folders start with "Jump" too - the jump-rail doujin folder sorts first), the series is listed.
+  await expect(cards.locator('.result-title').filter({ hasText: /^Jump Saga$/ })).toHaveCount(1);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  // The shell switches to its phone layout a moment after a resize (BreakpointObserver); measure once it has settled.
+  await expect.poll(async () => (await layoutProblems(page)).length, { timeout: 5_000 }).toBe(0);
+  await expectFitsScreen(page, 'the Search page after a 2-letter search (phone)');
+  await shot(page, 'search-words-390-short');
 });

@@ -42,42 +42,42 @@ The ASP.NET Core and .NET runtime assemblies themselves come from the base image
 
 - `Magick.NET-Q8-AnyCPU` - 15.0.0 - Apache-2.0 - https://github.com/dlemstra/Magick.NET
 - `Magick.NET.Core` - 15.0.0 - Apache-2.0 - https://github.com/dlemstra/Magick.NET
-- `Microsoft.AspNetCore.Identity.EntityFrameworkCore` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.AspNetCore.OpenApi` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Data.Sqlite.Core` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.EntityFrameworkCore.Abstractions` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.EntityFrameworkCore.Relational` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.EntityFrameworkCore.Sqlite.Core` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.EntityFrameworkCore.Sqlite` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.EntityFrameworkCore` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration.Abstractions` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration.Binder` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration.CommandLine` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration.EnvironmentVariables` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration.FileExtensions` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration.Json` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration.UserSecrets` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Configuration` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.DependencyInjection.Abstractions` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.DependencyInjection` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.DependencyModel` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Diagnostics.Abstractions` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Diagnostics` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.FileProviders.Abstractions` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.FileProviders.Physical` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.FileSystemGlobbing` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Hosting.Abstractions` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Hosting` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Logging.Abstractions` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Logging.Configuration` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Logging.Console` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Logging.Debug` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Logging.EventLog` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Logging.EventSource` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Logging` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Options.ConfigurationExtensions` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Options` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Primitives` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.AspNetCore.Identity.EntityFrameworkCore` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.AspNetCore.OpenApi` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Data.Sqlite.Core` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.EntityFrameworkCore.Abstractions` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.EntityFrameworkCore.Relational` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.EntityFrameworkCore.Sqlite.Core` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.EntityFrameworkCore.Sqlite` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.EntityFrameworkCore` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration.Abstractions` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration.Binder` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration.CommandLine` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration.EnvironmentVariables` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration.FileExtensions` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration.Json` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration.UserSecrets` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Configuration` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.DependencyInjection.Abstractions` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.DependencyInjection` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.DependencyModel` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Diagnostics.Abstractions` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Diagnostics` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.FileProviders.Abstractions` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.FileProviders.Physical` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.FileSystemGlobbing` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Hosting.Abstractions` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Hosting` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Logging.Abstractions` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Logging.Configuration` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Logging.Console` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Logging.Debug` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Logging.EventLog` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Logging.EventSource` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Logging` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Options.ConfigurationExtensions` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Options` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Primitives` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.OpenApi` - 2.12.2 - MIT - https://github.com/microsoft/OpenAPI.NET
 - `Serilog.Extensions.Hosting` - 10.0.0 - Apache-2.0 - https://github.com/serilog/serilog-extensions-hosting
 - `Serilog.Extensions.Logging` - 10.0.0 - Apache-2.0 - https://github.com/serilog/serilog-extensions-logging
@@ -90,7 +90,7 @@ The ASP.NET Core and .NET runtime assemblies themselves come from the base image
 - `SQLitePCLRaw.config.e_sqlite3` - 3.0.5 - Apache-2.0 - https://github.com/ericsink/SQLitePCL.raw
 - `SQLitePCLRaw.core` - 3.0.5 - Apache-2.0 - https://github.com/ericsink/SQLitePCL.raw
 - `SQLitePCLRaw.provider.e_sqlite3` - 3.0.5 - Apache-2.0 - https://github.com/ericsink/SQLitePCL.raw
-- `System.Diagnostics.EventLog` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `System.Diagnostics.EventLog` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
 
 ### 1b. Shipped only through `Microsoft.EntityFrameworkCore.Design` (18)
 
@@ -104,7 +104,7 @@ is computed from the dependency graph in the published `MangaPixer.Server.deps.j
 - `Microsoft.CodeAnalysis.CSharp` - 5.0.0 - MIT - https://github.com/dotnet/roslyn
 - `Microsoft.CodeAnalysis.Workspaces.Common` - 5.0.0 - MIT - https://github.com/dotnet/roslyn
 - `Microsoft.CodeAnalysis.Workspaces.MSBuild` - 5.0.0 - MIT - https://github.com/dotnet/roslyn
-- `Microsoft.EntityFrameworkCore.Design` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.EntityFrameworkCore.Design` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.VisualStudio.SolutionPersistence` - 1.0.52 - MIT - https://github.com/microsoft/vs-solutionpersistence
 - `Mono.TextTemplating` - 3.0.0 - MIT - https://github.com/mono/t4
 - `Newtonsoft.Json` - 13.0.4 - MIT - https://github.com/JamesNK/Newtonsoft.Json
@@ -211,18 +211,18 @@ of them is in the publish output. Some `Microsoft.Extensions.*` and
 resolves them as packages. At runtime, the server uses the copies in the ASP.NET Core
 shared framework.
 
-- `Microsoft.AspNetCore.Cryptography.Internal` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.AspNetCore.Cryptography.KeyDerivation` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.AspNetCore.Cryptography.Internal` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.AspNetCore.Cryptography.KeyDerivation` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.AspNetCore.Mvc.Testing` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.AspNetCore.TestHost` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.CodeAnalysis.Analyzers` - 3.11.0 - MIT - https://github.com/dotnet/roslyn-analyzers
 - `xunit.abstractions` - 2.0.3 - Apache-2.0 (the nuspec has only a licenseUrl, which points at upstream xUnit's Apache-2.0 license) - https://github.com/xunit/xunit
 - `Microsoft.CodeCoverage` - 18.11.0 - MIT - https://github.com/microsoft/vstest
-- `Microsoft.EntityFrameworkCore.Analyzers` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Caching.Abstractions` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Caching.Memory` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Identity.Core` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.Extensions.Identity.Stores` - 10.0.13 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.EntityFrameworkCore.Analyzers` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Caching.Abstractions` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Caching.Memory` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Identity.Core` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.Extensions.Identity.Stores` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.NET.Test.Sdk` - 18.11.0 - MIT - https://github.com/microsoft/vstest
 - `Microsoft.TestPlatform.ObjectModel` - 18.11.0 - MIT - https://github.com/microsoft/vstest
 - `Microsoft.TestPlatform.TestHost` - 18.11.0 - MIT - https://github.com/microsoft/vstest
@@ -248,12 +248,12 @@ ported or copied from two upstream projects, attributed under "Ported shader cod
 below.
 
 - `@angular/animations` - 22.2.3 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/cdk` - 22.2.3 - MIT - https://github.com/angular/components *(bundled)*
+- `@angular/cdk` - 22.2.4 - MIT - https://github.com/angular/components *(bundled)*
 - `@angular/common` - 22.2.3 - MIT - https://github.com/angular/angular *(bundled)*
 - `@angular/compiler` - 22.2.3 - MIT - https://github.com/angular/angular
 - `@angular/core` - 22.2.3 - MIT - https://github.com/angular/angular *(bundled)*
 - `@angular/forms` - 22.2.3 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/material` - 22.2.3 - MIT - https://github.com/angular/components *(bundled)*
+- `@angular/material` - 22.2.4 - MIT - https://github.com/angular/components *(bundled)*
 - `@angular/platform-browser` - 22.2.3 - MIT - https://github.com/angular/angular *(bundled)*
 - `@angular/router` - 22.2.3 - MIT - https://github.com/angular/angular *(bundled)*
 - `@fontsource/roboto` - 5.3.0 - OFL-1.1 - https://github.com/fontsource/font-files *(bundled)*
@@ -379,10 +379,10 @@ places in `node_modules`. Platform-specific optional binaries such as
 
 - `@ampproject/remapping` - 2.3.0 - Apache-2.0 - https://github.com/ampproject/remapping
 - `@angular-devkit/architect` - 0.2202.3 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/build-angular` - 22.2.3 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/build-angular` - 22.2.4 - MIT - https://github.com/angular/angular-cli
 - `@angular-devkit/build-webpack` - 0.2202.3 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/core` - 22.2.3 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/schematics` - 22.2.3 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/core` - 22.2.4 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/schematics` - 22.2.4 - MIT - https://github.com/angular/angular-cli
 - `@angular-eslint/builder` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/bundled-angular-compiler` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/eslint-plugin-template` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
@@ -390,8 +390,8 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `@angular-eslint/schematics` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/template-parser` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/utils` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular/build` - 22.2.3 - MIT - https://github.com/angular/angular-cli
-- `@angular/cli` - 22.2.3 - MIT - https://github.com/angular/angular-cli
+- `@angular/build` - 22.2.4 - MIT - https://github.com/angular/angular-cli
+- `@angular/cli` - 22.2.4 - MIT - https://github.com/angular/angular-cli
 - `@angular/compiler-cli` - 22.2.3 - MIT - https://github.com/angular/angular
 - `@asamuzakjp/css-color` - 7.1.3 - MIT - https://github.com/asamuzaK/cssColor
 - `@asamuzakjp/dom-selector` - 10.0.4 - MIT - https://github.com/asamuzaK/domSelector
@@ -580,7 +580,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `@msgpackr-extract/msgpackr-extract-linux-x64` - 3.0.4 - MIT - https://github.com/kriszyp/msgpackr-extract
 - `@napi-rs/nice-linux-x64-gnu` - 1.1.1 - MIT - https://github.com/Brooooooklyn/nice
 - `@napi-rs/nice` - 1.1.1 - MIT - https://github.com/Brooooooklyn/nice
-- `@ngtools/webpack` - 22.2.3 - MIT - https://github.com/angular/angular-cli
+- `@ngtools/webpack` - 22.2.4 - MIT - https://github.com/angular/angular-cli
 - `@noble/hashes` - 1.8.0 - MIT - https://github.com/paulmillr/noble-hashes
 - `@oxc-parser/binding-linux-x64-gnu` - 0.150.0 - MIT - https://github.com/oxc-project/oxc
 - `@oxc-project/types` - 0.149.0 - MIT - https://github.com/oxc-project/oxc
@@ -602,7 +602,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `@playwright/test` - 1.64.1 - Apache-2.0 - https://github.com/microsoft/playwright
 - `@rolldown/binding-linux-x64-gnu` - 1.2.8 - MIT - https://github.com/rolldown/rolldown
 - `@rolldown/pluginutils` - 1.0.1 - MIT - https://github.com/rolldown/plugins
-- `@schematics/angular` - 22.2.3 - MIT - https://github.com/angular/angular-cli
+- `@schematics/angular` - 22.2.4 - MIT - https://github.com/angular/angular-cli
 - `@types/body-parser` - 1.19.6 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/bonjour` - 3.5.13 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/chai` - 5.2.3 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped

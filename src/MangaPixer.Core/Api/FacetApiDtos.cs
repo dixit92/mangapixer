@@ -43,10 +43,16 @@ public sealed record FacetBucketDto
 {
     public required FacetBucket Bucket { get; init; }
 
-    /// <summary>Single work: every value. Container: the top 12 by how many works below carry them (owner Q10).</summary>
+    /// <summary>
+    /// Single work: every value (1.49.0: Tags only its strongest <c>8</c> - most net votes first, ComicInfo tags after). Container: the top
+    /// 12 by how many works below carry them (owner Q10). Search Refine (1.49.0): the top 12 by how many of the results carry them.
+    /// </summary>
     public required IReadOnlyList<FacetChipDto> Chips { get; init; }
 
-    /// <summary>How many further values this bucket has beyond <see cref="Chips"/> (container only; 0 otherwise).</summary>
+    /// <summary>
+    /// How many further values this bucket has beyond <see cref="Chips"/> (a container; 1.49.0 also a single work's Tags, which shows its
+    /// strongest few; and the search's Refine list). 0 otherwise.
+    /// </summary>
     public int More { get; init; }
 }
 
@@ -194,4 +200,11 @@ public sealed record SearchFilterDto
     /// <summary>Chip: the value id that was sent when it belonged to a creator merged into another (the redirect); null otherwise.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? RedirectedFrom { get; init; }
+
+    /// <summary>
+    /// 1.49.0 (lane T): an exclusion (<c>f=-genre:fv_...</c>, typed <c>-genre:horror</c>) - the works must NOT carry any of
+    /// <see cref="ValueIds"/>. Left out (false) for an ordinary filter. An exclusion that matches no visible value excludes nothing.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Negated { get; init; }
 }

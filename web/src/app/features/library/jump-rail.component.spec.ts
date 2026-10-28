@@ -1,22 +1,22 @@
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
-import { JumpRailComponent, bucketOwners } from './jump-rail.component';
+import { JumpRailComponent, MIN_ROWS_FOR_RAIL, bucketOwners } from './jump-rail.component';
 import { JumpIndexBucketDto } from '../../core/api/api-types';
 
 /** The jump rail component (1.41.0) and its scroll-spy helper. */
 describe('JumpRailComponent', () => {
   const letters: JumpIndexBucketDto[] = [
     { label: 'Folders', count: 2, firstCursor: null, firstNodeId: 'f1' },
-    { label: 'A', count: 3, firstCursor: 'k1', firstNodeId: 'a1' },
-    { label: 'B', count: 1, firstCursor: 'k2', firstNodeId: 'b1' },
+    { label: 'A', count: 9, firstCursor: 'k1', firstNodeId: 'a1' },
+    { label: 'B', count: 4, firstCursor: 'k2', firstNodeId: 'b1' },
   ];
   const numbers: JumpIndexBucketDto[] = [
     { label: '0', count: 50, firstCursor: null, firstNodeId: 'c0', range: '0-49' },
     { label: '50', count: 22, firstCursor: 'k49', firstNodeId: 'c50', range: '50-99' },
   ];
 
-  function create(buckets: JumpIndexBucketDto[], mode: 'letters' | 'numbers', active: JumpIndexBucketDto | null = null) {
+  function create(buckets: JumpIndexBucketDto[], mode: 'letters' | 'numbers' | 'dates', active: JumpIndexBucketDto | null = null) {
     TestBed.configureTestingModule({ imports: [JumpRailComponent], providers: [provideNoopAnimations()] });
     const fixture = TestBed.createComponent(JumpRailComponent);
     fixture.componentRef.setInput('buckets', buckets);
@@ -58,8 +58,56 @@ describe('JumpRailComponent', () => {
     expect(create(numbers, 'numbers').comp.triggerText()).toBe('Jump');
   });
 
+  it('1.49.0: a level under 12 rows has no rail (the sum of the chips counts), 12 rows has one', () => {
+    expect(MIN_ROWS_FOR_RAIL).toBe(12);
+    const few: JumpIndexBucketDto[] = [
+      { label: 'A', count: 6, firstCursor: null, firstNodeId: 'a1' },
+      { label: 'B', count: 5, firstCursor: 'k1', firstNodeId: 'b1' },
+    ];
+    const hidden = create(few, 'letters');
+    expect(hidden.el.querySelector('nav.jump-rail')).toBeNull();
+    expect(hidden.el.querySelector('.jump-menu-trigger')).toBeNull();
+    TestBed.resetTestingModule();
+
+    const exactly = create([{ ...few[0], count: 7 }, few[1]], 'letters');
+    expect(exactly.el.querySelectorAll('nav.jump-rail .jump-chip').length).toBe(2);
+  });
+
+  it('1.49.0: dates mode - time chips, a clock icon, "Jump to date"', () => {
+    const dates: JumpIndexBucketDto[] = [
+      { label: 'Today', count: 5, firstCursor: null, firstNodeId: 'n1' },
+      { label: 'This week', count: 4, firstCursor: 'a:1:1:1', firstNodeId: 'n2' },
+      { label: '2025', count: 20, firstCursor: 'a:1:2:2', firstNodeId: 'n3' },
+    ];
+    const { comp, el } = create(dates, 'dates', dates[1]);
+
+    expect(Array.from(el.querySelectorAll('nav.jump-rail .jump-chip')).map((c) => c.textContent?.trim())).toEqual(['Today', 'This week', '2025']);
+    expect(el.querySelector('nav.jump-rail')!.getAttribute('aria-label')).toBe('Jump to date');
+    expect(el.querySelector('.jump-menu-trigger mat-icon')!.textContent?.trim()).toBe('schedule');
+    expect(comp.triggerText()).toBe('This week');
+  });
+
+  it('1.49.0: a level whose folders and files both have chips labels each kind once (a heading before its first chip)', () => {
+    const grouped: JumpIndexBucketDto[] = [
+      { label: 'A', count: 8, firstCursor: null, firstNodeId: 'f1', group: 'folders' },
+      { label: 'B', count: 8, firstCursor: 'k1', firstNodeId: 'f2', group: 'folders' },
+      { label: 'A', count: 8, firstCursor: 'k2', firstNodeId: 'a1', group: 'files' },
+      { label: 'B', count: 8, firstCursor: 'k3', firstNodeId: 'a2', group: 'files' },
+    ];
+    const { comp, el } = create(grouped, 'letters');
+
+    expect(Array.from(el.querySelectorAll('nav.jump-rail .jump-group')).map((c) => c.textContent?.trim())).toEqual(['Folders', 'Files']);
+    expect(el.querySelectorAll('nav.jump-rail .jump-chip').length).toBe(4);
+    expect(comp.groupLabel(0)).toBe('Folders');
+    expect(comp.groupLabel(1)).toBeNull();
+    expect(comp.groupLabel(2)).toBe('Files');
+    // Ungrouped levels show no heading.
+    TestBed.resetTestingModule();
+    expect(create(letters, 'letters').el.querySelector('.jump-group')).toBeNull();
+  });
+
   it('shows nothing for fewer than two buckets', () => {
-    const { el } = create([letters[1]], 'letters');
+    const { el } = create([{ ...letters[1], count: 40 }], 'letters');
     expect(el.querySelector('nav.jump-rail')).toBeNull();
     expect(el.querySelector('.jump-menu-trigger')).toBeNull();
   });

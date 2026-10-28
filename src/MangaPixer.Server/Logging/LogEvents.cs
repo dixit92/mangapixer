@@ -355,6 +355,13 @@ public static class LogEvents
         public const int SnapshotMoveStarted = 6040;
         public const int SnapshotMoveCompleted = 6041;
         public const int SnapshotMoveFailed = 6042;
+
+        // 1.49.0 compressed rotating backups (6050-6069)
+        public const int BackupCompressed = 6050;
+        public const int BackupCompressionFailed = 6051;
+        public const int StaleBackupTempsRemoved = 6052;
+        public const int RestoreDecompressed = 6053;
+        public const int RestoreCompressedRejected = 6054;
     }
 
     /// <summary>Admin actions on users and server configuration.</summary>
@@ -532,6 +539,10 @@ public static class LogEvents
         public const int InfoBucketPageServed = 9453;
         public const int FacetWorkReadStateFiltered = 9454;
 
+        // Tags that combine (1.49.0, lane T, 9480-9489). Counts, ids and timings only - never search text, tag values or names.
+        public const int FacetRefineComputed = 9480;
+        public const int FacetSearchScopeUnmatched = 9481;
+
         // Tag index (1.45.0 lane F, 9440-9449). Library / creator ids, counts and timings only - never names, titles or tag values.
         public const int FacetIndexRebuilt = 9440;
         public const int FacetIndexSkippedScan = 9441;
@@ -636,5 +647,37 @@ public static class LogEvents
 
         /// <summary>The warm-up stopped on an unexpected error (Warning): exception type.</summary>
         public const int WarmupFailed = 3292;
+    }
+
+    /// <summary>
+    /// 1.49.0 lane S: plain search and its FTS indexes (3300-3319, inside the 3xxx range; reserved for lane S). Index names, counts and
+    /// timings only - never the search text, a name or a path.
+    /// </summary>
+    public static class Search
+    {
+        public const int Min = 3300;
+        public const int Max = 3319;
+
+        /// <summary>An FTS index was rebuilt at start-up for a new definition: index name, rows, milliseconds, previous stamp state.</summary>
+        public const int FtsRebuilt = 3300;
+
+        /// <summary>A plain search answered (Debug): words, hits, close matches, milliseconds.</summary>
+        public const int Answered = 3301;
+    }
+
+    /// <summary>
+    /// 1.49.0 lane O: quick results while typing (3330-3339, inside the 3xxx range; reserved for lane O). Counts and timings only -
+    /// never the typed text, a name or a path.
+    /// </summary>
+    public static class QuickResults
+    {
+        public const int Min = 3330;
+        public const int Max = 3339;
+
+        /// <summary>The node half (folders, archives, linked series) answered (Debug): words, candidates, hits, listed, milliseconds.</summary>
+        public const int NodesAnswered = 3330;
+
+        /// <summary>A quick-results request answered (Debug): typed field or groups, items listed per group, milliseconds.</summary>
+        public const int Answered = 3331;
     }
 }

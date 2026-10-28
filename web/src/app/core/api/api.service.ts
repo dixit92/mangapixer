@@ -105,6 +105,7 @@ import {
   UserPreferencesDto,
   AppearancePreferencesDto,
   SeriesAnswer,
+  SearchSuggestDto,
 } from './api-types';
 
 /** Options of {@link ApiService.search} (1.45.0). */
@@ -115,6 +116,19 @@ export interface SearchOptions {
   readState?: LibraryReadStateFilter;
   /** Tag filters (1.45.0, lane P): each `<bucket>:<value id>` is sent as one `f` parameter; all must match (AND). */
   filters?: readonly string[];
+}
+
+/**
+ * The browse state a jump rail is built for (1.49.0): the same filters `browseLibrary` takes, the browse sort (the date sorts get time
+ * chips, "Recently read" none) and the viewer's UTC offset in minutes east (`-new Date().getTimezoneOffset()`).
+ */
+export interface JumpIndexFilters {
+  sort?: LibrarySortOrder;
+  readState?: LibraryReadStateFilter;
+  hideEmpty?: boolean;
+  favoritesOnly?: boolean;
+  completion?: SeriesAnswer | null;
+  tzOffset?: number;
 }
 
 /**
@@ -227,18 +241,28 @@ export class ApiService {
   /** Per-library A–Z/script jump index. */
   /**
    * The jump rail of one listed level (1.41.0): the library root, or `parentId`'s children; buckets and cursors for the name sort in
-   * `direction`; `group` is the browse Volumes-view override (the index is empty where the Volumes view is shown).
+   * `direction`; `group` is the browse Volumes-view override (the index is empty where the Volumes view is shown). 1.49.0: `filters`
+   * make it the rail of the filtered level (and of the date sorts); see {@link JumpIndexFilters}.
    */
   getJumpIndex(
     libraryId: string,
     parentId: string | null = null,
     direction: LibrarySortDirection | null = null,
     group: 'volumes' | 'flat' | null = null,
+    filters: JumpIndexFilters | null = null,
   ): Observable<JumpIndexDto> {
     let params = new HttpParams();
     if (parentId) params = params.set('parentId', parentId);
     if (direction) params = params.set('direction', direction);
     if (group) params = params.set('group', group);
+    // 1.49.0: the rail of the FILTERED level - the same filter params as `browseLibrary` (omitted = no filter) - and, under the date
+    // sorts, the time chips (`sort`, with `tzOffset`: the viewer's minutes east of UTC, so "Today" is the viewer's day).
+    if (filters?.sort && filters.sort !== 'name') params = params.set('sort', filters.sort);
+    if (filters?.readState && filters.readState !== 'all') params = params.set('readState', filters.readState);
+    if (filters?.hideEmpty) params = params.set('hideEmpty', 'true');
+    if (filters?.favoritesOnly) params = params.set('favoritesOnly', 'true');
+    if (filters?.completion) params = params.set('completion', filters.completion);
+    if (filters?.tzOffset) params = params.set('tzOffset', filters.tzOffset.toString());
     return this.get<JumpIndexDto>(`/libraries/${libraryId}/jump-index`, params);
   }
 
@@ -262,6 +286,14 @@ export class ApiService {
     if (options.readState && options.readState !== 'all') params = params.set('readState', options.readState);
     for (const f of options.filters ?? []) params = params.append('f', f);
     return this.get<SearchResultsDto>('/search', params);
+  }
+
+  /**
+   * Quick results while typing (1.49.0, lane O): the best few series, folders, archives, creators and tags for `text`, or the values of
+   * the typed field it ends in. The caller debounces and unsubscribes from the request it replaces (the browser cancels it).
+   */
+  searchSuggest(text: string): Observable<SearchSuggestDto> {
+    return this.get<SearchSuggestDto>('/search/suggest', new HttpParams().set('q', text));
   }
 
   /**
