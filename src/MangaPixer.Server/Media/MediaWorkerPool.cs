@@ -1561,6 +1561,18 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     public int SchedulerPendingCount => _scheduler.PendingCount;
 
     /// <summary>
+    /// Number of extract requests waiting for a worker slot. Read-only observation, so tests
+    /// can wait for a request to be queued instead of sleeping.
+    /// </summary>
+    internal int SlotWaiterCount
+    {
+        get
+        {
+            lock (_poolLock) { return _waiters.Count; }
+        }
+    }
+
+    /// <summary>
     /// Starts one worker process and adds it to the pool. With
     /// <paramref name="claim"/> the slot is added already busy (atomically, under
     /// the pool lock) and owned by the caller, who must release it.

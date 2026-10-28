@@ -1051,8 +1051,8 @@ public sealed partial class CatalogBrowseService
     /// Lists the current user's favorites (1.21.0), keyset-paged like browse and ordered
     /// recently-favorited (newest first). Visibility flows through the SAME
     /// <see cref="LibraryAuthorizationService.GetVisibleLibraryIdsAsync"/> chokepoint +
-    /// X-Incognito signal as browse/search, so a favorite pointing into a Private library
-    /// appears only in an incognito session and never leaks into a normal one. Returns
+    /// X-Incognito signal as browse/search, so a favorite pointing into the viewer's own
+    /// Private library is hidden while Incognito is on. Returns
     /// <see cref="CatalogNodeDto"/>s with folder covers and per-user read state resolved
     /// exactly as browse does. Tombstoned nodes are excluded.
     ///

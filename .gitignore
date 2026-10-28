@@ -55,6 +55,10 @@ coverage/
 .nyc_output/
 *.tsbuildinfo
 
+# Python bytecode (the perf harness under scripts/perf)
+__pycache__/
+*.pyc
+
 # IDE and editor state
 .vs/
 .vscode/

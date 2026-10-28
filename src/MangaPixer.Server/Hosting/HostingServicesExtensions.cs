@@ -76,10 +76,6 @@ public static class HostingServicesExtensions
         });
         services.AddScoped<FilesystemBrowseService>();
 
-        // Page delivery depends on DbContext + CacheService + JobScheduler,
-        // all of which are registered by AddMangaPixerAuth/AddMangaPixerMedia.
-        services.AddScoped<PageDeliveryService>();
-
         // WriteCoordinator for serialized DB writes.
         services.AddScoped<WriteCoordinator>();
 
