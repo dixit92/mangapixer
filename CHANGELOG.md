@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.49.0] - 2026-10-28
+
 ### Added
 
 - **Search by words.** Search now finds every word you type, in any order: `piece one` finds `One Piece`. Upper and lower case, accents
