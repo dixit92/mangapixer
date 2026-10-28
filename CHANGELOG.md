@@ -82,6 +82,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   `MALLOC_ARENA_MAX=` (empty) to go back to glibc's default; see [Memory allocator](docs/configuration.md#memory-allocator).
 - **Upgrade note:** the first start of this version rebuilds the search index once (a few seconds for a large library) before the server
   opens. No database migration. A "Load more" left open in a browser across the update starts again from the first page.
+- **Docker Hub mirror:** each release image is also published as `dixit92/mangapixer` on Docker Hub (same tags as ghcr.io, which stays the
+  primary registry), so Unraid Community Applications can show the app's **Last Update**.
 - Angular 22.2.4 and .NET 10.0.14 (dependency updates).
 
 ## [1.48.0] - 2026-10-26
