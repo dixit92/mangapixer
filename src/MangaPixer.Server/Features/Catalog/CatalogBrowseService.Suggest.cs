@@ -15,7 +15,11 @@ using Microsoft.Extensions.Logging;
 public sealed partial class CatalogBrowseService
 {
     /// <summary>One quick-result node: public ids, the kind, the name, the folder it sits in, and (a series) the title that matched.</summary>
-    internal sealed record SuggestNode(string Id, string LibraryId, CatalogNodeKind Kind, string Name, string? Place, string? Aka);
+    internal sealed record SuggestNode(string Id, string LibraryId, CatalogNodeKind Kind, string Name, string? Place, string? Aka)
+    {
+        /// <summary>An archive's context line (1.50.0, lane W's <see cref="ArchiveContextNames"/>): the folder it belongs to.</summary>
+        public string? Context { get; init; }
+    }
 
     /// <summary>The best nodes of one text, per kind, in rank order.</summary>
     internal sealed record SuggestNodes(IReadOnlyList<SuggestNode> Series, IReadOnlyList<SuggestNode> Folders, IReadOnlyList<SuggestNode> Archives)
@@ -93,6 +97,17 @@ public sealed partial class CatalogBrowseService
 
             var details = await ReadSuggestNodesAsync(connection,
                 folders.Concat(archives).Select(h => h.Id).Concat(series.Select(s => anchors.InternalIds[s.Id])).ToList(), ct);
+            // 1.50.0: the archives' context line (lane W's helper) - one batched up-walk for the listed archives.
+            var archiveIds = details.Where(d => d.Value.Kind == CatalogNodeKind.Archive).Select(d => d.Key).ToList();
+            if (archiveIds.Count > 0)
+            {
+                var contexts = await ArchiveContextNames.ResolveAsync(_db, archiveIds, visibleLibs, ct);
+                foreach (var id in archiveIds)
+                {
+                    if (contexts.TryGetValue(id, out var context))
+                        details[id] = details[id] with { Context = context };
+                }
+            }
             SuggestNode? Node(long id) => details.GetValueOrDefault(id);
 
             var result = new SuggestNodes(

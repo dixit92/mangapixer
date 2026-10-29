@@ -312,4 +312,29 @@ public sealed class SearchFollowUpsHttpTests
         // A typo never lists an archive in quick results (folder names only - the budget).
         Assert.Empty((await SuggestAsync(seed.Admin, "deluxx")).Archives);
     }
+
+    // --- After lane W: the archive context line on search and quick-results archive rows ------------------------------------------
+
+    [Fact]
+    public async Task ContextLine_SaysWhichSeriesATitleLessVolumeBelongsTo_InSearchAndQuickResults()
+    {
+        var seed = await SetupAsync();
+        using var _ = seed.Factory;
+
+        var berserk12 = await SearchAsync(seed.Admin, "berserk 12");
+        Assert.Equal([("bs12", "Berserk"), ("bz12", "Berserk Zq")], berserk12.Items.Select(n => (n.Id, n.ContextName)).ToList());
+        // Through a kind folder: the series folder above "Volumes".
+        Assert.Equal("Berserk", Assert.Single((await SearchAsync(seed.Admin, "berserk 13")).Items).ContextName);
+        // Folders carry none.
+        Assert.All((await SearchAsync(seed.Admin, "berserk")).Items, n => Assert.Null(n.ContextName));
+
+        var quick = await SuggestAsync(seed.Admin, "berserk 12");
+        Assert.Equal([("bs12", "Berserk"), ("bz12", "Berserk Zq")], quick.Archives.Select(a => (a.Id, a.ContextName)).ToList());
+        Assert.All((await SuggestAsync(seed.Admin, "berserk")).Folders, f => Assert.Null(f.ContextName));
+
+        // The reader sees only library A's volume, with its context; under Incognito (A Private) nothing.
+        var reader = await AccessTestUsers.ReaderAsync(seed.Factory, seed.Admin, "fucontext", [seed.LibraryA], [seed.LibraryA]);
+        Assert.Equal([("bs12", "Berserk")], (await SearchAsync(reader.Client, "berserk 12")).Items.Select(n => (n.Id, n.ContextName)).ToList());
+        Assert.Empty((await SuggestAsync(reader.Incognito, "berserk 12")).Archives);
+    }
 }

@@ -188,6 +188,18 @@ public sealed partial class CatalogBrowseService
                     cards.Add(anchor);
             }
             var enriched = (await EnrichSearchNodesAsync(cards, cardIds, userId, ct)).ToDictionary(n => n.Id, StringComparer.Ordinal);
+            // 1.50.0 (lane W's helper, called here by lane S): the context line of each archive card - the folder it belongs to, so a
+            // found "Vol 12" (often through its folder's words) says which series it is. One batched up-walk for the page.
+            var archiveCards = enriched.Values.Where(n => n.Kind == CatalogNodeKind.Archive).Select(n => cardIds[n.Id]).ToList();
+            if (archiveCards.Count > 0)
+            {
+                var contexts = await ArchiveContextNames.ResolveAsync(_db, archiveCards, visibleLibs, ct);
+                foreach (var (publicId, node) in enriched.ToList())
+                {
+                    if (node.Kind == CatalogNodeKind.Archive && contexts.TryGetValue(cardIds[publicId], out var context))
+                        enriched[publicId] = node with { ContextName = context };
+                }
+            }
             results = results.Select(n => enriched[n.Id]).ToList();
 
             // Series information (1.27.0): the same (i) flag as browse, for the card (i) and

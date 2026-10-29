@@ -269,6 +269,7 @@ public sealed class SearchSuggestService
         Detail = node.Aka is not null ? "aka " + node.Aka : node.Place,
         LibraryId = node.LibraryId,
         NodeKind = node.Kind.ToString(),
+        ContextName = node.Kind == CatalogNodeKind.Archive ? node.Context : null, // 1.50.0: lane W's context line, filled by lane S
     };
 
     private static SuggestItemDto ValueItem(SuggestedValue value) => new()
