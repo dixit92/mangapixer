@@ -81,7 +81,8 @@ test('header box: type -> grouped results -> Down + Enter opens the folder; Ente
   // Groups: the folder first, then five archives (named after the series, found by their own names).
   await expect(panel.locator('[data-group="folders"] [role="option"]')).toHaveText([/Jump Saga/]);
   await expect(panel.locator('[data-group="archives"] [role="option"]')).toHaveCount(5);
-  await expect(panel.locator('[data-group="archives"] .qr-detail').first()).toHaveText('Jump Saga');
+  // 1.50.0: the folder an archive sits in is its context line now (lane W's line, filled by the server since lane S).
+  await expect(panel.locator('[data-group="archives"] [data-testid="context-line"]').first()).toHaveText('Jump Saga');
 
   // Down chooses the first result (the folder); aria-activedescendant names it.
   await box.press('ArrowDown');

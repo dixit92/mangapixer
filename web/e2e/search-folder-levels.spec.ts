@@ -90,4 +90,14 @@ test('1.50.0: a -word naming a folder leaves out what is inside it; quick result
 
   const suggest = await (await page.request.get(`/api/v1/search/suggest?q=${encodeURIComponent('berserk 12')}`)).json();
   expect((suggest.archives as { label: string }[]).map((a) => a.label)).toContain('Vol 12.cbz');
+
+  // The server names the series folder of each archive it lists (lane W's context line) - through a kind folder too.
+  const withContext = async (q: string): Promise<(string | null)[]> => {
+    const res = await page.request.get(`/api/v1/search?q=${encodeURIComponent(q)}&pageSize=50`);
+    return ((await res.json()).items as { contextName?: string | null }[]).map((n) => n.contextName ?? null);
+  };
+  expect(await withContext('berserk 12')).toEqual(['Berserk']);
+  expect(await withContext('berserk 14')).toEqual(['Berserk']);
+  const quickContext = (suggest.archives as { label: string; contextName?: string | null }[]).find((a) => a.label === 'Vol 12.cbz');
+  expect(quickContext?.contextName).toBe('Berserk');
 });

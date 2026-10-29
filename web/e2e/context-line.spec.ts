@@ -111,6 +111,7 @@ for (const size of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) 
     await expect(page.getByTestId('context-line')).toHaveCount(2);
 
     test.info().annotations.push({ type: 'context-from', description: filled.injected() > 0 ? `spec (filled ${filled.injected()})` : 'server' });
+    console.log(`context-from: ${filled.injected() > 0 ? `spec (filled ${filled.injected()})` : 'server'}`); // 1.50.0 lane S: visible in the run's log
     await shot(page, `context-line-search-${size.width}`);
     if (size.width <= 500) await expectFitsScreen(page, 'search results with context lines');
   });
