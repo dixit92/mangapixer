@@ -1156,6 +1156,9 @@ export interface BackupSettingsDto {
   intervalHoursSource: BackupSettingSource;
   retentionCount: number;
   retentionCountSource: BackupSettingSource;
+  /** Gzip-compress new rotating backups (1.50.0). Read-only in the UI when its source is `configuration`. */
+  compress: boolean;
+  compressSource: BackupSettingSource;
   locationKind: 'default' | 'custom';
   locationSource: BackupSettingSource;
   customLocation: string | null;
@@ -1176,6 +1179,8 @@ export interface UpdateBackupSettingsRequest {
   enabled?: boolean;
   intervalHours?: number;
   retentionCount?: number;
+  /** Gzip-compress new rotating backups (1.50.0); 409 while server configuration manages it. */
+  compress?: boolean;
   location?: { mode: 'default' | 'custom'; customLocation?: string };
   currentPassword?: string;
   validateOnly?: boolean;

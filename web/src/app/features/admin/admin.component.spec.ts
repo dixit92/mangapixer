@@ -61,7 +61,7 @@ describe('AdminComponent directory browser row', () => {
     };
     const backupSettings: BackupSettingsDto = {
       enabled: true, enabledSource: 'default', intervalHours: 24, intervalHoursSource: 'default',
-      retentionCount: 5, retentionCountSource: 'default', locationKind: 'default', locationSource: 'default',
+      retentionCount: 5, retentionCountSource: 'default', compress: true, compressSource: 'default', locationKind: 'default', locationSource: 'default',
       customLocation: null, locationChangeAllowed: true, locationStatus: 'ok', platform: null,
     };
     const libs: LibraryDto[] = [];

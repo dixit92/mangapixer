@@ -17,9 +17,9 @@ public sealed record BackupSettingsDto
     public required string RetentionCountSource { get; init; }
 
     /// <summary>Gzip-compress new rotating backups (1.50.0). Read-only in the UI when <see cref="CompressSource"/> is <c>configuration</c>.</summary>
-    public bool Compress { get; init; } = true;
+    public required bool Compress { get; init; }
 
-    public string CompressSource { get; init; } = BackupSettingSources.Default;
+    public required string CompressSource { get; init; }
 
     /// <summary><c>default</c> (inside the data folder) or <c>custom</c>.</summary>
     public required string LocationKind { get; init; }

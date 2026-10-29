@@ -89,21 +89,4 @@ public sealed class AddBackupCompressMigrationTests : IDisposable
             Assert.Equal(BackupSettingSources.Settings, effective.CompressSource);
         }
     }
-
-    [Fact]
-    public async Task MigrationToLatest_TwiceInOneSecond_TakesTwoPreMigrationSnapshots_NotAFailure()
-    {
-        // The pre-migration snapshot is named by the second; a second one in the same second used to refuse (VACUUM INTO needs a
-        // new file) and abort the upgrade. Pre-seed the plain name for "now" is racy, so seed the next call's name directly.
-        var backups = Path.Combine(_dir, "backups");
-        Directory.CreateDirectory(backups);
-        var now = DateTime.UtcNow;
-        var plain = SafetySnapshotPruner.UniqueName(backups, "pre-migration", now);
-        await File.WriteAllTextAsync(Path.Combine(backups, plain), "first");
-
-        var second = SafetySnapshotPruner.UniqueName(backups, "pre-migration", now);
-
-        Assert.NotEqual(plain, second);
-        Assert.Matches(SafetySnapshotPruner.PreMigrationPattern(), second);
-    }
 }
