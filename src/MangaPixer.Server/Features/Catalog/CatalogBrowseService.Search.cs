@@ -139,28 +139,10 @@ public sealed partial class CatalogBrowseService
 
             // 2. Close matches (decision 5 b): only while the exact hits are few, always after them.
             var close = new List<SearchHit>();
-            if (exact.Count < CloseMatchesBelow && SearchText.AllowsTypos(parsed))
+            var closePass = exact.Count < CloseMatchesBelow && SearchText.AllowsTypos(parsed);
+            if (closePass)
             {
-                // Every visible live name: a one-letter typo in a short word can leave no trigram in common with the name ("akra" /
-                // "Akira"), so the index cannot narrow the candidates without missing some. Measured on 40 k nodes (lane S note).
-                // The words that never carry a typo (shorter than 4, or in quotes) narrow it in SQL; the sort key is read for the hits only.
-                var exactWords = parsed.Words.Where(w => w.Length < SearchText.MinFuzzyLength).Concat(parsed.Phrases.SelectMany(p => p));
-                var fuzzyCandidates = await ReadSearchCandidatesAsync(connection, $"""
-                    SELECT cn.Id, cn.Kind, cn.DisplayName, '' AS SortKey, cn.ParentId
-                    FROM catalog_nodes cn
-                    WHERE cn.Availability != 5 AND cn.LibraryId IN ({libIds})
-                    {ContainsPrefilter(exactWords)}
-                    {TypoPrefilter(parsed)}
-                    """, null, ct);
-                foreach (var c in fuzzyCandidates)
-                {
-                    if (nameHitIds.Contains(c.Id))
-                        continue;
-                    var folded = SearchText.FoldName(c.Name, c.Kind == (int)CatalogNodeKind.Archive);
-                    if (SearchText.FuzzyDistance(parsed, folded) is { } distance && !SearchText.IsExcluded(parsed, folded)
-                        && !InsideExcluded(tree, c.Parent))
-                        close.Add(new SearchHit(c.Id, c.Kind, c.SortKey, 3, distance));
-                }
+                close = await CloseNodeMatchesAsync(connection, parsed, libIds, nameHitIds, tree, foldersOnly: false, ct);
                 if (readState != BrowseReadStateFilter.All)
                     close = await KeepByReadStateAsync(connection, close, userId, readState, ct);
                 close = await WithSortKeysAsync(connection, close, ct);
@@ -190,9 +172,10 @@ public sealed partial class CatalogBrowseService
             var insideCounts = await InsideCountsAsync(connection,
                 pageHits.Where(h => h.Kind == (int)CatalogNodeKind.Folder).Select(h => h.Id).ToList(), nameHitIds, parsed, ct);
 
-            // Alt-title matches (1.26.0): first page only, one extra query; 1.49.0 the same words and rank.
-            var anchors = position is null && exactFts is not null
-                ? await SeriesMatchAnchorsAsync(connection, parsed, exactFts, libIds, readState, ct)
+            // Alt-title matches (1.26.0): first page only, one extra query; 1.49.0 the same words and rank. 1.50.0: also for a search of
+            // 1-2 letters, and close (typo) titles after the exact ones while the page looks for close names.
+            var anchors = position is null
+                ? await SeriesMatchAnchorsAsync(connection, parsed, exactFts, libIds, readState, closePass, ct)
                 : null;
 
             // 1.46.0 (lane B, measured cost #10): ONE enrichment pass for the results and the series-match anchors together (it ran once
@@ -239,6 +222,38 @@ public sealed partial class CatalogBrowseService
         {
             if (!wasOpen) await connection.CloseAsync();
         }
+    }
+
+    /// <summary>
+    /// The close (typo-tolerant) node matches (decision 5 b of 1.49.0), group 3, without sort keys: every visible live name - a one-letter
+    /// typo in a short word can leave no trigram in common with the name ("akra" / "Akira"), so the index cannot narrow the candidates
+    /// without missing some (measured on 40 k nodes, 1.49.0 lane S note). The words that never carry a typo (shorter than 4, or in quotes)
+    /// and <see cref="TypoPrefilter"/> narrow it in SQL. <paramref name="foldersOnly"/> (1.50.0, quick results) reads folder names only.
+    /// Names already listed, or left out by a <c>-word</c> term (also through an ancestor), are skipped.
+    /// </summary>
+    private static async Task<List<SearchHit>> CloseNodeMatchesAsync(DbConnection connection, SearchQuery parsed, string libIds,
+        HashSet<long> listed, LevelTree? tree, bool foldersOnly, CancellationToken ct)
+    {
+        var exactWords = parsed.Words.Where(w => w.Length < SearchText.MinFuzzyLength).Concat(parsed.Phrases.SelectMany(p => p));
+        var candidates = await ReadSearchCandidatesAsync(connection, $"""
+            SELECT cn.Id, cn.Kind, cn.DisplayName, '' AS SortKey, cn.ParentId
+            FROM catalog_nodes cn
+            WHERE cn.Availability != 5 AND cn.LibraryId IN ({libIds})
+            {(foldersOnly ? $"AND cn.Kind = {(int)CatalogNodeKind.Folder}" : "")}
+            {ContainsPrefilter(exactWords)}
+            {TypoPrefilter(parsed)}
+            """, null, ct);
+        var close = new List<SearchHit>();
+        foreach (var c in candidates)
+        {
+            if (listed.Contains(c.Id))
+                continue;
+            var folded = SearchText.FoldName(c.Name, c.Kind == (int)CatalogNodeKind.Archive);
+            if (SearchText.FuzzyDistance(parsed, folded) is { } distance && !SearchText.IsExcluded(parsed, folded)
+                && !InsideExcluded(tree, c.Parent))
+                close.Add(new SearchHit(c.Id, c.Kind, c.SortKey, 3, distance));
+        }
+        return close;
     }
 
     /// <summary>
@@ -290,13 +305,13 @@ public sealed partial class CatalogBrowseService
     /// printable ASCII (an accented name may match it once folded - <see cref="SearchText"/> decides). Words are letters and digits only,
     /// so they need no escaping.
     /// </summary>
-    private static string ContainsPrefilter(IEnumerable<SearchWord> words)
+    private static string ContainsPrefilter(IEnumerable<SearchWord> words, string column = "cn.DisplayName")
     {
         var parts = words
             .Select(w => w.Folded)
             .Where(w => w.All(char.IsAsciiLetterOrDigit))
             .Distinct(StringComparer.Ordinal)
-            .Select(w => $"AND (cn.DisplayName LIKE '%{w}%' OR cn.DisplayName GLOB '*[^ -~]*')");
+            .Select(w => $"AND ({column} LIKE '%{w}%' OR {column} GLOB '*[^ -~]*')");
         return string.Join(" ", parts);
     }
 
@@ -305,14 +320,14 @@ public sealed partial class CatalogBrowseService
     /// <see cref="SearchText.TypoPatterns"/> OR holds a character outside printable ASCII (then C# decides). Patterns are letters, digits
     /// and LIKE wildcards only.
     /// </summary>
-    private static string TypoPrefilter(SearchQuery parsed)
+    private static string TypoPrefilter(SearchQuery parsed, string column = "cn.DisplayName")
     {
         var parts = new List<string>();
         foreach (var word in parsed.Words.Where(w => w.Length >= SearchText.MinFuzzyLength).DistinctBy(w => w.Folded, StringComparer.Ordinal))
         {
             if (SearchText.TypoPatterns(word) is not { } patterns)
                 continue;
-            parts.Add("AND (" + string.Join(" OR ", patterns.Select(p => $"cn.DisplayName LIKE '{p}'")) + " OR cn.DisplayName GLOB '*[^ -~]*')");
+            parts.Add("AND (" + string.Join(" OR ", patterns.Select(p => $"{column} LIKE '{p}'")) + $" OR {column} GLOB '*[^ -~]*')");
         }
         return string.Join(" ", parts);
     }
@@ -684,6 +699,9 @@ public sealed partial class CatalogBrowseService
     private sealed record SeriesMatchAnchors(
         List<CatalogNodeDto> Nodes, Dictionary<string, string> Titles, Dictionary<string, long> InternalIds);
 
+    /// <summary>A close (typo) series title ranks after every exact tier: this plus its typo distance (1.50.0).</summary>
+    private const int RankCloseSeries = 100;
+
     /// <summary>
     /// Nodes linked (Confirmed or Auto; never NeedsReview or DontMatch) to a metadata
     /// record with a title matching the query, and (1.34.0) folders that are a "Collection about" such a record. Same visibility as catalog search
@@ -693,57 +711,108 @@ public sealed partial class CatalogBrowseService
     /// matching title (then the shortest title), then SortKey; at most 20 distinct anchors. 1.45.0: they carry the viewer's read state, and a
     /// read-state filter keeps only the anchors it would keep among the results (<see cref="SeriesMatchesOf"/>, after the one enrichment
     /// pass of the search - 1.46.0). An empty set when series information is hidden or nothing matches.
+    /// 1.50.0 (lane S): a search of 1-2 letters (no index query) matches the linked titles by word starts, as it matches names; with
+    /// <paramref name="closeMatches"/> (the page looks for close names) and fewer than <see cref="CloseMatchesBelow"/> exact anchors, close
+    /// titles (the node typo rules, <see cref="SearchText.FuzzyDistance"/>) follow the exact ones (<see cref="RankCloseSeries"/> + the
+    /// distance). Both read the titles of the visible links only (a linked record's title and alternative titles), narrowed in SQL as the
+    /// node scans are. <c>-word</c> terms leave out a title holding one and an anchor whose own name holds one.
     /// </summary>
-    private async Task<SeriesMatchAnchors> SeriesMatchAnchorsAsync(
-        DbConnection connection, SearchQuery parsed, string ftsQuery, string libIds, BrowseReadStateFilter readState, CancellationToken ct)
+    private async Task<SeriesMatchAnchors> SeriesMatchAnchorsAsync(DbConnection connection, SearchQuery parsed, string? ftsQuery,
+        string libIds, BrowseReadStateFilter readState, bool closeMatches, CancellationToken ct)
     {
         var nodes = new List<CatalogNodeDto>();
         var titles = new Dictionary<string, string>();
         var internalIds = new Dictionary<string, long>(StringComparer.Ordinal);
+        var shortSearch = SearchText.IsShort(parsed);
+        var close = closeMatches && SearchText.AllowsTypos(parsed);
+        if (ftsQuery is null && !shortSearch && !close)
+            return new SeriesMatchAnchors(nodes, titles, internalIds);
         var globallyHidden = await _db.AppSettings
             .AnyAsync(s => s.Id == AppSettingsEntity.SingletonId && s.MetadataSeriesInfoHidden, ct);
         if (globallyHidden)
             return new SeriesMatchAnchors(nodes, titles, internalIds);
 
-        var sql = $"""
-            SELECT cn.Id, cn.PublicId, cn.Kind, cn.DisplayName, cn.Availability, cn.SortKey,
-                   parent.PublicId AS ParentPublicId,
-                   lib.PublicId AS LibraryPublicId,
-                   h.title AS MatchedTitle
-            FROM (SELECT record_id, title FROM series_search WHERE series_search MATCH @query) h
-            JOIN node_series_links l ON l.RecordId = h.record_id AND l.State IN ({(int)SeriesLinkState.Confirmed}, {(int)SeriesLinkState.Auto}, {(int)SeriesLinkState.CollectionAbout})
+        const string Columns = """
+            cn.Id, cn.PublicId, cn.Kind, cn.DisplayName, cn.Availability, cn.SortKey,
+            parent.PublicId AS ParentPublicId,
+            lib.PublicId AS LibraryPublicId
+            """;
+        var linkStates = $"{(int)SeriesLinkState.Confirmed}, {(int)SeriesLinkState.Auto}, {(int)SeriesLinkState.CollectionAbout}";
+        var visible = $"""
             JOIN catalog_nodes cn ON cn.Id = l.NodeId
             LEFT JOIN catalog_nodes parent ON cn.ParentId = parent.Id
             JOIN libraries lib ON cn.LibraryId = lib.Id
-            WHERE cn.Availability != 5
+            WHERE l.State IN ({linkStates})
+            AND cn.Availability != 5
             AND cn.LibraryId IN ({libIds})
             AND lib.MetadataSeriesInfoHidden = 0
-            LIMIT 5000
+            """;
+        // The titles of the visible links, each narrowed in SQL (a title, then the alternative titles) - no index for these scans.
+        string LinkedTitles(Func<string, string> narrowing) => $"""
+            SELECT {Columns}, r.Title AS MatchedTitle
+            FROM node_series_links l
+            JOIN metadata_records r ON r.Id = l.RecordId
+            {visible}
+            {narrowing("r.Title")}
+            UNION ALL
+            SELECT {Columns}, j.value AS MatchedTitle
+            FROM node_series_links l
+            JOIN metadata_records r ON r.Id = l.RecordId
+            JOIN json_each(CASE WHEN json_valid(r.AltTitlesJson) THEN r.AltTitlesJson ELSE '[]' END) j
+            {visible}
+            AND j.type = 'text' AND j.value <> ''
+            {narrowing("j.value")}
             """;
 
         // Per anchor: its best title by (rank, length, ordinal).
         var best = new Dictionary<long, (int Rank, string Title, string SortKey, CatalogNodeDto Node)>();
-        using (var command = connection.CreateCommand())
+        async Task ReadAsync(string sql, string? query, Func<string, int?> rankOf, HashSet<long>? skip)
         {
+            using var command = connection.CreateCommand();
             command.CommandText = sql;
-            command.Parameters.Add(new SqliteParameter("@query", ftsQuery));
+            if (query is not null)
+                command.Parameters.Add(new SqliteParameter("@query", query));
             using var reader = await command.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
+                var id = reader.GetInt64(reader.GetOrdinal("Id"));
+                if (skip?.Contains(id) == true)
+                    continue;
                 var title = reader.GetString(reader.GetOrdinal("MatchedTitle"));
                 var foldedTitle = SearchText.Fold(title);
                 // 1.50.0: a -word term leaves out a title holding it, and an anchor whose own name holds it.
-                if (SearchText.Rank(parsed, foldedTitle) is not { } rank || SearchText.IsExcluded(parsed, foldedTitle)
+                if (rankOf(foldedTitle) is not { } rank || SearchText.IsExcluded(parsed, foldedTitle)
                     || (parsed.Negated.Count > 0 && SearchText.IsExcluded(parsed, SearchText.FoldName(
                         reader.GetString(reader.GetOrdinal("DisplayName")), reader.GetInt32(reader.GetOrdinal("Kind")) == (int)CatalogNodeKind.Archive))))
                     continue;
-                var id = reader.GetInt64(reader.GetOrdinal("Id"));
                 if (best.TryGetValue(id, out var seen)
                     && (seen.Rank, seen.Title.Length).CompareTo((rank, title.Length)) is var cmp
                     && (cmp < 0 || (cmp == 0 && string.CompareOrdinal(seen.Title, title) <= 0)))
                     continue;
                 best[id] = (rank, title, reader.GetString(reader.GetOrdinal("SortKey")), seen.Node ?? ReadSearchNode(reader));
             }
+        }
+
+        if (ftsQuery is not null)
+        {
+            await ReadAsync($"""
+                SELECT {Columns}, h.title AS MatchedTitle
+                FROM (SELECT record_id, title FROM series_search WHERE series_search MATCH @query) h
+                JOIN node_series_links l ON l.RecordId = h.record_id
+                {visible}
+                LIMIT 5000
+                """, ftsQuery, t => SearchText.Rank(parsed, t), null);
+        }
+        else if (shortSearch)
+        {
+            await ReadAsync(LinkedTitles(column => ContainsPrefilter(parsed.AllWords, column)), null, t => SearchText.Rank(parsed, t), null);
+        }
+
+        if (close && best.Count < CloseMatchesBelow)
+        {
+            var exactWords = parsed.Words.Where(w => w.Length < SearchText.MinFuzzyLength).Concat(parsed.Phrases.SelectMany(p => p)).ToList();
+            await ReadAsync(LinkedTitles(column => ContainsPrefilter(exactWords, column) + "\n" + TypoPrefilter(parsed, column)), null,
+                t => SearchText.FuzzyDistance(parsed, t) is { } d ? RankCloseSeries + d : null, best.Keys.ToHashSet());
         }
 
         // Without a filter the first 20 anchors are the answer; with one, every anchor is a candidate until its read state is known.

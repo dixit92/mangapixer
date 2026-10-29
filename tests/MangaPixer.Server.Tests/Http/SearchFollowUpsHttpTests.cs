@@ -19,7 +19,9 @@ using Xunit;
 ///      Monster/ { Monster 12.cbz, Vol 12.cbz, Ch. 0106.00 Vol. 006.cbz }
 ///      Spider-Man/ { Spider-Man 001.cbz }
 ///      Seinen/ Vinland Saga/ Chapters/ { Ch. 0012.cbz }
+///      Akira/
 ///   B: Berserk Zq/ { Vol 12.cbz }
+///   Monster is linked (Confirmed) to the record "Monster", alternative title "Kaibutsu Kanzenban".
 /// </summary>
 [Trait("Category", "Http")]
 public sealed class SearchFollowUpsHttpTests
@@ -80,6 +82,25 @@ public sealed class SearchFollowUpsHttpTests
         await Add("vs12", a, vsc, CatalogNodeKind.Archive, "Ch. 0012.cbz");
         var bz = await Add("bz", b, null, CatalogNodeKind.Folder, "Berserk Zq");
         await Add("bz12", b, bz, CatalogNodeKind.Archive, "Vol 12.cbz");
+        await Add("ak", a, null, CatalogNodeKind.Folder, "Akira");
+
+        // Monster is linked to a series record (title + an alternative title) - the Series matches row.
+        var record = new MetadataRecordEntity
+        {
+            PublicId = "furec1",
+            Provider = "mangaupdates",
+            ExternalId = "515151",
+            Title = "Monster",
+            AltTitlesJson = "[\"Kaibutsu Kanzenban\"]",
+            FetchedAt = now,
+        };
+        db.MetadataRecords.Add(record);
+        await db.SaveChangesAsync();
+        db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
+        {
+            NodeId = mo.Id, LibraryId = a.Id, State = 0, RecordId = record.Id, CreatedAt = now, UpdatedAt = now,
+        });
+        await db.SaveChangesAsync();
         return new Seed(factory, admin, a.Id, b.Id, ids);
     }
 
@@ -234,5 +255,56 @@ public sealed class SearchFollowUpsHttpTests
 
         Assert.Equal(["bs12", "bz12"], (await SuggestAsync(seed.Admin, "berserk 12")).Archives.Select(a => a.Id));
         Assert.Equal(["mov12", "mo12"], (await SuggestAsync(seed.Admin, "monster 12")).Archives.Select(a => a.Id));
+    }
+
+    // --- S-c: the Series matches row with typos and 1-2 letters; quick-results typos (decision 5) -------------------------------------
+
+    private static List<(string Id, string Title)> Series(SearchResultsDto page) =>
+        (page.SeriesMatches ?? []).Select(m => (m.Node.Id, m.MatchedTitle)).ToList();
+
+    [Fact]
+    public async Task SeriesMatches_FindATitleWithATypo_AfterTheExactOnes()
+    {
+        var seed = await SetupAsync();
+        using var _ = seed.Factory;
+
+        Assert.Equal([("mo", "Kaibutsu Kanzenban")], Series(await SearchAsync(seed.Admin, "kaibutsu")));    // exact (1.49.0 already)
+        Assert.Equal([("mo", "Kaibutsu Kanzenban")], Series(await SearchAsync(seed.Admin, "kaibutzu")));    // one wrong letter
+        Assert.Equal([("mo", "Monster")], Series(await SearchAsync(seed.Admin, "monstre")));                // two swapped
+        Assert.Empty(Series(await SearchAsync(seed.Admin, "kaibutzu -kanzenban")));                         // a -word on the title
+        Assert.Empty(Series(await SearchAsync(seed.Admin, "kaibu kanzenbaan monsterr")));                   // every word must be close
+    }
+
+    [Fact]
+    public async Task SeriesMatches_FindATitleFromOneOrTwoLetters_ByAWordStart()
+    {
+        var seed = await SetupAsync();
+        using var _ = seed.Factory;
+
+        Assert.Equal([("mo", "Monster")], Series(await SearchAsync(seed.Admin, "mo")));
+        Assert.Equal([("mo", "Kaibutsu Kanzenban")], Series(await SearchAsync(seed.Admin, "ka")));
+        Assert.Equal([("mo", "Kaibutsu Kanzenban")], Series(await SearchAsync(seed.Admin, "k k")));
+        Assert.Empty(Series(await SearchAsync(seed.Admin, "on")));    // "on" starts no word of the titles
+        // Only the libraries the viewer may see: under Incognito with A Private, nothing.
+        var reader = await AccessTestUsers.ReaderAsync(seed.Factory, seed.Admin, "fuseries", [seed.LibraryA], [seed.LibraryA]);
+        Assert.Equal([("mo", "Monster")], Series(await SearchAsync(reader.Client, "mo")));
+        Assert.Empty(Series(await SearchAsync(reader.Incognito, "mo")));
+        Assert.Empty(Series(await SearchAsync(reader.Incognito, "kaibutzu")));
+    }
+
+    [Fact]
+    public async Task QuickResults_LookForTyposInOneWordOfFiveLetters_SeriesAndFolders()
+    {
+        var seed = await SetupAsync();
+        using var _ = seed.Factory;
+
+        Assert.Equal(["mo"], (await SuggestAsync(seed.Admin, "kaibutzu")).Series.Select(i => i.Id));
+        Assert.Equal(["mo"], (await SuggestAsync(seed.Admin, "monstre")).Series.Select(i => i.Id));
+        Assert.Equal(["ak"], (await SuggestAsync(seed.Admin, "akria")).Folders.Select(i => i.Id));
+        // Four letters, or two words: no typo look-up in quick results (the full search still has them).
+        Assert.Empty((await SuggestAsync(seed.Admin, "akra")).Folders);
+        Assert.Empty((await SuggestAsync(seed.Admin, "akria saga")).Folders);
+        // A typo never lists an archive in quick results (folder names only - the budget).
+        Assert.Empty((await SuggestAsync(seed.Admin, "deluxx")).Archives);
     }
 }
