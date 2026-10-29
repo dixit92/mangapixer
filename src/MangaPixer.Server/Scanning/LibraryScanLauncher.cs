@@ -119,6 +119,9 @@ public sealed class LibraryScanLauncher
                 // scan (audit defect D33). Previously items were only analyzed
                 // when a reader opened them, so page counts never appeared
                 // after a scan.
+                // 1.50.0 lane X: a scan that ended unsuccessfully (a result, not an exception) queues nothing; what it added stays pending.
+                if (!result.Success)
+                    _sweepTrigger?.Request();
                 if (result.Success)
                 {
                     await EnqueueAnalysisForPendingItemsAsync(scopedDb, scopedJobScheduler, libraryId);

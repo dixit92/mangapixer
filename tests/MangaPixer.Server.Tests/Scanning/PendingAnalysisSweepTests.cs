@@ -181,20 +181,30 @@ public sealed class PendingAnalysisSweepTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Scan_QueuesItsArchives_ReadingTheLibraryRootOnce()
+    public async Task Scan_QueuesItsArchives_WithQueriesThatDoNotGrowWithTheirNumber()
     {
-        var library = await AddLibraryAsync("scanned", 6);
-        var launcher = _provider.CreateScope().ServiceProvider.GetRequiredService<LibraryScanLauncher>();
+        // The enqueue read the library row once per archive. Scan the same shape with 3 and with 9 archives: the number of library
+        // reads must be the same (it was 6 more for the larger one).
+        var small = await AddLibraryAsync("small", 3);
+        var large = await AddLibraryAsync("large", 9);
 
+        var smallReads = await ScanAndCountLibraryReadsAsync(small);
+        Assert.Equal(3, Scheduler.PendingCount);
+        var largeReads = await ScanAndCountLibraryReadsAsync(large);
+
+        Assert.Equal(12, Scheduler.PendingCount);
+        Assert.Equal(smallReads, largeReads);
+        Assert.Empty(_trigger.Requests);
+    }
+
+    private async Task<int> ScanAndCountLibraryReadsAsync(LibraryEntity library)
+    {
+        var launcher = _provider.CreateScope().ServiceProvider.GetRequiredService<LibraryScanLauncher>();
         _commands.Reset();
         var launch = await launcher.StartAsync(library, "test", CancellationToken.None);
         Assert.NotNull(launch);
         await launch!.Completion;
-
-        Assert.Equal(6, Scheduler.PendingCount);
-        // One root lookup for the enqueue, not one per archive: scan-side reads of the library table are few and fixed.
-        Assert.True(_commands.CountOf("FROM \"libraries\"") < 6, _commands.Describe("FROM \"libraries\""));
-        Assert.Empty(_trigger.Requests);
+        return _commands.CountOf("FROM \"libraries\"");
     }
 
     [Fact]
@@ -208,15 +218,15 @@ public sealed class PendingAnalysisSweepTests : IAsyncLifetime
 
         using var scope = _provider.CreateScope();
         var run = await scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>().ScanRuns.AsNoTracking().SingleAsync();
-        if (run.Status == 3) // failed (a missing root); a scan that tolerates it completes and has nothing to sweep
-            Assert.Single(_trigger.Requests);
+        Assert.Equal(3, run.Status); // failed: a missing root ends the scan with an unsuccessful result
+        Assert.Single(_trigger.Requests);
     }
 
     [Fact]
     public async Task ScanThatIsCancelled_KeepsWhatItAddedPending_AndAsksForASweep()
     {
         var library = await AddLibraryAsync("big", 0);
-        for (var folder = 0; folder < 60; folder++)
+        for (var folder = 0; folder < 30; folder++)
         {
             var dir = Path.Combine(library.RootPath, "Series " + folder);
             Directory.CreateDirectory(dir);
@@ -225,18 +235,23 @@ public sealed class PendingAnalysisSweepTests : IAsyncLifetime
         }
         var launcher = _provider.CreateScope().ServiceProvider.GetRequiredService<LibraryScanLauncher>();
 
+        // The scan is held at its first catalog write, so it cannot finish before the cancel below.
+        _commands.HoldAtFirstNodeWrite();
         var launch = await launcher.StartAsync(library, "test", CancellationToken.None);
+        await _commands.WaitUntilHeldAsync();
         Assert.True(_provider.GetRequiredService<ScanRunRegistry>().Cancel(launch!.Run.Id));
+        _commands.Release();
         await launch.Completion;
 
         using var scope = _provider.CreateScope();
-        var run = await scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>().ScanRuns.AsNoTracking().SingleAsync();
+        var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
+        var run = await db.ScanRuns.AsNoTracking().SingleAsync();
         Assert.Equal(4, run.Status); // cancelled
         Assert.Single(_trigger.Requests);
         Assert.Equal(0, Scheduler.PendingCount); // the post-scan enqueue never ran
 
-        // The sweep queues whatever the stopped scan had already added (the archives it never got to stay unknown to the catalog).
-        var added = await scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>().ArchiveItems.CountAsync(a => a.AnalysisState == 1);
+        // The sweep queues whatever the stopped scan had already added.
+        var added = await db.ArchiveItems.CountAsync(a => a.AnalysisState == 1);
         await Sweep.SweepAsync(CancellationToken.None);
         Assert.Equal(added, Scheduler.PendingCount);
     }
@@ -281,6 +296,41 @@ public sealed class PendingAnalysisSweepTests : IAsyncLifetime
         public int CountOf(string fragment) { lock (_texts) return _texts.Count(t => t.Contains(fragment, StringComparison.OrdinalIgnoreCase)); }
 
         public string Describe(string fragment) => $"{CountOf(fragment)} commands contain {fragment}";
+
+        private readonly TaskCompletionSource _held = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _holdArmed;
+
+        /// <summary>The next write to catalog_nodes waits (asynchronously) until <see cref="Release"/>.</summary>
+        public void HoldAtFirstNodeWrite() => Volatile.Write(ref _holdArmed, 1);
+
+        public Task WaitUntilHeldAsync() => _held.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+        public void Release() => _release.TrySetResult();
+
+        private async ValueTask HoldIfNodeWriteAsync(DbCommand command)
+        {
+            if (Volatile.Read(ref _holdArmed) == 1 && command.CommandText.Contains("INSERT INTO \"catalog_nodes\"", StringComparison.OrdinalIgnoreCase)
+                && Interlocked.CompareExchange(ref _holdArmed, 2, 1) == 1)
+            {
+                _held.TrySetResult();
+                await _release.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            }
+        }
+
+        public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command, CommandEventData eventData,
+            InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            await HoldIfNodeWriteAsync(command);
+            return result;
+        }
+
+        public override async ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(DbCommand command, CommandEventData eventData,
+            InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            await HoldIfNodeWriteAsync(command);
+            return result;
+        }
 
         public override ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData, DbDataReader result,
             CancellationToken cancellationToken = default)
