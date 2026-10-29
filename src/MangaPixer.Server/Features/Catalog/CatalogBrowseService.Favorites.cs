@@ -28,17 +28,42 @@ public sealed partial class CatalogBrowseService
     /// single item carries <c>IsFavorite = true</c>; a stack carries the folder's own
     /// star. A fixed number of queries per page: keys, page nodes, covers, read state (1.48.0: and the folder read rollups).
     /// </summary>
-    public async Task<PageResponse<CatalogNodeDto>> ListFavoritesAsync(
+    public Task<PageResponse<CatalogNodeDto>> ListFavoritesAsync(
         long userId,
         string? cursor = null,
         int pageSize = 50,
         bool incognito = false,
         CancellationToken ct = default)
+        => ListFavoritesAsync(userId, FavoritesQuery.Default, cursor, pageSize, incognito, ct);
+
+    /// <summary>
+    /// 1.50.0 lane F - the Favorites view: <paramref name="query"/>'s sort, read state, kind and library filters (owner decisions 6-9).
+    /// The default query is the listing above, unchanged (the home Favorites row relies on it). The library filter narrows the visible
+    /// libraries (an unknown or not-visible library lists nothing); the kind and read-state filters judge each ENTRY after grouping, so a
+    /// stack counts as archives and is judged by its whole folder's rollup (as its badge, decision 8) - and all of them run before the
+    /// page is cut, so <c>TotalCount</c>, <c>HasMore</c> and every cursor stay right. One cursor prefix per sort (see
+    /// <c>EncodeFavoriteCursor</c>); a cursor of another sort reads as "first page".
+    /// </summary>
+    public async Task<PageResponse<CatalogNodeDto>> ListFavoritesAsync(
+        long userId,
+        FavoritesQuery query,
+        string? cursor,
+        int pageSize,
+        bool incognito,
+        CancellationToken ct)
     {
         if (pageSize < 1)
             pageSize = 50;
 
         var visibleLibs = await _auth.GetVisibleLibraryIdsAsync(userId, incognito, ct);
+        if (!string.IsNullOrEmpty(query.LibraryId) && visibleLibs.Count > 0)
+        {
+            // The library filter (1.50.0): only within what the viewer may see right now (grants, Private under Incognito) - a library
+            // outside that set, or no library at all, answers like an empty one and names nothing.
+            var wanted = query.LibraryId;
+            var libraryId = await _db.Libraries.Where(l => l.PublicId == wanted).Select(l => (long?)l.Id).FirstOrDefaultAsync(ct);
+            visibleLibs = libraryId is long id && visibleLibs.Contains(id) ? [id] : [];
+        }
         if (visibleLibs.Count == 0)
         {
             return new PageResponse<CatalogNodeDto>
@@ -51,24 +76,50 @@ public sealed partial class CatalogBrowseService
         }
 
         // The viewer's visible favorites as narrow key rows (favorites joined to their
-        // visible, non-tombstoned nodes), grouped into stacks in memory.
+        // visible, non-tombstoned nodes), grouped into stacks in memory. 1.50.0: with what the sorts read (the node's and its parent's
+        // sort keys and dates) - still the one key query.
         var keys = await _db.Favorites
             .Where(f => f.UserId == userId)
             .Join(_db.CatalogNodes, f => f.CatalogNodeId, n => n.Id, (f, n) => new { f, n })
             .Where(x => visibleLibs.Contains(x.n.LibraryId))
             .Where(x => x.n.Availability != (int)CatalogNodeAvailability.Tombstoned)
-            .Select(x => new { FavoriteId = x.f.Id, x.f.CreatedAt, NodeId = x.n.Id, x.n.ParentId, x.n.Kind })
+            .Select(x => new
+            {
+                FavoriteId = x.f.Id,
+                x.f.CreatedAt,
+                NodeId = x.n.Id,
+                x.n.ParentId,
+                x.n.Kind,
+                x.n.SortKey,
+                ParentSortKey = x.n.Parent != null ? x.n.Parent.SortKey : "",
+                AddedAt = x.n.CreatedAt,
+                x.n.LatestDescendantAddedAt,
+                x.n.LibraryId,
+            })
             .ToListAsync(ct);
+        var order = query.Order;
         var entries = FavoriteStacks.Group(
-            keys.Select(k => new FavoriteStacks.Key(k.FavoriteId, k.CreatedAt, k.NodeId, k.ParentId, k.Kind)));
+            keys.Select(k => new FavoriteStacks.Key(k.FavoriteId, k.CreatedAt, k.NodeId, k.ParentId, k.Kind,
+                k.SortKey, k.ParentSortKey, k.AddedAt, k.LatestDescendantAddedAt, k.LibraryId)),
+            order);
         var starredNodeIds = keys.Select(k => k.NodeId).ToHashSet();
 
-        // Keyset on each item's representative favorite: (FavoritedAt desc, favorite Id
-        // desc), a stack's newest member. The cursor carries the last item's pair so
-        // paging is stable even when several favorites share a timestamp.
+        // Kind (1.50.0): folders = starred folders; archives = starred archives AND stacks (a stack stands for starred archives).
+        if (query.Kind != FavoriteKindFilter.All)
+        {
+            var folders = query.Kind == FavoriteKindFilter.Folders;
+            entries = entries.Where(e => folders == (!e.IsStack && e.Kind == (int)CatalogNodeKind.Folder)).ToList();
+        }
+
+        // Read state (1.50.0): judged per entry before the page is cut, as browse judges a level.
+        if (query.ReadState != BrowseReadStateFilter.All && entries.Count > 0)
+            entries = await FilterFavoritesByReadStateAsync(entries, userId, query.ReadState, ct);
+
+        // Keyset on the sort's position (recently favorited: the representative favorite's (FavoritedAt desc, favorite Id desc), a
+        // stack's newest member). The cursor carries the last item's position so paging is stable through ties.
         IEnumerable<FavoriteStacks.Entry> remaining = entries;
-        if (!string.IsNullOrEmpty(cursor) && TryDecodeFavoriteCursor(cursor, out var curAt, out var curId))
-            remaining = FavoriteStacks.After(entries, curAt.UtcTicks, curId);
+        if (!string.IsNullOrEmpty(cursor) && TryDecodeFavoriteCursor(cursor, order, out var position))
+            remaining = FavoriteStacks.After(entries, order, position);
 
         var pageEntries = remaining.Take(pageSize + 1).ToList();
         var hasMore = pageEntries.Count > pageSize;
@@ -110,10 +161,10 @@ public sealed partial class CatalogBrowseService
             FavoriteStackCount = x.Entry.StackCount,
         }).ToList();
 
-        // Folder covers (single starred folders AND stacks) - the same resolver as browse/search.
-        var folderRows = rowsById.Values.Where(r => r.Kind == (int)CatalogNodeKind.Folder).ToList();
-        if (folderRows.Count > 0)
-            nodes = await ApplyCoversAsync(nodes, folderRows.Select(r => new CoverTarget(r.InternalId, r.Id, true)), ct);
+        // Covers - the same resolver as browse/search. Folders (single starred folders AND stacks) and, since 1.50.0, archives too
+        // (a favorite archive's card and list row read coverUrl, as browse's; the web no longer builds the item cover URL).
+        nodes = await ApplyCoversAsync(nodes,
+            rowsById.Values.Select(r => new CoverTarget(r.InternalId, r.Id, r.Kind == (int)CatalogNodeKind.Folder)), ct);
 
         // Per-user read state for archive favorites (sticky read-mark + progress),
         // mirroring the browse enrichment so the favorites view renders identical badges.
@@ -171,7 +222,7 @@ public sealed partial class CatalogBrowseService
 
         string? nextCursor = null;
         if (hasMore && pageEntries.Count > 0)
-            nextCursor = EncodeFavoriteCursor(pageEntries[^1].RepresentativeTicks, pageEntries[^1].RepresentativeId);
+            nextCursor = EncodeFavoriteCursor(pageEntries[^1], order);
 
         return new PageResponse<CatalogNodeDto>
         {
@@ -197,11 +248,120 @@ public sealed partial class CatalogBrowseService
     }
 
     /// <summary>
-    /// Encodes a recently-favorited keyset cursor as <c>f:{utcTicks}:{favoriteId}</c>.
-    /// The <c>f:</c> prefix keeps it distinct from the name/recency browse cursors.
+    /// 1.50.0 lane F: the read-state filter over the favorites' ENTRIES, as browse judges a level - an archive by the viewer's sticky read
+    /// mark and progress (Read = marked; Reading = not marked, in progress; Unread = neither), a starred folder and a stack by the WHOLE
+    /// folder's rollup (<see cref="ResolveFolderReadRollupsAsync"/>, the badge's; Unread keeps an empty folder). Three queries for the
+    /// whole list: the marks and the in-progress rows of the viewer's starred nodes, and one rollup walk over the starred folders and the
+    /// stacks' folders.
     /// </summary>
-    private static string EncodeFavoriteCursor(long favoritedAtUtcTicks, long favoriteId)
-        => $"f:{favoritedAtUtcTicks.ToString(CultureInfo.InvariantCulture)}:{favoriteId.ToString(CultureInfo.InvariantCulture)}";
+    private async Task<List<FavoriteStacks.Entry>> FilterFavoritesByReadStateAsync(
+        List<FavoriteStacks.Entry> entries, long userId, BrowseReadStateFilter readState, CancellationToken ct)
+    {
+        var hasArchives = entries.Any(e => !e.IsStack && e.Kind == (int)CatalogNodeKind.Archive);
+        HashSet<long> read = [];
+        HashSet<long> inProgress = [];
+        if (hasArchives)
+        {
+            read = (await _db.ReadMarks
+                .Where(m => m.UserId == userId && _db.Favorites.Any(f => f.UserId == userId && f.CatalogNodeId == m.ItemId))
+                .Select(m => m.ItemId)
+                .ToListAsync(ct)).ToHashSet();
+            inProgress = (await _db.ReadingProgress
+                .Where(p => p.UserId == userId && p.State == (int)ReadingState.InProgress
+                    && _db.Favorites.Any(f => f.UserId == userId && f.CatalogNodeId == p.ItemId))
+                .Select(p => p.ItemId)
+                .ToListAsync(ct)).ToHashSet();
+        }
+
+        var folderIds = entries.Where(e => e.Kind == (int)CatalogNodeKind.Folder).Select(e => e.NodeId).Distinct().ToList();
+        var rollups = folderIds.Count > 0
+            ? await ResolveFolderReadRollupsAsync(folderIds, userId, ct)
+            : new Dictionary<long, FolderReadRollup>();
+
+        return entries.Where(e =>
+        {
+            if (e.Kind == (int)CatalogNodeKind.Folder)
+                return MatchesFolderReadState(rollups, e.NodeId, readState);
+            var isRead = read.Contains(e.NodeId);
+            var reading = !isRead && inProgress.Contains(e.NodeId);
+            return readState switch
+            {
+                BrowseReadStateFilter.Read => isRead,
+                BrowseReadStateFilter.Reading => reading,
+                BrowseReadStateFilter.Unread => !isRead && !reading,
+                _ => true,
+            };
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Encodes the keyset cursor of <paramref name="last"/> under <paramref name="order"/>. One prefix per sort, so a cursor of another
+    /// sort is never misread: recently favorited <c>f:{utcTicks}:{favoriteId}</c> (unchanged since 1.21.0); name (both directions)
+    /// <c>fn:{discriminator}:{nodeId}:{sortKey}</c>; recently added <c>fa:{ticks|-}:{discriminator}:{nodeId}:{sortKey}</c>; recently
+    /// updated <c>fu:</c> in the same shape. The sort key comes last because it may itself contain ':'.
+    /// </summary>
+    private static string EncodeFavoriteCursor(FavoriteStacks.Entry last, FavoriteStacks.Order order)
+    {
+        static string N(long value) => value.ToString(CultureInfo.InvariantCulture);
+        static string Date(long? ticks) => ticks is long t ? N(t) : "-";
+        return order switch
+        {
+            FavoriteStacks.Order.Favorited => $"f:{N(last.RepresentativeTicks)}:{N(last.RepresentativeId)}",
+            FavoriteStacks.Order.NameAscending or FavoriteStacks.Order.NameDescending =>
+                $"fn:{N(last.Discriminator)}:{N(last.NodeId)}:{last.SortKey}",
+            FavoriteStacks.Order.RecentlyAdded => $"fa:{Date(last.AddedTicks)}:{N(last.Discriminator)}:{N(last.NodeId)}:{last.SortKey}",
+            _ => $"fu:{Date(last.UpdatedTicks)}:{N(last.Discriminator)}:{N(last.NodeId)}:{last.SortKey}",
+        };
+    }
+
+    /// <summary>
+    /// Decodes a favorites cursor of <paramref name="order"/> into the probe position <c>FavoriteStacks.After</c>
+    /// compares with. Returns false for a malformed value or another sort's cursor, so a bad cursor degrades to "first page" rather
+    /// than throwing.
+    /// </summary>
+    private static bool TryDecodeFavoriteCursor(string cursor, FavoriteStacks.Order order, out FavoriteStacks.Entry position)
+    {
+        position = default;
+        if (order == FavoriteStacks.Order.Favorited)
+        {
+            if (!TryDecodeFavoriteCursor(cursor, out var favoritedAt, out var favoriteId))
+                return false;
+            position = new FavoriteStacks.Entry(0, null, favoritedAt.UtcTicks, favoriteId);
+            return true;
+        }
+
+        var prefix = order switch
+        {
+            FavoriteStacks.Order.NameAscending or FavoriteStacks.Order.NameDescending => "fn:",
+            FavoriteStacks.Order.RecentlyAdded => "fa:",
+            _ => "fu:",
+        };
+        if (!cursor.StartsWith(prefix, StringComparison.Ordinal))
+            return false;
+        var dated = prefix != "fn:";
+        var parts = cursor[prefix.Length..].Split(':', dated ? 4 : 3);
+        if (parts.Length != (dated ? 4 : 3))
+            return false;
+        var i = 0;
+        long? ticks = null;
+        if (dated)
+        {
+            if (parts[0] != "-")
+            {
+                if (!long.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var t))
+                    return false;
+                ticks = t;
+            }
+            i = 1;
+        }
+        if (!int.TryParse(parts[i], NumberStyles.Integer, CultureInfo.InvariantCulture, out var discriminator)
+            || discriminator is not (0 or 1)
+            || !long.TryParse(parts[i + 1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var nodeId))
+            return false;
+        position = new FavoriteStacks.Entry(nodeId, discriminator == 1 ? FavoriteStacks.MinimumStackSize : null, 0, 0, parts[i + 2],
+            AddedTicks: ticks, UpdatedTicks: ticks);
+        return true;
+    }
 
     /// <summary>
     /// Decodes an <c>f:{utcTicks}:{favoriteId}</c> favorites cursor. Returns false for any
@@ -223,4 +383,45 @@ public sealed partial class CatalogBrowseService
         favoritedAt = new DateTimeOffset(ticks, TimeSpan.Zero);
         return true;
     }
+}
+
+/// <summary>The Favorites kind filter (1.50.0 lane F, owner decision 7): a stack counts as archives.</summary>
+public enum FavoriteKindFilter
+{
+    All,
+    Folders,
+    Archives,
+}
+
+/// <summary>
+/// What the Favorites view asks for (1.50.0 lane F): the sort (<c>favorited</c> - the default -, <c>name</c>, <c>recentlyAdded</c>,
+/// <c>recentlyUpdated</c>), its direction (name only; the date sorts are newest first, as browse's), and the transient filters - read
+/// state, kind and one library (its public id). <see cref="Default"/> is the listing as it was before 1.50.0.
+/// </summary>
+public sealed record FavoritesQuery(
+    string Sort = "favorited",
+    SortDirection Direction = SortDirection.Ascending,
+    BrowseReadStateFilter ReadState = BrowseReadStateFilter.All,
+    FavoriteKindFilter Kind = FavoriteKindFilter.All,
+    string? LibraryId = null)
+{
+    public const string FavoritedSort = "favorited";
+
+    /// <summary>Recently favorited, no filter.</summary>
+    public static FavoritesQuery Default { get; } = new();
+
+    /// <summary>The in-memory order <see cref="Sort"/> and <see cref="Direction"/> name; an unknown sort is recently favorited.</summary>
+    internal FavoriteStacks.Order Order => Sort switch
+    {
+        "name" => Direction == SortDirection.Descending ? FavoriteStacks.Order.NameDescending : FavoriteStacks.Order.NameAscending,
+        "recentlyAdded" => FavoriteStacks.Order.RecentlyAdded,
+        "recentlyUpdated" => FavoriteStacks.Order.RecentlyUpdated,
+        _ => FavoriteStacks.Order.Favorited,
+    };
+
+    /// <summary>Parses the wire kind (<c>folders</c> / <c>archives</c>, case-insensitive); anything else is no filter.</summary>
+    public static FavoriteKindFilter ParseKind(string? value) =>
+        string.Equals(value, "folders", StringComparison.OrdinalIgnoreCase) ? FavoriteKindFilter.Folders
+        : string.Equals(value, "archives", StringComparison.OrdinalIgnoreCase) ? FavoriteKindFilter.Archives
+        : FavoriteKindFilter.All;
 }
