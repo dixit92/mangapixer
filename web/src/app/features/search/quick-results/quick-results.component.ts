@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 
+import { ContextLineComponent } from '../../../shared/context-line/context-line.component';
 import { QuickEntry, QuickSection } from './quick-results.model';
 
 /**
@@ -12,7 +13,7 @@ import { QuickEntry, QuickSection } from './quick-results.model';
 @Component({
   selector: 'app-quick-results',
   standalone: true,
-  imports: [MatIconModule],
+  imports: [MatIconModule, ContextLineComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="qr" role="listbox" [attr.id]="listId()" [attr.aria-label]="label()" (mousedown)="$event.preventDefault()">
@@ -26,7 +27,10 @@ import { QuickEntry, QuickSection } from './quick-results.model';
               <mat-icon class="qr-icon" aria-hidden="true">{{ entry.icon }}</mat-icon>
               <span class="qr-text">
                 <span class="qr-label">{{ entry.label }}</span>
-                @if (entry.detail) {
+                @if (entry.contextName) {
+                  <!-- Archive context line (1.50.0): the folder the archive belongs to, in place of the immediate parent's name. -->
+                  <app-context-line class="qr-context" [name]="entry.contextName" />
+                } @else if (entry.detail) {
                   <span class="qr-detail">{{ entry.detail }}</span>
                 }
               </span>
@@ -55,6 +59,7 @@ import { QuickEntry, QuickSection } from './quick-results.model';
     .qr-label, .qr-detail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .qr-label { font-size: 14px; }
     .qr-detail { font-size: 12px; color: var(--mp-text-muted); }
+    .qr-context { margin-top: -2px; }
     .qr-count { flex: none; font-size: 12px; color: var(--mp-text-muted); }
   `],
 })

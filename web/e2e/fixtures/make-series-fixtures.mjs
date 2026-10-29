@@ -244,4 +244,14 @@ archive('Berserk', 'Vol 13.cbz', [60, 200, 60], null, levelsDir);
 archive(join('Berserk', 'Volumes'), 'Vol 14.cbz', [60, 60, 200], null, levelsDir);
 archive('Vinland Saga', 'Ch. 0106.00 Vol. 006.cbz', [200, 200, 60], null, levelsDir);
 console.log(`Folder-level fixtures written to ${levelsDir}`);
+
+// 1.50.0 (lane W, archive context line; offline, no ComicInfo): <outDir>-context. Archives whose names carry no series title, on a
+// distinctive word ("Quillfeather") so the search finds them by their OWN names:
+//   Context Saga/Vol. 012 Quillfeather.cbz                  directly in the series folder        -> context line "Context Saga"
+//   Context Saga/Volumes/Vol. 013 Quillfeather Two.cbz      below a plain "Volumes" kind folder  -> context line "Context Saga"
+//   Quillfeather Oneshot.cbz                                straight in the library root         -> no context line
+const contextDir = `${outDir}-context`;
+archive('Context Saga', 'Vol. 012 Quillfeather.cbz', [150, 70, 70], null, contextDir);
+archive(join('Context Saga', 'Volumes'), 'Vol. 013 Quillfeather Two.cbz', [70, 150, 70], null, contextDir);
+archive('.', 'Quillfeather Oneshot.cbz', [70, 70, 150], null, contextDir);
 console.log(`Series fixtures written to ${outDir} (and ${volumesDir}, ${readingModesDir}, ${jumpDir}, ${outDir}-volume-contents)`);
