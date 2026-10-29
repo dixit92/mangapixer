@@ -129,13 +129,15 @@ public sealed class FavoriteStacksTests
     }
 
     [Theory]
-    [InlineData(FavoriteStacks.Order.Favorited)]
-    [InlineData(FavoriteStacks.Order.NameAscending)]
-    [InlineData(FavoriteStacks.Order.NameDescending)]
-    [InlineData(FavoriteStacks.Order.RecentlyAdded)]
-    [InlineData(FavoriteStacks.Order.RecentlyUpdated)]
-    public void EverySort_PagesEachEntryExactlyOnce_OneEntryPerPage(FavoriteStacks.Order order)
+    [InlineData((int)FavoriteStacks.Order.Favorited)]
+    [InlineData((int)FavoriteStacks.Order.NameAscending)]
+    [InlineData((int)FavoriteStacks.Order.NameDescending)]
+    [InlineData((int)FavoriteStacks.Order.RecentlyAdded)]
+    [InlineData((int)FavoriteStacks.Order.RecentlyUpdated)]
+    public void EverySort_PagesEachEntryExactlyOnce_OneEntryPerPage(int sort)
     {
+        // FavoriteStacks is internal: the theory takes the sort as its number.
+        var order = (FavoriteStacks.Order)sort;
         var entries = FavoriteStacks.Group(World(), order);
         var walked = new List<FavoriteStacks.Entry>();
         IEnumerable<FavoriteStacks.Entry> remaining = entries;
