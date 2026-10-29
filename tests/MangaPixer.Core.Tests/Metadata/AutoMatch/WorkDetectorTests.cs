@@ -410,4 +410,28 @@ public sealed class WorkDetectorTests
 
         Assert.Equal(WorkClass.ArtistCollection, _detector.Classify(Folder(folderName, archives, knownAuthors: ["Main Pen (Second Pen)"])).Class);
     }
+
+    [Theory]
+    [InlineData("Second Pen", true)]
+    [InlineData("Third Pen", true)]
+    [InlineData("Main Pen", true)]
+    [InlineData("Fourth Pen", false)]
+    public void ProviderAuthor_WithStoredOtherNames_IsKnownByAnyOfThem(string folderName, bool artistFolder)
+    {
+        // 1.50.0 (rules 5): the server adds the stored other names of the record author's MangaUpdates id to the known names.
+        string[] archives = ["Alpha Story.cbz", "Beta Tale.cbz", "Gamma Saga.cbz"];
+        var c = _detector.Classify(Folder(folderName, archives, knownAuthors: ["Main Pen", "Second Pen", "Third Pen"]));
+
+        Assert.Equal(artistFolder, c.Class == WorkClass.ArtistCollection);
+        Assert.All(c.Reasons, r => Assert.DoesNotContain("Pen", r, StringComparison.Ordinal)); // the reason carries no names
+    }
+
+    [Fact]
+    public void ProviderAuthor_AnAliasThatIsTooShortOrAGenericWord_StaysNoAuthor()
+    {
+        string[] archives = ["Alpha Story.cbz", "Beta Tale.cbz", "Gamma Saga.cbz"];
+
+        Assert.NotEqual(WorkClass.ArtistCollection, _detector.Classify(Folder("Ab", archives, knownAuthors: ["Main Pen", "Ab"])).Class);
+        Assert.NotEqual(WorkClass.ArtistCollection, _detector.Classify(Folder("Manga", archives, knownAuthors: ["Main Pen", "Manga"])).Class);
+    }
 }

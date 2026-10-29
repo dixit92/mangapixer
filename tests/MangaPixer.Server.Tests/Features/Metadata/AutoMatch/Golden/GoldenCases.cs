@@ -235,6 +235,13 @@ public static class GoldenCases
             WorkClass.Series, MatchBand.Auto, Akira),
         new("P05 a one-archive folder named like a linked author stays a one-shot", F("Fujimoto Tatsuki", ["Look Back (2021) (Digital).cbz"], authors: s_linkedAuthors),
             WorkClass.OneShot),
+        // 1.50.0 (rules 5): the known names also carry the stored other names of a linked record's author (the alias store); a folder
+        // named by one of them only ("Hidden Pen" is a synthetic pen name of the author) is that author's folder.
+        new("P06 provider-author alias: a folder named by the author's stored other name, one-shot", F("Hidden Pen", s_untaggedArtistFolder, authors: [.. s_linkedAuthors, "Hidden Pen"]),
+            WorkClass.ArtistCollection, MatchBand.Auto, LookBack, GroupTitle: "Look Back"),
+        new("P07 provider-author alias: numbered volumes grouped", F("Hidden Pen", s_untaggedArtistFolder, authors: [.. s_linkedAuthors, "Hidden Pen"]),
+            WorkClass.ArtistCollection, MatchBand.Auto, FirePunch, GroupTitle: "Fire Punch"),
+        new("P08 the same folder without the stored alias: review only", F("Hidden Pen", s_untaggedArtistFolder, authors: s_linkedAuthors), WorkClass.Ambiguous),
         new("P00 the untagged artist folder without a linked author: review only (the 1.27.0 class)", F("Fujimoto Tatsuki", s_untaggedArtistFolder),
             WorkClass.Ambiguous),
 

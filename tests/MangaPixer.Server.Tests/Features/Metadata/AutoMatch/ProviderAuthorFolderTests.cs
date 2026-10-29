@@ -2,6 +2,8 @@ namespace com.lifepixer.mangapixer.Tests.Server.Features.Metadata.AutoMatch;
 
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
+using com.lifepixer.mangapixer.Server.Features.Metadata;
+using com.lifepixer.mangapixer.Server.Features.Metadata.Authors;
 using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -40,13 +42,33 @@ public sealed class ProviderAuthorFolderTests : IAsyncLifetime
     }
 
     /// <summary>"Given Family/" with unbracketed "Given Family - Title" archives: review only by shape alone.</summary>
-    private async Task<CatalogNodeEntity> AuthorFolderAsync()
+    private async Task<CatalogNodeEntity> AuthorFolderAsync(string name = "Given Family")
     {
-        var folder = await _db.AddFolderAsync(null, "Given Family");
-        foreach (var title in new[] { "Given Family - Alpha Story", "Given Family - Beta Tale", "Given Family - Gamma Saga" })
-            await _db.AddArchiveAsync(folder, title);
+        var folder = await _db.AddFolderAsync(null, name);
+        foreach (var title in new[] { "Alpha Story", "Beta Tale", "Gamma Saga" })
+            await _db.AddArchiveAsync(folder, $"{name} - {title}");
         return folder;
     }
+
+    /// <summary>A stored MangaUpdates author record (the alias store, filled only when an admin asks) - rows built directly, no request.</summary>
+    private async Task<MetadataAuthorEntity> StoreAuthorAsync(string id, string? name, string[] otherNames, MetadataAuthorStatus status = MetadataAuthorStatus.Ok,
+        string provider = "mangaupdates")
+    {
+        var row = new MetadataAuthorEntity
+        {
+            Provider = provider,
+            ExternalId = id,
+            Name = name,
+            OtherNamesJson = otherNames.Length == 0 ? null : MetadataJson.WriteList(otherNames),
+            Status = (int)status,
+            FetchedAt = new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero),
+        };
+        _db.Db.MetadataAuthors.Add(row);
+        await _db.Db.SaveChangesAsync();
+        return row;
+    }
+
+    private const string PenCreators = """[{"name":"Main Pen","role":"author","providerId":"901"},{"name":"Some Editor","role":"other","providerId":"902"}]""";
 
     [Fact]
     public async Task AuthorSet_IsTheAuthorsAndArtistsOfConfirmedAndAutoLinks_InThisLibraryOnly()
@@ -99,6 +121,109 @@ public sealed class ProviderAuthorFolderTests : IAsyncLifetime
         Assert.NotEqual(linked, changed);
         Assert.NotEqual(changed, refetched);
         Assert.Equal(default, await Stamp());
+    }
+
+    [Fact]
+    public async Task AuthorSet_AddsTheStoredOtherNamesOfTheCreatorsAuthorIds_AndNothingElse()
+    {
+        var record = await RecordAsync("701", """[{"name":"Main Pen","role":"author","providerId":"901"},{"name":"Some Editor","role":"other","providerId":"902"},{"name":"Ink Pen","role":"artist","providerId":"903"}]""");
+        var folder = await _db.AddFolderAsync(null, "Linked Saga");
+        await _db.AddLinkAsync(folder, record);
+        await StoreAuthorAsync("901", "Main Pen", ["Second Pen", "main pen", "Third Pen"]);   // an alias equal to the name is one entry
+        await StoreAuthorAsync("902", "Some Editor", ["Editor Alias"]);                       // role "other": not an author or artist
+        await StoreAuthorAsync("903", null, ["Unread Alias"], MetadataAuthorStatus.NotFound); // no name: never read
+        await StoreAuthorAsync("904", "Unlisted Pen", ["Unlisted Alias"]);                    // an author no linked record names
+        await StoreAuthorAsync("901", "Main Pen", ["Foreign Alias"], provider: "someprovider"); // another provider's id space
+
+        var set = await LibraryTreeSnapshot.LoadProviderAuthorsAsync(_db.Db, _db.LibraryId, CancellationToken.None);
+
+        Assert.Equal(["Ink Pen", "Main Pen", "Second Pen", "Third Pen"], set.Names.Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal(0, _h.Handler.CallCount);
+    }
+
+    [Fact]
+    public async Task AuthorSet_TakesNoAliasFromANonMangaUpdatesRecord_WhoseCreatorIdIsNotAMangaUpdatesAuthorId()
+    {
+        var record = await RecordAsync("711", PenCreators);
+        record.Provider = "mangadex";
+        await _db.Db.SaveChangesAsync();
+        await _db.AddLinkAsync(await _db.AddFolderAsync(null, "Linked Saga"), record);
+        await StoreAuthorAsync("901", "Main Pen", ["Second Pen"]);
+
+        var set = await LibraryTreeSnapshot.LoadProviderAuthorsAsync(_db.Db, _db.LibraryId, CancellationToken.None);
+
+        Assert.Equal(["Main Pen"], set.Names.ToArray());
+    }
+
+    [Fact]
+    public async Task LinkStamp_ChangesWhenAnAuthorRecordIsStoredReReadOrRemoved()
+    {
+        var record = await RecordAsync("721", PenCreators);
+        await _db.AddLinkAsync(await _db.AddFolderAsync(null, "Linked Saga"), record);
+        async Task<LibraryTreeSnapshot.LinkStamp> Stamp() => await LibraryTreeSnapshot.LinkStampAsync(_db.Db, _db.LibraryId, CancellationToken.None);
+
+        var before = await Stamp();
+        var row = await StoreAuthorAsync("901", "Main Pen", ["Second Pen"]);
+        var stored = await Stamp();
+        row.FetchedAt = row.FetchedAt.AddMinutes(1);
+        await _db.Db.SaveChangesAsync();
+        var reRead = await Stamp();
+        await StoreAuthorAsync("905", null, [], MetadataAuthorStatus.NotFound); // an answer without a name carries no alias
+        var unnamed = await Stamp();
+        _db.Db.MetadataAuthors.Remove(row);
+        await _db.Db.SaveChangesAsync();
+        var removed = await Stamp();
+
+        Assert.Equal((1, 0, null), (before.Links, before.AuthorRecords, before.AuthorsFetched));
+        Assert.Equal(1, stored.AuthorRecords);
+        Assert.NotEqual(before, stored);
+        Assert.NotEqual(stored, reRead);
+        Assert.Equal(reRead, unnamed);
+        Assert.Equal(before, removed);
+    }
+
+    [Fact]
+    public async Task Detection_AnAliasOnlyFolder_IsRecognised_OnceTheAliasIsStored_WithTheCachedSnapshot_AndTheSwitchGatesIt()
+    {
+        var aliasFolder = await AuthorFolderAsync("Second Pen"); // named by the author's other name only
+        await _db.AddLinkAsync(await _db.AddFolderAsync(null, "Linked Saga"), await RecordAsync("731", PenCreators));
+        var detector = new WorkDetector();
+
+        // The record names only "Main Pen": the folder's shape alone cannot tell (review only).
+        var (before, _, _) = await _h.Service(detector).DetectLibraryAsync(_db.LibraryId, false, CancellationToken.None);
+        Assert.Equal([(aliasFolder.Id, MatchLevel.ReviewOnly)], before.Select(w => (w.AnchorNodeId, w.Level)).ToArray());
+
+        // An admin fetched the author's other names (the catalog revision and the links are unchanged): the cached snapshot re-reads.
+        var stored = await StoreAuthorAsync("901", "Main Pen", ["Second Pen"]);
+        var (after, _, _) = await _h.Service(detector).DetectLibraryAsync(_db.LibraryId, false, CancellationToken.None);
+        Assert.Equal(3, after.Count);
+        Assert.All(after, w => Assert.Equal((MatchLevel.Archive, WorkClass.ArtistCollection, aliasFolder.Id), (w.Level, w.Class, w.FolderId)));
+
+        // The switch gates the whole signal, aliases included.
+        var (off, _, _) = await _h.Service(detector, new MetadataAutoMatchOptions { ProviderAuthorFolders = false })
+            .DetectLibraryAsync(_db.LibraryId, false, CancellationToken.None);
+        Assert.Equal([MatchLevel.ReviewOnly], off.Select(w => w.Level).ToArray());
+
+        // "Delete fetched web data": the alias goes, the folder is review only again.
+        _db.Db.MetadataAuthors.Remove(stored);
+        await _db.Db.SaveChangesAsync();
+        var (removed, _, _) = await _h.Service(detector).DetectLibraryAsync(_db.LibraryId, false, CancellationToken.None);
+        Assert.Equal([MatchLevel.ReviewOnly], removed.Select(w => w.Level).ToArray());
+        Assert.Equal(0, _h.Handler.CallCount); // nothing was requested
+    }
+
+    [Fact]
+    public async Task AnAliasInTheStore_DoesNotTurnASeriesFolderNamedLikeIt_IntoAnArtistFolder()
+    {
+        await _db.AddLinkAsync(await _db.AddFolderAsync(null, "Linked Saga"), await RecordAsync("741", PenCreators));
+        await StoreAuthorAsync("901", "Main Pen", ["Alpha Saga"]);
+        var series = await _db.AddFolderAsync(null, "Alpha Saga");
+        for (var i = 1; i <= 4; i++)
+            await _db.AddArchiveAsync(series, $"Alpha Saga v{i:D2}");
+
+        var (works, _, _) = await _h.Service(new WorkDetector()).DetectLibraryAsync(_db.LibraryId, false, CancellationToken.None);
+
+        Assert.Equal([(series.Id, MatchLevel.Folder)], works.Where(w => w.AnchorNodeId == series.Id).Select(w => (w.AnchorNodeId, w.Level)).ToArray());
     }
 
     [Fact]

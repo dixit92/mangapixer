@@ -27,6 +27,10 @@ public static class MatcherRules
     /// author's alias) is known by each of those names (<see cref="AutoMatchText.AuthorNameForms"/>): archive creator tags and name hints
     /// that give the alias now agree with the record (no <see cref="MatchReason.AuthorConflict"/>), a disambiguator naming the alias is
     /// the record's own, and a folder named after the alias is a provider author's folder.
+    /// 5 (1.50.0, owner): a folder named after one of the stored OTHER names of a linked record's author (the "Artists' other names"
+    /// store, read by the creator's MangaUpdates author id; stored data only) is a provider author's folder too - previously only the
+    /// names on the record itself counted. Re-queues the works waiting in Needs review; an Unmatched folder is looked at again by its
+    /// retry or the next scan.
     /// </summary>
-    public const int Revision = 4;
+    public const int Revision = 5;
 }
