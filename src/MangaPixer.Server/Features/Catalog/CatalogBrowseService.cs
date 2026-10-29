@@ -173,22 +173,26 @@ public sealed partial class CatalogBrowseService
         perfPhase = perfPhase.Lap("browse.count");
 
         // Backward (upward) paging (1.11.0): when `before` is set, return the page
-        // immediately BEFORE that keyset (name sort only - the jump rail is name-sort, and
-        // the recency sorts paginate differently). Symmetric to the forward keyset: filter
+        // immediately BEFORE that keyset. Symmetric to the forward keyset: filter
         // strictly past `before` in the display direction, order the OPPOSITE way, take a
         // page (+1 to detect a further previous page), then reverse back to display order.
-        var backward = !string.IsNullOrEmpty(before) && sort == "name" && !VolumePaging.IsVolumeCursor(before);
+        // 1.50.0 lane D: also the date sorts (`a:` / `u:` cursors - a time chip lands mid-list),
+        // see CatalogBrowseService.DatePaging.cs. recentlyRead stays offset-based (no rail).
+        var backward = !string.IsNullOrEmpty(before)
+            && (sort == "name" ? !VolumePaging.IsVolumeCursor(before) : IsDateCursorOf(sort, before));
         List<BrowseRow> rows;
         bool hasMore;
         var hasPrevious = false;
         string? prevCursor = null;
         if (backward)
         {
-            (rows, hasPrevious) = await QueryNameBackwardAsync(baseQuery, before!, pageSize, effectiveDirection, ct);
+            (rows, hasPrevious) = sort == "name"
+                ? await QueryNameBackwardAsync(baseQuery, before!, pageSize, effectiveDirection, ct)
+                : await QueryDateBackwardAsync(baseQuery, sort, before!, pageSize, effectiveDirection, ct);
             // The window the client already holds sits just below this page, so forward
             // continuation always exists; the client keeps its own forward cursor.
             hasMore = rows.Count > 0;
-            prevCursor = hasPrevious && rows.Count > 0 ? rows[0].SortKey : null;
+            prevCursor = hasPrevious && rows.Count > 0 ? EncodeCursor(sort, rows[0]) : null;
         }
         else
         {
@@ -219,6 +223,11 @@ public sealed partial class CatalogBrowseService
                     ? await baseQuery.AnyAsync(n => string.Compare(n.SortKey, firstKey) < 0, ct)
                     : await baseQuery.AnyAsync(n => string.Compare(n.SortKey, firstKey) > 0, ct);
                 prevCursor = hasPrevious ? firstKey : null;
+            }
+            else if (sort is "recentlyAdded" or "recentlyUpdated" && rows.Count > 0)
+            {
+                // 1.50.0 lane D: the same for a date page started from a date cursor (a time-chip landing).
+                (hasPrevious, prevCursor) = await DatePreviousOfAsync(baseQuery, sort, cursor, rows[0], effectiveDirection, ct);
             }
         }
 
