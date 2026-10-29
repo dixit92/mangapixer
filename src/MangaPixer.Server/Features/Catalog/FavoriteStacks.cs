@@ -25,8 +25,9 @@ using com.lifepixer.mangapixer.Core.Catalog;
 /// <item>Recently updated: a folder's <c>LatestDescendantAddedAt</c> (browse's rule; null = no archive yet, last), an archive's own
 /// <c>CreatedAt</c>, a stack's newest member's <c>CreatedAt</c>. Newest first.</item>
 /// </list>
-/// Both date sorts break ties by the name triple. Folders and archives interleave in every sort (the favorites list is one flat list
-/// across libraries, not a folder level).
+/// Both date sorts break ties by the name triple. Under Name the catalog key's kind prefix puts folders (and stacks) before archives,
+/// as in browse (Z-A reverses that too, as browse's full reversal); under the date sorts folders and archives interleave (the favorites
+/// list is one flat list across libraries, not a folder level).
 /// </summary>
 internal static class FavoriteStacks
 {
