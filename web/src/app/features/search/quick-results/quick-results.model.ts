@@ -20,6 +20,8 @@ export interface QuickEntry {
   key: string;
   label: string;
   detail: string | null;
+  /** An archive's context line (1.50.0): the folder it belongs to; absent for every other entry. Shown instead of `detail`. */
+  contextName?: string | null;
   count: number | null;
   icon: string;
   action: QuickAction;
@@ -74,6 +76,7 @@ function entryOf(item: SuggestItemDto, group: string): QuickEntry {
     key: `${group}-${item.id}`,
     label: item.label,
     detail: item.detail ?? null,
+    ...(item.contextName ? { contextName: item.contextName } : {}),
     count: item.count ?? null,
     icon: iconOf(item),
     action,

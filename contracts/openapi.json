@@ -13920,6 +13920,12 @@
           "isFavorite": {
             "type": "boolean"
           },
+          "contextName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "readRollup": {
             "oneOf": [
               {
@@ -14222,6 +14228,12 @@
             "type": "boolean"
           },
           "coverUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "contextName": {
             "type": [
               "null",
               "string"
@@ -22498,6 +22510,12 @@
             ]
           },
           "nodeKind": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "contextName": {
             "type": [
               "null",
               "string"
