@@ -15,7 +15,8 @@ using Microsoft.EntityFrameworkCore;
 /// folder cards). Called by
 /// <see cref="CatalogBrowseService"/> (folder list and Volumes view) when registered.
 /// </summary>
-public sealed class TrackerCardMarks(MangaPixerDbContext db, TrackerSettingsService settings, TrackerSeriesResolver resolver)
+public sealed class TrackerCardMarks(MangaPixerDbContext db, TrackerSettingsService settings, TrackerSeriesResolver resolver,
+    com.lifepixer.mangapixer.Server.Operations.Perf.PerfRecorder? perf = null)
 {
     /// <summary>
     /// Sets <see cref="CatalogNodeDto.TrackerRead"/> on the page's cards. Owner (2026-10-15): the ring means "read on EVERY tracker this series
@@ -76,7 +77,7 @@ public sealed class TrackerCardMarks(MangaPixerDbContext db, TrackerSettingsServ
             if (!allowed.TryGetValue(c.Tracker, out var isAllowed))
                 // 1.46.0 lane M (measurement only, off by default): a measured instance runs with the tracker network off, which
                 // would hide every mark; MangaPixer:Perf:TrackerMarksWithNetworkOff keeps the display-only marks so their cost shows.
-                allowed[c.Tracker] = isAllowed = com.lifepixer.mangapixer.Server.Operations.Perf.PerfRecorder.Active is { TrackerMarksWithNetworkOff: true }
+                allowed[c.Tracker] = isAllowed = perf is { TrackerMarksWithNetworkOff: true }
                     || await settings.IsAllowedAsync(c.Tracker, ct);
             if (!isAllowed)
                 continue;

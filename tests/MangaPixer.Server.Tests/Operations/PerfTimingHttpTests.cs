@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using com.lifepixer.mangapixer.Server.Operations.Perf;
 using com.lifepixer.mangapixer.Tests.Server.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -36,7 +37,6 @@ public sealed class PerfTimingHttpTests
         var factory = MangaPixerWebApplicationFactory.WithExtraConfiguration(
             new Dictionary<string, string?> { [PerfRecorder.ConfigKey] = "true" });
         var client = await factory.LoginAsAdminWithChangedPasswordAsync();
-        var recorder = factory.Services.GetRequiredService<PerfRecorder>();
 
         var first = await client.GetAsync(Diagnostics);
         await factory.UnhandledErrors.EnsureSuccessAsync(first); // a 500 names its exception (1.47.0 lane T2)
@@ -67,14 +67,47 @@ public sealed class PerfTimingHttpTests
         Assert.True(perf.GetProperty("heap").GetProperty("heapSizeBytes").GetInt64() > 0);
         Assert.Contains(perf.GetProperty("transactions").EnumerateArray(), t => t.GetProperty("key").GetString()!.EndsWith(":commit", StringComparison.Ordinal));
 
-        // The process-wide hook ends with the host: later hosts in the same process (other tests) record nothing into it.
-        Assert.Same(recorder, PerfRecorder.Active);
+        // The recorder belongs to this host (1.50.0 lane X: no process-wide hook to wait on after Dispose).
         factory.Dispose();
-        // The host's singletons are disposed when the app's own entry thread finishes shutting down, which under CI load can be a
-        // moment after Dispose() returns (1.48.0 PR #46: once in CI, never on the box) - wait for the hook to clear, up to 10 s.
-        for (var attempt = 0; attempt < 100 && ReferenceEquals(recorder, PerfRecorder.Active); attempt++)
-            await Task.Delay(100);
-        Assert.NotSame(recorder, PerfRecorder.Active);
+    }
+
+    /// <summary>
+    /// 1.50.0 lane X: two hosts in one process (every test class) used to share a static recorder hook, so the later host's SQL
+    /// landed in the earlier one's snapshot (and <c>TrackerCardMarks</c> read the other host's measurement switch). Each host now
+    /// records only its own SQL: a statement only A runs shows in A's recorder alone, and the same for B - whichever host
+    /// started last.
+    /// </summary>
+    [Fact]
+    public async Task TwoHostsInOneProcess_EachRecordsOnlyItsOwnSql()
+    {
+        using var hostA = MangaPixerWebApplicationFactory.WithExtraConfiguration(
+            new Dictionary<string, string?> { [PerfRecorder.ConfigKey] = "true" });
+        using var hostB = MangaPixerWebApplicationFactory.WithExtraConfiguration(
+            new Dictionary<string, string?> { [PerfRecorder.ConfigKey] = "true" });
+        using var hostOff = new MangaPixerWebApplicationFactory(); // timing off: records nothing, even when it runs SQL
+        var recorderA = hostA.Services.GetRequiredService<PerfRecorder>();
+        var recorderB = hostB.Services.GetRequiredService<PerfRecorder>();
+        var recorderOff = hostOff.Services.GetRequiredService<PerfRecorder>();
+        Assert.NotSame(recorderA, recorderB);
+
+        await RunMarkerSqlAsync(hostA, "SELECT 1 AS \"MarkerOnlyHostA\"");
+        await RunMarkerSqlAsync(hostB, "SELECT 1 AS \"MarkerOnlyHostB\"");
+        await RunMarkerSqlAsync(hostOff, "SELECT 1 AS \"MarkerOnlyHostOff\"");
+
+        Assert.Contains(recorderA.Snapshot().Statements, s => s.Shape!.Contains("MarkerOnlyHostA", StringComparison.Ordinal));
+        Assert.DoesNotContain(recorderA.Snapshot().Statements, s => s.Shape!.Contains("MarkerOnlyHostB", StringComparison.Ordinal)
+            || s.Shape!.Contains("MarkerOnlyHostOff", StringComparison.Ordinal));
+        Assert.Contains(recorderB.Snapshot().Statements, s => s.Shape!.Contains("MarkerOnlyHostB", StringComparison.Ordinal));
+        Assert.DoesNotContain(recorderB.Snapshot().Statements, s => s.Shape!.Contains("MarkerOnlyHostA", StringComparison.Ordinal)
+            || s.Shape!.Contains("MarkerOnlyHostOff", StringComparison.Ordinal));
+        Assert.Empty(recorderOff.Snapshot().Statements);
+    }
+
+    private static async Task RunMarkerSqlAsync(MangaPixerWebApplicationFactory host, string sql)
+    {
+        using var scope = host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<com.lifepixer.mangapixer.Server.Persistence.MangaPixerDbContext>();
+        await db.Database.ExecuteSqlRawAsync(sql);
     }
 
     /// <summary>

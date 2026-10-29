@@ -34,10 +34,7 @@ public sealed class MangaPixerDbContext : DbContext
         base.OnConfiguring(optionsBuilder);
         optionsBuilder.AddInterceptors(SortKeySqlFunctionInterceptor.Instance, SqliteConnectionSettingsInterceptor.Instance); // 1.47.0 lane S: per-connection settings
         optionsBuilder.AddInterceptors(com.lifepixer.mangapixer.Server.Features.Covers.CoverLayerVersion.Interceptors); // 1.47.0 lane S: cover-layer version
-        // 1.46.0 lane M: measurement-only SQL timing; each is a no-op unless MangaPixer:Perf:RequestTiming is on.
-        optionsBuilder.AddInterceptors(
-            com.lifepixer.mangapixer.Server.Operations.Perf.PerfCommandInterceptor.Instance,
-            com.lifepixer.mangapixer.Server.Operations.Perf.PerfTransactionInterceptor.Instance);
+        // 1.50.0 lane X: the measurement-only SQL timing interceptors are per host - AddMangaPixerAuth's AddDbContext attaches them.
     }
 
     /// <summary>

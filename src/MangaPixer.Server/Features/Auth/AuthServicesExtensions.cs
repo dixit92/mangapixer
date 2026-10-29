@@ -42,6 +42,9 @@ public static class AuthServicesExtensions
             // 1.43.0: committed read-mark changes reach IReadMarkObserver (tracker sync); registered by AddTrackers.
             if (sp.GetService<ReadMarkChangeInterceptor>() is { } readMarks)
                 options.AddInterceptors(readMarks);
+            // 1.50.0 lane X: measurement-only SQL timing (1.46.0 lane M) - this host's own recorder, attached only when timing is on.
+            if (sp.GetService<com.lifepixer.mangapixer.Server.Operations.Perf.PerfRecorder>() is { CommandInterceptor: { } cmd, TransactionInterceptor: { } tx })
+                options.AddInterceptors(cmd, tx);
         });
         services.AddScoped<MangaPixerDbContextFactory>();
 

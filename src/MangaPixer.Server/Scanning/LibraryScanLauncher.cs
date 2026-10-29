@@ -32,6 +32,7 @@ public sealed class LibraryScanLauncher
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<LibraryScanLauncher> _logger;
+    private readonly IPendingAnalysisSweepTrigger? _sweepTrigger;
 
     public LibraryScanLauncher(
         ScanLeaseService leaseService,
@@ -39,8 +40,10 @@ public sealed class LibraryScanLauncher
         ScanRunRegistry scanRunRegistry,
         IServiceScopeFactory scopeFactory,
         ILoggerFactory loggerFactory,
-        ILogger<LibraryScanLauncher> logger)
+        ILogger<LibraryScanLauncher> logger,
+        IPendingAnalysisSweepTrigger? sweepTrigger = null)
     {
+        _sweepTrigger = sweepTrigger;
         _leaseService = leaseService;
         _scanPolicy = scanPolicy;
         _scanRunRegistry = scanRunRegistry;
@@ -116,9 +119,12 @@ public sealed class LibraryScanLauncher
                 // scan (audit defect D33). Previously items were only analyzed
                 // when a reader opened them, so page counts never appeared
                 // after a scan.
+                // 1.50.0 lane X: a scan that ended unsuccessfully (a result, not an exception) queues nothing; what it added stays pending.
+                if (!result.Success)
+                    _sweepTrigger?.Request();
                 if (result.Success)
                 {
-                    await EnqueueAnalysisForPendingItemsAsync(scopedDb, scopedJobScheduler, libraryId, scanCt);
+                    await EnqueueAnalysisForPendingItemsAsync(scopedDb, scopedJobScheduler, libraryId);
 
                     // Post-scan thumbnail backfill (post-1.2.0): kick a continuous
                     // backfill for this library to catch ready-but-missing or
@@ -184,6 +190,8 @@ public sealed class LibraryScanLauncher
                 await scopedLeaseService.CancelScanAsync(leaseId);
                 await scopedMaintenance.ExitMaintenanceAsync(libraryId);
                 _logger.LogInformation(LogEvents.Scanning.AdminScanCancelled, "Scan cancelled for library {LibraryId}", libraryId);
+                // 1.50.0 lane X: what the scan had already added stays pending (no post-scan enqueue ran); the sweep queues it when idle.
+                _sweepTrigger?.Request();
             }
             catch (Exception ex)
             {
@@ -198,6 +206,7 @@ public sealed class LibraryScanLauncher
                 await scopedLeaseService.ReleaseLeaseAsync(leaseId, false, ex.GetType().Name);
                 await scopedMaintenance.ExitMaintenanceAsync(libraryId);
                 _logger.LogWarning(LogEvents.Scanning.AdminScanFailed, "Scan failed for library {LibraryId}: {Error}", libraryId, ex.GetType().Name);
+                _sweepTrigger?.Request(); // as for a cancelled scan: what it added before failing stays pending
             }
             finally
             {
@@ -215,79 +224,22 @@ public sealed class LibraryScanLauncher
 
     /// <summary>
     /// Enqueues analysis jobs for archive items in a library that are in the
-    /// pending analysis state (audit defect D33). Bounded to parallelism 2
-    /// to avoid flooding the worker pool.
+    /// pending analysis state (audit defect D33). Not tied to the scan's
+    /// cancellation (1.50.0 lane X): the scan is over by now, and a cancel that
+    /// landed here used to stop the loop and strand the archives it had not
+    /// reached. The loop only checks files and queues jobs.
     /// </summary>
-    private async Task EnqueueAnalysisForPendingItemsAsync(
-        MangaPixerDbContext db,
-        JobScheduler scheduler,
-        long libraryId,
-        CancellationToken ct)
+    private async Task EnqueueAnalysisForPendingItemsAsync(MangaPixerDbContext db, JobScheduler scheduler, long libraryId)
     {
         try
         {
-            var pendingItems = await db.CatalogNodes
-                .Where(n => n.LibraryId == libraryId && n.Kind == 1 && n.Availability != 5)
-                .Join(db.ArchiveItems.Where(a => a.AnalysisState == 1),
-                      n => n.Id, a => a.NodeId,
-                      (n, a) => new { Node = n, Item = a })
-                .ToListAsync(ct);
-
-            if (pendingItems.Count == 0)
-                return;
-
-            _logger.LogInformation(LogEvents.Scanning.AnalysisEnqueueBatch, "Enqueuing analysis for {Count} pending items in library {LibraryId}",
-                pendingItems.Count, libraryId);
-
-            // Enqueue at Background priority — scan-triggered analysis is not
-            // interactive and should not block reader-triggered analysis.
-            foreach (var entry in pendingItems)
-            {
-                ct.ThrowIfCancellationRequested();
-                try
-                {
-                    // Resolve the source path via the library root + relative path.
-                    // The scheduler stores this for the worker; the path is never
-                    // echoed in any API response.
-                    var library = await db.Libraries.FirstAsync(l => l.Id == entry.Node.LibraryId, ct);
-                    var sourcePath = Path.Combine(library.RootPath, entry.Node.RelativePath);
-                    var fileInfo = new FileInfo(sourcePath);
-                    if (!fileInfo.Exists)
-                        continue;
-
-                    // Fire-and-forget: EnqueueAsync returns a Task that only
-                    // completes when the job is *analyzed*. Awaiting it here would
-                    // serialize the whole loop on each job's completion (and block
-                    // the background scan on the very first job). We only need the
-                    // job queued; the pool drains the queue at its own pace. Observe
-                    // the task so a faulted job does not raise UnobservedTaskException.
-                    _ = scheduler.EnqueueAsync(
-                        itemId: entry.Node.Id,
-                        contentVersion: entry.Item.ContentVersion,
-                        operation: JobOperation.Analyze,
-                        priority: JobPriority.Background,
-                        archivePath: sourcePath,
-                        expectedLastWriteTicks: fileInfo.LastWriteTimeUtc.Ticks,
-                        expectedByteLength: fileInfo.Length,
-                        callerToken: CancellationToken.None)
-                        .ContinueWith(static t => { _ = t.Exception; },
-                            CancellationToken.None,
-                            TaskContinuationOptions.OnlyOnFaulted,
-                            TaskScheduler.Default);
-                }
-                catch (OperationCanceledException) { throw; }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(LogEvents.Scanning.AnalysisEnqueueItemFailed, "Failed to enqueue analysis for item {ItemId}: {Error}",
-                        entry.Node.Id, ex.GetType().Name);
-                }
-            }
+            await PendingAnalysisEnqueue.EnqueueLibraryAsync(db, scheduler, _logger, libraryId, "after scan");
         }
-        catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
             _logger.LogWarning(LogEvents.Scanning.AnalysisEnqueueFailed, "Post-scan analysis enqueue failed for library {LibraryId}: {Error}",
                 libraryId, ex.GetType().Name);
+            _sweepTrigger?.Request(); // the archives stay pending; the sweep tries again when the pool is idle
         }
     }
 }
