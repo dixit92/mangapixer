@@ -53,6 +53,12 @@ public sealed record SuggestItemDto
     /// <summary>A node: <c>Folder</c> (opens in browse) or <c>Archive</c> (opens in the reader) - a series is either.</summary>
     public string? NodeKind { get; init; }
 
+    /// <summary>
+    /// An archive: the archive context line (1.50.0) - the name of the folder it belongs to, its nearest ancestor that is not a plain
+    /// Volumes / Chapters / Extras kind folder. Null otherwise.
+    /// </summary>
+    public string? ContextName { get; init; }
+
     /// <summary>A value: the tag view's <c>f</c> parameter.</summary>
     public string? Filter { get; init; }
 
