@@ -1,6 +1,6 @@
 import { signal, computed, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subject, of, timer } from 'rxjs';
+import { Subject, defer, of, timer } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
 
 import { ApiService } from '../../../core/api/api.service';
@@ -137,7 +137,7 @@ export class QuickResults {
     // clearing never waits 200 ms and a late answer to an older text cannot arrive.
     this.typed.pipe(
       switchMap((text) => text
-        ? timer(QUICK_DEBOUNCE_MS).pipe(switchMap(() => this.api.searchSuggest(text).pipe(catchError(() => of(null)))))
+        ? timer(QUICK_DEBOUNCE_MS).pipe(switchMap(() => defer(() => this.api.searchSuggest(text)).pipe(catchError(() => of(null)))))
         : of(null)),
       takeUntilDestroyed(inject(DestroyRef)),
     ).subscribe((answer) => {

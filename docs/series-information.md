@@ -100,7 +100,7 @@ Select a tag (or any other chip) to search for every work that carries it. **Ope
 **Combining tags** in the tag search:
 
 - Every tag in the field must match (and). The small button at the start of a tag in the field switches it to **Not** - the works must not carry it - and back.
-- **Refine** lists the tags of all the results, with how many of them carry each: select one to add it, **or** to accept either it or the tag of the same row already in the search, or the minus to leave out works that carry it. Counts are yours: only works you can open count, Private libraries are left out while Incognito is on, and libraries with **Show series information** off show no tags at all.
+- **Refine** lists the tags of all the results, with how many of them carry each: select one to add it, **or** to accept either it or a tag of the same row already in the search (with two or more of that row in the search, a small menu asks which one to join), or the minus to leave out works that carry it. A row shows its most common values; **+N more** (new in 1.50.0) opens the whole row in a list that scrolls, **Show fewer** closes it again. Counts are yours: only works you can open count, Private libraries are left out while Incognito is on, and libraries with **Show series information** off show no tags at all.
 - Text typed next to tags narrows the works by title, by the series' other titles and by the folder's name; every word must match, in any order. A word with a `-` in front must not match.
 
 **Typed search** (the **?** next to the search box lists these too):

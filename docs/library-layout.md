@@ -201,7 +201,7 @@ The search icon in the top bar opens **Search**. It looks through the names of t
 
 ### Quick results while you type
 
-*New in 1.49.0.* On a desktop or tablet the top bar has a **search box** (press `/` anywhere on a page to jump into it). On a phone the top bar stays as it is, and the **Search** page shows the same results under its field while you type.
+*New in 1.49.0.* On a desktop or tablet the top bar has a **search box** (press `/` anywhere on a page to jump into it). On a phone the top bar stays as it is, and the **Search** page shows the same results under its field while you type. *New in 1.50.0:* the **Search** page does this on a desktop or tablet too (a list under its field, with the keys named at the bottom); the top bar's box steps aside on that page, and `/` jumps into the page's own field.
 
 - After a short pause in your typing, a list opens with the best few of each kind - **Series** (found by title or other title; the folder or archive linked to the series opens), **Folders**, **Archives**, **Creators** and **Tags** (tags and genres, with how many works carry each). Archives show the folder they sit in. Names are matched as in the search above (words in any order, accents and case ignored; a name needs a word of 3 letters or more, and quick results do not look for typos - the full search does). Creators and tags need 2 letters.
 - **Keyboard:** **Up** and **Down** move through the list, **Enter** opens the one you chose, **Enter** with none chosen opens the full **Search** page with what you typed, **Escape** closes the list (a second **Escape** clears the box).
