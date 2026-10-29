@@ -73,10 +73,12 @@ public sealed record JumpIndexBucketDto
     public required int Count { get; init; }
 
     /// <summary>
-    /// Keyset cursor to pass to the browse endpoint (<c>sort=name</c>) to land on
-    /// the first node of this bucket. <c>null</c> for the first bucket (start of
-    /// the listing). This is a raw <c>SortKey</c>, so it is only honoured by the
-    /// name sort; other sorts ignore it (the rail is a name-sort navigation aid).
+    /// Keyset cursor to pass to the browse endpoint, with the sort the rail was
+    /// built for, to land on the first node of this bucket. <c>null</c> for the
+    /// first bucket (start of the listing). Under the name sort it is a raw
+    /// <c>SortKey</c>; under the date sorts (1.49.0 date chips) it is that sort's
+    /// own cursor (<c>a:</c> / <c>u:</c>), and since 1.50.0 a page landed on from it
+    /// also pages back up (<c>hasPrevious</c> / <c>prevCursor</c>).
     /// </summary>
     public string? FirstCursor { get; init; }
 
