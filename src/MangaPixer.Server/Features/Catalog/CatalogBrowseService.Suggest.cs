@@ -36,7 +36,6 @@ public sealed partial class CatalogBrowseService
     /// </summary>
     internal async Task<SuggestNodes> SuggestNodesAsync(long userId, SearchQuery parsed, bool incognito, int perKind, CancellationToken ct)
     {
-
         if (parsed.IndexWords.Count == 0 || SearchText.ExactFtsQuery(parsed) is not { } exactFts)
             return SuggestNodes.Empty;
 

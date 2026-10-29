@@ -2,7 +2,6 @@ namespace com.lifepixer.mangapixer.Server.Features.Metadata.Facets;
 
 using System.Globalization;
 using com.lifepixer.mangapixer.Core.Api;
-using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.Facets;
 using com.lifepixer.mangapixer.Server.Features.Catalog;
@@ -229,7 +228,7 @@ public sealed class FacetSearchService
     /// S5 (1.49.0): one free-text word (or quoted phrase) as a condition - the work's title, one of its record's alternative titles
     /// (read with <c>json_each</c>, so non-Latin titles compare as text), or the display name of one of its locations the viewer may see.
     /// The text goes in as a parameter. 1.50.0 (lane S): compared FOLDED, as the plain search compares names - case, accents and
-    /// punctuation ignored (<c>mp_fold</c>, <see cref="SearchText.Fold"/>): <c>pokemon</c> finds <c>Pokémon</c>, <c>re-zero</c> finds
+    /// punctuation ignored (<c>mp_fold</c>, <see cref="Core.Catalog.SearchText.Fold"/>): <c>pokemon</c> finds <c>Pokémon</c>, <c>re-zero</c> finds
     /// <c>Re:Zero</c>. A word of plain ASCII letters and digits keeps the plain <c>LIKE</c> for ASCII text (the same answer: such a word
     /// can only sit inside a run of letters and digits, which folding keeps) and folds only text with another character; any other word
     /// folds every text. A word that folds to nothing (punctuation only) keeps the 1.49.0 plain <c>LIKE</c>.
@@ -237,7 +236,7 @@ public sealed class FacetSearchService
     private static string TitleCondition(string word, Dictionary<string, object?> parameters, FacetViewerScope scope)
     {
         var name = "@t" + parameters.Count(p => p.Key.StartsWith("@t", StringComparison.Ordinal)).ToString(CultureInfo.InvariantCulture);
-        var folded = SearchText.Fold(word);
+        var folded = Core.Catalog.SearchText.Fold(word);
         parameters[name] = "%" + EscapeLike(folded.Length == 0 ? word : folded) + "%";
         string Match(string column) => folded.Length == 0
             ? $"{column} LIKE {name} ESCAPE '\\'"

@@ -207,17 +207,18 @@ public sealed class SearchTextTests
     }
 
     [Theory]
-    [InlineData("spider-man", new[] { "spider", "man" }, new string[0])]          // a - after a letter separates words
-    [InlineData("one - piece", new[] { "one", "piece" }, new string[0])]         // a - before a space is punctuation
-    [InlineData("x-12 -y", new[] { "x", "12" }, new[] { "y" })]
-    [InlineData("--berserk", new[] { "berserk" }, new string[0])]                // a - before another - is punctuation
-    [InlineData("\"one -piece\"", new[] { "one", "piece" }, new string[0])]      // inside quotes nothing is negated
-    [InlineData("-ab cd", new[] { "cd" }, new[] { "ab" })]
-    public void Parse_OnlyAMinusAtATermStartNegates(string text, string[] words, string[] negated)
+    [InlineData("spider-man", "spider man", "")]           // a - after a letter separates words
+    [InlineData("one - piece", "one piece", "")]           // a - before a space is punctuation
+    [InlineData("x-12 -y", "x 12", "y")]
+    [InlineData("--berserk", "berserk", "")]               // a - before another - is punctuation
+    [InlineData("\"one -piece\"", "one piece", "")]        // inside quotes nothing is negated
+    [InlineData("-ab cd", "cd", "ab")]
+    [InlineData("a -b -\"c d\"", "a", "b|c d")]
+    public void Parse_OnlyAMinusAtATermStartNegates(string text, string words, string negated)
     {
         var q = SearchText.Parse(text);
-        Assert.Equal(words, q.AllWords.Select(w => w.Folded));
-        Assert.Equal(negated, NegatedTerms(q));
+        Assert.Equal(words, string.Join(' ', q.AllWords.Select(w => w.Folded)));
+        Assert.Equal(negated, string.Join('|', NegatedTerms(q)));
     }
 
     [Fact]
