@@ -16,6 +16,11 @@ public sealed record BackupSettingsDto
     public required int RetentionCount { get; init; }
     public required string RetentionCountSource { get; init; }
 
+    /// <summary>Gzip-compress new rotating backups (1.50.0). Read-only in the UI when <see cref="CompressSource"/> is <c>configuration</c>.</summary>
+    public required bool Compress { get; init; }
+
+    public required string CompressSource { get; init; }
+
     /// <summary><c>default</c> (inside the data folder) or <c>custom</c>.</summary>
     public required string LocationKind { get; init; }
     public required string LocationSource { get; init; }
@@ -58,6 +63,9 @@ public sealed record UpdateBackupSettingsRequest
     public bool? Enabled { get; init; }
     public double? IntervalHours { get; init; }
     public int? RetentionCount { get; init; }
+
+    /// <summary>Gzip-compress new rotating backups (1.50.0). Refused (409) while configuration manages it.</summary>
+    public bool? Compress { get; init; }
     public BackupLocationUpdate? Location { get; init; }
     public string? CurrentPassword { get; init; }
 
@@ -75,7 +83,7 @@ public sealed record UpdateBackupSettingsRequest
     public bool MoveExistingSnapshots { get; init; }
 
     public override string ToString() =>
-        $"UpdateBackupSettingsRequest {{ Enabled = {Enabled}, IntervalHours = {IntervalHours}, RetentionCount = {RetentionCount}, Location = {Location}, "
+        $"UpdateBackupSettingsRequest {{ Enabled = {Enabled}, IntervalHours = {IntervalHours}, RetentionCount = {RetentionCount}, Compress = {Compress}, Location = {Location}, "
         + $"CurrentPassword = {(CurrentPassword is null ? "null" : "[redacted]")}, ValidateOnly = {ValidateOnly}, AdoptExistingMarker = {AdoptExistingMarker}, MoveExistingSnapshots = {MoveExistingSnapshots} }}";
 }
 

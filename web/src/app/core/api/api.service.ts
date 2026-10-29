@@ -106,6 +106,7 @@ import {
   AppearancePreferencesDto,
   SeriesAnswer,
   SearchSuggestDto,
+  FavoritesQuery,
 } from './api-types';
 
 /** Options of {@link ApiService.search} (1.45.0). */
@@ -116,6 +117,8 @@ export interface SearchOptions {
   readState?: LibraryReadStateFilter;
   /** Tag filters (1.45.0, lane P): each `<bucket>:<value id>` is sent as one `f` parameter; all must match (AND). */
   filters?: readonly string[];
+  /** 1.50.0 (lane U): a Refine bucket's token (`tag`, `creator`, ...) whose list the answer carries complete ("+N more" opened). */
+  expand?: string;
 }
 
 /**
@@ -285,6 +288,7 @@ export class ApiService {
     if (options.pageSize) params = params.set('pageSize', options.pageSize.toString());
     if (options.readState && options.readState !== 'all') params = params.set('readState', options.readState);
     for (const f of options.filters ?? []) params = params.append('f', f);
+    if (options.expand) params = params.set('expand', options.expand);
     return this.get<SearchResultsDto>('/search', params);
   }
 
@@ -831,9 +835,15 @@ export class ApiService {
    * first). Respects Incognito/Private visibility server-side (the X-Incognito header is
    * added by the incognito interceptor like every other discovery call).
    */
-  getFavorites(cursor: string | null = null, pageSize = 50): Observable<PageResponse<CatalogNodeDto>> {
+  getFavorites(cursor: string | null = null, pageSize = 50, query: FavoritesQuery = {}): Observable<PageResponse<CatalogNodeDto>> {
     let params = new HttpParams().set('pageSize', pageSize.toString());
     if (cursor) params = params.set('cursor', cursor);
+    // 1.50.0 (Favorites view): each parameter only when it differs from the server default, so the home row's call is unchanged.
+    if (query.sort && query.sort !== 'favorited') params = params.set('sort', query.sort);
+    if (query.sort === 'name' && query.direction === 'desc') params = params.set('direction', 'desc');
+    if (query.readState && query.readState !== 'all') params = params.set('readState', query.readState);
+    if (query.kind && query.kind !== 'all') params = params.set('kind', query.kind);
+    if (query.libraryId) params = params.set('libraryId', query.libraryId);
     return this.get<PageResponse<CatalogNodeDto>>('/favorites', params);
   }
 

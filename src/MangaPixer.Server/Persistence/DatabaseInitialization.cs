@@ -375,9 +375,10 @@ public static class DatabaseInitialization
         // Only back up when there is real data to protect AND schema will change.
         if (pending.Count > 0 && hasAppSchema)
         {
-            var backupPath = Path.Combine(
-                dataRoot, "backups", $"pre-migration-{DateTime.UtcNow:yyyyMMdd-HHmmss}.db");
-            Directory.CreateDirectory(Path.GetDirectoryName(backupPath)!);
+            var backupsDir = Path.Combine(dataRoot, "backups");
+            Directory.CreateDirectory(backupsDir);
+            var backupPath = Path.Combine(backupsDir,
+                com.lifepixer.mangapixer.Server.Operations.SafetySnapshotPruner.UniqueName(backupsDir, "pre-migration", DateTime.UtcNow));
             logger?.LogInformation(
                 LogEvents.Database.MigrationWithBackup, "Applying {Count} pending migration(s); pre-migration backup created first.", pending.Count);
             if (!await backupAsync(backupPath))

@@ -66,54 +66,8 @@ public sealed class PendingAnalysisResumeHostedService : IHostedService
             foreach (var libraryId in libraryIds)
             {
                 // Archive nodes whose analysis never completed (pending).
-                var pending = await db.CatalogNodes
-                    .Where(n => n.LibraryId == libraryId && n.Kind == 1 && n.Availability != 5) // 5 = tombstoned
-                    .Join(db.ArchiveItems.Where(a => a.AnalysisState == 1),
-                          n => n.Id, a => a.NodeId,
-                          (n, a) => new { n.Id, n.RelativePath, a.ContentVersion })
-                    .ToListAsync();
-
-                if (pending.Count == 0)
-                    continue;
-
-                var library = await db.Libraries.FirstAsync(l => l.Id == libraryId);
-                _logger.LogInformation(LogEvents.Scanning.AnalysisEnqueueBatch,
-                    "Resuming analysis for {Count} pending items in library {LibraryId} after startup",
-                    pending.Count, libraryId);
-
-                foreach (var entry in pending)
-                {
-                    try
-                    {
-                        var sourcePath = Path.Combine(library.RootPath, entry.RelativePath);
-                        var fileInfo = new FileInfo(sourcePath);
-                        if (!fileInfo.Exists)
-                            continue;
-
-                        // Fire-and-forget at Background priority (mirrors the post-scan
-                        // enqueue). The returned task completes only when the item is
-                        // analyzed; we only need it queued, so observe faults and move on.
-                        _ = scheduler.EnqueueAsync(
-                            itemId: entry.Id,
-                            contentVersion: entry.ContentVersion,
-                            operation: JobOperation.Analyze,
-                            priority: JobPriority.Background,
-                            archivePath: sourcePath,
-                            expectedLastWriteTicks: fileInfo.LastWriteTimeUtc.Ticks,
-                            expectedByteLength: fileInfo.Length,
-                            callerToken: CancellationToken.None)
-                            .ContinueWith(static t => { _ = t.Exception; },
-                                CancellationToken.None,
-                                TaskContinuationOptions.OnlyOnFaulted,
-                                TaskScheduler.Default);
-                        totalResumed++;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(LogEvents.Scanning.AnalysisEnqueueItemFailed,
-                            "Failed to resume analysis for item {ItemId}: {Error}", entry.Id, ex.GetType().Name);
-                    }
-                }
+                var (_, queued) = await PendingAnalysisEnqueue.EnqueueLibraryAsync(db, scheduler, _logger, libraryId, "start-up resume");
+                totalResumed += queued;
             }
 
             if (totalResumed > 0)

@@ -84,7 +84,7 @@ public sealed class JumpIndexDateRailTests : IDisposable
     [Theory]
     [InlineData("recentlyAdded")]
     [InlineData("recentlyUpdated")]
-    public async Task EveryChipsCursor_LandsBrowseOnItsFirstRow_AndItsCountIsItsRows(string sort)
+    public async Task EveryChipsCursor_LandsBrowseOnItsFirstRow_AndItsCountIsItsRows_AndPagesBackToThePreviousRow(string sort)
     {
         var (db, userId, libraryId) = await SeedAsync();
         await using var dbScope = db;
@@ -105,6 +105,15 @@ public sealed class JumpIndexDateRailTests : IDisposable
             Assert.Equal(listing[position], bucket.FirstNodeId);
             var page = await browse.BrowseAsync(userId, libraryId, null, bucket.FirstCursor, pageSize: bucket.Count, sort: sort);
             Assert.Equal(listing.Skip(position).Take(bucket.Count), page.Items.Select(i => i.Id));
+
+            // 1.50.0 lane D: from the chip's landing the list scrolls UP - the page before it ends on the previous chip's last row.
+            Assert.Equal(position > 0, page.HasPrevious);
+            if (position > 0)
+            {
+                var back = await browse.BrowseAsync(userId, libraryId, null, null, pageSize: 1, sort: sort, before: page.PrevCursor);
+                Assert.Equal(new[] { listing[position - 1] }, back.Items.Select(i => i.Id));
+                Assert.Equal(position > 1, back.HasPrevious);
+            }
             position += bucket.Count;
         }
         Assert.Null(rail.Buckets[0].FirstCursor);

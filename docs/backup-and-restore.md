@@ -9,7 +9,7 @@ The server snapshots its database on a schedule. You do not need to set anything
 - **Name:** `rotating-<UTC date>-<UTC time>.db.gz`, for example `rotating-20260915-024123.db.gz`. *New in 1.49.0:* a rotating backup is a gzip-compressed copy of the database, usually about half the size (the saving depends on your library). Backups from earlier versions are plain `rotating-<date>-<time>.db` files; they stay in the folder, in the list and in the count, and can be restored as before.
 - **Retention:** the newest 7 are kept (compressed and plain together, by the date in their name), and older ones are deleted. Only files with exactly this generated name are ever deleted; anything else in the folder is left alone.
 - **Safe while running:** each snapshot is a consistent, self-contained copy of the database. It is safe to take while people are reading, and safe to copy off the machine at any time.
-- **Checked before it counts:** the server first writes a plain copy next to the database (in the data root, never in memory), runs an integrity check on it, compresses it to a temporary `.partial` file, reads that file back to compare it with the copy, and only then gives it its final name and deletes the temporary files. A backup that fails any step is not kept, and **Back up now** reports the failure. While a backup runs it needs free space of about the database's size in the data root. To get plain `.db` backups again, set `MangaPixer__Backups__Compress=false` (see [Configuration](configuration.md#backups)).
+- **Checked before it counts:** the server first writes a plain copy next to the database (in the data root, never in memory), runs an integrity check on it, compresses it to a temporary `.partial` file, reads that file back to compare it with the copy, and only then gives it its final name and deletes the temporary files. A backup that fails any step is not kept, and **Back up now** reports the failure. While a backup runs it needs free space of about the database's size in the data root. To get plain `.db` backups again, turn off **Compress new backups** in the **Backup settings** card (1.50.0), or set `MangaPixer__Backups__Compress=false` (see [Configuration](configuration.md#backups)).
 - **Reading one without MangaPixer:** a `.db.gz` is an ordinary gzip file: `gunzip -k rotating-20260915-024123.db.gz` unpacks it to the SQLite database next to it (`-k` keeps the `.gz`).
 
 In **MangaPixer Administration** > **Backups** you see the schedule ("Every 24 h · keeping last 7"), when the last backup succeeded and how many are on disk. **Back up now** takes one immediately; it is a normal rotating backup and counts toward the 7.
@@ -21,6 +21,7 @@ The **Backup settings** card in **MangaPixer Administration** changes the schedu
 - **Scheduled backups** on or off. **Back up now** keeps working when the schedule is off.
 - **Frequency**: every 6 or 12 hours, daily, every 2 days, weekly, or a custom number of hours (1 to 720).
 - **Keep the newest** 1 to 100 snapshots. Lowering the number deletes nothing when you save; the card tells you how many of the oldest snapshots the next backup will remove.
+- **Compress new backups** (1.50.0): on by default. New rotating backups are gzip-compressed `.db.gz` files; off writes plain `.db` files, which you can open or copy without unpacking. The change applies from the next backup. Snapshots already on disk are not touched, and both kinds are listed, kept and restorable together.
 - **Location**: the default folder, or a custom folder (below).
 
 A setting that is also set in the server configuration (see [Configuration](configuration.md#backups)) is shown with **Managed by server configuration** and cannot be changed in the card. The configuration always wins, field by field.
@@ -63,6 +64,8 @@ The server also takes two kinds of one-off snapshot. They always stay in `<data 
 | `pre-restore-<timestamp>.db` | Right before a restore is staged, so you can undo it. |
 
 Safety snapshots are not compressed: the server restores from them at start-up, and they are only 3 of each kind.
+
+The timestamp in the name is the UTC time the snapshot was taken, to the second. If two snapshots of the same kind are taken within the same second (for example two restores in quick succession), the later one gets a short suffix, `pre-restore-<timestamp>-<4 hex digits>.db`, instead of failing. Retention counts them by the time in the name, a suffixed one counting as later than the plain one of that second.
 
 The newest 3 of each kind are kept; older ones of the same kind are deleted after a new one is taken successfully.
 

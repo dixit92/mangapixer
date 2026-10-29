@@ -3,7 +3,7 @@ import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 
-import { HeaderSearchComponent } from './header-search.component';
+import { HeaderSearchComponent, isSearchPageUrl } from './header-search.component';
 import { ApiService } from '../core/api/api.service';
 import { SearchSuggestDto } from '../core/api/api-types';
 import { QUICK_DEBOUNCE_MS } from '../features/search/quick-results/quick-results.model';
@@ -182,6 +182,61 @@ describe('HeaderSearchComponent (quick results)', () => {
     document.body.dispatchEvent(event);
     expect(event.defaultPrevented).toBe(true);
     expect(document.activeElement).toBe(input());
+  });
+
+  it('1.50.0: ends the list with a keyboard hint line (arrows / Enter / Esc), hidden from screen readers', () => {
+    setup();
+    type('ber');
+    const hint = panel()!.querySelector('[data-testid="quick-hint"]')!;
+    expect(hint.textContent).toContain('to move');
+    expect(hint.textContent).toContain('Enter');
+    expect(hint.textContent).toContain('Esc');
+    expect(hint.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('1.50.0: knows the Search page by its path (query and fragment aside, a trailing slash allowed)', () => {
+    expect(isSearchPageUrl('/search')).toBe(true);
+    expect(isSearchPageUrl('/search?q=berserk&f=tag:fv_1')).toBe(true);
+    expect(isSearchPageUrl('/search/')).toBe(true);
+    expect(isSearchPageUrl('/search#top')).toBe(true);
+    expect(isSearchPageUrl('/libraries/L1/browse/f1?q=search')).toBe(false);
+    expect(isSearchPageUrl('/searching')).toBe(false);
+    expect(isSearchPageUrl('/')).toBe(false);
+  });
+
+  it('1.50.0: steps aside on the Search page (that page has its own field with the quick results) and gives it the \'/\' key', async () => {
+    vi.useRealTimers(); // router navigation is awaited here
+    searchSuggest = vi.fn().mockReturnValue(of(ANSWER));
+    TestBed.configureTestingModule({
+      imports: [HeaderSearchComponent],
+      providers: [provideRouter([{ path: 'search', children: [] }, { path: 'libraries', children: [] }]), { provide: ApiService, useValue: { searchSuggest } }],
+    });
+    router = TestBed.inject(Router);
+    fixture = TestBed.createComponent(HeaderSearchComponent);
+    const host = fixture.nativeElement as HTMLElement;
+    const pageField = document.createElement('input');
+    pageField.setAttribute('data-testid', 'search-input');
+    document.body.appendChild(pageField);
+    try {
+      await router.navigateByUrl('/libraries');
+      fixture.detectChanges();
+      expect(host.classList).not.toContain('on-search-page');
+
+      await router.navigateByUrl('/search?q=ber');
+      fixture.detectChanges();
+      expect(host.classList).toContain('on-search-page');
+      const slash = new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true });
+      document.body.dispatchEvent(slash);
+      expect(slash.defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(pageField);
+
+      await router.navigateByUrl('/libraries');
+      fixture.detectChanges();
+      expect(host.classList).not.toContain('on-search-page');
+    } finally {
+      pageField.remove();
+      vi.useFakeTimers(); // the suite's afterEach expects the fake clock
+    }
   });
 
   it('leaves \'/\' alone while typing in another text field', () => {

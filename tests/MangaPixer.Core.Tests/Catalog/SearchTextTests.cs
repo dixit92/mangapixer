@@ -189,4 +189,80 @@ public sealed class SearchTextTests
                 yield return w[..i] + w[i + 1] + w[i] + w[(i + 2)..];     // swap neighbours
         }
     }
+
+    // 1.50.0 lane S: -word exclusion, zero-padded numbers.
+
+    private static string[] NegatedTerms(SearchQuery q) => q.Negated.Select(t => string.Join(' ', t.Select(w => w.Folded))).ToArray();
+
+    [Fact]
+    public void Parse_ALeadingMinus_MakesTheNextTermOneToLeaveOut_AndIsNoWordToLookFor()
+    {
+        var q = SearchText.Parse("berserk -deluxe -\"black swordsman\" -re:zero");
+        Assert.Equal(["berserk"], q.Words.Select(w => w.Folded));
+        Assert.Empty(q.Phrases);
+        Assert.Equal(["deluxe", "black swordsman", "re zero"], NegatedTerms(q));
+        Assert.Equal("\"berserk\"", SearchText.ExactFtsQuery(q)); // never looked up in the index
+        Assert.Equal(["berserk"], q.IndexWords.Select(w => w.Folded));
+        Assert.False(q.HasOnlyExclusions);
+    }
+
+    [Theory]
+    [InlineData("spider-man", "spider man", "")]           // a - after a letter separates words
+    [InlineData("one - piece", "one piece", "")]           // a - before a space is punctuation
+    [InlineData("x-12 -y", "x 12", "y")]
+    [InlineData("--berserk", "berserk", "")]               // a - before another - is punctuation
+    [InlineData("\"one -piece\"", "one piece", "")]        // inside quotes nothing is negated
+    [InlineData("-ab cd", "cd", "ab")]
+    [InlineData("a -b -\"c d\"", "a", "b|c d")]
+    public void Parse_OnlyAMinusAtATermStartNegates(string text, string words, string negated)
+    {
+        var q = SearchText.Parse(text);
+        Assert.Equal(words, string.Join(' ', q.AllWords.Select(w => w.Folded)));
+        Assert.Equal(negated, string.Join('|', NegatedTerms(q)));
+    }
+
+    [Fact]
+    public void Parse_OnlyExclusions_IsEmpty()
+    {
+        var q = SearchText.Parse("-berserk");
+        Assert.True(q.IsEmpty);
+        Assert.True(q.HasOnlyExclusions);
+        Assert.Null(SearchText.ExactFtsQuery(q));
+        Assert.False(SearchText.IsShort(q));
+        Assert.False(SearchText.Parse("").HasOnlyExclusions);
+    }
+
+    [Theory]
+    [InlineData("berserk -deluxe", "Berserk Deluxe", true)]
+    [InlineData("berserk -deluxe", "Berserk", false)]
+    [InlineData("berserk -lux", "Berserk Deluxe", true)]             // 3+ characters: contained, as a word looked for
+    [InlineData("berserk -de", "Berserk Deluxe", true)]              // 1-2 characters: starts a word
+    [InlineData("berserk -lu", "Berserk Deluxe", false)]
+    [InlineData("berserk -\"black swordsman\"", "Berserk: The Black Swordsman", true)]
+    [InlineData("berserk -\"swordsman black\"", "Berserk: The Black Swordsman", false)] // a phrase keeps its order
+    [InlineData("pokemon -adventures", "Pokémon Adventures", true)]
+    [InlineData("re -zero", "Re:Zero", true)]
+    [InlineData("berserk -pokemon", "Pokémon", true)]                 // accents folded on both sides
+    public void IsExcluded_TermsMatchAsWordsLookedFor(string query, string name, bool excluded) =>
+        Assert.Equal(excluded, SearchText.IsExcluded(SearchText.Parse(query), SearchText.Fold(name)));
+
+    [Theory]
+    [InlineData("vol 006", "6", true)]
+    [InlineData("vol 006", "06", true)]
+    [InlineData("vol 006", "006", true)]
+    [InlineData("ch 0106 00", "106", true)]
+    [InlineData("vol 12", "12", true)]
+    [InlineData("vol 0012", "12", true)]
+    [InlineData("vol 1", "01", false)]          // typed zeros count
+    [InlineData("a0012", "12", false)]          // zeros inside a word are no number start
+    [InlineData("vol 106", "6", false)]
+    public void HasWordStartingWith_ADigitAlsoStartsANumberAfterItsLeadingZeros(string folded, string text, bool expected) =>
+        Assert.Equal(expected, SearchText.HasWordStartingWith(folded, text));
+
+    [Fact]
+    public void Rank_AShortNumberFindsAZeroPaddedVolume()
+    {
+        Assert.NotNull(Rank("monster 6", "Monster Vol. 006.cbz", archive: true));
+        Assert.Null(Rank("monster 6", "Monster Vol. 106.cbz", archive: true));
+    }
 }

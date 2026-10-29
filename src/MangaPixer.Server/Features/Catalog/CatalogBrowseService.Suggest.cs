@@ -15,7 +15,11 @@ using Microsoft.Extensions.Logging;
 public sealed partial class CatalogBrowseService
 {
     /// <summary>One quick-result node: public ids, the kind, the name, the folder it sits in, and (a series) the title that matched.</summary>
-    internal sealed record SuggestNode(string Id, string LibraryId, CatalogNodeKind Kind, string Name, string? Place, string? Aka);
+    internal sealed record SuggestNode(string Id, string LibraryId, CatalogNodeKind Kind, string Name, string? Place, string? Aka)
+    {
+        /// <summary>An archive's context line (1.50.0, lane W's <see cref="ArchiveContextNames"/>): the folder it belongs to.</summary>
+        public string? Context { get; init; }
+    }
 
     /// <summary>The best nodes of one text, per kind, in rank order.</summary>
     internal sealed record SuggestNodes(IReadOnlyList<SuggestNode> Series, IReadOnlyList<SuggestNode> Folders, IReadOnlyList<SuggestNode> Archives)
@@ -28,7 +32,11 @@ public sealed partial class CatalogBrowseService
     /// ranks them (exact, starts with, a word starts, contains; favourites first when the viewer turned them on; folders by sort key).
     /// The viewer's visible libraries come first (Incognito applied); series-information-hidden libraries give no series. A text with no
     /// word of 3+ characters answers nothing here: the short-input scan reads every visible name, too much for a box that asks on each
-    /// keystroke. No typo pass (the scan costs 50-90 ms on 40 k nodes). A linked series' node is listed as a series only, as in the search.
+    /// keystroke. A linked series' node is listed as a series only, as in the search.
+    /// 1.50.0 (lane S): <c>-word</c> terms and words spread over folder levels as in the search (cross-level hits after the name hits of
+    /// each kind); close (typo) matches only for a text of ONE word of <see cref="QuickTypoMinLength"/>+ letters (owner decision 5) while
+    /// it has fewer than <see cref="CloseMatchesBelow"/> exact names - series titles and folder names (archives are left out of the typo
+    /// scan to stay inside the 80 ms budget - lane S note), after the exact ones.
     /// </summary>
     internal async Task<SuggestNodes> SuggestNodesAsync(long userId, SearchQuery parsed, bool incognito, int perKind, CancellationToken ct)
     {
@@ -46,25 +54,41 @@ public sealed partial class CatalogBrowseService
         if (!wasOpen) await connection.OpenAsync(ct);
         try
         {
-            var anchors = await SeriesMatchAnchorsAsync(connection, parsed, exactFts, libIds, BrowseReadStateFilter.All, ct);
-            var anchorIds = anchors.InternalIds.Values.ToHashSet();
-
             var candidates = await ReadSearchCandidatesAsync(connection, $"""
-                SELECT cn.Id, cn.Kind, cn.DisplayName, cn.SortKey
+                SELECT cn.Id, cn.Kind, cn.DisplayName, cn.SortKey, cn.ParentId
                 FROM catalog_search cs
                 JOIN catalog_nodes cn ON cn.Id = cs.node_id
                 WHERE catalog_search MATCH @query
                 AND cn.Availability != 5 AND cn.LibraryId IN ({libIds})
                 """, exactFts, ct);
             var favorites = await SearchFavoritesAsync(userId, ct);
+            var tree = await LevelTreeAsync(connection, parsed, libIds, ct);
 
-            var hits = new List<SearchHit>();
+            var named = new List<SearchHit>();
             foreach (var c in candidates)
             {
-                if (anchorIds.Contains(c.Id))
-                    continue;
-                if (SearchText.Rank(parsed, SearchText.FoldName(c.Name, c.Kind == (int)CatalogNodeKind.Archive)) is { } rank)
-                    hits.Add(new SearchHit(c.Id, c.Kind, c.SortKey, favorites.Contains(c.Id) ? 0 : 1, rank));
+                var folded = SearchText.FoldName(c.Name, c.Kind == (int)CatalogNodeKind.Archive);
+                if (SearchText.Rank(parsed, folded) is { } rank && !SearchText.IsExcluded(parsed, folded) && !InsideExcluded(tree, c.Parent))
+                    named.Add(new SearchHit(c.Id, c.Kind, c.SortKey, favorites.Contains(c.Id) ? 0 : 1, rank));
+            }
+            // Decision 5: typos for one word of 5+ letters, while the exact names are few (as the search's close matches).
+            var typos = QuickTypos(parsed) && named.Count < CloseMatchesBelow;
+
+            var anchors = await SeriesMatchAnchorsAsync(connection, parsed, exactFts, libIds, BrowseReadStateFilter.All, typos, ct);
+            var anchorIds = anchors.InternalIds.Values.ToHashSet();
+            var hits = named.Where(h => !anchorIds.Contains(h.Id)).ToList();
+            // 1.50.0: words spread over folder levels, after the name hits (as in the search) - measured inside the 80 ms budget.
+            if (tree is not null)
+            {
+                var listed = hits.Select(h => h.Id).Concat(anchorIds).ToHashSet();
+                hits.AddRange((await CrossLevelHitsAsync(connection, parsed, tree, listed, ct))
+                    .Select(h => favorites.Contains(h.Id) ? h with { Group = 0 } : h));
+            }
+            if (typos)
+            {
+                var listed = hits.Select(h => h.Id).Concat(anchorIds).ToHashSet();
+                var close = await CloseNodeMatchesAsync(connection, parsed, libIds, listed, tree, foldersOnly: QuickTyposFoldersOnly, ct);
+                hits.AddRange((await WithSortKeysAsync(connection, close, ct)).Select(h => favorites.Contains(h.Id) ? h with { Group = 2 } : h));
             }
             var ordered = hits.OrderBy(h => h.Group).ThenBy(h => h.Rank).ThenBy(h => h.SortKey, StringComparer.Ordinal).ThenBy(h => h.Id).ToList();
             var folders = ordered.Where(h => h.Kind == (int)CatalogNodeKind.Folder).Take(perKind).ToList();
@@ -73,6 +97,17 @@ public sealed partial class CatalogBrowseService
 
             var details = await ReadSuggestNodesAsync(connection,
                 folders.Concat(archives).Select(h => h.Id).Concat(series.Select(s => anchors.InternalIds[s.Id])).ToList(), ct);
+            // 1.50.0: the archives' context line (lane W's helper) - one batched up-walk for the listed archives.
+            var archiveIds = details.Where(d => d.Value.Kind == CatalogNodeKind.Archive).Select(d => d.Key).ToList();
+            if (archiveIds.Count > 0)
+            {
+                var contexts = await ArchiveContextNames.ResolveAsync(_db, archiveIds, visibleLibs, ct);
+                foreach (var id in archiveIds)
+                {
+                    if (contexts.TryGetValue(id, out var context))
+                        details[id] = details[id] with { Context = context };
+                }
+            }
             SuggestNode? Node(long id) => details.GetValueOrDefault(id);
 
             var result = new SuggestNodes(
@@ -117,7 +152,7 @@ public sealed partial class CatalogBrowseService
         if (!wasOpen) await connection.OpenAsync(ct);
         try
         {
-            var anchors = await SeriesMatchAnchorsAsync(connection, parsed, exactFts, string.Join(",", visibleLibs), BrowseReadStateFilter.All, ct);
+            var anchors = await SeriesMatchAnchorsAsync(connection, parsed, exactFts, string.Join(",", visibleLibs), BrowseReadStateFilter.All, false, ct);
             return anchors.Nodes
                 .Select(n => anchors.Titles.GetValueOrDefault(n.Id))
                 .OfType<string>()
@@ -130,6 +165,16 @@ public sealed partial class CatalogBrowseService
             if (!wasOpen) await connection.CloseAsync();
         }
     }
+
+    /// <summary>Quick results look for typos only in a text of one word of at least this many letters (owner decision 5, 1.50.0).</summary>
+    internal const int QuickTypoMinLength = 5;
+
+    /// <summary>Quick results' typo scan reads folder names only (archives cost too much for the 80 ms budget - lane S note, 1.50.0).</summary>
+    private const bool QuickTyposFoldersOnly = true;
+
+    /// <summary>Whether quick results look for typos (decision 5): exactly one word, unquoted, of 5+ letters (a -word term aside).</summary>
+    internal static bool QuickTypos(SearchQuery parsed) =>
+        parsed.Words.Count == 1 && parsed.Phrases.Count == 0 && parsed.Words[0].Length >= QuickTypoMinLength;
 
     /// <summary>The listed nodes' public ids, library and the display name of the folder they sit in.</summary>
     private static async Task<Dictionary<long, SuggestNode>> ReadSuggestNodesAsync(DbConnection connection, List<long> ids, CancellationToken ct)

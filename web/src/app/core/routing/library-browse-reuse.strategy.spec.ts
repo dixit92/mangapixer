@@ -82,4 +82,20 @@ describe('LibraryBrowseReuseStrategy', () => {
     expect(strategy.shouldReuseRoute(future, curr)).toBe(true);
     expect(strategy.shouldReuseRoute(other, curr)).toBe(false);
   });
+
+  it('retains the Favorites view across a reader round trip, in the same single slot as browse (1.50.0)', () => {
+    const strategy = new LibraryBrowseReuseStrategy();
+    const favorites = fakeRoute('favorites', {});
+    const handle = {} as DetachedRouteHandle;
+
+    expect(strategy.shouldDetach(favorites)).toBe(true);
+    strategy.store(favorites, handle);
+    expect(strategy.shouldAttach(fakeRoute('favorites', {}))).toBe(true);
+    expect(strategy.retrieve(fakeRoute('favorites', {}))).toBe(handle);
+    // A browse folder never gets the Favorites view, and storing one evicts it (one retained view at a time).
+    const folder = fakeRoute(BROWSE_FOLDER, { libraryId: 'lib1', nodeId: 'favorites' });
+    expect(strategy.shouldAttach(folder)).toBe(false);
+    strategy.store(folder, {} as DetachedRouteHandle);
+    expect(strategy.shouldAttach(fakeRoute('favorites', {}))).toBe(false);
+  });
 });

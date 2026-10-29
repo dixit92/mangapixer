@@ -160,7 +160,7 @@ The rail adapts to what the folder holds (*new in 1.41.0*):
 - **Tags in brackets.** In a folder where most names open with a tag - `[Circle] Title`, `(Event) Title`, typical for doujinshi - the chips show the first letter inside that tag with its bracket, `[A` to `[Z` (and `(A` ... for round brackets), instead of one `#` chip for the whole folder. A tag that starts with a digit or a symbol is `[#`. Each chip is still one unbroken stretch of the list.
 - **A common start is ignored.** When most names start the same way - `Ch. `, `Vol. `, `<Series> - `, `[Group] <Series> v` - the rail looks at what follows, so `<Series> - Alpha` and `<Series> - Beta` give `A` and `B` instead of one chip.
 - **Folders and files.** When a folder holds both subfolders and archives (folders are listed first), the kind with more entries gets the rail and the other one a single **Folders** or **Files** chip at its place in the list. *New in 1.49.0:* once the smaller kind has 20 or more entries it gets its own letters or numbers too, and the rail labels each kind (**Folders**, **Files**) before its chips.
-- **Time chips.** Under **Recently added** and **Recently updated** the chips are **Today**, **This week** (since Monday), **This month**, **This year**, then one chip per older year, newest first, each with its count (*new in 1.49.0*). Today and the week follow your own clock and time zone. Under **Recently added**, where folders are listed before files, each kind has its own time chips. Under **Recently updated**, a folder with nothing inside yet is last, under **Other**. When every entry falls in the same period there is no rail. Selecting a chip lands on its first entry; scrolling up from there is not available under these sorts (select an earlier chip, such as **Today**, to go back).
+- **Time chips.** Under **Recently added** and **Recently updated** the chips are **Today**, **This week** (since Monday), **This month**, **This year**, then one chip per older year, newest first, each with its count (*new in 1.49.0*). Today and the week follow your own clock and time zone. Under **Recently added**, where folders are listed before files, each kind has its own time chips. Under **Recently updated**, a folder with nothing inside yet is last, under **Other**. When every entry falls in the same period there is no rail. Selecting a chip lands on its first entry, and you can scroll up from there to the newer entries above it (*new in 1.50.0*).
 
 The rail is not shown in the [Volumes view](volumes.md), which lists volumes instead of files, or when it would have a single chip.
 
@@ -176,7 +176,7 @@ Star any folder or archive to keep it within easy reach. The star appears on car
 
 *New in 1.48.0:* inside a folder, a star sits in the top bar right after **Info** and stars the folder you are viewing - handy for a series you open from a link or from search. It is not shown at the top of a library, which is not a folder. It is filled while the folder is a favorite, and the folder then appears on the **Favorites** page like any starred folder.
 
-- **Favorites** in the sidebar, above your libraries, lists everything you starred, most recently starred first.
+- **Favorites** in the sidebar, above your libraries, lists everything you starred, most recently starred first (*from 1.50.0* with other sorts, filters and a list view - see [The Favorites page](#the-favorites-page)).
 - **Favorites only** in the **Filter** menu narrows any library view to your starred items.
 - Two options in **Settings** > **Favorites**, both off by default: a **Favorites** row on the home page, and highlighting starred results in search (a star badge, and they move to the top - *from 1.49.0* of the whole result list, not only of each page; a close match for a typo still comes after every exact hit).
 
@@ -185,6 +185,17 @@ When you star two or more archives in the same folder, the Favorites page and th
 Favorites show your reading state like the library view does: an archive card carries **Read** or **Reading**, and a folder card - and a stack - carries **Read** (every archive in the folder is read) or **Reading** (some are read or in progress), shown at the top right of the cover. A stack counts the **whole folder**, not only the archives you starred in it. The marks are your own: another user of the same server sees theirs. The same badges appear on the home page's **Favorites** row, whose cards also carry the (i) and the summary on hover when there is series information, and a star - turning it off takes the card out of the row.
 
 Favorites belong to your account and follow you to every device. They respect Private libraries: while Incognito is on, favorites in your Private libraries are hidden too.
+
+### The Favorites page
+
+*New in 1.50.0.* The Favorites page has the library view's display controls in its own top bar:
+
+- **View** switches between **Card** and **List**, and holds the **Sort by** choices. The card-size slider (Card) or the list-columns slider (List) sits next to it on a computer or tablet; on a phone it is inside the **View** menu, as in the library view.
+- **Sort by:** **Recently favorited** (the default - newest star first), **Name (A-Z)** and **Name (Z-A)** (folders before archives, as in the library view), **Recently added** and **Recently updated** (a folder by its newest archive, as in the library view). A stack sits at its newest starred archive under the date sorts.
+- **Filter:** **Show** All / Reading / Read / Unread, **Kind** (folders, or archives - a stack counts as archives), and **Library** when you can see more than one. A folder and a stack are judged by the whole folder, as their badge. Filters are not kept: they reset when you open the page again.
+- More favorites load as you scroll down.
+
+The view, the two sizes and the sort are kept **on this device** and are separate from the library view's: the first time you open the Favorites page on a device it starts from the library view's card size, list columns and view, and from then on the two change independently. Opening an archive from the Favorites page and going back returns you to the same place in the list, with the same sort and filters.
 
 ## Search
 
@@ -199,13 +210,21 @@ The search icon in the top bar opens **Search**. It looks through the names of t
 - **One or two letters.** A search of only one or two letters lists the names with a word that starts with them (`ak` finds `Akira` and `Domu: Akira`), and says so.
 - **Favorites first** when you turned on highlighting starred results in **Settings** > **Favorites**.
 
+*New in 1.50.0:*
+
+- **Leave words out.** A word with a `-` in front must not be in the name: `berserk -deluxe` lists `Berserk` but not `Berserk Deluxe`. Put words in quotes to leave out only that phrase (`-"black swordsman"`); a `-word` with punctuation inside is one phrase too (`-re:zero`). A folder whose name holds the word is left out with everything inside it, and a folder's **+N inside** count does not count the archives the word names. A `-` inside a name still separates words as before (`spider-man` finds `Spider-Man`), and so does a `-` with a space after it. A search of only `-` words finds nothing - type at least one word to look for.
+- **Words spread over folders.** The words may be split between an archive's or folder's own name and the names of the folders it sits in: `berserk 12` finds `Berserk/Vol 12.cbz`, and `berserk 6` finds `Berserk/Volumes/Ch. 0106.00 Vol. 006.cbz` - handy when your files are named without the series title (as MangaList names chapters and volumes). At least one word must be in the item's own name, so `berserk` alone still lists the `Berserk` folder (with **+N inside**), not every volume in it. Names that hold every word themselves come first, then these. Only folders in the same library count, and only libraries you can see.
+- **Numbers.** A number of one or two digits also finds the same number with zeros in front: `6` finds `Vol. 006` and `12` finds `Ch. 0012` (zeros you type still count: `01` does not find `Vol 1`).
+- **Series matches** also find a title with a typo (after the exact titles, when the page shows close matches) and from one or two letters (a word of the title that starts with them).
+
 ### Quick results while you type
 
-*New in 1.49.0.* On a desktop or tablet the top bar has a **search box** (press `/` anywhere on a page to jump into it). On a phone the top bar stays as it is, and the **Search** page shows the same results under its field while you type.
+*New in 1.49.0.* On a desktop or tablet the top bar has a **search box** (press `/` anywhere on a page to jump into it). On a phone the top bar stays as it is, and the **Search** page shows the same results under its field while you type. *New in 1.50.0:* the **Search** page does this on a desktop or tablet too (a list under its field, with the keys named at the bottom); the top bar's box steps aside on that page, and `/` jumps into the page's own field.
 
 - After a short pause in your typing, a list opens with the best few of each kind - **Series** (found by title or other title; the folder or archive linked to the series opens), **Folders**, **Archives**, **Creators** and **Tags** (tags and genres, with how many works carry each). Archives show the folder they sit in. Names are matched as in the search above (words in any order, accents and case ignored; a name needs a word of 3 letters or more, and quick results do not look for typos - the full search does). Creators and tags need 2 letters.
 - **Keyboard:** **Up** and **Down** move through the list, **Enter** opens the one you chose, **Enter** with none chosen opens the full **Search** page with what you typed, **Escape** closes the list (a second **Escape** clears the box).
 - **Mouse or touch:** a result opens when you select it. A folder opens in the library, an archive in the reader, a creator or tag opens the [tag view](series-information.md) of its works.
+- *New in 1.50.0:* quick results follow the `-word` and the words-over-folders rules above (`berserk 12` lists `Vol 12` of the `Berserk` folder), and look for typos in a single word of 5 letters or more - series titles and folder names, after the exact matches (two words, a shorter word or an archive name: the full **Search** page).
 - **Typed fields:** while the text ends in a field - `creator:ura`, `tag:`, `genre:`, `publisher:`, `magazine:`, `type:`, `year:`, `series:`, `library:` or `is:` - the list shows the values of that field instead (a creator or tag with its work count, a library by name). Choosing one completes the field, for example `creator:"Naoki Urasawa"`, and you can type on.
 - Only what you may open is listed: the libraries you can see (Private libraries stay out while Incognito is on), and no series, creators or tags from a library that shows no series information.
 

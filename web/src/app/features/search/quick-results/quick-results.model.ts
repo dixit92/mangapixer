@@ -1,6 +1,6 @@
 import { signal, computed, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subject, of, timer } from 'rxjs';
+import { Subject, defer, of, timer } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
 
 import { ApiService } from '../../../core/api/api.service';
@@ -20,6 +20,8 @@ export interface QuickEntry {
   key: string;
   label: string;
   detail: string | null;
+  /** An archive's context line (1.50.0): the folder it belongs to; absent for every other entry. Shown instead of `detail`. */
+  contextName?: string | null;
   count: number | null;
   icon: string;
   action: QuickAction;
@@ -74,6 +76,7 @@ function entryOf(item: SuggestItemDto, group: string): QuickEntry {
     key: `${group}-${item.id}`,
     label: item.label,
     detail: item.detail ?? null,
+    ...(item.contextName ? { contextName: item.contextName } : {}),
     count: item.count ?? null,
     icon: iconOf(item),
     action,
@@ -130,14 +133,14 @@ export class QuickResults {
   readonly entries = computed(() => quickEntries(this.sections()));
   /** The keyboard's entry (index into {@link entries}); -1 = none, so Enter searches the text. */
   readonly active = signal(-1);
-  readonly activeEntry = computed(() => this.entries()[this.active()] ?? null);
+  readonly activeEntry = computed<QuickEntry | null>(() => this.entries()[this.active()] ?? null);
 
   constructor() {
     // A newer text (or "nothing") cancels the wait and the request of the one before it - the debounce lives INSIDE the switch, so
     // clearing never waits 200 ms and a late answer to an older text cannot arrive.
     this.typed.pipe(
       switchMap((text) => text
-        ? timer(QUICK_DEBOUNCE_MS).pipe(switchMap(() => this.api.searchSuggest(text).pipe(catchError(() => of(null)))))
+        ? timer(QUICK_DEBOUNCE_MS).pipe(switchMap(() => defer(() => this.api.searchSuggest(text)).pipe(catchError(() => of(null)))))
         : of(null)),
       takeUntilDestroyed(inject(DestroyRef)),
     ).subscribe((answer) => {

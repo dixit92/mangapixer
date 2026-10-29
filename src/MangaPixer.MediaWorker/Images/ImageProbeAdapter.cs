@@ -21,9 +21,9 @@ public sealed record ImageProbeResult
 /// <summary>
 /// Image probing and validation adapter using Magick.NET Q8.
 /// Probes image format, dimensions, animation state, and alpha channel.
-/// Transcoding to output variants lives in ImageVariantEncoder; enforcing
-/// acceptance rules (e.g. rejecting unsupported formats) beyond a basic
-/// probe is not yet implemented here.
+/// Transcoding to output variants lives in ImageVariantEncoder. Acceptance is the
+/// probe's own verdict (<see cref="ImageProbeResult.IsSupported"/>), which WorkerLoop
+/// records per page.
 /// </summary>
 public sealed class ImageProbeAdapter : IDisposable
 {

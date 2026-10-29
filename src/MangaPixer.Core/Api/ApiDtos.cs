@@ -175,6 +175,14 @@ public sealed record CatalogNodeDto
     public bool IsFavorite { get; init; }
 
     /// <summary>
+    /// The archive context line (1.50.0): the name of the folder this ARCHIVE belongs to - its nearest ancestor that is not a plain
+    /// unit / kind folder (<c>Volumes</c>, <c>Vol 3</c>, <c>Chapters</c>, <c>Extras</c>, ...) - so a found <c>Vol. 012</c> says which
+    /// series it is. A display name only, never a path. Null for folders, for archives directly in a library root, and wherever the
+    /// listing does not fill it (browse: the page is the context). Filled on search results, Continue reading and Favorites.
+    /// </summary>
+    public string? ContextName { get; init; }
+
+    /// <summary>
     /// Derived read rollup over this folder's readable descendant archives for the
     /// current user (1.6.0): Read when every one carries a read-mark, Reading when
     /// some are read or in progress, Unread when none are. Only populated in browse

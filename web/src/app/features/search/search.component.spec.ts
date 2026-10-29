@@ -3,7 +3,7 @@ import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { convertToParamMap, provideRouter, Router } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { BreakpointObserver } from '@angular/cdk/layout';
-import { of, Subject } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 
 import { SearchComponent, searchParamsFromQuery, searchParamsToQuery } from './search.component';
 import { By } from '@angular/platform-browser';
@@ -763,6 +763,109 @@ describe('SearchComponent tag filters and work cards (1.45.0)', () => {
     expect(search).toHaveBeenLastCalledWith('', { readState: 'all', filters: ['genre:fv_2|fv_5', 'tag:fv_9'] });
   });
 
+  // 1.50.0 (lane U): "+N more" opens the bucket; "or" asks which included tag to join.
+  const refineChip = (n: number) => ({ id: `fv_${n}`, display: `Tag ${n}`, count: 2, roles: 'None', conflict: false, filter: `tag:fv_${n}` });
+  const tagBucket = (shown: number, more: number) => ({ bucket: 'Tags' as const, more, chips: Array.from({ length: shown }, (_, i) => refineChip(i + 1)) });
+  const comedy = () => filter({ bucket: 'Genres', id: 'fv_2', display: 'Comedy', valueIds: ['fv_2'] });
+  const chipNames = (el: HTMLElement, bucket: string) =>
+    Array.from(el.querySelectorAll(`.refine-bucket[data-bucket="${bucket}"] [data-testid="refine-chip"] .name`)).map((c) => c.textContent);
+
+  it('1.50.0: "+N more" lists the whole bucket from one expand=tag request (a one-work page), and "Show fewer" closes it again', async () => {
+    const { el, fixture, search } = await open('/?f=genre:fv_2', answer([work()], [comedy()], { refine: [tagBucket(2, 4)] }));
+    expect(chipNames(el, 'Tags')).toEqual(['Tag 1', 'Tag 2']);
+    expect(el.querySelector('[data-testid="refine-fewer"]')).toBeNull();
+
+    search.mockReturnValueOnce(of(answer([work()], [], { refine: [tagBucket(6, 0)] })));
+    el.querySelector<HTMLButtonElement>('[data-testid="refine-more"]')!.click();
+    fixture.detectChanges();
+    expect(search).toHaveBeenLastCalledWith('', { readState: 'all', pageSize: 1, expand: 'tag', filters: ['genre:fv_2'] });
+    expect(chipNames(el, 'Tags')).toEqual(['Tag 1', 'Tag 2', 'Tag 3', 'Tag 4', 'Tag 5', 'Tag 6']);
+    expect(el.querySelector('[data-testid="refine-more"]')).toBeNull();
+
+    el.querySelector<HTMLButtonElement>('[data-testid="refine-fewer"]')!.click();
+    fixture.detectChanges();
+    expect(chipNames(el, 'Tags')).toEqual(['Tag 1', 'Tag 2']);
+    expect(el.querySelector('[data-testid="refine-more"]')!.textContent!.trim()).toBe('+4 more');
+    expect(el.querySelector('[data-testid="refine-fewer"]')).toBeNull();
+  });
+
+  it('1.50.0: a new search closes an opened bucket, and an answer to the old search is dropped', async () => {
+    const { el, fixture, search } = await open('/?f=genre:fv_2', answer([work()], [comedy()], { refine: [tagBucket(2, 4)] }));
+    const late = new Subject<Answer>();
+    search.mockReturnValueOnce(late);
+    el.querySelector<HTMLButtonElement>('[data-testid="refine-more"]')!.click();
+    fixture.detectChanges();
+    expect(el.querySelector<HTMLButtonElement>('[data-testid="refine-more"]')!.disabled).toBe(true);
+
+    // The person adds a tag meanwhile (a new search): the old expand answer must not open anything.
+    search.mockReturnValueOnce(of(answer([work()], [comedy()], { refine: [tagBucket(2, 4)] })));
+    fixture.componentInstance.addRefine('tag:fv_1', 'all');
+    fixture.detectChanges();
+    late.next(answer([work()], [], { refine: [tagBucket(6, 0)] }));
+    fixture.detectChanges();
+    expect(chipNames(el, 'Tags')).toEqual(['Tag 1', 'Tag 2']);
+    expect(fixture.componentInstance.expanding()).toBeNull();
+  });
+
+  it('1.50.0: says so when the rest of a bucket cannot be loaded, and the button tries again', async () => {
+    const { el, fixture, search } = await open('/?f=genre:fv_2', answer([work()], [comedy()], { refine: [tagBucket(2, 4)] }));
+    search.mockReturnValueOnce(throwError(() => new Error('down')));
+    el.querySelector<HTMLButtonElement>('[data-testid="refine-more"]')!.click();
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="refine-error"]')).not.toBeNull();
+    expect(chipNames(el, 'Tags')).toEqual(['Tag 1', 'Tag 2']);
+
+    search.mockReturnValueOnce(of(answer([work()], [], { refine: [tagBucket(6, 0)] })));
+    el.querySelector<HTMLButtonElement>('[data-testid="refine-more"]')!.click();
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="refine-error"]')).toBeNull();
+    expect(chipNames(el, 'Tags')).toHaveLength(6);
+  });
+
+  it('1.50.0: "or" with one included tag in the bucket joins it at once', async () => {
+    const { el, fixture } = await open('/?f=tag:fv_1', answer([work()], [filter({ bucket: 'Tags', id: 'fv_1', display: 'Tag 1', valueIds: ['fv_1'] })], { refine: [{ ...tagBucket(0, 0), chips: [refineChip(5)] }] }));
+    el.querySelector<HTMLButtonElement>('[data-testid="refine-or"]')!.click();
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="refine-or-menu"]')).toBeNull();
+    expect(fixture.componentInstance.params().f).toEqual(['tag:fv_1|fv_5']);
+  });
+
+  it('1.50.0: "or" with two or more included tags asks which one to join (not the last), and Cancel / Escape close the menu', async () => {
+    const included = [
+      filter({ bucket: 'Tags', id: 'fv_1', display: 'Tag 1', valueIds: ['fv_1'] }),
+      filter({ bucket: 'Tags', id: 'fv_2', display: 'Tag 2', valueIds: ['fv_2'] }),
+      filter({ bucket: 'Genres', id: 'fv_7', display: 'Comedy', valueIds: ['fv_7'] }),
+    ];
+    const { el, fixture } = await open('/?f=tag:fv_1&f=tag:fv_2&f=genre:fv_7', answer([work()], included, { refine: [{ ...tagBucket(0, 0), chips: [refineChip(5)] }] }));
+    el.querySelector<HTMLButtonElement>('[data-testid="refine-or"]')!.click();
+    fixture.detectChanges();
+
+    const menu = el.querySelector('[data-testid="refine-or-menu"]')!;
+    expect(menu).not.toBeNull();
+    expect(Array.from(menu.querySelectorAll('[data-testid="refine-or-target"]')).map((b) => b.textContent!.trim())).toEqual(['Tags: Tag 1', 'Tags: Tag 2']);
+    expect(fixture.componentInstance.params().f).toEqual(['tag:fv_1', 'tag:fv_2', 'genre:fv_7']); // nothing joined yet
+
+    // Cancel closes it without a change.
+    menu.querySelector<HTMLButtonElement>('[data-testid="refine-or-cancel"]')!.click();
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="refine-or-menu"]')).toBeNull();
+    expect(fixture.componentInstance.params().f).toEqual(['tag:fv_1', 'tag:fv_2', 'genre:fv_7']);
+
+    // Escape closes it too; the FIRST tag is chosen this time.
+    el.querySelector<HTMLButtonElement>('[data-testid="refine-or"]')!.click();
+    fixture.detectChanges();
+    el.querySelector('[data-testid="refine-or-menu"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="refine-or-menu"]')).toBeNull();
+
+    el.querySelector<HTMLButtonElement>('[data-testid="refine-or"]')!.click();
+    fixture.detectChanges();
+    el.querySelectorAll<HTMLButtonElement>('[data-testid="refine-or-target"]')[0].click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.params().f).toEqual(['tag:fv_1|fv_5', 'tag:fv_2', 'genre:fv_7']);
+    expect(el.querySelector('[data-testid="refine-or-menu"]')).toBeNull();
+  });
+
   it('1.49.0: a typed-only tag search with no works says so in the tag words', async () => {
     const typed = filter({ bucket: 'Genres', source: 'Typed', id: undefined, text: 'action', negated: true });
     const { el } = await open('/?q=synthetic%20-genre:action', answer([], [typed]));
@@ -900,9 +1003,10 @@ describe('SearchComponent search by words (1.49.0)', () => {
 
 /**
  * 1.49.0 (lane O): on a phone the header has no search box, so the Search page shows the same grouped quick results under its field
- * while typing - a result opens, a typed field's value completes the token. Desktop and tablet ask nothing extra here.
+ * while typing - a result opens, a typed field's value completes the token. 1.50.0 (lane U, owner decision 5): desktop and tablet show
+ * them too, as a dropdown with a keyboard hint line and arrow / Enter / Escape on the field.
  */
-describe('SearchComponent quick results on a phone', () => {
+describe('SearchComponent quick results', () => {
   const answer: SearchSuggestDto = {
     query: 'ber',
     series: [],
@@ -1000,18 +1104,78 @@ describe('SearchComponent quick results on a phone', () => {
     expect(fixture.componentInstance.query).toBe('berserk tag:"Time Travel" ');
   });
 
-  it('hides them on Enter, and asks nothing on desktop or tablet', () => {
+  const keyOn = (fixture: ComponentFixture<SearchComponent>, key: string): KeyboardEvent => {
+    const input = fixture.nativeElement.querySelector('[data-testid="search-input"]') as HTMLInputElement;
+    const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+    input.dispatchEvent(event);
+    fixture.detectChanges();
+    return event;
+  };
+  const panelOf = (fixture: ComponentFixture<SearchComponent>) => fixture.nativeElement.querySelector('[data-testid="search-quick"]') as HTMLElement | null;
+
+  it('on a phone: Enter with none chosen hides them, and there is no keyboard hint', () => {
     const phone = setup(true);
     typeInto(phone.fixture, 'ber');
-    const input = phone.fixture.nativeElement.querySelector('[data-testid="search-input"]') as HTMLInputElement;
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
-    phone.fixture.detectChanges();
-    expect(phone.fixture.nativeElement.querySelector('[data-testid="search-quick"]')).toBeNull();
+    expect(panelOf(phone.fixture)!.classList).not.toContain('quick-desktop');
+    expect(phone.fixture.nativeElement.querySelector('[data-testid="quick-hint"]')).toBeNull();
+    keyOn(phone.fixture, 'Enter');
+    expect(panelOf(phone.fixture)).toBeNull();
+  });
 
-    TestBed.resetTestingModule();
+  it('on desktop and tablet: asks the same, shows a dropdown with the keyboard hint line', () => {
     const wide = setup(false);
     typeInto(wide.fixture, 'ber');
-    expect(wide.api.searchSuggest).not.toHaveBeenCalled();
-    expect(wide.fixture.nativeElement.querySelector('[data-testid="search-quick"]')).toBeNull();
+    expect(wide.api.searchSuggest).toHaveBeenCalledWith('ber');
+    const panel = panelOf(wide.fixture)!;
+    expect(panel.classList).toContain('quick-desktop');
+    expect([...panel.querySelectorAll('.qr-label')].map((e) => e.textContent)).toEqual(['Berserk Deluxe', 'Naoki Urasawa']);
+    const hint = panel.querySelector('[data-testid="quick-hint"]')!;
+    expect(hint.textContent).toContain('to move');
+    expect(hint.textContent).toContain('Enter');
+    expect(hint.textContent).toContain('Esc');
+    expect(hint.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('the keyboard moves through the results (aria-activedescendant follows), Enter opens the chosen one', () => {
+    const { fixture } = setup(false);
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    typeInto(fixture, 'ber');
+    const input = fixture.nativeElement.querySelector('[data-testid="search-input"]') as HTMLInputElement;
+    expect(input.getAttribute('aria-activedescendant')).toBeNull();
+    expect(input.getAttribute('aria-controls')).toBe('search-quick-list');
+
+    expect(keyOn(fixture, 'ArrowDown').defaultPrevented).toBe(true);
+    expect(input.getAttribute('aria-activedescendant')).toBe('sq-folders-f1');
+    expect(fixture.nativeElement.querySelector('[role="option"][aria-selected="true"]')!.textContent).toContain('Berserk Deluxe');
+    keyOn(fixture, 'ArrowDown');
+    expect(input.getAttribute('aria-activedescendant')).toBe('sq-creators-fv_c');
+    keyOn(fixture, 'ArrowUp');
+    expect(input.getAttribute('aria-activedescendant')).toBe('sq-folders-f1');
+
+    expect(keyOn(fixture, 'Enter').defaultPrevented).toBe(true);
+    expect(navigate).toHaveBeenCalledWith(['/libraries', 'L1', 'browse', 'f1']);
+    expect(panelOf(fixture)).toBeNull();
+  });
+
+  it('Escape closes the list (and only then lets the key through); an arrow opens it again', () => {
+    const { fixture } = setup(false);
+    typeInto(fixture, 'ber');
+    expect(keyOn(fixture, 'Escape').defaultPrevented).toBe(true);
+    expect(panelOf(fixture)).toBeNull();
+    expect(keyOn(fixture, 'Escape').defaultPrevented).toBe(false);
+    keyOn(fixture, 'ArrowDown');
+    expect(panelOf(fixture)).not.toBeNull();
+  });
+
+  it('Enter with no result chosen leaves the typed search to the page (no navigation, list closes)', () => {
+    const { fixture, api } = setup(false);
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    typeInto(fixture, 'ber');
+    expect(keyOn(fixture, 'Enter').defaultPrevented).toBe(false);
+    expect(panelOf(fixture)).toBeNull();
+    expect(api.search).toHaveBeenCalled(); // the page's own search ran from the typed text
+    expect(navigate).not.toHaveBeenCalledWith(['/libraries', 'L1', 'browse', 'f1']);
   });
 });

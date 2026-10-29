@@ -72,6 +72,9 @@ public sealed class RotatingBackupSchedulerTests : IDisposable
             await WaitUntilAsync(() => time.PendingTimers > 0);
             time.Advance(RotatingBackupHostedService.InitialDelay);
             await WaitUntilAsync(() => CountSnapshots(backups) == 1);
+            // The snapshot file appears at the rename, before the loop records the run: wait until the loop is
+            // parked on its next timer, or the 25 h jump below can land first and push the next run out of reach.
+            await WaitUntilAsync(() => time.PendingTimers > 0);
 
             // Disabled live: a whole day passes without a run.
             resolver.Apply(new AppSettingsEntity { BackupsEnabled = false });

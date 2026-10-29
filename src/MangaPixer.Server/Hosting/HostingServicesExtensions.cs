@@ -76,10 +76,6 @@ public static class HostingServicesExtensions
         });
         services.AddScoped<FilesystemBrowseService>();
 
-        // Page delivery depends on DbContext + CacheService + JobScheduler,
-        // all of which are registered by AddMangaPixerAuth/AddMangaPixerMedia.
-        services.AddScoped<PageDeliveryService>();
-
         // WriteCoordinator for serialized DB writes.
         services.AddScoped<WriteCoordinator>();
 
@@ -149,6 +145,11 @@ public static class HostingServicesExtensions
         services.AddHostedService<StartupRecoveryHostedService>();
         services.AddHostedService<MediaWorkerHostedService>();
         services.AddHostedService<PendingAnalysisResumeHostedService>();
+        // Pending-archive sweep (1.50.0 lane X): re-queues archives a failed save or a stopped scan left pending, once the pool is idle.
+        services.TryAddSingleton<PendingAnalysisSweepOptions>();
+        services.AddSingleton<PendingAnalysisSweepService>();
+        services.AddSingleton<IPendingAnalysisSweepTrigger>(sp => sp.GetRequiredService<PendingAnalysisSweepService>());
+        services.AddHostedService(sp => sp.GetRequiredService<PendingAnalysisSweepService>());
         services.AddHostedService<ThumbnailBackfillHostedService>();
         // Content signatures for archives analysed before 1.5.0 (1.31.1): moves of them are recognised once it ran.
         services.AddScoped<ContentSignatureBackfill>();

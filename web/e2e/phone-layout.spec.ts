@@ -189,11 +189,15 @@ test('the Info sheet with chips and the tag search with two filters, Refine and 
   // Contract-shaped answers (lanes F / Q build the index; the layout under test is the web's): every folder has these tags.
   await page.route('**/api/v1/nodes/*/info', (route) =>
     route.fulfill({ json: longPanel(new URL(route.request().url()).pathname.split('/').at(-2)!) }));
-  await page.route(/\/api\/v1\/search\?.*\bf=/, (route) => route.fulfill({ json: {
+  await page.route(/\/api\/v1\/search\?.*\bf=/, (route) => {
+    // 1.50.0 (lane U): "+N more" asks for the same search with expand=tag - the answer lists the whole bucket.
+    const expanded = route.request().url().includes('expand=tag');
+    return route.fulfill({ json: {
     query: '', items: [], totalCount: 2, nextCursor: null, hasMore: false,
     filters: [
       { bucket: 'Creators', source: 'Chip', id: 'fv_l1', display: UNBROKEN, matched: true, valueIds: ['fv_l1'] },
       { bucket: 'Genres', source: 'Chip', id: 'fv_g0', display: 'Action', matched: true, valueIds: ['fv_g0'] },
+      { bucket: 'Genres', source: 'Chip', id: 'fv_g2', display: 'Comedy', matched: true, valueIds: ['fv_g2'] },
     ],
     works: [
       { title: `${UNBROKEN} The Series`, node: folder, coverUrl: null, locationCount: 2, locations: [
@@ -207,11 +211,12 @@ test('the Info sheet with chips and the tag search with two filters, Refine and 
     // 1.49.0 (lane T): the Refine list - long names, an "or" (Genres has a tag in the search) and "+N more".
     refine: [
       { bucket: 'Genres', more: 0, chips: [{ id: 'fv_g1', display: 'Drama', count: 2, roles: 'None', conflict: false, filter: 'genre:fv_g1' }] },
-      { bucket: 'Tags', more: 40, chips: Array.from({ length: 12 }, (_, i) => ({
+      { bucket: 'Tags', more: expanded ? 0 : 40, chips: Array.from({ length: expanded ? 52 : 12 }, (_, i) => ({
         id: `fv_t${i}`, display: i === 0 ? UNBROKEN : `Tag number ${i} with words`, count: 12 - i, roles: 'None', conflict: false, filter: `tag:fv_t${i}`,
       })) },
     ],
-  } }));
+  } });
+  });
   for (const size of SIZES) {
     await page.setViewportSize(size);
     await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
@@ -249,6 +254,27 @@ test('the Info sheet with chips and the tag search with two filters, Refine and 
     await settle(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-tag-search-refine-syntax.png`, fullPage: true });
     for (const p of await layoutProblems(page)) failures.push(`${size.width} px refine + syntax: ${p.kind}: ${p.what} - ${p.detail}`);
+
+    // 1.50.0 (lane U): "+N more" opens the whole Tags bucket (a box that scrolls inside the page), "Show fewer" closes it; with two genres
+    // in the search, "or" asks which one to join (a small menu under the bucket's title).
+    const tagChips = page.locator('.refine-bucket[data-bucket="Tags"] [data-testid="refine-chip"]');
+    await expect(tagChips).toHaveCount(12);
+    await page.getByTestId('refine-more').click();
+    await expect(tagChips).toHaveCount(52);
+    await settle(page);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-refine-open.png`, fullPage: true });
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px refine opened: ${p.kind}: ${p.what} - ${p.detail}`);
+    await page.getByTestId('refine-fewer').click();
+    await expect(tagChips).toHaveCount(12);
+
+    await page.goto('/search?f=creator:fv_l1&f=genre:fv_g0&f=genre:fv_g2');
+    await expect(page.getByTestId('search-filter-chip')).toHaveCount(3);
+    await page.locator('.refine-bucket[data-bucket="Genres"] [data-testid="refine-or"]').click();
+    await expect(page.getByTestId('refine-or-menu')).toBeVisible();
+    await expect(page.getByTestId('refine-or-target')).toHaveCount(2);
+    await settle(page);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-refine-or-menu.png`, fullPage: true });
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px refine or menu: ${p.kind}: ${p.what} - ${p.detail}`);
   }
   expect(failures, `Info sheet / tag search do not fit the screen:\n${failures.join('\n')}`).toEqual([]);
 });

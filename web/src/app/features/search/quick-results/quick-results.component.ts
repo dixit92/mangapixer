@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 
+import { ContextLineComponent } from '../../../shared/context-line/context-line.component';
 import { QuickEntry, QuickSection } from './quick-results.model';
 
 /**
@@ -12,7 +13,7 @@ import { QuickEntry, QuickSection } from './quick-results.model';
 @Component({
   selector: 'app-quick-results',
   standalone: true,
-  imports: [MatIconModule],
+  imports: [MatIconModule, ContextLineComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="qr" role="listbox" [attr.id]="listId()" [attr.aria-label]="label()" (mousedown)="$event.preventDefault()">
@@ -26,7 +27,10 @@ import { QuickEntry, QuickSection } from './quick-results.model';
               <mat-icon class="qr-icon" aria-hidden="true">{{ entry.icon }}</mat-icon>
               <span class="qr-text">
                 <span class="qr-label">{{ entry.label }}</span>
-                @if (entry.detail) {
+                @if (entry.contextName) {
+                  <!-- Archive context line (1.50.0): the folder the archive belongs to, in place of the immediate parent's name. -->
+                  <app-context-line class="qr-context" [name]="entry.contextName" />
+                } @else if (entry.detail) {
                   <span class="qr-detail">{{ entry.detail }}</span>
                 }
               </span>
@@ -38,6 +42,12 @@ import { QuickEntry, QuickSection } from './quick-results.model';
         </div>
       }
     </div>
+    @if (keyboardHint()) {
+      <!-- 1.50.0 (lane U): the keys, for the boxes that have a keyboard focus on them (the screen-reader line says the same in words). -->
+      <div class="qr-hint" aria-hidden="true" data-testid="quick-hint">
+        <kbd>&uarr;</kbd><kbd>&darr;</kbd> to move<span class="qr-hint-dot">&middot;</span><kbd>Enter</kbd> to open<span class="qr-hint-dot">&middot;</span><kbd>Esc</kbd> to close
+      </div>
+    }
   `,
   styles: [`
     :host { display: block; min-width: 0; }
@@ -55,7 +65,17 @@ import { QuickEntry, QuickSection } from './quick-results.model';
     .qr-label, .qr-detail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .qr-label { font-size: 14px; }
     .qr-detail { font-size: 12px; color: var(--mp-text-muted); }
+    .qr-context { margin-top: -2px; }
     .qr-count { flex: none; font-size: 12px; color: var(--mp-text-muted); }
+    .qr-hint {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px 12px 4px; margin-top: 2px; font-size: 11px;
+      color: var(--mp-text-dim); border-top: 1px solid rgb(var(--mp-ink-rgb) / 0.1);
+    }
+    .qr-hint kbd {
+      font: inherit; font-size: 10px; padding: 0 4px; border-radius: 3px; border: 1px solid rgb(var(--mp-ink-rgb) / 0.25);
+      background: rgb(var(--mp-ink-rgb) / 0.06); color: var(--mp-text-muted);
+    }
+    .qr-hint-dot { margin: 0 4px; }
   `],
 })
 export class QuickResultsComponent {
@@ -66,5 +86,7 @@ export class QuickResultsComponent {
   readonly idPrefix = input('qr-');
   readonly listId = input<string | null>(null);
   readonly label = input('Quick results');
+  /** 1.50.0 (lane U): show the keyboard line (arrows / Enter / Esc) under the list - off on a phone, which has no keyboard in play. */
+  readonly keyboardHint = input(false);
   readonly picked = output<QuickEntry>();
 }

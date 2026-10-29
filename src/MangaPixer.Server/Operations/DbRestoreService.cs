@@ -186,7 +186,7 @@ public sealed class DbRestoreService
         //    in a custom rotating location: restore is the incident-recovery
         //    path and must not depend on an archive share being reachable.
         var safetyDir = _backupSettings.Current.SafetyDirectory;
-        var preRestoreName = $"pre-restore-{DateTime.UtcNow:yyyyMMdd-HHmmss}.db";
+        var preRestoreName = SafetySnapshotPruner.UniqueName(safetyDir, "pre-restore", DateTime.UtcNow);
         var preRestorePath = Path.Combine(safetyDir, preRestoreName);
         var backupResult = await _backup.BackupAsync(preRestorePath, ct);
         if (!backupResult.Succeeded)

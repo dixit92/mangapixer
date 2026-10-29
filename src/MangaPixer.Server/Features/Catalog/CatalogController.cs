@@ -306,21 +306,41 @@ public sealed class CatalogController : ControllerBase
     /// <summary>
     /// Lists the current user's favorites (1.21.0), keyset-paged like browse and ordered
     /// recently-favorited (newest first). Flows through the same visibility chokepoint +
-    /// X-Incognito signal as browse/search, so a favorite in a Private library appears
-    /// only in an incognito session. Starred archives sharing a direct parent folder come
+    /// X-Incognito signal as browse/search, so a favorite in the viewer's own Private
+    /// library is hidden while Incognito is on. Starred archives sharing a direct parent folder come
     /// back as one stack item for that folder (<c>FavoriteStackCount</c>, 1.27.0).
     /// </summary>
+    /// <remarks>
+    /// 1.50.0 (lane F, the Favorites view; all optional - without them the answer is the one above, which the home Favorites row
+    /// reads): <paramref name="sort"/> = <c>favorited</c> (default) / <c>name</c> / <c>recentlyAdded</c> / <c>recentlyUpdated</c>
+    /// (anything else = <c>favorited</c>); <paramref name="direction"/> = <c>asc</c> / <c>desc</c> for <c>name</c> (the date sorts are
+    /// newest first); <paramref name="readState"/> = <c>reading</c> / <c>read</c> / <c>unread</c> (browse's values; a stack and a folder
+    /// by the whole folder's rollup); <paramref name="kind"/> = <c>folders</c> / <c>archives</c> (a stack counts as archives);
+    /// <paramref name="libraryId"/> = one library the viewer may see (any other id lists nothing). Every filter applies before the page is
+    /// cut; <paramref name="cursor"/> is the previous page's <c>nextCursor</c> under the same sort.
+    /// </remarks>
     [HttpGet("favorites")]
     public async Task<IActionResult> GetFavorites(
         [FromQuery] string? cursor,
         [FromQuery] int pageSize = 50,
+        [FromQuery] string? sort = null,
+        [FromQuery] string? direction = null,
+        [FromQuery] string? readState = null,
+        [FromQuery] string? kind = null,
+        [FromQuery] string? libraryId = null,
         CancellationToken ct = default)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
+        var query = new FavoritesQuery(
+            Sort: sort ?? FavoritesQuery.FavoritedSort,
+            Direction: ParseDirection(direction, null, "name"),
+            ReadState: ParseReadState(readState),
+            Kind: FavoritesQuery.ParseKind(kind),
+            LibraryId: string.IsNullOrWhiteSpace(libraryId) ? null : libraryId);
         var result = await _browseService.ListFavoritesAsync(
-            userId.Value, cursor, pageSize, incognito: _incognito.IsIncognito, ct: ct);
+            userId.Value, query, cursor, pageSize, _incognito.IsIncognito, ct);
         return Ok(result);
     }
 
@@ -340,6 +360,9 @@ public sealed class CatalogController : ControllerBase
     /// 1.49.0 (lane T): <c>f</c> also takes exclusions (<c>-genre:fv_..</c>) and any-of (<c>genre:fv_a|fv_b</c>); the tag view's first page
     /// carries <c>refine</c>; <c>q</c> takes <c>tag:</c>, <c>series:</c>, <c>-field:</c>, <c>year:2010..2015</c>, and the scope words
     /// <c>is:read|unread|reading</c> and <c>library:&lt;name&gt;</c> for every search (plain too).
+    /// 1.50.0 (lane U): <paramref name="expand"/> = a bucket token (<c>tag</c>, <c>creator</c>, ...) makes the first page's <c>refine</c>
+    /// list that bucket complete instead of cut to the top few ("+N more" opened on the Search page); an unknown token is ignored, and a
+    /// search that is not a tag view has no <c>refine</c> to expand.
     /// </remarks>
     [HttpGet("search")]
     public async Task<IActionResult> Search(
@@ -349,6 +372,7 @@ public sealed class CatalogController : ControllerBase
         [FromQuery] int pageSize = 50,
         [FromQuery] string? readState = null,
         [FromQuery] string[]? f = null,
+        [FromQuery] string? expand = null,
         [FromServices] Metadata.Facets.FacetSearchService? facetSearch = null,
         CancellationToken ct = default)
     {
@@ -393,7 +417,8 @@ public sealed class CatalogController : ControllerBase
             try
             {
                 return Ok(await facetSearch!.SearchAsync(
-                    userId.Value, _incognito.IsIncognito, q, f, libId, cursor, pageSize, read, ct));
+                    userId.Value, _incognito.IsIncognito, q, f, libId, cursor, pageSize, read,
+                    Metadata.Facets.FacetBucketTokens.TryParse(expand, out var open) ? open : null, ct));
             }
             catch (Metadata.Facets.FacetFilterFormatException ex)
             {
