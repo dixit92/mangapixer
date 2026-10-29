@@ -66,6 +66,8 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     /// </summary>
     internal const int ThroughputSummaryInterval = 25;
 
+    private readonly IPendingAnalysisSweepTrigger? _sweepTrigger;
+
     public MediaWorkerPool(
         WorkerPoolOptions options,
         JobScheduler scheduler,
@@ -74,8 +76,10 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         ILoggerFactory? loggerFactory = null,
         IServiceScopeFactory? scopeFactory = null,
         AnalysisResultPersister? persister = null,
-        MediaMetrics? metrics = null)
+        MediaMetrics? metrics = null,
+        IPendingAnalysisSweepTrigger? sweepTrigger = null)
     {
+        _sweepTrigger = sweepTrigger;
         _options = options;
         _scheduler = scheduler;
         _scratchManager = scratchManager;
@@ -1561,6 +1565,18 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     public int SchedulerPendingCount => _scheduler.PendingCount;
 
     /// <summary>
+    /// Number of extract requests waiting for a worker slot. Read-only observation, so tests
+    /// can wait for a request to be queued instead of sleeping.
+    /// </summary>
+    internal int SlotWaiterCount
+    {
+        get
+        {
+            lock (_poolLock) { return _waiters.Count; }
+        }
+    }
+
+    /// <summary>
     /// Starts one worker process and adds it to the pool. With
     /// <paramref name="claim"/> the slot is added already busy (atomically, under
     /// the pool lock) and owned by the caller, who must release it.
@@ -1830,7 +1846,9 @@ public sealed class MediaWorkerPool : IAsyncDisposable
         // This runs AFTER the slot is released so that thumbnail generation (which
         // calls ExtractPageAsync and acquires its own slot) does not deadlock when
         // the pool is at capacity.
-        await PersistResultAsync(job.ItemId, finalResult, ComputeContentSignature(job, finalResult));
+        // 1.50.0 lane X: a save that failed leaves the archive at "pending" with no job; the sweep re-queues it once the pool is idle.
+        if (!await PersistResultAsync(job.ItemId, finalResult, ComputeContentSignature(job, finalResult)) && job.Operation == JobOperation.Analyze)
+            _sweepTrigger?.Request();
 
         // Generate the durable cover thumbnail for successful analyses. The
         // thumbnail is the first page, downscaled to WebP by the worker and
@@ -1909,19 +1927,22 @@ public sealed class MediaWorkerPool : IAsyncDisposable
     /// No-ops when the pool was constructed without a scope factory/persister
     /// (e.g. in unit tests that exercise dispatch behaviour only).
     /// </summary>
-    private async Task PersistResultAsync(long nodeId, JobResult result, string? contentSignature)
+    /// <returns>False when the save failed (the failure is logged, event 4027).</returns>
+    private async Task<bool> PersistResultAsync(long nodeId, JobResult result, string? contentSignature)
     {
         if (_scopeFactory is null || _persister is null)
-            return;
+            return true;
         try
         {
             using var scope = _scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<MangaPixerDbContext>();
             await _persister.PersistAsync(db, nodeId, result, contentSignature);
+            return true;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(LogEvents.Worker.PersistAfterJobFailed, ex, "Persisting analysis for item {ItemId} failed: {Error}", nodeId, ex.GetType().Name);
+            return false;
         }
     }
 

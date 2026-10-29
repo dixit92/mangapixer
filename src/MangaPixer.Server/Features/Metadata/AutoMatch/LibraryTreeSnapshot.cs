@@ -3,6 +3,8 @@ namespace com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
+using com.lifepixer.mangapixer.Server.Features.Metadata.Authors;
+using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MangaUpdates;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -22,14 +24,19 @@ public sealed class LibraryTreeSnapshot
 
     /// <summary>
     /// Changes whenever a Confirmed / Auto link of the library is added, removed or changed, or a linked
-    /// record is re-fetched: the key under which a cached <see cref="ProviderAuthorSet"/> stays valid.
+    /// record is re-fetched, or (1.50.0) a stored author record is added, re-read or removed: the key under which a cached
+    /// <see cref="ProviderAuthorSet"/> stays valid. <c>AuthorRecords</c> / <c>AuthorsFetched</c> describe the server's stored
+    /// MangaUpdates author records that carry a name (the alias store, <c>metadata_authors</c>); the store is not per library, so any
+    /// fetch invalidates every library's cached set once (a cheap re-read).
     /// </summary>
-    public readonly record struct LinkStamp(int Links, DateTimeOffset? LinksUpdated, DateTimeOffset? RecordsFetched);
+    public readonly record struct LinkStamp(int Links, DateTimeOffset? LinksUpdated, DateTimeOffset? RecordsFetched, int AuthorRecords = 0,
+        DateTimeOffset? AuthorsFetched = null);
 
     /// <summary>
     /// The author and artist names of the records linked (Confirmed or Auto) in one library, and the nodes
     /// carrying those links. Feeds <see cref="FolderShape.KnownAuthorNames"/> (the provider-author half of the
-    /// artist-folder rule); a folder that carries a link itself gets no names.
+    /// artist-folder rule); a folder that carries a link itself gets no names. 1.50.0: the names include the stored other names
+    /// (pen names, other spellings) of the creators' MangaUpdates author ids.
     /// </summary>
     public sealed record ProviderAuthorSet(IReadOnlyList<string> Names, IReadOnlySet<long> LinkedNodeIds, LinkStamp Stamp)
     {
@@ -171,7 +178,10 @@ public sealed class LibraryTreeSnapshot
             .Where(l => l.LibraryId == libraryId && (l.State == confirmed || l.State == auto) && l.RecordId != null);
     }
 
-    /// <summary>Three scalar reads (count, newest link change, newest record fetch) - no rows are loaded.</summary>
+    /// <summary>
+    /// Scalar reads only (count, newest link change, newest record fetch, and - 1.50.0 - how many named MangaUpdates author records
+    /// are stored and the newest fetch among them) - no rows are loaded.
+    /// </summary>
     public static async Task<LinkStamp> LinkStampAsync(MangaPixerDbContext db, long libraryId, CancellationToken ct)
     {
         var links = AuthorLinks(db, libraryId);
@@ -180,12 +190,17 @@ public sealed class LibraryTreeSnapshot
             return default;
         var updated = await links.MaxAsync(l => (DateTimeOffset?)l.UpdatedAt, ct);
         var fetched = await links.Select(l => (DateTimeOffset?)l.Record!.FetchedAt).MaxAsync(ct);
-        return new LinkStamp(count, updated, fetched);
+        var authors = db.MetadataAuthors.AsNoTracking().Where(a => a.Provider == MangaUpdatesProvider.ProviderId && a.Name != null);
+        var authorRecords = await authors.CountAsync(ct);
+        var authorsFetched = authorRecords == 0 ? null : await authors.MaxAsync(a => (DateTimeOffset?)a.FetchedAt, ct);
+        return new LinkStamp(count, updated, fetched, authorRecords, authorsFetched);
     }
 
     /// <summary>
     /// The author / artist names of the records linked in the library (parsed from the stored
-    /// <c>CreatorsJson</c>; nothing is requested from a provider), de-duplicated, and the linked node ids.
+    /// <c>CreatorsJson</c>; nothing is requested from a provider), de-duplicated, and the linked node ids. 1.50.0: also the other names
+    /// stored for those creators' MangaUpdates author ids (<see cref="StoredAuthorAliases"/>, read from the database only - the store
+    /// is filled when an admin asks for "Artists' other names", never by this read).
     /// </summary>
     public static async Task<ProviderAuthorSet> LoadProviderAuthorsAsync(MangaPixerDbContext db, long libraryId, CancellationToken ct)
     {
@@ -193,18 +208,34 @@ public sealed class LibraryTreeSnapshot
         if (stamp.Links == 0)
             return ProviderAuthorSet.None;
         var rows = await AuthorLinks(db, libraryId)
-            .Select(l => new { l.NodeId, l.RecordId, l.Record!.CreatorsJson })
+            .Select(l => new { l.NodeId, l.RecordId, l.Record!.CreatorsJson, l.Record.Provider })
             .ToListAsync(ct);
         var names = new List<string>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var json in rows.DistinctBy(r => r.RecordId).Select(r => r.CreatorsJson))
+        var authorIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var row in rows.DistinctBy(r => r.RecordId))
         {
-            foreach (var creator in MetadataJson.ReadList<MetadataJson.Creator>(json))
+            foreach (var creator in MetadataJson.ReadList<MetadataJson.Creator>(row.CreatorsJson))
             {
                 if (creator.Role is not ("author" or "artist") || string.IsNullOrWhiteSpace(creator.Name))
                     continue;
                 if (seen.Add(TitleNormalizer.ScoringForm(creator.Name)))
                     names.Add(creator.Name);
+                // The author id is a MangaUpdates id only on a MangaUpdates record; the alias store holds nothing else.
+                if (creator.ProviderId is { Length: > 0 } id && row.Provider == MangaUpdatesProvider.ProviderId)
+                    authorIds.Add(id);
+            }
+        }
+        if (authorIds.Count > 0)
+        {
+            var aliases = await new StoredAuthorAliases(db).GetAsync(authorIds, ct);
+            foreach (var author in aliases.Values.OrderBy(a => a.AuthorId, StringComparer.Ordinal))
+            {
+                foreach (var other in author.OtherNames)
+                {
+                    if (!string.IsNullOrWhiteSpace(other) && seen.Add(TitleNormalizer.ScoringForm(other)))
+                        names.Add(other);
+                }
             }
         }
         return new ProviderAuthorSet(names, rows.Select(r => r.NodeId).ToHashSet(), stamp);

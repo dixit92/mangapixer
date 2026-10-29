@@ -131,7 +131,7 @@ public static class MediaServicesExtensions
             var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
             var persister = sp.GetRequiredService<AnalysisResultPersister>();
             return new MediaWorkerPool(options, scheduler, scratch, logger, loggerFactory, scopeFactory, persister,
-                sp.GetService<MediaMetrics>());
+                sp.GetService<MediaMetrics>(), sp.GetService<IPendingAnalysisSweepTrigger>());
         });
 
         return services;

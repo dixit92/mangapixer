@@ -6,6 +6,60 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.50.0] - 2026-10-29
+
+### Added
+
+- **Favorites page: the library view's display controls.** A **View** menu switches between Card and List and holds the sort: Recently
+  favorited (as before), Name (A-Z / Z-A), Recently added and Recently updated; the card-size and list-columns sliders sit beside it (inside
+  the View menu on a phone). A **Filter** menu narrows the page to Reading / Read / Unread, to folders or archives (a stack of starred
+  archives counts as archives) and to one library. More favorites load as you scroll.
+- The Favorites page keeps its own view, sizes and sort on each device, separate from the library view's; the first visit on a device starts
+  from the library view's settings. Filters reset when you open the page again. Opening an archive from Favorites and going back returns to
+  the same place in the list, with the same sort and filters.
+- **Words spread over folders.** The words you type may be split between a file's own name and the folders it sits in: `berserk 12` finds
+  `Berserk/Vol 12.cbz`, for libraries whose files carry no series title (as MangaList now names chapters and volumes). At least one word must
+  be in the item's own name, so `berserk` alone still lists the folder with **+N inside**; names holding every word come first. Quick results
+  list these too.
+- **Files found outside their folder say which series they belong to.** In search results, quick results, Continue reading on Home and the
+  Favorites page, an archive shows a muted second line with the name of the folder it belongs to - the nearest folder above it that is not a
+  plain `Volumes` / `Chapters` / `Extras` folder or a category folder such as `Manga`. A file named only `Vol. 012.cbz` or
+  `Ch. 0106.00-0110.00 Vol. 006.cbz` is recognisable again. The line is left out when it would repeat the file's own name, and browsing a
+  folder is unchanged.
+- **Leave words out.** Put a `-` in front of a word to leave out the names that hold it: `berserk -deluxe`. Quotes leave out a phrase
+  (`-"black swordsman"`). A folder whose name holds the word is left out with everything in it. A `-` inside a name still separates words
+  (`spider-man` finds `Spider-Man`). Quick results follow it too.
+- **Numbers with zeros.** A one- or two-digit number also finds the same number written with zeros in front: `6` finds `Vol. 006`.
+- **Series matches** find a title with a typo, and from one or two letters; **quick results** look for typos in a single word of 5 letters or
+  more (series titles and folder names).
+- **Search page:** quick results now also appear under the field on the desktop and tablet Search page, with a line naming the keys (Up /
+  Down, Enter, Esc); the top bar's box steps aside on that page and `/` jumps into the page's own field. The top bar's list shows the same
+  key line.
+- **Refine:** **+N more** now opens the whole row (a list that scrolls; **Show fewer** closes it); **or** with two or more tags of the same row
+  already in the search asks which one to join.
+- **Compress new backups** switch in the Backup settings card (Administration). On by default; off writes plain `.db` files. A
+  `MangaPixer:Backups:Compress` value in the server configuration still wins and is shown as managed. (One small database migration.)
+
+### Changed
+
+- Text typed next to tags in the tag search ignores accents, upper and lower case and punctuation, as the plain search does: `pokemon` finds
+  `Pokémon`.
+- A folder named after one of an artist's **other names** (pen names, other spellings) is now recognised as that artist's folder when
+  Automatic matching's artist-folder rule is on, if you have fetched the artist's other names (Metadata Manager > Settings > Artists' other
+  names). No new request is made: the other names are read from what your server already stored. The works waiting in Needs review are
+  checked again once after the update; an unmatched folder is looked at on its next retry or scan.
+
+### Fixed
+
+- Before, `-berserk` searched *for* berserk.
+- After jumping to a time chip under **Recently added** or **Recently updated**, scrolling up now loads the newer entries above it, as it
+  already did under the name sort.
+- Archives no longer stay "pending" after a large scan. An archive whose analysis result failed to save, or that a stopped or failed scan
+  never queued, is picked up again by a background check that runs when the work queue is idle (before, only a restart or the next scan
+  did). The post-scan queueing also reads each library once instead of once per archive.
+- Two restores (or an upgrade) within the same second no longer fail on the safety snapshot name; the later snapshot takes a short suffix
+  and retention counts it as the newer one.
+
 ## [1.49.0] - 2026-10-28
 
 ### Added

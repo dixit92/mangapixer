@@ -46,7 +46,7 @@ These actions are in the panel's and series page's **Admin** menu, and in the **
 
 ## Artist folders
 
-*New in 1.37.0.* Many libraries keep a folder per artist - `Artists/Some Artist/` with that artist's doujinshi and one-shots, each a work of its own. The matcher recognises some of these by itself (when most archive names carry the artist's tag, or the folder is named like the author of a series linked in the library), but not every artist folder looks like one. **Artist folder** tells MangaPixer, in one step:
+*New in 1.37.0.* Many libraries keep a folder per artist - `Artists/Some Artist/` with that artist's doujinshi and one-shots, each a work of its own. The matcher recognises some of these by itself (when most archive names carry the artist's tag, or the folder is named like the author of a series linked in the library - *new in 1.50.0:* also by any of that author's **other names** your server has already stored under **Artists' other names**, with no new request), but not every artist folder looks like one. **Artist folder** tells MangaPixer, in one step:
 
 - **The folder is never linked to a series**, and nothing inside inherits a link from it - like **Don't match**, an archive inside shows only its own link or ComicInfo. Its panel and series page say **Artist folder**, with the folder's name and the artist under **Declared**.
 - **The artist becomes the folder's declared creator** - the folder's name by default, which you can change, with the role **Story & art** (or **Story** / **Art**). The folder's other [declared facts](declared-hints.md) stay. Like every declared creator it flows down to the works inside and is a hint, never a veto: a series record by that artist counts in its favour when they are matched, and a record by another artist is not ruled out by it (the creator tags in the archives' own names still are, as everywhere). The folder's name is not used as the artist the way it is in a folder recognised as an artist's folder by itself.
@@ -90,6 +90,7 @@ Once a folder or archive is linked to a series, **Search** also finds it by any 
 - The row follows the same access rules as the rest of search: libraries you cannot see, and Private libraries while Incognito is on, contribute nothing.
 - When **Show series information** is off, globally or for a library, that library's alternative titles are not searchable.
 - Searching runs entirely on your server; nothing is sent to MangaUpdates.
+- *New in 1.50.0:* the row also finds a title with a typo, after the titles that match exactly (when the results show close matches), and a title from one or two letters (a word of the title that starts with them: `ka` finds `Kaibutsu`).
 
 ## Tags and tag search
 
@@ -100,8 +101,8 @@ Select a tag (or any other chip) to search for every work that carries it. **Ope
 **Combining tags** in the tag search:
 
 - Every tag in the field must match (and). The small button at the start of a tag in the field switches it to **Not** - the works must not carry it - and back.
-- **Refine** lists the tags of all the results, with how many of them carry each: select one to add it, **or** to accept either it or the tag of the same row already in the search, or the minus to leave out works that carry it. Counts are yours: only works you can open count, Private libraries are left out while Incognito is on, and libraries with **Show series information** off show no tags at all.
-- Text typed next to tags narrows the works by title, by the series' other titles and by the folder's name; every word must match, in any order. A word with a `-` in front must not match.
+- **Refine** lists the tags of all the results, with how many of them carry each: select one to add it, **or** to accept either it or a tag of the same row already in the search (with two or more of that row in the search, a small menu asks which one to join), or the minus to leave out works that carry it. A row shows its most common values; **+N more** (new in 1.50.0) opens the whole row in a list that scrolls, **Show fewer** closes it again. Counts are yours: only works you can open count, Private libraries are left out while Incognito is on, and libraries with **Show series information** off show no tags at all.
+- Text typed next to tags narrows the works by title, by the series' other titles and by the folder's name; every word must match, in any order. A word with a `-` in front must not match. *New in 1.50.0:* accents, upper and lower case and punctuation do not matter here either, as in the plain search: `pokemon` finds `Pokémon`, `re-zero` finds `Re:Zero`.
 
 **Typed search** (the **?** next to the search box lists these too):
 

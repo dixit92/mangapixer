@@ -13,15 +13,16 @@ using System.Text.RegularExpressions;
 /// replaced, so no value from the data can appear), transaction begin / commit waits (SQLite's write lock), the GC heap and
 /// the thread pool. Nothing is logged, nothing leaves the process.
 /// </summary>
-public sealed class PerfRecorder : IDisposable
+/// <remarks>
+/// 1.50.0 lane X: one recorder per host, no process-wide hook. The EF interceptors are instances the recorder owns and the host's
+/// <c>AddDbContext</c> attaches (only when timing is on), and <c>TrackerCardMarks</c> takes the recorder from DI, so two hosts in
+/// one process (every test class) never see each other's SQL.
+/// </remarks>
+public sealed class PerfRecorder
 {
     public const string ConfigKey = "MangaPixer:Perf:RequestTiming";
 
-    private static PerfRecorder? s_active;
     private static readonly AsyncLocal<RequestPerfScope?> s_scope = new();
-
-    /// <summary>The recorder of the host that switched timing on (null when no host did). Read by the EF interceptors.</summary>
-    public static PerfRecorder? Active => Volatile.Read(ref s_active);
 
     internal static RequestPerfScope? CurrentScope => s_scope.Value;
 
@@ -46,11 +47,17 @@ public sealed class PerfRecorder : IDisposable
         Enabled = enabled;
         TrackerMarksWithNetworkOff = enabled && trackerMarksWithNetworkOff;
         if (enabled)
-            Volatile.Write(ref s_active, this);
+        {
+            CommandInterceptor = new PerfCommandInterceptor(this);
+            TransactionInterceptor = new PerfTransactionInterceptor(this);
+        }
     }
 
-    /// <summary>The host stopped: its recorder stops collecting (other hosts in the same process, e.g. tests, record nothing).</summary>
-    public void Dispose() => Interlocked.CompareExchange(ref s_active, null, this);
+    /// <summary>The SQL command interceptor of this host's contexts (null while timing is off: nothing is attached then).</summary>
+    public PerfCommandInterceptor? CommandInterceptor { get; }
+
+    /// <summary>The transaction interceptor of this host's contexts (null while timing is off).</summary>
+    public PerfTransactionInterceptor? TransactionInterceptor { get; }
 
     /// <summary>Starts the request scope the SQL interceptors add to (the caller restores the previous one).</summary>
     internal RequestPerfScope BeginRequest()

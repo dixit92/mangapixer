@@ -61,7 +61,7 @@ public static class PerfServicesExtensions
     {
         var enabled = configuration.GetValue(PerfRecorder.ConfigKey, false);
         var trackerMarks = configuration.GetValue(PerfRecorder.TrackerMarksKey, false);
-        // A factory registration, so the container disposes the recorder with the host (Dispose stops the process-wide hook).
+        // One recorder per host (1.50.0 lane X: no process-wide hook); the host's AddDbContext attaches its interceptors.
         services.AddSingleton(_ => new PerfRecorder(enabled, trackerMarks));
         return services;
     }

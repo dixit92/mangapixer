@@ -62,6 +62,8 @@ public sealed class LibraryAccessSweepHttpTests
         ["GET api/v1/libraries/{libraryId}/jump-index"] = Answer(200, 200, 200, hidden: true),
         ["GET api/v1/reading/continue/by-library/{libraryId}"] = Answer(200, 200, 200, hidden: true),
         ["GET api/v1/search"] = Answer(200, 200, 200, hidden: true),
+        // 1.50.0 lane F: the Favorites view's library filter (`libraryId`) - a listing like browse: U and P under Incognito list nothing.
+        ["GET api/v1/favorites"] = Answer(200, 200, 200, hidden: true),
         ["GET api/v1/trackers/card-marks"] = Answer(200, 404, 200, hidden: true),
         // ---- the library-root Info panel (1.48.0 lane A2, owner answer L1: hidden under Incognito, as browse - an empty panel)
         ["GET api/v1/libraries/{libraryId}/info"] = Answer(200, 404, 200, hidden: true),
@@ -316,6 +318,9 @@ public sealed class LibraryAccessSweepHttpTests
         urls.Add("/api/v1/search?q=Saga");
         urls.Add("/api/v1/search?q=" + HiddenWord);
         urls.Add("/api/v1/search?q=" + PrivateWord);
+        // 1.50.0 lane F: the favorites without a library filter (its libraryId variant is an id route), and with its other filters.
+        urls.Add("/api/v1/favorites");
+        urls.Add("/api/v1/favorites?sort=name&readState=unread&kind=archives");
         // 1.49.0 lane O: the quick results (a discovery GET with no id: listed here, swept with every canary and typed-field value).
         foreach (var text in new[] { "Saga", HiddenWord, PrivateWord, GrantedWord, "library:", "creator:", "tag:", "genre:", "series:" + HiddenWord })
             urls.Add("/api/v1/search/suggest?q=" + Uri.EscapeDataString(text));

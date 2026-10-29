@@ -165,4 +165,24 @@ describe('DeviceDisplayPreferencesService', () => {
       expect(svc.stamp(prefs({ cardSize: '120' })).cardSize).toBe('230');
     });
   });
+
+  describe('shownFor (1.50.0: what seeds the Favorites view)', () => {
+    it('reads the device copy first, then the server value browse would seed, then the legacy size - storing nothing', () => {
+      const svc = create();
+      expect(svc.shownFor(prefs({ cardSize: '220', listColumns: 1 }))).toEqual({ cardSize: 220, listColumns: 1 });
+      expect(svc.shownFor(prefs({ viewMode: 'poster' }))).toEqual({ cardSize: 210, listColumns: DEFAULT_LIST_COLUMNS });
+      expect(svc.shownFor(null)).toEqual({ cardSize: DEFAULT_CARD_SIZE, listColumns: DEFAULT_LIST_COLUMNS });
+      expect(localStorage.getItem(CARD_SIZE_STORAGE_KEY)).toBeNull();
+      expect(localStorage.getItem(LIST_COLUMNS_STORAGE_KEY)).toBeNull();
+
+      svc.setCardSize(130);
+      svc.setListColumns(3);
+      expect(svc.shownFor(prefs({ cardSize: '220', listColumns: 1 }))).toEqual({ cardSize: 130, listColumns: 3 });
+    });
+
+    it('browse keeps its own keys (unchanged since 1.48.0)', () => {
+      expect(CARD_SIZE_STORAGE_KEY).toBe('mangapixer-card-size');
+      expect(LIST_COLUMNS_STORAGE_KEY).toBe('mangapixer-list-columns');
+    });
+  });
 });

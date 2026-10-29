@@ -129,11 +129,16 @@ public sealed class CompressedBackupHttpTests : IDisposable
         var fromList = await client.PostAsJsonAsync("/api/v1/operations/backups/restore", new { fileName = oldName });
         Assert.Equal(HttpStatusCode.Accepted, fromList.StatusCode);
         File.Delete(StagedPath);
-        await Task.Delay(1100); // the pre-restore snapshot is named by the second
 
+        // No wait for the next second: a same-second pre-restore snapshot takes a "-xxxx" suffix (1.50.0).
         var uploaded = await client.PostAsync("/api/v1/operations/restore", Upload(plain, oldName));
         Assert.Equal(HttpStatusCode.Accepted, uploaded.StatusCode);
         Assert.Equal("SQLite format 3\0", System.Text.Encoding.ASCII.GetString(await StagedHeadAsync(StagedPath)));
+
+        // Both restores left their own rollback point, whether or not they fell in the same second.
+        var preRestore = Directory.EnumerateFiles(BackupsDir, "pre-restore-*.db").Select(Path.GetFileName).ToArray();
+        Assert.Equal(2, preRestore.Length);
+        Assert.All(preRestore, n => Assert.Matches(@"^pre-restore-\d{8}-\d{6}(-[0-9a-f]{4})?\.db$", n!));
     }
 
     [Fact]

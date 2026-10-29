@@ -96,6 +96,12 @@ export interface CatalogNodeDto {
    */
   isFavorite?: boolean;
   /**
+   * 1.50.0 (archive context line): the name of the folder an ARCHIVE belongs to - its nearest ancestor that is not a plain
+   * Volumes / Chapters / Extras kind folder - so a found `Vol. 012` says which series it is. Name only, never a path. Null for
+   * folders and archives in a library root; filled on search results, Continue reading and Favorites, not in browse.
+   */
+  contextName?: string | null;
+  /**
    * Derived read rollup over a folder's readable descendant archives (1.6.0).
    * Browse only, folders only; null for archives, empty folders, and search results.
    */
@@ -227,6 +233,8 @@ export interface SuggestItemDto {
   detail?: string | null;
   libraryId?: string | null;
   nodeKind?: string | null;
+  /** 1.50.0: an archive's context line - the folder it belongs to (nearest ancestor that is not a Volumes / Chapters kind folder); null otherwise. */
+  contextName?: string | null;
   filter?: string | null;
   count?: number | null;
 }
@@ -446,6 +454,8 @@ export interface ContinueReadingEntry {
    * cover when one applies), else the file cover. Optional for older servers (the client then builds the file cover URL).
    */
   coverUrl?: string | null;
+  /** 1.50.0: the folder the archive belongs to (nearest ancestor that is not a Volumes / Chapters kind folder), shown muted under the title; null in a library root. */
+  contextName?: string | null;
 }
 
 /**
@@ -565,6 +575,19 @@ export type LibrarySortDirection = 'asc' | 'desc';
  * param. Not a persisted preference — a transient view control on the toolbar.
  */
 export type LibraryReadStateFilter = 'all' | 'reading' | 'read' | 'unread';
+
+/**
+ * 1.50.0 (Favorites view): the optional `GET /favorites` parameters - the sort (`favorited` = the default, newest star first; `name`;
+ * `recentlyAdded`; `recentlyUpdated`), the Name direction, and the transient filters (read state, kind - a stack counts as archives - and
+ * one library). Query parameters only (no schema).
+ */
+export interface FavoritesQuery {
+  sort?: 'favorited' | 'name' | 'recentlyAdded' | 'recentlyUpdated';
+  direction?: 'asc' | 'desc';
+  readState?: LibraryReadStateFilter;
+  kind?: 'all' | 'folders' | 'archives';
+  libraryId?: string | null;
+}
 
 /** Per-user library browse presentation preferences (1.2.0). Strings for tolerance. */
 export interface LibraryViewPreferencesDto {
@@ -1156,6 +1179,9 @@ export interface BackupSettingsDto {
   intervalHoursSource: BackupSettingSource;
   retentionCount: number;
   retentionCountSource: BackupSettingSource;
+  /** Gzip-compress new rotating backups (1.50.0). Read-only in the UI when its source is `configuration`. */
+  compress: boolean;
+  compressSource: BackupSettingSource;
   locationKind: 'default' | 'custom';
   locationSource: BackupSettingSource;
   customLocation: string | null;
@@ -1176,6 +1202,8 @@ export interface UpdateBackupSettingsRequest {
   enabled?: boolean;
   intervalHours?: number;
   retentionCount?: number;
+  /** Gzip-compress new rotating backups (1.50.0); 409 while server configuration manages it. */
+  compress?: boolean;
   location?: { mode: 'default' | 'custom'; customLocation?: string };
   currentPassword?: string;
   validateOnly?: boolean;

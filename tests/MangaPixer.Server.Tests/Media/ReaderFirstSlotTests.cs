@@ -125,7 +125,8 @@ public sealed class ReaderFirstSlotTests : IClassFixture<WorkerProcessFixture>, 
         }
 
         var prefetches = new[] { Track("prefetch-1", MediaSlotKind.PagePrefetch), Track("prefetch-2", MediaSlotKind.PagePrefetch) };
-        await Task.Delay(100); // both prefetches are queued before the current page asks
+        // Both prefetches are queued before the current page asks.
+        Assert.True(await WaitForAsync(() => pool.SlotWaiterCount == 2, TimeSpan.FromSeconds(10)), "The prefetches never queued");
         var current = Track("current", MediaSlotKind.Page);
         await Task.WhenAll(prefetches.Append(current).Append(holder));
 
@@ -144,10 +145,13 @@ public sealed class ReaderFirstSlotTests : IClassFixture<WorkerProcessFixture>, 
         var read = await ExtractAsync(pool, zip, "page001.png", MediaSlotKind.Page);
         Assert.True(read.Success);
 
-        // A free slot exists, but background work is paused while someone reads.
+        // A free slot exists, but background work is paused while someone reads: the request queues instead of
+        // taking it (a request that is granted a slot never becomes a waiter).
         var background = ExtractAsync(pool, zip, "page001.png", MediaSlotKind.Thumbnail);
-        await Task.Delay(1500);
+        Assert.True(await WaitForAsync(() => pool.SlotWaiterCount == 1 || background.IsCompleted, TimeSpan.FromSeconds(10)),
+            "The background request neither queued nor finished");
         Assert.False(background.IsCompleted, "Background work ran while paused");
+        Assert.Equal(1, pool.SlotWaiterCount);
 
         pool.BackgroundWhileReading = BackgroundWhileReading.Normal;
         var done = await background.WaitAsync(TimeSpan.FromSeconds(20));

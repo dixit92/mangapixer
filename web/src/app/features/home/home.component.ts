@@ -25,6 +25,7 @@ import {
 import { readerModeGlyph } from '../../shared/reader-mode-glyph';
 import { LibraryIconComponent } from '../../shared/library-icon/library-icon.component';
 import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.component';
+import { ContextLineComponent } from '../../shared/context-line/context-line.component';
 import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.component';
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { StackCardComponent } from '../../shared/stack-card/stack-card.component';
@@ -99,6 +100,7 @@ import {
     LibraryIconComponent,
     StarToggleComponent,
     InfoToggleComponent,
+    ContextLineComponent,
     SeriesInfoHoverDirective,
     StackCardComponent,
     FolderRollupBadgeComponent,
@@ -148,6 +150,8 @@ import {
                   </div>
                   <div class="cont-title" [title]="item.displayName"
                        [appSeriesInfoHover]="item.hasSeriesInfo ? item.itemId : null" [hoverAnchor]="contEl">{{ item.displayName }}</div>
+                  <!-- Archive context line (1.50.0): the folder the archive belongs to, so a "Vol. 012" says which series it is. -->
+                  <app-context-line [name]="item.contextName" />
                   <div class="cont-page">Page {{ item.pageIndex + 1 }}</div>
                 </a>
                 <button type="button" class="dismiss"

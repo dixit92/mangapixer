@@ -57,6 +57,8 @@ public sealed class BackupSettingsHttpTests : IDisposable
         Assert.Equal("default", dto.GetProperty("enabledSource").GetString());
         Assert.Equal(24, dto.GetProperty("intervalHours").GetDouble());
         Assert.Equal(7, dto.GetProperty("retentionCount").GetInt32());
+        Assert.True(dto.GetProperty("compress").GetBoolean());
+        Assert.Equal("default", dto.GetProperty("compressSource").GetString());
         Assert.Equal("default", dto.GetProperty("locationKind").GetString());
         Assert.Equal(JsonValueKind.Null, dto.GetProperty("customLocation").ValueKind);
         Assert.True(dto.GetProperty("locationChangeAllowed").GetBoolean());
@@ -84,6 +86,42 @@ public sealed class BackupSettingsHttpTests : IDisposable
         Assert.Equal("default", status.GetProperty("locationKind").GetString());
 
         Assert.Equal(1, await CountAuditAsync(AuditActions.BackupSettingsChanged, AuditResults.Success));
+    }
+
+    [Fact]
+    public async Task PutSettings_Compress_SwitchesTheNextBackupBetweenGzipAndPlain_AndAudits()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+        var dir = Path.Combine(_factory.DataRoot, "backups");
+
+        var off = await client.PutAsJsonAsync(SettingsUrl, new { compress = false });
+
+        off.EnsureSuccessStatusCode();
+        var dto = (await JsonAsync(off)).GetProperty("settings");
+        Assert.False(dto.GetProperty("compress").GetBoolean());
+        Assert.Equal("settings", dto.GetProperty("compressSource").GetString());
+        Assert.Equal(1, await CountAuditAsync(AuditActions.BackupSettingsChanged, AuditResults.Success));
+        (await client.PostAsync("/api/v1/operations/backups/rotating", content: null)).EnsureSuccessStatusCode();
+        Assert.Single(Directory.EnumerateFiles(dir, "rotating-*.db"));
+        Assert.Empty(Directory.EnumerateFiles(dir, "rotating-*.db.gz"));
+
+        // It is a stored setting: the GET reads it back, and switching it on again applies to the very next run.
+        Assert.False((await JsonAsync(await client.GetAsync(SettingsUrl))).GetProperty("compress").GetBoolean());
+        (await client.PutAsJsonAsync(SettingsUrl, new { compress = true })).EnsureSuccessStatusCode();
+        (await client.PostAsync("/api/v1/operations/backups/rotating", content: null)).EnsureSuccessStatusCode();
+        Assert.Single(Directory.EnumerateFiles(dir, "rotating-*.db.gz"));
+    }
+
+    [Fact]
+    public async Task PutSettings_OmittingCompress_LeavesItUnchanged()
+    {
+        var client = await _factory.LoginAsAdminWithChangedPasswordAsync();
+        (await client.PutAsJsonAsync(SettingsUrl, new { compress = false })).EnsureSuccessStatusCode();
+
+        var other = await client.PutAsJsonAsync(SettingsUrl, new { retentionCount = 4 });
+
+        other.EnsureSuccessStatusCode();
+        Assert.False((await JsonAsync(other)).GetProperty("settings").GetProperty("compress").GetBoolean());
     }
 
     [Theory]
@@ -323,6 +361,7 @@ public sealed class BackupSettingsConfigurationHttpTests
             using var factory = MangaPixerWebApplicationFactory.WithExtraConfiguration(new Dictionary<string, string?>
             {
                 ["MangaPixer:Backups:RetentionCount"] = "3",
+                ["MangaPixer:Backups:Compress"] = "false",
                 ["MangaPixer:Backups:Location"] = pinned,
             });
             var client = await factory.LoginAsAdminWithChangedPasswordAsync();
@@ -333,6 +372,12 @@ public sealed class BackupSettingsConfigurationHttpTests
             Assert.Equal("custom", dto.GetProperty("locationKind").GetString());
             Assert.False(dto.GetProperty("locationChangeAllowed").GetBoolean());
             Assert.Equal("ok", dto.GetProperty("locationStatus").GetString());
+
+            var compress = await client.PutAsJsonAsync(SettingsUrl, new { compress = false });
+            Assert.Equal(HttpStatusCode.Conflict, compress.StatusCode);
+            Assert.Equal("managed_by_configuration", (await compress.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+            Assert.Equal("configuration", dto.GetProperty("compressSource").GetString());
+            Assert.False(dto.GetProperty("compress").GetBoolean());
 
             var retention = await client.PutAsJsonAsync(SettingsUrl, new { retentionCount = 5 });
             Assert.Equal(HttpStatusCode.Conflict, retention.StatusCode);
@@ -350,7 +395,8 @@ public sealed class BackupSettingsConfigurationHttpTests
 
             var run = await client.PostAsync("/api/v1/operations/backups/rotating", content: null);
             run.EnsureSuccessStatusCode();
-            Assert.Single(Directory.EnumerateFiles(pinned, "rotating-*.db.gz"));
+            Assert.Single(Directory.EnumerateFiles(pinned, "rotating-*.db")); // Compress=false is configured: plain
+            Assert.Empty(Directory.EnumerateFiles(pinned, "rotating-*.db.gz"));
             Assert.True(File.Exists(Path.Combine(pinned, BackupLocationValidator.MarkerFileName)));
         }
         finally

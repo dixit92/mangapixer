@@ -7,9 +7,9 @@ using System.Security.Cryptography;
 /// <summary>
 /// Archive reader adapter using SharpCompress.
 /// Enumerates entries without extracting, detects format, and identifies issues.
-/// Solid-archive support and enforced resource limits (entry count, uncompressed
-/// bytes budget) are not yet implemented here; the worker's IPC contract with the
-/// server is implemented in WorkerLoop.
+/// Solid-archive support is not yet implemented here. The resource limits (entry
+/// count, uncompressed bytes budget) are enforced by the caller in WorkerLoop, which
+/// also implements the worker's IPC contract with the server.
 /// </summary>
 public sealed class ArchiveReader : IDisposable
 {

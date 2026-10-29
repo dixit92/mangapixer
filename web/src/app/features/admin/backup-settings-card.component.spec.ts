@@ -28,6 +28,8 @@ describe('BackupSettingsCardComponent', () => {
     intervalHoursSource: 'default',
     retentionCount: 7,
     retentionCountSource: 'default',
+    compress: true,
+    compressSource: 'default',
     locationKind: 'default',
     locationSource: 'default',
     customLocation: null,
@@ -99,6 +101,44 @@ describe('BackupSettingsCardComponent', () => {
     expect(text(root)).toContain('Managed by server configuration');
     // No Test button when the location cannot change.
     expect(Array.from(root.querySelectorAll('button')).some((b) => text(b).trim() === 'Test')).toBe(false);
+  });
+
+  it('shows the compression switch on, from the default, and sends only the changed value', () => {
+    const fixture = createLoaded();
+    const c = fixture.componentInstance;
+    const root = fixture.nativeElement as HTMLElement;
+    const box = root.querySelector('[data-testid=compress] input') as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    expect(box.disabled).toBe(false);
+    expect(root.querySelector('[data-testid=compress-managed]')).toBeNull();
+    expect(c.dirty()).toBe(false);
+
+    c.draftCompress.set(false);
+    expect(c.dirty()).toBe(true);
+    c.save();
+
+    const req = httpMock.expectOne((r) => r.url === URL && r.method === 'PUT');
+    expect(req.request.body).toEqual({ compress: false });
+    req.flush({ settings: dto({ compress: false, compressSource: 'settings' }), validateOnly: false, willCreate: false, locationChanged: false, warnings: [] });
+    fixture.detectChanges();
+    expect(c.dirty()).toBe(false);
+    expect(c.draftCompress()).toBe(false);
+  });
+
+  it('locks the compression switch when server configuration manages it, and never sends it', () => {
+    const fixture = createLoaded(dto({ compress: false, compressSource: 'configuration' }));
+    const c = fixture.componentInstance;
+    const root = fixture.nativeElement as HTMLElement;
+    expect((root.querySelector('[data-testid=compress] input') as HTMLInputElement).checked).toBe(false);
+    expect((root.querySelector('[data-testid=compress] input') as HTMLInputElement).disabled).toBe(true);
+    expect(text(root.querySelector('[data-testid=compress-managed]') as HTMLElement)).toContain('Managed by server configuration');
+
+    // A change to another field leaves the managed one out of the request.
+    c.draftRetention.set(3);
+    c.save();
+    const req = httpMock.expectOne((r) => r.url === URL && r.method === 'PUT');
+    expect(req.request.body).toEqual({ retentionCount: 3 });
+    req.flush({ settings: dto({ compress: false, compressSource: 'configuration', retentionCount: 3 }), validateOnly: false, willCreate: false, locationChanged: false, warnings: [] });
   });
 
   it('saves schedule changes without a password and emits changed', () => {

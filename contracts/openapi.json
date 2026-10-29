@@ -11707,6 +11707,41 @@
               "format": "int32",
               "default": 50
             }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "readState",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "libraryId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -11771,6 +11806,13 @@
               "items": {
                 "type": "string"
               }
+            }
+          },
+          {
+            "name": "expand",
+            "in": "query",
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -13885,6 +13927,12 @@
           "isFavorite": {
             "type": "boolean"
           },
+          "contextName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "readRollup": {
             "oneOf": [
               {
@@ -14187,6 +14235,12 @@
             "type": "boolean"
           },
           "coverUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "contextName": {
             "type": [
               "null",
               "string"
@@ -22468,6 +22522,12 @@
               "string"
             ]
           },
+          "contextName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "filter": {
             "type": [
               "null",
@@ -24301,6 +24361,12 @@
               "string"
             ],
             "format": "int32"
+          },
+          "compress": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           },
           "location": {
             "oneOf": [

@@ -3,6 +3,7 @@ namespace com.lifepixer.mangapixer.Tests.Server.Http;
 using System.Net;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Metadata.Facets;
+using com.lifepixer.mangapixer.Server.Features.Metadata.Facets;
 using Xunit;
 
 /// <summary>
@@ -212,6 +213,44 @@ public sealed class TagsHttpTests : IClassFixture<MangaPixerWebApplicationFactor
         // A plain search carries no Refine field at all.
         var plain = await FacetQueryTestSupport.GetRawAsync(seed.Admin, "/api/v1/search?q=Saga");
         Assert.DoesNotContain("\"refine\"", plain, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Refine_Expand_ListsTheWholeBucket_ForTheViewer_AndNeverLeaksIntoThePlainAnswer()
+    {
+        var seed = await SeedAsync();
+        var query = F("genre:" + seed.Mystery);
+
+        static FacetBucketDto Tags(SearchResultsDto r) => r.Refine!.Single(b => b.Bucket == FacetBucket.Tags);
+
+        // The admin sees 13 tags among the results: 12 listed and "+1 more".
+        var plain = Tags(await SearchAsync(seed.Admin, query));
+        Assert.Equal((FacetSearchService.RefineChipsPerBucket, 1), (plain.Chips.Count, plain.More));
+
+        // expand=tag lifts the cut for that bucket only; the other buckets are cut as before.
+        var open = await SearchAsync(seed.Admin, query + "&expand=tag&pageSize=1");
+        var all = Tags(open);
+        Assert.Equal((13, 0), (all.Chips.Count, all.More));
+        Assert.Contains(all.Chips, c => c.Id == seed.Secret);
+        Assert.Equal(plain.Chips.Select(c => c.Id), all.Chips.Take(plain.Chips.Count).Select(c => c.Id)); // same order, the rest follows
+        Assert.All(open.Refine!.Where(b => b.Bucket != FacetBucket.Tags), b => Assert.Equal(0, b.More));
+        Assert.Single(open.Works!); // the page itself is the usual one (pageSize honoured)
+
+        // The expanded list is cached apart: the plain answer afterwards is still cut.
+        var again = Tags(await SearchAsync(seed.Admin, query));
+        Assert.Equal((FacetSearchService.RefineChipsPerBucket, 1), (again.Chips.Count, again.More));
+
+        // A reader sees only the values at locations they may see - expanding never names the other library's tag.
+        var reader = Tags(await SearchAsync(seed.Reader, query + "&expand=tag"));
+        Assert.DoesNotContain(reader.Chips, c => c.Id == seed.Secret || c.Display == "Secret Tag");
+        Assert.Equal(0, reader.More);
+
+        // An unknown token, a bucket Refine does not offer, and an expand on a later page change nothing.
+        Assert.Equal(plain.Chips.Count, Tags(await SearchAsync(seed.Admin, query + "&expand=bogus")).Chips.Count);
+        Assert.Equal(plain.Chips.Count, Tags(await SearchAsync(seed.Admin, query + "&expand=series")).Chips.Count);
+        var first = await SearchAsync(seed.Admin, query + "&pageSize=1");
+        var next = await SearchAsync(seed.Admin, query + "&pageSize=1&expand=tag&cursor=" + Uri.EscapeDataString(first.NextCursor!));
+        Assert.Null(next.Refine);
     }
 
     [Fact]
