@@ -710,7 +710,7 @@ public sealed class ReadingStateService
             })
             .Take(limit)
             .ToListAsync(ct);
-        return await ApplyCardFlagsAsync(userId, entries, ct);
+        return await ApplyCardFlagsAsync(userId, entries, visibleLibs, ct);
     }
 
     /// <summary>
@@ -752,17 +752,18 @@ public sealed class ReadingStateService
             })
             .Take(limit)
             .ToListAsync(ct);
-        return await ApplyCardFlagsAsync(userId, entries, ct);
+        return await ApplyCardFlagsAsync(userId, entries, visibleLibs, ct);
     }
 
     /// <summary>
     /// Sets the Home card flags (1.28.0) on continue-reading entries: the favorites star
     /// (one query) and <see cref="ContinueReadingEntry.HasSeriesInfo"/> by the series-info
     /// anchor rule (<see cref="SeriesInfoFlagService.WithAnchoredSeriesInfoAsync"/>, a fixed
-    /// number of queries). Never a per-card walk.
+    /// number of queries), and <see cref="ContinueReadingEntry.ContextName"/> (1.50.0: <see cref="ArchiveContextNames"/>, one upward query,
+    /// start nodes limited to <paramref name="visibleLibs"/>). Never a per-card walk.
     /// </summary>
     private async Task<IReadOnlyList<ContinueReadingEntry>> ApplyCardFlagsAsync(
-        long userId, List<ContinueReadingEntry> entries, CancellationToken ct)
+        long userId, List<ContinueReadingEntry> entries, IReadOnlyCollection<long> visibleLibs, CancellationToken ct)
     {
         if (entries.Count == 0)
             return entries;
@@ -779,9 +780,13 @@ public sealed class ReadingStateService
         var seriesCovers = await _covers.SeriesCoverUrlsAsync(targets, ct);
         var coverByPublicId = internalIds.Where(n => seriesCovers.ContainsKey(n.Id) || covers.ContainsKey(n.Id))
             .ToDictionary(n => n.PublicId, n => seriesCovers.TryGetValue(n.Id, out var series) ? series : covers[n.Id], StringComparer.Ordinal);
+        var contexts = await ArchiveContextNames.ResolveAsync(_db, internalIds.Select(n => n.Id), visibleLibs, ct);
+        var contextByPublicId = internalIds.Where(n => contexts.ContainsKey(n.Id))
+            .ToDictionary(n => n.PublicId, n => contexts[n.Id], StringComparer.Ordinal);
         return entries
             .Select(e => e with
             {
+                ContextName = contextByPublicId.GetValueOrDefault(e.ItemId),
                 IsFavorite = starred.Contains(e.ItemId),
                 HasSeriesInfo = withInfo.Contains(e.ItemId),
                 CoverUrl = coverByPublicId.TryGetValue(e.ItemId, out var url) ? url : null,
@@ -1262,6 +1267,12 @@ public sealed record ContinueReadingEntry
     /// cover when one applies), else the archive's file cover. Null only while the item has no cover at all.
     /// </summary>
     public string? CoverUrl { get; init; }
+
+    /// <summary>
+    /// The archive context line (1.50.0): the name of the folder the archive belongs to (its nearest ancestor that is not a plain
+    /// Volumes / Chapters / Extras kind folder), shown muted under the title. Null for an archive directly in a library root. A name only.
+    /// </summary>
+    public string? ContextName { get; init; }
 }
 
 /// <summary>
