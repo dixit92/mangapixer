@@ -176,7 +176,7 @@ Star any folder or archive to keep it within easy reach. The star appears on car
 
 *New in 1.48.0:* inside a folder, a star sits in the top bar right after **Info** and stars the folder you are viewing - handy for a series you open from a link or from search. It is not shown at the top of a library, which is not a folder. It is filled while the folder is a favorite, and the folder then appears on the **Favorites** page like any starred folder.
 
-- **Favorites** in the sidebar, above your libraries, lists everything you starred, most recently starred first.
+- **Favorites** in the sidebar, above your libraries, lists everything you starred, most recently starred first (*from 1.50.0* with other sorts, filters and a list view - see [The Favorites page](#the-favorites-page)).
 - **Favorites only** in the **Filter** menu narrows any library view to your starred items.
 - Two options in **Settings** > **Favorites**, both off by default: a **Favorites** row on the home page, and highlighting starred results in search (a star badge, and they move to the top - *from 1.49.0* of the whole result list, not only of each page; a close match for a typo still comes after every exact hit).
 
@@ -185,6 +185,17 @@ When you star two or more archives in the same folder, the Favorites page and th
 Favorites show your reading state like the library view does: an archive card carries **Read** or **Reading**, and a folder card - and a stack - carries **Read** (every archive in the folder is read) or **Reading** (some are read or in progress), shown at the top right of the cover. A stack counts the **whole folder**, not only the archives you starred in it. The marks are your own: another user of the same server sees theirs. The same badges appear on the home page's **Favorites** row, whose cards also carry the (i) and the summary on hover when there is series information, and a star - turning it off takes the card out of the row.
 
 Favorites belong to your account and follow you to every device. They respect Private libraries: while Incognito is on, favorites in your Private libraries are hidden too.
+
+### The Favorites page
+
+*New in 1.50.0.* The Favorites page has the library view's display controls in its own top bar:
+
+- **View** switches between **Card** and **List**, and holds the **Sort by** choices. The card-size slider (Card) or the list-columns slider (List) sits next to it on a computer or tablet; on a phone it is inside the **View** menu, as in the library view.
+- **Sort by:** **Recently favorited** (the default - newest star first), **Name (A-Z)** and **Name (Z-A)** (folders before archives, as in the library view), **Recently added** and **Recently updated** (a folder by its newest archive, as in the library view). A stack sits at its newest starred archive under the date sorts.
+- **Filter:** **Show** All / Reading / Read / Unread, **Kind** (folders, or archives - a stack counts as archives), and **Library** when you can see more than one. A folder and a stack are judged by the whole folder, as their badge. Filters are not kept: they reset when you open the page again.
+- More favorites load as you scroll down.
+
+The view, the two sizes and the sort are kept **on this device** and are separate from the library view's: the first time you open the Favorites page on a device it starts from the library view's card size, list columns and view, and from then on the two change independently. Opening an archive from the Favorites page and going back returns you to the same place in the list, with the same sort and filters.
 
 ## Search
 
