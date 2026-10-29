@@ -279,6 +279,12 @@ public static class LogEvents
         public const int ThumbnailBackfillBatch = 4107;
         public const int ThumbnailStaleInvalidated = 4108;
 
+        // 1.50.0 lane X: pending-archive sweep (4110-4119) - ids and counts only.
+        public const int PendingSweepRequested = 4110;
+        public const int PendingSweepRan = 4111;
+        public const int PendingSweepFailed = 4112;
+        public const int PendingSweepGaveUp = 4113;
+
         // 1.42.0 media metrics (4200-4299 reserved for the performance lane)
         public const int MediaMetricsSummary = 4200;
         public const int MediaMetricsSummaryFailed = 4201;

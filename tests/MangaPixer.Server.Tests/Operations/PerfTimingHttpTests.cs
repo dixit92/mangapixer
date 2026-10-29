@@ -90,9 +90,9 @@ public sealed class PerfTimingHttpTests
         var recorderOff = hostOff.Services.GetRequiredService<PerfRecorder>();
         Assert.NotSame(recorderA, recorderB);
 
-        await RunMarkerSqlAsync(hostA, "MarkerOnlyHostA");
-        await RunMarkerSqlAsync(hostB, "MarkerOnlyHostB");
-        await RunMarkerSqlAsync(hostOff, "MarkerOnlyHostOff");
+        await RunMarkerSqlAsync(hostA, "SELECT 1 AS \"MarkerOnlyHostA\"");
+        await RunMarkerSqlAsync(hostB, "SELECT 1 AS \"MarkerOnlyHostB\"");
+        await RunMarkerSqlAsync(hostOff, "SELECT 1 AS \"MarkerOnlyHostOff\"");
 
         Assert.Contains(recorderA.Snapshot().Statements, s => s.Shape.Contains("MarkerOnlyHostA", StringComparison.Ordinal));
         Assert.DoesNotContain(recorderA.Snapshot().Statements, s => s.Shape.Contains("MarkerOnlyHostB", StringComparison.Ordinal)
@@ -103,11 +103,11 @@ public sealed class PerfTimingHttpTests
         Assert.Empty(recorderOff.Snapshot().Statements);
     }
 
-    private static async Task RunMarkerSqlAsync(MangaPixerWebApplicationFactory host, string marker)
+    private static async Task RunMarkerSqlAsync(MangaPixerWebApplicationFactory host, string sql)
     {
         using var scope = host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<com.lifepixer.mangapixer.Server.Persistence.MangaPixerDbContext>();
-        await db.Database.ExecuteSqlRawAsync($"SELECT 1 AS \"{marker}\"");
+        await db.Database.ExecuteSqlRawAsync(sql);
     }
 
     /// <summary>
