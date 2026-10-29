@@ -87,8 +87,13 @@ public sealed class ContinueReadingContextHttpTests : IClassFixture<MangaPixerWe
             db.ArchiveItems.Add(new ArchiveItemEntity { NodeId = id, ContentVersion = 1, AnalysisState = 0, PageCount = 4 });
             db.ReadingProgress.Add(new ReadingProgressEntity
             {
-                UserId = userId, ItemId = id, ContentVersion = 1, Ordinal = 1,
-                State = (int)ReadingState.InProgress, Revision = 1, UpdatedAt = DateTimeOffset.UtcNow,
+                UserId = userId,
+                ItemId = id,
+                ContentVersion = 1,
+                Ordinal = 1,
+                State = (int)ReadingState.InProgress,
+                Revision = 1,
+                UpdatedAt = DateTimeOffset.UtcNow,
             });
         }
         await db.SaveChangesAsync();
