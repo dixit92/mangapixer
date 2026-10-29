@@ -738,8 +738,10 @@ public sealed partial class CatalogBrowseService
             lib.PublicId AS LibraryPublicId
             """;
         var linkStates = $"{(int)SeriesLinkState.Confirmed}, {(int)SeriesLinkState.Auto}, {(int)SeriesLinkState.CollectionAbout}";
+        // CROSS JOIN = this join order (SQLite never reorders it): from the links, never from every visible node - without statistics
+        // the planner started at catalog_nodes' LibraryId index (~20 ms per scan on 28 k nodes, lane S note).
         var visible = $"""
-            JOIN catalog_nodes cn ON cn.Id = l.NodeId
+            CROSS JOIN catalog_nodes cn ON cn.Id = l.NodeId
             LEFT JOIN catalog_nodes parent ON cn.ParentId = parent.Id
             JOIN libraries lib ON cn.LibraryId = lib.Id
             WHERE l.State IN ({linkStates})
@@ -751,14 +753,14 @@ public sealed partial class CatalogBrowseService
         string LinkedTitles(Func<string, string> narrowing) => $"""
             SELECT {Columns}, r.Title AS MatchedTitle
             FROM node_series_links l
-            JOIN metadata_records r ON r.Id = l.RecordId
+            CROSS JOIN metadata_records r ON r.Id = l.RecordId
             {visible}
             {narrowing("r.Title")}
             UNION ALL
             SELECT {Columns}, j.value AS MatchedTitle
             FROM node_series_links l
-            JOIN metadata_records r ON r.Id = l.RecordId
-            JOIN json_each(CASE WHEN json_valid(r.AltTitlesJson) THEN r.AltTitlesJson ELSE '[]' END) j
+            CROSS JOIN metadata_records r ON r.Id = l.RecordId
+            CROSS JOIN json_each(CASE WHEN json_valid(r.AltTitlesJson) THEN r.AltTitlesJson ELSE '[]' END) j
             {visible}
             AND j.type = 'text' AND j.value <> ''
             {narrowing("j.value")}
