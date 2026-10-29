@@ -233,4 +233,15 @@ writeFileSync(join(contentsDir, 'Contents Saga v02.cbz'), zip(pagesOf([1, 2, ...
 writeFileSync(join(contentsDir, 'Contents Saga - Chapter 009.cbz'), zip(pagesOf(chapter9, true)));
 writeFileSync(join(contentsDir, 'Contents Saga - Chapter 010.cbz'), zip(pagesOf(chapter10, true)));
 writeFileSync(join(contentsDir, 'Contents Saga - Chapter 011.cbz'), zip(pagesOf([111, 112, 113, 114, 115, 116], true)));
+// And <outDir>-levels (1.50.0, lane S: words spread over folder levels; offline, no ComicInfo) - names without the series title, as
+// MangaList's renamer writes them:
+//   Berserk/Vol 12.cbz, Vol 13.cbz                  the title only in the folder's name
+//   Berserk/Volumes/Vol 14.cbz                      a kind folder in between
+//   Vinland Saga/Ch. 0106.00 Vol. 006.cbz           a zero-padded chapter + volume name
+const levelsDir = `${outDir}-levels`;
+archive('Berserk', 'Vol 12.cbz', [200, 60, 60], null, levelsDir);
+archive('Berserk', 'Vol 13.cbz', [60, 200, 60], null, levelsDir);
+archive(join('Berserk', 'Volumes'), 'Vol 14.cbz', [60, 60, 200], null, levelsDir);
+archive('Vinland Saga', 'Ch. 0106.00 Vol. 006.cbz', [200, 200, 60], null, levelsDir);
+console.log(`Folder-level fixtures written to ${levelsDir}`);
 console.log(`Series fixtures written to ${outDir} (and ${volumesDir}, ${readingModesDir}, ${jumpDir}, ${outDir}-volume-contents)`);
