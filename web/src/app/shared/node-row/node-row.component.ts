@@ -13,6 +13,7 @@ import { VolumeIncompleteBadgeComponent } from '../volume-stack/volume-incomplet
 import { OfficialReleaseBadgeComponent } from '../volume-stack/official-release-badge.component';
 import { AlsoInVolumeBadgeComponent } from '../volume-stack/also-in-volume-badge.component';
 import { TrackerReadMarkComponent } from '../../features/trackers/tracker-read-mark.component';
+import { ContextLineComponent } from '../context-line/context-line.component';
 
 /** Short label of a folder's direction override chip ("LTR", "RTL", "Vertical", "Spread"). */
 export function directionShort(mode: ReaderMode): string {
@@ -41,7 +42,7 @@ export function directionShort(mode: ReaderMode): string {
   imports: [
     RouterLink, MatIconModule, MatTooltipModule, CoverImageDirective, FolderRollupBadgeComponent, SeriesInfoHoverDirective,
     InfoToggleComponent, StarToggleComponent, VolumeIncompleteBadgeComponent, OfficialReleaseBadgeComponent, AlsoInVolumeBadgeComponent,
-    TrackerReadMarkComponent,
+    TrackerReadMarkComponent, ContextLineComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -83,6 +84,8 @@ export function directionShort(mode: ReaderMode): string {
         </div>
         <div class="node-text">
           <div class="node-title" [title]="node().displayName" [appSeriesInfoHover]="hoverId()" [hoverAnchor]="cardEl">{{ node().displayName }}</div>
+          <!-- 1.50.0: the archive context line (lane W) where the host asks for it (Favorites); browse passes none. -->
+          <app-context-line [name]="contextName()" />
           <div class="node-sub">{{ subtitle() }}</div>
         </div>
         <div class="row-markers">
@@ -211,6 +214,9 @@ export class NodeRowComponent {
 
   /** 1.50.0: whether the row shows the favorite star (a favorites stack has none - it would star the folder itself). */
   readonly showStar = input(true);
+
+  /** 1.50.0: the archive context line under the title (lane W's `contextName`); null = none (browse - the page is the context). */
+  readonly contextName = input<string | null>(null);
 
   /** 1.50.0: the (i) of an archive follows the series it sits in (anchored, as the Favorites and Continue cards). */
   readonly anchoredInfo = input(false);

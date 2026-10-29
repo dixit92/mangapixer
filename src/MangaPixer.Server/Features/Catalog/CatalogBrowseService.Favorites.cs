@@ -217,6 +217,24 @@ public sealed partial class CatalogBrowseService
             }
         }
 
+        // 1.50.0 (lane W's helper): an archive card's context line - the folder it belongs to (its nearest non-kind ancestor), one batched
+        // upward walk for the page. Archive entries only: a stack is its folder's card, and a folder needs no context.
+        var archiveRows = rows.Where(x => x.Entry.StackCount is null && x.Row.Kind == (int)CatalogNodeKind.Archive)
+            .Select(x => x.Row.InternalId).ToList();
+        if (archiveRows.Count > 0)
+        {
+            var contexts = await ArchiveContextNames.ResolveAsync(_db, archiveRows, visibleLibs, ct);
+            if (contexts.Count > 0)
+            {
+                var contextByPublicId = rowsById.Values.Where(r => contexts.ContainsKey(r.InternalId))
+                    .ToDictionary(r => r.Id, r => contexts[r.InternalId], StringComparer.Ordinal);
+                nodes = nodes.Select(n => n.Kind == CatalogNodeKind.Archive && n.FavoriteStackCount is null
+                    && contextByPublicId.TryGetValue(n.Id, out var context)
+                        ? n with { ContextName = context }
+                        : n).ToList();
+            }
+        }
+
         // Series information (1.27.0): the browse (i) flag, batched for the page. 1.48.0: ANCHORED to the series, as the home
         // Continue row - an archive favorite inside a linked series gets that series' (i); "Show series information" off still wins.
         nodes = await ApplyHasSeriesInfoByPublicIdAsync(nodes, anchored: true, ct);

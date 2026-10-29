@@ -138,6 +138,10 @@ test('the Favorites view: list, sizes, name sort, unread filter, and Back from t
     await expect.poll(() => stored(page, 'mangapixer-favorites-view-mode')).toBe('card');
     // Every archive card has its cover from the server (1.50.0).
     await expect(page.locator('.fav-card img').first()).toBeVisible();
+    // Lane W's context line: the two single archives name their folders; the folders and the stack carry none (membership, not position).
+    const contextLines = page.locator('[data-testid="favorites-list"] [data-testid="context-line"]');
+    await expect(contextLines).toHaveCount(2);
+    expect((await contextLines.allTextContents()).map((t) => t.trim()).sort()).toEqual(['Plain Folder', 'Synthetic Series']);
 
     // Card size: the slider changes the grid and is stored for Favorites only (browse keeps its 200).
     await page.getByTestId('favorites-card-size').fill('130');
@@ -154,6 +158,9 @@ test('the Favorites view: list, sizes, name sort, unread filter, and Back from t
     expect(await stored(page, 'mangapixer-list-columns')).not.toBe('1');
     // A stack row carries its count and opens its folder filtered to favorites.
     await expect(page.getByTestId('row-stack-count')).toHaveText('2');
+    // The list rows carry the same context lines.
+    await expect(contextLines).toHaveCount(2);
+    expect((await contextLines.allTextContents()).map((t) => t.trim()).sort()).toEqual(['Plain Folder', 'Synthetic Series']);
 
     // Sort by name: folders (and the stack after the folders it sorts with) first, then the archives - stored for this device.
     await pick(page, 'favorites-view-button', 'favorites-sort-name', /\/api\/v1\/favorites\?.*sort=name/);

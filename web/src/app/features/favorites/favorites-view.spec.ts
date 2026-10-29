@@ -256,6 +256,27 @@ describe('FavoritesComponent - the Favorites view (1.50.0)', () => {
     });
   });
 
+  it('shows the archive context line (lane W) on archive cards and rows, never on a folder or a stack', () => {
+    localStorage.setItem(FAVORITES_CARD_SIZE_STORAGE_KEY, '150');
+    localStorage.setItem(FAVORITES_LIST_COLUMNS_STORAGE_KEY, '2');
+    localStorage.setItem(FAVORITES_VIEW_MODE_STORAGE_KEY, 'card');
+    const items = [
+      node('arc', 'Archive', { contextName: 'Berserk' }),
+      node('fold', 'Folder', { contextName: 'ignored' }),
+      node('stack', 'Folder', { favoriteStackCount: 2, isFavorite: false, contextName: 'ignored' }),
+      node('root', 'Archive'),
+    ];
+    const { cmp, el, fixture } = setup({ pages: [page(items)] });
+    const lines = () => Array.from(el.querySelectorAll('[data-testid="context-line"]')).map((l) => l.textContent?.trim());
+    expect(lines()).toEqual(['Berserk']);
+    expect(el.querySelectorAll('.fav-card')[0].querySelector('[data-testid="context-line"]')?.getAttribute('title')).toBe('Berserk');
+
+    cmp.setViewMode('list');
+    fixture.detectChanges();
+    expect(lines()).toEqual(['Berserk']);
+    expect(el.querySelectorAll('app-node-row')[0].querySelector('[data-testid="context-line"]')).not.toBeNull();
+  });
+
   it('pages on with the cursor under the same sort and filters', () => {
     const { cmp, getFavorites } = setup({ pages: [page([node('a1', 'Archive')], true), page([node('a2', 'Archive')])] });
     cmp.loadMore();

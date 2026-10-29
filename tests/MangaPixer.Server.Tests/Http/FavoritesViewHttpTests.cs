@@ -284,4 +284,27 @@ public sealed class FavoritesViewHttpTests
         Assert.Equal(0, (await PageAsync(w.A.Client, "?libraryId=fv3")).TotalCount);
         Assert.Equal(0, (await PageAsync(w.A.Client, "?libraryId=nosuchlibrary")).TotalCount);
     }
+
+    [Fact]
+    public async Task AnArchiveCard_CarriesItsFolderAsTheContextLine_AStackAndARootArchiveDoNot()
+    {
+        var w = await SeedAsync();
+        await using var _ = w.Factory;
+        var s = new FacetQueryTestSupport(w.Factory);
+        // Reader B stars one archive inside Maple (a single entry), and reader A's world stays as it is.
+        await s.WithDbAsync(async db =>
+        {
+            var m3 = db.CatalogNodes.Single(n => n.PublicId == "fvM3").Id;
+            db.Favorites.Add(new FavoriteEntity { UserId = w.B.UserId, CatalogNodeId = m3, CreatedAt = T0 });
+            await db.SaveChangesAsync();
+        });
+
+        var b = await PageAsync(w.B.Client, "?sort=name");
+        Assert.Equal("Maple", b.Items.Single(n => n.Id == "fvM3").ContextName);
+
+        var a = await PageAsync(w.A.Client, "?sort=name");
+        Assert.Null(a.Items.Single(n => n.FavoriteStackCount == 2).ContextName);  // a stack is its folder's card
+        Assert.Null(a.Items.Single(n => n.Id == "fvA").ContextName);              // a root archive has no folder
+        Assert.All(a.Items.Where(n => n.Kind == CatalogNodeKind.Folder), n => Assert.Null(n.ContextName));
+    }
 }

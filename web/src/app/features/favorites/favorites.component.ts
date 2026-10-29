@@ -26,6 +26,7 @@ import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-ho
 import { StackCardComponent } from '../../shared/stack-card/stack-card.component';
 import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/folder-rollup-badge.component';
 import { NodeRowComponent } from '../../shared/node-row/node-row.component';
+import { ContextLineComponent } from '../../shared/context-line/context-line.component';
 import {
   CatalogNodeDto, LibraryDto, LibraryReadStateFilter, LibraryViewMode, ReadMarkDto, ReadingProgressDto,
 } from '../../core/api/api-types';
@@ -92,6 +93,7 @@ interface SortOption {
     StackCardComponent,
     FolderRollupBadgeComponent,
     NodeRowComponent,
+    ContextLineComponent,
   ],
   template: `
     <div class="fav-bar" data-testid="favorites-bar">
@@ -216,7 +218,8 @@ interface SortOption {
           <app-node-row class="fav-row" [node]="node" [link]="getNodeLink(node)" [queryParams]="stackParams(node)"
                         [subtitle]="rowSub(node)" [selectable]="false" [hoverId]="hoverNodeId(node)"
                         [stackCount]="isStack(node) ? node.favoriteStackCount ?? null : null"
-                        [showStar]="!isStack(node)" [anchoredInfo]="node.kind === 'Archive'" />
+                        [showStar]="!isStack(node)" [anchoredInfo]="node.kind === 'Archive'"
+                        [contextName]="contextOf(node)" />
         } @else if (isStack(node)) {
           <!-- Stack (1.27.0): two or more starred archives in one folder. Opens the
                folder with a transient "Favorites only" filter; no star here (it would
@@ -262,6 +265,8 @@ interface SortOption {
               </div>
               <div class="fav-title" [title]="node.displayName"
                    [appSeriesInfoHover]="hoverNodeId(node)" [hoverAnchor]="cardEl">{{ node.displayName }}</div>
+              <!-- 1.50.0 (lane W): the folder an archive belongs to, under its name. -->
+              <app-context-line [name]="contextOf(node)" />
             </a>
           </div>
         }
@@ -688,6 +693,11 @@ export class FavoritesComponent implements OnInit, OnDestroy {
     if (this.isStack(node)) return this.stackLabel(node);
     if (node.kind === 'Folder') return 'Folder';
     return node.pageCount ? `${node.pageCount} pages` : 'Archive';
+  }
+
+  /** The archive context line (lane W): an archive's folder name; none for a folder or a stack (the card is the folder). */
+  contextOf(node: CatalogNodeDto): string | null {
+    return node.kind === 'Archive' && !this.isStack(node) ? node.contextName ?? null : null;
   }
 
   trackKey(node: CatalogNodeDto): string {

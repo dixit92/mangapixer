@@ -155,4 +155,12 @@ describe('NodeRowComponent', () => {
     expect(el.querySelector('[data-testid="row-stack-count"]')).toBeNull();
     expect(el.querySelector('app-star-toggle')).not.toBeNull();
   });
+
+  it('1.50.0: a context line only when the host passes one (browse passes none)', () => {
+    const { el, fixture } = create({ link: ['/reader', 'n1'] });
+    expect(el.querySelector('[data-testid="context-line"]')).toBeNull();
+    fixture.componentRef.setInput('contextName', 'Berserk');
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="context-line"]')!.textContent!.trim()).toBe('Berserk');
+  });
 });
