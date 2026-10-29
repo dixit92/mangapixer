@@ -233,4 +233,14 @@ writeFileSync(join(contentsDir, 'Contents Saga v02.cbz'), zip(pagesOf([1, 2, ...
 writeFileSync(join(contentsDir, 'Contents Saga - Chapter 009.cbz'), zip(pagesOf(chapter9, true)));
 writeFileSync(join(contentsDir, 'Contents Saga - Chapter 010.cbz'), zip(pagesOf(chapter10, true)));
 writeFileSync(join(contentsDir, 'Contents Saga - Chapter 011.cbz'), zip(pagesOf([111, 112, 113, 114, 115, 116], true)));
+
+// 1.50.0 (lane W, archive context line; offline, no ComicInfo): <outDir>-context. Archives whose names carry no series title, on a
+// distinctive word ("Quillfeather") so the search finds them by their OWN names:
+//   Context Saga/Vol. 012 Quillfeather.cbz                  directly in the series folder        -> context line "Context Saga"
+//   Context Saga/Volumes/Vol. 013 Quillfeather Two.cbz      below a plain "Volumes" kind folder  -> context line "Context Saga"
+//   Quillfeather Oneshot.cbz                                straight in the library root         -> no context line
+const contextDir = `${outDir}-context`;
+archive('Context Saga', 'Vol. 012 Quillfeather.cbz', [150, 70, 70], null, contextDir);
+archive(join('Context Saga', 'Volumes'), 'Vol. 013 Quillfeather Two.cbz', [70, 150, 70], null, contextDir);
+archive('.', 'Quillfeather Oneshot.cbz', [70, 70, 150], null, contextDir);
 console.log(`Series fixtures written to ${outDir} (and ${volumesDir}, ${readingModesDir}, ${jumpDir}, ${outDir}-volume-contents)`);
