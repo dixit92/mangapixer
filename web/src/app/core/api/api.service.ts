@@ -106,6 +106,7 @@ import {
   AppearancePreferencesDto,
   SeriesAnswer,
   SearchSuggestDto,
+  FavoritesQuery,
 } from './api-types';
 
 /** Options of {@link ApiService.search} (1.45.0). */
@@ -831,9 +832,15 @@ export class ApiService {
    * first). Respects Incognito/Private visibility server-side (the X-Incognito header is
    * added by the incognito interceptor like every other discovery call).
    */
-  getFavorites(cursor: string | null = null, pageSize = 50): Observable<PageResponse<CatalogNodeDto>> {
+  getFavorites(cursor: string | null = null, pageSize = 50, query: FavoritesQuery = {}): Observable<PageResponse<CatalogNodeDto>> {
     let params = new HttpParams().set('pageSize', pageSize.toString());
     if (cursor) params = params.set('cursor', cursor);
+    // 1.50.0 (Favorites view): each parameter only when it differs from the server default, so the home row's call is unchanged.
+    if (query.sort && query.sort !== 'favorited') params = params.set('sort', query.sort);
+    if (query.sort === 'name' && query.direction === 'desc') params = params.set('direction', 'desc');
+    if (query.readState && query.readState !== 'all') params = params.set('readState', query.readState);
+    if (query.kind && query.kind !== 'all') params = params.set('kind', query.kind);
+    if (query.libraryId) params = params.set('libraryId', query.libraryId);
     return this.get<PageResponse<CatalogNodeDto>>('/favorites', params);
   }
 

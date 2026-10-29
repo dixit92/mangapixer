@@ -11,9 +11,16 @@ const BROWSE_ROUTE_PATHS = new Set([
   'libraries/:libraryId/browse/:nodeId',
 ]);
 
-/** Identifies a specific folder view, or null when the route isn't a browse route. */
+/**
+ * 1.50.0 (lane F): the Favorites view is retained the same way, so its list, sort, filters and scroll survive a reader round trip
+ * (the view reloads itself on any arrival that is not Back - see `FavoritesComponent`).
+ */
+const FAVORITES_ROUTE_PATH = 'favorites';
+
+/** Identifies a specific folder view (or the Favorites view), or null when the route is neither. */
 function browseKey(route: ActivatedRouteSnapshot): string | null {
   const path = route.routeConfig?.path;
+  if (path === FAVORITES_ROUTE_PATH) return 'favorites::';
   if (!path || !BROWSE_ROUTE_PATHS.has(path)) return null;
   const libraryId = route.paramMap.get('libraryId') ?? '';
   const nodeId = route.paramMap.get('nodeId') ?? '';
