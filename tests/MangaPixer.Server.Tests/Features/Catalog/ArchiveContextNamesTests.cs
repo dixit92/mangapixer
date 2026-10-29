@@ -150,7 +150,7 @@ public sealed class ArchiveContextNamesTests : IDisposable
         var a = await AddAsync(db, lib, CatalogNodeKind.Archive, "Ch. 0001", chaptersA);
         var seriesB = await FolderAsync(this, db, lib, "Series B", artist);
         var b = await AddAsync(db, lib, CatalogNodeKind.Archive, "Vol. 001", seriesB);
-        // an archive straight in a category-like folder: the category word is a name like any other (no invented list)
+        // an archive straight in a category folder (Manga): the category folder is skipped like a kind folder, and nothing is above it
         var loose = await AddAsync(db, lib, CatalogNodeKind.Archive, "One-shot", manga);
 
         var contexts = await ArchiveContextNames.ResolveAsync(db, [deep, a, b, loose], [lib]);
@@ -158,7 +158,64 @@ public sealed class ArchiveContextNamesTests : IDisposable
         Assert.Equal("Series", contexts[deep]);
         Assert.Equal("Series A", contexts[a]);
         Assert.Equal("Series B", contexts[b]);
-        Assert.Equal("Manga", contexts[loose]);
+        Assert.False(contexts.ContainsKey(loose));
+    }
+
+    [Theory]
+    [InlineData("Manga")]
+    [InlineData("manhwa")]
+    [InlineData("Comics")]
+    [InlineData("Doujinshi")]
+    [InlineData("Bandes dessinées")]
+    public async Task CategoryFolders_AreSkippedLikeKindFolders(string category)
+    {
+        await using var db = await NewDbAsync();
+        var lib = await AddLibraryAsync(db, "A");
+        var top = await FolderAsync(this, db, lib, category);
+        var topLoose = await AddAsync(db, lib, CatalogNodeKind.Archive, "One-shot", top);
+        var artist = await FolderAsync(this, db, lib, "Some Artist");
+        var inner = await FolderAsync(this, db, lib, category, artist);
+        var innerLoose = await AddAsync(db, lib, CatalogNodeKind.Archive, "One-shot", inner);
+        var series = await FolderAsync(this, db, lib, "Real Series", top);
+        var inSeries = await AddAsync(db, lib, CatalogNodeKind.Archive, "Vol. 001", series);
+
+        var contexts = await ArchiveContextNames.ResolveAsync(db, [topLoose, innerLoose, inSeries], [lib]);
+
+        Assert.False(contexts.ContainsKey(topLoose));              // Manga / one-shot: no line
+        Assert.Equal("Some Artist", contexts[innerLoose]);          // Artist / Manga / one-shot: climbs to the artist
+        Assert.Equal("Real Series", contexts[inSeries]);            // the series folder wins before the category is reached
+    }
+
+    [Theory]
+    [InlineData("Series", "Series.cbz")]
+    [InlineData("Series", "series.CBZ")]
+    [InlineData("Déjà Vu: Zero", "Deja Vu Zero.cbz")]
+    [InlineData("Berserk", "Berserk")]
+    public async Task AContextThatRepeatsTheArchivesOwnName_IsLeftOut(string folderName, string archiveName)
+    {
+        await using var db = await NewDbAsync();
+        var lib = await AddLibraryAsync(db, "A");
+        var grand = await FolderAsync(this, db, lib, "Grand Parent");
+        var folder = await FolderAsync(this, db, lib, folderName, grand);
+        var same = await AddAsync(db, lib, CatalogNodeKind.Archive, archiveName, folder);
+        var other = await AddAsync(db, lib, CatalogNodeKind.Archive, folderName + " Vol. 001.cbz", folder);
+
+        var contexts = await ArchiveContextNames.ResolveAsync(db, [same, other], [lib]);
+
+        Assert.False(contexts.ContainsKey(same));                   // no line, and no climbing to "Grand Parent"
+        Assert.Equal(folderName, contexts[other]);                  // a longer name that merely contains it keeps the line
+    }
+
+    [Fact]
+    public async Task RepeatedNameBelowAKindFolder_IsStillLeftOut()
+    {
+        await using var db = await NewDbAsync();
+        var lib = await AddLibraryAsync(db, "A");
+        var series = await FolderAsync(this, db, lib, "Solo Series");
+        var volumes = await FolderAsync(this, db, lib, "Volumes", series);
+        var archive = await AddAsync(db, lib, CatalogNodeKind.Archive, "Solo Series.cbz", volumes);
+
+        Assert.Empty(await ArchiveContextNames.ResolveAsync(db, [archive], [lib]));
     }
 
     [Fact]
@@ -236,6 +293,7 @@ public sealed class ArchiveContextNamesTests : IDisposable
     [InlineData("   ", false)]
     [InlineData("Volumes", false)]
     [InlineData("Berserk", true)]
+    [InlineData("Manga", false)]
     public void IsContextName_FollowsTheKindFolderRule(string? name, bool expected) =>
         Assert.Equal(expected, ArchiveContextNames.IsContextName(name));
 }
