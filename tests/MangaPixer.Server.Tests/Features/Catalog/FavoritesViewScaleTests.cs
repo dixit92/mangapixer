@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Globalization;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
-using com.lifepixer.mangapixer.Core.Ordering;
 using com.lifepixer.mangapixer.Server.Features.Auth;
 using com.lifepixer.mangapixer.Server.Features.Catalog;
 using com.lifepixer.mangapixer.Server.Persistence;
@@ -12,6 +11,7 @@ using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 using Xunit.Abstractions;
+using SortKey = com.lifepixer.mangapixer.Core.Ordering.SortKey;
 
 /// <summary>
 /// 1.50.0 lane F: the Favorites view over a large list - 2 000 favorites (400 starred folders, each also holding a stack of four starred

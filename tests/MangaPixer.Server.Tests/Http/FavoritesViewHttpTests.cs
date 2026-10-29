@@ -182,24 +182,25 @@ public sealed class FavoritesViewHttpTests
         var w = await SeedAsync();
         await using var _ = w.Factory;
 
-        async Task<(string[] Keys, int Total)> Of(string q)
+        // "keys in order | TotalCount"
+        async Task<string> Of(string q)
         {
             var page = await PageAsync(w.A.Client, "?sort=name" + q);
-            return ([.. page.Items.Select(Key)], page.TotalCount);
+            return string.Join(",", page.Items.Select(Key)) + "|" + page.TotalCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
-        Assert.Equal((["fvB", "fvM"], 2), await Of("&kind=folders"));
-        Assert.Equal((["stack:fvM:2", "fvA", "fvP", "fvZ"], 4), await Of("&kind=archives"));
+        Assert.Equal("fvB,fvM|2", await Of("&kind=folders"));
+        Assert.Equal("stack:fvM:2,fvA,fvP,fvZ|4", await Of("&kind=archives"));
         // Read: Alpha. Reading: Maple (one of three read - the stack too, by the whole folder), Zulu (in progress). Unread: the empty
         // Birch (as browse), Private One.
-        Assert.Equal((["fvA"], 1), await Of("&readState=read"));
-        Assert.Equal((["fvM", "stack:fvM:2", "fvZ"], 3), await Of("&readState=reading"));
-        Assert.Equal((["fvB", "fvP"], 2), await Of("&readState=unread"));
-        Assert.Equal((["stack:fvM:2", "fvZ"], 2), await Of("&readState=reading&kind=archives"));
+        Assert.Equal("fvA|1", await Of("&readState=read"));
+        Assert.Equal("fvM,stack:fvM:2,fvZ|3", await Of("&readState=reading"));
+        Assert.Equal("fvB,fvP|2", await Of("&readState=unread"));
+        Assert.Equal("stack:fvM:2,fvZ|2", await Of("&readState=reading&kind=archives"));
         // The library filter, and a filter value nobody sent: no filter.
-        Assert.Equal((["fvP"], 1), await Of("&libraryId=fv2"));
-        Assert.Equal(5, (await Of("&libraryId=fv1")).Total);
-        Assert.Equal(6, (await Of("&readState=all&kind=everything")).Total);
+        Assert.Equal("fvP|1", await Of("&libraryId=fv2"));
+        Assert.EndsWith("|5", await Of("&libraryId=fv1"), StringComparison.Ordinal);
+        Assert.EndsWith("|6", await Of("&readState=all&kind=everything"), StringComparison.Ordinal);
         // A filtered page cut mid-list: HasMore and TotalCount follow the filter.
         var cut = await PageAsync(w.A.Client, "?sort=name&readState=reading&pageSize=2");
         Assert.True(cut.HasMore);
