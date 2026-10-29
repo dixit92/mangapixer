@@ -21,9 +21,9 @@ const FIXTURE_ROOT = process.env['E2E_SERIES_FIXTURE_ROOT'];
 const CONTEXT_ROOT = FIXTURE_ROOT ? `${FIXTURE_ROOT}-context` : undefined;
 const SHOTS = process.env['E2E_SCREENSHOT_DIR'];
 const LIBRARY_NAME = 'Context Line';
-const SAGA_VOLUME = 'Vol. 012 Quillfeather';
-const NESTED_VOLUME = 'Vol. 013 Quillfeather Two';
-const ROOT_ARCHIVE = 'Quillfeather Oneshot';
+const SAGA_VOLUME = 'Vol. 012 Quillfeather.cbz';
+const NESTED_VOLUME = 'Vol. 013 Quillfeather Two.cbz';
+const ROOT_ARCHIVE = 'Quillfeather Oneshot.cbz';
 const KNOWN_CONTEXT: Record<string, string> = { [SAGA_VOLUME]: 'Context Saga', [NESTED_VOLUME]: 'Context Saga' };
 
 test.skip(!CONTEXT_ROOT, 'E2E_SERIES_FIXTURE_ROOT not set: no synthetic context library available');
@@ -97,7 +97,7 @@ for (const size of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) 
 
     const cards = page.locator('.results-grid .result-card');
     await expect(cards).toHaveCount(3);
-    const card = (title: string) => cards.filter({ has: page.locator('.result-title', { hasText: new RegExp(`^\\s*${title}\\s*$`) }) });
+    const card = (title: string) => cards.filter({ has: page.locator('.result-title', { hasText: new RegExp(`^\\s*${title.replace(/\./g, '\\.')}\\s*$`) }) });
 
     // Membership: each archive's own card, with its folder under the title (the nested one skips the plain "Volumes" folder).
     for (const title of [SAGA_VOLUME, NESTED_VOLUME]) {
