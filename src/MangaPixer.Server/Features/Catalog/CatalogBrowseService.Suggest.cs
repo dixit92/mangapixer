@@ -50,13 +50,14 @@ public sealed partial class CatalogBrowseService
             var anchorIds = anchors.InternalIds.Values.ToHashSet();
 
             var candidates = await ReadSearchCandidatesAsync(connection, $"""
-                SELECT cn.Id, cn.Kind, cn.DisplayName, cn.SortKey
+                SELECT cn.Id, cn.Kind, cn.DisplayName, cn.SortKey, cn.ParentId
                 FROM catalog_search cs
                 JOIN catalog_nodes cn ON cn.Id = cs.node_id
                 WHERE catalog_search MATCH @query
                 AND cn.Availability != 5 AND cn.LibraryId IN ({libIds})
                 """, exactFts, ct);
             var favorites = await SearchFavoritesAsync(userId, ct);
+            var tree = await LevelTreeAsync(connection, parsed, libIds, ct);
 
             var hits = new List<SearchHit>();
             foreach (var c in candidates)
@@ -64,8 +65,15 @@ public sealed partial class CatalogBrowseService
                 if (anchorIds.Contains(c.Id))
                     continue;
                 var folded = SearchText.FoldName(c.Name, c.Kind == (int)CatalogNodeKind.Archive);
-                if (SearchText.Rank(parsed, folded) is { } rank && !SearchText.IsExcluded(parsed, folded))
+                if (SearchText.Rank(parsed, folded) is { } rank && !SearchText.IsExcluded(parsed, folded) && !InsideExcluded(tree, c.Parent))
                     hits.Add(new SearchHit(c.Id, c.Kind, c.SortKey, favorites.Contains(c.Id) ? 0 : 1, rank));
+            }
+            // 1.50.0: words spread over folder levels, after the name hits (as in the search) - measured inside the 80 ms budget.
+            if (tree is not null)
+            {
+                var listed = hits.Select(h => h.Id).Concat(anchorIds).ToHashSet();
+                hits.AddRange((await CrossLevelHitsAsync(connection, parsed, tree, listed, ct))
+                    .Select(h => favorites.Contains(h.Id) ? h with { Group = 0 } : h));
             }
             var ordered = hits.OrderBy(h => h.Group).ThenBy(h => h.Rank).ThenBy(h => h.SortKey, StringComparer.Ordinal).ThenBy(h => h.Id).ToList();
             var folders = ordered.Where(h => h.Kind == (int)CatalogNodeKind.Folder).Take(perKind).ToList();
