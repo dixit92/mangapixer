@@ -98,7 +98,12 @@ public sealed class SearchFollowUpsHttpTests
         await db.SaveChangesAsync();
         db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
         {
-            NodeId = mo.Id, LibraryId = a.Id, State = 0, RecordId = record.Id, CreatedAt = now, UpdatedAt = now,
+            NodeId = mo.Id,
+            LibraryId = a.Id,
+            State = 0,
+            RecordId = record.Id,
+            CreatedAt = now,
+            UpdatedAt = now,
         });
         await db.SaveChangesAsync();
         return new Seed(factory, admin, a.Id, b.Id, ids);
