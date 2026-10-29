@@ -132,8 +132,10 @@ public sealed class GoldenSetTests(GoldenEnvironment env, ITestOutputHelper outp
     /// S01 / S02 (+2 auto: a folder subtitle picks the spin-off) and T01 (+1 review: the author-tagged alias is fetched and
     /// verified, the right record first). 1.30.0 round 2 (owner: a spin-off decision is not automatic): S01 / S02 move auto ->
     /// review (the spin-off stays first; only the folder's subtitle separates it from the main series of its own family).
+    /// 1.50.0 (rules 5): the alias cases P06 / P07 (+2 review: the alias-named folder's untagged archives keep the author veto) and
+    /// P09 (+1 auto: an archive tagged with the author's own name); no existing case moved.
     /// </summary>
-    public const int ExpectedAuto = 65, ExpectedReview = 22, ExpectedUnmatched = 2;
+    public const int ExpectedAuto = 66, ExpectedReview = 24, ExpectedUnmatched = 2;
 
     [Fact]
     public async Task Aggregate_BandsAndPrecision_AtTheDefaults()

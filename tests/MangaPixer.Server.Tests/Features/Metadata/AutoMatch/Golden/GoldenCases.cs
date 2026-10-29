@@ -236,12 +236,19 @@ public static class GoldenCases
         new("P05 a one-archive folder named like a linked author stays a one-shot", F("Fujimoto Tatsuki", ["Look Back (2021) (Digital).cbz"], authors: s_linkedAuthors),
             WorkClass.OneShot),
         // 1.50.0 (rules 5): the known names also carry the stored other names of a linked record's author (the alias store); a folder
-        // named by one of them only ("Hidden Pen" is a synthetic pen name of the author) is that author's folder.
-        new("P06 provider-author alias: a folder named by the author's stored other name, one-shot", F("Hidden Pen", s_untaggedArtistFolder, authors: [.. s_linkedAuthors, "Hidden Pen"]),
-            WorkClass.ArtistCollection, MatchBand.Auto, LookBack, GroupTitle: "Look Back"),
-        new("P07 provider-author alias: numbered volumes grouped", F("Hidden Pen", s_untaggedArtistFolder, authors: [.. s_linkedAuthors, "Hidden Pen"]),
-            WorkClass.ArtistCollection, MatchBand.Auto, FirePunch, GroupTitle: "Fire Punch"),
+        // named by one of them only ("Hidden Pen" is a synthetic pen name of the author) is that author's folder: matched archive by
+        // archive instead of one review-only folder. The folder name is the author tag of an untagged archive, and the scorer knows the
+        // record's author only by the names the record lists, so an untagged archive stays in review with the author veto (P06, P07);
+        // an archive that carries the author's own creator tag still links (P09). Candidate authors do not yet carry the stored alias.
+        new("P06 provider-author alias: untagged archives of the alias-named folder stay in review (the folder name is not a record author)",
+            F("Hidden Pen", s_untaggedArtistFolder, authors: [.. s_linkedAuthors, "Hidden Pen"]),
+            WorkClass.ArtistCollection, MatchBand.NeedsReview, LookBack, GroupTitle: "Look Back", Vetoes: MatchReason.AuthorConflict),
+        new("P07 provider-author alias: numbered untagged volumes grouped, same veto",
+            F("Hidden Pen", s_untaggedArtistFolder, authors: [.. s_linkedAuthors, "Hidden Pen"]),
+            WorkClass.ArtistCollection, MatchBand.NeedsReview, FirePunch, GroupTitle: "Fire Punch", Vetoes: MatchReason.AuthorConflict),
         new("P08 the same folder without the stored alias: review only", F("Hidden Pen", s_untaggedArtistFolder, authors: s_linkedAuthors), WorkClass.Ambiguous),
+        new("P09 provider-author alias: an archive tagged with the author's own name links", F("Hidden Pen", s_artistFolder, authors: [.. s_linkedAuthors, "Hidden Pen"]),
+            WorkClass.ArtistCollection, MatchBand.Auto, LookBack, GroupTitle: "Look Back"),
         new("P00 the untagged artist folder without a linked author: review only (the 1.27.0 class)", F("Fujimoto Tatsuki", s_untaggedArtistFolder),
             WorkClass.Ambiguous),
 
