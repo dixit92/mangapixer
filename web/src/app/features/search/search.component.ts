@@ -14,6 +14,7 @@ import { MatChipListbox, MatChipsModule } from '@angular/material/chips';
 import { ApiService } from '../../core/api/api.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.component';
+import { ContextLineComponent } from '../../shared/context-line/context-line.component';
 import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.component';
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/folder-rollup-badge.component';
@@ -107,6 +108,7 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
     CoverImageDirective,
     StarToggleComponent,
     InfoToggleComponent,
+    ContextLineComponent,
     SeriesInfoHoverDirective,
     FolderRollupBadgeComponent,
     QuickResultsComponent,
@@ -340,6 +342,7 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
         </div>
         <div class="result-title" [title]="node.displayName"
              [appSeriesInfoHover]="node.hasSeriesInfo ? node.id : null" [hoverAnchor]="cardEl">{{ node.displayName }}</div>
+        <app-context-line [name]="node.contextName" />
         @if (aka) {
           <div class="result-aka" [matTooltip]="aka">aka {{ aka }}</div>
         }
