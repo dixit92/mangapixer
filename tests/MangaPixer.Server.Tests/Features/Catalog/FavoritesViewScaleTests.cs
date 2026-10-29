@@ -14,16 +14,19 @@ using Xunit.Abstractions;
 using SortKey = com.lifepixer.mangapixer.Core.Ordering.SortKey;
 
 /// <summary>
-/// 1.50.0 lane F: the Favorites view over a large list - 2 000 favorites (400 starred folders, each also holding a stack of four starred
-/// archives: 800 entries), on real file-backed SQLite. Every sort and a read-state filter walk the whole list in pages of 50 with each
+/// 1.50.0 lane F: the Favorites view over a large list - 2 000 favorites (360 starred folders, each also holding a stack of four starred
+/// archives, and 200 title-less archives starred alone in their folders: 920 entries), on real file-backed SQLite. Every sort and a read-state filter walk the whole list in pages of 50 with each
 /// entry exactly once, and the per-request time of a first page is written to the test output (the lane note records it; nothing is
 /// asserted on time - the box is shared).
 /// </summary>
 public sealed class FavoritesViewScaleTests : IDisposable
 {
-    private const int Folders = 400;
+    private const int Folders = 360;
     private const int ArchivesPerFolder = 5;
     private const int StarredPerFolder = 4;
+    /// <summary>1.50.0 (lane W's context line): folders whose ONE title-less archive is starred alone - single archive entries.</summary>
+    private const int LoneFolders = 200;
+    private const int Entries = (Folders * 2) + LoneFolders;
 
     private readonly string _tempDir;
     private readonly DbContextOptions<MangaPixerDbContext> _options;
@@ -110,16 +113,52 @@ public sealed class FavoritesViewScaleTests : IDisposable
         db.CatalogNodes.AddRange(archives);
         await db.SaveChangesAsync();
 
+        // Lone archives: "Lone 0000/Vol. 01.cbz" - a name without the series, so the card needs its context line.
+        var loneFolders = Enumerable.Range(0, LoneFolders).Select(f =>
+        {
+            var name = "Lone " + f.ToString("D4", CultureInfo.InvariantCulture);
+            return new CatalogNodeEntity
+            {
+                PublicId = "fl" + f.ToString(CultureInfo.InvariantCulture),
+                LibraryId = lib.Id,
+                Kind = (int)CatalogNodeKind.Folder,
+                DisplayName = name,
+                RelativePath = name,
+                PathKey = name.ToLowerInvariant(),
+                SortKey = SortKey.ForNode(CatalogNodeKind.Folder, name),
+                CreatedAt = t0,
+                LatestDescendantAddedAt = t0,
+            };
+        }).ToList();
+        db.CatalogNodes.AddRange(loneFolders);
+        await db.SaveChangesAsync();
+        var loneArchives = loneFolders.Select(folder => new CatalogNodeEntity
+        {
+            PublicId = folder.PublicId + "v",
+            LibraryId = lib.Id,
+            ParentId = folder.Id,
+            Kind = (int)CatalogNodeKind.Archive,
+            DisplayName = "Vol. 01.cbz",
+            RelativePath = folder.DisplayName + "/Vol. 01.cbz",
+            PathKey = folder.PathKey + "/vol. 01.cbz",
+            SortKey = SortKey.ForNode(CatalogNodeKind.Archive, "Vol. 01.cbz"),
+            CreatedAt = t0,
+        }).ToList();
+        db.CatalogNodes.AddRange(loneArchives);
+        await db.SaveChangesAsync();
+
         var minute = 0;
         foreach (var folder in folders)
             db.Favorites.Add(new FavoriteEntity { UserId = user.Id, CatalogNodeId = folder.Id, CreatedAt = t0.AddMinutes(minute++) });
         foreach (var archive in archives.Where((_, i) => i % ArchivesPerFolder < StarredPerFolder))
             db.Favorites.Add(new FavoriteEntity { UserId = user.Id, CatalogNodeId = archive.Id, CreatedAt = t0.AddMinutes(minute++) });
+        foreach (var archive in loneArchives)
+            db.Favorites.Add(new FavoriteEntity { UserId = user.Id, CatalogNodeId = archive.Id, CreatedAt = t0.AddMinutes(minute++) });
         // Some reading state, so the read-state filter has something to judge: every third folder's first archive is read.
         foreach (var archive in archives.Where((_, i) => i % (ArchivesPerFolder * 3) == 0))
             db.ReadMarks.Add(new ReadMarkEntity { UserId = user.Id, ItemId = archive.Id, MarkedAt = t0 });
         await db.SaveChangesAsync();
-        Assert.Equal(Folders * (1 + StarredPerFolder), await db.Favorites.CountAsync());
+        Assert.Equal(2000, await db.Favorites.CountAsync());
         return (db, user.Id);
     }
 
@@ -153,6 +192,12 @@ public sealed class FavoritesViewScaleTests : IDisposable
                 times.Add(sw.Elapsed.TotalMilliseconds);
             }
             times.Sort();
+            if (label == "favorited")
+            {
+                // The newest stars are the lone archives: every card of the first page carries its folder as the context line.
+                var first = await service.ListFavoritesAsync(userId, query, null, 50, false, CancellationToken.None);
+                Assert.All(first.Items, n => Assert.StartsWith("Lone ", n.ContextName ?? "", StringComparison.Ordinal));
+            }
 
             var seen = new HashSet<string>(StringComparer.Ordinal);
             string? cursor = null;
@@ -171,7 +216,7 @@ public sealed class FavoritesViewScaleTests : IDisposable
 
             Assert.Equal(total, seen.Count);
             if (query.ReadState == BrowseReadStateFilter.All && query.Kind == FavoriteKindFilter.All)
-                Assert.Equal(Folders * 2, total);
+                Assert.Equal(Entries, total);
             _output.WriteLine(string.Create(CultureInfo.InvariantCulture,
                 $"FAVSCALE {label}: entries {total}, first page median {times[2]:F1} ms, max {times[4]:F1} ms, pages {pages}"));
         }
