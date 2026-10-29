@@ -94,12 +94,12 @@ public sealed class PerfTimingHttpTests
         await RunMarkerSqlAsync(hostB, "SELECT 1 AS \"MarkerOnlyHostB\"");
         await RunMarkerSqlAsync(hostOff, "SELECT 1 AS \"MarkerOnlyHostOff\"");
 
-        Assert.Contains(recorderA.Snapshot().Statements, s => s.Shape.Contains("MarkerOnlyHostA", StringComparison.Ordinal));
-        Assert.DoesNotContain(recorderA.Snapshot().Statements, s => s.Shape.Contains("MarkerOnlyHostB", StringComparison.Ordinal)
-            || s.Shape.Contains("MarkerOnlyHostOff", StringComparison.Ordinal));
-        Assert.Contains(recorderB.Snapshot().Statements, s => s.Shape.Contains("MarkerOnlyHostB", StringComparison.Ordinal));
-        Assert.DoesNotContain(recorderB.Snapshot().Statements, s => s.Shape.Contains("MarkerOnlyHostA", StringComparison.Ordinal)
-            || s.Shape.Contains("MarkerOnlyHostOff", StringComparison.Ordinal));
+        Assert.Contains(recorderA.Snapshot().Statements, s => s.Shape!.Contains("MarkerOnlyHostA", StringComparison.Ordinal));
+        Assert.DoesNotContain(recorderA.Snapshot().Statements, s => s.Shape!.Contains("MarkerOnlyHostB", StringComparison.Ordinal)
+            || s.Shape!.Contains("MarkerOnlyHostOff", StringComparison.Ordinal));
+        Assert.Contains(recorderB.Snapshot().Statements, s => s.Shape!.Contains("MarkerOnlyHostB", StringComparison.Ordinal));
+        Assert.DoesNotContain(recorderB.Snapshot().Statements, s => s.Shape!.Contains("MarkerOnlyHostA", StringComparison.Ordinal)
+            || s.Shape!.Contains("MarkerOnlyHostOff", StringComparison.Ordinal));
         Assert.Empty(recorderOff.Snapshot().Statements);
     }
 
