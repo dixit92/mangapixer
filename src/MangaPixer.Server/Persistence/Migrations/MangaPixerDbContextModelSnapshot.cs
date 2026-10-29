@@ -80,6 +80,9 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Property<long>("Id")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool?>("BackupCompress")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("BackupHour")
                         .HasColumnType("INTEGER");
 
