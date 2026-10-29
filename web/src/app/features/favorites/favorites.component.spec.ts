@@ -34,7 +34,12 @@ describe('FavoritesComponent stacks (1.27.0)', () => {
   function setup(...pages: PageResponse<CatalogNodeDto>[]) {
     const getFavorites = vi.fn();
     pages.forEach((p) => getFavorites.mockReturnValueOnce(of(p)));
-    const apiSpy = { getFavorites, setFavorite: vi.fn().mockReturnValue(of(undefined)) };
+    const apiSpy = {
+      getFavorites,
+      setFavorite: vi.fn().mockReturnValue(of(undefined)),
+      getLibraries: vi.fn().mockReturnValue(of([])),
+      getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
+    };
     TestBed.configureTestingModule({
       imports: [FavoritesComponent],
       providers: [provideRouter([]), provideNoopAnimations(), { provide: ApiService, useValue: apiSpy }],
@@ -44,6 +49,7 @@ describe('FavoritesComponent stacks (1.27.0)', () => {
     return { fixture, el: fixture.nativeElement as HTMLElement, getFavorites };
   }
 
+  beforeEach(() => localStorage.clear());
   afterEach(() => vi.restoreAllMocks());
 
   it('shows the (i) and the hover zones on singles and stacks with series information (1.27.0)', () => {

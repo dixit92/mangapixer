@@ -130,4 +130,29 @@ describe('NodeRowComponent', () => {
     expect(plain.el.querySelector('[data-testid="tracker-read-mark"]')).toBeNull();
     expect(plain.el.querySelector('.badge.read')).not.toBeNull();
   });
+
+  it('1.50.0 (Favorites view): link query params, a stack count over the thumbnail, no star when asked, an anchored (i)', () => {
+    const { el, fixture } = create({
+      node: node({ kind: 'Folder', id: 'f1', displayName: 'Series' }),
+      link: ['/libraries', 'lib1', 'browse', 'f1'], queryParams: { favorites: '1' }, stackCount: 4, showStar: false,
+    });
+    expect(el.querySelector('a.node-card')!.getAttribute('href')).toBe('/libraries/lib1/browse/f1?favorites=1');
+    expect(el.querySelector('[data-testid="row-stack-count"]')!.textContent!.trim()).toBe('4');
+    expect(el.querySelector('app-star-toggle')).toBeNull();
+    expect(el.querySelector('app-info-toggle')).not.toBeNull();
+
+    fixture.componentRef.setInput('stackCount', null);
+    fixture.componentRef.setInput('showStar', true);
+    fixture.componentRef.setInput('anchoredInfo', true);
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="row-stack-count"]')).toBeNull();
+    expect(el.querySelector('app-star-toggle')).not.toBeNull();
+  });
+
+  it('1.50.0: the new inputs default to the browse row as it was (no query, no count, the star)', () => {
+    const { el } = create({ link: ['/reader', 'n1'] });
+    expect(el.querySelector('a.node-card')!.getAttribute('href')).toBe('/reader/n1');
+    expect(el.querySelector('[data-testid="row-stack-count"]')).toBeNull();
+    expect(el.querySelector('app-star-toggle')).not.toBeNull();
+  });
 });
