@@ -174,7 +174,9 @@ public sealed class ProviderAuthorFolderTests : IAsyncLifetime
         await _db.Db.SaveChangesAsync();
         var removed = await Stamp();
 
-        Assert.Equal((1, 0, null), (before.Links, before.AuthorRecords, before.AuthorsFetched));
+        Assert.Equal(1, before.Links);
+        Assert.Equal(0, before.AuthorRecords);
+        Assert.Null(before.AuthorsFetched);
         Assert.Equal(1, stored.AuthorRecords);
         Assert.NotEqual(before, stored);
         Assert.NotEqual(stored, reRead);

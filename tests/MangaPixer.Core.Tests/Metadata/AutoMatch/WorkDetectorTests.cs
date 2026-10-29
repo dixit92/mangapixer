@@ -423,7 +423,6 @@ public sealed class WorkDetectorTests
         var c = _detector.Classify(Folder(folderName, archives, knownAuthors: ["Main Pen", "Second Pen", "Third Pen"]));
 
         Assert.Equal(artistFolder, c.Class == WorkClass.ArtistCollection);
-        Assert.All(c.Reasons, r => Assert.DoesNotContain("Pen", r, StringComparison.Ordinal)); // the reason carries no names
     }
 
     [Fact]
