@@ -202,7 +202,7 @@ public sealed partial class RotatingBackupService
         // Safe here: the run gate is held, so no move is mid-copy.
         BackupSnapshotMover.DeleteStaleTemps(dir);
 
-        var compress = _settings.Configuration.Compress;
+        var compress = settings.Compress;
         // The plain working copy lives in the data root's safety folder (same disk as the database, never a tmpfs).
         var workDir = settings.SafetyDirectory;
         if (compress)
@@ -399,11 +399,27 @@ public static partial class SafetySnapshotPruner
 {
     public const int KeepPerKind = 3;
 
-    [GeneratedRegex(@"^pre-migration-\d{8}-\d{6}\.db$", RegexOptions.CultureInvariant)]
+    /// <summary><c>pre-migration-yyyyMMdd-HHmmss[-xxxx].db</c>: the suffix (1.50.0) separates two snapshots of the same second.</summary>
+    [GeneratedRegex(@"^pre-migration-(\d{8}-\d{6})(-[0-9a-f]{4})?\.db$", RegexOptions.CultureInvariant)]
     public static partial Regex PreMigrationPattern();
 
-    [GeneratedRegex(@"^pre-restore-\d{8}-\d{6}\.db$", RegexOptions.CultureInvariant)]
+    /// <summary><c>pre-restore-yyyyMMdd-HHmmss[-xxxx].db</c>: the suffix (1.50.0) separates two snapshots of the same second.</summary>
+    [GeneratedRegex(@"^pre-restore-(\d{8}-\d{6})(-[0-9a-f]{4})?\.db$", RegexOptions.CultureInvariant)]
     public static partial Regex PreRestorePattern();
+
+    /// <summary>
+    /// The file name for a new safety snapshot of <paramref name="kind"/> (<c>pre-restore</c> / <c>pre-migration</c>) taken at
+    /// <paramref name="utcNow"/>: <c>{kind}-yyyyMMdd-HHmmss.db</c>, or with a <c>-xxxx</c> suffix when that name is already taken
+    /// (<c>VACUUM INTO</c> refuses an existing target, so a second snapshot within the same second used to fail).
+    /// </summary>
+    public static string UniqueName(string directory, string kind, DateTime utcNow)
+    {
+        var stem = $"{kind}-{utcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}";
+        var name = stem + ".db";
+        while (File.Exists(Path.Combine(directory, name)))
+            name = $"{stem}-{Guid.NewGuid().ToString("N")[..4]}.db";
+        return name;
+    }
 
     public static int PrunePreMigration(string directory) => Prune(directory, "pre-migration-*.db", PreMigrationPattern());
 
@@ -417,8 +433,16 @@ public static partial class SafetySnapshotPruner
                 return 0;
             var deleted = 0;
             var old = new DirectoryInfo(directory).EnumerateFiles(glob)
-                .Where(fi => pattern.IsMatch(fi.Name))
-                .OrderByDescending(fi => fi.Name, StringComparer.Ordinal)
+                .Select(fi => (File: fi, Match: pattern.Match(fi.Name)))
+                .Where(x => x.Match.Success)
+                // Newest first by the UTC timestamp in the name. Within one second the suffixed name is the LATER snapshot (the
+                // suffix is added only when the plain name existed), although ordinal name order ranks it older ('-' < '.');
+                // then the write time, then the name, so the order is total and a fresh snapshot is never the one pruned.
+                .OrderByDescending(x => x.Match.Groups[1].Value, StringComparer.Ordinal)
+                .ThenByDescending(x => x.Match.Groups[2].Success)
+                .ThenByDescending(x => x.File.LastWriteTimeUtc)
+                .ThenByDescending(x => x.File.Name, StringComparer.Ordinal)
+                .Select(x => x.File)
                 .Skip(KeepPerKind)
                 .ToList();
             foreach (var file in old)

@@ -26,6 +26,7 @@ public sealed class RotatingBackupOptions
     public const bool DefaultEnabled = true;
     public const double DefaultIntervalHours = 24;
     public const int DefaultRetentionCount = 7;
+    public const bool DefaultCompress = true;
 
     public bool? Enabled { get; set; }
     public double? IntervalHours { get; set; }
@@ -37,10 +38,11 @@ public sealed class RotatingBackupOptions
     public int? Hour { get; set; }
 
     /// <summary>
-    /// <c>MangaPixer:Backups:Compress</c> (default true, 1.49.0): new rotating backups are gzip-compressed
-    /// (<c>.db.gz</c>); false writes plain <c>.db</c> files as before. An operator switch only (no stored setting).
+    /// <c>MangaPixer:Backups:Compress</c> (1.49.0): new rotating backups are gzip-compressed (<c>.db.gz</c>); false writes plain
+    /// <c>.db</c> files as before. Null when the key is absent or invalid; 1.50.0 adds the admin setting underneath
+    /// (configuration, then the stored setting, then the default, which is on).
     /// </summary>
-    public bool Compress { get; set; } = true;
+    public bool? Compress { get; set; }
 
     /// <summary>Operator-pinned rotating backup directory (<c>MangaPixer:Backups:Location</c>).</summary>
     public string? Location { get; set; }
@@ -151,6 +153,11 @@ public sealed record EffectiveBackupSettings
 
     public string HourSource { get; init; } = BackupSettingSources.Default;
 
+    /// <summary>Gzip-compress new rotating backups (1.50.0: configuration, then the stored setting, then on).</summary>
+    public bool Compress { get; init; } = RotatingBackupOptions.DefaultCompress;
+
+    public string CompressSource { get; init; } = BackupSettingSources.Default;
+
     public TimeSpan Interval => TimeSpan.FromHours(IntervalHours);
 
     /// <summary>The interval in whole days (1-30) when it is one, else null (an hour applies only then).</summary>
@@ -233,6 +240,8 @@ public sealed class BackupSettingsResolver
         var (hours, hoursSource) = Pick(config.IntervalHours, row?.BackupIntervalHours, RotatingBackupOptions.DefaultIntervalHours);
         var (retention, retentionSource) = Pick(config.RetentionCount, row?.BackupRetentionCount, RotatingBackupOptions.DefaultRetentionCount);
 
+        var (compress, compressSource) = Pick(config.Compress, row?.BackupCompress, RotatingBackupOptions.DefaultCompress);
+
         string? customLocation;
         string locationSource;
         if (!string.IsNullOrWhiteSpace(config.Location))
@@ -269,6 +278,8 @@ public sealed class BackupSettingsResolver
             Hour = config.Hour ?? (row?.BackupHour is >= 0 and <= 23 ? row.BackupHour : null),
             HourSource = config.Hour is not null ? BackupSettingSources.Configuration
                 : row?.BackupHour is >= 0 and <= 23 ? BackupSettingSources.Settings : BackupSettingSources.Default,
+            Compress = compress,
+            CompressSource = compressSource,
         };
     }
 
