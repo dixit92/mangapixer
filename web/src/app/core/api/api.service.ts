@@ -116,6 +116,8 @@ export interface SearchOptions {
   readState?: LibraryReadStateFilter;
   /** Tag filters (1.45.0, lane P): each `<bucket>:<value id>` is sent as one `f` parameter; all must match (AND). */
   filters?: readonly string[];
+  /** 1.50.0 (lane U): a Refine bucket's token (`tag`, `creator`, ...) whose list the answer carries complete ("+N more" opened). */
+  expand?: string;
 }
 
 /**
@@ -285,6 +287,7 @@ export class ApiService {
     if (options.pageSize) params = params.set('pageSize', options.pageSize.toString());
     if (options.readState && options.readState !== 'all') params = params.set('readState', options.readState);
     for (const f of options.filters ?? []) params = params.append('f', f);
+    if (options.expand) params = params.set('expand', options.expand);
     return this.get<SearchResultsDto>('/search', params);
   }
 

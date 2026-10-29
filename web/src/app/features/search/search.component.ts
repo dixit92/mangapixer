@@ -18,7 +18,7 @@ import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.compon
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/folder-rollup-badge.component';
 import { MetadataStateService } from '../metadata/metadata-state.service';
-import { CatalogNodeDto, FacetBucketDto, LibraryReadStateFilter, SearchResultsDto, SeriesMatchDto } from '../../core/api/api-types';
+import { CatalogNodeDto, FacetBucketDto, FacetChipDto, LibraryReadStateFilter, SearchResultsDto, SeriesMatchDto } from '../../core/api/api-types';
 import {
   addFilterParam, bucketLabel, bucketRank, bucketToken, filterToken, filterValueId, isExcludeParam, isFilterParam, locationText, toggleExcludeParam,
 } from '../metadata/info/info-labels';
@@ -85,6 +85,10 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
 ];
 
 /**
+ * 1.50.0 (lane U): the quick results show under the field on every width (desktop and tablet too, with a keyboard hint line and
+ * arrow / Enter / Escape on the field; the header box steps aside on this page); Refine's "+N more" opens the whole bucket (and "Show
+ * fewer" closes it); "or" asks which included tag of the bucket to join when there are two or more.
+ *
  * Search component. Uses the FTS5 trigram search via the API (1.49.0, lane S: words in any order over names, close matches for a typo,
  * "+N inside" on folder cards, counts by kind; favourites lifted by the server). 1.45.0 (lane P): the tag view - a chip of the Info panel opens this page
  * with `f=<bucket>:<value id>`; the filters show as removable chips in the field (they scroll sideways in their own row on a phone),
@@ -114,6 +118,7 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
   template: `
     <h2>Search</h2>
     <!-- 1.49.0 (lane T): the field and its "?" syntax help side by side. -->
+    <div class="search-wrap">
     <div class="search-row">
     <mat-form-field appearance="outline" class="search-field" [class.has-filters]="filterChips().length > 0">
       <mat-label>Search libraries</mat-label>
@@ -136,7 +141,9 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
       <!-- The text field under the chip row (not inside it): a full row scrolls sideways and the text stays in reach. -->
       <input class="search-text" [matChipInputFor]="filterGrid" [(ngModel)]="query" (ngModelChange)="onSearch()"
              [placeholder]="filterChips().length > 0 ? 'Add search text...' : 'Enter search text...'" aria-label="Search text"
-             (focus)="onQuickFocus()" (blur)="onQuickBlur()" (keydown.enter)="quickDismissed.set(true)" data-testid="search-input">
+             aria-autocomplete="list" [attr.aria-controls]="quickOpen() ? 'search-quick-list' : null"
+             [attr.aria-activedescendant]="quickActiveId()"
+             (focus)="onQuickFocus()" (blur)="onQuickBlur()" (keydown)="onQuickKey($event)" data-testid="search-input">
       <mat-icon matSuffix>search</mat-icon>
     </mat-form-field>
     <button mat-icon-button type="button" class="syntax-toggle" (click)="syntaxOpen.set(!syntaxOpen())" [attr.aria-expanded]="syntaxOpen()"
@@ -145,13 +152,18 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
     </button>
     </div>
 
-    <!-- 1.49.0 (lane O): on a phone the header has no search box, so the grouped quick results show here, under the field, while typing
-         (series, folders, archives, creators, tags - or the values of a typed field); a result opens, a field value completes the token. -->
+    <!-- 1.49.0 (lane O) / 1.50.0 (lane U): the grouped quick results under the field while typing (series, folders, archives, creators,
+         tags - or the values of a typed field); a result opens, a field value completes the token. On a phone the list sits in the page flow
+         (the header has no box there); on desktop and tablet it is a dropdown over the results with a keyboard hint line, and the header box
+         is hidden on this page so there is one box. -->
     @if (quickOpen()) {
-      <div class="quick-phone" data-testid="search-quick">
-        <app-quick-results [sections]="quick.sections()" idPrefix="sq-" label="Quick results" (picked)="pickQuick($event)" />
+      <div class="quick-panel" [class.quick-desktop]="!phone()" data-testid="search-quick">
+        <app-quick-results [sections]="quick.sections()" [activeKey]="quick.activeEntry()?.key ?? null" idPrefix="sq-"
+                           listId="search-quick-list" label="Quick results" [keyboardHint]="!phone()" (picked)="pickQuick($event)" />
       </div>
     }
+    <span class="sr-status" role="status" aria-live="polite">{{ quickStatus() }}</span>
+    </div>
 
     <!-- 1.49.0 (lane T, S4): the typed syntax with examples (as YACReader's search help); an example goes into the field. -->
     @if (syntaxOpen()) {
@@ -184,22 +196,42 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
     }
 
     <!-- 1.49.0 (lane T, owner decision 9 a): Refine - the tags of all the results with how many carry each; a chip adds it to the search,
-         "or" joins it to the bucket's tag already in the search (any of), the minus excludes it. -->
+         "or" joins it to a tag of the bucket already in the search (any of; with two or more included, it asks which), the minus excludes
+         it. 1.50.0 (lane U): "+N more" opens the whole bucket (a scrolling list), "Show fewer" closes it again. -->
     @if (tagView() && refine().length > 0) {
       <details class="refine" open data-testid="search-refine">
         <summary class="section-heading">Refine</summary>
         @for (b of refine(); track b.bucket) {
           <div class="refine-bucket" [attr.data-bucket]="b.bucket">
-            <h4 class="refine-label">{{ label(b.bucket) }}</h4>
-            <ul class="refine-chips">
-              @for (chip of b.chips; track chip.id) {
+            <div class="refine-head">
+              <h4 class="refine-label">{{ label(b.bucket) }}</h4>
+              @if (expandedChips()[b.bucket]) {
+                <button type="button" class="refine-fewer" (click)="collapseBucket(b.bucket)" data-testid="refine-fewer"
+                        [attr.aria-label]="'Show fewer ' + label(b.bucket)">Show fewer</button>
+              }
+            </div>
+            @if (orPick(); as pick) {
+              @if (pick.bucket === b.bucket) {
+                <div class="or-pick" role="group" [attr.aria-label]="'Join ' + pick.display + ' with'" data-testid="refine-or-menu"
+                     (keydown.escape)="orPick.set(null)">
+                  <span class="or-pick-title">Either {{ pick.display }} or</span>
+                  @for (target of pick.targets; track target.param) {
+                    <button type="button" class="or-pick-target" (click)="chooseOr(target.param)" data-testid="refine-or-target">{{ target.label }}</button>
+                  }
+                  <button type="button" class="or-pick-cancel" (click)="orPick.set(null)" data-testid="refine-or-cancel">Cancel</button>
+                </div>
+              }
+            }
+            <ul class="refine-chips" [class.open]="!!expandedChips()[b.bucket]">
+              @for (chip of shownChips(b); track chip.id) {
                 <li class="refine-chip">
                   <button type="button" class="refine-add" (click)="addRefine(chip.filter, 'all')" data-testid="refine-chip"
                           [attr.aria-label]="'Add ' + chip.display + ', ' + chip.count + ' of these results'">
                     <span class="name">{{ chip.display }}</span><span class="count">{{ chip.count }}</span>
                   </button>
                   @if (canOr(chip.filter)) {
-                    <button type="button" class="refine-or" (click)="addRefine(chip.filter, 'any')" data-testid="refine-or"
+                    <button type="button" class="refine-or" (click)="onOr(chip, b.bucket)" data-testid="refine-or"
+                            [attr.aria-haspopup]="orTargets(chip.filter).length > 1 ? 'true' : null"
                             [attr.aria-label]="'Or ' + chip.display" matTooltip="Or: either tag">or</button>
                   }
                   <button type="button" class="refine-not" (click)="addRefine(chip.filter, 'not')" data-testid="refine-not"
@@ -208,10 +240,18 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
                   </button>
                 </li>
               }
-              @if (b.more > 0) {
-                <li class="refine-more">+{{ b.more }} more</li>
+              @if (b.more > 0 && !expandedChips()[b.bucket]) {
+                <li class="refine-more">
+                  <button type="button" class="refine-more-btn" (click)="expandBucket(b.bucket)" [disabled]="expanding() === b.bucket"
+                          data-testid="refine-more" [attr.aria-label]="'Show all ' + label(b.bucket) + ', ' + b.more + ' more'">
+                    {{ expanding() === b.bucket ? 'Loading…' : '+' + b.more + ' more' }}
+                  </button>
+                </li>
               }
             </ul>
+            @if (expandError() === b.bucket) {
+              <p class="refine-error" role="alert" data-testid="refine-error">Could not load the rest. Try again.</p>
+            }
           </div>
         }
       </details>
@@ -351,13 +391,20 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
     </ng-template>
   `,
   styles: [`
+    .search-wrap { position: relative; max-width: 648px; min-width: 0; }
     .search-row { display: flex; align-items: flex-start; gap: 4px; max-width: 648px; min-width: 0; }
     .search-field { flex: 1 1 auto; width: 100%; max-width: 600px; min-width: 0; }
     .syntax-toggle { flex: none; margin-top: 8px; color: var(--mp-text-muted); }
-    .quick-phone {
+    .quick-panel {
       max-width: 600px; margin: -8px 0 12px; border-radius: 8px; overflow: hidden; min-width: 0;
       border: 1px solid rgb(var(--mp-ink-rgb) / 0.16); background: var(--mp-surface-high);
     }
+    /* Desktop / tablet (1.50.0): a dropdown over the results, under the field, as the header box's list. */
+    .quick-desktop {
+      position: absolute; z-index: 20; left: 0; top: calc(100% - 22px); width: min(600px, calc(100% - 48px)); margin: 0;
+      box-shadow: 0 8px 24px rgb(var(--mp-shade-rgb) / 0.35);
+    }
+    .sr-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
     .syntax {
       max-width: 600px; margin: -8px 0 12px; padding: 10px 12px; border-radius: 8px;
       border: 1px solid rgb(var(--mp-ink-rgb) / 0.12); background: rgb(var(--mp-ink-rgb) / 0.03); font-size: 13px;
@@ -402,6 +449,26 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
     .refine-not mat-icon { font-size: 18px; width: 18px; height: 18px; }
     .refine-chip button:hover { background: rgb(var(--mp-ink-rgb) / 0.08); }
     .refine-more { align-self: center; font-size: 12px; color: var(--mp-text-muted); }
+    .refine-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .refine-head .refine-label { margin: 0; }
+    .refine-more-btn, .refine-fewer, .or-pick button {
+      border: 0; background: transparent; color: var(--mp-accent); font: inherit; font-size: 12px; cursor: pointer; padding: 4px 6px;
+      min-height: 32px; border-radius: 4px;
+    }
+    .refine-more-btn:hover, .refine-fewer:hover, .or-pick button:hover { background: rgb(var(--mp-ink-rgb) / 0.08); }
+    .refine-more-btn:focus-visible, .refine-fewer:focus-visible, .or-pick button:focus-visible { outline: 2px solid var(--mp-accent); outline-offset: 1px; }
+    .refine-more-btn:disabled { color: var(--mp-text-muted); cursor: default; }
+    /* An opened bucket can hold thousands of values: it scrolls inside its own box instead of pushing the results down. */
+    .refine-chips.open { max-height: min(40vh, 320px); overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
+    .refine-chips.open .refine-chip { content-visibility: auto; contain-intrinsic-size: auto 32px; }
+    .refine-error { margin: 4px 0 0; font-size: 12px; color: var(--mp-warn); }
+    .or-pick {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: 0 0 6px; padding: 4px 6px; max-width: 100%; min-width: 0;
+      border: 1px solid rgb(var(--mp-ink-rgb) / 0.16); border-radius: 8px; background: var(--mp-surface-high);
+    }
+    .or-pick-title { font-size: 12px; color: var(--mp-text-muted); }
+    .or-pick-target { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid rgb(var(--mp-ink-rgb) / 0.16) !important; }
+    .or-pick-cancel { color: var(--mp-text-muted) !important; }
     /* The filter chips get their own row inside the field; a full row scrolls sideways instead of growing the field (D1 2.6). */
     .filter-chips { display: block; width: 100%; min-width: 0; }
     .search-text { display: block; width: 100%; min-width: 0; }
@@ -483,15 +550,21 @@ export class SearchComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
-  /** 1.49.0 (lane O): the quick results under the field - phones only (desktop and tablet have the header box). */
+  /** 1.49.0 (lane O): the quick results under the field. 1.50.0 (lane U): on every width - the header box steps aside on this page. */
   readonly quick = new QuickResults();
-  private readonly phone = toSignal(
+  readonly phone = toSignal(
     inject(BreakpointObserver).observe('(max-width: 599.98px)').pipe(map((state) => state.matches)),
     { initialValue: false },
   );
   private readonly quickFocused = signal(false);
   readonly quickDismissed = signal(false);
-  readonly quickOpen = computed(() => this.phone() && this.quickFocused() && !this.quickDismissed() && this.quick.entries().length > 0);
+  readonly quickOpen = computed(() => this.quickFocused() && !this.quickDismissed() && this.quick.entries().length > 0);
+  readonly quickActiveId = computed(() => (this.quickOpen() && this.quick.activeEntry() ? `sq-${this.quick.activeEntry()!.key}` : null));
+  readonly quickStatus = computed(() => {
+    if (!this.quickOpen()) return '';
+    const n = this.quick.entries().length;
+    return `${n} quick result${n === 1 ? '' : 's'}${this.phone() ? '' : ', use the up and down arrow keys'}`;
+  });
   private quickBlurTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** The text field (two-way bound); it becomes `params().q` when the debounce fires. */
@@ -588,6 +661,13 @@ export class SearchComponent {
   private readonly tagAnswer = signal(false);
   /** 1.49.0 (lane T): the tag view's Refine list (first page's answer). */
   readonly refine = signal<FacetBucketDto[]>([]);
+  /** 1.50.0 (lane U): Refine buckets opened with "+N more" - the complete chip list per bucket (cleared by every new search). */
+  readonly expandedChips = signal<Readonly<Record<string, FacetChipDto[]>>>({});
+  /** The bucket whose full list is being fetched, and the one whose last fetch failed. */
+  readonly expanding = signal<string | null>(null);
+  readonly expandError = signal<string | null>(null);
+  /** 1.50.0 (lane U): the "or" menu - a chip with two or more included tags in its bucket asks which one to join. */
+  readonly orPick = signal<{ bucket: string; filter: string; display: string; targets: { param: string; label: string }[] } | null>(null);
   /** 1.49.0 (lane T): the "?" syntax panel. */
   readonly syntaxOpen = signal(false);
   readonly syntaxExamples = SYNTAX_EXAMPLES;
@@ -645,6 +725,42 @@ export class SearchComponent {
     this.quickBlurTimer = setTimeout(() => this.quickFocused.set(false), 120);
   }
 
+  /**
+   * 1.50.0 (lane U): the keyboard on the field - Up / Down move through the quick results, Enter opens the chosen one (with none chosen it
+   * only closes the list: the search itself runs from the typed text), Escape closes the list, Tab leaves it.
+   */
+  onQuickKey(event: KeyboardEvent): void {
+    switch (event.key) {
+      case 'ArrowDown':
+      case 'ArrowUp':
+        if (this.quick.entries().length === 0) return;
+        if (this.quickDismissed()) this.quickDismissed.set(false);
+        event.preventDefault();
+        this.quick.move(event.key === 'ArrowDown' ? 1 : -1);
+        break;
+      case 'Enter': {
+        const entry = this.quickOpen() ? this.quick.activeEntry() : null;
+        if (entry) {
+          event.preventDefault();
+          this.pickQuick(entry);
+        } else {
+          this.quickDismissed.set(true);
+        }
+        break;
+      }
+      case 'Escape':
+        if (this.quickOpen()) {
+          event.preventDefault();
+          this.quickDismissed.set(true);
+          this.quick.active.set(-1);
+        }
+        break;
+      case 'Tab':
+        this.quickDismissed.set(true);
+        break;
+    }
+  }
+
   /** 1.49.0 (lane O): a quick result was chosen - open it, add its tag view, or complete the typed field's token. */
   pickQuick(entry: QuickEntry): void {
     const action = entry.action;
@@ -665,10 +781,8 @@ export class SearchComponent {
   }
 
   onSearch(): void {
-    if (this.phone()) {
-      this.quickDismissed.set(false);
-      this.quick.ask(this.query);
-    }
+    this.quickDismissed.set(false);
+    this.quick.ask(this.query);
     if (this.searchTimer) clearTimeout(this.searchTimer);
     this.searchTimer = setTimeout(() => {
       this.params.update((p) => ({ ...p, q: this.query }));
@@ -707,16 +821,17 @@ export class SearchComponent {
   }
 
   /**
-   * 1.49.0 (lane T): a Refine chip - `all` adds it (must carry), `not` adds it as an exclusion, `any` joins it to the bucket's last
-   * included tag in the search (`genre:fv_a|fv_b`: either).
+   * 1.49.0 (lane T): a Refine chip - `all` adds it (must carry), `not` adds it as an exclusion, `any` joins it to an included tag of its
+   * bucket in the search (`genre:fv_a|fv_b`: either). 1.50.0 (lane U): `target` names which included tag to join (the "or" menu); without
+   * it the only one is joined (with several, the caller asks first - see {@link onOr}).
    */
-  addRefine(filter: string, mode: 'all' | 'any' | 'not'): void {
+  addRefine(filter: string, mode: 'all' | 'any' | 'not', target?: string): void {
     const f = this.params().f;
     if (mode === 'any') {
-      const target = this.orTarget(filter);
-      if (target) {
+      const joinTo = target ?? this.orTargets(filter)[0];
+      if (joinTo && f.includes(joinTo)) {
         const id = filterValueId(filter);
-        this.setFilters(f.map((v) => (v === target ? `${v}|${id}` : v)));
+        this.setFilters(f.map((v) => (v === joinTo ? `${v}|${id}` : v)));
         return;
       }
     }
@@ -725,7 +840,76 @@ export class SearchComponent {
 
   /** 1.49.0: whether a Refine chip can join an included tag of its bucket already in the search ("or"). */
   canOr(filter: string): boolean {
-    return this.orTarget(filter) !== null;
+    return this.orTargets(filter).length > 0;
+  }
+
+  /**
+   * 1.50.0 (lane U): the "or" button of a Refine chip. One included tag in the bucket: it is joined at once. Two or more: a small menu
+   * under the bucket's title asks which one (named as its filter chip in the field is).
+   */
+  onOr(chip: FacetChipDto, bucket: string): void {
+    const targets = this.orTargets(chip.filter);
+    if (targets.length <= 1) {
+      this.orPick.set(null);
+      this.addRefine(chip.filter, 'any');
+      return;
+    }
+    const labels = new Map(this.filterChips().map((c) => [c.param, c.label]));
+    this.orPick.set({
+      bucket,
+      filter: chip.filter,
+      display: chip.display,
+      targets: targets.map((param) => ({ param, label: labels.get(param) ?? 'Tag' })),
+    });
+    // The menu opens under the bucket's title: its first choice takes the focus (Escape closes it).
+    setTimeout(() => (document.querySelector('[data-testid="refine-or-target"]') as HTMLElement | null)?.focus());
+  }
+
+  /** The "or" menu's choice. */
+  chooseOr(target: string): void {
+    const pick = this.orPick();
+    this.orPick.set(null);
+    if (pick) this.addRefine(pick.filter, 'any', target);
+  }
+
+  /** 1.50.0 (lane U): a bucket's chips as shown - the whole list once "+N more" opened it, else the server's top few. */
+  shownChips(bucket: FacetBucketDto): FacetChipDto[] {
+    return this.expandedChips()[bucket.bucket] ?? bucket.chips;
+  }
+
+  /**
+   * 1.50.0 (lane U): "+N more" - asks the server for the same search with the bucket complete (`expand=<token>`, a one-work page: only
+   * the Refine list is wanted) and shows every chip in place. Dropped when a newer search started meanwhile.
+   */
+  expandBucket(bucket: FacetBucketDto['bucket']): void {
+    if (this.expanding()) return;
+    const { q, read, f } = this.params();
+    const generation = this.generation;
+    this.expanding.set(bucket);
+    this.expandError.set(null);
+    this.api.search(q, { readState: read, pageSize: 1, expand: bucketToken(bucket), ...filterOption(f) }).subscribe({
+      next: (answer) => {
+        if (generation !== this.generation) return;
+        const full = (answer as SearchAnswer).refine?.find((b) => b.bucket === bucket);
+        if (full) this.expandedChips.update((map) => ({ ...map, [bucket]: full.chips }));
+        else this.expandError.set(bucket);
+        this.expanding.set(null);
+      },
+      error: () => {
+        if (generation !== this.generation) return;
+        this.expanding.set(null);
+        this.expandError.set(bucket);
+      },
+    });
+  }
+
+  /** 1.50.0 (lane U): "Show fewer" - the bucket goes back to its top few. */
+  collapseBucket(bucket: FacetBucketDto['bucket']): void {
+    this.expandedChips.update((map) => {
+      const next = { ...map };
+      delete next[bucket];
+      return next;
+    });
   }
 
   label(bucket: FacetBucketDto['bucket']): string {
@@ -852,12 +1036,11 @@ export class SearchComponent {
     this.insideCounts.set(response.insideCounts ?? {});
   }
 
-  /** The bucket's last included filter in the search (the one "or" joins), or null. */
-  private orTarget(filter: string): string | null {
+  /** 1.50.0: the included filters of the chip's bucket that "or" can join it to (in URL order; none when it is already in one). */
+  orTargets(filter: string): string[] {
     const token = filterToken(filter);
     const id = filterValueId(filter);
-    const candidates = this.params().f.filter((v) => !isExcludeParam(v) && filterToken(v) === token && !filterValueId(v).split('|').includes(id));
-    return candidates.length > 0 ? candidates[candidates.length - 1] : null;
+    return this.params().f.filter((v) => !isExcludeParam(v) && filterToken(v) === token && !filterValueId(v).split('|').includes(id));
   }
 
   /** Replaces the tag filters (keeping the typed text) and searches again from the first page. */
@@ -910,6 +1093,10 @@ export class SearchComponent {
     this.hasMore.set(false);
     this.loadingMore.set(false);
     this.expanded.set(new Set());
+    this.expandedChips.set({});
+    this.expanding.set(null);
+    this.expandError.set(null);
+    this.orPick.set(null);
     if (!q.trim() && f.length === 0) {
       this.refine.set([]);
       this.tagAnswer.set(false);
