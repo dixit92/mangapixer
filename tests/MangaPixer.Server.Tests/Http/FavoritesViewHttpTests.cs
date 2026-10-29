@@ -268,8 +268,14 @@ public sealed class FavoritesViewHttpTests
         {
             db.CatalogNodes.Add(new CatalogNodeEntity
             {
-                PublicId = "fvU", LibraryId = other, Kind = (int)CatalogNodeKind.Archive, DisplayName = "Ungranted", RelativePath = "fvU",
-                PathKey = "fvU", SortKey = SortKey.ForNode(CatalogNodeKind.Archive, "Ungranted"), CreatedAt = T0,
+                PublicId = "fvU",
+                LibraryId = other,
+                Kind = (int)CatalogNodeKind.Archive,
+                DisplayName = "Ungranted",
+                RelativePath = "fvU",
+                PathKey = "fvU",
+                SortKey = SortKey.ForNode(CatalogNodeKind.Archive, "Ungranted"),
+                CreatedAt = T0,
             });
             await db.SaveChangesAsync();
         });

@@ -52,8 +52,14 @@ public sealed class FavoritesViewScaleTests : IDisposable
 
         var user = new UserEntity
         {
-            PublicId = "favscaleuser", UserName = "favscale", NormalizedUserName = "FAVSCALE", IsActive = true, IsAdmin = true,
-            PasswordHash = "hash", SecurityStamp = Guid.NewGuid().ToString("N"), CreatedAt = DateTimeOffset.UtcNow,
+            PublicId = "favscaleuser",
+            UserName = "favscale",
+            NormalizedUserName = "FAVSCALE",
+            IsActive = true,
+            IsAdmin = true,
+            PasswordHash = "hash",
+            SecurityStamp = Guid.NewGuid().ToString("N"),
+            CreatedAt = DateTimeOffset.UtcNow,
         };
         var lib = new LibraryEntity { PublicId = "favscalelib", DisplayName = "Scale", RootPath = "/tmp/favscale", CreatedAt = DateTimeOffset.UtcNow };
         db.Users.Add(user);
@@ -67,9 +73,15 @@ public sealed class FavoritesViewScaleTests : IDisposable
             var name = "Series " + f.ToString("D4", CultureInfo.InvariantCulture);
             folders.Add(new CatalogNodeEntity
             {
-                PublicId = "fs" + f.ToString(CultureInfo.InvariantCulture), LibraryId = lib.Id, Kind = (int)CatalogNodeKind.Folder,
-                DisplayName = name, RelativePath = name, PathKey = name.ToLowerInvariant(), SortKey = SortKey.ForNode(CatalogNodeKind.Folder, name),
-                CreatedAt = t0.AddHours(f), LatestDescendantAddedAt = t0.AddHours(f % 7 == 0 ? f : f + 1000),
+                PublicId = "fs" + f.ToString(CultureInfo.InvariantCulture),
+                LibraryId = lib.Id,
+                Kind = (int)CatalogNodeKind.Folder,
+                DisplayName = name,
+                RelativePath = name,
+                PathKey = name.ToLowerInvariant(),
+                SortKey = SortKey.ForNode(CatalogNodeKind.Folder, name),
+                CreatedAt = t0.AddHours(f),
+                LatestDescendantAddedAt = t0.AddHours(f % 7 == 0 ? f : f + 1000),
             });
         }
         db.CatalogNodes.AddRange(folders);
@@ -83,9 +95,15 @@ public sealed class FavoritesViewScaleTests : IDisposable
                 var name = folder.DisplayName + " v" + a.ToString(CultureInfo.InvariantCulture);
                 archives.Add(new CatalogNodeEntity
                 {
-                    PublicId = folder.PublicId + "a" + a.ToString(CultureInfo.InvariantCulture), LibraryId = lib.Id, ParentId = folder.Id,
-                    Kind = (int)CatalogNodeKind.Archive, DisplayName = name, RelativePath = name, PathKey = name.ToLowerInvariant(),
-                    SortKey = SortKey.ForNode(CatalogNodeKind.Archive, name), CreatedAt = t0.AddHours(f).AddMinutes(a),
+                    PublicId = folder.PublicId + "a" + a.ToString(CultureInfo.InvariantCulture),
+                    LibraryId = lib.Id,
+                    ParentId = folder.Id,
+                    Kind = (int)CatalogNodeKind.Archive,
+                    DisplayName = name,
+                    RelativePath = name,
+                    PathKey = name.ToLowerInvariant(),
+                    SortKey = SortKey.ForNode(CatalogNodeKind.Archive, name),
+                    CreatedAt = t0.AddHours(f).AddMinutes(a),
                 });
             }
         }

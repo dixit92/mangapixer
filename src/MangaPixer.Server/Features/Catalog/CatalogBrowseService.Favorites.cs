@@ -4,6 +4,7 @@ using System.Globalization;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Reading;
+using com.lifepixer.mangapixer.Server.Features.Covers;
 using Microsoft.EntityFrameworkCore;
 
 // 1.50.0 lane F - the Favorites listing, moved unchanged out of CatalogBrowseService.cs into its own partial so the Favorites view
