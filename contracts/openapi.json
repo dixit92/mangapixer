@@ -24302,6 +24302,12 @@
             ],
             "format": "int32"
           },
+          "compress": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
           "location": {
             "oneOf": [
               {

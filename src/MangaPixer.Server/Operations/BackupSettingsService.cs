@@ -90,6 +90,8 @@ public sealed class BackupSettingsService
         IntervalHoursSource = s.IntervalHoursSource,
         RetentionCount = s.RetentionCount,
         RetentionCountSource = s.RetentionCountSource,
+        Compress = s.Compress,
+        CompressSource = s.CompressSource,
         LocationKind = s.LocationKind,
         LocationSource = s.LocationSource,
         CustomLocation = s.CustomLocation,
@@ -127,6 +129,8 @@ public sealed class BackupSettingsService
                 return BackupSettingsUpdateOutcome.Error(400, "invalid_retention",
                     $"The number of kept backups must be between {MinRetention} and {MaxRetention}.");
         }
+        if (request.Compress is not null && s.CompressSource == BackupSettingSources.Configuration)
+            return Managed("compress");
         if (request.Location is { } location)
         {
             if (!s.LocationChangeAllowed)
@@ -194,6 +198,7 @@ public sealed class BackupSettingsService
         if (request.Enabled is { } enabled) row.BackupsEnabled = enabled;
         if (request.IntervalHours is { } hours) row.BackupIntervalHours = hours;
         if (request.RetentionCount is { } retention) row.BackupRetentionCount = retention;
+        if (request.Compress is { } compress) row.BackupCompress = compress;
 
         if (request.Location is not null)
         {
@@ -231,8 +236,8 @@ public sealed class BackupSettingsService
         var moveStarted = locationChanged && request.MoveExistingSnapshots && _mover is not null &&
             _mover.TryStart(before.RotatingDirectory, after.RotatingDirectory, actor);
         _logger?.LogInformation(LogEvents.Backup.BackupSettingsChanged,
-            "Backup settings changed by {Actor}: enabled {Enabled}, interval {IntervalHours} h, retention {Retention}, location kind {Kind}",
-            actor ?? "unknown", after.Enabled, after.IntervalHours, after.RetentionCount, after.LocationKind);
+            "Backup settings changed by {Actor}: enabled {Enabled}, interval {IntervalHours} h, retention {Retention}, compress {Compress}, location kind {Kind}",
+            actor ?? "unknown", after.Enabled, after.IntervalHours, after.RetentionCount, after.Compress, after.LocationKind);
 
         return new BackupSettingsUpdateOutcome
         {
@@ -250,13 +255,13 @@ public sealed class BackupSettingsService
 
     /// <summary>
     /// Audits the request: <c>backup.settings.change</c> when it touches
-    /// enabled/interval/retention, <c>backup.location.change</c> when it touches
+    /// enabled/interval/retention/compress, <c>backup.location.change</c> when it touches
     /// the location. Action + actor + result only (no values, no paths).
     /// </summary>
     public async Task AuditAsync(UpdateBackupSettingsRequest request, string? actor, bool success, CancellationToken ct = default)
     {
         var result = success ? AuditResults.Success : AuditResults.Failure;
-        if (request.Enabled is not null || request.IntervalHours is not null || request.RetentionCount is not null)
+        if (request.Enabled is not null || request.IntervalHours is not null || request.RetentionCount is not null || request.Compress is not null)
             await _audit.RecordAsync(AuditActions.BackupSettingsChanged, result, actor, ct: ct);
         if (request.Location is not null)
             await _audit.RecordAsync(AuditActions.BackupLocationChanged, result, actor, ct: ct);

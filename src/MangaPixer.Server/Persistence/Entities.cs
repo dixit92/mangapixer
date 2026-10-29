@@ -1065,6 +1065,8 @@ public sealed class AppSettingsEntity
     public int? MetadataRefreshPaceSource { get; set; }
     /// <summary>Server-local hour (0-23) of a backup whose interval is whole days, or null = any time (an interval after the last).</summary>
     public int? BackupHour { get; set; }
+    /// <summary>Gzip-compress new rotating backups (1.50.0, <c>BackupCompress</c>). Null = not set in the UI: configuration, then the default (on).</summary>
+    public bool? BackupCompress { get; set; }
     /// <summary>Server-local hour (0-23) of the daily cache clean-up. Null = 05:00.</summary>
     public int? CacheEvictionHour { get; set; }
 

@@ -104,6 +104,20 @@ export const SNAPSHOT_MOVE_POLL_MS = 1000;
                    (input)="draftRetention.set(+$any($event.target).value)"> snapshots
             @if (managed(s.retentionCountSource)) { <span class="managed">Managed by server configuration</span> }
           </div>
+          <div class="row">
+            <mat-checkbox
+              data-testid="compress"
+              [checked]="draftCompress()"
+              [disabled]="managed(s.compressSource) || busy()"
+              (change)="draftCompress.set($event.checked)">
+              Compress new backups
+            </mat-checkbox>
+            @if (managed(s.compressSource)) { <span class="managed" data-testid="compress-managed">Managed by server configuration</span> }
+          </div>
+          <p class="hint">
+            Compressed snapshots (<code>.db.gz</code>) take less disk space. Turn it off to write plain <code>.db</code> files,
+            which you can open or copy without unpacking. Older snapshots of either kind stay listed and can be restored.
+          </p>
           @if (retentionWarning() > 0) {
             <p class="warn" data-testid="retention-warning">
               {{ retentionWarning() }} oldest snapshot(s) will be deleted after the next backup.
@@ -248,6 +262,7 @@ export class BackupSettingsCardComponent implements OnInit {
   readonly draftInterval = signal(24);
   readonly customInterval = signal(false);
   readonly draftRetention = signal(7);
+  readonly draftCompress = signal(true);
   readonly draftMode = signal<'default' | 'custom'>('default');
   readonly draftLocation = signal('');
 
@@ -285,6 +300,7 @@ export class BackupSettingsCardComponent implements OnInit {
     return this.draftEnabled() !== s.enabled
       || this.draftInterval() !== s.intervalHours
       || this.draftRetention() !== s.retentionCount
+      || this.draftCompress() !== s.compress
       || this.locationChanged();
   });
 
@@ -409,6 +425,7 @@ export class BackupSettingsCardComponent implements OnInit {
     if (!this.managed(s.enabledSource) && this.draftEnabled() !== s.enabled) request.enabled = this.draftEnabled();
     if (!this.managed(s.intervalHoursSource) && this.draftInterval() !== s.intervalHours) request.intervalHours = this.draftInterval();
     if (!this.managed(s.retentionCountSource) && this.draftRetention() !== s.retentionCount) request.retentionCount = this.draftRetention();
+    if (!this.managed(s.compressSource) && this.draftCompress() !== s.compress) request.compress = this.draftCompress();
     if (this.locationChanged()) request.location = location.mode === 'default' ? { mode: 'default' } : location;
     if (this.moveOffer()) request.moveExistingSnapshots = this.moveSnapshots();
     return request;
@@ -476,6 +493,7 @@ export class BackupSettingsCardComponent implements OnInit {
     this.draftInterval.set(dto.intervalHours);
     this.customInterval.set(!this.presets.some((p) => p.hours === dto.intervalHours));
     this.draftRetention.set(dto.retentionCount);
+    this.draftCompress.set(dto.compress);
     this.draftMode.set(dto.locationKind);
     this.draftLocation.set(dto.customLocation ?? '');
     this.moveSnapshots.set(true);

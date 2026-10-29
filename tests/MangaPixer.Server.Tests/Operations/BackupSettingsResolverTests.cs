@@ -97,6 +97,46 @@ public sealed class BackupSettingsResolverTests
     }
 
     [Fact]
+    public void Compress_DefaultsOn_FromTheDefaultSource()
+    {
+        var s = BackupSettingsResolver.Compute(Parse(), null);
+        Assert.True(s.Compress);
+        Assert.Equal(BackupSettingSources.Default, s.CompressSource);
+        // A row that never set it (a database upgraded from before 1.50.0) reads the same.
+        var upgraded = BackupSettingsResolver.Compute(Parse(), new AppSettingsEntity { BackupRetentionCount = 3 });
+        Assert.True(upgraded.Compress);
+        Assert.Equal(BackupSettingSources.Default, upgraded.CompressSource);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Compress_StoredSetting_AppliesWhenConfigurationIsSilent(bool stored)
+    {
+        var s = BackupSettingsResolver.Compute(Parse(), new AppSettingsEntity { BackupCompress = stored });
+        Assert.Equal(stored, s.Compress);
+        Assert.Equal(BackupSettingSources.Settings, s.CompressSource);
+    }
+
+    [Fact]
+    public void Compress_Configuration_WinsOverTheStoredSetting_AndLocksIt()
+    {
+        var s = BackupSettingsResolver.Compute(Parse(("MangaPixer:Backups:Compress", "false")), new AppSettingsEntity { BackupCompress = true });
+        Assert.False(s.Compress);
+        Assert.Equal(BackupSettingSources.Configuration, s.CompressSource);
+    }
+
+    [Fact]
+    public void Compress_InvalidConfiguration_IsIgnored_AndTheStoredSettingApplies()
+    {
+        var options = Parse(("MangaPixer:Backups:Compress", "sometimes"));
+        Assert.Contains("MangaPixer:Backups:Compress", options.InvalidKeys);
+        var s = BackupSettingsResolver.Compute(options, new AppSettingsEntity { BackupCompress = false });
+        Assert.False(s.Compress);
+        Assert.Equal(BackupSettingSources.Settings, s.CompressSource);
+    }
+
+    [Fact]
     public void AllowLocationChangeFalse_LocksTheLocation_WithoutPinningOne()
     {
         var s = BackupSettingsResolver.Compute(Parse(("MangaPixer:Backups:AllowLocationChange", "false")), null);
@@ -133,6 +173,30 @@ public sealed class BackupSettingsResolverTests
     public void RotatingNamePattern_IsStrict(string name, bool matches)
     {
         Assert.Equal(matches, RotatingBackupService.FileNamePattern().IsMatch(name));
+    }
+
+    [Theory]
+    [InlineData("pre-restore-20260901-000000.db", true)]
+    [InlineData("pre-restore-20260901-000000-0a9f.db", true)]
+    [InlineData("pre-restore-20260901-000000-0a9f1.db", false)]
+    [InlineData("pre-restore-20260901-000000-XYZW.db", false)]
+    [InlineData("pre-restore-20260901-000000.db.gz", false)]
+    [InlineData("pre-restore-manual-copy.db", false)]
+    [InlineData("pre-migration-20260901-000000.db", false)]
+    public void PreRestoreNamePattern_AcceptsTheSuffix_AndStaysStrict(string name, bool matches)
+    {
+        Assert.Equal(matches, SafetySnapshotPruner.PreRestorePattern().IsMatch(name));
+    }
+
+    [Theory]
+    [InlineData("pre-migration-20260901-000000.db", true)]
+    [InlineData("pre-migration-20260901-000000-0a9f.db", true)]
+    [InlineData("pre-migration-20260901-000000-0a9f1.db", false)]
+    [InlineData("pre-migration-20260901-000000-XYZW.db", false)]
+    [InlineData("pre-restore-20260901-000000.db", false)]
+    public void PreMigrationNamePattern_AcceptsTheSuffix_AndStaysStrict(string name, bool matches)
+    {
+        Assert.Equal(matches, SafetySnapshotPruner.PreMigrationPattern().IsMatch(name));
     }
 
     [Fact]

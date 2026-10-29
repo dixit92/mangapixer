@@ -152,10 +152,11 @@ public sealed class CompressedBackupServiceTests : IDisposable
             return RotatingBackupOptions.FromConfiguration(config, "/backups");
         }
 
-        Assert.True(Parse(null).Compress);
+        Assert.Null(Parse(null).Compress); // not set: the stored setting, then the default (on), decide
         Assert.False(Parse("false").Compress);
+        Assert.True(Parse("true").Compress);
         var bad = Parse("sometimes");
-        Assert.True(bad.Compress);
+        Assert.Null(bad.Compress);
         Assert.Contains("MangaPixer:Backups:Compress", bad.InvalidKeys);
     }
 
