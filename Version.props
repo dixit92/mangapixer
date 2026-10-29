@@ -466,7 +466,7 @@
          Enhance black-output guard; "Official Volume Available". Migrations AddTrackerSync, AddTrackingPage,
          AddVolumeMapReadableChapters (additive); tracker consents v1 (new third privacy exception, AGENTS.md); metadata consents
          unchanged (main 6 / automatic 5); worker protocol unchanged (5). -->
-    <MangaPixerVersionMinor>49</MangaPixerVersionMinor>
+    <MangaPixerVersionMinor>50</MangaPixerVersionMinor>
     <!-- 1.31.1 - PATCH (2026-10-01, integrator-direct, owner live check of 1.31.0): content signatures backfilled for archives
          analysed before 1.5.0 (their moves were never recognised); Re-attach to a folder in another library; "Episode N" next
          to a volume is a part label, not a chapter; the review list shows the file's own page 1, never the cover layer's;
@@ -528,6 +528,13 @@
          rotating backups (restore takes .db and .db.gz); a size-capped shared memory cache and MALLOC_ARENA_MAX=2 in the image; chapter 1
          before a volume 1 that starts at chapter 2-5 joins it; a Docker Hub mirror of the image; Angular 22.2.4, .NET 10.0.14. No
          migration; consent unchanged (main 7 / automatic 5); worker protocol 6; OpenAPI 370 schemas. -->
+    <!-- 1.50.0 - MINOR over 1.49.0 (2026-10-29): the Favorites view (card / list with its own per-device sizes and sort, five sorts,
+         read-state / kind / library filters, infinite scroll, place kept after the reader); words across folder levels in search and quick
+         results (title-less file names), -word exclusion, zero-padded numbers, accent-insensitive tag-view text, alt-title typos and 1-2
+         letters; a parent-folder context line on archives outside their folder; quick results on the desktop Search page, Refine +N more
+         and the or-picker; date paging backward after a time chip; a Settings switch for backup compression; same-second safety snapshot
+         names; the pending-archive sweep; the artist-alias folder signal (matcher rules revision 5). Migration 59 (AddBackupCompress);
+         consent unchanged (main 7 / automatic 5); worker protocol 6; OpenAPI 370 schemas. -->
     <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
