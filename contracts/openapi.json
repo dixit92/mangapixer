@@ -11772,6 +11772,13 @@
                 "type": "string"
               }
             }
+          },
+          {
+            "name": "expand",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
