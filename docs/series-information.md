@@ -90,6 +90,7 @@ Once a folder or archive is linked to a series, **Search** also finds it by any 
 - The row follows the same access rules as the rest of search: libraries you cannot see, and Private libraries while Incognito is on, contribute nothing.
 - When **Show series information** is off, globally or for a library, that library's alternative titles are not searchable.
 - Searching runs entirely on your server; nothing is sent to MangaUpdates.
+- *New in 1.50.0:* the row also finds a title with a typo, after the titles that match exactly (when the results show close matches), and a title from one or two letters (a word of the title that starts with them: `ka` finds `Kaibutsu`).
 
 ## Tags and tag search
 
@@ -101,7 +102,7 @@ Select a tag (or any other chip) to search for every work that carries it. **Ope
 
 - Every tag in the field must match (and). The small button at the start of a tag in the field switches it to **Not** - the works must not carry it - and back.
 - **Refine** lists the tags of all the results, with how many of them carry each: select one to add it, **or** to accept either it or the tag of the same row already in the search, or the minus to leave out works that carry it. Counts are yours: only works you can open count, Private libraries are left out while Incognito is on, and libraries with **Show series information** off show no tags at all.
-- Text typed next to tags narrows the works by title, by the series' other titles and by the folder's name; every word must match, in any order. A word with a `-` in front must not match.
+- Text typed next to tags narrows the works by title, by the series' other titles and by the folder's name; every word must match, in any order. A word with a `-` in front must not match. *New in 1.50.0:* accents, upper and lower case and punctuation do not matter here either, as in the plain search: `pokemon` finds `Pokémon`, `re-zero` finds `Re:Zero`.
 
 **Typed search** (the **?** next to the search box lists these too):
 

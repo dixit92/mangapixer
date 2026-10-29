@@ -210,6 +210,13 @@ The search icon in the top bar opens **Search**. It looks through the names of t
 - **One or two letters.** A search of only one or two letters lists the names with a word that starts with them (`ak` finds `Akira` and `Domu: Akira`), and says so.
 - **Favorites first** when you turned on highlighting starred results in **Settings** > **Favorites**.
 
+*New in 1.50.0:*
+
+- **Leave words out.** A word with a `-` in front must not be in the name: `berserk -deluxe` lists `Berserk` but not `Berserk Deluxe`. Put words in quotes to leave out only that phrase (`-"black swordsman"`); a `-word` with punctuation inside is one phrase too (`-re:zero`). A folder whose name holds the word is left out with everything inside it, and a folder's **+N inside** count does not count the archives the word names. A `-` inside a name still separates words as before (`spider-man` finds `Spider-Man`), and so does a `-` with a space after it. A search of only `-` words finds nothing - type at least one word to look for.
+- **Words spread over folders.** The words may be split between an archive's or folder's own name and the names of the folders it sits in: `berserk 12` finds `Berserk/Vol 12.cbz`, and `berserk 6` finds `Berserk/Volumes/Ch. 0106.00 Vol. 006.cbz` - handy when your files are named without the series title (as MangaList names chapters and volumes). At least one word must be in the item's own name, so `berserk` alone still lists the `Berserk` folder (with **+N inside**), not every volume in it. Names that hold every word themselves come first, then these. Only folders in the same library count, and only libraries you can see.
+- **Numbers.** A number of one or two digits also finds the same number with zeros in front: `6` finds `Vol. 006` and `12` finds `Ch. 0012` (zeros you type still count: `01` does not find `Vol 1`).
+- **Series matches** also find a title with a typo (after the exact titles, when the page shows close matches) and from one or two letters (a word of the title that starts with them).
+
 ### Quick results while you type
 
 *New in 1.49.0.* On a desktop or tablet the top bar has a **search box** (press `/` anywhere on a page to jump into it). On a phone the top bar stays as it is, and the **Search** page shows the same results under its field while you type.
@@ -217,6 +224,7 @@ The search icon in the top bar opens **Search**. It looks through the names of t
 - After a short pause in your typing, a list opens with the best few of each kind - **Series** (found by title or other title; the folder or archive linked to the series opens), **Folders**, **Archives**, **Creators** and **Tags** (tags and genres, with how many works carry each). Archives show the folder they sit in. Names are matched as in the search above (words in any order, accents and case ignored; a name needs a word of 3 letters or more, and quick results do not look for typos - the full search does). Creators and tags need 2 letters.
 - **Keyboard:** **Up** and **Down** move through the list, **Enter** opens the one you chose, **Enter** with none chosen opens the full **Search** page with what you typed, **Escape** closes the list (a second **Escape** clears the box).
 - **Mouse or touch:** a result opens when you select it. A folder opens in the library, an archive in the reader, a creator or tag opens the [tag view](series-information.md) of its works.
+- *New in 1.50.0:* quick results follow the `-word` and the words-over-folders rules above (`berserk 12` lists `Vol 12` of the `Berserk` folder), and look for typos in a single word of 5 letters or more - series titles and folder names, after the exact matches (two words, a shorter word or an archive name: the full **Search** page).
 - **Typed fields:** while the text ends in a field - `creator:ura`, `tag:`, `genre:`, `publisher:`, `magazine:`, `type:`, `year:`, `series:`, `library:` or `is:` - the list shows the values of that field instead (a creator or tag with its work count, a library by name). Choosing one completes the field, for example `creator:"Naoki Urasawa"`, and you can type on.
 - Only what you may open is listed: the libraries you can see (Private libraries stay out while Incognito is on), and no series, creators or tags from a library that shows no series information.
 

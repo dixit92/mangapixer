@@ -66,5 +66,6 @@ public sealed class SortKeySqlFunctionInterceptor : DbConnectionInterceptor
             (long kind, string? displayName) =>
                 SortKey.ForNode((CatalogNodeKind)kind, displayName ?? string.Empty),
             isDeterministic: true);
+        FoldSqlFunction.Register(connection); // 1.50.0 lane S: mp_fold beside mp_sort_key
     }
 }
