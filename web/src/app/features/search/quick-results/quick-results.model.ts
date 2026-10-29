@@ -130,7 +130,7 @@ export class QuickResults {
   readonly entries = computed(() => quickEntries(this.sections()));
   /** The keyboard's entry (index into {@link entries}); -1 = none, so Enter searches the text. */
   readonly active = signal(-1);
-  readonly activeEntry = computed(() => this.entries()[this.active()] ?? null);
+  readonly activeEntry = computed<QuickEntry | null>(() => this.entries()[this.active()] ?? null);
 
   constructor() {
     // A newer text (or "nothing") cancels the wait and the request of the one before it - the debounce lives INSIDE the switch, so
