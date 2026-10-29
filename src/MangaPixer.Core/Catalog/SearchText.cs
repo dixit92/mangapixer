@@ -15,14 +15,25 @@ public sealed record SearchWord(string Raw, string Folded)
 
 /// <summary>
 /// A parsed plain search (1.49.0, decision 5): the unquoted <see cref="Words"/> (any order) and the quoted <see cref="Phrases"/> (each
-/// in its order, adjacent). Punctuation separates words and is otherwise ignored.
+/// in its order, adjacent). Punctuation separates words and is otherwise ignored. 1.50.0: the <see cref="Negated"/> terms (<c>-word</c>,
+/// <c>-"two words"</c>) a listed name must not contain.
 /// </summary>
 public sealed record SearchQuery(IReadOnlyList<SearchWord> Words, IReadOnlyList<IReadOnlyList<SearchWord>> Phrases)
 {
-    /// <summary>Every word in the order typed (phrase words included).</summary>
+    /// <summary>Every word in the order typed (phrase words included; never a negated one).</summary>
     public IReadOnlyList<SearchWord> AllWords { get; } = Words.Concat(Phrases.SelectMany(p => p)).ToList();
 
+    /// <summary>
+    /// 1.50.0: the terms after a leading <c>-</c>, each as its words in order (<c>-re:zero</c> = "re zero", <c>-"one piece"</c> = "one
+    /// piece"). A name holding one of them is left out (<see cref="SearchText.IsExcluded"/>). Never looked up in the index.
+    /// </summary>
+    public IReadOnlyList<IReadOnlyList<SearchWord>> Negated { get; init; } = [];
+
+    /// <summary>No word to look for (a search of only <c>-word</c> terms is empty too: it lists nothing - lane S rule, 1.50.0).</summary>
     public bool IsEmpty => AllWords.Count == 0;
+
+    /// <summary>A search of nothing but <c>-word</c> terms (1.50.0): it lists nothing.</summary>
+    public bool HasOnlyExclusions => IsEmpty && Negated.Count > 0;
 
     /// <summary>
     /// The words the trigram index can look up (3+ characters), distinct by their folded form. Empty for a short search, which is matched
@@ -55,36 +66,87 @@ public static class SearchText
 
     /// <summary>
     /// Parses the search text: <c>"..."</c> keeps an exact phrase (an unclosed quote runs to the end); everything else is split into words
-    /// on any character that is not a letter, digit or combining mark.
+    /// on any character that is not a letter, digit or combining mark. 1.50.0: a <c>-</c> at the start of the text or after white space,
+    /// right before a letter, digit or quote, makes the next term (up to the next white space or quote, or the quoted phrase) one that a
+    /// name must not hold (<see cref="SearchQuery.Negated"/>). A <c>-</c> anywhere else - inside a word (<c>Spider-Man</c>) or before a
+    /// space - separates words as before.
     /// </summary>
     public static SearchQuery Parse(string? input)
     {
         var words = new List<SearchWord>();
         var phrases = new List<IReadOnlyList<SearchWord>>();
+        var negated = new List<IReadOnlyList<SearchWord>>();
         if (string.IsNullOrWhiteSpace(input))
             return new SearchQuery(words, phrases);
 
         var text = input.Normalize(NormalizationForm.FormC);
+        var plain = 0; // start of the plain text not split yet
         var i = 0;
         while (i < text.Length)
         {
-            var quote = text.IndexOf('"', i);
-            if (quote < 0)
+            var c = text[i];
+            if (c == '"')
             {
-                words.AddRange(SplitWords(text.AsSpan(i)));
-                break;
+                words.AddRange(SplitWords(text.AsSpan(plain, i - plain)));
+                var (phrase, next) = Quoted(text, i);
+                if (phrase.Count == 1)
+                    words.Add(phrase[0]);
+                else if (phrase.Count > 1)
+                    phrases.Add(phrase);
+                i = plain = next;
+                continue;
             }
-            words.AddRange(SplitWords(text.AsSpan(i, quote - i)));
-            var close = text.IndexOf('"', quote + 1);
-            var end = close < 0 ? text.Length : close;
-            var phrase = SplitWords(text.AsSpan(quote + 1, end - quote - 1));
-            if (phrase.Count == 1)
-                words.Add(phrase[0]);
-            else if (phrase.Count > 1)
-                phrases.Add(phrase);
-            i = close < 0 ? text.Length : close + 1;
+            if (c == '-' && (i == 0 || char.IsWhiteSpace(text[i - 1])) && i + 1 < text.Length
+                && (text[i + 1] == '"' || IsWordChar(text[i + 1])))
+            {
+                words.AddRange(SplitWords(text.AsSpan(plain, i - plain)));
+                List<SearchWord> term;
+                if (text[i + 1] == '"')
+                {
+                    (term, i) = Quoted(text, i + 1);
+                }
+                else
+                {
+                    var end = i + 1;
+                    while (end < text.Length && !char.IsWhiteSpace(text[end]) && text[end] != '"')
+                        end++;
+                    term = SplitWords(text.AsSpan(i + 1, end - i - 1));
+                    i = end;
+                }
+                if (term.Count > 0)
+                    negated.Add(term);
+                plain = i;
+                continue;
+            }
+            i++;
         }
-        return new SearchQuery(words, phrases);
+        words.AddRange(SplitWords(text.AsSpan(plain)));
+        return new SearchQuery(words, phrases) { Negated = negated };
+    }
+
+    /// <summary>The words of the quoted part opening at <paramref name="quote"/> and the index after it (an unclosed quote runs to the end).</summary>
+    private static (List<SearchWord> Words, int Next) Quoted(string text, int quote)
+    {
+        var close = text.IndexOf('"', quote + 1);
+        var end = close < 0 ? text.Length : close;
+        return (SplitWords(text.AsSpan(quote + 1, end - quote - 1)), close < 0 ? text.Length : close + 1);
+    }
+
+    /// <summary>
+    /// Whether a name is left out by the search's <c>-word</c> terms (1.50.0): a single word of 1-2 characters when it starts a word of the
+    /// name, any other term when the name contains it (its words in order) - the rules a word or phrase that is looked FOR follows.
+    /// <paramref name="foldedName"/> comes from <see cref="FoldName"/> (or <see cref="Fold"/>).
+    /// </summary>
+    public static bool IsExcluded(SearchQuery query, string foldedName)
+    {
+        foreach (var term in query.Negated)
+        {
+            if (term.Count == 1 && term[0].Length < TrigramLength
+                ? HasWordStartingWith(foldedName, term[0].Folded)
+                : foldedName.Contains(term.Count == 1 ? term[0].Folded : string.Join(' ', term.Select(w => w.Folded)), StringComparison.Ordinal))
+                return true;
+        }
+        return false;
     }
 
     /// <summary>A search with no word of 3+ characters: names match when every word STARTS a word of the name (no index, no typos).</summary>
@@ -261,17 +323,28 @@ public static class SearchText
 
     /// <summary>
     /// Whether <paramref name="text"/> (folded) starts a word of <paramref name="foldedName"/> - at the start or after a space; no
-    /// allocation (it runs for every visible name in a short or typo search).
+    /// allocation (it runs for every visible name in a short or typo search). 1.50.0: text that starts with a digit also starts a number
+    /// after its leading zeros (<c>6</c> and <c>06</c> start <c>006</c>; <c>12</c> starts <c>0012</c>) - title-less volume names are
+    /// usually zero-padded (<c>Vol. 006</c>). The typed zeros still count (<c>01</c> does not start <c>1</c>).
     /// </summary>
     public static bool HasWordStartingWith(string foldedName, string text)
     {
         if (text.Length == 0)
             return true;
+        var digit = char.IsAsciiDigit(text[0]);
         var at = foldedName.IndexOf(text, StringComparison.Ordinal);
         while (at >= 0)
         {
             if (at == 0 || foldedName[at - 1] == ' ')
                 return true;
+            if (digit && foldedName[at - 1] == '0')
+            {
+                var start = at - 1;
+                while (start > 0 && foldedName[start - 1] == '0')
+                    start--;
+                if (start == 0 || foldedName[start - 1] == ' ')
+                    return true;
+            }
             at = foldedName.IndexOf(text, at + 1, StringComparison.Ordinal);
         }
         return false;

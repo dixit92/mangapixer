@@ -115,7 +115,9 @@ public sealed partial class CatalogBrowseService
             var exact = new List<SearchHit>();
             foreach (var c in candidates)
             {
-                if (SearchText.Rank(parsed, SearchText.FoldName(c.Name, c.Kind == (int)CatalogNodeKind.Archive)) is { } rank)
+                var folded = SearchText.FoldName(c.Name, c.Kind == (int)CatalogNodeKind.Archive);
+                // 1.50.0: a name holding a -word term is left out after ranking (never a hit, never counted inside a folder card).
+                if (SearchText.Rank(parsed, folded) is { } rank && !SearchText.IsExcluded(parsed, folded))
                     exact.Add(new SearchHit(c.Id, c.Kind, c.SortKey, 1, rank));
             }
             // Every name hit, before the read filter: "+N inside" never counts an archive that is a hit of its own.
@@ -142,7 +144,8 @@ public sealed partial class CatalogBrowseService
                 {
                     if (nameHitIds.Contains(c.Id))
                         continue;
-                    if (SearchText.FuzzyDistance(parsed, SearchText.FoldName(c.Name, c.Kind == (int)CatalogNodeKind.Archive)) is { } distance)
+                    var folded = SearchText.FoldName(c.Name, c.Kind == (int)CatalogNodeKind.Archive);
+                    if (SearchText.FuzzyDistance(parsed, folded) is { } distance && !SearchText.IsExcluded(parsed, folded))
                         close.Add(new SearchHit(c.Id, c.Kind, c.SortKey, 3, distance));
                 }
                 if (readState != BrowseReadStateFilter.All)
@@ -172,7 +175,7 @@ public sealed partial class CatalogBrowseService
 
             var (results, internalIds) = await ReadSearchNodesAsync(connection, pageHits.Select(h => h.Id).ToList(), ct);
             var insideCounts = await InsideCountsAsync(connection,
-                pageHits.Where(h => h.Kind == (int)CatalogNodeKind.Folder).Select(h => h.Id).ToList(), nameHitIds, ct);
+                pageHits.Where(h => h.Kind == (int)CatalogNodeKind.Folder).Select(h => h.Id).ToList(), nameHitIds, parsed, ct);
 
             // Alt-title matches (1.26.0): first page only, one extra query; 1.49.0 the same words and rank.
             var anchors = position is null && exactFts is not null
@@ -336,14 +339,17 @@ public sealed partial class CatalogBrowseService
     /// found only through the folder's name. A sub-folder that is itself a hit has its own card: its archives are not counted again.
     /// Independent of the read filter. One recursive walk per page reads the folders' live subtrees (id, parent, kind); the counting
     /// against the hit set happens here (a <c>NOT IN</c> over the hits inside the recursive step cost ~100 ms on 40 k nodes).
+    /// 1.50.0: a node a <c>-word</c> term leaves out is not counted, and a folder it leaves out is not descended (its names are read only
+    /// when the search has such a term).
     /// </summary>
     private static async Task<Dictionary<long, int>> InsideCountsAsync(
-        DbConnection connection, List<long> folderIds, HashSet<long> hitIds, CancellationToken ct)
+        DbConnection connection, List<long> folderIds, HashSet<long> hitIds, SearchQuery parsed, CancellationToken ct)
     {
         var counts = new Dictionary<long, int>();
         if (folderIds.Count == 0)
             return counts;
         var children = new Dictionary<long, List<(long Id, bool Folder)>>();
+        var withNames = parsed.Negated.Count > 0;
         using (var command = connection.CreateCommand())
         {
             command.CommandText = $"""
@@ -356,15 +362,18 @@ public sealed partial class CatalogBrowseService
                     CROSS JOIN catalog_nodes c ON c.ParentId = d.id
                     WHERE d.kind = {(int)CatalogNodeKind.Folder} AND c.Availability != 5
                 )
-                SELECT id, parent, kind FROM d
+                SELECT d.id, d.parent, d.kind{(withNames ? ", n.DisplayName FROM d JOIN catalog_nodes n ON n.Id = d.id" : " FROM d")}
                 """;
             using var reader = await command.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
+                var kind = reader.GetInt32(2);
+                if (withNames && SearchText.IsExcluded(parsed, SearchText.FoldName(reader.GetString(3), kind == (int)CatalogNodeKind.Archive)))
+                    continue; // left out by a -word term: not counted, nothing below it counted
                 var parent = reader.GetInt64(1);
                 if (!children.TryGetValue(parent, out var list))
                     children[parent] = list = [];
-                list.Add((reader.GetInt64(0), reader.GetInt32(2) == (int)CatalogNodeKind.Folder));
+                list.Add((reader.GetInt64(0), kind == (int)CatalogNodeKind.Folder));
             }
         }
         foreach (var root in folderIds)
@@ -706,7 +715,11 @@ public sealed partial class CatalogBrowseService
             while (await reader.ReadAsync(ct))
             {
                 var title = reader.GetString(reader.GetOrdinal("MatchedTitle"));
-                if (SearchText.Rank(parsed, SearchText.Fold(title)) is not { } rank)
+                var foldedTitle = SearchText.Fold(title);
+                // 1.50.0: a -word term leaves out a title holding it, and an anchor whose own name holds it.
+                if (SearchText.Rank(parsed, foldedTitle) is not { } rank || SearchText.IsExcluded(parsed, foldedTitle)
+                    || (parsed.Negated.Count > 0 && SearchText.IsExcluded(parsed, SearchText.FoldName(
+                        reader.GetString(reader.GetOrdinal("DisplayName")), reader.GetInt32(reader.GetOrdinal("Kind")) == (int)CatalogNodeKind.Archive))))
                     continue;
                 var id = reader.GetInt64(reader.GetOrdinal("Id"));
                 if (best.TryGetValue(id, out var seen)

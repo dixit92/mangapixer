@@ -63,7 +63,8 @@ public sealed partial class CatalogBrowseService
             {
                 if (anchorIds.Contains(c.Id))
                     continue;
-                if (SearchText.Rank(parsed, SearchText.FoldName(c.Name, c.Kind == (int)CatalogNodeKind.Archive)) is { } rank)
+                var folded = SearchText.FoldName(c.Name, c.Kind == (int)CatalogNodeKind.Archive);
+                if (SearchText.Rank(parsed, folded) is { } rank && !SearchText.IsExcluded(parsed, folded))
                     hits.Add(new SearchHit(c.Id, c.Kind, c.SortKey, favorites.Contains(c.Id) ? 0 : 1, rank));
             }
             var ordered = hits.OrderBy(h => h.Group).ThenBy(h => h.Rank).ThenBy(h => h.SortKey, StringComparer.Ordinal).ThenBy(h => h.Id).ToList();
