@@ -576,6 +576,19 @@ export type LibrarySortDirection = 'asc' | 'desc';
  */
 export type LibraryReadStateFilter = 'all' | 'reading' | 'read' | 'unread';
 
+/**
+ * 1.50.0 (Favorites view): the optional `GET /favorites` parameters - the sort (`favorited` = the default, newest star first; `name`;
+ * `recentlyAdded`; `recentlyUpdated`), the Name direction, and the transient filters (read state, kind - a stack counts as archives - and
+ * one library). Query parameters only (no schema).
+ */
+export interface FavoritesQuery {
+  sort?: 'favorited' | 'name' | 'recentlyAdded' | 'recentlyUpdated';
+  direction?: 'asc' | 'desc';
+  readState?: LibraryReadStateFilter;
+  kind?: 'all' | 'folders' | 'archives';
+  libraryId?: string | null;
+}
+
 /** Per-user library browse presentation preferences (1.2.0). Strings for tolerance. */
 export interface LibraryViewPreferencesDto {
   viewMode: string;

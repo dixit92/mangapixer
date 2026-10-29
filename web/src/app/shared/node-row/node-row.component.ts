@@ -13,6 +13,7 @@ import { VolumeIncompleteBadgeComponent } from '../volume-stack/volume-incomplet
 import { OfficialReleaseBadgeComponent } from '../volume-stack/official-release-badge.component';
 import { AlsoInVolumeBadgeComponent } from '../volume-stack/also-in-volume-badge.component';
 import { TrackerReadMarkComponent } from '../../features/trackers/tracker-read-mark.component';
+import { ContextLineComponent } from '../context-line/context-line.component';
 
 /** Short label of a folder's direction override chip ("LTR", "RTL", "Vertical", "Spread"). */
 export function directionShort(mode: ReaderMode): string {
@@ -41,7 +42,7 @@ export function directionShort(mode: ReaderMode): string {
   imports: [
     RouterLink, MatIconModule, MatTooltipModule, CoverImageDirective, FolderRollupBadgeComponent, SeriesInfoHoverDirective,
     InfoToggleComponent, StarToggleComponent, VolumeIncompleteBadgeComponent, OfficialReleaseBadgeComponent, AlsoInVolumeBadgeComponent,
-    TrackerReadMarkComponent,
+    TrackerReadMarkComponent, ContextLineComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -54,7 +55,7 @@ export function directionShort(mode: ReaderMode): string {
           <mat-icon>{{ selected() ? 'check_box' : 'check_box_outline_blank' }}</mat-icon>
         </button>
       }
-      <a #cardEl class="node-card" [routerLink]="link()"
+      <a #cardEl class="node-card" [routerLink]="link()" [queryParams]="queryParams()"
          (click)="activate.emit($event)"
          (pointerdown)="pressStart.emit($event)"
          (pointerup)="pressEnd.emit()"
@@ -70,6 +71,10 @@ export function directionShort(mode: ReaderMode): string {
           @if (node().volumeStack; as stack) {
             <app-volume-incomplete-badge [summary]="stack" [compact]="true" />
           }
+          <!-- 1.50.0 (Favorites view): a favorites stack's count of starred archives, as on its card. -->
+          @if (stackCount(); as count) {
+            <span class="count-badge" data-testid="row-stack-count" [matTooltip]="count + ' favorites'">{{ count }}</span>
+          }
           @if (rangePrompt()) {
             <div class="range-prompt">
               <button type="button" (click)="selectToHere.emit($event)">Select to here</button>
@@ -79,6 +84,8 @@ export function directionShort(mode: ReaderMode): string {
         </div>
         <div class="node-text">
           <div class="node-title" [title]="node().displayName" [appSeriesInfoHover]="hoverId()" [hoverAnchor]="cardEl">{{ node().displayName }}</div>
+          <!-- 1.50.0: the archive context line (lane W) where the host asks for it (Favorites); browse passes none. -->
+          <app-context-line [name]="contextName()" />
           <div class="node-sub">{{ subtitle() }}</div>
         </div>
         <div class="row-markers">
@@ -89,9 +96,12 @@ export function directionShort(mode: ReaderMode): string {
             <app-also-in-volume-badge [volume]="node().alsoInVolume" [overlay]="false" />
           }
           @if (!isStack()) {
-            <app-star-toggle [nodeId]="node().id" [favorite]="!!node().isFavorite" />
+            @if (showStar()) {
+              <app-star-toggle [nodeId]="node().id" [favorite]="!!node().isFavorite" />
+            }
             @if (!selectMode()) {
               <app-info-toggle [nodeId]="node().id" [hasSeriesInfo]="!!node().hasSeriesInfo" [compact]="true"
+                               [anchored]="anchoredInfo()"
                                [appSeriesInfoHover]="hoverId()" [hoverAnchor]="cardEl" />
             }
           }
@@ -165,6 +175,11 @@ export function directionShort(mode: ReaderMode): string {
       cursor: pointer; background: var(--mp-accent-strong); color: var(--mp-on-accent); width: 100%;
     }
     .range-prompt button.cancel { background: color-mix(in srgb, var(--mp-on-scrim) 12%, transparent); color: var(--mp-on-scrim); }
+    .count-badge {
+      position: absolute; top: 2px; left: 2px; z-index: 2;
+      font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 8px;
+      background: rgb(var(--mp-accent-strong-rgb) / 0.92); color: var(--mp-on-accent);
+    }
   `],
 })
 export class NodeRowComponent {
@@ -190,6 +205,21 @@ export class NodeRowComponent {
 
   /** Admins see a folder's reading-direction override as a chip. */
   readonly showDirection = input(false);
+
+  /** 1.50.0 (Favorites view): query params of `link` (a favorites stack opens its folder with `?favorites=1`). */
+  readonly queryParams = input<Record<string, string> | null>(null);
+
+  /** 1.50.0: a favorites stack's count of starred archives, shown over the thumbnail; null for any other row. */
+  readonly stackCount = input<number | null>(null);
+
+  /** 1.50.0: whether the row shows the favorite star (a favorites stack has none - it would star the folder itself). */
+  readonly showStar = input(true);
+
+  /** 1.50.0: the archive context line under the title (lane W's `contextName`); null = none (browse - the page is the context). */
+  readonly contextName = input<string | null>(null);
+
+  /** 1.50.0: the (i) of an archive follows the series it sits in (anchored, as the Favorites and Continue cards). */
+  readonly anchoredInfo = input(false);
 
   readonly activate = output<MouseEvent>();
   readonly rowSelect = output<Event>();
