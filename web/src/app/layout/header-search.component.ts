@@ -1,9 +1,16 @@
 import { ChangeDetectionStrategy, Component, ElementRef, HostListener, inject, signal, viewChild } from '@angular/core';
-import { Router } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router } from '@angular/router';
+import { filter, map, startWith } from 'rxjs/operators';
 import { MatIconModule } from '@angular/material/icon';
 
 import { QuickResultsComponent } from '../features/search/quick-results/quick-results.component';
 import { QuickEntry, QuickResults, completeToken } from '../features/search/quick-results/quick-results.model';
+
+/** Whether a URL is the Search page (its own field has the quick results; the header box steps aside there). */
+export function isSearchPageUrl(url: string): boolean {
+  return url.split(/[?#]/)[0].replace(/\/+$/, '') === '/search';
+}
 
 /**
  * The search box of the app header on desktop and tablet (1.49.0, lane O; owner decision 7). Typing shows grouped quick results (series,
@@ -12,12 +19,15 @@ import { QuickEntry, QuickResults, completeToken } from '../features/search/quic
  * chosen opens the full Search page with the text, Escape closes the list (a second Escape clears the box), and `/` focuses the box from
  * anywhere that is not a text field. ARIA combobox (1.2): the input owns the listbox through `aria-controls` / `aria-activedescendant`.
  * Not mounted on phones (they keep the Search page, which has the same results under its box). Theming through `--mp-*` tokens.
+ * 1.50.0 (lane U): the results list ends in a keyboard hint line; on the Search page itself the box is hidden (that page has its own field
+ * with the same quick results - two boxes at once would be two places to type) and `/` focuses the page's field instead.
  */
 @Component({
   selector: 'app-header-search',
   standalone: true,
   imports: [MatIconModule, QuickResultsComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '[class.on-search-page]': 'onSearchPage()' },
   template: `
     <div class="hs" role="search">
       <mat-icon class="hs-icon" aria-hidden="true">search</mat-icon>
@@ -32,12 +42,13 @@ import { QuickEntry, QuickResults, completeToken } from '../features/search/quic
       <div class="hs-panel" [style.top.px]="panelTop()" [style.left.px]="panelLeft()" [style.width.px]="panelWidth()"
            data-testid="header-search-panel">
         <app-quick-results [sections]="quick.sections()" [activeKey]="quick.activeEntry()?.key ?? null" idPrefix="hs-"
-                           listId="header-search-list" label="Quick results" (picked)="pick($event)" />
+                           listId="header-search-list" label="Quick results" [keyboardHint]="true" (picked)="pick($event)" />
       </div>
     }
   `,
   styles: [`
     :host { display: block; flex: 0 1 340px; min-width: 120px; margin: 0 8px; }
+    :host(.on-search-page) { display: none; }
     .hs { position: relative; display: flex; align-items: center; height: 40px; }
     .hs-icon {
       position: absolute; left: 10px; font-size: 20px; width: 20px; height: 20px; pointer-events: none; opacity: 0.8;
@@ -63,6 +74,11 @@ export class HeaderSearchComponent {
   private readonly box = viewChild.required<ElementRef<HTMLInputElement>>('box');
 
   readonly quick = new QuickResults();
+  readonly onSearchPage = toSignal(
+    this.router.events.pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd), map((e) => isSearchPageUrl(e.urlAfterRedirects)),
+      startWith(isSearchPageUrl(this.router.url))),
+    { initialValue: false },
+  );
   readonly text = signal('');
   private readonly focused = signal(false);
   private readonly dismissed = signal(false);
@@ -88,7 +104,9 @@ export class HeaderSearchComponent {
     const target = event.target as HTMLElement | null;
     if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
     event.preventDefault();
-    this.box().nativeElement.focus();
+    // On the Search page this box is hidden: the page's own field takes the shortcut.
+    const field = this.onSearchPage() ? document.querySelector<HTMLInputElement>('[data-testid="search-input"]') : this.box().nativeElement;
+    field?.focus();
   }
 
   @HostListener('window:resize')

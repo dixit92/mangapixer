@@ -47,6 +47,13 @@ public sealed class FacetSearchService
     /// <summary>1.49.0: Refine chips per bucket (the rest is counted in <see cref="FacetBucketDto.More"/>).</summary>
     public const int RefineChipsPerBucket = 12;
 
+    /// <summary>
+    /// 1.50.0 (lane U): the most values one expanded Refine bucket lists ("+N more" opened). Tags is the biggest bucket (about 3 000 values
+    /// on a large library); the cap keeps a pathological index from sending an unbounded list, and the bucket's <c>more</c> still counts
+    /// what is left out.
+    /// </summary>
+    public const int MaxExpandedChips = 5000;
+
     /// <summary>1.49.0: the buckets the Refine list offers, in the panel's order.</summary>
     public static readonly IReadOnlyList<FacetBucket> RefineBuckets =
     [
@@ -97,6 +104,7 @@ public sealed class FacetSearchService
         string? cursor,
         int pageSize,
         BrowseReadStateFilter readState = BrowseReadStateFilter.All,
+        FacetBucket? expand = null,
         CancellationToken ct = default)
     {
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -206,7 +214,7 @@ public sealed class FacetSearchService
         if (position is null)
         {
             var used = resolved.SelectMany(r => r.ValueIds).ToHashSet();
-            refine = total == 0 ? [] : await RefineAsync(where, textParameters, scope, used, ct);
+            refine = total == 0 ? [] : await RefineAsync(where, textParameters, scope, used, expand, ct);
         }
 
         var works = await CardsAsync(userId, rows.Select(r => (r.Id, r.Title)).ToList(), scope, ct);
@@ -275,13 +283,18 @@ public sealed class FacetSearchService
     /// <see cref="RefineChipsPerBucket"/> per bucket. Cached in <see cref="FacetCountCache"/> under (generation, shown-set hash, statement
     /// hash) - the statement names the shown libraries, every resolved value and the read filter's kept works, so a cached list is exactly
     /// what the same statement computes.
+    /// 1.50.0 (lane U): <paramref name="expand"/> names one bucket whose list is complete (up to <see cref="MaxExpandedChips"/>, "+N more"
+    /// opened) - the values are the ones already counted for the same statement, only the cut is lifted; the expanded list is cached under
+    /// its own key, so a plain search never reads it.
     /// </summary>
     private async Task<IReadOnlyList<FacetBucketDto>> RefineAsync(
-        string where, IReadOnlyDictionary<string, object?> parameters, FacetViewerScope scope, HashSet<long> used, CancellationToken ct)
+        string where, IReadOnlyDictionary<string, object?> parameters, FacetViewerScope scope, HashSet<long> used, FacetBucket? expand,
+        CancellationToken ct)
     {
         var generation = _generation.Current; // read BEFORE querying (QueryGeneration's contract)
         var statement = where + "\u0001" + string.Join("\u0001", parameters.OrderBy(p => p.Key, StringComparer.Ordinal)
-            .Select(p => p.Key + "=" + Convert.ToString(p.Value, CultureInfo.InvariantCulture)));
+            .Select(p => p.Key + "=" + Convert.ToString(p.Value, CultureInfo.InvariantCulture)))
+            + (expand is { } open && RefineBuckets.Contains(open) ? "\u0001expand=" + (int)open : "");
         var key = new FacetCountCache.RefineKey(generation, scope.Hash,
             Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(statement))));
         if (_cache.TryGet(key, out var cached) && cached is not null)
@@ -317,17 +330,18 @@ public sealed class FacetSearchService
             {
                 var ordered = g.OrderByDescending(r => r.Count).ThenBy(r => r.Display, StringComparer.OrdinalIgnoreCase).ThenBy(r => r.Id).ToList();
                 var token = FacetBucketTokens.Token(g.Key);
+                var keep = expand == g.Key ? MaxExpandedChips : RefineChipsPerBucket;
                 return new FacetBucketDto
                 {
                     Bucket = g.Key,
-                    Chips = ordered.Take(RefineChipsPerBucket).Select(r => new FacetChipDto
+                    Chips = ordered.Take(keep).Select(r => new FacetChipDto
                     {
                         Id = r.PublicId,
                         Display = r.Display,
                         Count = r.Count,
                         Filter = token + ":" + r.PublicId,
                     }).ToList(),
-                    More = Math.Max(0, ordered.Count - RefineChipsPerBucket),
+                    More = Math.Max(0, ordered.Count - keep),
                 };
             })
             .ToList();

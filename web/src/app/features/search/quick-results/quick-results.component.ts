@@ -42,6 +42,12 @@ import { QuickEntry, QuickSection } from './quick-results.model';
         </div>
       }
     </div>
+    @if (keyboardHint()) {
+      <!-- 1.50.0 (lane U): the keys, for the boxes that have a keyboard focus on them (the screen-reader line says the same in words). -->
+      <div class="qr-hint" aria-hidden="true" data-testid="quick-hint">
+        <kbd>&uarr;</kbd><kbd>&darr;</kbd> to move<span class="qr-hint-dot">&middot;</span><kbd>Enter</kbd> to open<span class="qr-hint-dot">&middot;</span><kbd>Esc</kbd> to close
+      </div>
+    }
   `,
   styles: [`
     :host { display: block; min-width: 0; }
@@ -61,6 +67,15 @@ import { QuickEntry, QuickSection } from './quick-results.model';
     .qr-detail { font-size: 12px; color: var(--mp-text-muted); }
     .qr-context { margin-top: -2px; }
     .qr-count { flex: none; font-size: 12px; color: var(--mp-text-muted); }
+    .qr-hint {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px 12px 4px; margin-top: 2px; font-size: 11px;
+      color: var(--mp-text-dim); border-top: 1px solid rgb(var(--mp-ink-rgb) / 0.1);
+    }
+    .qr-hint kbd {
+      font: inherit; font-size: 10px; padding: 0 4px; border-radius: 3px; border: 1px solid rgb(var(--mp-ink-rgb) / 0.25);
+      background: rgb(var(--mp-ink-rgb) / 0.06); color: var(--mp-text-muted);
+    }
+    .qr-hint-dot { margin: 0 4px; }
   `],
 })
 export class QuickResultsComponent {
@@ -71,5 +86,7 @@ export class QuickResultsComponent {
   readonly idPrefix = input('qr-');
   readonly listId = input<string | null>(null);
   readonly label = input('Quick results');
+  /** 1.50.0 (lane U): show the keyboard line (arrows / Enter / Esc) under the list - off on a phone, which has no keyboard in play. */
+  readonly keyboardHint = input(false);
   readonly picked = output<QuickEntry>();
 }

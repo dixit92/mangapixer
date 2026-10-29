@@ -360,6 +360,9 @@ public sealed class CatalogController : ControllerBase
     /// 1.49.0 (lane T): <c>f</c> also takes exclusions (<c>-genre:fv_..</c>) and any-of (<c>genre:fv_a|fv_b</c>); the tag view's first page
     /// carries <c>refine</c>; <c>q</c> takes <c>tag:</c>, <c>series:</c>, <c>-field:</c>, <c>year:2010..2015</c>, and the scope words
     /// <c>is:read|unread|reading</c> and <c>library:&lt;name&gt;</c> for every search (plain too).
+    /// 1.50.0 (lane U): <paramref name="expand"/> = a bucket token (<c>tag</c>, <c>creator</c>, ...) makes the first page's <c>refine</c>
+    /// list that bucket complete instead of cut to the top few ("+N more" opened on the Search page); an unknown token is ignored, and a
+    /// search that is not a tag view has no <c>refine</c> to expand.
     /// </remarks>
     [HttpGet("search")]
     public async Task<IActionResult> Search(
@@ -369,6 +372,7 @@ public sealed class CatalogController : ControllerBase
         [FromQuery] int pageSize = 50,
         [FromQuery] string? readState = null,
         [FromQuery] string[]? f = null,
+        [FromQuery] string? expand = null,
         [FromServices] Metadata.Facets.FacetSearchService? facetSearch = null,
         CancellationToken ct = default)
     {
@@ -413,7 +417,8 @@ public sealed class CatalogController : ControllerBase
             try
             {
                 return Ok(await facetSearch!.SearchAsync(
-                    userId.Value, _incognito.IsIncognito, q, f, libId, cursor, pageSize, read, ct));
+                    userId.Value, _incognito.IsIncognito, q, f, libId, cursor, pageSize, read,
+                    Metadata.Facets.FacetBucketTokens.TryParse(expand, out var open) ? open : null, ct));
             }
             catch (Metadata.Facets.FacetFilterFormatException ex)
             {

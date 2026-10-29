@@ -83,6 +83,8 @@ test('header box: type -> grouped results -> Down + Enter opens the folder; Ente
   await expect(panel.locator('[data-group="archives"] [role="option"]')).toHaveCount(5);
   // 1.50.0: the folder an archive sits in is its context line now (lane W's line, filled by the server since lane S).
   await expect(panel.locator('[data-group="archives"] [data-testid="context-line"]').first()).toHaveText('Jump Saga');
+  // 1.50.0 (lane U): the list ends in the keyboard line.
+  await expect(panel.getByTestId('quick-hint')).toContainText('to move');
 
   // Down chooses the first result (the folder); aria-activedescendant names it.
   await box.press('ArrowDown');
@@ -150,3 +152,53 @@ test('phone: no header box; the Search page shows the grouped quick results unde
   await quick.locator('[data-group="folders"] [role="option"]').click();
   await expect(page).toHaveURL(new RegExp(`/libraries/${libraryId}/browse/${folderId}$`));
 });
+
+/**
+ * 1.50.0 (lane U, owner decision 5): quick results on the Search page of a desktop and a tablet, with ONE box - the header box steps aside
+ * on that page. Type -> grouped dropdown with the keyboard line -> Down + Enter opens the folder; Escape closes the list; `/` goes to the field.
+ */
+for (const size of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'tablet', width: 820, height: 1180 }]) {
+  test(`${size.name}: the Search page shows the quick results under its own field, the header box steps aside`, async ({ page }) => {
+    test.setTimeout(180_000);
+    await login(page);
+    const [libraryId, folderId] = await ensureLibrary(page);
+    await page.setViewportSize({ width: size.width, height: size.height });
+
+    // Elsewhere the header box is there; on the Search page it is not (one box, not two).
+    await page.goto('/libraries');
+    await expect(page.getByTestId('header-search-input')).toBeVisible();
+    await page.goto('/search');
+    await expect(page.getByTestId('header-search-input')).toBeHidden();
+
+    // `/` from the page body focuses the page's field.
+    await page.locator('h2').first().click();
+    await page.keyboard.press('/');
+    const field = page.getByTestId('search-input');
+    await expect(field).toBeFocused();
+
+    const answered = page.waitForResponse((r) => r.url().includes('/api/v1/search/suggest') && r.ok());
+    await field.pressSequentially('jump sa', { delay: 20 });
+    await answered;
+    const quick = page.getByTestId('search-quick');
+    await expect(quick).toBeVisible();
+    await expect(quick.locator('[data-group="folders"] [role="option"]')).toHaveText([/Jump Saga/]);
+    await expect(quick.getByTestId('quick-hint')).toContainText('Esc');
+    await expectFitsScreen(page, `Search page with quick results at ${size.width}`);
+    // A dropdown over the page, inside the screen.
+    const box = (await quick.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(size.width);
+
+    // Escape closes the list and keeps the text; Down opens it again and chooses the first result.
+    await field.press('Escape');
+    await expect(quick).toBeHidden();
+    await expect(field).toHaveValue('jump sa');
+    await field.press('ArrowDown');
+    await expect(quick).toBeVisible();
+    const active = quick.locator('[role="option"][aria-selected="true"]');
+    await expect(active).toHaveCount(1);
+    await expect(field).toHaveAttribute('aria-activedescendant', (await active.getAttribute('id')) ?? 'none');
+    await field.press('Enter');
+    await expect(page).toHaveURL(new RegExp(`/libraries/${libraryId}/browse/${folderId}$`));
+  });
+}
