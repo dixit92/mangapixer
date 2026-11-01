@@ -535,7 +535,11 @@
          and the or-picker; date paging backward after a time chip; a Settings switch for backup compression; same-second safety snapshot
          names; the pending-archive sweep; the artist-alias folder signal (matcher rules revision 5). Migration 59 (AddBackupCompress);
          consent unchanged (main 7 / automatic 5); worker protocol 6; OpenAPI 370 schemas. -->
-    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
+    <!-- 1.50.1 - PATCH over 1.50.0 (2026-11-01): the phone library bar - View / Filter / Select icon-only below 600 px, the trail on its
+         own row, controls that never shrink (they wrap) - the icons were drawn across the squeezed buttons' borders and a long library
+         name ran under the Info button (owner report); the selection bar's Done never shrinks either; the E2E layout check gets a
+         `spills` rule (it found Done). Web only; no migration, no API change. -->
+    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->

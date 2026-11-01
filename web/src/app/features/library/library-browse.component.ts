@@ -207,7 +207,7 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
         }
         <button mat-stroked-button class="view-toggle" [matMenuTriggerFor]="viewMenu"
                 matTooltip="Change how the library is displayed" aria-label="View options">
-          <mat-icon>{{ viewIcon() }}</mat-icon> View
+          <mat-icon>{{ viewIcon() }}</mat-icon> <span class="lbl">View</span>
         </button>
         <!-- View menu (1.8.1): the selected option in each of the four submenus is
              marked with an accent COLOR HIGHLIGHT (background + text) rather than a
@@ -317,7 +317,7 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
         <button mat-stroked-button class="filter-toggle" [matMenuTriggerFor]="filterMenu"
                 [class.filter-active]="filterActive()"
                 [matTooltip]="filterTooltip()" [attr.aria-label]="filterTooltip()">
-          <mat-icon>{{ filterIcon() }}</mat-icon> {{ readStateLabel() }}
+          <mat-icon>{{ filterIcon() }}</mat-icon> <span class="lbl">{{ readStateLabel() }}</span>
         </button>
         <mat-menu #filterMenu="matMenu" class="view-options-menu">
           <span class="menu-caption">Show</span>
@@ -372,8 +372,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
             }
           }
         </mat-menu>
-        <button mat-stroked-button class="select-toggle" (click)="toggleSelectMode()">
-          <mat-icon>checklist</mat-icon> Select
+        <button mat-stroked-button class="select-toggle" aria-label="Select" (click)="toggleSelectMode()">
+          <mat-icon>checklist</mat-icon> <span class="lbl">Select</span>
         </button>
       } @else {
         <app-selection-bar [count]="selected().size" [busy]="busy()" [selectDisabled]="nodes().length === 0"
@@ -736,7 +736,7 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     /* --- PHONE breakpoint only (1.10.0, F3; folded into one media query - was three
        separate @media blocks). Desktop + iPad (>=561px) are untouched: every rule
        that changes layout lives inside this media query. It covers:
-        - dropping toolbar button labels to keep the action bar compact (icons remain);
+        - the View / Filter / Select labels are dropped (icons remain; 1.50.1 - before, only the selection actions lost theirs);
         - the card-size/list-columns slider is relocated OFF the cramped toolbar into
           a submenu (the inline control is hidden; the icon-button trigger is shown);
         - (the jump rail's own phone picker lives in JumpRailComponent since 1.41.0);
@@ -753,9 +753,15 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
         display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 4px;
         font-size: 15px; line-height: 1.35;
       }
-      /* The Volumes | Folders switch (1.29.0) would squeeze the trail: the bar wraps, the trail takes its own row. */
-      .browse-bar.has-view-switch, .browse-bar.has-tracking { flex-wrap: wrap; justify-content: flex-start; }
-      .browse-bar.has-view-switch .breadcrumbs, .browse-bar.has-tracking .breadcrumbs { flex-basis: 100%; }
+      /* 1.50.1: the trail always takes its own row and the controls follow, icon-only and never shrunk - squeezed below their
+         content, the buttons drew their icons across their borders and the trail ran under the Info button. Extra controls
+         (the Volumes | Folders switch, tracking, the star) wrap onto another row instead. */
+      .browse-bar:not(.selecting) { flex-wrap: wrap; justify-content: flex-start; gap: 8px; }
+      .browse-bar:not(.selecting) > :not(.breadcrumbs) { flex: none; }
+      .browse-bar:not(.selecting) .breadcrumbs { flex-basis: 100%; }
+      .browse-bar .lbl { display: none; }
+      .view-toggle, .filter-toggle, .select-toggle { min-width: 48px; padding: 0 12px; }
+      .view-toggle mat-icon, .filter-toggle mat-icon, .select-toggle mat-icon { margin: 0; }
       .breadcrumbs a { padding: 2px 0; }
       .breadcrumbs .sep { color: var(--mp-text-faint); }
       /* The current folder: the brightest crumb — the mobile "you are here".
