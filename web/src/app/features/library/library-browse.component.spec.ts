@@ -89,6 +89,18 @@ describe('LibraryBrowseComponent breadcrumbs', () => {
     expect(links[0].getAttribute('href')).toBe('/libraries/lib1/browse');
   });
 
+  it('1.50.1: View / Filter / Select carry their label in a .lbl span (hidden on a phone) and keep an accessible name', () => {
+    const { fixture } = setup('lib1', null);
+    const el: HTMLElement = fixture.nativeElement;
+    for (const [cls, label] of [['view-toggle', 'View'], ['filter-toggle', 'Filter'], ['select-toggle', 'Select']] as const) {
+      const button = el.querySelector(`.browse-bar .${cls}`) as HTMLElement;
+      expect(button, cls).not.toBeNull();
+      expect(button.querySelector('mat-icon'), cls).not.toBeNull();
+      expect(button.querySelector('.lbl')?.textContent?.trim(), cls).toBe(label);
+      expect(button.getAttribute('aria-label'), cls).toBeTruthy();
+    }
+  });
+
   it('does not link to the library landing page /libraries/{id}', () => {
     const { fixture } = setup('lib1', null);
     const el: HTMLElement = fixture.nativeElement;
