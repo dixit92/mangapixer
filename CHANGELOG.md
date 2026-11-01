@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
-- **The library's top bar fits a phone again.** On a phone the **View**, **Filter** and **Select** buttons kept their text, so with the library's Info button the bar was wider than the screen: the icons were drawn across the buttons' borders and a long library or folder name ran under the Info button. On a phone the three buttons now show only their icons (as on the Favorites page), the library or folder name has its own row, and any further buttons move to a new row instead of overlapping.
+- **The library's top bar fits a phone again.** On a phone the **View**, **Filter** and **Select** buttons kept their text, so with the library's Info button the bar was wider than the screen: the icons were drawn across the buttons' borders and a long library or folder name ran under the Info button. On a phone the three buttons now show only their icons (as on the Favorites page), the library or folder name has its own row, and any further buttons move to a new row instead of overlapping. In select mode the **Done** button no longer draws its icon across its border either.
 
 ## [1.50.0] - 2026-10-29
 
