@@ -68,6 +68,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
     app-selection-bar .count { font-weight: 600; white-space: nowrap; }
     app-selection-bar .actions { flex: 1 1 auto; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
     app-selection-bar .actions mat-icon, app-selection-bar .done mat-icon { margin-right: 4px; }
+    /* 1.50.1: Done never shrinks - squeezed on a phone it drew its icon across its border; the actions beside it wrap instead. */
+    app-selection-bar .done { flex: none; }
     @media (max-width: 599.98px) {
       app-selection-bar .actions .lbl { display: none; }
       app-selection-bar .actions mat-icon { margin-right: 0; }
