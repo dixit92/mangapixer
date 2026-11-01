@@ -8,20 +8,22 @@ import { expect, Page } from '@playwright/test';
  * - `page-overflow`: the document scrolls sideways;
  * - `offscreen`: a visible element reaches past the left or right edge of the viewport (an element inside a container
  *   that scrolls sideways on purpose - `overflow-x: auto | scroll` - is fine, it can be scrolled into view);
- * - `squeezed`: text squeezed into a column narrower than about three characters that wraps onto several lines.
+ * - `squeezed`: text squeezed into a column narrower than about three characters that wraps onto several lines;
+ * - `spills` (1.50.1): an icon drawn past the border of the button that holds it - a flex row squeezed a button below its
+ *   content and Material centred the content, so the icon crossed the border (the phone library bar, 1.47.0 - 1.50.0).
  *
  * Only the outermost offending element of a tree is reported. Hidden elements (display / visibility / zero size /
  * `aria-hidden` trees, a closed side panel) are skipped.
  */
 export interface LayoutProblem {
-  kind: 'page-overflow' | 'offscreen' | 'squeezed';
+  kind: 'page-overflow' | 'offscreen' | 'squeezed' | 'spills';
   what: string;
   detail: string;
 }
 
 export async function layoutProblems(page: Page): Promise<LayoutProblem[]> {
   return page.evaluate(() => {
-    const problems: { kind: 'page-overflow' | 'offscreen' | 'squeezed'; what: string; detail: string }[] = [];
+    const problems: { kind: 'page-overflow' | 'offscreen' | 'squeezed' | 'spills'; what: string; detail: string }[] = [];
     const vw = document.documentElement.clientWidth;
     const root = document.scrollingElement ?? document.documentElement;
     if (root.scrollWidth > vw + 1) {
@@ -36,6 +38,10 @@ export async function layoutProblems(page: Page): Promise<LayoutProblem[]> {
     };
     const hidden = (el: Element): boolean => {
       if (el.closest('[aria-hidden="true"], [hidden], [inert]')) return true;
+      const s = getComputedStyle(el);
+      return s.display === 'none' || s.visibility === 'hidden' || s.visibility === 'collapse' || Number(s.opacity) === 0;
+    };
+    const drawnHidden = (el: Element): boolean => {
       const s = getComputedStyle(el);
       return s.display === 'none' || s.visibility === 'hidden' || s.visibility === 'collapse' || Number(s.opacity) === 0;
     };
@@ -56,7 +62,29 @@ export async function layoutProblems(page: Page): Promise<LayoutProblem[]> {
     for (const el of Array.from(document.body.querySelectorAll('*'))) {
       if (el instanceof SVGElement && !(el instanceof SVGSVGElement)) continue;
       const r = el.getBoundingClientRect();
-      if (r.width === 0 || r.height === 0 || under(el) || hidden(el)) continue;
+      if (r.width === 0 || r.height === 0 || under(el)) continue;
+
+      // Material marks every mat-icon aria-hidden (decorative), so the icon rule asks only whether it is drawn; its button must
+      // still be outside any hidden tree (a closed panel).
+      if (el.tagName === 'MAT-ICON' && !drawnHidden(el)) {
+        const button = el.parentElement?.closest('button, [role="button"]');
+        if (button && !hidden(button)) {
+          // Inside the border, not just the outer box: a squeezed outlined button draws its icon ON the border line first.
+          const o = button.getBoundingClientRect();
+          const cs = getComputedStyle(button);
+          const b = {
+            left: o.left + parseFloat(cs.borderLeftWidth), right: o.right - parseFloat(cs.borderRightWidth),
+            top: o.top + parseFloat(cs.borderTopWidth), bottom: o.bottom - parseFloat(cs.borderBottomWidth),
+          };
+          if (r.left < b.left - 0.5 || r.right > b.right + 0.5 || r.top < b.top - 0.5 || r.bottom > b.bottom + 0.5) {
+            problems.push({ kind: 'spills', what: describe(button), detail: `icon ${Math.round(r.left)}-${Math.round(r.right)}, button ${Math.round(b.left)}-${Math.round(b.right)}` });
+            reported.push(el);
+            continue;
+          }
+        }
+      }
+
+      if (hidden(el)) continue;
 
       if ((r.left < -1 || r.right > vw + 1) && !scrollsSideways(el)) {
         // A fixed / transformed panel parked off-screen while closed is not part of the layout.

@@ -1,4 +1,4 @@
-import { test, expect, Page, APIRequestContext } from '@playwright/test';
+import { test, expect, Page, APIRequestContext, Route } from '@playwright/test';
 import { expectFitsScreen, layoutProblems } from './layout';
 
 /**
@@ -610,4 +610,69 @@ test('Match folders by name as artists, with MangaUpdates authors offered, fits 
     await page.getByTestId('folder-match-close').click();
   }
   expect(failures, `the folder match dialog with authors does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
+});
+
+test('the library bar keeps every icon inside its button and the name clear of the controls on a phone (1.50.1)', async ({ page }) => {
+  // 1.50.1 (owner report): at 390 px the View / Filter / Select buttons were squeezed below their content - the Select icon
+  // crossed its border and a long library name ran under the Info button. A long name like the owner's makes the trail wrap.
+  test.setTimeout(120_000);
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  const rename = async (displayName: string) => {
+    const res = await page.request.post(`/api/v1/admin/libraries/${libraryId}/update`, { headers: await csrf(page.request), data: { displayName } });
+    expect(res.ok(), await res.text()).toBeTruthy();
+  };
+  // The owner's library has tags, so its root shows the round Info button - the control that pushed the bar past the screen. The
+  // fixture library has none: serve a panel with chips for the library and for the folder, so both show it.
+  const panel = (route: Route) => route.fulfill({ json: longPanel(new URL(route.request().url()).pathname.split('/').at(-2)!) });
+  await page.route('**/api/v1/libraries/*/info', panel);
+  await page.route('**/api/v1/nodes/*/info', panel);
+  const bar = page.locator('.browse-bar');
+  const failures: string[] = [];
+  const check = async (name: string, width: number) => {
+    await expect(bar.locator('.select-toggle')).toBeVisible();
+    await expect(bar.getByRole('button', { name: 'Info', exact: true }), `${width} px ${name}: the Info button`).toBeVisible({ timeout: 30_000 });
+    await settle(page);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/browse-bar-${width}-${name.replace(/\W+/g, '-')}.png` });
+    for (const p of await layoutProblems(page)) failures.push(`${width} px ${name}: ${p.kind}: ${p.what} - ${p.detail}`);
+    const boxes = await bar.evaluate((el) => {
+      const rect = (e: Element) => { const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom }; };
+      const controls = Array.from(el.children).filter((c) => !c.classList.contains('breadcrumbs'))
+        .map((c) => ({ what: c.tagName.toLowerCase() + (c.className && typeof c.className === 'string' ? `.${c.className.split(/\s+/)[0]}` : ''), ...rect(c) }))
+        .filter((c) => c.r - c.l > 0 && c.b - c.t > 0);
+      // The crumbs' own boxes, not the trail's: a squeezed trail lets its text overflow its box (the reported overlap).
+      // Where the trail clips its overflow (wider screens: one line with an ellipsis), only the visible part counts.
+      const trail = el.querySelector('.breadcrumbs')!;
+      const t = rect(trail);
+      const clips = getComputedStyle(trail).overflowX !== 'visible';
+      const crumbs = Array.from(trail.querySelectorAll('a, .current')).map(rect)
+        .map((c) => clips ? { l: Math.max(c.l, t.l), r: Math.min(c.r, t.r), t: Math.max(c.t, t.t), b: Math.min(c.b, t.b) } : c)
+        .filter((c) => c.r > c.l && c.b > c.t);
+      return { bar: rect(el), crumbs, controls };
+    });
+    expect(boxes.crumbs.length, 'the trail names the library').toBeGreaterThan(0);
+    for (const c of boxes.controls) {
+      const overlaps = boxes.crumbs.some((t) => c.l < t.r - 1 && c.r > t.l + 1 && c.t < t.b - 1 && c.b > t.t + 1);
+      if (overlaps) failures.push(`${width} px ${name}: ${c.what} covers the folder trail`);
+      if (c.l < boxes.bar.l - 1 || c.r > boxes.bar.r + 1) failures.push(`${width} px ${name}: ${c.what} sticks out of the bar`);
+    }
+    const labels = await bar.locator('.view-toggle .lbl, .filter-toggle .lbl, .select-toggle .lbl').evaluateAll((els) => els.filter((e) => (e as HTMLElement).offsetWidth > 0).length);
+    if (width < 600 && labels > 0) failures.push(`${width} px ${name}: ${labels} button labels still shown on a phone`);
+    if (width >= 600 && labels !== 3) failures.push(`${width} px ${name}: ${labels} of 3 button labels shown on a tablet`);
+  };
+
+  await rename(`${LIBRARY_NAME} - Ongoing Series Shelf`);
+  try {
+    // 360 px too: a common Android width, where the squeeze is deeper than at 390.
+    for (const size of [{ width: 360, height: 780 }, ...SIZES]) {
+      await page.setViewportSize(size);
+      await page.goto(`/libraries/${libraryId}/browse`);
+      await check('library root, long name', size.width);
+      await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+      await check('series folder, long name', size.width);
+    }
+  } finally {
+    await rename(LIBRARY_NAME);
+  }
+  expect(failures, `the library bar does not fit:\n${failures.join('\n')}`).toEqual([]);
 });
