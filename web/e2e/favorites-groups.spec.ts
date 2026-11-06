@@ -24,7 +24,6 @@ const WORDS = ['Acorn', 'Brook', 'Cinder', 'Dapple', 'Ember', 'Fennel', 'Gale', 
 const LETTERS = WORDS.map((w) => w[0]);
 
 test.skip(!FAVORITES_ROOT, 'E2E_SERIES_FIXTURE_ROOT not set: no synthetic favorites library available');
-test.describe.configure({ mode: 'serial' });
 test.beforeEach(({ page }) => { page.setDefaultTimeout(20_000); });
 
 interface Node { id: string; displayName: string; kind: string }
@@ -149,7 +148,7 @@ test('the jump rail under Name: a loaded chip scrolls in place, a later one relo
     let listRequests = 0;
     page.on('request', (r) => { if (/\/api\/v1\/favorites\?/.test(r.url())) listRequests++; });
     await page.goto('/favorites');
-    await expect(page.locator('.fav-item')).toHaveCount(50);
+    await expect(page.locator('.fav-card')).toHaveCount(50);
     // Letters from the favorites' own names; the two folders are one chip (fewer than 20), in front as they sort.
     await expect.poll(() => chips(page)).toEqual(['Folders', ...LETTERS]);
     await shot(page, 'favorites-rail-desktop');
@@ -201,7 +200,7 @@ test('Recently read: the read archive first, the never-read after it by name', a
   const page = await device(browser, username, 1280, 900);
   try {
     await page.goto('/favorites');
-    await expect(page.locator('.fav-item').first()).toBeVisible();
+    await expect(page.locator('.fav-card').first()).toBeVisible();
     await page.getByTestId('favorites-view-button').click();
     const answered = page.waitForResponse((r) => /\/api\/v1\/favorites\?.*sort=recentlyRead/.test(r.url()));
     await page.getByTestId('favorites-sort-recentlyRead').click();
@@ -261,7 +260,7 @@ test('Group by library: a header per library in both views, no rail, remembered 
     const other = await device(browser, username, 1280, 900);
     try {
       await other.goto('/favorites');
-      await expect(other.locator('.fav-item').first()).toBeVisible();
+      await expect(other.locator('.fav-card').first()).toBeVisible();
       await expect(other.getByTestId('favorites-group-button')).toHaveAttribute('aria-pressed', 'false');
       await expect(other.getByTestId('favorites-group-header')).toHaveCount(0);
     } finally {
@@ -279,7 +278,7 @@ for (const [width, height] of [[820, 1180], [390, 844], [360, 780]] as const) {
     const page = await device(browser, username, width, height, { 'mangapixer-favorites-sort': 'name' });
     try {
       await page.goto('/favorites');
-      await expect(page.locator('.fav-item').first()).toBeVisible();
+      await expect(page.locator('.fav-card').first()).toBeVisible();
       const phone = width < 600;
       if (phone) {
         await expect(page.locator('nav.jump-rail')).toBeHidden();
