@@ -46,7 +46,12 @@ async function library(request: APIRequestContext, name: string, root: string): 
   let lib = libs.find((l) => l.name === name);
   if (!lib) {
     const headers = await csrf(request);
-    const created = await request.post('/api/v1/admin/libraries', { headers, data: { displayName: name, rootPath: root } });
+    // A library is registered only while no scan runs (409 scan_in_progress): wait for the scan before (another spec's, or ours).
+    let created = await request.post('/api/v1/admin/libraries', { headers, data: { displayName: name, rootPath: root } });
+    for (let i = 0; i < 60 && created.status() === 409; i++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      created = await request.post('/api/v1/admin/libraries', { headers, data: { displayName: name, rootPath: root } });
+    }
     expect(created.ok(), await created.text()).toBeTruthy();
     lib = await created.json();
     await request.post(`/api/v1/admin/libraries/${lib!.id}/scan`, { headers });
