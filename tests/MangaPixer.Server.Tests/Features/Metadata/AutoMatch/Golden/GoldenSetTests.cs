@@ -3,6 +3,7 @@ namespace com.lifepixer.mangapixer.Tests.Server.Features.Metadata.AutoMatch.Gold
 using System.Threading.RateLimiting;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Metadata;
+using com.lifepixer.mangapixer.Server.Features.Metadata.Authors;
 using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Media;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
@@ -35,6 +36,16 @@ public sealed class GoldenEnvironment : IAsyncLifetime
         row.MetadataAutoConsentVersion = MetadataAutoConsent.CurrentVersion;
         row.MetadataAutoConsentAt = net.Time.GetUtcNow();
         row.MetadataDailyBudget = 1_000_000;
+        // 1.51.0: the one stored author record of the set - "Hidden Pen" is a synthetic other name of a recorded author (cases P06 / P07 / P09).
+        Db.Db.MetadataAuthors.Add(new MetadataAuthorEntity
+        {
+            Provider = "mangaupdates",
+            ExternalId = GoldenFixtures.AuthorIdOf("FUJIMOTO Tatsuki").ToString(System.Globalization.CultureInfo.InvariantCulture),
+            Name = "FUJIMOTO Tatsuki",
+            OtherNamesJson = MetadataJson.WriteList(new[] { "Hidden Pen" }),
+            Status = (int)MetadataAuthorStatus.Ok,
+            FetchedAt = net.Time.GetUtcNow(),
+        });
         await Db.Db.SaveChangesAsync();
         Thumbnails = new ThumbnailStore(Path.Combine(_root, "thumbnails"));
         Thumbnails.Initialize();
