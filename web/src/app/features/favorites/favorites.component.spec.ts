@@ -36,6 +36,7 @@ describe('FavoritesComponent stacks (1.27.0)', () => {
     pages.forEach((p) => getFavorites.mockReturnValueOnce(of(p)));
     const apiSpy = {
       getFavorites,
+      getFavoritesJumpIndex: vi.fn().mockReturnValue(of({ buckets: [] })),
       setFavorite: vi.fn().mockReturnValue(of(undefined)),
       getLibraries: vi.fn().mockReturnValue(of([])),
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),

@@ -16,14 +16,16 @@ export const FAVORITES_CARD_SIZE_STORAGE_KEY = 'mangapixer-favorites-card-size';
 export const FAVORITES_LIST_COLUMNS_STORAGE_KEY = 'mangapixer-favorites-list-columns';
 export const FAVORITES_VIEW_MODE_STORAGE_KEY = 'mangapixer-favorites-view-mode';
 export const FAVORITES_SORT_STORAGE_KEY = 'mangapixer-favorites-sort';
+/** 1.51.0 lane F (owner decision 9): "Group by library", per device - `library` when on; absent / anything else = off. */
+export const FAVORITES_GROUP_STORAGE_KEY = 'mangapixer-favorites-group';
 
 export const FAVORITES_DISPLAY_KEYS: DeviceDisplayKeys = {
   cardSize: FAVORITES_CARD_SIZE_STORAGE_KEY,
   listColumns: FAVORITES_LIST_COLUMNS_STORAGE_KEY,
 };
 
-/** The Favorites sorts (owner decision 6). The wire value of `GET favorites?sort=`. */
-export type FavoritesSort = 'favorited' | 'name' | 'recentlyAdded' | 'recentlyUpdated';
+/** The Favorites sorts (owner decision 6; 1.51.0: Recently read, decision 2). The wire value of `GET favorites?sort=`. */
+export type FavoritesSort = 'favorited' | 'name' | 'recentlyAdded' | 'recentlyUpdated' | 'recentlyRead';
 export type FavoritesSortDirection = 'asc' | 'desc';
 
 /** A sort with its direction (only Name has one; the date sorts and Recently favorited are newest first). */
@@ -47,16 +49,20 @@ export interface FavoritesDisplaySeed {
  * to the server and never shared with browse. A device without them is seeded ONCE from browse's values on that device (`seedOnce`):
  * each missing value is stored, so from then on the two views change independently. The sort is not seeded (it starts on Recently
  * favorited, as the page always did) and persists per device; the filters are transient (the page's own state).
+ * 1.51.0 lane F (owner decision 9): "Group by library" is per device too (`mangapixer-favorites-group`), off until chosen, never seeded.
  */
 @Injectable({ providedIn: 'root' })
 export class FavoritesDisplayPreferencesService extends DeviceDisplayLayer {
   private readonly deviceViewMode = signal<LibraryViewMode | null>(readViewMode());
   private readonly deviceSort = signal<FavoritesSortChoice | null>(readSort());
+  private readonly deviceGroup = signal<boolean>(readGroup());
 
   /** The view mode shown on this device (card until seeded or chosen). */
   readonly viewMode = computed<LibraryViewMode>(() => this.deviceViewMode() ?? 'card');
   /** The sort shown on this device. */
   readonly sort = computed<FavoritesSortChoice>(() => this.deviceSort() ?? DEFAULT_FAVORITES_SORT);
+  /** 1.51.0: the list is grouped by library on this device. */
+  readonly groupByLibrary = this.deviceGroup.asReadonly();
 
   constructor() {
     super(FAVORITES_DISPLAY_KEYS);
@@ -86,10 +92,17 @@ export class FavoritesDisplayPreferencesService extends DeviceDisplayLayer {
     return choice;
   }
 
+  /** 1.51.0: turn "Group by library" on or off on this device. */
+  setGroupByLibrary(on: boolean): void {
+    this.deviceGroup.set(on);
+    writeStored(FAVORITES_GROUP_STORAGE_KEY, on ? 'library' : 'none');
+  }
+
   protected override onStorage(key: string | null): void {
     super.onStorage(key);
     if (key === FAVORITES_VIEW_MODE_STORAGE_KEY || key === null) this.deviceViewMode.set(readViewMode());
     if (key === FAVORITES_SORT_STORAGE_KEY || key === null) this.deviceSort.set(readSort());
+    if (key === FAVORITES_GROUP_STORAGE_KEY || key === null) this.deviceGroup.set(readGroup());
   }
 
   private storeViewMode(mode: LibraryViewMode): void {
@@ -108,6 +121,7 @@ export function decodeSort(raw: string | null): FavoritesSortChoice | null {
     case 'favorited':
     case 'recentlyAdded':
     case 'recentlyUpdated':
+    case 'recentlyRead':
       return { sort: raw, direction: 'desc' };
     case 'name':
       return { sort: 'name', direction: 'asc' };
@@ -133,5 +147,9 @@ function readViewMode(): LibraryViewMode | null {
 
 function readSort(): FavoritesSortChoice | null {
   return decodeSort(readRaw(FAVORITES_SORT_STORAGE_KEY));
+}
+
+function readGroup(): boolean {
+  return readRaw(FAVORITES_GROUP_STORAGE_KEY) === 'library';
 }
 
