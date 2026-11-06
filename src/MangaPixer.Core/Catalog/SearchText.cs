@@ -325,7 +325,8 @@ public static class SearchText
     /// Whether <paramref name="text"/> (folded) starts a word of <paramref name="foldedName"/> - at the start or after a space; no
     /// allocation (it runs for every visible name in a short or typo search). 1.50.0: text that starts with a digit also starts a number
     /// after its leading zeros (<c>6</c> and <c>06</c> start <c>006</c>; <c>12</c> starts <c>0012</c>) - title-less volume names are
-    /// usually zero-padded (<c>Vol. 006</c>). The typed zeros still count (<c>01</c> does not start <c>1</c>).
+    /// usually zero-padded (<c>Vol. 006</c>). The typed zeros still count (<c>01</c> does not start <c>1</c>). 1.51.0: also after a unit prefix
+    /// written against the number (<c>12</c> starts <c>v12</c>, <c>vol012</c>, <c>ch12</c> - <see cref="StartsNumberWord"/>).
     /// </summary>
     public static bool HasWordStartingWith(string foldedName, string text)
     {
@@ -337,18 +338,36 @@ public static class SearchText
         {
             if (at == 0 || foldedName[at - 1] == ' ')
                 return true;
-            if (digit && foldedName[at - 1] == '0')
-            {
-                var start = at - 1;
-                while (start > 0 && foldedName[start - 1] == '0')
-                    start--;
-                if (start == 0 || foldedName[start - 1] == ' ')
-                    return true;
-            }
+            if (digit && StartsNumberWord(foldedName, at))
+                return true;
             at = foldedName.IndexOf(text, at + 1, StringComparison.Ordinal);
         }
         return false;
     }
+
+    /// <summary>
+    /// Whether the digits at <paramref name="at"/> start the number of a word: after its leading zeros (1.50.0), and after a unit
+    /// prefix written against the number (1.51.0: <c>v12</c>, <c>vol012</c>, <c>c105</c>, <c>ch12</c>, <c>ep3</c> - <c>12</c> finds
+    /// <c>v12</c>). Only those prefixes, so a number inside another word (<c>a0012</c>) is still no word start.
+    /// </summary>
+    private static bool StartsNumberWord(string foldedName, int at)
+    {
+        var start = at;
+        while (start > 0 && foldedName[start - 1] == '0')
+            start--;
+        if (start == 0 || foldedName[start - 1] == ' ')
+            return start < at;
+        var prefixEnd = start;
+        while (start > 0 && char.IsAsciiLetterLower(foldedName[start - 1]))
+            start--;
+        if (start == prefixEnd || (start > 0 && foldedName[start - 1] != ' '))
+            return false;
+        return IsUnitPrefix(foldedName.AsSpan(start, prefixEnd - start));
+    }
+
+    /// <summary>Unit words written against their number in file names (a subset of the matcher's unit words).</summary>
+    private static bool IsUnitPrefix(ReadOnlySpan<char> prefix) =>
+        prefix is "v" or "vol" or "vols" or "c" or "ch" or "chap" or "ep";
 
     /// <summary>The largest typo distance a word of this (folded) length may carry: none below 4 characters, 1 up to 7, 2 from 8.</summary>
     public static int MaxDistance(int length) => length >= 8 ? 2 : length >= MinFuzzyLength ? 1 : 0;
