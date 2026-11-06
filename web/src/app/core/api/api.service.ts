@@ -107,6 +107,7 @@ import {
   SeriesAnswer,
   SearchSuggestDto,
   FavoritesQuery,
+  FavoritesJumpIndexDto,
 } from './api-types';
 
 /** Options of {@link ApiService.search} (1.45.0). */
@@ -844,7 +845,24 @@ export class ApiService {
     if (query.readState && query.readState !== 'all') params = params.set('readState', query.readState);
     if (query.kind && query.kind !== 'all') params = params.set('kind', query.kind);
     if (query.libraryId) params = params.set('libraryId', query.libraryId);
+    // 1.51.0 (lane F): group by library and the backward page (both only when set - the home row's call stays the same).
+    if (query.groupByLibrary) params = params.set('group', 'library');
+    if (query.before) params = params.set('before', query.before);
     return this.get<PageResponse<CatalogNodeDto>>('/favorites', params);
+  }
+
+  /**
+   * 1.51.0 (lane F): the Favorites jump rail under the name sort, for the same direction and filters as the listing (`GET
+   * favorites/jump-index`). Empty while grouped by library.
+   */
+  getFavoritesJumpIndex(query: FavoritesQuery = {}): Observable<FavoritesJumpIndexDto> {
+    let params = new HttpParams();
+    if (query.direction === 'desc') params = params.set('direction', 'desc');
+    if (query.readState && query.readState !== 'all') params = params.set('readState', query.readState);
+    if (query.kind && query.kind !== 'all') params = params.set('kind', query.kind);
+    if (query.libraryId) params = params.set('libraryId', query.libraryId);
+    if (query.groupByLibrary) params = params.set('group', 'library');
+    return this.get<FavoritesJumpIndexDto>('/favorites/jump-index', params);
   }
 
   /** Stars a catalog node as a favorite (idempotent), or removes the star. */
