@@ -31,6 +31,11 @@ public static class MatcherRules
     /// store, read by the creator's MangaUpdates author id; stored data only) is a provider author's folder too - previously only the
     /// names on the record itself counted. Re-queues the works waiting in Needs review; an Unmatched folder is looked at again by its
     /// retry or the next scan.
+    /// 6 (1.51.0, owner): a candidate built from a full MangaUpdates record is also known by the stored other names of its authors
+    /// (the same store, by the creator's MangaUpdates author id): an archive creator tag, or a folder name read as the author, that
+    /// gives such a name agrees with the record like its own name does (same bonus, no <see cref="MatchReason.AuthorConflict"/>) - so an
+    /// archive of an alias-named artist folder can now be linked automatically. A tag naming someone else still conflicts; with no stored
+    /// other names nothing changes. Search hits carry no author ids and are unchanged. Re-queues the works waiting in Needs review.
     /// </summary>
-    public const int Revision = 5;
+    public const int Revision = 6;
 }
