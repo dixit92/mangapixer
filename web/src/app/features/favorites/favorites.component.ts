@@ -824,15 +824,34 @@ export class FavoritesComponent implements OnInit, OnDestroy {
     }
     const owners = this.jumpOwners();
     if (owners[first] === undefined || owners[first] < 0) return; // no bucket starts in this window: keep the chip
+    const current = this.activeJump();
+    // Near the end of the list the page cannot scroll a chip's first card up to the top: keep the chip while the page cannot scroll
+    // further and that card is on screen (browse's 1.47.0 rule).
+    if (current && this.atScrollEnd() && this.cardOnScreen(cards, current, threshold)) return;
     // Cards of one grid row share their bottom edge: keep the current chip while any card of the first visible row is in it (browse's
     // rule - a click that scrolled to a bucket's first card mid-row shows that bucket).
-    const current = this.activeJump();
     const rowBottom = cards[first].getBoundingClientRect().bottom;
     let active = buckets[owners[first]];
     for (let i = first; i < cards.length && Math.abs(cards[i].getBoundingClientRect().bottom - rowBottom) < 1; i++) {
       if (current && buckets[owners[i]] === current) { active = current; break; }
     }
     this.activeJump.set(active);
+  }
+
+  /** True when the list's scroller cannot scroll any further (at its end, or nothing to scroll); false without a layout (jsdom). */
+  private atScrollEnd(): boolean {
+    const el = this.scrollParent() ?? (typeof document !== 'undefined' ? (document.scrollingElement as HTMLElement | null) : null);
+    return !!el && el.clientHeight > 0 && el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
+  }
+
+  /** The first card of `bucket` is loaded and at least partly below the rail and above the screen's bottom. */
+  private cardOnScreen(cards: NodeListOf<HTMLElement>, bucket: JumpIndexBucketDto, threshold: number): boolean {
+    const index = bucket.firstNodeId ? this.nodes().findIndex((n) => n.id === bucket.firstNodeId) : -1;
+    const card = index >= 0 ? cards[index] : undefined;
+    if (!card) return false;
+    const box = card.getBoundingClientRect();
+    const bottom = typeof window !== 'undefined' ? window.innerHeight : 0;
+    return box.bottom > threshold && box.top < bottom;
   }
 
   private scrollToCard(index: number): boolean {
