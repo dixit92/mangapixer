@@ -145,8 +145,11 @@ public sealed class GoldenSetTests(GoldenEnvironment env, ITestOutputHelper outp
     /// review (the spin-off stays first; only the folder's subtitle separates it from the main series of its own family).
     /// 1.50.0 (rules 5): the alias cases P06 / P07 (+2 review: the alias-named folder's untagged archives keep the author veto) and
     /// P09 (+1 auto: an archive tagged with the author's own name); no existing case moved.
+    /// 1.51.0 (rules 6): candidates carry the stored other names of their authors (the set replays a synthetic author id per recorded
+    /// author name and holds one stored author record), so P06 / P07 move review -> auto (untagged archives of the alias-named folder);
+    /// no other case moved.
     /// </summary>
-    public const int ExpectedAuto = 66, ExpectedReview = 24, ExpectedUnmatched = 2;
+    public const int ExpectedAuto = 68, ExpectedReview = 22, ExpectedUnmatched = 2;
 
     [Fact]
     public async Task Aggregate_BandsAndPrecision_AtTheDefaults()

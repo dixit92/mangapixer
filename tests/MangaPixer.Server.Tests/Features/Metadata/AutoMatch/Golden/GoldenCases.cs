@@ -237,15 +237,16 @@ public static class GoldenCases
             WorkClass.OneShot),
         // 1.50.0 (rules 5): the known names also carry the stored other names of a linked record's author (the alias store); a folder
         // named by one of them only ("Hidden Pen" is a synthetic pen name of the author) is that author's folder: matched archive by
-        // archive instead of one review-only folder. The folder name is the author tag of an untagged archive, and the scorer knows the
-        // record's author only by the names the record lists, so an untagged archive stays in review with the author veto (P06, P07);
-        // an archive that carries the author's own creator tag still links (P09). Candidate authors do not yet carry the stored alias.
-        new("P06 provider-author alias: untagged archives of the alias-named folder stay in review (the folder name is not a record author)",
+        // archive instead of one review-only folder. The folder name is the author tag of an untagged archive. 1.51.0 (rules 6): the
+        // candidate's authors carry the stored other names too (the set holds one stored author record: "Hidden Pen" for the recorded
+        // author), so those untagged archives link (P06, P07) like an archive tagged with the author's own name (P09) - before rules 6
+        // they stayed in review with the author veto.
+        new("P06 provider-author alias: untagged archives of the alias-named folder link (the folder name is a stored other name of the record's author)",
             F("Hidden Pen", s_untaggedArtistFolder, authors: [.. s_linkedAuthors, "Hidden Pen"]),
-            WorkClass.ArtistCollection, MatchBand.NeedsReview, LookBack, GroupTitle: "Look Back", Vetoes: MatchReason.AuthorConflict),
-        new("P07 provider-author alias: numbered untagged volumes grouped, same veto",
+            WorkClass.ArtistCollection, MatchBand.Auto, LookBack, GroupTitle: "Look Back"),
+        new("P07 provider-author alias: numbered untagged volumes grouped, the same link",
             F("Hidden Pen", s_untaggedArtistFolder, authors: [.. s_linkedAuthors, "Hidden Pen"]),
-            WorkClass.ArtistCollection, MatchBand.NeedsReview, FirePunch, GroupTitle: "Fire Punch", Vetoes: MatchReason.AuthorConflict),
+            WorkClass.ArtistCollection, MatchBand.Auto, FirePunch, GroupTitle: "Fire Punch"),
         new("P08 the same folder without the stored alias: review only", F("Hidden Pen", s_untaggedArtistFolder, authors: s_linkedAuthors), WorkClass.Ambiguous),
         new("P09 provider-author alias: an archive tagged with the author's own name links", F("Hidden Pen", s_artistFolder, authors: [.. s_linkedAuthors, "Hidden Pen"]),
             WorkClass.ArtistCollection, MatchBand.Auto, LookBack, GroupTitle: "Look Back"),

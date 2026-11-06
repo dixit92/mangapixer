@@ -762,4 +762,23 @@ public sealed class MatchScorerTests
         var other = Score(Query(["Short Story"], cls: WorkClass.CollectionLeaf, archives: 1, authors: ["Someone Else"]), record);
         Assert.True(other.Ranked[0].Reasons.HasFlag(MatchReason.AuthorConflict));
     }
+    [Fact]
+    public void ArchiveLevel_ATagNamingAStoredOtherNameOfTheAuthor_AgreesLikeTheName()
+    {
+        // 1.51.0 (rules 6): the server appends the stored other names of a record's authors to the candidate's Authors. The scorer
+        // knows no difference - an alias agrees like the name (the same bonus), an unrelated name still conflicts.
+        var plain = Rec("1", "Short Story", authors: ["Main Pen"]);
+        var withAlias = Rec("1", "Short Story", authors: ["Main Pen", "Hidden Pen"]);
+        var q = Query(["Short Story"], cls: WorkClass.CollectionLeaf, archives: 1, authors: ["Hidden Pen"]);
+
+        Assert.True(Score(q, plain).Ranked[0].Reasons.HasFlag(MatchReason.AuthorConflict));
+        var agree = Score(q, withAlias);
+        Assert.Equal(MatchBand.Auto, agree.Band);
+        Assert.False(agree.Ranked[0].Reasons.HasFlag(MatchReason.AuthorConflict));
+        Assert.Equal(Score(Query(["Short Story"], cls: WorkClass.CollectionLeaf, archives: 1, authors: ["Main Pen"]), plain).Ranked[0].AdjustedScore,
+            agree.Ranked[0].AdjustedScore, 9);
+
+        var other = Score(Query(["Short Story"], cls: WorkClass.CollectionLeaf, archives: 1, authors: ["Someone Else"]), withAlias);
+        Assert.True(other.Ranked[0].Reasons.HasFlag(MatchReason.AuthorConflict));
+    }
 }
