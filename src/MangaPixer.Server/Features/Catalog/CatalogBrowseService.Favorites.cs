@@ -80,6 +80,7 @@ public sealed partial class CatalogBrowseService
                 TotalCount = 0,
                 NextCursor = null,
                 HasMore = false,
+                FavoriteGroups = list.Groups,
             };
         }
         var entries = list.Entries;
@@ -313,7 +314,11 @@ public sealed partial class CatalogBrowseService
             visibleLibs = libraryId is long id && visibleLibs.Contains(id) ? [id] : [];
         }
         if (visibleLibs.Count == 0)
-            return new FavoriteList([], [], [], null, null);
+        {
+            return query.GroupByLibrary
+                ? new FavoriteList([], [], [], new Dictionary<long, int>(), [])
+                : new FavoriteList([], [], [], null, null);
+        }
 
         // The viewer's visible favorites as narrow key rows (favorites joined to their
         // visible, non-tombstoned nodes), grouped into stacks in memory. 1.50.0: with what the sorts read (the node's and its parent's

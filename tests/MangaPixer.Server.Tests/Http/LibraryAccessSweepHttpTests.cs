@@ -64,6 +64,8 @@ public sealed class LibraryAccessSweepHttpTests
         ["GET api/v1/search"] = Answer(200, 200, 200, hidden: true),
         // 1.50.0 lane F: the Favorites view's library filter (`libraryId`) - a listing like browse: U and P under Incognito list nothing.
         ["GET api/v1/favorites"] = Answer(200, 200, 200, hidden: true),
+        // 1.51.0 lane F: the Favorites jump rail, with the listing's library filter - a listing: U and P under Incognito name nothing.
+        ["GET api/v1/favorites/jump-index"] = Answer(200, 200, 200, hidden: true),
         ["GET api/v1/trackers/card-marks"] = Answer(200, 404, 200, hidden: true),
         // ---- the library-root Info panel (1.48.0 lane A2, owner answer L1: hidden under Incognito, as browse - an empty panel)
         ["GET api/v1/libraries/{libraryId}/info"] = Answer(200, 404, 200, hidden: true),
@@ -321,6 +323,12 @@ public sealed class LibraryAccessSweepHttpTests
         // 1.50.0 lane F: the favorites without a library filter (its libraryId variant is an id route), and with its other filters.
         urls.Add("/api/v1/favorites");
         urls.Add("/api/v1/favorites?sort=name&readState=unread&kind=archives");
+        // 1.51.0 lane F: Recently read, grouped by library (its groups name libraries), and the jump rail without a library filter.
+        urls.Add("/api/v1/favorites?sort=recentlyRead");
+        urls.Add("/api/v1/favorites?group=library");
+        urls.Add("/api/v1/favorites?sort=name&group=library&pageSize=1");
+        urls.Add("/api/v1/favorites/jump-index");
+        urls.Add("/api/v1/favorites/jump-index?direction=desc&kind=archives");
         // 1.49.0 lane O: the quick results (a discovery GET with no id: listed here, swept with every canary and typed-field value).
         foreach (var text in new[] { "Saga", HiddenWord, PrivateWord, GrantedWord, "library:", "creator:", "tag:", "genre:", "series:" + HiddenWord })
             urls.Add("/api/v1/search/suggest?q=" + Uri.EscapeDataString(text));
@@ -357,6 +365,8 @@ public sealed class LibraryAccessSweepHttpTests
         Assert.DoesNotContain(PrivateWord, bodies["I /api/v1/libraries"], StringComparison.Ordinal);
         Assert.Contains(GrantedWord, bodies["N /api/v1/favorites"], StringComparison.Ordinal);
         Assert.Contains(PrivateWord, bodies["N /api/v1/favorites"], StringComparison.Ordinal);
+        Assert.Contains(PrivateWord, bodies["N /api/v1/favorites?group=library"], StringComparison.Ordinal);
+        Assert.Contains("asPc4", bodies["N /api/v1/favorites/jump-index"], StringComparison.Ordinal);
         Assert.Contains(GrantedWord, bodies["N /api/v1/reading/continue"], StringComparison.Ordinal);
         Assert.Contains(PrivateWord, bodies["N /api/v1/search?q=Saga"], StringComparison.Ordinal);
         // The quick results find the same canaries the search does (live), and name none of them under Incognito or from U. The answer echoes
@@ -709,10 +719,13 @@ public sealed class LibraryAccessSweepHttpTests
         s.Bump();
     }
 
-    /// <summary>A user's own rows in a library: the series starred, progress on chapter 1, chapter 2 read, a bookmark on chapter 3, a tracker entry.</summary>
+    /// <summary>A user's own rows in a library: the series starred, progress on chapter 1, chapter 2 read, a bookmark on chapter 3, a tracker
+    /// entry; 1.51.0 lane F: chapter 4 starred too (the Favorites jump rail then has a chip whose first entry is a chapter - an id of the
+    /// library the granted control must name).</summary>
     private static Task<long> SeedOwnRowsAsync(TrackerTestHarness h, Lib lib, long userId) => h.DbAsync(async db =>
     {
         db.Favorites.Add(new FavoriteEntity { UserId = userId, CatalogNodeId = lib.SeriesId, CreatedAt = DateTimeOffset.UtcNow });
+        db.Favorites.Add(new FavoriteEntity { UserId = userId, CatalogNodeId = lib.Chapters[3].Id, CreatedAt = DateTimeOffset.UtcNow });
         db.ReadingProgress.Add(new ReadingProgressEntity
         {
             UserId = userId,
