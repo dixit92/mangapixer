@@ -652,7 +652,20 @@ export class SearchComponent {
     return words.length > 0 && words.every((w) => w.normalize('NFD').replace(/\p{M}/gu, '').length < 3);
   });
 
+  /**
+   * 1.51.0: the text holds only exclusions (`-berserk -"one shot"`) - the server's rule (`SearchText.Parse`: a `-` that starts a term,
+   * before a letter, digit or quote) - so it searches for nothing and lists nothing. Typed fields (`-genre:action`) are a tag search.
+   */
+  readonly exclusionsOnly = computed(() => {
+    const q = this.params().q.trim();
+    if (!q || this.params().f.length > 0) return false;
+    const terms = q.match(/-?"[^"]*"?|\S+/gu) ?? [];
+    return terms.length > 0
+      && terms.every((t) => /^-["\p{L}\p{N}]/u.test(t) && !/^-?[\p{L}]+:/u.test(t));
+  });
+
   readonly noResultsText = computed(() => {
+    if (this.exclusionsOnly()) return 'Add a word to search for - a -word only leaves names out of a search.';
     // 1.49.0 (lane T): also a tag search made only of typed fields (`-genre:action`, `year:..1999`) answers in works.
     if (this.params().f.length > 0 || this.tagAnswer()) {
       return this.params().read === 'all' ? 'No works with these tags.' : 'No works with these tags and this filter.';
