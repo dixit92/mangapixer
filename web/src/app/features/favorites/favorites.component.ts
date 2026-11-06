@@ -822,9 +822,17 @@ export class FavoritesComponent implements OnInit, OnDestroy {
     for (let i = 0; i < cards.length; i++) {
       if (cards[i].getBoundingClientRect().bottom > threshold) { first = i; break; }
     }
-    const owner = this.jumpOwners()[first];
-    if (owner === undefined || owner < 0) return; // no bucket starts in this window: keep the chip
-    this.activeJump.set(buckets[owner]);
+    const owners = this.jumpOwners();
+    if (owners[first] === undefined || owners[first] < 0) return; // no bucket starts in this window: keep the chip
+    // Cards of one grid row share their bottom edge: keep the current chip while any card of the first visible row is in it (browse's
+    // rule - a click that scrolled to a bucket's first card mid-row shows that bucket).
+    const current = this.activeJump();
+    const rowBottom = cards[first].getBoundingClientRect().bottom;
+    let active = buckets[owners[first]];
+    for (let i = first; i < cards.length && Math.abs(cards[i].getBoundingClientRect().bottom - rowBottom) < 1; i++) {
+      if (current && buckets[owners[i]] === current) { active = current; break; }
+    }
+    this.activeJump.set(active);
   }
 
   private scrollToCard(index: number): boolean {

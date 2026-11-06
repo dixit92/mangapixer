@@ -31,6 +31,9 @@
 //   Contents Saga/Contents Saga v02.cbz            2 cover pages, the pages of chapters 9 and 10, 2 back pages
 //   Contents Saga/Contents Saga - Chapter 009.cbz, - Chapter 010.cbz   the same pages from "another release" (lightly changed pixels)
 //   Contents Saga/Contents Saga - Chapter 011.cbz  pages that are not in the volume
+// And <outDir>-favorites (1.51.0 lane F, the Favorites jump rail / groups e2e spec; offline, no ComicInfo):
+//   <Word> Ravelin 1..3.cbz   60 archives straight in the library root (no folder: each is its own Favorites entry, never a stack),
+//                             20 invented words A (Acorn) .. T (Thistle), three each -> a 60-entry rail A .. T, more than one page of 50
 // Register <outDir> as a library, scan, and let analysis run; the spec does that itself
 // when E2E_SERIES_FIXTURE_ROOT names the path as the SERVER sees it.
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -254,4 +257,12 @@ const contextDir = `${outDir}-context`;
 archive('Context Saga', 'Vol. 012 Quillfeather.cbz', [150, 70, 70], null, contextDir);
 archive(join('Context Saga', 'Volumes'), 'Vol. 013 Quillfeather Two.cbz', [70, 150, 70], null, contextDir);
 archive('.', 'Quillfeather Oneshot.cbz', [70, 70, 150], null, contextDir);
+// 1.51.0 (lane F): the Favorites jump rail and library groups - 60 root archives over 20 letters (see the header).
+const favoritesDir = `${outDir}-favorites`;
+mkdirSync(favoritesDir, { recursive: true });
+const ravelinWords = ['Acorn', 'Brook', 'Cinder', 'Dapple', 'Ember', 'Fennel', 'Gale', 'Hollow', 'Ivy', 'Juniper', 'Kelp', 'Lark', 'Moss',
+  'Nettle', 'Oriel', 'Pebble', 'Quince', 'Rowan', 'Sorrel', 'Thistle'];
+ravelinWords.forEach((word, wi) => [1, 2, 3].forEach((n) => {
+  archive('.', `${word} Ravelin ${n}.cbz`, [40 + wi * 10, 80 + n * 40, 200 - wi * 8], null, favoritesDir);
+}));
 console.log(`Series fixtures written to ${outDir} (and ${volumesDir}, ${readingModesDir}, ${jumpDir}, ${outDir}-volume-contents)`);
