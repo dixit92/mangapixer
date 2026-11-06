@@ -198,7 +198,8 @@ describe('FavoritesComponent - jump rail, Recently read and library groups (1.51
         const { el, fixture } = setup({ pages: [page(MIXED, { favoriteGroups: GROUPS })] });
         fixture.detectChanges();
         const headers = Array.from(el.querySelectorAll('[data-testid="favorites-group-header"]'));
-        expect(headers.map((h) => h.textContent!.replace(/\s+/g, ' ').trim())).toEqual(['Alpha Lib 2', 'beta Lib 1']);
+        expect(headers.map((h) => `${h.querySelector('.lib-name')!.textContent!.trim()} ${h.querySelector('.lib-count')!.textContent!.trim()}`))
+          .toEqual(['Alpha Lib 2', 'beta Lib 1']);
         expect(headers.every((h) => h.getAttribute('role') === 'heading')).toBe(true);
         // Each header sits right before the first entry of its library.
         const grid = el.querySelector('[data-testid="favorites-list"]')!;

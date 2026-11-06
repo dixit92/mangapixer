@@ -119,8 +119,9 @@ async function shot(page: Page, name: string): Promise<void> {
 const titles = (page: Page) =>
   page.locator('[data-testid="favorites-list"] .node-title, [data-testid="favorites-list"] .fav-title').allTextContents();
 const chips = async (page: Page) => (await page.locator('nav.jump-rail .jump-chip').allTextContents()).map((t) => t.trim());
-const headers = async (page: Page) =>
-  (await page.getByTestId('favorites-group-header').allTextContents()).map((t) => t.replace(/\s+/g, ' ').trim());
+/** Each library header as "<name> <count>". */
+const headers = (page: Page) => page.getByTestId('favorites-group-header').evaluateAll((els) =>
+  els.map((h) => `${h.querySelector('.lib-name')?.textContent?.trim() ?? ''} ${h.querySelector('.lib-count')?.textContent?.trim() ?? ''}`.trim()));
 const stored = (page: Page, key: string) => page.evaluate((k) => localStorage.getItem(k), key);
 
 /** Scrolls the list's scroller (the shell's content pane, else the window) to its top or bottom. */
