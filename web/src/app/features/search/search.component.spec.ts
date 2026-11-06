@@ -92,6 +92,22 @@ describe('SearchComponent', () => {
     expect(img!.getAttribute('src')).toBe('/api/v1/items/v1/cover');
   });
 
+  it('1.51.0: a search of only -words asks for a word to search for; a word beside them, or a typed field, does not', () => {
+    setup([]);
+    for (const q of ['-berserk', '-berserk -"one shot"', '-"one shot"']) {
+      runSearch(q);
+      expect(fixture.nativeElement.querySelector('.no-results')!.textContent!.trim(), q)
+        .toBe('Add a word to search for - a -word only leaves names out of a search.');
+    }
+    for (const q of ['berserk -guts', 'spider-man', '- berserk']) {
+      runSearch(q);
+      expect(fixture.componentInstance.exclusionsOnly(), q).toBe(false);
+    }
+    expect(fixture.nativeElement.querySelector('.no-results')!.textContent!.trim()).toBe('No results found.');
+    runSearch('-genre:action');
+    expect(fixture.componentInstance.exclusionsOnly()).toBe(false);
+  });
+
   it('renders only the folder icon for a folder result with no coverUrl', () => {
     setup([
       makeNode({ id: 'f2', kind: 'Folder', displayName: 'Empty Folder', coverUrl: null }),

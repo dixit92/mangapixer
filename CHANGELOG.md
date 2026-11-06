@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **A short number finds a volume or chapter written against its prefix.** `12` now finds `v12`, `vol012`, `ch12` or `c12` (and `3` finds
+  `ep3`), as it already found `Vol 12` and `012`. Only those unit prefixes count, so a number inside another word is still not a match.
+- **The folder line under an archive skips shelf folders.** An archive found outside its folder names the folder it belongs to; a
+  generic sorting folder such as **Ongoing**, **Completed** or **Misc** is now skipped like a category folder, so `Artist/Ongoing/One-shot`
+  shows **Artist**.
+- **A search of only `-words` says what to add.** A search made only of exclusions (`-berserk`) leaves names out of nothing, so it lists
+  nothing; the Search page now asks for a word to search for instead of saying "No results found".
+
+### Fixed
+
+- **Two backups in the same second keep their real order.** A manual backup racing the scheduled one in the same second got a random
+  suffix and could be ranked as the older one - and pruned first when the retention limit was reached. The later one now always ranks
+  newer.
+
 ## [1.50.1] - 2026-11-01
 
 ### Fixed

@@ -259,6 +259,21 @@ public sealed class SearchTextTests
     public void HasWordStartingWith_ADigitAlsoStartsANumberAfterItsLeadingZeros(string folded, string text, bool expected) =>
         Assert.Equal(expected, SearchText.HasWordStartingWith(folded, text));
 
+    [Theory]
+    [InlineData("berserk v12", "12", true)]
+    [InlineData("berserk v012", "12", true)]   // a prefix and zeros
+    [InlineData("vol012", "12", true)]         // at the start of the name
+    [InlineData("one piece c105", "105", true)]
+    [InlineData("one piece ch12", "12", true)]
+    [InlineData("chap 3 ep3", "3", true)]
+    [InlineData("berserk v12", "2", false)]    // still the start of the number only
+    [InlineData("a0012", "12", false)]         // not a unit prefix
+    [InlineData("berserk xv12", "12", false)]  // a prefix inside a longer word
+    [InlineData("berserk vv12", "12", false)]
+    [InlineData("berserk v12", "v1", true)]    // letters typed: the plain word start
+    public void HasWordStartingWith_ADigitAlsoStartsANumberAfterAUnitPrefix(string folded, string text, bool expected) =>
+        Assert.Equal(expected, SearchText.HasWordStartingWith(folded, text));
+
     [Fact]
     public void Rank_AShortNumberFindsAZeroPaddedVolume()
     {

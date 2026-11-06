@@ -23,7 +23,8 @@ using Microsoft.EntityFrameworkCore;
 /// <para>
 /// Two refinements (integrator decisions on the owner's answer 14): a CATEGORY folder (<see cref="AutoMatchText.IsCategoryFolderName"/> -
 /// <c>Manga</c>, <c>Manhwa</c>, <c>Comics</c>, <c>Doujinshi</c> ..., the one category list the work detector and the tree snapshot use) is skipped like a kind
-/// folder (<c>Manga/One-shot.cbz</c> has no context; <c>Artist/Manga/One-shot.cbz</c> gives <c>Artist</c>); and a context that equals the archive's own name
+/// folder (<c>Manga/One-shot.cbz</c> has no context; <c>Artist/Manga/One-shot.cbz</c> gives <c>Artist</c>) - 1.51.0: a shelf folder too
+/// (<c>Ongoing</c>, <c>Completed</c>, <c>Misc</c> ...); and a context that equals the archive's own name
 /// after the catalog's folding (extension removed, <see cref="TitleNormalizer.ScoringForm"/>: <c>Series/Series.cbz</c>) is left out, so the same text never shows twice.
 /// </para>
 /// <para>
@@ -97,9 +98,14 @@ public static class ArchiveContextNames
         MangaPixerDbContext db, long archiveNodeId, IReadOnlyCollection<long> visibleLibraryIds, CancellationToken ct = default) =>
         (await ResolveAsync(db, [archiveNodeId], visibleLibraryIds, ct)).GetValueOrDefault(archiveNodeId);
 
-    /// <summary>True when an ancestor folder's name can be the context line: not empty, not a plain unit / kind folder and not a category folder.</summary>
+    /// <summary>
+    /// True when an ancestor folder's name can be the context line: not empty, not a plain unit / kind folder, not a category folder and
+    /// (1.51.0, owner decision 3) not a shelf folder - a generic sorting folder such as <c>Ongoing</c>, <c>Completed</c> or <c>Misc</c>
+    /// (<see cref="AutoMatchText.ShelfWords"/>, the whole name): <c>Artist/Ongoing/One-shot.cbz</c> gives <c>Artist</c>.
+    /// </summary>
     internal static bool IsContextName(string? folderName) =>
-        !string.IsNullOrWhiteSpace(folderName) && !AutoMatchText.IsUnitFolderName(folderName) && !AutoMatchText.IsCategoryFolderName(folderName);
+        !string.IsNullOrWhiteSpace(folderName) && !AutoMatchText.IsUnitFolderName(folderName) && !AutoMatchText.IsCategoryFolderName(folderName)
+        && !AutoMatchText.ShelfWords.Contains(folderName.Trim());
 
     /// <summary>True when the context equals the archive's own name after the catalog's folding (extension removed, <see cref="TitleNormalizer.ScoringForm"/>).</summary>
     internal static bool RepeatsOwnName(string archiveName, string contextName)
