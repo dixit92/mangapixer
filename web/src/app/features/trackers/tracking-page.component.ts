@@ -99,6 +99,7 @@ import { TrackingSeriesListComponent } from './tracking-series-list.component';
     .tab { min-height: 36px; padding: 0 14px; border-radius: 18px; border: 0; background: transparent; color: var(--mp-text-muted);
            font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
     .tab:hover { background: rgb(var(--mp-ink-rgb) / 0.06); }
+    @media (pointer: coarse) { .tab { min-height: 40px; } }
     .tab.on { background: var(--mp-surface-accent); color: var(--mp-accent-soft); font-weight: 500; }
     .count { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 9px; background: var(--mp-warn-strong); color: var(--mp-on-warn); }
     .muted { color: var(--mp-text-muted); font-size: 14px; margin: 0; }

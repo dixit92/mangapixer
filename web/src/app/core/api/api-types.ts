@@ -50,6 +50,11 @@ export interface PageResponse<T> {
   linkedSeries?: number | null;
   /** 1.44.0: while the Completion filter applies, how many linked series of the level have each answer; null otherwise. */
   completionCounts?: BrowseCompletionCountsDto | null;
+  /**
+   * 1.51.0 (lane F): the Favorites list grouped by library (`group=library`) - each listed library in the list's order with its entry count
+   * (the section headers). Null for every other listing. Optional (additive).
+   */
+  favoriteGroups?: FavoriteLibraryGroupDto[] | null;
 }
 
 /** 1.44.0: the linked series of a browse level per Completion answer (the Completion tab's answers). */
@@ -181,6 +186,24 @@ export interface JumpIndexDto {
 }
 
 export type JumpIndexMode = 'letters' | 'numbers' | 'dates';
+
+/**
+ * 1.51.0 (lane F): the Favorites jump rail (`GET favorites/jump-index`) - letters from the favorites' own names, each bucket one contiguous
+ * run of the list under the name sort; `firstCursor` is a favorites cursor (`GET favorites?sort=name&cursor=`). Empty while grouped by
+ * library.
+ */
+export interface FavoritesJumpIndexDto {
+  buckets: JumpIndexBucketDto[];
+  direction?: 'asc' | 'desc';
+  mode?: JumpIndexMode;
+}
+
+/** 1.51.0 (lane F): one library section of the Favorites list grouped by library - the header's name and count. */
+export interface FavoriteLibraryGroupDto {
+  libraryId: string;
+  name: string;
+  count: number;
+}
 
 export interface SearchResultsDto {
   query: string;
@@ -582,11 +605,16 @@ export type LibraryReadStateFilter = 'all' | 'reading' | 'read' | 'unread';
  * one library). Query parameters only (no schema).
  */
 export interface FavoritesQuery {
-  sort?: 'favorited' | 'name' | 'recentlyAdded' | 'recentlyUpdated';
+  /** 1.51.0: `recentlyRead` (the viewer's newest reading activity; never read last by name). */
+  sort?: 'favorited' | 'name' | 'recentlyAdded' | 'recentlyUpdated' | 'recentlyRead';
   direction?: 'asc' | 'desc';
   readState?: LibraryReadStateFilter;
   kind?: 'all' | 'folders' | 'archives';
   libraryId?: string | null;
+  /** 1.51.0: list library by library (the picker's order), with `favoriteGroups` on the answer. */
+  groupByLibrary?: boolean;
+  /** 1.51.0: a page's `prevCursor` - the page just above it (backward paging after a jump). */
+  before?: string | null;
 }
 
 /** Per-user library browse presentation preferences (1.2.0). Strings for tolerance. */

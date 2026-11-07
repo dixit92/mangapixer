@@ -30,6 +30,7 @@ import { MetadataProvidersComponent } from './metadata-providers.component';
 import { coverLanguageOptions, volumeCoversWaitingLabel } from './volume-covers';
 import { CoverSettingsCardComponent } from './cover-settings-card.component';
 import { AuthorAliasesCardComponent } from '../../authors/author-aliases-card.component';
+import { TOUCH_LINK_CSS } from '../../../../shared/touch-targets';
 
 /**
  * Consent text version the page shows; must equal the server's `currentConsentVersion`. 2 (1.28.0): the text
@@ -403,7 +404,7 @@ export function validateThresholds(
                 volumes you have are downloaded)
                 @if (waitingLabel(); as w) { <br><span class="warn">{{ w }}</span> }
               }
-              <button type="button" class="link" (click)="loadCoverStatus()" data-testid="md-volume-covers-progress">
+              <button type="button" class="link touch-link" (click)="loadCoverStatus()" data-testid="md-volume-covers-progress">
                 {{ coverStatus() ? 'Refresh' : 'Show progress' }}</button>
             </p>
             @if (confirming() === 'covers') {
@@ -557,7 +558,7 @@ export function validateThresholds(
       @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     </div>
   `,
-  styles: [`
+  styles: [TOUCH_LINK_CSS, `
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 16px; align-items: start; }
     .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
     .card { background: var(--mp-surface-raised); border: 1px solid rgb(var(--mp-ink-rgb) / 0.07); border-radius: 12px; padding: 14px 18px; min-width: 0; }

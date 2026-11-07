@@ -49,6 +49,7 @@ describe('FavoritesComponent - the Favorites view (1.50.0)', () => {
     const getLibraryPreferences = vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name', ...opts.prefs }));
     const apiSpy = {
       getFavorites,
+      getFavoritesJumpIndex: vi.fn().mockReturnValue(of({ buckets: [] })),
       getLibraryPreferences,
       getLibraries: vi.fn().mockReturnValue(of(opts.libraries ?? [])),
       setFavorite: vi.fn().mockReturnValue(of(undefined)),
@@ -153,7 +154,7 @@ describe('FavoritesComponent - the Favorites view (1.50.0)', () => {
       expect(getFavorites).toHaveBeenCalledWith(null, 50, expect.objectContaining({ sort: 'recentlyAdded', direction: 'desc' }));
     });
 
-    it('the View menu lists the five sorts and marks the current one', async () => {
+    it('the View menu lists the six sorts (1.51.0: Recently read) and marks the current one', async () => {
       const { el, fixture } = setup();
       (el.querySelector('[data-testid="favorites-view-button"]') as HTMLButtonElement).click();
       fixture.detectChanges();
@@ -161,7 +162,7 @@ describe('FavoritesComponent - the Favorites view (1.50.0)', () => {
       const items = Array.from(document.querySelectorAll('[data-testid^="favorites-sort-"]'));
       expect(items.map((i) => i.getAttribute('data-testid'))).toEqual([
         'favorites-sort-favorited', 'favorites-sort-name', 'favorites-sort-name-desc', 'favorites-sort-recentlyAdded',
-        'favorites-sort-recentlyUpdated',
+        'favorites-sort-recentlyUpdated', 'favorites-sort-recentlyRead',
       ]);
       expect(items[0].getAttribute('aria-checked')).toBe('true');
       expect(items[1].getAttribute('aria-checked')).toBe('false');

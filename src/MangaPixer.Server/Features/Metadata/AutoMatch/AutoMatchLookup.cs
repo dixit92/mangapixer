@@ -3,6 +3,7 @@ namespace com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
+using com.lifepixer.mangapixer.Server.Features.Metadata.Authors;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.Gcd;
 using com.lifepixer.mangapixer.Server.Features.Reading;
@@ -104,10 +105,16 @@ public sealed class AutoMatchLookup
     private readonly IMatchScorer _scorer;
     private readonly AutoMatchCoverComparer? _covers;
     private readonly GcdDetails? _gcd;
+    private readonly IAuthorAliasSource _aliases;
 
+    /// <param name="aliases">
+    /// 1.51.0: the stored author records whose other names join a MangaUpdates candidate's authors (database only; never a request).
+    /// Null reads <see cref="StoredAuthorAliases"/> over <paramref name="db"/>.
+    /// </param>
     public AutoMatchLookup(MangaPixerDbContext db, MetadataGateway gateway, IMatchQueryPlanner planner, IMatchScorer scorer,
-        AutoMatchCoverComparer? covers = null, GcdDetails? gcd = null)
+        AutoMatchCoverComparer? covers = null, GcdDetails? gcd = null, IAuthorAliasSource? aliases = null)
     {
+        _aliases = aliases ?? new StoredAuthorAliases(db);
         _db = db;
         _gateway = gateway;
         _planner = planner;
@@ -161,6 +168,7 @@ public sealed class AutoMatchLookup
         {
             found.Fetched[hinted.ExternalId] = hinted;
             found.Candidates[hinted.ExternalId] = ToCandidate(hinted);
+            await WithStoredAuthorNamesAsync(found, ct);
             var hintedOutcome = _scorer.Score(query, found.Candidates.Values.ToList(), thresholds);
             if (hintedOutcome.Band == MatchBand.Auto)
                 return new WorkLookupResult(await WithComicsDetailsAsync(hintedOutcome, found, tree.LibraryId, call, ct),
@@ -257,6 +265,7 @@ public sealed class AutoMatchLookup
             found.ThroughMangaDex.Add(mu.ExternalId);
             found.Bridged++;
         }
+        await WithStoredAuthorNamesAsync(found, ct);
         return _scorer.Score(query, found.Candidates.Values.ToList(), thresholds);
 
         void AddMangaDex(ProviderSeriesRecord record, string? image)
@@ -434,6 +443,11 @@ public sealed class AutoMatchLookup
 
         public int MangaDexRequests { get; set; }
         public int Bridged { get; set; }
+
+        /// <summary>1.51.0: author ids already looked up in the alias store during this lookup, and the other names found for them.</summary>
+        public HashSet<string> AliasesAsked { get; } = new(StringComparer.Ordinal);
+
+        public Dictionary<string, IReadOnlyList<string>> AliasesById { get; } = new(StringComparer.Ordinal);
     }
 
     private async Task<MatchOutcome> RetrieveAsync(
@@ -508,6 +522,7 @@ public sealed class AutoMatchLookup
         if (outcome.Band == MatchBand.Auto && outcome.Ranked.Count > 0 && !fetched.ContainsKey(outcome.Ranked[0].Candidate.ExternalId))
         {
             await FetchIntoAsync(outcome.Ranked[0].Candidate.ExternalId, libraryId, candidates, fetched, call, ct);
+            await WithStoredAuthorNamesAsync(found, ct);
             outcome = _scorer.Score(query, candidates.Values.ToList(), thresholds);
         }
         return outcome;
@@ -552,6 +567,9 @@ public sealed class AutoMatchLookup
             found.TagFetchUsed = true;
             await FetchIntoAsync(tagged.Candidate.ExternalId, libraryId, candidates, found.Fetched, call, ct);
         }
+
+        // 1.51.0: every record read on this page gets its authors' stored other names in ONE batched read.
+        await WithStoredAuthorNamesAsync(found, ct);
     }
 
     /// <summary>
@@ -597,6 +615,46 @@ public sealed class AutoMatchLookup
         fetched[externalId] = record;
         candidates[externalId] = ToCandidate(record);
     }
+
+    /// <summary>
+    /// 1.51.0: a MangaUpdates candidate built from a FULL record also answers to the stored other names of its creators (pen names, other
+    /// spellings, scripts - the "Artists' other names" store, looked up by the creator's MangaUpdates author id, <c>Creator.ProviderId</c>).
+    /// An archive whose creator tag, or a folder name read as the author, gives such a name then agrees with the record exactly as the
+    /// record's own name does, instead of being an <see cref="MatchReason.AuthorConflict"/>. One batched read of the ids not yet asked in
+    /// this lookup, however many candidates; database only. Search hits carry no author ids and stay as they are, and so does every
+    /// non-MangaUpdates record (the store holds MangaUpdates authors only). Safe to call repeatedly: it only adds the missing names.
+    /// </summary>
+    private async Task WithStoredAuthorNamesAsync(Retrieval found, CancellationToken ct)
+    {
+        var records = found.Fetched.Values.Where(r => r.Provider == Provider).ToList();
+        var wanted = records.SelectMany(AuthorIdsOf).Where(id => !found.AliasesAsked.Contains(id)).ToHashSet(StringComparer.Ordinal);
+        if (wanted.Count > 0)
+        {
+            var stored = await _aliases.GetAsync(wanted, ct);
+            foreach (var id in wanted)
+            {
+                found.AliasesAsked.Add(id);
+                if (stored.TryGetValue(id, out var author))
+                    found.AliasesById[id] = author.OtherNames;
+            }
+        }
+        if (found.AliasesById.Count == 0)
+            return;
+        foreach (var record in records)
+        {
+            var extra = AuthorIdsOf(record).SelectMany(id => found.AliasesById.GetValueOrDefault(id) ?? [])
+                .Where(n => !string.IsNullOrWhiteSpace(n)).ToList();
+            if (extra.Count == 0 || !found.Candidates.TryGetValue(record.ExternalId, out var candidate))
+                continue;
+            var authors = candidate.Authors.Concat(extra).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (authors.Count != candidate.Authors.Count)
+                found.Candidates[record.ExternalId] = candidate with { Authors = authors };
+        }
+    }
+
+    /// <summary>The MangaUpdates author ids a record lists for its authors and artists (<c>Creator.ProviderId</c>).</summary>
+    private static IEnumerable<string> AuthorIdsOf(ProviderSeriesRecord record) =>
+        record.Creators.Where(c => c.Role is ("author" or "artist") && !string.IsNullOrEmpty(c.ProviderId)).Select(c => c.ProviderId!);
 
     /// <summary>The group of an archive work, re-derived from the current classification (null when it is gone).</summary>
     public static ArchiveGroup? GroupOf(LibraryTreeSnapshot tree, DetectedWork work, WorkClassification classification)

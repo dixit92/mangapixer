@@ -115,7 +115,7 @@ internal static class GoldenFixtures
         {
             var id = uri.Segments[^1];
             if (s_all.Value.Series.TryGetValue(id, out var json))
-                return ScriptedHandler.Json(json);
+                return ScriptedHandler.Json(WithAuthorIds(json));
             lock (missing)
                 missing.Add($"{{\"kind\":\"get\",\"id\":\"{id}\"}}");
             return ScriptedHandler.Json("{\"reason\":\"not found\"}", HttpStatusCode.NotFound);
@@ -123,6 +123,29 @@ internal static class GoldenFixtures
         lock (missing)
             missing.Add($"{{\"kind\":\"unexpected\",\"method\":\"{request.Method}\",\"path\":\"{uri.AbsolutePath}\"}}");
         return ScriptedHandler.Json("{\"reason\":\"not found\"}", HttpStatusCode.NotFound);
+    }
+
+    /// <summary>
+    /// The recordings keep an author's name and type only (trimmed to what the matcher read in 1.26.0); the live answer also carries the
+    /// author's <c>author_id</c>, which is how the server finds the author's stored other names (1.51.0). Replay gives each distinct author
+    /// NAME one stable synthetic id (never a real MangaUpdates id), so the set runs the alias lookup the production way.
+    /// </summary>
+    public static long AuthorIdOf(string name)
+    {
+        ulong hash = 14695981039346656037UL; // FNV-1a over the lower-cased name: stable across runs and machines
+        foreach (var ch in name.ToLowerInvariant())
+            hash = (hash ^ ch) * 1099511628211UL;
+        return 9_000_000_000L + (long)(hash % 900_000_000UL);
+    }
+
+    private static string WithAuthorIds(string seriesJson)
+    {
+        var node = System.Text.Json.Nodes.JsonNode.Parse(seriesJson)!.AsObject();
+        if (node["authors"] is System.Text.Json.Nodes.JsonArray authors)
+            foreach (var author in authors.OfType<System.Text.Json.Nodes.JsonObject>())
+                if (author["author_id"] is null && author["name"]?.GetValue<string>() is { } name)
+                    author["author_id"] = AuthorIdOf(name);
+        return node.ToJsonString();
     }
 
     private static (Dictionary<(string, bool, int, string), string>, Dictionary<string, string>) Load()

@@ -7,6 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 
 import { ApiService } from '../../../core/api/api.service';
 import { ApiError, ApiTokenDto, ApiTokenScope, CreateApiTokenResponse } from '../../../core/api/api-types';
+import { TOUCH_FIELDS_CSS } from '../../../shared/touch-targets';
 
 /** The expiry choices in days; null = never. 365 is the default. */
 export const EXPIRY_CHOICES: { days: number | null; label: string }[] = [
@@ -190,7 +191,7 @@ const STATUS_TEXT: Record<ApiTokenDto['status'], string> = {
       </mat-card-content>
     </mat-card>
   `,
-  styles: [`
+  styles: [TOUCH_FIELDS_CSS, `
     :host { display: block; min-width: 0; }
     mat-card { margin: 0; }
     .hint, .muted { color: var(--mp-text-muted); font-size: 13px; margin: 6px 0; }
@@ -212,6 +213,7 @@ const STATUS_TEXT: Record<ApiTokenDto['status'], string> = {
     .scopes legend { font-size: 14px; padding: 0; margin: 0 0 4px; }
     .check { display: flex; align-items: flex-start; gap: 8px; margin: 6px 0; font-size: 14px; cursor: pointer; }
     .check input { margin: 3px 0 0; flex: 0 0 auto; }
+    @media (pointer: coarse) { .check { align-items: center; min-height: 40px; } .check input { margin: 0; } }
     .check .label { display: block; }
     .check .sub { display: block; color: var(--mp-text-muted); font-size: 12px; overflow-wrap: anywhere; }
     .row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0; font-size: 14px; }

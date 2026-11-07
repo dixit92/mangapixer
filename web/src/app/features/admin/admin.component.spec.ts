@@ -312,4 +312,11 @@ describe('AdminComponent directory browser row', () => {
     expect(accept).toContain('.db.gz');
     expect(accept).toContain('.gz');
   });
+
+  it('1.51.0: the backup file picker has an accessible name (the sweep found an unlabelled input)', () => {
+    const { fixture } = setup({ name: 'x', path: '/library-root/x', hasChildren: false });
+    const picker = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('input[type="file"]')!;
+    expect(picker.getAttribute('aria-label')).toBe('Backup file to restore (.db or .db.gz)');
+    expect(picker.classList.contains('restore-file')).toBe(true);
+  });
 });

@@ -256,3 +256,13 @@ html {
 .cdk-overlay-pane:has(> .mp-snack-above-bar) {
   margin-bottom: var(--mp-snack-lift, 76px) !important;
 }
+
+/* Touch targets (1.51.0, mobile sweep M10): the native Card size / List columns sliders (browse and Home bars and View menus,
+   Favorites, Settings) were 16 px tall. On a touch screen their box is 40 px - the track and thumb stay as drawn, the whole box
+   takes the touch. A mouse keeps the old size. (Material's own sliders - the reader's - are sized by Material.) */
+@media (pointer: coarse) {
+  input[type='range'].size-slider,
+  input[type='range'].display-slider {
+    min-height: 40px;
+  }
+}

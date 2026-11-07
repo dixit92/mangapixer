@@ -18,6 +18,7 @@ import {
 } from '../../../core/api/api-types';
 import { LibraryScanScheduleComponent, hourLabel } from '../library-scan-schedule/library-scan-schedule.component';
 import { trashCountsText } from '../trash-card/trash-card.component';
+import { TOUCH_FIELDS_CSS } from '../../../shared/touch-targets';
 
 /** Each job's name and one plain line on what it does. */
 export const JOB_TEXT: Record<string, { name: string; what: string }> = {
@@ -364,7 +365,7 @@ function rhythm(job: ScheduledJobDto): string {
       </mat-card-content>
     </mat-card>
   `,
-  styles: [`
+  styles: [TOUCH_FIELDS_CSS, `
     :host { display: block; min-width: 0; }
     mat-card { margin: 0; }
     .clock { font-size: 14px; margin: 4px 0 6px; }

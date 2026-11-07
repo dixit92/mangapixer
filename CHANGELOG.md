@@ -6,6 +6,61 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.51.0] - 2026-11-07
+
+### Added
+
+- **Favorites: a Recently read sort.** The favorites you read last come first - a folder by the newest reading anywhere inside it, a
+  stack by the starred archive you read last - and favorites you have not read yet follow, by name.
+- **Favorites: a jump rail under the name sort** (A-Z and Z-A), with letters from your favorites' own names. It follows the filters, and
+  after a jump you can scroll up to the entries above. On a phone it is the letter-picker button, as in the library view.
+- **Favorites: Group by library.** Lists your favorites library by library, with a header naming each library and how many favorites it
+  holds, in card and list view; the choice is kept on each device. The jump rail is hidden while grouped, and the home page's Favorites
+  row is unchanged.
+- **API:** `GET /api/v1/favorites` takes `before` (paging backward: every page that does not start the list carries `prevCursor` /
+  `hasPrevious`), `sort=recentlyRead` and `group=library` (with `favoriteGroups` on the answer); a new `GET /api/v1/favorites/jump-index`.
+
+### Changed
+
+- **Automatic matching knows an author by their stored other names.** An archive whose creator tag - or whose artist folder's name -
+  gives a pen name that your server has stored under **Artists' other names** now agrees with the series record of that author, with the
+  same weight as the author's own name, instead of waiting in **Needs review** with an author conflict. A tag naming someone else still
+  conflicts, and nothing new is requested from any site. Works waiting in Needs review are checked once more under the new rules.
+
+- **A short number finds a volume or chapter written against its prefix.** `12` now finds `v12`, `vol012`, `ch12` or `c12` (and `3` finds
+  `ep3`), as it already found `Vol 12` and `012`. Only those unit prefixes count, so a number inside another word is still not a match.
+- **The folder line under an archive skips shelf folders.** An archive found outside its folder names the folder it belongs to; a
+  generic sorting folder such as **Ongoing**, **Completed** or **Misc** is now skipped like a category folder, so `Artist/Ongoing/One-shot`
+  shows **Artist**.
+- **A search of only `-words` says what to add.** A search made only of exclusions (`-berserk`) leaves names out of nothing, so it lists
+  nothing; the Search page now asks for a word to search for instead of saying "No results found".
+
+### Fixed
+
+- **The server no longer stops when a cached page vanishes while it is being opened.** If a cached image was evicted between the
+  lookup and the open, the request already fell back correctly, but the half-opened file was cleaned up later in a way that ended the
+  whole server process. Found by the mobile UI sweep while it scrolled a webtoon.
+- **Phones: the selection bar in select mode is one short row again.** The action icons scroll sideways between "N selected" and Done
+  instead of stacking into a column that covered a third of the screen; every icon button has a name for screen readers (also the volume
+  page's Select button).
+- **Phones held sideways: the library sidebar keeps its width.** A long library name ends in "..." (shown in full as a tooltip), so the
+  library bar, its menus, Done and the volume page's view switch stay on screen; the library bar wraps as on a phone, the jump control is
+  the picker, and the collapsed sidebar's library icons have names for screen readers.
+- **Phones: the scrub strip of a long folder follows your finger from the top of the page** (a touch near the top of the strip went to the
+  library bar and scrolled the page instead), and the strip no longer covers the stars of the right-hand cards.
+- **Touch screens: larger tap targets (40 px)** for the MangaPixer link in the header, the Card size / List columns sliders, Home's library
+  headings, the folder breadcrumb, the list view checkboxes, the jump picker's letters, "Expand sidebar", the Volumes | Folders switch and
+  the search page's tag filters ("Exclude", "Remove", Refine's "or" and "not"). A mouse keeps the compact sizes.
+- **Search: tag filters wrap inside the search field**, and a long tag name is cut with "..." inside its chip instead of hiding the chip's
+  name or pushing the next filter out of the field.
+- **Larger tap targets on a touch screen: Administration, Metadata Manager, series page, Tracking and the reader's options.** The
+  Backups file picker, the schedule, retention and token fields, the links under them, the review tabs, the series page's links, the
+  Tracking rows' links and the reader's GPU status line are at least 40 px tall on a phone or tablet, in portrait and landscape. The Backups
+  file picker now has an accessible name. A window used with a mouse looks as before.
+- **Two backups in the same second keep their real order.** A manual backup racing the scheduled one in the same second got a random
+  suffix and could be ranked as the older one - and pruned first when the retention limit was reached. The later one now always ranks
+  newer.
+
 ## [1.50.1] - 2026-11-01
 
 ### Fixed

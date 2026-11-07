@@ -306,8 +306,9 @@ public sealed partial class RotatingBackupService
     /// Enumerates the on-disk rotating snapshots newest-first, exposing only the
     /// generated file name, byte size, and last-write timestamp — NEVER an
     /// absolute path (privacy invariant for API-visible data). File names embed
-    /// a UTC timestamp, so ordinal name order is chronological; sorting on the
-    /// name (not the mtime) keeps the list stable and matches the pruning order.
+    /// a UTC timestamp, so the name's timestamp orders the list (stable through a
+    /// move that resets the mtime) and matches the pruning order; only a
+    /// same-second pair falls back to creation order (<see cref="EnumerateGenerated"/>).
     /// </summary>
     public IReadOnlyList<RotatingBackupFileInfo> ListBackups(string directory) =>
         EnumerateGenerated(directory)
@@ -348,13 +349,16 @@ public sealed partial class RotatingBackupService
         {
             if (!Directory.Exists(directory))
                 return new List<FileInfo>();
-            // Newest first by the UTC timestamp in the name (plain .db and .db.gz mix), then the full name for a
-            // same-second pair. Ordinal name order alone would put "-xxxx.db" and ".db.gz" in the wrong order.
+            // Newest first by the UTC timestamp in the name (plain .db and .db.gz mix). A same-second pair is ordered by
+            // creation (1.51.0): a "-xxxx" suffix is added only when that second's plain name is taken, so a suffixed snapshot
+            // is always the newer one; between suffixed ones (the suffix is random) the write time decides, then the name.
             return new DirectoryInfo(directory)
                 .EnumerateFiles(FileNamePrefix + "*")
                 .Select(fi => (File: fi, Match: FileNamePattern().Match(fi.Name)))
                 .Where(x => x.Match.Success)
                 .OrderByDescending(x => x.Match.Groups[1].Value, StringComparer.Ordinal)
+                .ThenByDescending(x => x.Match.Groups[2].Success)
+                .ThenByDescending(x => x.File.LastWriteTimeUtc)
                 .ThenByDescending(x => x.File.Name, StringComparer.Ordinal)
                 .Select(x => x.File)
                 .ToList();

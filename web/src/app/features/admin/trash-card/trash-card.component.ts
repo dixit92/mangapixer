@@ -15,6 +15,7 @@ import {
   UpdateTrashSettingsRequest,
 } from '../../../core/api/api-types';
 import { formatBytes } from '../backup-snapshot-move-status.component';
+import { TOUCH_FIELDS_CSS, TOUCH_LINK_CSS } from '../../../shared/touch-targets';
 
 /** The retention presets as the admin reads them. */
 const RETENTION_LABELS: Record<number, string> = {
@@ -99,7 +100,7 @@ type Pending =
               } @else {
                 Off. Nothing is removed unless you choose "Empty trash now" or "Clean bundles now".
               }
-              <button type="button" class="link" data-testid="trash-auto-link" (click)="showSchedule()">Change in Scheduled jobs</button>
+              <button type="button" class="link touch-link" data-testid="trash-auto-link" (click)="showSchedule()">Change in Scheduled jobs</button>
             </span>
           </p>
 
@@ -188,7 +189,7 @@ type Pending =
       </mat-card-content>
     </mat-card>
   `,
-  styles: [`
+  styles: [TOUCH_FIELDS_CSS, TOUCH_LINK_CSS, `
     :host { display: block; min-width: 0; }
     mat-card { margin: 0; }
     .row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 10px 0; font-size: 14px; }

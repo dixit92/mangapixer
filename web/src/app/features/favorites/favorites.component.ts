@@ -1,5 +1,5 @@
 import {
-  Component, ElementRef, NgZone, OnDestroy, OnInit, computed, effect, inject, signal, viewChild,
+  Component, ElementRef, NgZone, OnDestroy, OnInit, afterNextRender, computed, effect, inject, signal, viewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { NavigationEnd, NavigationStart, Router, RouterLink } from '@angular/router';
@@ -27,8 +27,11 @@ import { StackCardComponent } from '../../shared/stack-card/stack-card.component
 import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/folder-rollup-badge.component';
 import { NodeRowComponent } from '../../shared/node-row/node-row.component';
 import { ContextLineComponent } from '../../shared/context-line/context-line.component';
+import { JumpRailComponent, bucketOwners } from '../library/jump-rail.component';
+import { isLongLevel } from '../library/jump-scrub';
 import {
-  CatalogNodeDto, LibraryDto, LibraryReadStateFilter, LibraryViewMode, ReadMarkDto, ReadingProgressDto,
+  CatalogNodeDto, FavoriteLibraryGroupDto, FavoritesQuery, JumpIndexBucketDto, LibraryDto, LibraryReadStateFilter, LibraryViewMode,
+  PageResponse, ReadMarkDto, ReadingProgressDto,
 } from '../../core/api/api-types';
 import {
   favoriteLink,
@@ -48,6 +51,29 @@ interface SortOption {
   readonly label: string;
   readonly icon: string;
   readonly hint?: string;
+}
+
+/** 1.51.0 lane F: a library section header of the grouped list (owner decision 10: plain, not collapsible). */
+export interface FavoritesGroupHeader {
+  readonly libraryId: string;
+  readonly name: string;
+  readonly count: number | null;
+}
+
+/**
+ * 1.51.0 lane F: the header to show before each loaded entry of a list grouped by library - one wherever the library changes (and at
+ * the top of the loaded window), else null. Names and counts from the answer's `favoriteGroups`, a library missing there by the viewer's
+ * library list (count unknown).
+ */
+export function groupHeaders(
+  nodes: readonly CatalogNodeDto[], groups: readonly FavoriteLibraryGroupDto[], libraries: readonly LibraryDto[],
+): (FavoritesGroupHeader | null)[] {
+  return nodes.map((node, i) => {
+    if (i > 0 && nodes[i - 1].libraryId === node.libraryId) return null;
+    const group = groups.find((g) => g.libraryId === node.libraryId);
+    const name = group?.name ?? libraries.find((l) => l.id === node.libraryId)?.name ?? '';
+    return { libraryId: node.libraryId, name, count: group?.count ?? null };
+  });
 }
 
 /**
@@ -74,6 +100,12 @@ interface SortOption {
  * device's own (`FavoritesDisplayPreferencesService`, seeded once from browse's values on the device); the filters are transient. The
  * place survives a reader round trip: the route reuse strategy retains this view, so Back lands on the same list, filters and scroll; a
  * fresh visit (not Back) reloads the list with the same sort and filters.
+ *
+ * 1.51.0 (lane F, owner decisions 2, 8-10): a Recently read sort; under the name sort the jump rail (`app-jump-rail`, letters from the
+ * favorites' own names, `GET favorites/jump-index`) - a chip whose first card is loaded scrolls to it, any other reloads the list from
+ * the chip's cursor and the page then scrolls UP too (`prevCursor` / `before`, browse's top sentinel); "Group by library" (a toolbar
+ * toggle, per device): the list library by library with a plain header (name + count) wherever the library changes, in both views, no
+ * rail while grouped and no header while one library is filtered.
  */
 @Component({
   selector: 'app-favorites',
@@ -94,6 +126,7 @@ interface SortOption {
     FolderRollupBadgeComponent,
     NodeRowComponent,
     ContextLineComponent,
+    JumpRailComponent,
   ],
   template: `
     <div class="fav-bar" data-testid="favorites-bar">
@@ -207,15 +240,48 @@ interface SortOption {
           }
         }
       </mat-menu>
+      @if (libraries().length > 1) {
+        <!-- 1.51.0 (owner addition, decision 9): Group by library, remembered on this device. Icon-only on a phone (.lbl). -->
+        <button mat-stroked-button class="group-toggle" data-testid="favorites-group-button"
+                [class.group-active]="groupByLibrary()" [attr.aria-pressed]="groupByLibrary()"
+                matTooltip="Group by library" aria-label="Group by library" (click)="toggleGroupByLibrary()">
+          <mat-icon>library_books</mat-icon> <span class="lbl">Group</span>
+        </button>
+      }
     </div>
 
+    <!-- 1.51.0 (decisions 2, 8): the jump rail under the name sort, never while grouped; the phone picker and strip are the rail's own. -->
+    @if (railShown()) {
+      <app-jump-rail [buckets]="jumpBuckets()" mode="letters" [active]="activeJump()" [top]="0" (jump)="jumpToBucket($event)" />
+    }
+
+    @if (hasPrevious()) {
+      <!-- 1.51.0: after a jump the window starts mid-list; scrolling up to here prepends the page above (scroll-anchored, as browse). -->
+      <div class="scroll-sentinel top-sentinel" #topSentinel data-testid="favorites-top-sentinel">
+        @if (loadingPrevious()) {
+          <span role="status">Loading previous…</span>
+        } @else if (!autoLoadSupported) {
+          <button mat-stroked-button (click)="loadPrevious()">Load previous</button>
+        }
+      </div>
+    }
+
     <div class="nodes" [class.card]="viewMode() === 'card'" [class.list]="viewMode() === 'list'"
-         data-testid="favorites-list"
+         [class.scrub-gutter]="scrubGutter()" data-testid="favorites-list"
          [style.--card-size]="cardSize() + 'px'" [style.--list-columns]="listColumns()">
-      @for (node of nodes(); track trackKey(node)) {
+      @for (node of nodes(); track trackKey(node); let i = $index) {
+        @if (headers()[i]; as header) {
+          <!-- 1.51.0 (decision 10): a plain library header wherever the library changes. -->
+          <div class="lib-header" role="heading" aria-level="3" data-testid="favorites-group-header">
+            <span class="lib-name">{{ header.name }}</span>
+            @if (header.count !== null) {
+              <span class="lib-count">{{ header.count }}</span>
+            }
+          </div>
+        }
         @if (viewMode() === 'list') {
           <!-- List view (1.50.0): the shared row, with the favorites' stack count, link query and anchored (i). -->
-          <app-node-row class="fav-row" [node]="node" [link]="getNodeLink(node)" [queryParams]="stackParams(node)"
+          <app-node-row class="fav-row fav-item" [node]="node" [link]="getNodeLink(node)" [queryParams]="stackParams(node)"
                         [subtitle]="rowSub(node)" [selectable]="false" [hoverId]="hoverNodeId(node)"
                         [stackCount]="isStack(node) ? node.favoriteStackCount ?? null : null"
                         [showStar]="!isStack(node)" [anchoredInfo]="node.kind === 'Archive'"
@@ -224,7 +290,7 @@ interface SortOption {
           <!-- Stack (1.27.0): two or more starred archives in one folder. Opens the
                folder with a transient "Favorites only" filter; no star here (it would
                star the folder itself). -->
-          <div class="fav-card">
+          <div class="fav-card fav-item">
             <a #cardEl [routerLink]="getNodeLink(node)" [queryParams]="stackParams(node)" class="fav-link stack-link"
                [attr.aria-label]="node.displayName + ', ' + stackLabel(node)">
               <app-stack-card [appSeriesInfoHover]="hoverNodeId(node)" [hoverAnchor]="cardEl">
@@ -242,7 +308,7 @@ interface SortOption {
             </a>
           </div>
         } @else {
-          <div class="fav-card">
+          <div class="fav-card fav-item">
             <a #cardEl [routerLink]="getNodeLink(node)" class="fav-link">
               <div class="cover" [appSeriesInfoHover]="hoverNodeId(node)" [hoverAnchor]="cardEl">
                 @if (coverSrc(node); as src) {
@@ -312,7 +378,22 @@ interface SortOption {
     }
     .size-slider { width: 120px; max-width: 34vw; accent-color: var(--mp-accent-strong); cursor: pointer; background: transparent; }
     .view-toggle mat-icon, .filter-toggle mat-icon { margin-right: 4px; }
-    .filter-toggle.filter-active { border-color: var(--mp-accent-strong); color: var(--mp-accent); }
+    .filter-toggle.filter-active, .group-toggle.group-active { border-color: var(--mp-accent-strong); color: var(--mp-accent); }
+    .group-toggle mat-icon { margin-right: 4px; }
+    .group-toggle.group-active mat-icon { color: var(--mp-accent); }
+    /* 1.51.0: the library header of the grouped list - a full-width row of the card grid or the list grid. */
+    .lib-header {
+      grid-column: 1 / -1; min-width: 0;
+      display: flex; align-items: baseline; gap: 8px;
+      margin-top: 12px; padding-bottom: 4px;
+      border-bottom: 1px solid rgb(var(--mp-ink-rgb) / 0.12);
+    }
+    .lib-header:first-child { margin-top: 0; }
+    .lib-name {
+      min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      font-size: 15px; font-weight: 600; color: var(--mp-text);
+    }
+    .lib-count { flex: none; font-size: 12px; color: var(--mp-text-muted); font-variant-numeric: tabular-nums; }
     .filter-toggle.filter-active mat-icon { color: var(--mp-accent); }
     .menu-caption {
       display: block; padding: 6px 16px 2px; font-size: 11px; font-weight: 600;
@@ -380,10 +461,17 @@ interface SortOption {
     .empty p { margin: 0; }
     .empty mat-icon { font-size: 40px; width: 40px; height: 40px; color: var(--mp-text-faint); }
     @media (max-width: 599.98px) {
+      /* 1.51.0 (mobile sweep M7): clear of the phone scrub strip on the right edge (it took the right-hand stars' taps). */
+      .nodes.scrub-gutter { margin-right: max(0px, calc(44px - var(--mp-gutter))); }
+      /* 1.51.0 (gate sweep N1): that 28 px cost the default card size its second column at 360 px (one 300 px card per screen). A
+         card may give up to 20 px of its minimum so a second column fits; a card size chosen large stays one column, as before. */
+      .nodes.scrub-gutter:not(.list) {
+        grid-template-columns: repeat(auto-fill, minmax(min(var(--card-size, 150px), max(calc(50% - 10px), calc(var(--card-size, 150px) - 20px))), 1fr));
+      }
       ::ng-deep .view-options-menu .view-size-section { display: block; }
       .size-control-inline { display: none; }
       .fav-bar .lbl { display: none; }
-      .fav-bar .view-toggle mat-icon, .fav-bar .filter-toggle mat-icon { margin-right: 0; }
+      .fav-bar .view-toggle mat-icon, .fav-bar .filter-toggle mat-icon, .fav-bar .group-toggle mat-icon { margin-right: 0; }
     }
   `],
 })
@@ -424,7 +512,36 @@ export class FavoritesComponent implements OnInit, OnDestroy {
     { sort: 'name', direction: 'desc', label: 'Name (Z-A)', icon: 'sort_by_alpha' },
     { sort: 'recentlyAdded', direction: 'desc', label: 'Recently added', icon: 'new_releases', hint: 'New items appear' },
     { sort: 'recentlyUpdated', direction: 'desc', label: 'Recently updated', icon: 'update', hint: 'Folders with new content' },
+    { sort: 'recentlyRead', direction: 'desc', label: 'Recently read', icon: 'history', hint: 'What you read last' },
   ];
+
+  // Group by library (1.51.0, per device - decision 9). Effective only without a library filter: one library needs no header.
+  readonly groupByLibrary = this.display.groupByLibrary;
+  readonly grouped = computed(() => this.groupByLibrary() && this.libraryId() === null);
+  /** The answer's library sections (names + counts of the whole list), from the latest fresh load. */
+  readonly groups = signal<FavoriteLibraryGroupDto[]>([]);
+  /** The header before each loaded entry (null = none), while grouped. */
+  readonly headers = computed<(FavoritesGroupHeader | null)[]>(() =>
+    this.grouped() ? groupHeaders(this.nodes(), this.groups(), this.libraries()) : []);
+
+  // Jump rail (1.51.0, decisions 2 and 8): under the name sort only, hidden while grouped. `activeJump` = the bucket of the topmost card.
+  readonly jumpBuckets = signal<JumpIndexBucketDto[]>([]);
+  readonly activeJump = signal<JumpIndexBucketDto | null>(null);
+  readonly railShown = computed(() => this.sortChoice().sort === 'name' && !this.grouped() && this.jumpBuckets().length > 0);
+  /** 1.51.0 (mobile sweep M7): the rail's phone scrub strip shows (a long list) - the list keeps its 44 px free. */
+  readonly scrubGutter = computed(() => this.railShown() && isLongLevel(this.jumpBuckets()));
+  private readonly jumpOwners = computed(() => bucketOwners(this.nodes(), this.jumpBuckets()));
+  private jumpGeneration = 0;
+
+  // Backward paging (1.51.0): a window that starts mid-list (after a jump) pages up through `before`.
+  readonly hasPrevious = signal(false);
+  readonly loadingPrevious = signal(false);
+  private prevCursor: string | null = null;
+  private readonly topSentinel = viewChild<ElementRef<HTMLElement>>('topSentinel');
+  private topSentinelObserver: IntersectionObserver | null = null;
+  private scrollTarget: HTMLElement | Window | null = null;
+  private scrollSpyFrame: number | null = null;
+  private readonly onScroll = (): void => this.scheduleScrollSpy();
 
   // Filters (transient, owner decision 9).
   readonly readState = signal<LibraryReadStateFilter>('all');
@@ -467,11 +584,16 @@ export class FavoritesComponent implements OnInit, OnDestroy {
   constructor() {
     // The sentinel lives inside `@if (hasMore())`, so it comes and goes; re-arm the observer on the current element.
     effect(() => this.observeSentinel(this.sentinel()?.nativeElement ?? null));
+    // 1.51.0: the top sentinel lives inside `@if (hasPrevious())`; re-arm on the current element.
+    effect(() => this.observeTopSentinel(this.topSentinel()?.nativeElement ?? null));
+    // The scroll-spy listens on the scroller that holds this view (the shell's content pane, else the window).
+    afterNextRender(() => this.attachScrollSpy());
   }
 
   ngOnInit(): void {
     this.seedDisplayOnce();
     this.load(false);
+    this.loadJumpIndex();
     this.subs.add(this.api.getLibraries().pipe(catchError(() => of([] as LibraryDto[])))
       .subscribe((libs) => this.libraries.set(libs)));
     // A node unstarred anywhere drops out of this list in place. A stack stays: it
@@ -503,6 +625,9 @@ export class FavoritesComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.subs.unsubscribe();
     this.sentinelObserver?.disconnect();
+    this.topSentinelObserver?.disconnect();
+    this.scrollTarget?.removeEventListener('scroll', this.onScroll);
+    if (this.scrollSpyFrame !== null && typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(this.scrollSpyFrame);
   }
 
   // --- Display ---
@@ -563,6 +688,12 @@ export class FavoritesComponent implements OnInit, OnDestroy {
     this.reload();
   }
 
+  /** 1.51.0: Group by library on / off - stored on this device, the list reloads from the top. */
+  toggleGroupByLibrary(): void {
+    this.display.setGroupByLibrary(!this.groupByLibrary());
+    this.reload();
+  }
+
   clearFilters(): void {
     this.readState.set('all');
     this.kind.set('all');
@@ -580,27 +711,45 @@ export class FavoritesComponent implements OnInit, OnDestroy {
     this.cursor = null;
     this.hasMore.set(false);
     this.load(false);
+    this.loadJumpIndex();
   }
 
-  private load(append: boolean): void {
-    const generation = append ? this.generation : ++this.generation;
+  /** The listing's query: sort, filters and (1.51.0) the grouping - sent only while it applies, so other calls stay as they were. */
+  private query(): FavoritesQuery {
     const choice = this.sortChoice();
-    this.loading.set(true);
-    this.api.getFavorites(append ? this.cursor : null, 50, {
+    const query: FavoritesQuery = {
       sort: choice.sort,
       direction: choice.direction,
       readState: this.readState(),
       kind: this.kind(),
       libraryId: this.libraryId(),
-    }).subscribe({
+    };
+    return this.grouped() ? { ...query, groupByLibrary: true } : query;
+  }
+
+  /**
+   * A fresh window (`append` false: the first page, or - 1.51.0 - the page a jump lands on, from `start`) replaces the list and takes the
+   * window-top state (`prevCursor` / `hasPrevious`) and the library sections; an append adds the next page below.
+   */
+  private load(append: boolean, start: string | null = null): void {
+    const generation = append ? this.generation : ++this.generation;
+    this.loading.set(true);
+    if (!append) this.loadingPrevious.set(false);
+    this.api.getFavorites(append ? this.cursor : start, 50, this.query()).subscribe({
       next: (page) => {
         if (generation !== this.generation) return;
         this.nodes.update((prev) => (append ? [...prev, ...page.items] : page.items));
         this.cursor = page.nextCursor;
         this.hasMore.set(page.hasMore);
+        if (!append) {
+          this.prevCursor = page.prevCursor ?? null;
+          this.hasPrevious.set(page.hasPrevious ?? false);
+          this.groups.set(page.favoriteGroups ?? []);
+        }
         this.loading.set(false);
         this.loaded.set(true);
         this.rearmSentinel();
+        if (this.hasPrevious()) this.rearmTopSentinel();
       },
       error: () => {
         if (generation !== this.generation) return;
@@ -608,6 +757,181 @@ export class FavoritesComponent implements OnInit, OnDestroy {
         this.loaded.set(true);
       },
     });
+  }
+
+  /**
+   * 1.51.0: load and PREPEND the page above the window's first entry (after a mid-list jump), keeping what is on screen in place. Never
+   * while another page loads; dropped when a fresh load replaced the window meanwhile.
+   */
+  loadPrevious(): void {
+    if (this.loading() || this.loadingPrevious() || !this.hasPrevious() || !this.prevCursor) return;
+    const generation = this.generation;
+    const container = this.scrollParent();
+    const before = this.scrollHeightOf(container);
+    this.loadingPrevious.set(true);
+    this.api.getFavorites(null, 50, { ...this.query(), before: this.prevCursor }).subscribe({
+      next: (page: PageResponse<CatalogNodeDto>) => {
+        if (generation !== this.generation) return;
+        if (page.items.length > 0) this.nodes.update((list) => [...page.items, ...list]);
+        this.prevCursor = page.prevCursor ?? null;
+        this.hasPrevious.set(page.hasPrevious ?? false);
+        this.loadingPrevious.set(false);
+        this.anchorAfterPrepend(container, before);
+        if (this.hasPrevious()) this.rearmTopSentinel();
+      },
+      error: () => { if (generation === this.generation) this.loadingPrevious.set(false); },
+    });
+  }
+
+  // --- Jump rail (1.51.0) ---
+
+  /** The rail of the current list: under the name sort and not grouped (else none), for the same direction and filters. */
+  private loadJumpIndex(): void {
+    const generation = ++this.jumpGeneration;
+    this.jumpBuckets.set([]);
+    this.activeJump.set(null);
+    if (this.sortChoice().sort !== 'name' || this.grouped()) return;
+    const { direction, readState, kind, libraryId } = this.query();
+    this.api.getFavoritesJumpIndex({ direction, readState, kind, libraryId }).pipe(catchError(() => of(null))).subscribe((rail) => {
+      if (generation !== this.jumpGeneration) return;
+      this.jumpBuckets.set(rail?.buckets ?? []);
+    });
+  }
+
+  /**
+   * A chip: when its first card is loaded, scroll to it (nothing reloads); otherwise reload the list from the chip's cursor (null = the
+   * top) - the window then starts mid-list and pages both ways.
+   */
+  jumpToBucket(bucket: JumpIndexBucketDto): void {
+    this.activeJump.set(bucket);
+    const index = bucket.firstNodeId ? this.nodes().findIndex((n) => n.id === bucket.firstNodeId) : -1;
+    if (index !== -1 && this.scrollToCard(index)) return;
+    this.cursor = null;
+    this.hasMore.set(false);
+    this.hasPrevious.set(false);
+    this.prevCursor = null;
+    this.nodes.set([]);
+    this.load(false, bucket.firstCursor ?? null);
+    this.scrollListToTop();
+  }
+
+  /**
+   * Scroll-spy: the bucket of the topmost card below the rail (by position - each bucket's first entry, `bucketOwners`). Public so tests
+   * can drive it.
+   */
+  updateActiveJump(): void {
+    const buckets = this.jumpBuckets();
+    if (buckets.length === 0 || !this.host.nativeElement.isConnected) return;
+    const cards = this.host.nativeElement.querySelectorAll<HTMLElement>('.fav-item');
+    const nodes = this.nodes();
+    if (nodes.length === 0 || cards.length !== nodes.length) return;
+    const rail = this.host.nativeElement.querySelector<HTMLElement>('.jump-rail');
+    const railShown = !!rail && (typeof getComputedStyle === 'undefined' || getComputedStyle(rail).display !== 'none');
+    const threshold = railShown ? rail!.getBoundingClientRect().bottom : (this.scrollParent()?.getBoundingClientRect().top ?? 0);
+    let first = cards.length - 1;
+    for (let i = 0; i < cards.length; i++) {
+      if (cards[i].getBoundingClientRect().bottom > threshold) { first = i; break; }
+    }
+    const owners = this.jumpOwners();
+    if (owners[first] === undefined || owners[first] < 0) return; // no bucket starts in this window: keep the chip
+    const current = this.activeJump();
+    // Near the end of the list the page cannot scroll a chip's first card up to the top: keep the chip while the page cannot scroll
+    // further and that card is on screen (browse's 1.47.0 rule).
+    if (current && this.atScrollEnd() && this.cardOnScreen(cards, current, threshold)) return;
+    // Cards of one grid row share their bottom edge: keep the current chip while any card of the first visible row is in it (browse's
+    // rule - a click that scrolled to a bucket's first card mid-row shows that bucket).
+    const rowBottom = cards[first].getBoundingClientRect().bottom;
+    let active = buckets[owners[first]];
+    for (let i = first; i < cards.length && Math.abs(cards[i].getBoundingClientRect().bottom - rowBottom) < 1; i++) {
+      if (current && buckets[owners[i]] === current) { active = current; break; }
+    }
+    this.activeJump.set(active);
+  }
+
+  /** True when the list's scroller cannot scroll any further (at its end, or nothing to scroll); false without a layout (jsdom). */
+  private atScrollEnd(): boolean {
+    const el = this.scrollParent() ?? (typeof document !== 'undefined' ? (document.scrollingElement as HTMLElement | null) : null);
+    return !!el && el.clientHeight > 0 && el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
+  }
+
+  /** The first card of `bucket` is loaded and at least partly below the rail and above the screen's bottom. */
+  private cardOnScreen(cards: NodeListOf<HTMLElement>, bucket: JumpIndexBucketDto, threshold: number): boolean {
+    const index = bucket.firstNodeId ? this.nodes().findIndex((n) => n.id === bucket.firstNodeId) : -1;
+    const card = index >= 0 ? cards[index] : undefined;
+    if (!card) return false;
+    const box = card.getBoundingClientRect();
+    const bottom = typeof window !== 'undefined' ? window.innerHeight : 0;
+    return box.bottom > threshold && box.top < bottom;
+  }
+
+  private scrollToCard(index: number): boolean {
+    const card = this.host.nativeElement.querySelectorAll<HTMLElement>('.fav-item')[index];
+    if (!card) return false;
+    try { card.scrollIntoView({ block: 'start', behavior: 'auto' }); } catch { /* jsdom */ }
+    const rail = this.host.nativeElement.querySelector<HTMLElement>('.jump-rail');
+    const container = this.scrollParent();
+    // Below the sticky rail, not under it.
+    if (rail && container && typeof getComputedStyle !== 'undefined' && getComputedStyle(rail).display !== 'none') {
+      try { container.scrollBy({ top: -(rail.offsetHeight + 8), behavior: 'auto' }); } catch { /* jsdom */ }
+    }
+    return true;
+  }
+
+  private scrollListToTop(): void {
+    const container = this.scrollParent();
+    try {
+      if (container) container.scrollTo({ top: 0, behavior: 'auto' });
+      else if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'auto' });
+    } catch { /* jsdom */ }
+  }
+
+  private attachScrollSpy(): void {
+    this.scrollTarget?.removeEventListener('scroll', this.onScroll);
+    this.scrollTarget = this.scrollParent() ?? (typeof window !== 'undefined' ? window : null);
+    this.scrollTarget?.addEventListener('scroll', this.onScroll, { passive: true });
+  }
+
+  private scheduleScrollSpy(): void {
+    if (this.scrollSpyFrame !== null || typeof requestAnimationFrame === 'undefined') return;
+    this.scrollSpyFrame = requestAnimationFrame(() => {
+      this.scrollSpyFrame = null;
+      this.updateActiveJump();
+    });
+  }
+
+  /** (Re)attach the backward-paging observer to the current top-sentinel element. */
+  private observeTopSentinel(el: HTMLElement | null): void {
+    this.topSentinelObserver?.disconnect();
+    this.topSentinelObserver = null;
+    if (!el || !this.autoLoadSupported) return;
+    this.topSentinelObserver = new IntersectionObserver(
+      (entries) => { if (entries.some((e) => e.isIntersecting)) this.zone.run(() => this.loadPrevious()); },
+      { root: this.scrollParent(), rootMargin: '600px 0px 0px 0px' });
+    this.topSentinelObserver.observe(el);
+  }
+
+  private rearmTopSentinel(): void {
+    const el = this.topSentinel()?.nativeElement;
+    if (!el || !this.topSentinelObserver) return;
+    this.topSentinelObserver.unobserve(el);
+    this.topSentinelObserver.observe(el);
+  }
+
+  private scrollHeightOf(container: HTMLElement | null): number {
+    if (container) return container.scrollHeight;
+    return typeof document !== 'undefined' ? document.documentElement.scrollHeight : 0;
+  }
+
+  /** After a prepend, scroll down by the height the new cards added, so the cards on screen stay put (browse's anchor). */
+  private anchorAfterPrepend(container: HTMLElement | null, prevHeight: number): void {
+    const apply = (): void => {
+      const delta = this.scrollHeightOf(container) - prevHeight;
+      if (delta <= 0) return;
+      const target = container ?? (typeof window !== 'undefined' ? window : null);
+      try { target?.scrollBy({ top: delta, behavior: 'auto' }); } catch { /* jsdom */ }
+    };
+    if (typeof requestAnimationFrame !== 'undefined') requestAnimationFrame(apply);
+    else apply();
   }
 
   /** (Re)attach the infinite-scroll observer to the current sentinel element (browse's pattern, 1.8.0). */

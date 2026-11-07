@@ -155,6 +155,9 @@ import { HeaderSearchComponent } from './header-search.component';
       color: inherit;
       font-weight: 500;
       margin-right: 16px;
+      /* 1.51.0 (mobile sweep M9): a 40 px tall target (the 28 px mark alone set the link's height); nothing moves - the toolbar
+         centres its items. */
+      min-height: 40px;
     }
     .brand-mark {
       width: 28px;
