@@ -12,7 +12,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
  * component only says which button was pressed.
  *
  * Styles are not encapsulated: the projected admin actions carry the HOST's style scope, so a scoped `.lbl` rule of this
- * component would never reach them (the phone breakpoint hides every label so the bar stays one short row of icons). Every
+ * component would never reach them (the phone breakpoint draws no label - it stays the accessible name, visually hidden - and the icons scroll sideways in one
+ * short row). Every
  * rule is namespaced under `app-selection-bar`.
  */
 @Component({
@@ -70,9 +71,28 @@ import { MatTooltipModule } from '@angular/material/tooltip';
     app-selection-bar .actions mat-icon, app-selection-bar .done mat-icon { margin-right: 4px; }
     /* 1.50.1: Done never shrinks - squeezed on a phone it drew its icon across its border; the actions beside it wrap instead. */
     app-selection-bar .done { flex: none; }
-    @media (max-width: 599.98px) {
-      app-selection-bar .actions .lbl { display: none; }
+    @media (max-width: 599.98px), (max-height: 499.98px) and (pointer: coarse) {
+      /* 1.51.0 (mobile sweep M2): ONE short row on a phone (and a phone held sideways, M1) - "N selected", the action icons, Done. The icons no longer wrap
+         into a column beside Done (216-323 px of bar); they scroll sideways inside their own row, which takes what the count
+         and Done leave (basis 0, so a wrapping host bar keeps all three on one line). 48 px tall so Material's touch target
+         of each button stays inside the scroller. */
+      app-selection-bar .actions {
+        flex: 1 1 0; min-width: 0; min-height: 48px; flex-wrap: nowrap;
+        overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: none;
+        /* More actions than fit: the row's right edge fades out (a hint that it scrolls); the end padding lets the last icon
+           scroll clear of the fade. */
+        padding-right: 20px; mask-image: linear-gradient(to right, black calc(100% - 20px), transparent);
+      }
+      app-selection-bar .actions::-webkit-scrollbar { display: none; }
+      app-selection-bar .actions > * { flex: none; }
+      app-selection-bar .actions .mat-mdc-button { min-width: 44px; padding: 0 10px; }
       app-selection-bar .actions mat-icon { margin-right: 0; }
+      /* M3: the labels are not drawn, but they stay the buttons' accessible names (visually hidden, not display: none) - also
+         for the host's projected actions, whose own phone rule hides their .lbl (this rule out-ranks their scoped one). */
+      app-selection-bar .actions .lbl {
+        display: inline; position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+        overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+      }
     }
   `],
 })

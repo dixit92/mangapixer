@@ -287,6 +287,23 @@ public sealed class ArchiveContextNamesTests : IDisposable
         Assert.DoesNotContain('/', name);
     }
 
+    [Fact]
+    public async Task A_shelf_folder_is_skipped_and_the_folder_above_it_named()
+    {
+        await using var db = await NewDbAsync();
+        var lib = await AddLibraryAsync(db, "A");
+        var artist = await FolderAsync(this, db, lib, "Synthetic Artist");
+        var shelf = await FolderAsync(this, db, lib, "Ongoing", artist);
+        var archive = await AddAsync(db, lib, CatalogNodeKind.Archive, "One-shot", shelf);
+        var rootShelf = await FolderAsync(this, db, lib, "Completed");
+        var loose = await AddAsync(db, lib, CatalogNodeKind.Archive, "Another One-shot", rootShelf);
+
+        var names = await ArchiveContextNames.ResolveAsync(db, [archive, loose], [lib]);
+
+        Assert.Equal("Synthetic Artist", names[archive]);
+        Assert.False(names.ContainsKey(loose)); // below nothing but a shelf folder: no context
+    }
+
     [Theory]
     [InlineData(null, false)]
     [InlineData("", false)]
@@ -294,6 +311,10 @@ public sealed class ArchiveContextNamesTests : IDisposable
     [InlineData("Volumes", false)]
     [InlineData("Berserk", true)]
     [InlineData("Manga", false)]
+    [InlineData("Ongoing", false)]          // 1.51.0: shelf folders are skipped like category folders
+    [InlineData(" completed ", false)]
+    [InlineData("Misc", false)]
+    [InlineData("Ongoing Saga", true)]      // the whole name only
     public void IsContextName_FollowsTheKindFolderRule(string? name, bool expected) =>
         Assert.Equal(expected, ArchiveContextNames.IsContextName(name));
 }

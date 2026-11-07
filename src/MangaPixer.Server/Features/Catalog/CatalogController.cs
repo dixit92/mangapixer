@@ -318,6 +318,11 @@ public sealed class CatalogController : ControllerBase
     /// by the whole folder's rollup); <paramref name="kind"/> = <c>folders</c> / <c>archives</c> (a stack counts as archives);
     /// <paramref name="libraryId"/> = one library the viewer may see (any other id lists nothing). Every filter applies before the page is
     /// cut; <paramref name="cursor"/> is the previous page's <c>nextCursor</c> under the same sort.
+    /// 1.51.0 (lane F): <paramref name="before"/> = a page's <c>prevCursor</c> - the page just above it (every window that does not start the
+    /// list carries <c>prevCursor</c> / <c>hasPrevious</c>, every sort); <c>sort=recentlyRead</c> (the viewer's newest reading activity,
+    /// a stack's most recently read starred member, never read last by name); <paramref name="group"/> = <c>library</c>: library first
+    /// (the library picker's order), then the sort, with <c>favoriteGroups</c> (each listed library's count). A cursor of another sort or
+    /// grouping is the first page.
     /// </remarks>
     [HttpGet("favorites")]
     public async Task<IActionResult> GetFavorites(
@@ -328,21 +333,52 @@ public sealed class CatalogController : ControllerBase
         [FromQuery] string? readState = null,
         [FromQuery] string? kind = null,
         [FromQuery] string? libraryId = null,
+        [FromQuery] string? before = null,
+        [FromQuery] string? group = null,
         CancellationToken ct = default)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
-        var query = new FavoritesQuery(
+        var query = FavoritesQueryOf(sort, direction, readState, kind, libraryId, group);
+        var result = await _browseService.ListFavoritesAsync(
+            userId.Value, query, cursor, before, pageSize, _incognito.IsIncognito, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// 1.51.0 (lane F, owner decisions 2 and 8): the jump index of the Favorites list under the name sort - letter buckets from the
+    /// favorites' own names, each one contiguous run of the list with a favorites <c>firstCursor</c> (pass it as <c>cursor</c> to
+    /// <c>GET favorites?sort=name</c> with the same <paramref name="direction"/> and filters) and its first entry's node id. The filters are
+    /// the listing's (<paramref name="readState"/>, <paramref name="kind"/>, <paramref name="libraryId"/>; visibility and Incognito as the
+    /// listing). Empty while <paramref name="group"/> = <c>library</c> (the rail is hidden while grouped).
+    /// </summary>
+    [HttpGet("favorites/jump-index")]
+    [ProducesResponseType(typeof(FavoritesJumpIndexDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetFavoritesJumpIndex(
+        [FromQuery] string? direction = null,
+        [FromQuery] string? readState = null,
+        [FromQuery] string? kind = null,
+        [FromQuery] string? libraryId = null,
+        [FromQuery] string? group = null,
+        CancellationToken ct = default)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var query = FavoritesQueryOf("name", direction, readState, kind, libraryId, group);
+        return Ok(await _browseService.GetFavoritesJumpIndexAsync(userId.Value, query, _incognito.IsIncognito, ct));
+    }
+
+    /// <summary>The Favorites view's query from its wire params (1.50.0; 1.51.0: <c>group</c>).</summary>
+    private static FavoritesQuery FavoritesQueryOf(string? sort, string? direction, string? readState, string? kind, string? libraryId, string? group) =>
+        new(
             Sort: sort ?? FavoritesQuery.FavoritedSort,
             Direction: ParseDirection(direction, null, "name"),
             ReadState: ParseReadState(readState),
             Kind: FavoritesQuery.ParseKind(kind),
-            LibraryId: string.IsNullOrWhiteSpace(libraryId) ? null : libraryId);
-        var result = await _browseService.ListFavoritesAsync(
-            userId.Value, query, cursor, pageSize, _incognito.IsIncognito, ct);
-        return Ok(result);
-    }
+            LibraryId: string.IsNullOrWhiteSpace(libraryId) ? null : libraryId,
+            GroupByLibrary: string.Equals(group, FavoritesQuery.LibraryGroup, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Catalog search. 1.45.0 (phase K4): keyset-paged over HTTP (<paramref name="cursor"/> = the previous page's <c>nextCursor</c>;

@@ -120,6 +120,8 @@ import { CONFIDENCE_LABELS, appliedSentence, currentText, evidenceLines, modeLab
     .page { max-width: 1180px; margin: 0 auto; padding-bottom: 32px; }
     .back a { display: inline-flex; align-items: center; gap: 4px; color: var(--mp-accent); text-decoration: none; font-size: 14px; }
     .back mat-icon { font-size: 18px; width: 18px; height: 18px; }
+    /* Touch screens (1.51.0): the back link is a 40 px tall target. */
+    @media (pointer: coarse) { .back a { min-height: 40px; min-width: 40px; } }
     .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; margin: 8px 0 4px; }
     h1 { font-size: 24px; font-weight: 500; margin: 0; }
     .count { font-size: 12px; font-weight: 600; padding: 0 8px; border-radius: 10px; background: var(--mp-accent-strong); color: var(--mp-on-accent); line-height: 20px; }
@@ -136,6 +138,7 @@ import { CONFIDENCE_LABELS, appliedSentence, currentText, evidenceLines, modeLab
     header { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
     .name { font-weight: 500; font-size: 15px; color: inherit; text-decoration: none; overflow-wrap: anywhere; }
     a.name:hover { text-decoration: underline; }
+    @media (pointer: coarse) { a.name { display: inline-flex; align-items: center; min-height: 40px; } }
     .chip { padding: 0 8px; border-radius: 10px; background: rgb(var(--mp-ink-rgb) / 0.08); font-size: 12px; line-height: 20px; }
     .chip.high { background: rgb(var(--mp-success-rgb) / 0.16); color: var(--mp-success-soft); }
     .chip.medium { background: rgb(var(--mp-accent-rgb) / 0.16); }

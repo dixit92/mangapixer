@@ -256,4 +256,18 @@ describe('LibraryBrowseComponent smart jump rail (1.41.0)', () => {
     expect(apiSpy.browseLibrary).toHaveBeenCalledTimes(1); // no reload
     expect(comp.activeJump()?.label).toBe('50');
   });
+
+  // 1.51.0 (mobile sweep M7): a level long enough for the phone scrub strip (the strip's own rule: 50 rows or more over two or more
+  // chips) marks the list so it keeps the strip's edge free on a phone; a shorter level leaves the list alone.
+  it('marks the list for the scrub strip gutter only on a long level', () => {
+    const long = setup();
+    expect(long.comp.scrubGutter()).toBe(true);
+    expect(long.el.querySelector('.nodes')!.classList.contains('scrub-gutter')).toBe(true);
+    TestBed.resetTestingModule();
+
+    const short = setup({ index: { libraryId: 'lib1', parentId: 'f1', direction: 'asc', mode: 'numbers',
+      buckets: [{ ...numbers[0], count: 20 }, { ...numbers[1], count: 20 }] } });
+    expect(short.comp.scrubGutter()).toBe(false);
+    expect(short.el.querySelector('.nodes')!.classList.contains('scrub-gutter')).toBe(false);
+  });
 });

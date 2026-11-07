@@ -280,8 +280,28 @@ public sealed class CompressedBackupServiceTests : IDisposable
         Assert.Equal("rotating-20260903-000000.db", listed[0]);
         Assert.Equal("rotating-20260901-235959.db.gz", listed[^1]);
         Assert.Equal(4, listed.Length);
-        // The same-second pair keeps a stable order (name, descending).
-        Assert.Equal(new[] { "rotating-20260902-000000.db.gz", "rotating-20260902-000000-ab12.db" }, listed[1..3]);
+        // 1.51.0: the same-second pair is ordered by creation - the suffixed name exists only because the plain one was taken first.
+        Assert.Equal(new[] { "rotating-20260902-000000-ab12.db", "rotating-20260902-000000.db.gz" }, listed[1..3]);
+    }
+
+    [Fact]
+    public async Task ListBackups_OrdersSuffixedSameSecondSnapshotsByWriteTime_NotByTheirRandomSuffix()
+    {
+        await using var db = await OpenDbAsync();
+        var service = RotatingFor(db);
+        var t0 = new DateTime(2026, 9, 2, 0, 0, 0, DateTimeKind.Utc);
+        // Written in this order: plain, then "-ff00" (random suffix), then "-0a11" - by name "-ff00" would rank newest.
+        foreach (var (n, i) in new[] { "rotating-20260902-000000.db", "rotating-20260902-000000-ff00.db", "rotating-20260902-000000-0a11.db.gz" }
+                     .Select((n, i) => (n, i)))
+        {
+            var path = Path.Combine(_backupsDir, n);
+            await File.WriteAllTextAsync(path, "x");
+            File.SetLastWriteTimeUtc(path, t0.AddSeconds(i));
+        }
+
+        var listed = service.ListBackups(_backupsDir).Select(f => f.FileName).ToArray();
+
+        Assert.Equal(new[] { "rotating-20260902-000000-0a11.db.gz", "rotating-20260902-000000-ff00.db", "rotating-20260902-000000.db" }, listed);
     }
 
     [Fact]

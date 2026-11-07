@@ -197,6 +197,12 @@ Favorites belong to your account and follow you to every device. They respect Pr
 
 The view, the two sizes and the sort are kept **on this device** and are separate from the library view's: the first time you open the Favorites page on a device it starts from the library view's card size, list columns and view, and from then on the two change independently. Opening an archive from the Favorites page and going back returns you to the same place in the list, with the same sort and filters.
 
+*New in 1.51.0:*
+
+- **Recently read** in **Sort by**: the favorites you read last come first - an archive by your own last reading (progress or a read mark), a starred folder by the newest reading of anything inside it, a stack by the archive you starred there that you read last. Favorites you have never read come after, by name. Incognito leaves your Private libraries out, as everywhere.
+- A **jump rail** under **Name (A-Z)** and **Name (Z-A)**, as in the library view: letters from your favorites' own names (`#` for digits and signs, script groups such as **Kana** or **CJK**, `[A` ... for names that open with a tag), with the starred folders as one **Folders** chip until there are 20 or more of them. It follows the filters you set. A chip whose first card is already loaded scrolls to it; any other loads the list from there, and scrolling up then loads the favorites above it. On a phone the chips are in a picker button (and a scrub strip on the right edge for a long list).
+- **Group** (in the top bar when you can see more than one library) lists your favorites library by library - the libraries in the order of the library list, each with a plain header naming it and how many favorites it holds, in both Card and List view; inside each library the chosen sort applies. The rail is hidden while the list is grouped (its letters would repeat in each library), and with one library chosen in **Filter** there is no header. Like the view and the sort, **Group** is kept on this device. The home page's **Favorites** row is not affected.
+
 ## Search
 
 The search icon in the top bar opens **Search**. It looks through the names of the folders and archives in the libraries you can see (Private libraries stay out while Incognito is on).

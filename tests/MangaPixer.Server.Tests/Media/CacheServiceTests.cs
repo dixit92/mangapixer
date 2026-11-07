@@ -73,6 +73,39 @@ public sealed class CacheServiceTests : IDisposable
     }
 
     [Fact]
+    public void PinnedFileStream_WhoseFileIsGone_ThrowsAndIsFinalizedWithoutTouchingTheCache()
+    {
+        // 1.51.0 (found by the mobile sweep: the app process died with a NullReferenceException in PinnedFileStream.Dispose on the
+        // finalizer thread). The race: OpenRead saw the file, then it was evicted before FileStream opened it. FileStream's constructor
+        // throws before PinnedFileStream's own fields are set (OpenRead catches that and returns null), but the half-built object is
+        // still finalized later - and an exception on the finalizer thread ends the whole process. Here the file is simply missing.
+        var cacheRoot = Path.Combine(_tempDir, "cache");
+        var cache = new CacheService(cacheRoot, 10 * 1024 * 1024);
+        cache.Initialize();
+
+        Assert.True(ConstructOnMissingFileThrows(cache, Path.Combine(cacheRoot, "gone.bin")));
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        // Reaching this line is the assertion: before the fix the finalizer's NullReferenceException crashed the test host.
+    }
+
+    // Not inlined, so nothing in the test method keeps the half-built stream reachable when it collects.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static bool ConstructOnMissingFileThrows(CacheService cache, string path)
+    {
+        try
+        {
+            using var stream = new PinnedFileStream(path, "gone", cache);
+            return false;
+        }
+        catch (FileNotFoundException)
+        {
+            return true;
+        }
+    }
+
+    [Fact]
     public async Task OpenRead_ReturnsNullForMissingKey()
     {
         var cacheRoot = Path.Combine(_tempDir, "cache");

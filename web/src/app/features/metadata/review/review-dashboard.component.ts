@@ -325,6 +325,11 @@ const ROW_BULK: Partial<Record<ReviewRowAction, MetadataReviewBulkAction>> = {
     .bottombar:has(.bar-name) { flex-wrap: wrap; }
     .bar-name { flex: 1 0 100%; font-size: 12px; color: var(--mp-text-muted); text-align: center; padding: 2px 8px 0;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* Touch screens (1.51.0): the list tabs, the "later" filter, Authors and the group chip's clear button are 40 px targets. */
+    @media (pointer: coarse) {
+      .tab, .later-filter .tab, .filters .authors { min-height: 40px; }
+      .gclear { min-width: 40px; min-height: 40px; align-items: center; justify-content: center; margin: -8px -4px -8px 0; }
+    }
     @media (max-width: 599.98px) {
       .lib-filter { width: 100%; }
       .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }

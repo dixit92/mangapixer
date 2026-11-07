@@ -3,6 +3,7 @@ namespace com.lifepixer.mangapixer.Tests.Server.Features.Metadata.AutoMatch.Gold
 using System.Threading.RateLimiting;
 using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Features.Metadata;
+using com.lifepixer.mangapixer.Server.Features.Metadata.Authors;
 using com.lifepixer.mangapixer.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Server.Media;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
@@ -35,6 +36,16 @@ public sealed class GoldenEnvironment : IAsyncLifetime
         row.MetadataAutoConsentVersion = MetadataAutoConsent.CurrentVersion;
         row.MetadataAutoConsentAt = net.Time.GetUtcNow();
         row.MetadataDailyBudget = 1_000_000;
+        // 1.51.0: the one stored author record of the set - "Hidden Pen" is a synthetic other name of a recorded author (cases P06 / P07 / P09).
+        Db.Db.MetadataAuthors.Add(new MetadataAuthorEntity
+        {
+            Provider = "mangaupdates",
+            ExternalId = GoldenFixtures.AuthorIdOf("FUJIMOTO Tatsuki").ToString(System.Globalization.CultureInfo.InvariantCulture),
+            Name = "FUJIMOTO Tatsuki",
+            OtherNamesJson = MetadataJson.WriteList(new[] { "Hidden Pen" }),
+            Status = (int)MetadataAuthorStatus.Ok,
+            FetchedAt = net.Time.GetUtcNow(),
+        });
         await Db.Db.SaveChangesAsync();
         Thumbnails = new ThumbnailStore(Path.Combine(_root, "thumbnails"));
         Thumbnails.Initialize();
@@ -134,8 +145,11 @@ public sealed class GoldenSetTests(GoldenEnvironment env, ITestOutputHelper outp
     /// review (the spin-off stays first; only the folder's subtitle separates it from the main series of its own family).
     /// 1.50.0 (rules 5): the alias cases P06 / P07 (+2 review: the alias-named folder's untagged archives keep the author veto) and
     /// P09 (+1 auto: an archive tagged with the author's own name); no existing case moved.
+    /// 1.51.0 (rules 6): candidates carry the stored other names of their authors (the set replays a synthetic author id per recorded
+    /// author name and holds one stored author record), so P06 / P07 move review -> auto (untagged archives of the alias-named folder);
+    /// no other case moved.
     /// </summary>
-    public const int ExpectedAuto = 66, ExpectedReview = 24, ExpectedUnmatched = 2;
+    public const int ExpectedAuto = 68, ExpectedReview = 22, ExpectedUnmatched = 2;
 
     [Fact]
     public async Task Aggregate_BandsAndPrecision_AtTheDefaults()
