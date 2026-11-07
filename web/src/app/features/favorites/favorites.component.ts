@@ -463,6 +463,11 @@ export function groupHeaders(
     @media (max-width: 599.98px) {
       /* 1.51.0 (mobile sweep M7): clear of the phone scrub strip on the right edge (it took the right-hand stars' taps). */
       .nodes.scrub-gutter { margin-right: max(0px, calc(44px - var(--mp-gutter))); }
+      /* 1.51.0 (gate sweep N1): that 28 px cost the default card size its second column at 360 px (one 300 px card per screen). A
+         card may give up to 20 px of its minimum so a second column fits; a card size chosen large stays one column, as before. */
+      .nodes.scrub-gutter:not(.list) {
+        grid-template-columns: repeat(auto-fill, minmax(min(var(--card-size, 150px), max(calc(50% - 10px), calc(var(--card-size, 150px) - 20px))), 1fr));
+      }
       ::ng-deep .view-options-menu .view-size-section { display: block; }
       .size-control-inline { display: none; }
       .fav-bar .lbl { display: none; }
