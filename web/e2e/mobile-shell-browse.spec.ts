@@ -30,7 +30,7 @@ const UNBROKEN = 'Averyveryverylongsyntheticpennamewithoutanyspacesforthelayoutc
 const TOUCH = { hasTouch: true, isMobile: true, deviceScaleFactor: 2 } as const;
 
 test.skip(!FIXTURE_ROOT, 'E2E_SERIES_FIXTURE_ROOT not set: no synthetic libraries available');
-test.describe.configure({ mode: 'serial' });
+// Not serial: each check stands alone (one worker runs them in order; each test restores the view preferences it changed).
 test.beforeEach(({ page }) => { page.setDefaultTimeout(20_000); });
 
 interface Node { id: string; displayName: string; kind: string }
