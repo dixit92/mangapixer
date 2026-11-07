@@ -95,7 +95,8 @@ import { TrackerReadMarkComponent } from '../trackers/tracker-read-mark.componen
               </a>
             }
             @if (items().length > 0) {
-              <button mat-stroked-button type="button" class="select-toggle" (click)="selection.toggleMode()" data-testid="stack-select">
+              <button mat-stroked-button type="button" class="select-toggle" (click)="selection.toggleMode()" data-testid="stack-select"
+                      aria-label="Select">
                 <mat-icon>checklist</mat-icon><span class="lbl">Select</span>
               </button>
             }
@@ -266,8 +267,7 @@ import { TrackerReadMarkComponent } from '../trackers/tracker-read-mark.componen
     @media (max-width: 599.98px) {
       .lbl { display: none; }
       .select-toggle mat-icon { margin-right: 0; }
-      /* The selection bar wraps as browse's does: the count, then the action icons, then Done - never a squeezed column. */
-      .bar.selecting { flex-wrap: wrap; }
+      /* 1.51.0 (M2): the selection bar is one row - the shared bar scrolls its action icons between the count and Done. */
       .head-cover { width: 88px; }
       h1 { font-size: 20px; }
       .slots { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
