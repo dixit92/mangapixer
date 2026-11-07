@@ -95,6 +95,26 @@ public sealed record PageResponse<T>
     /// filters, before the Completion filter itself); null otherwise. Additive.
     /// </summary>
     public BrowseCompletionCountsDto? CompletionCounts { get; init; }
+
+    /// <summary>
+    /// 1.51.0 lane F (Favorites grouped by library, <c>GET favorites?group=library</c>): each library the grouped list shows, in the list's
+    /// (the library picker's) order, with how many entries (cards) it holds after the filters - the section headers' names and counts.
+    /// Only libraries the viewer may see right now. Null for every other page response. Additive.
+    /// </summary>
+    public IReadOnlyList<FavoriteLibraryGroupDto>? FavoriteGroups { get; init; }
+}
+
+/// <summary>1.51.0 lane F: one library section of the Favorites list grouped by library.</summary>
+public sealed record FavoriteLibraryGroupDto
+{
+    /// <summary>The library's public id (each item's <c>LibraryId</c> names its section).</summary>
+    public required string LibraryId { get; init; }
+
+    /// <summary>The library's display name.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>How many entries (cards: a stack counts once) of the filtered list are in this library.</summary>
+    public required int Count { get; init; }
 }
 
 /// <summary>

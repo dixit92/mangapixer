@@ -100,3 +100,21 @@ public sealed record JumpIndexBucketDto
     /// </summary>
     public string? Group { get; init; }
 }
+
+/// <summary>
+/// 1.51.0 lane F: the jump index of the Favorites list under the name sort (<c>GET /api/v1/favorites/jump-index</c>) - letters from the
+/// favorites' own names (A-Z, <c>#</c>, script groups; <c>[A</c> ... in a list whose names open with a tag), each bucket one contiguous run
+/// of the list, its <c>FirstCursor</c> a favorites cursor (<c>GET favorites?sort=name&amp;cursor=...</c>, same direction and filters) that
+/// lands on the bucket's first entry (null for the first bucket). Empty while the list is grouped by library (owner decision 8).
+/// </summary>
+public sealed record FavoritesJumpIndexDto
+{
+    /// <summary>Buckets in display order, each with a non-zero count.</summary>
+    public required IReadOnlyList<JumpIndexBucketDto> Buckets { get; init; }
+
+    /// <summary>The name-sort direction the buckets and cursors are for: <c>asc</c> (default) or <c>desc</c>.</summary>
+    public string Direction { get; init; } = "asc";
+
+    /// <summary>Always <c>letters</c> (the favorites rail has no number ranges or time chips).</summary>
+    public string Mode { get; init; } = "letters";
+}
