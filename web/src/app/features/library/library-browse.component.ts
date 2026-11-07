@@ -771,8 +771,7 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
       .browse-bar:not(.selecting) .lbl { display: none; }
       .view-toggle, .filter-toggle, .select-toggle { min-width: 48px; padding: 0 12px; }
       .view-toggle mat-icon, .filter-toggle mat-icon, .select-toggle mat-icon { margin: 0; }
-      /* 1.51.0 (mobile sweep M12): each crumb link is a 40 px tall touch target (it was 24 px, 19 px sideways). */
-      .breadcrumbs a { display: inline-flex; align-items: center; min-height: 40px; padding: 0; }
+      .breadcrumbs a { padding: 2px 0; }
       .breadcrumbs .sep { color: var(--mp-text-faint); }
       /* The current folder: the brightest crumb — the mobile "you are here".
          1.10.1: bounded to two lines with an ellipsis (and a more moderate size)
@@ -783,6 +782,12 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
         display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
         overflow: hidden;
       }
+    }
+    /* Touch screens (1.51.0, mobile sweep M12 - the app's one touch-target rule, pointer: coarse at any width): each crumb link is
+       a 40 px tall target (it was 24 px, 19 px sideways): an inline block on a 40 px line, on its text baseline, so the separators stay
+       in line. After the phone block on purpose: it replaces that block's 2 px padding. */
+    @media (pointer: coarse) {
+      .breadcrumbs a { display: inline-block; line-height: 40px; padding: 0; }
     }
   `],
 })
