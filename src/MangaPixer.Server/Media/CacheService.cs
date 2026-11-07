@@ -527,6 +527,7 @@ internal sealed class PinnedFileStream : FileStream
 {
     private readonly string _cacheKey;
     private readonly CacheService _cache;
+    private bool _pinned;
     private bool _disposed;
 
     public PinnedFileStream(string path, string cacheKey, CacheService cache)
@@ -535,14 +536,21 @@ internal sealed class PinnedFileStream : FileStream
         _cacheKey = cacheKey;
         _cache = cache;
         _cache.PinFile(_cacheKey);
+        _pinned = true;
     }
 
+    /// <remarks>
+    /// 1.51.0: unpins only what this stream pinned. When the base constructor throws (the file was evicted between the cache lookup and
+    /// the open), the fields are never set, yet the half-built object is still finalized - and an exception on the finalizer thread ends
+    /// the whole process.
+    /// </remarks>
     protected override void Dispose(bool disposing)
     {
         if (!_disposed)
         {
-            _cache.UnpinFile(_cacheKey);
             _disposed = true;
+            if (_pinned)
+                _cache.UnpinFile(_cacheKey);
         }
         base.Dispose(disposing);
     }
