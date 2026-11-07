@@ -43,6 +43,8 @@ import { MatIconModule } from '@angular/material/icon';
     button:focus-visible { outline: 2px solid var(--mp-accent); outline-offset: -2px; }
     mat-icon { font-size: 18px; width: 18px; height: 18px; }
     @media (max-width: 599.98px) { .lbl { display: none; } button { padding: 6px 8px; } }
+    /* Touch screens (1.51.0, minor m5 of the mobile sweep): each half is a 40 x 40 target (34 x 38 icon-only on a phone). */
+    @media (pointer: coarse) { button { min-width: 40px; min-height: 40px; justify-content: center; } }
   `],
 })
 export class VolumeViewSwitchComponent {
