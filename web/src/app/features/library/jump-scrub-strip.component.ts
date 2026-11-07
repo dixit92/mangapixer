@@ -1,4 +1,7 @@
-import { ChangeDetectionStrategy, Component, HostListener, computed, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, HostListener, NgZone, afterNextRender, computed, effect, inject, input, output,
+  signal, viewChild,
+} from '@angular/core';
 
 import { JumpIndexBucketDto } from '../../core/api/api-types';
 import { bubbleTitle, bucketIndexAt, isLongLevel, labelStride, markText } from './jump-scrub';
@@ -13,6 +16,13 @@ const GAP_BOTTOM = 16;
  * on the chip (the host's `jumpToBucket`: scroll in place, or reload from the bucket's cursor). The rail's picker button stays on every
  * level as the accessible path, so the strip is `aria-hidden` and not focusable. Phones only (the rail's own breakpoint); the
  * 44 px wide hit area carries `touch-action: none` so a drag never scrolls the page - nothing else on the page does.
+ *
+ * 1.51.0 (mobile sweep M8): the strip never starts beside the top bar. `top` is where the sticky bar ENDS once it sticks; at the top
+ * of the page the bar sits lower (under the app header), so a strip placed at `top` lay alongside the bar - partly under it - and a
+ * touch on the strip's upper marks went to the bar: the browser's touch adjustment picked the bar (a tap target: tap-to-top) as the
+ * touch's target, the strip never saw the pointerdown and the page took the drag as a scroll (`pointercancel`). A mouse has no touch
+ * adjustment, which is why a mouse drag worked. The strip now starts below an in-flow anchor (after the jump picker) until the page
+ * has scrolled far enough for the bar to stick, then at `top` as before.
  */
 @Component({
   selector: 'app-jump-scrub-strip',
@@ -20,8 +30,10 @@ const GAP_BOTTOM = 16;
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (long()) {
+      <!-- Where the list starts below the bar at the top of the page (1.51.0, M8): the strip never starts above it. -->
+      <div class="scrub-anchor" #anchor aria-hidden="true"></div>
       <div class="scrub" aria-hidden="true" [class.dragging]="dragging()"
-           [style.top.px]="top() + gapTop" [style.bottom.px]="gapBottom"
+           [style.top.px]="top() + gapTop + lift()" [style.bottom.px]="gapBottom"
            (pointerdown)="onDown($event)" (pointermove)="onMove($event)" (pointerup)="onUp($event)"
            (pointercancel)="onCancel($event)" (lostpointercapture)="onCancel($event)" (contextmenu)="$event.preventDefault()">
         <div class="track">
@@ -42,6 +54,7 @@ const GAP_BOTTOM = 16;
     :host { display: contents; }
     /* Phones only: the rail's own picker breakpoint. The whole strip is the 44 px hit area; the visible part is the thin track. */
     .scrub { display: none; }
+    .scrub-anchor { display: block; height: 0; }
     @media (max-width: 599.98px) {
       .scrub {
         display: flex; justify-content: flex-end; align-items: stretch;
@@ -90,6 +103,12 @@ export class JumpScrubStripComponent {
   protected readonly gapBottom = GAP_BOTTOM;
 
   private readonly viewportHeight = signal(typeof window === 'undefined' ? 0 : window.innerHeight);
+  private readonly anchor = viewChild<ElementRef<HTMLElement>>('anchor');
+  /**
+   * How much lower than `top` the strip starts (1.51.0, M8): while the page is scrolled less than the bar's distance from the top, the
+   * list's top edge (the anchor) is below where the bar will stick, and the strip starts there instead - never beside the bar.
+   */
+  protected readonly lift = signal(0);
   /** Pointer id of the drag in progress, null when none. */
   private pointerId: number | null = null;
   private rect: { top: number; height: number } | null = null;
@@ -101,11 +120,41 @@ export class JumpScrubStripComponent {
 
   readonly long = computed(() => isLongLevel(this.buckets(), this.minRows()));
   /** The strip's height as laid out (the viewport below the top bar, minus the gaps); drives the label thinning. */
-  readonly trackHeight = computed(() => Math.max(0, this.viewportHeight() - this.top() - GAP_TOP - GAP_BOTTOM));
+  readonly trackHeight = computed(() => Math.max(0, this.viewportHeight() - this.top() - GAP_TOP - this.lift() - GAP_BOTTOM));
   readonly stride = computed(() => labelStride(this.buckets().length, this.trackHeight()));
   protected readonly picked = computed(() => this.buckets()[this.scrubIndex()] ?? null);
   /** The slice drawn highlighted: the finger's while scrubbing, else the scroll-spy's chip. */
   protected readonly highlight = computed(() => (this.dragging() ? this.scrubIndex() : this.active() ? this.buckets().indexOf(this.active()!) : -1));
+
+  constructor() {
+    // Follow the page's scroll outside Angular (a passive listener); `lift` only changes in the first few hundred pixels of a scroll.
+    const zone = inject(NgZone);
+    const destroyRef = inject(DestroyRef);
+    afterNextRender(() => {
+      const measure = () => this.measureLift();
+      zone.runOutsideAngular(() => {
+        window.addEventListener('scroll', measure, { passive: true });
+        window.addEventListener('resize', measure, { passive: true });
+      });
+      destroyRef.onDestroy(() => {
+        window.removeEventListener('scroll', measure);
+        window.removeEventListener('resize', measure);
+      });
+    });
+    // A new level (the anchor appears) or a new bar height: measure again once the view has it.
+    effect(() => {
+      this.anchor();
+      this.top();
+      queueMicrotask(() => this.measureLift());
+    });
+  }
+
+  /** The strip's extra offset: how far the anchor's top is below `top` + the gap (never negative). */
+  measureLift(): void {
+    const anchor = this.anchor()?.nativeElement;
+    if (!anchor || this.dragging()) return;
+    this.lift.set(Math.max(0, Math.round(anchor.getBoundingClientRect().top - this.top() - GAP_TOP)));
+  }
 
   protected markAt(bucket: JumpIndexBucketDto, index: number): string | null {
     return markText(bucket, index, this.stride());
