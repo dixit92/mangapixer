@@ -288,6 +288,33 @@ test.describe('phone, touch', () => {
   });
 });
 
+test.describe('small phone, touch', () => {
+  test.use({ ...TOUCH, viewport: { width: 360, height: 780 } });
+
+  test('N1 (gate sweep): beside the scrub strip the default card size still gets two columns at 360 px', async ({ page }) => {
+    // 1.51.0: M7's 44 px gutter left a 300 px grid at 360 px - one 300 x 471 card per screen for a long level, three times the scrolling.
+    test.setTimeout(120_000);
+    await login(page);
+    const [libraryId, folderId] = await jumpLibrary(page);
+    const saved = await setPreferences(page, { viewMode: 'card', sort: 'name', direction: 'asc' });
+    try {
+      await page.goto(`/libraries/${libraryId}/browse/${folderId}`);
+      const strip = page.locator('.scrub');
+      await expect(strip).toBeVisible();
+      await settle(page);
+      const s = (await strip.boundingBox())!;
+      const cards = await page.locator('.nodes .node-wrap').evaluateAll((els) =>
+        els.slice(0, 6).map((e) => { const r = e.getBoundingClientRect(); return { left: Math.round(r.left), top: Math.round(r.top), right: r.right }; }));
+      const firstRow = cards.filter((c) => c.top === cards[0].top);
+      expect(firstRow.length, 'cards in the first row').toBeGreaterThanOrEqual(2);
+      expect(Math.max(...cards.map((c) => c.right)), 'the cards still end before the strip').toBeLessThanOrEqual(s.x + 0.5);
+      await shot(page, '360-scrub-gutter-two-columns');
+    } finally {
+      await setPreferences(page, saved);
+    }
+  });
+});
+
 test.describe('phone held sideways, touch', () => {
   test.use({ ...TOUCH, viewport: { width: 844, height: 390 } });
 
