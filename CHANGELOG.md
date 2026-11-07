@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **Automatic matching knows an author by their stored other names.** An archive whose creator tag - or whose artist folder's name -
+  gives a pen name that your server has stored under **Artists' other names** now agrees with the series record of that author, with the
+  same weight as the author's own name, instead of waiting in **Needs review** with an author conflict. A tag naming someone else still
+  conflicts, and nothing new is requested from any site. Works waiting in Needs review are checked once more under the new rules.
+
 - **A short number finds a volume or chapter written against its prefix.** `12` now finds `v12`, `vol012`, `ch12` or `c12` (and `3` finds
   `ep3`), as it already found `Vol 12` and `012`. Only those unit prefixes count, so a number inside another word is still not a match.
 - **The folder line under an archive skips shelf folders.** An archive found outside its folder names the folder it belongs to; a
