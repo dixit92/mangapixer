@@ -54,6 +54,24 @@ describe('JumpScrubStripComponent', () => {
     expect(create(LONG).strip!.style.top).toBe('64px'); // 56 + 8
   });
 
+  // 1.51.0 (mobile sweep M8): at the top of the page the bar sits lower than where it sticks; the strip starts below the list's top
+  // edge (its anchor) then - beside the bar, a touch on its upper marks went to the bar - and at the bar's sticky edge once scrolled.
+  it('starts below the anchor while the page is scrolled less than the bar\'s distance, and at the sticky edge after', () => {
+    const { fixture, el, strip } = create(LONG);
+    const anchor = el.querySelector<HTMLElement>('.scrub-anchor')!;
+    let anchorTop = 220;
+    anchor.getBoundingClientRect = () => ({ top: anchorTop, bottom: anchorTop, left: 0, right: 390, width: 390, height: 0, x: 0, y: anchorTop, toJSON: () => ({}) });
+
+    fixture.componentInstance.measureLift();
+    fixture.detectChanges();
+    expect(strip!.style.top).toBe('220px'); // 56 + 8 + 156
+
+    anchorTop = 30; // scrolled: the anchor went up past the bar
+    window.dispatchEvent(new Event('scroll'));
+    fixture.detectChanges();
+    expect(strip!.style.top).toBe('64px');
+  });
+
   it('highlights the scroll-spy chip while idle', () => {
     const { el } = create(LONG, LONG[2]);
     expect(Array.from(el.querySelectorAll('.mark')).map((m) => m.classList.contains('on'))).toEqual([false, false, true, false, false]);

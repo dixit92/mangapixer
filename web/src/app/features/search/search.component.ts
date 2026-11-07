@@ -124,7 +124,7 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
     <div class="search-row">
     <mat-form-field appearance="outline" class="search-field" [class.has-filters]="filterChips().length > 0">
       <mat-label>Search libraries</mat-label>
-      <!-- Tag filters (1.45.0): removable chips in the field, in their own row that scrolls sideways when it is full. -->
+      <!-- Tag filters (1.45.0): removable chips in the field, in their own rows (1.51.0: they wrap; a long name ends in an ellipsis). -->
       <mat-chip-grid #filterGrid class="filter-chips" aria-label="Tag filters" data-testid="search-filters">
         @for (chip of filterChips(); track chip.param) {
           <mat-chip-row (removed)="removeFilter(chip.param)" [class.unknown]="!chip.known" [class.excluded]="chip.excluded"
@@ -140,7 +140,7 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
           </mat-chip-row>
         }
       </mat-chip-grid>
-      <!-- The text field under the chip row (not inside it): a full row scrolls sideways and the text stays in reach. -->
+      <!-- The text field under the chip rows (not inside them), so the text stays in reach. -->
       <input class="search-text" [matChipInputFor]="filterGrid" [(ngModel)]="query" (ngModelChange)="onSearch()"
              [placeholder]="filterChips().length > 0 ? 'Add search text...' : 'Enter search text...'" aria-label="Search text"
              aria-autocomplete="list" [attr.aria-controls]="quickOpen() ? 'search-quick-list' : null"
@@ -472,16 +472,36 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
     .or-pick-title { font-size: 12px; color: var(--mp-text-muted); }
     .or-pick-target { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid rgb(var(--mp-ink-rgb) / 0.16) !important; }
     .or-pick-cancel { color: var(--mp-text-muted) !important; }
-    /* The filter chips get their own row inside the field; a full row scrolls sideways instead of growing the field (D1 2.6). */
+    /* The filter chips get their own rows inside the field, above the text (D1 2.6; 1.51.0: they wrap instead of scrolling sideways). */
     .filter-chips { display: block; width: 100%; min-width: 0; }
     .search-text { display: block; width: 100%; min-width: 0; }
     .has-filters .search-text { margin-top: 6px; }
     :host ::ng-deep .filter-chips .mdc-evolution-chip-set__chips { flex-wrap: wrap; min-width: 0; max-width: 100%; }
-    :host ::ng-deep .has-filters .filter-chips .mdc-evolution-chip-set__chips {
-      flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin;
+    /* 1.51.0 (mobile sweep M20): the filter chips WRAP inside the field (they used to stay on one sideways-scrolling row, where a
+       long name squeezed the first chip to its icon and pushed the next one out of the field). A chip is at most 260 px or the
+       row's width; inside it the toggle and the remove button keep their size and the NAME is cut with an ellipsis - the chip's
+       label cell is a flex row (it was a nowrap block: the toggle plus a full-width name overflowed it, so the whole label
+       became "..."). */
+    :host ::ng-deep .filter-chips .mat-mdc-chip-row { flex: none; max-width: min(260px, 100%); }
+    :host ::ng-deep .filter-chips .mat-mdc-chip-row .mdc-evolution-chip__text-label { display: flex; align-items: center; min-width: 0; }
+    .filter-label { display: block; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* Touch screens (1.51.0, M20 + minor m4): every chip on the page is 40 px tall, and the filter chip's Exclude / Remove buttons and
+       Refine's or / not are 40 px targets (they were 18-32 px). A mouse keeps the old sizes. */
+    @media (pointer: coarse) {
+      :host { --mat-chip-container-height: 40px; }
+      /* The toggle starts at the chip's edge (the label cell clips anything outside it, so a negative margin cut the button). */
+      :host ::ng-deep .filter-chips .mat-mdc-chip-row .mdc-evolution-chip__action--primary { padding-left: 0; }
+      .exclude-toggle { width: 40px; height: 40px; margin: 0 2px 0 0; }
+      :host ::ng-deep .filter-chips .mat-mdc-chip-row .mat-mdc-chip-remove {
+        box-sizing: border-box; min-width: 40px; min-height: 40px; justify-content: center;
+      }
+      .refine-chip { height: 40px; border-radius: 20px; }
+      .refine-add { border-radius: 20px 0 0 20px; }
+      .refine-chip .refine-or { min-width: 40px; justify-content: center; } /* out-ranks .refine-chip button's min-width: 0 */
+      .refine-not { width: 40px; padding: 0 4px 0 0; border-radius: 0 20px 20px 0; }
+      .refine-chips.open .refine-chip { contain-intrinsic-size: auto 40px; }
+      .refine-more-btn, .refine-fewer, .or-pick button { min-height: 40px; }
     }
-    :host ::ng-deep .filter-chips .mat-mdc-chip-row { flex: none; max-width: min(260px, 80vw); }
-    .filter-label { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
     .unknown .filter-label { color: var(--mp-text-muted); font-style: italic; }
     .result-count { color: var(--mp-text-muted); margin: 16px 0; }
     .results-grid {

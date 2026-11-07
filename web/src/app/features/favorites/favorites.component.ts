@@ -28,6 +28,7 @@ import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/fol
 import { NodeRowComponent } from '../../shared/node-row/node-row.component';
 import { ContextLineComponent } from '../../shared/context-line/context-line.component';
 import { JumpRailComponent, bucketOwners } from '../library/jump-rail.component';
+import { isLongLevel } from '../library/jump-scrub';
 import {
   CatalogNodeDto, FavoriteLibraryGroupDto, FavoritesQuery, JumpIndexBucketDto, LibraryDto, LibraryReadStateFilter, LibraryViewMode,
   PageResponse, ReadMarkDto, ReadingProgressDto,
@@ -266,7 +267,7 @@ export function groupHeaders(
     }
 
     <div class="nodes" [class.card]="viewMode() === 'card'" [class.list]="viewMode() === 'list'"
-         data-testid="favorites-list"
+         [class.scrub-gutter]="scrubGutter()" data-testid="favorites-list"
          [style.--card-size]="cardSize() + 'px'" [style.--list-columns]="listColumns()">
       @for (node of nodes(); track trackKey(node); let i = $index) {
         @if (headers()[i]; as header) {
@@ -460,6 +461,8 @@ export function groupHeaders(
     .empty p { margin: 0; }
     .empty mat-icon { font-size: 40px; width: 40px; height: 40px; color: var(--mp-text-faint); }
     @media (max-width: 599.98px) {
+      /* 1.51.0 (mobile sweep M7): clear of the phone scrub strip on the right edge (it took the right-hand stars' taps). */
+      .nodes.scrub-gutter { margin-right: max(0px, calc(44px - var(--mp-gutter))); }
       ::ng-deep .view-options-menu .view-size-section { display: block; }
       .size-control-inline { display: none; }
       .fav-bar .lbl { display: none; }
@@ -520,6 +523,8 @@ export class FavoritesComponent implements OnInit, OnDestroy {
   readonly jumpBuckets = signal<JumpIndexBucketDto[]>([]);
   readonly activeJump = signal<JumpIndexBucketDto | null>(null);
   readonly railShown = computed(() => this.sortChoice().sort === 'name' && !this.grouped() && this.jumpBuckets().length > 0);
+  /** 1.51.0 (mobile sweep M7): the rail's phone scrub strip shows (a long list) - the list keeps its 44 px free. */
+  readonly scrubGutter = computed(() => this.railShown() && isLongLevel(this.jumpBuckets()));
   private readonly jumpOwners = computed(() => bucketOwners(this.nodes(), this.jumpBuckets()));
   private jumpGeneration = 0;
 

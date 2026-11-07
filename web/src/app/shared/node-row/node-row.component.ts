@@ -134,6 +134,8 @@ export function directionShort(mode: ReaderMode): string {
     }
     .row-select mat-icon { font-size: 20px; width: 20px; height: 20px; }
     .row-select[aria-checked="true"] { color: var(--mp-accent-strong); }
+    /* Touch screens (1.51.0, mobile sweep M13): the row checkbox is a 40 px target (28 px with a mouse, unchanged). */
+    @media (pointer: coarse) { .row-select { width: 40px; height: 40px; } }
     .node-card {
       flex: 1 1 auto; min-width: 0; cursor: pointer; text-decoration: none; color: inherit;
       display: flex; align-items: center; gap: 12px;

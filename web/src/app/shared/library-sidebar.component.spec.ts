@@ -218,4 +218,29 @@ describe('LibrarySidebarComponent', () => {
       expect(nav.classList.contains('collapsed')).toBe(false); // but never applied visually in page mode
     });
   });
+
+  // 1.51.0 (mobile sweep M5): the collapsed rail shows only icons (a library's is a decorative letter), so each link carries its name;
+  // expanded, the visible label (with the count) is the name, and a cut-off library name is in the label's title.
+  it('names the collapsed rail links and leaves the expanded ones to their visible label', async () => {
+    localStorage.setItem('mangapixer-nav-collapsed', '1');
+    const { fixture, router } = create();
+    await navigate(router, '/', fixture);
+    const names = () => Array.from(fixture.nativeElement.querySelectorAll('.nav-item') as NodeListOf<HTMLElement>).map((a) => a.getAttribute('aria-label'));
+    expect(names()).toEqual(['Home', 'Favorites', 'Alpha', 'Beta']);
+
+    fixture.componentInstance.toggleCollapsed();
+    fixture.detectChanges();
+    expect(names()).toEqual([null, null, null, null]);
+    const labels = Array.from(fixture.nativeElement.querySelectorAll('.nav-label') as NodeListOf<HTMLElement>).map((l) => l.getAttribute('title'));
+    expect(labels).toEqual([null, null, 'Alpha', 'Beta']);
+  });
+
+  it('never names the links in page mode (the phone page shows every label)', async () => {
+    localStorage.setItem('mangapixer-nav-collapsed', '1');
+    const { fixture, router } = create();
+    fixture.componentRef.setInput('pageMode', true);
+    await navigate(router, '/', fixture);
+    const names = Array.from(fixture.nativeElement.querySelectorAll('.nav-item') as NodeListOf<HTMLElement>).map((a) => a.getAttribute('aria-label'));
+    expect(names).toEqual([null, null, null, null]);
+  });
 });
