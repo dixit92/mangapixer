@@ -49,6 +49,7 @@ import { NodeRowComponent, directionShort as directionChip } from '../../shared/
 import { SelectionBarComponent } from '../../shared/selection/selection-bar.component';
 import { NodeSelection } from '../../shared/selection/node-selection';
 import { JumpRailComponent, bucketOwners } from './jump-rail.component';
+import { isLongLevel } from './jump-scrub';
 import { COMPLETION_OPTIONS, CompletionOption, completionLabel, completionOptionLabel } from './completion-filter';
 import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode, LibraryViewMode, LibraryGridDensity, LibrarySortOrder, LibrarySortDirection, LibraryReadStateFilter, LibraryViewPreferencesDto, SeriesAnswer, BrowseCompletionCountsDto, FolderReadRollup, JumpIndexBucketDto, JumpIndexMode, ReadMarkDto, ReadingProgressDto } from '../../core/api/api-types';
 
@@ -455,7 +456,7 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     </ng-template>
 
     <div class="nodes" [class.card]="viewMode() === 'card'" [class.selecting]="selectMode()"
-         [class.list]="viewMode() === 'list'"
+         [class.list]="viewMode() === 'list'" [class.scrub-gutter]="scrubGutter()"
          [style.--card-size]="cardSize() + 'px'"
          [style.--list-columns]="listColumns()">
       @for (node of nodes(); track node.id) {
@@ -742,8 +743,15 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
         - (the jump rail's own phone picker lives in JumpRailComponent since 1.41.0);
         - the breadcrumb is redesigned for legibility: it was too small to read/tap.
           The trail is allowed to wrap, the type is larger, and the current folder is
-          the prominent, high-contrast element so "where am I" reads at a glance. --- */
+          the prominent, high-contrast element so "where am I" reads at a glance.
+       1.51.0 (mobile sweep M1): a phone held sideways (a touch screen under 500 px tall, e.g. 844 x 390) gets the same bar - its
+       content column beside the sidebar is phone-narrow, and the labelled one-row bar ran past the screen edge there. --- */
+    /* 1.51.0 (mobile sweep M7): where the phone scrub strip shows (the strip's own breakpoint, a long level), the list leaves the
+       strip's 44 px at the right edge free - the strip lay over the right-hand cards' stars and took their taps. */
     @media (max-width: 599.98px) {
+      .nodes.scrub-gutter { margin-right: max(0px, calc(44px - var(--mp-gutter))); }
+    }
+    @media (max-width: 599.98px), (max-height: 499.98px) and (pointer: coarse) {
       ::ng-deep .view-options-menu .view-size-section { display: block; }
       .size-control-inline { display: none; }
 
@@ -762,7 +770,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
       .browse-bar .lbl { display: none; }
       .view-toggle, .filter-toggle, .select-toggle { min-width: 48px; padding: 0 12px; }
       .view-toggle mat-icon, .filter-toggle mat-icon, .select-toggle mat-icon { margin: 0; }
-      .breadcrumbs a { padding: 2px 0; }
+      /* 1.51.0 (mobile sweep M12): each crumb link is a 40 px tall touch target (it was 24 px, 19 px sideways). */
+      .breadcrumbs a { display: inline-flex; align-items: center; min-height: 40px; padding: 0; }
       .breadcrumbs .sep { color: var(--mp-text-faint); }
       /* The current folder: the brightest crumb — the mobile "you are here".
          1.10.1: bounded to two lines with an ellipsis (and a more moderate size)
@@ -970,6 +979,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   // Jump-index rail (1.41.0: any level, both name-sort directions; the server hides it in the Volumes view). The rail is a
   // name-sort navigation aid, so it is hidden when the sort is not "name". `activeJump` is the bucket of the topmost visible card.
   readonly jumpBuckets = signal<JumpIndexBucketDto[]>([]);
+  /** 1.51.0 (mobile sweep M7): the level is long enough for the phone scrub strip (its own condition) - the list keeps clear of it. */
+  readonly scrubGutter = computed(() => isLongLevel(this.jumpBuckets()));
   readonly jumpMode = signal<JumpIndexMode>('letters');
   readonly activeJump = signal<JumpIndexBucketDto | null>(null);
   /** The bucket index of each loaded card (scroll-spy by position, from each bucket's first node). */

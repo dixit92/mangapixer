@@ -71,8 +71,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
     app-selection-bar .actions mat-icon, app-selection-bar .done mat-icon { margin-right: 4px; }
     /* 1.50.1: Done never shrinks - squeezed on a phone it drew its icon across its border; the actions beside it wrap instead. */
     app-selection-bar .done { flex: none; }
-    @media (max-width: 599.98px) {
-      /* 1.51.0 (mobile sweep M2): ONE short row on a phone - "N selected", the action icons, Done. The icons no longer wrap
+    @media (max-width: 599.98px), (max-height: 499.98px) and (pointer: coarse) {
+      /* 1.51.0 (mobile sweep M2): ONE short row on a phone (and a phone held sideways, M1) - "N selected", the action icons, Done. The icons no longer wrap
          into a column beside Done (216-323 px of bar); they scroll sideways inside their own row, which takes what the count
          and Done leave (basis 0, so a wrapping host bar keeps all three on one line). 48 px tall so Material's touch target
          of each button stays inside the scroller. */

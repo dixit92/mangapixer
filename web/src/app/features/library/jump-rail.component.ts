@@ -106,8 +106,11 @@ export const MIN_ROWS_FOR_RAIL = 12;
     ::ng-deep .jump-picker-menu .jump-picker {
       display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; max-width: 300px;
     }
-    ::ng-deep .jump-picker-menu .jump-chip { min-width: 34px; padding: 8px 10px; font-size: 14px; }
-    @media (max-width: 599.98px) {
+    /* 1.51.0 (mobile sweep M14): the picker's chips are 40 x 40 touch targets (they were 34 x 30). */
+    ::ng-deep .jump-picker-menu .jump-chip { min-width: 40px; min-height: 40px; padding: 8px 10px; font-size: 14px; }
+    /* 1.51.0 (M14): a phone held sideways (a touch screen under 500 px tall) gets the picker too - the sticky rail's 28 x 20 chips
+       were too small to tap, and 40 px chips would wrap the rail into rows that cover most of a 390 px tall screen. */
+    @media (max-width: 599.98px), (max-height: 499.98px) and (pointer: coarse) {
       .jump-rail { display: none; }
       .jump-menu-trigger { display: inline-flex; }
     }

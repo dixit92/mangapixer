@@ -444,6 +444,8 @@ import {
       cursor: pointer; text-decoration: none; display: inline-block;
     }
     .recent-lib h4:hover { color: var(--mp-text-strong); }
+    /* Touch screens (1.51.0, mobile sweep M11): the library heading (a link to the library) is a 40 px tall target, not 16 px. */
+    @media (pointer: coarse) { .recent-lib h4 { display: inline-flex; align-items: center; min-height: 40px; margin: 0; } }
     /* Stacked-paper affordance: the shared app-stack-card (1.29.0) draws two offset
        sheets behind the cover when the unit holds more than one new chapter. */
     .badge {

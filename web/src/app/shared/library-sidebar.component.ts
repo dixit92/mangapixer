@@ -59,13 +59,13 @@ import { LibraryIconComponent } from './library-icon/library-icon.component';
       }
 
       <a class="nav-item" routerLink="/" [class.active]="isHome()"
-         [attr.aria-current]="isHome() ? 'page' : null"
+         [attr.aria-current]="isHome() ? 'page' : null" [attr.aria-label]="railLabel('Home')"
          [matTooltip]="collapsed() ? 'Home' : ''" matTooltipPosition="right">
         <mat-icon>home</mat-icon><span class="nav-label">Home</span>
       </a>
 
       <a class="nav-item" routerLink="/favorites" [class.active]="isFavorites()"
-         [attr.aria-current]="isFavorites() ? 'page' : null"
+         [attr.aria-current]="isFavorites() ? 'page' : null" [attr.aria-label]="railLabel('Favorites')"
          [matTooltip]="collapsed() ? 'Favorites' : ''" matTooltipPosition="right">
         <mat-icon>star</mat-icon><span class="nav-label">Favorites</span>
       </a>
@@ -73,10 +73,10 @@ import { LibraryIconComponent } from './library-icon/library-icon.component';
       @for (lib of libraries(); track lib.id) {
         <a class="nav-item" routerLink="/libraries/{{ lib.id }}/browse"
            [class.active]="activeLibraryId() === lib.id"
-           [attr.aria-current]="activeLibraryId() === lib.id ? 'page' : null"
+           [attr.aria-current]="activeLibraryId() === lib.id ? 'page' : null" [attr.aria-label]="railLabel(lib.name)"
            [matTooltip]="collapsed() ? lib.name : ''" matTooltipPosition="right">
           <app-library-icon [name]="lib.name" [icon]="lib.icon" [size]="20" />
-          <span class="nav-label">{{ lib.name }}</span>
+          <span class="nav-label" [attr.title]="pageMode() ? null : lib.name">{{ lib.name }}</span>
           @if (glyph(lib); as g) {
             <mat-icon class="nav-dir" [matTooltip]="g.label" [attr.aria-label]="'Reading direction: ' + g.label">{{ g.icon }}</mat-icon>
           }
@@ -108,6 +108,11 @@ import { LibraryIconComponent } from './library-icon/library-icon.component';
        bottom edge and the page background showed below it. In the shell, this host element is a flex item that
        stretches to the full height of the content column - it paints the surface and the border instead. */
     :host(.shell-column) { display: block; background: var(--mp-nav-bg); border-right: 1px solid var(--mp-nav-border); }
+    /* 1.51.0 (mobile sweep M1): this host is the shell's flex item, so the panel's flex-basis above never sized it - the column
+       grew to the longest library name (~560 of a landscape phone's 844 px with a 62-character name) and pushed the page past
+       the screen edge. Capped at the nav width: a longer name ends in an ellipsis (the full name is the label's title). A
+       column narrower than the cap (short names, the collapsed rail) keeps its width. */
+    :host(.shell-column) { max-width: var(--mp-nav-width); box-sizing: border-box; }
     :host(.shell-column) .sidebar { border-right: 0; }
     /* Page mode (1.10.0, F3): the dedicated phone nav page renders this same
        component full-width instead of as a narrow sticky shell column. No
@@ -178,6 +183,11 @@ import { LibraryIconComponent } from './library-icon/library-icon.component';
     .sidebar.collapsed .nav-label,
     .sidebar.collapsed .nav-dir,
     .sidebar.collapsed .nav-count { display: none; }
+    /* Touch screens (1.51.0, M21 + minor m6): the collapse button and the rail links reach 40 px (the mouse sizes stay). */
+    @media (pointer: coarse) {
+      .nav-collapse { width: 40px; height: 40px; }
+      .sidebar:not(.page-mode) .nav-item { min-height: 40px; }
+    }
 
     /* Narrow screens (1.10.0, F3): the old horizontal scroll rail at the top of
        the shell is gone - layout.component stops mounting this component in
@@ -252,6 +262,14 @@ export class LibrarySidebarComponent {
       next: (libs) => this.libraries.set(libs),
       error: () => this.libraries.set([]),
     });
+  }
+
+  /**
+   * The collapsed rail shows only the icon (a decorative letter for a library), so the link carries the name (1.51.0, M5).
+   * Expanded, the visible label (with the count) is the name.
+   */
+  railLabel(name: string): string | null {
+    return this.collapsed() && !this.pageMode() ? name : null;
   }
 
   glyph(lib: LibraryDto) {
