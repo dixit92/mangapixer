@@ -495,7 +495,7 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
       }
       .refine-chip { height: 40px; border-radius: 20px; }
       .refine-add { border-radius: 20px 0 0 20px; }
-      .refine-or { min-width: 40px; justify-content: center; }
+      .refine-chip .refine-or { min-width: 40px; justify-content: center; } /* out-ranks .refine-chip button's min-width: 0 */
       .refine-not { width: 40px; padding: 0 4px 0 0; border-radius: 0 20px 20px 0; }
       .refine-chips.open .refine-chip { contain-intrinsic-size: auto 40px; }
       .refine-more-btn, .refine-fewer, .or-pick button { min-height: 40px; }
