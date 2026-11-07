@@ -138,12 +138,26 @@ test.describe('touch screen', () => {
     test.setTimeout(180_000);
     await login(page);
     const [, folderId] = await ensureLibrary(page);
+    // The synthetic folder has no ComicInfo, so the page would have no items table or source links: a contract-shaped answer has them.
+    await page.route(`**/api/v1/nodes/${folderId}/series-info*`, (r) => r.fulfill({ json: {
+      nodeId: folderId, nodeKind: 'Folder', anchorNodeId: folderId, anchorKind: 'Folder', anchorDisplayName: 'Synthetic Saga', libraryId: 'e2elibrary',
+      state: 'ComicInfo', title: 'Synthetic Saga', precedence: 'WebFirst', precedenceSource: 'Default',
+      comicInfo: { itemsWithComicInfo: 2, itemsTotal: 2, webLinks: ['https://www.mangaupdates.com/series/abc123/synthetic-saga'] },
+      items: [
+        { nodeId: 'e2eitem1', displayName: 'Part 1', number: '1', volume: 1, title: 'Part 1', year: 2020 },
+        { nodeId: 'e2eitem2', displayName: 'Part 2', number: '2', volume: 1, title: 'Part 2', year: 2021 },
+      ],
+    } }));
     await page.goto(`/series/${folderId}`);
     await expectTouchSize(page, { 'Back to folder': page.locator('.page .back a') });
     await page.setViewportSize({ width: 844, height: 390 });
     await page.goto(`/series/${folderId}`);
     await expect(page.getByTestId('series-items')).toBeVisible();
-    await expectTouchSize(page, { 'Back to folder': page.locator('.page .back a'), 'library items': page.getByTestId('series-items').locator('a') });
+    await expectTouchSize(page, {
+      'Back to folder': page.locator('.page .back a'),
+      'library items': page.getByTestId('series-items').locator('a'),
+      'source link': page.locator('.page .section p a'),
+    });
   });
 
   test('Tracking: the series link, Open on the tracker and Set dates are 40 px targets (M17)', async ({ page }) => {
