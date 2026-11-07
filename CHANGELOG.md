@@ -35,6 +35,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Larger tap targets on a touch screen: Administration, Metadata Manager, series page, Tracking and the reader's options.** The
+  Backups file picker, the schedule, retention and token fields, the links under them, the review tabs, the series page's links, the
+  Tracking rows' links and the reader's GPU status line are at least 40 px tall on a phone or tablet, in portrait and landscape. The Backups
+  file picker now has an accessible name. A window used with a mouse looks as before.
 - **Two backups in the same second keep their real order.** A manual backup racing the scheduled one in the same second got a random
   suffix and could be ranked as the older one - and pruned first when the retention limit was reached. The later one now always ranks
   newer.
