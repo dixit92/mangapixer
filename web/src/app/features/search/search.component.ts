@@ -490,7 +490,9 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
     @media (pointer: coarse) {
       :host { --mat-chip-container-height: 40px; }
       .exclude-toggle { width: 40px; height: 40px; margin: 0 0 0 -12px; }
-      :host ::ng-deep .filter-chips .mat-mdc-chip-remove { min-height: 40px; padding-left: 11px; padding-right: 11px; }
+      :host ::ng-deep .filter-chips .mat-mdc-chip-row .mat-mdc-chip-remove {
+        box-sizing: border-box; min-width: 40px; min-height: 40px; justify-content: center;
+      }
       .refine-chip { height: 40px; border-radius: 20px; }
       .refine-add { border-radius: 20px 0 0 20px; }
       .refine-or { min-width: 40px; justify-content: center; }

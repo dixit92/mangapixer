@@ -1,5 +1,5 @@
 import {
-  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, HostListener, NgZone, afterNextRender, computed, effect, inject, input, output,
+  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, HostListener, NgZone, computed, effect, inject, input, output,
   signal, viewChild,
 } from '@angular/core';
 
@@ -130,7 +130,7 @@ export class JumpScrubStripComponent {
     // Follow the page's scroll outside Angular (a passive listener); `lift` only changes in the first few hundred pixels of a scroll.
     const zone = inject(NgZone);
     const destroyRef = inject(DestroyRef);
-    afterNextRender(() => {
+    if (typeof window !== 'undefined') {
       const measure = () => this.measureLift();
       zone.runOutsideAngular(() => {
         window.addEventListener('scroll', measure, { passive: true });
@@ -140,7 +140,7 @@ export class JumpScrubStripComponent {
         window.removeEventListener('scroll', measure);
         window.removeEventListener('resize', measure);
       });
-    });
+    }
     // A new level (the anchor appears) or a new bar height: measure again once the view has it.
     effect(() => {
       this.anchor();

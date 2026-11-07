@@ -79,6 +79,9 @@ import { MatTooltipModule } from '@angular/material/tooltip';
       app-selection-bar .actions {
         flex: 1 1 0; min-width: 0; min-height: 48px; flex-wrap: nowrap;
         overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: none;
+        /* More actions than fit: the row's right edge fades out (a hint that it scrolls); the end padding lets the last icon
+           scroll clear of the fade. */
+        padding-right: 20px; mask-image: linear-gradient(to right, black calc(100% - 20px), transparent);
       }
       app-selection-bar .actions::-webkit-scrollbar { display: none; }
       app-selection-bar .actions > * { flex: none; }

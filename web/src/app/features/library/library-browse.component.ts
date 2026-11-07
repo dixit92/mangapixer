@@ -767,7 +767,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
       .browse-bar:not(.selecting) { flex-wrap: wrap; justify-content: flex-start; gap: 8px; }
       .browse-bar:not(.selecting) > :not(.breadcrumbs) { flex: none; }
       .browse-bar:not(.selecting) .breadcrumbs { flex-basis: 100%; }
-      .browse-bar .lbl { display: none; }
+      /* Not in select mode: the shared selection bar keeps its labels as the buttons' accessible names (1.51.0, M3). */
+      .browse-bar:not(.selecting) .lbl { display: none; }
       .view-toggle, .filter-toggle, .select-toggle { min-width: 48px; padding: 0 12px; }
       .view-toggle mat-icon, .filter-toggle mat-icon, .select-toggle mat-icon { margin: 0; }
       /* 1.51.0 (mobile sweep M12): each crumb link is a 40 px tall touch target (it was 24 px, 19 px sideways). */
