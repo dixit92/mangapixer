@@ -561,7 +561,8 @@ import { ScanPhaseDirective } from './scan-phase.directive';
           Upload a MangaPixer SQLite backup (.db) or a compressed one (.db.gz). It is
           validated before anything is replaced; the restore applies on the next restart.
         </p>
-        <input #restoreFile type="file" accept=".db,.gz,.db.gz,application/gzip,application/octet-stream"
+        <input #restoreFile type="file" class="restore-file" data-testid="restore-file" aria-label="Backup file to restore (.db or .db.gz)"
+               accept=".db,.gz,.db.gz,application/gzip,application/octet-stream"
                (change)="onRestoreFileSelected(restoreFile)"
                [disabled]="restoreBusy()">
 
@@ -725,6 +726,12 @@ import { ScanPhaseDirective } from './scan-phase.directive';
     .backup-info { margin: 0 0 12px; font-size: 13px; opacity: 0.9; }
     .snapshot-list { max-height: 320px; overflow-y: auto; }
     .restore-message { margin: 12px 0 0; font-size: 13px; }
+    /* Touch screens (1.51.0): the file picker is a 44 px target with a padded "Choose file" button. */
+    .restore-file { max-width: 100%; }
+    @media (pointer: coarse) {
+      .restore-file { min-height: 44px; box-sizing: border-box; }
+      .restore-file::file-selector-button { min-height: 40px; padding: 0 16px; margin-right: 12px; }
+    }
     .browser {
       margin-top: 12px;
       border: 1px solid rgb(var(--mp-ink-rgb) / 0.12);

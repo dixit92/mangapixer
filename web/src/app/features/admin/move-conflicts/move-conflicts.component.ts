@@ -123,6 +123,8 @@ type View = 'open' | 'resolved';
     .page { max-width: 1180px; margin: 0 auto; padding-bottom: 32px; }
     .back a { display: inline-flex; align-items: center; gap: 4px; color: var(--mp-accent); text-decoration: none; font-size: 14px; }
     .back mat-icon { font-size: 18px; width: 18px; height: 18px; }
+    /* Touch screens (1.51.0): the back link is a 40 px tall target. */
+    @media (pointer: coarse) { .back a { min-height: 40px; min-width: 40px; } }
     .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; margin: 8px 0 4px; }
     h1 { font-size: 24px; font-weight: 500; margin: 0; }
     .count { font-size: 12px; font-weight: 600; padding: 0 8px; border-radius: 10px; background: var(--mp-accent-strong); color: var(--mp-on-accent); line-height: 20px; }

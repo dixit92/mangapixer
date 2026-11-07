@@ -430,6 +430,16 @@ const SEARCH_DELAY_MS = 300;
     ::ng-deep .tracking-more-menu .warn-item:not([disabled]), ::ng-deep .tracking-more-menu .warn-item:not([disabled]) .mat-icon { color: var(--mp-warn); }
     .footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px;
               color: var(--mp-text-muted); font-size: 13px; }
+    /* Touch screens (1.51.0): the series link, "Open on <tracker>", "Set dates...", the search box, the filter chips and the Set-progress
+       numbers are at least 40 px tall (the row grows a little; nothing changes with a mouse). */
+    @media (pointer: coarse) {
+      a.title { display: inline-flex; align-items: center; min-height: 40px; }
+      a.ext { min-height: 40px; min-width: 40px; }
+      .link { display: inline-flex; align-items: center; min-height: 40px; min-width: 40px; margin-top: 0; }
+      .search { min-height: 40px; }
+      .chip-btn { min-height: 40px; }
+      .set input { min-height: 40px; }
+    }
     @container (max-width: 600px) {
       .sel-act .lbl-long { display: none; }
       .sel-act .lbl-short { display: inline; }

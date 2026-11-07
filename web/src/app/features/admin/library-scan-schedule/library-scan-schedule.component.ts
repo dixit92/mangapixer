@@ -4,6 +4,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { ApiService } from '../../../core/api/api.service';
 import { LibraryDto, LibraryScanSchedule } from '../../../core/api/api-types';
+import { TOUCH_FIELDS_CSS, TOUCH_LINK_CSS } from '../../../shared/touch-targets';
 
 /** The 24 hours of the "At" select (server time) and the weekdays of "On" (0 = Sunday, as the server counts). */
 export const SCAN_HOURS: readonly number[] = Array.from({ length: 24 }, (_, h) => h);
@@ -44,7 +45,7 @@ export const SCAN_SCHEDULE_OPTIONS: readonly { value: LibraryScanSchedule; label
       @if (summary()) {
         <span class="summary" data-testid="scan-summary">
           Auto-scan: {{ summaryText() }}
-          <button type="button" class="link" data-testid="scan-schedule-link" (click)="showInJobs()">Change in Scheduled jobs</button>
+          <button type="button" class="link touch-link" data-testid="scan-schedule-link" (click)="showInJobs()">Change in Scheduled jobs</button>
         </span>
       } @else {
       <!-- 1.35.0: compact native selects, one cell each, so the Scheduled jobs table lines its rows up (owner: "not neat"). -->
@@ -88,7 +89,7 @@ export const SCAN_SCHEDULE_OPTIONS: readonly { value: LibraryScanSchedule; label
       }
     </div>
   `,
-  styles: [`
+  styles: [TOUCH_FIELDS_CSS, TOUCH_LINK_CSS, `
     .scan-schedule {
       display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px;
       padding: 0 16px 8px 72px;
