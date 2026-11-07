@@ -14,6 +14,7 @@ import {
   UpdateBackupSettingsRequest,
 } from '../../core/api/api-types';
 import { BackupSnapshotMoveStatusComponent, formatBytes } from './backup-snapshot-move-status.component';
+import { TOUCH_FIELDS_CSS } from '../../shared/touch-targets';
 
 /** Interval presets offered in the schedule select (hours). */
 export const BACKUP_INTERVAL_PRESETS: readonly { hours: number; label: string }[] = [
@@ -219,7 +220,7 @@ export const SNAPSHOT_MOVE_POLL_MS = 1000;
       </mat-card-content>
     </mat-card>
   `,
-  styles: [`
+  styles: [TOUCH_FIELDS_CSS, `
     :host { display: block; min-width: 0; }
     mat-card { margin: 0; }
     .row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 10px 0; font-size: 14px; }

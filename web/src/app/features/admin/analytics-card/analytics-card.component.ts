@@ -9,6 +9,7 @@ import { forkJoin } from 'rxjs';
 import { ApiService } from '../../../core/api/api.service';
 import { AnalyticsOverviewDto, AnalyticsUserRowDto, ApiError } from '../../../core/api/api-types';
 
+
 type SortColumn =
   | 'username'
   | 'isAdmin'
@@ -180,6 +181,8 @@ const COLUMNS: SortableColumn[] = [
       padding: 0;
     }
     .sort-icon { font-size: 14px; width: 14px; height: 14px; }
+    /* Touch screens (1.51.0): the sort header is a 40 px target (the header row grows; the data rows do not). */
+    @media (pointer: coarse) { .sort-btn { min-height: 40px; min-width: 40px; justify-content: center; } }
     .sr-only {
       position: absolute;
       width: 1px; height: 1px;
