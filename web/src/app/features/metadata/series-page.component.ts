@@ -189,6 +189,11 @@ import { SeriesRefreshCadenceComponent } from './series-refresh-cadence/series-r
     .muted { color: var(--mp-text-dim); }
     .small { font-size: 12px; word-break: break-all; }
     a { color: var(--mp-accent); }
+    /* Touch screens (1.51.0): the back link, the items table's links and the source links are 40 px tall hit areas. */
+    @media (pointer: coarse) {
+      .back a { min-height: 40px; min-width: 40px; }
+      .items a, .section p a { display: inline-flex; align-items: center; min-height: 40px; min-width: 40px; }
+    }
     @media (max-width: 599.98px) {
       .hero { padding: 12px; }
       .hero ::ng-deep .poster { width: 96px; height: 136px; }

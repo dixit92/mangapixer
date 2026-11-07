@@ -223,6 +223,10 @@ export const READER_MENU_STYLES = `
     display: block; background: none; border: 0; color: inherit; font-family: inherit;
     text-align: left; cursor: default;
   }
+  /* Touch screens (1.51.0): the status line (also the 5-tap GPU readout) is a 40 px tall target. */
+  @media (pointer: coarse) {
+    ::ng-deep .reader-options-menu .hint-tap { min-height: 40px; }
+  }
   ::ng-deep .reader-options-menu .option-text { display: flex; flex-direction: column; line-height: 18px; }
   ::ng-deep .reader-options-menu .option-note { font-size: 11px; line-height: 14px; opacity: 0.7; white-space: normal; max-width: 200px; }
   /* The slider's native range input reaches 21 px past the track on each side (it centres the thumb on the track ends), so the
@@ -777,6 +781,8 @@ export interface ReaderOptionsHost {
        double-page explanation and a test asserts it is absent everywhere else. */
     .group-hint { margin: 0; font-size: 12px; line-height: 16px; color: var(--mat-sys-on-surface-variant); }
     .hint-tap { display: block; padding: 0; background: none; border: 0; font-family: inherit; text-align: left; cursor: default; }
+    /* Touch screens (1.51.0): the "GPU: ..." status line (a button: 5 taps toggle the timing readout) is a 40 px tall target. */
+    @media (pointer: coarse) { .hint-tap { display: flex; align-items: center; min-height: 40px; } }
     /* Chips: 44px touch targets, the option's own glyph, and the accent highlight
        (not a tick) for the selected one. */
     .chip {
