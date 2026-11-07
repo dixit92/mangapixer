@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Favorites: a Recently read sort.** The favorites you read last come first - a folder by the newest reading anywhere inside it, a
+  stack by the starred archive you read last - and favorites you have not read yet follow, by name.
+- **Favorites: a jump rail under the name sort** (A-Z and Z-A), with letters from your favorites' own names. It follows the filters, and
+  after a jump you can scroll up to the entries above. On a phone it is the letter-picker button, as in the library view.
+- **Favorites: Group by library.** Lists your favorites library by library, with a header naming each library and how many favorites it
+  holds, in card and list view; the choice is kept on each device. The jump rail is hidden while grouped, and the home page's Favorites
+  row is unchanged.
+- **API:** `GET /api/v1/favorites` takes `before` (paging backward: every page that does not start the list carries `prevCursor` /
+  `hasPrevious`), `sort=recentlyRead` and `group=library` (with `favoriteGroups` on the answer); a new `GET /api/v1/favorites/jump-index`.
+
 ### Changed
 
 - **Automatic matching knows an author by their stored other names.** An archive whose creator tag - or whose artist folder's name -
