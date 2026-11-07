@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.51.0] - 2026-11-07
+
 ### Added
 
 - **Favorites: a Recently read sort.** The favorites you read last come first - a folder by the newest reading anywhere inside it, a

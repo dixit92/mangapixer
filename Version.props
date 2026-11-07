@@ -466,7 +466,7 @@
          Enhance black-output guard; "Official Volume Available". Migrations AddTrackerSync, AddTrackingPage,
          AddVolumeMapReadableChapters (additive); tracker consents v1 (new third privacy exception, AGENTS.md); metadata consents
          unchanged (main 6 / automatic 5); worker protocol unchanged (5). -->
-    <MangaPixerVersionMinor>50</MangaPixerVersionMinor>
+    <MangaPixerVersionMinor>51</MangaPixerVersionMinor>
     <!-- 1.31.1 - PATCH (2026-10-01, integrator-direct, owner live check of 1.31.0): content signatures backfilled for archives
          analysed before 1.5.0 (their moves were never recognised); Re-attach to a folder in another library; "Episode N" next
          to a volume is a part label, not a chapter; the review list shows the file's own page 1, never the cover layer's;
@@ -539,7 +539,13 @@
          own row, controls that never shrink (they wrap) - the icons were drawn across the squeezed buttons' borders and a long library
          name ran under the Info button (owner report); the selection bar's Done never shrinks either; the E2E layout check gets a
          `spills` rule (it found Done). Web only; no migration, no API change. -->
-    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
+    <!-- 1.51.0 - MINOR over 1.50.1 (2026-11-07): Favorites - Recently read sort, a jump rail under the name sort with backward paging, Group
+         by library (headers, per device), GET favorites/jump-index; stored author other names join MangaUpdates candidates' authors (matcher
+         rules revision 6); 12 finds v12 / ch12 / ep3, a -word-only hint, shelf folders skipped in the folder line; same-second backups by
+         creation; the mobile UI sweep's 21 majors (touch targets >= 40 px under pointer: coarse, accessible names, landscape sidebar cap,
+         one-row select bar, scrub strip touch drag, wrapping tag chips) and its PinnedFileStream finalizer crash. No migration (59);
+         consent unchanged (main 7 / automatic 5); worker protocol 6; OpenAPI 371 schemas (additive). -->
+    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->
