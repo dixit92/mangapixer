@@ -270,7 +270,15 @@ test.describe('phone, touch', () => {
       expect(shown.width, `${width} px: the long name is readable inside its chip`).toBeGreaterThan(80);
       expect(shown.cut, 'the long name is cut (ellipsis)').toBe(true);
       for (let i = 0; i < 2; i++) {
-        await expectTarget(chips.nth(i).getByTestId('search-filter-exclude'), `${width} px chip ${i + 1} Exclude`);
+        const exclude = chips.nth(i).getByTestId('search-filter-exclude');
+        await expectTarget(exclude, `${width} px chip ${i + 1} Exclude`);
+        // The whole button takes the touch: its left edge is not cut off by the chip's label cell.
+        const reached = await exclude.evaluate((el) => {
+          const r = el.getBoundingClientRect();
+          const hit = document.elementFromPoint(r.left + 3, r.top + r.height / 2);
+          return !!hit && el.contains(hit);
+        });
+        expect(reached, `${width} px chip ${i + 1} Exclude: its left edge takes a tap`).toBe(true);
         await expectTarget(chips.nth(i).getByRole('button', { name: /^Remove filter/ }), `${width} px chip ${i + 1} Remove`);
       }
       await expectTarget(page.getByTestId('refine-or').first(), `${width} px Refine or`);

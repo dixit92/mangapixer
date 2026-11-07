@@ -489,7 +489,9 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
        Refine's or / not are 40 px targets (they were 18-32 px). A mouse keeps the old sizes. */
     @media (pointer: coarse) {
       :host { --mat-chip-container-height: 40px; }
-      .exclude-toggle { width: 40px; height: 40px; margin: 0 0 0 -12px; }
+      /* The toggle starts at the chip's edge (the label cell clips anything outside it, so a negative margin cut the button). */
+      :host ::ng-deep .filter-chips .mat-mdc-chip-row .mdc-evolution-chip__action--primary { padding-left: 0; }
+      .exclude-toggle { width: 40px; height: 40px; margin: 0 2px 0 0; }
       :host ::ng-deep .filter-chips .mat-mdc-chip-row .mat-mdc-chip-remove {
         box-sizing: border-box; min-width: 40px; min-height: 40px; justify-content: center;
       }
