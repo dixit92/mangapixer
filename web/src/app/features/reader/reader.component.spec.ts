@@ -1898,7 +1898,7 @@ describe('ReaderComponent phone controls + menu highlight (1.10.0)', () => {
       'Back to folder',
       'No previous archive', 'No next archive',
       // (Series info sits here when the archive has series information - reader-top-bar.spec.ts.)
-      'Bookmark menu', 'Add to favorites', 'Display', 'Quality',
+      'Bookmark menu', 'Add to favorites', 'Rate this archive or its folder', 'Display', 'Quality',
       'Reading help', 'Enter fullscreen',
     ]);
   });

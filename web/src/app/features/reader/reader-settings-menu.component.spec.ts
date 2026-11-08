@@ -820,10 +820,10 @@ describe('ReaderOptionsSheetComponent', () => {
     const action = (el: HTMLElement, text: string) =>
       Array.from(el.querySelectorAll<HTMLButtonElement>('.action-row button')).find((b) => (b.textContent ?? '').includes(text))!;
 
-    it('offers the three desktop actions with the desktop screen-reader labels', () => {
+    it('offers the three desktop actions with the desktop screen-reader labels (1.52.0: and Rate)', () => {
       const { el } = create();
       const buttons = Array.from(el.querySelectorAll<HTMLButtonElement>('.action-row button'));
-      expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(['Bookmark this page', 'Bookmarks', 'Add to favorites']);
+      expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(['Bookmark this page', 'Bookmarks', 'Add to favorites', 'Rate this archive or its folder']);
       expect(action(el, 'Bookmark page').getAttribute('aria-pressed')).toBe('false');
       expect(action(el, 'Favorite').getAttribute('aria-pressed')).toBe('false');
       expect(action(el, 'Bookmarks').getAttribute('aria-haspopup')).toBe('dialog');
@@ -863,7 +863,7 @@ describe('ReaderOptionsSheetComponent', () => {
       const { el, host, ref } = create(makeHost({ series: 'anchor-9' }));
       const buttons = Array.from(el.querySelectorAll<HTMLButtonElement>('.action-row button'));
       expect(buttons.map((b) => b.getAttribute('aria-label')))
-        .toEqual(['Bookmark this page', 'Bookmarks', 'Add to favorites', 'Series info']);
+        .toEqual(['Bookmark this page', 'Bookmarks', 'Add to favorites', 'Rate this archive or its folder', 'Series info']);
       const tile = action(el, 'Series info');
       expect(tile.querySelector('mat-icon')?.textContent?.trim()).toBe('info_outline');
       tile.click();
@@ -871,6 +871,17 @@ describe('ReaderOptionsSheetComponent', () => {
       expect(host.openSeriesInfo).toHaveBeenCalledTimes(1);
       expect(ref.dismiss.mock.invocationCallOrder[0])
         .toBeLessThan((host.openSeriesInfo as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]);
+    });
+
+    it('Rate (1.52.0) closes this sheet first, then opens the Rate sheet once it has gone', () => {
+      const { el, host, ref } = create();
+      const tile = el.querySelector<HTMLButtonElement>('[data-testid="reader-options-rate"]')!;
+      expect(tile.getAttribute('aria-haspopup')).toBe('dialog');
+      tile.click();
+      expect(ref.dismiss).toHaveBeenCalledTimes(1);
+      expect(host.openRating).toHaveBeenCalledTimes(1);
+      expect(ref.dismiss.mock.invocationCallOrder[0])
+        .toBeLessThan((host.openRating as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]);
     });
 
     it('Bookmarks closes this sheet first, then opens the bookmarks list once it has gone', () => {
