@@ -5,9 +5,10 @@ using com.lifepixer.mangapixer.Tests.Server.Http;
 using Xunit;
 
 /// <summary>
-/// A disposed test host must become garbage. The Server suite boots thousands of hosts in one process; until 1.52.0 every one stayed
-/// reachable after Dispose (the never-disposed ASP.NET rate limiters' replenishment timers captured the execution context that holds
-/// WebApplicationFactory's hosting listener, and so the factory and its whole host), and the test host's heap grew to .NET's container
+/// A disposed test host must become garbage. The Server suite boots thousands of hosts in one process; until 1.52.0 they stayed
+/// reachable after Dispose through timers in the process-wide timer queue - the never-disposed ASP.NET rate limiters' replenishment
+/// timers (for good; their captured execution context holds WebApplicationFactory's hosting listener, and so the factory) and
+/// IHttpClientFactory's handler-expiry timers (2 minutes each; see TestHostServices) - and the test host's heap grew to .NET's container
 /// cap (the "Test host process crashed" flake). Anything new that roots a host from a static or a timer fails here.
 /// </summary>
 public sealed class TestHostLifetimeTests

@@ -142,6 +142,7 @@ public sealed class UpdateCheckWebApplicationFactory : WebApplicationFactory<com
 
         builder.ConfigureTestServices(services =>
         {
+            TestHostServices.ReleaseWithTheHost(services);
             var workerHosted = services.FirstOrDefault(
                 d => d.ImplementationType == typeof(MediaWorkerHostedService));
             if (workerHosted is not null)

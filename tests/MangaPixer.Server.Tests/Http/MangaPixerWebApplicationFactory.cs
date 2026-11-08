@@ -158,6 +158,7 @@ public sealed class MangaPixerWebApplicationFactory : WebApplicationFactory<Prog
 
         builder.ConfigureTestServices(services =>
         {
+            TestHostServices.ReleaseWithTheHost(services);
             services.AddSingleton<IStartupFilter>(UnhandledErrors);
 
             // Remove the worker pool hosted service so tests don't spawn workers.
