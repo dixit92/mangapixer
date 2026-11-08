@@ -105,7 +105,10 @@ import { MatTooltipModule } from '@angular/material/tooltip';
       /* 1.52.0: a phone in portrait. Closed: Select, Mark read and More in the row (they fit at 360 px - Done drops its icon);
          the rest waits behind More. Open: the actions take the rows below "N selected" and Done, wrapped, each with its name. */
       app-selection-bar .more-toggle { display: inline-flex; }
+      app-selection-bar .done { min-width: 0; padding: 0 12px; }
       app-selection-bar .done mat-icon { display: none; }
+      app-selection-bar .actions:not(.more-open) .mat-mdc-button { min-width: 40px; padding: 0 8px; }
+      :has(> app-selection-bar) { column-gap: 8px; }
       app-selection-bar .actions:not(.more-open) { padding-right: 0; mask-image: none; }
       app-selection-bar .actions:not(.more-open) > :not(.primary):not(.more-toggle) { display: none; }
       app-selection-bar .actions.more-open {

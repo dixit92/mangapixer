@@ -241,15 +241,22 @@ test.describe('phone, touch', () => {
     const libraryId = await volumeLibrary(page.request);
     const folder = await folderNamed(page.request, libraryId, 'Stacked Saga');
     const url = `/libraries/${libraryId}/browse/${folder.id}/volume/1`;
+    /** The link's first line box (a link may wrap in the trail), its text's place in the trail, and the trail's height. */
+    const measure = (link: Locator) => link.evaluate((el) => {
+      const trail = el.closest('.crumbs')!.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const text = range.getClientRects()[0];
+      return { line: el.getClientRects()[0].height, textTop: text.top - trail.top, textLeft: text.left - trail.left, trail: trail.height };
+    });
     await page.goto(url);
     const link = page.getByTestId('stack-folder-link');
     await expect(link).toBeVisible();
-    const touch = await box(link);
-    expect(Math.round(touch.height), 'folder link height on touch').toBeGreaterThanOrEqual(40);
-    const trailTouch = (await page.locator('.crumbs').first().boundingBox())!;
-    const textTouch = await link.evaluate((el) => { const r = el.getClientRects()[0]; const range = document.createRange(); range.selectNodeContents(el); const t = range.getBoundingClientRect(); return { top: t.top - el.closest('.crumbs')!.getBoundingClientRect().top, h: t.height, r: r.height }; });
+    const touch = await measure(link);
+    expect(Math.round(touch.line), 'folder link hit box on touch').toBeGreaterThanOrEqual(40);
+    expect(await tapHits(link), 'a tap at the link reaches it').toBe(true);
 
-    // The same page with a mouse: the same trail box and text position.
+    // The same page with a mouse: the same trail and the same text position; the link keeps its text-high box.
     const context = await browser.newContext({ baseURL: test.info().project.use.baseURL, viewport: { width: 360, height: 780 } });
     try {
       const mouse = await context.newPage();
@@ -257,11 +264,12 @@ test.describe('phone, touch', () => {
       await mouse.goto(url);
       const mouseLink = mouse.getByTestId('stack-folder-link');
       await expect(mouseLink).toBeVisible();
-      const trailMouse = (await mouse.locator('.crumbs').first().boundingBox())!;
-      const textMouse = await mouseLink.evaluate((el) => { const range = document.createRange(); range.selectNodeContents(el); const t = range.getBoundingClientRect(); return { top: t.top - el.closest('.crumbs')!.getBoundingClientRect().top, h: t.height }; });
-      expect(Math.round(trailTouch.height), 'the trail is as tall as with a mouse').toBe(Math.round(trailMouse.height));
-      expect(Math.round(textTouch.top), 'the link text sits where it sits with a mouse').toBe(Math.round(textMouse.top));
-      expect(Math.round((await mouseLink.boundingBox())!.height), 'a mouse keeps the text-high link').toBeLessThan(40);
+      const m = await measure(mouseLink);
+      // (Within a pixel: the touch device draws at twice the pixel density.)
+      expect(Math.abs(touch.trail - m.trail), 'the trail is as tall as with a mouse').toBeLessThanOrEqual(1);
+      expect(Math.abs(touch.textTop - m.textTop), 'the link text sits as high as with a mouse').toBeLessThanOrEqual(1);
+      expect(Math.abs(touch.textLeft - m.textLeft), 'the link text sits as far left as with a mouse').toBeLessThanOrEqual(1);
+      expect(Math.round(m.line), 'a mouse keeps the text-high link').toBeLessThan(40);
     } finally {
       await context.close();
     }
