@@ -179,7 +179,8 @@ test('rate from the Info sheet: the badge, the My rating sort, the rating: searc
     await expect(hit).toBeVisible();
     await expect(hit.getByTestId('rating-badge')).toBeVisible();
     await shot(page, 'ratings-05-search-desktop');
-    const none = page.waitForResponse((r) => r.url().includes('/api/v1/search') && r.url().includes(encodeURIComponent('rating:5')));
+    // (Match the parsed q: Angular leaves the ':' of a query value unencoded.)
+    const none = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/v1/search' && new URL(r.url()).searchParams.get('q') === 'rating:5');
     await page.goto('/search?q=' + encodeURIComponent('rating:5'));
     await none;
     await expect(page.locator('.result-card', { hasText: SERIES })).toHaveCount(0);
