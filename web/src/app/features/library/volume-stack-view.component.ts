@@ -67,7 +67,7 @@ import { TrackerReadMarkComponent } from '../trackers/tracker-read-mark.componen
       </div>
     } @else {
       <nav class="bar" aria-label="Breadcrumb">
-        <div class="crumbs">
+        <div class="crumbs touch-inline-links">
           <a [routerLink]="['/libraries', libraryId(), 'browse']">{{ libraryName() || 'Library' }}</a>
           @for (crumb of breadcrumbs(); track crumb.id) {
             <span class="sep"> / </span>

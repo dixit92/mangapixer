@@ -266,3 +266,13 @@ html {
     min-height: 40px;
   }
 }
+
+/* Touch targets (1.52.0, mobile sweep C1): a link inside a sentence or a breadcrumb trail (`.touch-inline-link`, or every link of a
+   `.touch-inline-links` trail) gets a 40 px tall hit area on a touch screen WITHOUT moving any text: vertical padding on an inline
+   box grows the box a tap hits but not the line it sits on. Only for links that stay `display: inline`. A mouse keeps the old box. */
+@media (pointer: coarse) {
+  a.touch-inline-link,
+  .touch-inline-links a {
+    padding-block: 11px;
+  }
+}

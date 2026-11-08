@@ -31,7 +31,7 @@ import { EscapeCancelsDirective } from '../../shared/escape-cancels.directive';
         <p class="hint">
           Each user connects their own account on the Tracking page, after you allow the tracker here. Nothing is sent for users who have
           not connected one.
-          <a [href]="docsUrl" target="_blank" rel="noopener noreferrer" data-testid="admin-trackers-help">How to set this up</a>
+          <a class="touch-inline-link" [href]="docsUrl" target="_blank" rel="noopener noreferrer" data-testid="admin-trackers-help">How to set this up</a>
         </p>
         @if (loading()) {
           <p class="muted">Loading…</p>

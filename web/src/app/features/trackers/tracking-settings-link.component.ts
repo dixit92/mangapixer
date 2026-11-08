@@ -20,7 +20,7 @@ import { TRACKING_PATH } from './tracker-texts';
         <p class="line">
           <mat-icon aria-hidden="true">track_changes</mat-icon>
           <span>Your MyAnimeList and MangaUpdates accounts and the series synced to them are on the
-            <a [routerLink]="trackingPath" data-testid="settings-tracking-link">Tracking page</a>.</span>
+            <a class="touch-inline-link" [routerLink]="trackingPath" data-testid="settings-tracking-link">Tracking page</a>.</span>
         </p>
       </mat-card-content>
     </mat-card>
