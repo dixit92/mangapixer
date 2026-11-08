@@ -1,5 +1,5 @@
 import {
-  Component, ElementRef, NgZone, OnDestroy, OnInit, afterNextRender, computed, effect, inject, signal, viewChild,
+  Component, ElementRef, Injector, NgZone, OnDestroy, OnInit, afterNextRender, computed, effect, inject, signal, viewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { NavigationEnd, NavigationStart, Router, RouterLink } from '@angular/router';
@@ -484,6 +484,9 @@ export class FavoritesComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly zone = inject(NgZone);
+  private readonly injector = inject(Injector);
+  /** 1.52.0 (sweep N2): the entry a reloading jump is for - once its page is drawn it is scrolled to the top, as a loaded one is. */
+  private pendingJumpTarget: string | null = null;
 
   readonly nodes = signal<CatalogNodeDto[]>([]);
   readonly hasMore = signal(false);
@@ -739,6 +742,7 @@ export class FavoritesComponent implements OnInit, OnDestroy {
       next: (page) => {
         if (generation !== this.generation) return;
         this.nodes.update((prev) => (append ? [...prev, ...page.items] : page.items));
+        if (!append && this.pendingJumpTarget) this.revealJumpTarget(this.pendingJumpTarget);
         this.cursor = page.nextCursor;
         this.hasMore.set(page.hasMore);
         if (!append) {
@@ -811,8 +815,22 @@ export class FavoritesComponent implements OnInit, OnDestroy {
     this.hasPrevious.set(false);
     this.prevCursor = null;
     this.nodes.set([]);
+    this.pendingJumpTarget = bucket.firstNodeId ?? null;
     this.load(false, bucket.firstCursor ?? null);
     this.scrollListToTop();
+  }
+
+  /**
+   * 1.52.0 (sweep N2): the page a jump reloaded is drawn below the page's own header, and on a short screen (a phone held sideways,
+   * 390 px tall) the picked letter's first row sat under the bottom edge. Once drawn, it is scrolled to the top like a loaded one - before
+   * the page above it is prepended (which keeps what is on screen in place).
+   */
+  private revealJumpTarget(nodeId: string): void {
+    this.pendingJumpTarget = null;
+    afterNextRender(() => {
+      const index = this.nodes().findIndex((n) => n.id === nodeId);
+      if (index !== -1) this.scrollToCard(index);
+    }, { injector: this.injector });
   }
 
   /**
