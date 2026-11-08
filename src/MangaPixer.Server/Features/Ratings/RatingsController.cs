@@ -25,7 +25,6 @@ public sealed class RatingsController : ControllerBase
     [HttpPut("nodes/{nodeId}/rating")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> SetRating(string nodeId, [FromBody] SetRatingRequest request, CancellationToken ct)
     {
         var userId = GetUserId();

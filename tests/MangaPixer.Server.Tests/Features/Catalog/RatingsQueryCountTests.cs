@@ -24,8 +24,10 @@ public sealed class RatingsQueryCountTests
         await using var t = await MetadataTestDb.CreateAsync();
         var admin = await t.AddUserAsync("admin", isAdmin: true);
         var nodes = new List<CatalogNodeEntity>();
+        // One kind on every page (a page of folders asks other questions than a page of archives - not a per-card cost): archives at
+        // the library root, so the Favorites list has no stacks either.
         for (var i = 0; i < 200; i++)
-            nodes.Add(i % 2 == 0 ? await t.AddFolderAsync(null, $"Folder {i:D3}") : await t.AddArchiveAsync(null, $"Archive {i:D3}"));
+            nodes.Add(await t.AddArchiveAsync(null, $"Archive {i:D3}"));
         for (var i = 0; i < nodes.Count; i += 3)
             t.Db.Favorites.Add(new FavoriteEntity { UserId = admin.Id, CatalogNodeId = nodes[i].Id, CreatedAt = DateTimeOffset.UtcNow.AddSeconds(i) });
         await t.Db.SaveChangesAsync();
@@ -41,7 +43,7 @@ public sealed class RatingsQueryCountTests
         foreach (var (name, (small, large)) in withRatings.Commands)
             Assert.True(small == large, $"{name}: {small} commands for 12 cards, {large} for 200");
 
-        // The values are the user's own scores, on folders and archives alike.
+        // The values are the user's own scores.
         var page = withRatings.LargeBrowse;
         Assert.Equal(200, page.Items.Count);
         Assert.Equal(100, page.Items.Count(n => n.MyRating is not null));

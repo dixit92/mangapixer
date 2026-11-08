@@ -260,6 +260,7 @@ public sealed class MovePairingService
                 .ExecuteUpdateAsync(u => u.SetProperty(f => f.CatalogNodeId, neu.Id), ct);
             // 1.43.0: each user's tracker sync switch on the archive follows the same way.
             await Trackers.TrackerNodeOverrideMoves.MoveAsync(_db, old.Id, neu.Id, ct);
+            await Ratings.RatingMoves.MoveAsync(_db, old.Id, neu.Id, ct); // 1.52.0 lane R: each user's rating follows the same way
 
             // Admin rows of the archive itself: its series link (an archive that is its own work), declared facts, cover choice,
             // spread pairing. The new copy's own row wins; the link follows the link rules.
