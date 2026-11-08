@@ -5,6 +5,7 @@ using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Reading;
 using com.lifepixer.mangapixer.Server.Features.Covers;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 // 1.50.0 lane F - the Favorites listing, moved unchanged out of CatalogBrowseService.cs into its own partial so the Favorites view
@@ -123,6 +124,8 @@ public sealed partial class CatalogBrowseService
                 DisplayName = n.DisplayName,
                 Availability = n.Availability,
                 PageCount = n.ArchiveItem != null ? n.ArchiveItem.PageCount : null,
+                // 1.52.0 lane R: the viewer's own rating (a stack's card is its folder's node, so it carries the folder's rating).
+                MyRating = _db.UserRatings.Where(r => r.UserId == userId && r.CatalogNodeId == n.Id).Select(r => (int?)r.Score).FirstOrDefault(),
             })
             .ToDictionaryAsync(r => r.InternalId, ct);
 
@@ -143,6 +146,7 @@ public sealed partial class CatalogBrowseService
             PageCount = x.Row.PageCount,
             IsFavorite = x.Entry.StackCount is null || starredNodeIds.Contains(x.Entry.NodeId),
             FavoriteStackCount = x.Entry.StackCount,
+            MyRating = x.Row.MyRating,
         }).ToList();
 
         // Covers - the same resolver as browse/search. Folders (single starred folders AND stacks) and, since 1.50.0, archives too
@@ -367,6 +371,20 @@ public sealed partial class CatalogBrowseService
         if (query.ReadState != BrowseReadStateFilter.All && entries.Count > 0)
             entries = await FilterFavoritesByReadStateAsync(entries, userId, query.ReadState, ct);
 
+        // 1.52.0 lane R: the viewer's own rating of each entry's node (a stack's: its folder's) - for the My rating sort and the Rated /
+        // Not rated filter only; one query over the entries' nodes.
+        if ((order == FavoriteStacks.Order.MyRating || query.Rating != FavoriteRatingFilter.All) && entries.Count > 0)
+        {
+            var entryNodeIds = entries.Select(e => e.NodeId).Distinct().ToList();
+            var scores = await _db.UserRatings.Where(r => r.UserId == userId && entryNodeIds.Contains(r.CatalogNodeId))
+                .ToDictionaryAsync(r => r.CatalogNodeId, r => r.Score, ct);
+            entries = entries.Select(e => scores.TryGetValue(e.NodeId, out var score) ? e with { Rating = score } : e).ToList();
+            if (query.Rating != FavoriteRatingFilter.All)
+                entries = entries.Where(e => (e.Rating is not null) == (query.Rating == FavoriteRatingFilter.Rated)).ToList();
+            if (order == FavoriteStacks.Order.MyRating)
+                FavoriteStacks.Sort(entries, order);
+        }
+
         if (!query.GroupByLibrary)
             return new FavoriteList(entries, visibleLibs, starredNodeIds, null, null);
 
@@ -410,6 +428,9 @@ public sealed partial class CatalogBrowseService
         public required string DisplayName { get; init; }
         public required int Availability { get; init; }
         public int? PageCount { get; init; }
+
+        /// <summary>1.52.0 lane R: the viewer's own rating of the node.</summary>
+        public int? MyRating { get; init; }
     }
 
     /// <summary>
@@ -478,6 +499,7 @@ public sealed partial class CatalogBrowseService
                 $"fn:{N(last.Discriminator)}:{N(last.NodeId)}:{last.SortKey}",
             FavoriteStacks.Order.RecentlyAdded => $"fa:{Date(last.AddedTicks)}:{N(last.Discriminator)}:{N(last.NodeId)}:{last.SortKey}",
             FavoriteStacks.Order.RecentlyRead => $"fr:{Date(last.ReadStamp)}:{N(last.Discriminator)}:{N(last.NodeId)}:{last.SortKey}",
+            FavoriteStacks.Order.MyRating => $"fm:{Date(last.Rating)}:{N(last.Discriminator)}:{N(last.NodeId)}:{last.SortKey}",
             _ => $"fu:{Date(last.UpdatedTicks)}:{N(last.Discriminator)}:{N(last.NodeId)}:{last.SortKey}",
         };
         return libraryRank is null ? inner : $"{GroupedCursorPrefix}{N(last.LibraryId)}:{inner}";
@@ -531,6 +553,7 @@ public sealed partial class CatalogBrowseService
             FavoriteStacks.Order.NameAscending or FavoriteStacks.Order.NameDescending => "fn:",
             FavoriteStacks.Order.RecentlyAdded => "fa:",
             FavoriteStacks.Order.RecentlyRead => "fr:",
+            FavoriteStacks.Order.MyRating => "fm:",
             _ => "fu:",
         };
         if (!cursor.StartsWith(prefix, StringComparison.Ordinal))
@@ -555,8 +578,10 @@ public sealed partial class CatalogBrowseService
             || discriminator is not (0 or 1)
             || !long.TryParse(parts[i + 1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var nodeId))
             return false;
+        if (prefix == "fm:" && ticks is < UserRatingEntity.MinScore or > UserRatingEntity.MaxScore)
+            return false;
         position = new FavoriteStacks.Entry(nodeId, discriminator == 1 ? FavoriteStacks.MinimumStackSize : null, 0, 0, parts[i + 2],
-            AddedTicks: ticks, UpdatedTicks: ticks, ReadStamp: ticks);
+            AddedTicks: ticks, UpdatedTicks: ticks, ReadStamp: ticks, Rating: prefix == "fm:" ? (int?)ticks : null);
         return true;
     }
 
@@ -602,12 +627,16 @@ public sealed record FavoritesQuery(
     BrowseReadStateFilter ReadState = BrowseReadStateFilter.All,
     FavoriteKindFilter Kind = FavoriteKindFilter.All,
     string? LibraryId = null,
-    bool GroupByLibrary = false)
+    bool GroupByLibrary = false,
+    FavoriteRatingFilter Rating = FavoriteRatingFilter.All)
 {
     public const string FavoritedSort = "favorited";
 
     /// <summary>1.51.0 lane F: the wire value of the Recently read sort.</summary>
     public const string RecentlyReadSort = "recentlyRead";
+
+    /// <summary>1.52.0 lane R: the wire value of the My rating sort.</summary>
+    public const string MyRatingSort = CatalogBrowseService.MyRatingSort;
 
     /// <summary>1.51.0 lane F: the wire value of <c>group=library</c>.</summary>
     public const string LibraryGroup = "library";
@@ -622,6 +651,7 @@ public sealed record FavoritesQuery(
         "recentlyAdded" => FavoriteStacks.Order.RecentlyAdded,
         "recentlyUpdated" => FavoriteStacks.Order.RecentlyUpdated,
         RecentlyReadSort => FavoriteStacks.Order.RecentlyRead,
+        MyRatingSort => FavoriteStacks.Order.MyRating,
         _ => FavoriteStacks.Order.Favorited,
     };
 
@@ -630,4 +660,20 @@ public sealed record FavoritesQuery(
         string.Equals(value, "folders", StringComparison.OrdinalIgnoreCase) ? FavoriteKindFilter.Folders
         : string.Equals(value, "archives", StringComparison.OrdinalIgnoreCase) ? FavoriteKindFilter.Archives
         : FavoriteKindFilter.All;
+
+    /// <summary>1.52.0 lane R: parses the wire rating filter (<c>rated</c> / <c>unrated</c>, case-insensitive); anything else is no filter.</summary>
+    public static FavoriteRatingFilter ParseRating(string? value) =>
+        string.Equals(value, "rated", StringComparison.OrdinalIgnoreCase) ? FavoriteRatingFilter.Rated
+        : string.Equals(value, "unrated", StringComparison.OrdinalIgnoreCase) ? FavoriteRatingFilter.NotRated
+        : FavoriteRatingFilter.All;
+}
+
+/// <summary>
+/// The Favorites "Rated / Not rated" filter (1.52.0 lane R): by the viewer's own rating of the entry's node (a stack: its folder's).
+/// </summary>
+public enum FavoriteRatingFilter
+{
+    All,
+    Rated,
+    NotRated,
 }
