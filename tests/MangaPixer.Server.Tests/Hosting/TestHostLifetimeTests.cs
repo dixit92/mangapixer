@@ -18,10 +18,15 @@ public sealed class TestHostLifetimeTests
     {
         var host = await BootServeAndDisposeAsync();
 
-        for (var i = 0; i < 3 && host.IsAlive; i++)
+        // Teardown work still unwinding may hold the host for a moment; a root (a static, a live timer) holds it for good - the
+        // shortest of those, IHttpClientFactory's handler expiry, for 2 minutes. 10 s tells the two apart.
+        for (var i = 0; i < 50 && host.IsAlive; i++)
         {
             GC.Collect();
             GC.WaitForPendingFinalizers();
+            GC.Collect();
+            if (host.IsAlive)
+                await Task.Delay(200);
         }
 
         Assert.False(host.IsAlive, "A disposed MangaPixerWebApplicationFactory is still reachable - something roots the host.");
