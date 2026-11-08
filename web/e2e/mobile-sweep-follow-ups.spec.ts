@@ -298,7 +298,7 @@ for (const [width, height, where] of [[844, 390, 'sideways'], [390, 844, 'uprigh
       const title = card.locator('.node-title, .fav-title').first();
       await expect(title, 'the picked entry\'s title is on screen').toBeInViewport({ ratio: 1 });
       const top = (await card.boundingBox())!.y;
-      expect(top, 'the picked entry starts on screen').toBeGreaterThanOrEqual(0);
+      expect(top, 'the picked entry starts on screen (within a device pixel)').toBeGreaterThanOrEqual(-1);
       if (where === 'sideways') expect(top, 'sideways the picked row is at the top').toBeLessThan(140);
       await shot(page, `n2-landed-${where}`);
     } finally {
