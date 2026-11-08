@@ -93,7 +93,7 @@ public sealed partial class CatalogBrowseService
         // Validate sort — unknown values fall back to "name" (tolerant, like the DTO).
         sort = sort switch
         {
-            "recentlyAdded" or "recentlyRead" or "recentlyUpdated" => sort,
+            "recentlyAdded" or "recentlyRead" or "recentlyUpdated" or MyRatingSort => sort,
             _ => "name",
         };
 
@@ -201,6 +201,7 @@ public sealed partial class CatalogBrowseService
             {
                 "recentlyAdded" => await QueryRecentlyAddedAsync(baseQuery, cursor, pageSize, effectiveDirection, ct),
                 "recentlyRead" => await QueryRecentlyReadAsync(baseQuery, userId, cursor, pageSize, effectiveDirection, ct),
+                MyRatingSort => await QueryMyRatingAsync(baseQuery, userId, cursor, pageSize, ct),
                 "recentlyUpdated" => await QueryRecentlyUpdatedAsync(baseQuery, cursor, pageSize, ct),
                 _ => await QueryNameAsync(baseQuery, cursor, pageSize, effectiveDirection, ct),
             };
@@ -216,6 +217,7 @@ public sealed partial class CatalogBrowseService
             if (sort == "name" && rows.Count > 0 && !string.IsNullOrEmpty(cursor)
                 && !cursor.StartsWith("a:", StringComparison.Ordinal)
                 && !cursor.StartsWith("r:", StringComparison.Ordinal)
+                && !cursor.StartsWith(MyRatingCursorPrefix, StringComparison.Ordinal)
                 && !VolumePaging.IsVolumeCursor(cursor))
             {
                 var firstKey = rows[0].SortKey;
@@ -249,9 +251,12 @@ public sealed partial class CatalogBrowseService
         string? nextCursor = null;
         if (hasMore && rows.Count > 0)
         {
-            nextCursor = sort == "recentlyRead"
-                ? $"r:{RecentlyReadOffset(cursor) + rows.Count}"
-                : EncodeCursor(sort, rows[^1]);
+            nextCursor = sort switch
+            {
+                "recentlyRead" => $"r:{RecentlyReadOffset(cursor) + rows.Count}",
+                MyRatingSort => $"{MyRatingCursorPrefix}{MyRatingOffset(cursor) + rows.Count}",
+                _ => EncodeCursor(sort, rows[^1]),
+            };
         }
 
         // Pinned "Continue" row (1.7.0): the folder's next-to-read descendant archive,
@@ -415,6 +420,7 @@ public sealed partial class CatalogBrowseService
         if (!string.IsNullOrEmpty(cursor)
             && !cursor.StartsWith("a:", StringComparison.Ordinal)
             && !cursor.StartsWith("r:", StringComparison.Ordinal)
+            && !cursor.StartsWith(MyRatingCursorPrefix, StringComparison.Ordinal)
             && !VolumePaging.IsVolumeCursor(cursor))
         {
             if (direction == SortDirection.Ascending)
@@ -1041,18 +1047,25 @@ public sealed partial class CatalogBrowseService
         if (nodes.Count == 0)
             return nodes;
 
-        var pageIds = nodes.Select(n => n.Id).ToList();
-        var favoritedPublicIds = (await _db.Favorites
-            .Where(f => f.UserId == userId)
-            .Join(_db.CatalogNodes, f => f.CatalogNodeId, n => n.Id, (f, n) => n.PublicId)
-            .Where(pid => pageIds.Contains(pid))
-            .ToListAsync(ct)).ToHashSet();
+        // 1.52.0 lane R: the user's own rating of each node rides in the same query (MyRating) - the page's nodes with their star and
+        // score, only the rows that carry either.
+        var pageIds = nodes.Select(n => n.Id).Distinct(StringComparer.Ordinal).ToList();
+        var marks = (await _db.CatalogNodes
+            .Where(n => pageIds.Contains(n.PublicId))
+            .Select(n => new
+            {
+                n.PublicId,
+                Favorite = _db.Favorites.Any(f => f.UserId == userId && f.CatalogNodeId == n.Id),
+                Rating = _db.UserRatings.Where(r => r.UserId == userId && r.CatalogNodeId == n.Id).Select(r => (int?)r.Score).FirstOrDefault(),
+            })
+            .Where(x => x.Favorite || x.Rating != null)
+            .ToListAsync(ct)).ToDictionary(x => x.PublicId, StringComparer.Ordinal);
 
-        if (favoritedPublicIds.Count == 0)
+        if (marks.Count == 0)
             return nodes;
 
         return nodes
-            .Select(n => favoritedPublicIds.Contains(n.Id) ? n with { IsFavorite = true } : n)
+            .Select(n => marks.TryGetValue(n.Id, out var m) ? n with { IsFavorite = m.Favorite, MyRating = m.Rating } : n)
             .ToList();
     }
 
@@ -1077,10 +1090,17 @@ public sealed partial class CatalogBrowseService
         if (!accessibleLibs.Contains(node.LibraryId))
             return null;
 
-        // Single-node favorite flag (1.21.0) — one AnyAsync; lets the reader render its
-        // star for the currently open chapter without a separate round-trip.
-        var isFavorite = await _db.Favorites
-            .AnyAsync(f => f.UserId == userId && f.CatalogNodeId == node.Id, ct);
+        // Single-node favorite flag (1.21.0) — one query; lets the reader render its
+        // star for the currently open chapter without a separate round-trip. 1.52.0 lane R: the user's own rating in the same query.
+        var nodeKey = node.Id;
+        var mine = await _db.CatalogNodes
+            .Where(n => n.Id == nodeKey)
+            .Select(n => new
+            {
+                Favorite = _db.Favorites.Any(f => f.UserId == userId && f.CatalogNodeId == n.Id),
+                Rating = _db.UserRatings.Where(r => r.UserId == userId && r.CatalogNodeId == n.Id).Select(r => (int?)r.Score).FirstOrDefault(),
+            })
+            .FirstOrDefaultAsync(ct);
 
         return new CatalogNodeDto
         {
@@ -1091,7 +1111,8 @@ public sealed partial class CatalogBrowseService
             DisplayName = node.DisplayName,
             Availability = (CatalogNodeAvailability)node.Availability,
             PageCount = node.ArchiveItem?.PageCount,
-            IsFavorite = isFavorite,
+            IsFavorite = mine?.Favorite ?? false,
+            MyRating = mine?.Rating,
         };
     }
 

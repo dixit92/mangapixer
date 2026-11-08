@@ -46,6 +46,7 @@ import { TrackerStateService } from '../trackers/tracker-state.service';
 import { TrackersApiService } from '../trackers/trackers-api.service';
 import { FolderCoverPreferenceActionComponent } from './folder-cover-preference-action.component';
 import { NodeRowComponent, directionShort as directionChip } from '../../shared/node-row/node-row.component';
+import { RatingStarsComponent } from '../ratings/rating-stars.component';
 import { SelectionBarComponent } from '../../shared/selection/selection-bar.component';
 import { NodeSelection } from '../../shared/selection/node-selection';
 import { JumpRailComponent, bucketOwners } from './jump-rail.component';
@@ -95,6 +96,7 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
   imports: [
     CommonModule,
     RouterLink,
+    RatingStarsComponent,
     MatIconModule,
     MatButtonModule,
     MatMenuModule,
@@ -527,6 +529,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
               @if (!selectMode()) {
                 <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" [overlay]="true" [compact]="true" />
                 <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo" [overlay]="true" />
+                <!-- 1.52.0 (lane R): the viewer's own rating, above the star (rated only). -->
+                <app-rating-stars mode="badge" [overlay]="true" [nodeId]="node.id" [rating]="node.myRating" />
               }
 
               <!-- 1.30.0 (reach): a volume file of this series already holds this chapter archive. -->
@@ -1072,6 +1076,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     { value: 'recentlyAdded', label: 'Recently added', icon: 'new_releases', hint: 'New items appear' },
     { value: 'recentlyRead', label: 'Recently read', icon: 'menu_book' },
     { value: 'recentlyUpdated', label: 'Recently updated', icon: 'update', hint: 'Folders with new content' },
+    // 1.52.0 (lane R): your own rating, highest first; not rated last.
+    { value: 'myRating', label: 'My rating', icon: 'star_half', hint: 'Your highest rated first' },
   ];
 
   // Ascending/descending toggle for the active sort (1.5.0). Named "sortDirection"
@@ -1201,7 +1207,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     this.api.getLibraryPreferences().subscribe({
       next: (p) => {
         this.applyStoredView(p);
-        if (p.sort === 'recentlyAdded' || p.sort === 'recentlyRead' || p.sort === 'recentlyUpdated') this.sort.set(p.sort);
+        if (p.sort === 'recentlyAdded' || p.sort === 'recentlyRead' || p.sort === 'recentlyUpdated' || p.sort === 'myRating') this.sort.set(p.sort);
         // Direction is optional/tolerant like the other fields: an unset or
         // unrecognized value falls back to the sort-specific default (matches
         // CatalogController.ParseDirection) so pre-1.5.0 stored preferences
@@ -1692,7 +1698,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
    * gets none).
    */
   private shouldShowJumpRail(): boolean {
-    return this.sort() !== 'recentlyRead';
+    return this.sort() !== 'recentlyRead' && this.sort() !== 'myRating'; // 1.52.0: My rating is offset-paged too - no rail
   }
 
   /** The hover-summary zone id (1.27.0): only items that show the (i), never in select mode. */

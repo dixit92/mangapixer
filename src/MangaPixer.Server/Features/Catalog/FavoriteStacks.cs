@@ -25,6 +25,8 @@ using com.lifepixer.mangapixer.Core.Catalog;
 /// <item>Recently updated: a folder's <c>LatestDescendantAddedAt</c> (browse's rule; null = no archive yet, last), an archive's own
 /// <c>CreatedAt</c>, a stack's newest member's <c>CreatedAt</c>. Newest first.</item>
 /// </list>
+/// <item>My rating (1.52.0 lane R): the viewer's own score of the entry's node - a stack's is its FOLDER's (a stack is a view of the
+/// folder, not a node of its own). Highest first, then by name; not rated last, by name.</item>
 /// <item>Recently read (1.51.0 lane F, owner decision 2): the newest reading activity of the viewer (progress or read mark) - an archive's
 /// own, a starred folder's over its whole subtree (browse's rule), a stack's most recently read STARRED member. Never read = last, by name.
 /// Newest first.</item>
@@ -48,6 +50,9 @@ internal static class FavoriteStacks
 
         /// <summary>1.51.0 lane F: the viewer's newest reading activity, newest first; never read last by name.</summary>
         RecentlyRead,
+
+        /// <summary>1.52.0 lane R: the viewer's own rating, highest first, then by name; not rated last, by name.</summary>
+        MyRating,
     }
 
     /// <summary>
@@ -88,7 +93,8 @@ internal static class FavoriteStacks
         long? UpdatedTicks = null,
         int Kind = (int)CatalogNodeKind.Archive,
         long LibraryId = 0,
-        long? ReadStamp = null)
+        long? ReadStamp = null,
+        int? Rating = null)
     {
         /// <summary>The entry discriminator of the name position: 0 = a single favorite, 1 = a stack (which shares its folder's node).</summary>
         public int Discriminator => StackCount is null ? 0 : 1;
@@ -180,6 +186,7 @@ internal static class FavoriteStacks
         Order.NameAscending or Order.NameDescending => new Entry(entry.NodeId, entry.StackCount, 0, 0, entry.SortKey, LibraryId: entry.LibraryId),
         Order.RecentlyAdded => new Entry(entry.NodeId, entry.StackCount, 0, 0, entry.SortKey, AddedTicks: entry.AddedTicks, LibraryId: entry.LibraryId),
         Order.RecentlyRead => new Entry(entry.NodeId, entry.StackCount, 0, 0, entry.SortKey, LibraryId: entry.LibraryId, ReadStamp: entry.ReadStamp),
+        Order.MyRating => new Entry(entry.NodeId, entry.StackCount, 0, 0, entry.SortKey, LibraryId: entry.LibraryId, Rating: entry.Rating),
         _ => new Entry(entry.NodeId, entry.StackCount, 0, 0, entry.SortKey, UpdatedTicks: entry.UpdatedTicks, LibraryId: entry.LibraryId),
     };
 
@@ -215,6 +222,9 @@ internal static class FavoriteStacks
                 return ThenByName(CompareNewestFirst(a.AddedTicks, b.AddedTicks), a, b);
             case Order.RecentlyRead:
                 return ThenByName(CompareNewestFirst(a.ReadStamp, b.ReadStamp), a, b);
+            case Order.MyRating:
+                // 1.52.0 lane R: highest first, not rated last - the same "largest first, missing last" rule as the date sorts.
+                return ThenByName(CompareNewestFirst(a.Rating, b.Rating), a, b);
             default:
                 return ThenByName(CompareNewestFirst(a.UpdatedTicks, b.UpdatedTicks), a, b);
         }

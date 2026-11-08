@@ -15,6 +15,7 @@ import { Subscription, map } from 'rxjs';
 import { ApiService } from '../../core/api/api.service';
 import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.component';
 import { FavoritesStateService } from '../../core/favorites/favorites-state.service';
+import { RatingSheetService } from '../ratings/rating-sheet.service';
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
 import {
@@ -252,6 +253,9 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                archive (itemId). Its own component styles keep the reader's near-budget
                inline CSS untouched. -->
           <app-star-toggle [nodeId]="itemId()" [favorite]="currentFavorite()" />
+          <!-- 1.52.0 (lane R): Rate - this archive and its folder, in a small sheet. -->
+          <button mat-icon-button (click)="openRating()" matTooltip="Rate" aria-label="Rate this archive or its folder"
+                  aria-haspopup="dialog" data-testid="reader-rate"><mat-icon>star_half</mat-icon></button>
           <!-- Display: layout, image fit (page width in webtoon), direction, page transition (tap to scroll in
                webtoon). Quality: upscaling, enhance quality, page quality, downscale filter. Both pin the chrome
                while open. -->
@@ -848,6 +852,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   private readonly snackBar = inject(MatSnackBar);
   private readonly readState = inject(ReadStateService);
   private readonly favorites = inject(FavoritesStateService);
+  private readonly ratingSheet = inject(RatingSheetService); // 1.52.0 lane R: the Rate sheet
   private readonly bottomSheet = inject(MatBottomSheet);
   private readonly breakpoints = inject(BreakpointObserver);
   private readonly metadataApi = inject(MetadataApiService);
@@ -1834,6 +1839,12 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
    * which works the same way: flip optimistically, persist, revert on error. The
    * service announces the change, so the desktop star follows.
    */
+  /** 1.52.0 (lane R): the Rate sheet (this archive and its folder); the chrome stays pinned while it is open. */
+  openRating(): void {
+    this.menuOpen.set(true);
+    void this.ratingSheet.open(this.itemId()).then((closed) => closed.subscribe(() => this.onMenuClosed()));
+  }
+
   toggleFavorite(): void {
     const itemId = this.itemId();
     const next = !this.currentFavorite();

@@ -92,6 +92,7 @@ public sealed class MetadataCarryOverService
             .Where(n => n.Kind == folder && n.Availability == tombstoned && libraryIds.Contains(n.LibraryId))
             .Where(n => _db.Favorites.Any(f => f.CatalogNodeId == n.Id)
                 || _db.TrackerNodeOverrides.Any(o => o.NodeId == n.Id)
+                || _db.UserRatings.Any(r => r.CatalogNodeId == n.Id) // 1.52.0 lane R
                 || _db.FolderViewSettings.Any(v => v.NodeId == n.Id)
                 || _db.NodeCoverChoices.Any(c => c.NodeId == n.Id))
             .Select(n => n.Id);
@@ -322,6 +323,8 @@ public sealed class MetadataCarryOverService
             .ExecuteUpdateAsync(u => u.SetProperty(f => f.CatalogNodeId, toNodeId), ct) > 0;
         // 1.43.0: each user's tracker sync switch follows the same way.
         var trackerSwitches = await Trackers.TrackerNodeOverrideMoves.MoveAsync(_db, fromNodeId, toNodeId, ct) > 0;
+        // 1.52.0 lane R: each user's rating follows the same way (a moved rating counts as a favourite-like row).
+        favorites |= await Ratings.RatingMoves.MoveAsync(_db, fromNodeId, toNodeId, ct) > 0;
         await tx.CommitAsync(ct);
 
         if (droppedRecord is { } recordId)

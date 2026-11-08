@@ -154,7 +154,7 @@ describe('FavoritesComponent - the Favorites view (1.50.0)', () => {
       expect(getFavorites).toHaveBeenCalledWith(null, 50, expect.objectContaining({ sort: 'recentlyAdded', direction: 'desc' }));
     });
 
-    it('the View menu lists the six sorts (1.51.0: Recently read) and marks the current one', async () => {
+    it('the View menu lists the seven sorts (1.51.0: Recently read; 1.52.0: My rating) and marks the current one', async () => {
       const { el, fixture } = setup();
       (el.querySelector('[data-testid="favorites-view-button"]') as HTMLButtonElement).click();
       fixture.detectChanges();
@@ -162,7 +162,7 @@ describe('FavoritesComponent - the Favorites view (1.50.0)', () => {
       const items = Array.from(document.querySelectorAll('[data-testid^="favorites-sort-"]'));
       expect(items.map((i) => i.getAttribute('data-testid'))).toEqual([
         'favorites-sort-favorited', 'favorites-sort-name', 'favorites-sort-name-desc', 'favorites-sort-recentlyAdded',
-        'favorites-sort-recentlyUpdated', 'favorites-sort-recentlyRead',
+        'favorites-sort-recentlyUpdated', 'favorites-sort-recentlyRead', 'favorites-sort-myRating',
       ]);
       expect(items[0].getAttribute('aria-checked')).toBe('true');
       expect(items[1].getAttribute('aria-checked')).toBe('false');
@@ -187,6 +187,24 @@ describe('FavoritesComponent - the Favorites view (1.50.0)', () => {
       expect(cmp.filterLabel()).toBe('Filter');
       // Filters are never stored.
       expect(Object.keys(localStorage).filter((k) => k.includes('filter') || k.includes('read'))).toEqual([]);
+    });
+
+    it('1.52.0: Rated / Not rated reloads with the rating filter, counts as a filter, and Clear filters drops it', async () => {
+      const { cmp, getFavorites, el, fixture } = setup();
+      (el.querySelector('[data-testid="favorites-filter-button"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      const ids = Array.from(document.querySelectorAll('[data-testid^="favorites-rating-"]')).map((i) => i.getAttribute('data-testid'));
+      expect(ids).toEqual(['favorites-rating-all', 'favorites-rating-rated', 'favorites-rating-unrated']);
+      cmp.setRated('rated');
+      expect(getFavorites).toHaveBeenLastCalledWith(null, 50, expect.objectContaining({ rating: 'rated' }));
+      expect(cmp.filterActive()).toBe(true);
+      expect(cmp.filterLabel()).toBe('Filtered');
+      cmp.setRated('unrated');
+      expect(getFavorites).toHaveBeenLastCalledWith(null, 50, expect.objectContaining({ rating: 'unrated' }));
+      cmp.clearFilters();
+      expect(getFavorites.mock.lastCall![2]).not.toHaveProperty('rating');
+      expect(cmp.filterActive()).toBe(false);
     });
 
     it('the Filter menu offers the libraries the viewer sees (only when there are two or more)', async () => {

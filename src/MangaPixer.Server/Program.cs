@@ -242,6 +242,7 @@ public sealed partial class Program
             builder.Services.AddScoped<CollectionStackService>();
             builder.Services.AddScoped<ReadingStateService>();
             builder.Services.AddScoped<FavoritesService>();
+            builder.Services.AddScoped<Features.Ratings.RatingsService>(); // 1.52.0 lane R: ratings writes
             builder.Services.AddScoped<SpreadLayoutService>();
             builder.Services.AddScoped<CatalogIdResolver>();
             builder.Services.AddScoped<ReaderModeResolver>();

@@ -19,6 +19,7 @@ import { InfoPanelDto } from './info/info-types';
 import { SeriesMissingLineComponent } from './missing/series-missing-line.component';
 import { mayHaveMissingLine } from './missing/missing-labels';
 import { SeriesRefreshCadenceComponent } from './series-refresh-cadence/series-refresh-cadence.component';
+import { NodeRatingComponent } from '../ratings/node-rating.component';
 
 /**
  * The series page `/series/:nodeId` (1.24.0): the canonical, bookmarkable home of a
@@ -34,7 +35,7 @@ import { SeriesRefreshCadenceComponent } from './series-refresh-cadence/series-r
 @Component({
   selector: 'app-series-page',
   standalone: true,
-  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressSpinnerModule, SeriesInfoSummaryComponent, SeriesAdminActionsComponent, WrongSeriesFlagComponent, SeriesMissingLineComponent, SeriesRefreshCadenceComponent, InfoTagsComponent],
+  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressSpinnerModule, SeriesInfoSummaryComponent, SeriesAdminActionsComponent, WrongSeriesFlagComponent, SeriesMissingLineComponent, SeriesRefreshCadenceComponent, InfoTagsComponent, NodeRatingComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page" data-testid="series-page">
@@ -49,6 +50,8 @@ import { SeriesRefreshCadenceComponent } from './series-refresh-cadence/series-r
 
         <header class="hero">
           <app-series-info-summary [info]="i" [showDescription]="false" [shortAltTitles]="true" [tagsPanel]="tags()" />
+          <!-- 1.52.0 (lane R): the viewer's own rating of the series (its anchor node). -->
+          <app-node-rating [nodeId]="i.anchorNodeId" [name]="i.title || i.anchorDisplayName" />
           <!-- 1.45.0: the Tags block, as in the Info overlay. -->
           <app-info-tags [nodeId]="i.nodeId" (loaded)="tags.set($event)" />
           <div class="hero-actions">

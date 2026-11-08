@@ -323,6 +323,8 @@ public sealed class CatalogController : ControllerBase
     /// a stack's most recently read starred member, never read last by name); <paramref name="group"/> = <c>library</c>: library first
     /// (the library picker's order), then the sort, with <c>favoriteGroups</c> (each listed library's count). A cursor of another sort or
     /// grouping is the first page.
+    /// 1.52.0 (lane R): <c>sort=myRating</c> (the viewer's own rating, highest first, then name; not rated last; a stack by its folder's
+    /// rating) and <paramref name="rating"/> = <c>rated</c> / <c>unrated</c> (the viewer's own rating of the entry's node).
     /// </remarks>
     [HttpGet("favorites")]
     public async Task<IActionResult> GetFavorites(
@@ -335,12 +337,13 @@ public sealed class CatalogController : ControllerBase
         [FromQuery] string? libraryId = null,
         [FromQuery] string? before = null,
         [FromQuery] string? group = null,
+        [FromQuery] string? rating = null,
         CancellationToken ct = default)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
-        var query = FavoritesQueryOf(sort, direction, readState, kind, libraryId, group);
+        var query = FavoritesQueryOf(sort, direction, readState, kind, libraryId, group, rating);
         var result = await _browseService.ListFavoritesAsync(
             userId.Value, query, cursor, before, pageSize, _incognito.IsIncognito, ct);
         return Ok(result);
@@ -361,24 +364,27 @@ public sealed class CatalogController : ControllerBase
         [FromQuery] string? kind = null,
         [FromQuery] string? libraryId = null,
         [FromQuery] string? group = null,
+        [FromQuery] string? rating = null,
         CancellationToken ct = default)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
-        var query = FavoritesQueryOf("name", direction, readState, kind, libraryId, group);
+        var query = FavoritesQueryOf("name", direction, readState, kind, libraryId, group, rating);
         return Ok(await _browseService.GetFavoritesJumpIndexAsync(userId.Value, query, _incognito.IsIncognito, ct));
     }
 
-    /// <summary>The Favorites view's query from its wire params (1.50.0; 1.51.0: <c>group</c>).</summary>
-    private static FavoritesQuery FavoritesQueryOf(string? sort, string? direction, string? readState, string? kind, string? libraryId, string? group) =>
+    /// <summary>The Favorites view's query from its wire params (1.50.0; 1.51.0: <c>group</c>; 1.52.0: <c>rating</c> = rated / unrated).</summary>
+    private static FavoritesQuery FavoritesQueryOf(string? sort, string? direction, string? readState, string? kind, string? libraryId, string? group,
+        string? rating = null) =>
         new(
             Sort: sort ?? FavoritesQuery.FavoritedSort,
             Direction: ParseDirection(direction, null, "name"),
             ReadState: ParseReadState(readState),
             Kind: FavoritesQuery.ParseKind(kind),
             LibraryId: string.IsNullOrWhiteSpace(libraryId) ? null : libraryId,
-            GroupByLibrary: string.Equals(group, FavoritesQuery.LibraryGroup, StringComparison.OrdinalIgnoreCase));
+            GroupByLibrary: string.Equals(group, FavoritesQuery.LibraryGroup, StringComparison.OrdinalIgnoreCase),
+            Rating: FavoritesQuery.ParseRating(rating));
 
     /// <summary>
     /// Catalog search. 1.45.0 (phase K4): keyset-paged over HTTP (<paramref name="cursor"/> = the previous page's <c>nextCursor</c>;

@@ -101,6 +101,11 @@ export interface CatalogNodeDto {
    */
   isFavorite?: boolean;
   /**
+   * 1.52.0 (ratings): the current user's own rating of this node, 1-10, shown as 5 stars with halves (score / 2). Absent when not
+   * rated. Per user and private. Filled by browse, search, node lookup and the favorites list (a stack: its folder's rating).
+   */
+  myRating?: number | null;
+  /**
    * 1.50.0 (archive context line): the name of the folder an ARCHIVE belongs to - its nearest ancestor that is not a plain
    * Volumes / Chapters / Extras kind folder - so a found `Vol. 012` says which series it is. Name only, never a path. Null for
    * folders and archives in a library root; filled on search results, Continue reading and Favorites, not in browse.
@@ -578,7 +583,8 @@ export type LibraryViewMode = 'card' | 'list';
  * only so the stored preference round-trips unchanged for other/older frontends.
  */
 export type LibraryGridDensity = 'comfortable' | 'compact';
-export type LibrarySortOrder = 'name' | 'recentlyAdded' | 'recentlyRead' | 'recentlyUpdated';
+/** 1.52.0: `myRating` - the viewer's own rating, highest first, then name; not rated last. */
+export type LibrarySortOrder = 'name' | 'recentlyAdded' | 'recentlyRead' | 'recentlyUpdated' | 'myRating';
 
 /**
  * Browse sort direction (1.5.0). Optional/tolerant like the other library-view
@@ -606,8 +612,10 @@ export type LibraryReadStateFilter = 'all' | 'reading' | 'read' | 'unread';
  */
 export interface FavoritesQuery {
   /** 1.51.0: `recentlyRead` (the viewer's newest reading activity; never read last by name). */
-  sort?: 'favorited' | 'name' | 'recentlyAdded' | 'recentlyUpdated' | 'recentlyRead';
+  sort?: 'favorited' | 'name' | 'recentlyAdded' | 'recentlyUpdated' | 'recentlyRead' | 'myRating';
   direction?: 'asc' | 'desc';
+  /** 1.52.0: only the entries the viewer rated (`rated`) or did not rate (`unrated`). */
+  rating?: 'all' | 'rated' | 'unrated';
   readState?: LibraryReadStateFilter;
   kind?: 'all' | 'folders' | 'archives';
   libraryId?: string | null;
@@ -615,6 +623,11 @@ export interface FavoritesQuery {
   groupByLibrary?: boolean;
   /** 1.51.0: a page's `prevCursor` - the page just above it (backward paging after a jump). */
   before?: string | null;
+}
+
+/** Body of `PUT nodes/{nodeId}/rating` (1.52.0): the current user's score, 1-10 (half a star to five stars). */
+export interface SetRatingRequest {
+  score: number;
 }
 
 /** Per-user library browse presentation preferences (1.2.0). Strings for tolerance. */

@@ -2025,11 +2025,11 @@ describe('LibraryBrowseComponent browse visual polish (1.17.0)', () => {
     return { fixture, comp: fixture.componentInstance, el: fixture.nativeElement as HTMLElement };
   }
 
-  it('gives all four sort options a distinct icon, with at most one clock-style glyph', () => {
+  it('gives all five sort options a distinct icon (1.52.0: My rating), with at most one clock-style glyph', () => {
     const { comp } = setup('card');
     const icons = comp.sortOptions.map((o) => o.icon);
-    expect(icons).toHaveLength(4);
-    expect(new Set(icons).size).toBe(4);
+    expect(icons).toHaveLength(5);
+    expect(new Set(icons).size).toBe(5);
     expect(comp.sortOptions.find((o) => o.value === 'name')!.icon).toBe('sort_by_alpha');
     const clockFaces = ['schedule', 'history', 'update', 'access_time', 'watch_later', 'restore', 'query_builder'];
     expect(icons.filter((i) => clockFaces.includes(i)).length).toBeLessThanOrEqual(1);

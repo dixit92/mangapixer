@@ -14,6 +14,7 @@ import { OfficialReleaseBadgeComponent } from '../volume-stack/official-release-
 import { AlsoInVolumeBadgeComponent } from '../volume-stack/also-in-volume-badge.component';
 import { TrackerReadMarkComponent } from '../../features/trackers/tracker-read-mark.component';
 import { ContextLineComponent } from '../context-line/context-line.component';
+import { RatingStarsComponent } from '../../features/ratings/rating-stars.component';
 
 /** Short label of a folder's direction override chip ("LTR", "RTL", "Vertical", "Spread"). */
 export function directionShort(mode: ReaderMode): string {
@@ -42,7 +43,7 @@ export function directionShort(mode: ReaderMode): string {
   imports: [
     RouterLink, MatIconModule, MatTooltipModule, CoverImageDirective, FolderRollupBadgeComponent, SeriesInfoHoverDirective,
     InfoToggleComponent, StarToggleComponent, VolumeIncompleteBadgeComponent, OfficialReleaseBadgeComponent, AlsoInVolumeBadgeComponent,
-    TrackerReadMarkComponent, ContextLineComponent,
+    TrackerReadMarkComponent, ContextLineComponent, RatingStarsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -105,6 +106,8 @@ export function directionShort(mode: ReaderMode): string {
                                [appSeriesInfoHover]="hoverId()" [hoverAnchor]="cardEl" />
             }
           }
+          <!-- 1.52.0 (lane R): the "Rating" column - the viewer's own rating, rated only. -->
+          <app-rating-stars mode="badge" [nodeId]="node().id" [rating]="node().myRating" />
           @if (node().isRead) {
             <span class="badge read" matTooltip="Read">✓ Read</span>
           } @else if (node().readingState === 'InProgress') {
