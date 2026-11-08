@@ -17,6 +17,7 @@ import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.compon
 import { ContextLineComponent } from '../../shared/context-line/context-line.component';
 import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.component';
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
+import { TOUCH_TARGET_CSS } from '../../shared/touch-targets';
 import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/folder-rollup-badge.component';
 import { MetadataStateService } from '../metadata/metadata-state.service';
 import { CatalogNodeDto, FacetBucketDto, FacetChipDto, LibraryReadStateFilter, SearchResultsDto, SeriesMatchDto } from '../../core/api/api-types';
@@ -297,7 +298,7 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
               </div>
             }
             @if (work.locationCount > 1) {
-              <button type="button" class="locations-toggle" (click)="toggleLocations(workKey(work, $index))"
+              <button type="button" class="locations-toggle touch-target" (click)="toggleLocations(workKey(work, $index))"
                       [attr.aria-expanded]="expanded().has(workKey(work, $index))" data-testid="work-locations-toggle">
                 {{ work.locationCount }} locations
                 <mat-icon>{{ expanded().has(workKey(work, $index)) ? 'expand_less' : 'expand_more' }}</mat-icon>
@@ -393,7 +394,7 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
       </a>
     </ng-template>
   `,
-  styles: [`
+  styles: [TOUCH_TARGET_CSS, `
     .search-wrap { position: relative; max-width: 648px; min-width: 0; }
     .search-row { display: flex; align-items: flex-start; gap: 4px; max-width: 648px; min-width: 0; }
     .search-field { flex: 1 1 auto; width: 100%; max-width: 600px; min-width: 0; }

@@ -20,3 +20,14 @@ export const TOUCH_LINK_CSS = `
     .touch-link { display: inline-flex; align-items: center; min-height: 40px; min-width: 40px; box-sizing: border-box; }
   }
 `;
+
+/**
+ * A compact control that must still be a 40 x 40 touch target (1.52.0, mobile sweep m4 - m6): add `class="touch-target"`. On a touch
+ * screen its box grows to at least 40 x 40 (its own padding and content stay); a mouse keeps the compact size. For chips, chip
+ * buttons, small text buttons and menu items of 32 - 39 px.
+ */
+export const TOUCH_TARGET_CSS = `
+  @media (pointer: coarse) {
+    .touch-target { min-height: 40px; min-width: 40px; box-sizing: border-box; }
+  }
+`;
