@@ -268,10 +268,8 @@ test.describe('phone, touch', () => {
   });
 });
 
-test.describe('phone held sideways, touch', () => {
-  test.use({ ...TOUCH, viewport: { width: 844, height: 390 } });
-
-  test('N2: a Favorites letter jump that reloads the list lands with the picked row at the top, its titles on screen', async ({ browser, request }) => {
+for (const [width, height, where] of [[844, 390, 'sideways'], [390, 844, 'upright']] as const) {
+  test(`N2 (${where}, ${width} x ${height}): a Favorites letter jump that reloads the list lands with the picked row on screen, titles in view`, async ({ browser, request }) => {
     test.setTimeout(300_000);
     expect((await request.post('/api/v1/auth/login', { data: { username: ADMIN_USER, password: ADMIN_PASSWORD } })).ok()).toBeTruthy();
     const railId = await railLibrary(request);
@@ -283,7 +281,7 @@ test.describe('phone held sideways, touch', () => {
     }
     await request.post('/api/v1/auth/logout', { headers: await csrf(request) });
 
-    const page = await device(browser, username, PASSWORD, { width: 844, height: 390 }, true, { 'mangapixer-favorites-sort': 'name' });
+    const page = await device(browser, username, PASSWORD, { width, height }, true, { 'mangapixer-favorites-sort': 'name' });
     try {
       await page.goto('/favorites');
       await expect(page.locator('.fav-card').first()).toBeVisible();
@@ -295,16 +293,19 @@ test.describe('phone held sideways, touch', () => {
       const card = page.locator('.fav-card', { hasText: `${WORDS[18]} Ravelin 1` });
       await expect(card).toBeInViewport();
       await settle(page);
-      // The picked row at the top of the screen and its title wholly on screen (it sat at y 272 of 390, title below the edge).
+      // The picked entry wholly on screen, its title too (sideways it sat at y 272 of 390, title below the edge; after the first fix
+      // it ended 25 px above the top upright, where the list cannot scroll it higher).
       const title = card.locator('.node-title, .fav-title').first();
       await expect(title, 'the picked entry\'s title is on screen').toBeInViewport({ ratio: 1 });
-      expect((await card.boundingBox())!.y, 'the picked row starts near the top').toBeLessThan(140);
-      await shot(page, 'n2-landed');
+      const top = (await card.boundingBox())!.y;
+      expect(top, 'the picked entry starts on screen').toBeGreaterThanOrEqual(0);
+      if (where === 'sideways') expect(top, 'sideways the picked row is at the top').toBeLessThan(140);
+      await shot(page, `n2-landed-${where}`);
     } finally {
       await page.context().close();
     }
   });
-});
+}
 
 test.describe('phone width, mouse', () => {
   test.use({ viewport: { width: 360, height: 780 } });
