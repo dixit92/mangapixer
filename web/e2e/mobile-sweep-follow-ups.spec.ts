@@ -147,9 +147,9 @@ async function serveInfoChips(page: Page, folderId: string): Promise<void> {
   });
 }
 
-/** Whether a tap at the element's centre reaches it. */
+/** Whether a tap at the element's centre reaches it (for a link that wraps, the centre of its first line). */
 const tapHits = (locator: Locator) => locator.evaluate((el) => {
-  const r = el.getBoundingClientRect();
+  const r = el.getClientRects()[0] ?? el.getBoundingClientRect();
   const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
   return !!hit && (hit === el || el.contains(hit));
 });

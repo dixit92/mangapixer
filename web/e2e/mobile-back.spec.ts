@@ -216,6 +216,13 @@ test.describe('desktop, mouse', () => {
     await login(page);
     await routeFakeItem(page, { id: 'e2eback1', pageCount: 4, pageWidth: 300, pageHeight: 420, readerMode: 'PagedLtr' });
     await arrive(page, '/settings', '/reader/e2eback1');
+    // A new device opens the reader with its help shown once: close it first.
+    const helpOverlay = page.locator('.help-overlay');
+    await page.waitForTimeout(500);
+    if (await helpOverlay.isVisible()) {
+      await page.keyboard.press('Escape');
+      await expect(helpOverlay).toHaveCount(0);
+    }
     const display = page.getByRole('button', { name: 'Display', exact: true });
     // Back with the Display menu open closes it and stays in the reader.
     await display.click();
@@ -229,7 +236,7 @@ test.describe('desktop, mouse', () => {
     await page.keyboard.press('Escape');
     await expect(menuPanel(page)).toHaveCount(0);
     await page.getByRole('button', { name: 'Reading help' }).click();
-    await expect(page.locator('.help-overlay')).toBeVisible();
+    await expect(helpOverlay).toBeVisible();
     await back(page);
     await expect.poll(() => path(page), { message: 'Back from the reader with its help open' }).toMatch(/^\/settings/);
   });
