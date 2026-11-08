@@ -364,7 +364,7 @@ test.describe('access and errors', () => {
     await page.goto(`/series/${folder.id}`);
     expect((await info).ok()).toBeTruthy();
     await settle(page);
-    await expect(page.locator('h1').first()).toBeVisible();
+    await expect(page.getByTestId('series-page').locator('header.hero')).toBeVisible();
     expect(asked, 'no request for a Missing line the server can only answer 404').toEqual([]);
   });
 });
