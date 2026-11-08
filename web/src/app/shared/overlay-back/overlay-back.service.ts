@@ -4,26 +4,28 @@ import { Injectable, InjectionToken, inject } from '@angular/core';
  * Back closes an open surface, and only that (1.52.0, mobile sweep m1).
  *
  * A phone's back gesture and a browser's Back button step through the session history; with a menu, a bottom sheet, a dialog or a
- * select's list open they used to leave the page as well. This service gives every open surface ("surface": anything the overlay
- * layer reports, see `overlay-back.providers.ts`) one history entry of its own - same URL, the router's state plus a depth mark - so
- * Back lands on the entry below, and the service closes the topmost surface instead of letting the router navigate. Nested surfaces
- * (a menu opened from a sheet) take one Back each.
+ * select's list open they used to leave the page as well. This service gives every open surface ("surface": what the overlay layer
+ * reports, see `overlay-back.providers.ts`, and the inline confirm panels) a history entry of its own - same URL, the router's state
+ * plus a page key and a depth mark - so Back lands on the entry below, and the service closes the topmost surface instead of letting
+ * the router navigate. Nested surfaces (a menu opened from a sheet) take one Back each. Every `popstate` the service handles is stopped
+ * before the router's listener (a capturing listener on `window`), so the router, Material's close-on-navigation and the pages' own
+ * Back handling (Favorites' route reuse, the reader's in-app Back, the tracking list's memory) never see one.
  *
- * The bookkeeping, in one sentence: the browser holds `entries` marked entries above the page's own entry, and the service keeps
- * `entries` equal to the number of open surfaces. A surface closed any other way (Escape, a tap outside, a choice) leaves one entry
- * too many, so the service steps back over it (`history.go`) and swallows that `popstate`; nobody else sees it. Every `popstate` of
- * its own is stopped before the router's listener (a capturing listener on `window`), so the router, Material's close-on-navigation
- * and the pages' own Back handling (Favorites' route reuse, the reader's in-app Back, the tracking list's memory) never see one.
+ * The service never steps through history on its own while the page may be navigating: a surface closed another way (Escape, a tap
+ * outside, a choice) leaves its entry in place, SPENT - the next surface reuses it, and a Back that finds nothing open goes on past
+ * the page's own entries to the page before (one Back, as the user meant). So a reload or a full navigation right after a close never
+ * races a history step of ours. The router never writes on top of a marked entry: its push (through `OverlayBackLocationStrategy`)
+ * REPLACES the top marked entry, so the old page keeps exactly one entry a Back can land on; a replace (a query parameter) rewrites the
+ * top entry and keeps its mark. `Location.back()` / `historyGo` (the reader's in-app Back) step over the marked entries to the real
+ * previous page.
  *
- * The router never writes a URL on top of a marked entry: its push / replace (through `OverlayBackLocationStrategy`) first steps back
- * to the page's own entry, then writes, then marks the surfaces still open again. So a choice that navigates (a menu item, a chip in
- * the Info sheet, a dialog that opens a page on close) leaves exactly one entry for the old page - one Back returns to it. The app's
- * own Back (`Location.back()`, the reader's exit) steps over the marked entries to the real previous page.
- *
- * Only history is touched; nothing is stored. A reload on a marked entry keeps the entry (its mark is cleared) - the next Back then
- * reloads the same page once.
+ * Only history is touched; nothing is stored. Marked entries left behind by a reload or by a navigation away (a Back later lands on
+ * them) are recognised by their page key: the router gets the landing as any Back, and the service then steps down to that page's own
+ * entry.
  */
 export const OVERLAY_BACK_MARK = 'mpOverlayBack';
+/** The page visit a marked entry belongs to (also put on the page's own entry when its first surface opens). */
+export const OVERLAY_BACK_PAGE = 'mpOverlayPage';
 
 /** An open surface Back can close. `close()` answers false when the surface refuses (a dialog that cannot be dismissed). */
 export interface BackSurface {
@@ -62,33 +64,44 @@ export const OVERLAY_BACK_HISTORY = new InjectionToken<OverlayBackHistory>('OVER
 /** How long a step of ours may take before the service stops waiting for its `popstate` (a step the browser did not take). */
 export const OVERLAY_BACK_STEP_TIMEOUT_MS = 1000;
 
-/** The depth mark of a history state: 1 for the first surface's entry, 2 for the next; 0 for an entry that is not ours. */
+type State = Record<string, unknown>;
+
+/** The depth mark of a history state: 1 for the first surface's entry, 2 for the next; 0 for any other entry. */
 export function overlayBackDepth(state: unknown): number {
-  const v = state && typeof state === 'object' ? (state as Record<string, unknown>)[OVERLAY_BACK_MARK] : undefined;
+  const v = state && typeof state === 'object' ? (state as State)[OVERLAY_BACK_MARK] : undefined;
   return typeof v === 'number' && v > 0 ? v : 0;
 }
 
-/** `state` without the depth mark (the router's own state, as it wrote it). */
-function unmarked(state: unknown): Record<string, unknown> {
+function pageOf(state: unknown): string | null {
+  const v = state && typeof state === 'object' ? (state as State)[OVERLAY_BACK_PAGE] : undefined;
+  return typeof v === 'string' ? v : null;
+}
+
+/** `state` without the service's fields (the router's own state, as it wrote it). */
+function unmarked(state: unknown): State {
   if (!state || typeof state !== 'object') return {};
-  const copy = { ...(state as Record<string, unknown>) };
+  const copy = { ...(state as State) };
   delete copy[OVERLAY_BACK_MARK];
+  delete copy[OVERLAY_BACK_PAGE];
   return copy;
 }
+
+let visits = 0;
 
 @Injectable({ providedIn: 'root' })
 export class OverlayBackService {
   private readonly history = inject(OVERLAY_BACK_HISTORY);
 
-  /** Open surfaces, oldest first (the last one is on top). */
+  /** Open surfaces, oldest first (the last one is on top). Each owns one of the marked entries; the ones above them are spent. */
   private readonly open: BackSurface[] = [];
-  /** Marked entries above the page's own entry, as the browser holds them once a step of ours has landed. */
+  /** Marked entries above the page's own entry; the browser stands on the top one (or on the page's entry when 0). */
   private entries = 0;
-  /** The URL of the page the marked entries belong to. */
-  private baseHref = '';
-  /** The URL the page was last known at (router writes and `popstate`s that reached the router). */
-  private here = '';
-  /** A step of ours in flight: `drop` (its `popstate` is swallowed) or `leave` (the app's own Back; the router gets it). */
+  /** This page visit's key while it has marked entries (null otherwise). */
+  private page: string | null = null;
+  /** What the router last wrote for this page: the address and state every entry of the page gets. */
+  private pageUrl = '';
+  private pageState: State = {};
+  /** A step of ours in flight: `drop` (its `popstate` is swallowed) or `leave` (the router gets it). */
   private pending: 'drop' | 'leave' | null = null;
   private pendingTimer: ReturnType<typeof setTimeout> | null = null;
   /** Work that waits for the step in flight to land. */
@@ -97,46 +110,53 @@ export class OverlayBackService {
 
   constructor() {
     this.history.listen((event) => this.onPopState(event));
-    this.here = this.history.href;
-    // A reload on a marked entry: the surfaces are gone, so is the mark (the entries below belong to the old document).
-    if (overlayBackDepth(this.history.state) > 0) this.history.replaceState(unmarked(this.history.state), this.history.href);
+    // A reload (or a restored tab) on an entry of ours: its surfaces are gone, so are the marks.
+    const state = this.history.state;
+    if (overlayBackDepth(state) > 0 || pageOf(state) !== null) this.history.replaceState(unmarked(state), this.history.href);
   }
 
-  /** How many marked entries the browser holds (for tests and diagnostics). */
+  /** How many marked entries the page holds (for tests and diagnostics). */
   get depth(): number {
     return this.entries;
   }
 
-  /** A surface opened: it gets an entry of its own. */
+  /** A surface opened: it gets an entry of its own (a spent one when there is one). */
   opened(surface: BackSurface): void {
     if (this.open.includes(surface)) return;
     this.open.push(surface);
     this.schedule();
   }
 
-  /** A surface closed (by any means): its entry goes, unless Back already took it. */
+  /** A surface closed (by any means): its entry stays, spent, for the next surface or for a Back that leaves. */
   closed(surface: BackSurface): void {
     const i = this.open.indexOf(surface);
-    if (i < 0) return;
-    this.open.splice(i, 1);
-    this.schedule();
+    if (i >= 0) this.open.splice(i, 1);
   }
 
-  /** The router writes a URL (`push` or `replace`): first back to the page's own entry, then the write, then the open surfaces' entries. */
-  routerWrite(write: () => void): void {
+  /**
+   * The router adds an entry (`push`). With marked entries the top one is REPLACED by the new page (the old page keeps one entry
+   * below it); the surfaces still open go with the old page.
+   */
+  routerPush(push: () => void, replace: () => void): void {
     this.whenIdle(() => {
       if (this.entries === 0) {
-        write();
-        this.here = this.history.href;
-        return;
+        push();
+      } else {
+        replace();
+        this.entries = 0;
+        this.open.length = 0;
+        this.page = null;
       }
-      const d = this.entries;
-      this.entries = 0;
-      this.step(-d, 'drop', () => {
-        write();
-        this.here = this.history.href;
-        this.reconcile();
-      });
+      this.remember();
+    });
+  }
+
+  /** The router rewrites the current entry (`replace`): with marked entries the top one keeps its mark, with the new address. */
+  routerReplace(replace: () => void): void {
+    this.whenIdle(() => {
+      replace();
+      this.remember();
+      if (this.entries > 0) this.history.replaceState(this.mark(this.entries), this.pageUrl);
     });
   }
 
@@ -148,8 +168,7 @@ export class OverlayBackService {
         return;
       }
       const d = delta - this.entries;
-      this.entries = 0;
-      this.open.length = 0; // the router leaves the page; its surfaces close with it
+      this.forget();
       this.pending = 'leave';
       this.armTimer();
       go(d);
@@ -161,18 +180,25 @@ export class OverlayBackService {
       const kind = this.pending;
       this.clearPending();
       if (kind === 'drop') event.stopImmediatePropagation();
-      else this.here = this.history.href;
       this.drain();
       return;
     }
-    const href = this.history.href;
     const depth = overlayBackDepth(event.state);
-    if (this.entries > 0 && href === this.baseHref) {
-      if (depth < this.entries) {
-        // Back (one or more steps) on this page: close as many surfaces, top first.
-        event.stopImmediatePropagation();
-        let n = this.entries - depth;
-        this.entries = depth;
+    if (this.page !== null && pageOf(event.state) === this.page) {
+      // An entry of this page: nothing reaches the router.
+      event.stopImmediatePropagation();
+      if (depth > this.entries) {
+        // Forward onto an entry a surface closed by Back left behind: back down, unseen.
+        this.step(this.entries - depth, 'drop');
+        return;
+      }
+      const moved = this.entries - depth;
+      this.entries = depth;
+      // A router replace rewrote only the top entry: the one landed on gets the page's current address and state.
+      if (this.history.href !== this.pageUrl) this.history.replaceState(this.mark(depth), this.pageUrl);
+      if (this.open.length > 0) {
+        // Back: the top surface closes (one per step, at least one - a spent entry above it does not swallow the Back).
+        let n = Math.max(1, Math.min(moved, this.open.length));
         while (n-- > 0 && this.open.length) {
           const top = this.open.pop()!;
           if (!top.close()) {
@@ -183,27 +209,20 @@ export class OverlayBackService {
         this.schedule();
         return;
       }
-      if (depth > this.entries) {
-        // Forward onto an entry a surface closed by Back left behind: step back down.
-        event.stopImmediatePropagation();
-        this.step(this.entries - depth, 'drop');
-        return;
-      }
-    }
-    if (depth > 0 && this.entries === 0 && href === this.here) {
-      // Forward onto a left-behind entry of this page: nothing to show, step back down.
-      event.stopImmediatePropagation();
-      this.step(-depth, 'drop');
+      // Nothing open: this Back means to leave the page - past its own entries to the one before; the router gets that one.
+      this.forget();
+      this.pending = 'leave';
+      this.armTimer();
+      this.history.go(-(depth + 1));
       return;
     }
-    // Another page (several steps at once, or the history menu): the router navigates; this page's surfaces close with it.
-    this.entries = 0;
-    this.open.length = 0;
-    this.here = href;
-    if (depth > 0) this.step(-depth, 'drop'); // landed on a left-behind entry of that page: down to its own entry
+    // Another page's entry: the router navigates; this page's surfaces close with it.
+    this.forget();
+    // A marked entry an earlier visit left behind (a navigation away, a reload): once the router has it, down to that page's entry.
+    if (depth > 0) this.step(-depth, 'drop');
   }
 
-  /** Brings the browser's marked entries in line with the open surfaces (batched: a menu that hands over to a dialog nets out). */
+  /** Gives the open surfaces their entries (batched: a menu that hands over to a dialog nets out to the entry it had). */
   private schedule(): void {
     if (this.scheduled) return;
     this.scheduled = true;
@@ -214,25 +233,39 @@ export class OverlayBackService {
   }
 
   private reconcile(): void {
-    const want = this.open.length;
-    if (this.entries < want) {
-      const href = this.history.href;
-      if (this.entries === 0) this.baseHref = href;
-      const base = unmarked(this.history.state);
-      while (this.entries < want) {
-        this.entries++;
-        this.history.pushState({ ...base, [OVERLAY_BACK_MARK]: this.entries }, href);
-      }
-    } else if (this.entries > want) {
-      const d = want - this.entries;
-      this.entries = want;
-      this.step(d, 'drop');
+    if (this.open.length <= this.entries) return;
+    if (this.entries === 0) {
+      this.remember();
+      this.page = `v${++visits}.${Date.now().toString(36)}`;
+      this.history.replaceState(this.mark(0), this.pageUrl);
+    }
+    while (this.entries < this.open.length) {
+      this.entries++;
+      this.history.pushState(this.mark(this.entries), this.pageUrl);
     }
   }
 
-  private step(delta: number, kind: 'drop' | 'leave', then?: () => void): void {
+  /** The page's current address and router state, as the browser holds them now. */
+  private remember(): void {
+    this.pageUrl = this.history.href;
+    this.pageState = unmarked(this.history.state);
+  }
+
+  /** The state of this page's entry at `depth` (0 = the page's own entry). */
+  private mark(depth: number): State {
+    const state: State = { ...this.pageState, [OVERLAY_BACK_PAGE]: this.page };
+    if (depth > 0) state[OVERLAY_BACK_MARK] = depth;
+    return state;
+  }
+
+  private forget(): void {
+    this.entries = 0;
+    this.open.length = 0;
+    this.page = null;
+  }
+
+  private step(delta: number, kind: 'drop' | 'leave'): void {
     this.pending = kind;
-    if (then) this.queue.unshift(then);
     this.armTimer();
     this.history.go(delta);
   }

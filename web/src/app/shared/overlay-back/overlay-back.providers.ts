@@ -63,19 +63,21 @@ export function closeLikeATapOutside(overlayRef: OverlayRef, injector: Injector)
 }
 
 /**
- * The router's history writes and the app's own Back, routed through `OverlayBackService`: a URL is never written on top of a
- * surface's entry, and `Location.back()` steps past those entries to the real previous page.
+ * The router's history writes and the app's own Back, routed through `OverlayBackService`: a URL is never pushed on top of a
+ * surface's entry (it replaces it), and `Location.back()` steps past those entries to the real previous page.
  */
 @Injectable()
 export class OverlayBackLocationStrategy extends PathLocationStrategy {
   private readonly overlays = inject(OverlayBackService);
 
   override pushState(state: unknown, title: string, url: string, queryParams: string): void {
-    this.overlays.routerWrite(() => super.pushState(state, title, url, queryParams));
+    this.overlays.routerPush(
+      () => super.pushState(state, title, url, queryParams),
+      () => super.replaceState(state, title, url, queryParams));
   }
 
   override replaceState(state: unknown, title: string, url: string, queryParams: string): void {
-    this.overlays.routerWrite(() => super.replaceState(state, title, url, queryParams));
+    this.overlays.routerReplace(() => super.replaceState(state, title, url, queryParams));
   }
 
   override back(): void {

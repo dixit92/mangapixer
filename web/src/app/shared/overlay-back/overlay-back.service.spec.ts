@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
 
 import {
-  BackPopState, BackSurface, OVERLAY_BACK_HISTORY, OVERLAY_BACK_MARK, OVERLAY_BACK_STEP_TIMEOUT_MS, OverlayBackHistory,
+  BackPopState, BackSurface, OVERLAY_BACK_HISTORY, OVERLAY_BACK_MARK, OVERLAY_BACK_PAGE, OVERLAY_BACK_STEP_TIMEOUT_MS, OverlayBackHistory,
   OverlayBackService, overlayBackDepth,
 } from './overlay-back.service';
 
@@ -65,8 +65,10 @@ class Surface implements BackSurface {
 }
 
 /**
- * The Back stack of 1.52.0 (m1): one marked history entry per open surface; Back closes the top one and stays; any other close drops
- * its entry without anyone seeing a `popstate`; the router never writes on top of a marked entry; the app's own Back leaves the page.
+ * The Back stack of 1.52.0 (m1): one marked history entry per open surface; Back closes the top surface and stays; a surface closed
+ * any other way leaves its entry SPENT (no history step of the service's own - nothing can race a reload), reused by the next surface
+ * or skipped by a Back that finds nothing open; the router never pushes on top of a marked entry (it replaces it); the app's own Back
+ * leaves the page.
  */
 describe('OverlayBackService', () => {
   let history: FakeHistory;
@@ -79,26 +81,29 @@ describe('OverlayBackService', () => {
     service = TestBed.inject(OverlayBackService);
   });
 
-  /** The router's push of `path` (as `OverlayBackLocationStrategy` hands it over). */
-  const routerPush = (path: string, navigationId: number) =>
-    service.routerWrite(() => history.pushState({ navigationId }, `https://mp.test${path}`));
+  /** The router's push / replace of `path` (as `OverlayBackLocationStrategy` hands them over). */
+  const routerPush = (path: string, navigationId: number) => service.routerPush(
+    () => history.pushState({ navigationId }, `https://mp.test${path}`),
+    () => history.replaceState({ navigationId }, `https://mp.test${path}`));
   const routerReplace = (path: string, navigationId: number) =>
-    service.routerWrite(() => history.replaceState({ navigationId }, `https://mp.test${path}`));
-
-  it('gives an open surface one entry of its own, with the router state and a depth mark', async () => {
-    const menu = new Surface(service);
-    service.opened(menu);
+    service.routerReplace(() => history.replaceState({ navigationId }, `https://mp.test${path}`));
+  /** Opens a surface and lets its entry be written. */
+  const openSurface = async (closable = true) => {
+    const s = new Surface(service, closable);
+    service.opened(s);
     await history.settle();
+    return s;
+  };
+
+  it('gives an open surface one entry of its own, with the router state, the page key and a depth mark', async () => {
+    await openSurface();
     expect(history.picture).toBe('/a /b >/b*1');
-    expect(history.state).toEqual({ navigationId: 2, [OVERLAY_BACK_MARK]: 1 });
+    expect(history.state).toEqual({ navigationId: 2, [OVERLAY_BACK_PAGE]: expect.any(String), [OVERLAY_BACK_MARK]: 1 });
     expect(service.depth).toBe(1);
   });
 
   it('Back closes the open surface and stays on the page; the next Back reaches the router', async () => {
-    const menu = new Surface(service);
-    service.opened(menu);
-    await history.settle();
-
+    const menu = await openSurface();
     history.user(-1);
     expect(menu.closes).toBe(1);
     expect(history.routerSaw).toEqual([]);
@@ -110,27 +115,32 @@ describe('OverlayBackService', () => {
     expect(history.routerSaw).toEqual(['/a']);
   });
 
-  it('a surface closed otherwise (Escape, a tap outside, a choice) drops its entry unseen: one Back then leaves', async () => {
-    const menu = new Surface(service);
-    service.opened(menu);
-    await history.settle();
+  it('a surface closed otherwise leaves its entry spent - no step of its own - and one Back then leaves the page', async () => {
+    const menu = await openSurface();
     service.closed(menu);
     await history.settle();
-    expect(history.picture).toBe('/a >/b /b*1');
-    expect(history.routerSaw).toEqual([]);
-    expect(service.depth).toBe(0);
+    expect(history.picture).toBe('/a /b >/b*1');
+    expect(history.pendingSteps).toBe(0);
 
-    history.user(-1);
+    history.user(-1); // lands on the page's own entry, nothing open: on past it, to the page before
+    expect(history.routerSaw).toEqual([]);
+    await history.settle();
     expect(history.routerSaw).toEqual(['/a']);
+    expect(service.depth).toBe(0);
+  });
+
+  it('the next surface reuses a spent entry: opening and closing menus does not grow the history', async () => {
+    const first = await openSurface();
+    service.closed(first);
+    const second = await openSurface();
+    expect(history.picture).toBe('/a /b >/b*1');
+    history.user(-1);
+    expect([first.closes, second.closes]).toEqual([0, 1]);
   });
 
   it('nested surfaces (a menu opened from a sheet) take one Back each', async () => {
-    const sheet = new Surface(service);
-    const menu = new Surface(service);
-    service.opened(sheet);
-    await history.settle();
-    service.opened(menu);
-    await history.settle();
+    const sheet = await openSurface();
+    const menu = await openSurface();
     expect(history.picture).toBe('/a /b /b*1 >/b*2');
 
     history.user(-1);
@@ -144,66 +154,66 @@ describe('OverlayBackService', () => {
     expect(history.routerSaw).toEqual(['/a']);
   });
 
-  it('a menu that hands over to a dialog leaves one entry, for the dialog', async () => {
-    const menu = new Surface(service);
+  it('a spent entry above an open sheet does not swallow the Back: the sheet closes', async () => {
+    const sheet = await openSurface();
+    const menu = await openSurface();
+    service.closed(menu); // Escape on the menu
+    history.user(-1);
+    expect(sheet.closes).toBe(1);
+    expect(history.routerSaw).toEqual([]);
+  });
+
+  it('a menu that hands over to a dialog: Back closes the dialog', async () => {
+    const menu = await openSurface();
     const dialog = new Surface(service);
-    service.opened(menu);
-    await history.settle();
     service.opened(dialog); // the dialog attaches while the menu animates out
     service.closed(menu);
     await history.settle();
-    expect(history.picture).toBe('/a /b >/b*1');
-
     history.user(-1);
     expect(dialog.closes).toBe(1);
     expect(menu.closes).toBe(0);
   });
 
-  it('a choice that navigates: the router writes on the page entry, not on the surface entry - one Back returns', async () => {
-    const sheet = new Surface(service);
-    service.opened(sheet);
-    await history.settle();
+  it('a choice that navigates: the router REPLACES the surface entry - one Back returns to the page', async () => {
+    const sheet = await openSurface();
     routerPush('/search', 3);
-    expect(history.picture).toBe('/a /b >/b*1'); // nothing written before the step back has landed
     service.closed(sheet); // the sheet closes on the way
     await history.settle();
     expect(history.picture).toBe('/a /b >/search');
-    expect(history.routerSaw).toEqual([]);
+    expect(history.pendingSteps).toBe(0);
 
     history.user(-1);
     expect(history.routerSaw).toEqual(['/b']);
   });
 
-  it('a surface still open after a navigation keeps an entry on the new page', async () => {
-    const dialog = new Surface(service);
-    service.opened(dialog);
-    await history.settle();
+  it('nested surfaces when the router navigates: the old page keeps a marked entry, skipped after the router has the Back', async () => {
+    await openSurface();
+    await openSurface();
     routerPush('/c', 3);
     await history.settle();
-    expect(history.picture).toBe('/a /b /c >/c*1');
-    history.user(-1);
-    expect(dialog.closes).toBe(1);
-    expect(history.routerSaw).toEqual([]);
+    expect(history.picture).toBe('/a /b /b*1 >/c');
+    history.user(-1); // onto the left-behind entry: the router navigates to /b, then the service steps down to /b's own entry
+    expect(history.routerSaw).toEqual(['/b']);
+    await history.settle();
+    expect(history.picture).toBe('/a >/b /b*1 /c');
+    expect(history.routerSaw).toEqual(['/b']);
   });
 
-  it('the router replacing the URL with a surface open rewrites the page entry and marks the surface again', async () => {
-    const menu = new Surface(service);
-    service.opened(menu);
-    await history.settle();
+  it('the router replacing the URL with a surface open rewrites the top entry and keeps its mark; Back lands on the new address', async () => {
+    const menu = await openSurface();
     routerReplace('/b2', 3);
-    await history.settle();
-    expect(history.picture).toBe('/a /b2 >/b2*1');
-    expect(history.state).toEqual({ navigationId: 3, [OVERLAY_BACK_MARK]: 1 });
+    expect(history.picture).toBe('/a /b >/b2*1');
+    expect(history.state).toEqual({ navigationId: 3, [OVERLAY_BACK_PAGE]: expect.any(String), [OVERLAY_BACK_MARK]: 1 });
 
     history.user(-1);
     expect(menu.closes).toBe(1);
     expect(history.routerSaw).toEqual([]);
+    expect(history.picture).toBe('/a >/b2 /b2*1');
+    expect(history.state).toEqual({ navigationId: 3, [OVERLAY_BACK_PAGE]: expect.any(String) });
   });
 
   it("the app's own Back (Location.back) steps over the surface entries to the previous page", async () => {
-    const menu = new Surface(service);
-    service.opened(menu);
-    await history.settle();
+    const menu = await openSurface();
     const go = vi.fn((d: number) => history.go(d));
     service.appStep(-1, go);
     expect(go).toHaveBeenCalledWith(-2);
@@ -222,9 +232,7 @@ describe('OverlayBackService', () => {
   });
 
   it('a surface that refuses to close (disableClose) keeps the page and its entry', async () => {
-    const dialog = new Surface(service, false);
-    service.opened(dialog);
-    await history.settle();
+    const dialog = await openSurface(false);
     history.user(-1);
     expect(dialog.closes).toBe(1);
     await history.settle();
@@ -232,10 +240,8 @@ describe('OverlayBackService', () => {
     expect(history.routerSaw).toEqual([]);
   });
 
-  it('Forward onto an entry a closed surface left behind steps back down, unseen', async () => {
-    const menu = new Surface(service);
-    service.opened(menu);
-    await history.settle();
+  it('Forward onto an entry a surface closed by Back left behind steps back down, unseen', async () => {
+    await openSurface();
     history.user(-1);
     await history.settle();
     history.user(1);
@@ -245,9 +251,7 @@ describe('OverlayBackService', () => {
   });
 
   it('several steps back at once (the history menu) reach the router and forget the page surfaces', async () => {
-    const menu = new Surface(service);
-    service.opened(menu);
-    await history.settle();
+    const menu = await openSurface();
     history.user(-2);
     expect(history.routerSaw).toEqual(['/a']);
     expect(service.depth).toBe(0);
@@ -259,11 +263,9 @@ describe('OverlayBackService', () => {
   it('stops waiting for a step the browser never takes', async () => {
     vi.useFakeTimers();
     try {
-      const menu = new Surface(service);
-      service.opened(menu);
-      await vi.advanceTimersByTimeAsync(0);
-      service.closed(menu);
-      await vi.advanceTimersByTimeAsync(0); // the step back is asked for but never lands
+      const go = vi.fn(); // the app's own Back, never landing
+      await openSurface();
+      service.appStep(-1, go);
       routerPush('/c', 3);
       expect(history.picture).toBe('/a /b >/b*1');
       await vi.advanceTimersByTimeAsync(OVERLAY_BACK_STEP_TIMEOUT_MS);
@@ -273,9 +275,9 @@ describe('OverlayBackService', () => {
     }
   });
 
-  it('a reload on a marked entry clears the mark', () => {
+  it('a reload on a marked entry clears the marks', () => {
     const h = new FakeHistory();
-    h.pushState({ navigationId: 2, [OVERLAY_BACK_MARK]: 1 }, 'https://mp.test/b');
+    h.pushState({ navigationId: 2, [OVERLAY_BACK_PAGE]: 'v1', [OVERLAY_BACK_MARK]: 1 }, 'https://mp.test/b');
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({ providers: [{ provide: OVERLAY_BACK_HISTORY, useValue: h }] });
     TestBed.inject(OverlayBackService);
