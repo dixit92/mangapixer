@@ -1,5 +1,5 @@
 import { test, expect, Page, APIRequestContext, Route } from '@playwright/test';
-import { expectFitsScreen } from './layout';
+import { expectFitsScreen, openSelectionMore } from './layout';
 
 /**
  * Library multi-selection matching and the Unmatched groups (1.34.0) - NEVER the real network:
@@ -113,6 +113,7 @@ for (const viewport of [{ width: 1280, height: 900, name: 'desktop' }, { width: 
     await page.goto(`/libraries/${libraryId}/browse`);
     await page.locator('button.select-toggle').click();
     for (const name of NAMES) await page.locator('.node-wrap', { hasText: name }).locator('.node-card').click();
+    await openSelectionMore(page);
     await page.getByTestId('series-selection-menu').click();
     await expect(page.getByTestId('bulk-identify')).toContainText('one by one');
     await page.getByTestId('bulk-identify').click();
@@ -164,6 +165,7 @@ test('browse: Re-run matching queues the selection and says why an item was not 
   await page.goto(`/libraries/${libraryId}/browse`);
   await page.locator('button.select-toggle').click();
   for (const name of NAMES) await page.locator('.node-wrap', { hasText: name }).locator('.node-card').click();
+  await openSelectionMore(page);
   await page.getByTestId('series-selection-menu').click();
   await page.getByTestId('bulk-rerun').click();
   await expect(page.getByText(/1 item queued to match again\. 1 not queued: 1 inside a folder that is linked, marked Don't match or waiting in review/)).toBeVisible();

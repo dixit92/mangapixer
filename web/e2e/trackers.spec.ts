@@ -1,5 +1,5 @@
 import { test, expect, Page, APIRequestContext, Request } from '@playwright/test';
-import { layoutProblems } from './layout';
+import { layoutProblems, openSelectionMore } from './layout';
 
 /**
  * Tracker sync web (1.43.0) against a real instance with NO tracker reachable: nothing in these tests leaves the test instance.
@@ -257,6 +257,7 @@ test.describe('tracker sync web (1.43.0)', () => {
     await page.goto(`/libraries/${libraryId}/browse`);
     await page.locator('button.select-toggle').click();
     await page.locator('.node-wrap', { hasText: 'Stacked Saga' }).first().click();
+    await openSelectionMore(page);
     await page.getByTestId('tracker-sync-action').click();
     await expect(page.getByTestId('tracker-sync-note')).toContainText("A folder's setting covers everything inside it");
     await expect(page.getByTestId('tracker-sync-note')).toContainText('Private libraries and doujinshi are not synced');
@@ -268,6 +269,7 @@ test.describe('tracker sync web (1.43.0)', () => {
     let stored = await (await page.request.get('/api/v1/trackers/sync-overrides')).json();
     expect(stored).toEqual([expect.objectContaining({ nodeId: folderId, enabled: true })]);
 
+    await openSelectionMore(page);
     await page.getByTestId('tracker-sync-action').click();
     const cleared = page.waitForResponse((r) => r.request().method() === 'PUT' && r.url().endsWith('/api/v1/trackers/sync-overrides'));
     await page.getByTestId('tracker-sync-default').click();
@@ -358,6 +360,7 @@ test.describe('tracker sync web (1.43.0)', () => {
       await page.goto(`/libraries/${libraryId}/browse`);
       await page.locator('button.select-toggle').click();
       await page.locator('.node-wrap', { hasText: 'Stacked Saga' }).first().click();
+      await openSelectionMore(page);
       await page.getByTestId('tracker-sync-action').click();
       await expect(page.getByTestId('tracker-sync-note')).toBeVisible();
       await check('sync menu', size.width);

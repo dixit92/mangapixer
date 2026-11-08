@@ -115,3 +115,12 @@ export async function expectFitsScreen(page: Page, where: string): Promise<void>
   const lines = problems.slice(0, 12).map((p) => `  ${p.kind}: ${p.what} - ${p.detail}`);
   expect(problems, `${where} does not fit ${page.viewportSize()?.width} px:\n${lines.join('\n')}`).toEqual([]);
 }
+
+/**
+ * 1.52.0: on a phone in portrait the selection bar shows Select, Mark read and More; Mark unread, Favorites and the admin / tracker
+ * actions wait behind More. Opens it where it is shown (a no-op on a wider screen, where every action is in the bar).
+ */
+export async function openSelectionMore(page: Page): Promise<void> {
+  const more = page.getByTestId('selection-more');
+  if (await more.isVisible() && (await more.getAttribute('aria-expanded')) !== 'true') await more.click();
+}

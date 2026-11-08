@@ -134,6 +134,8 @@ test.describe('phone, touch', () => {
         const bar = page.locator('.browse-bar.selecting');
         const height = (await bar.boundingBox())!.height;
         expect(height, `${width} px: the selection bar is one short row`).toBeLessThanOrEqual(80);
+        // 1.52.0: the less-used actions wait behind More on a phone; opened, the bar holds them all, each named.
+        await bar.getByTestId('selection-more').tap();
         const named = await expectNamedButtons(bar, `${width} px selection bar`);
         expect(named, 'the admin bar holds the actions, the Select menu and Done').toBeGreaterThanOrEqual(7);
         // Done keeps its border and its place: the whole of it is on screen beside the actions.
