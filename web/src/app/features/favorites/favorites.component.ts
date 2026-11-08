@@ -487,6 +487,8 @@ export class FavoritesComponent implements OnInit, OnDestroy {
   private readonly injector = inject(Injector);
   /** 1.52.0 (sweep N2): the entry a reloading jump is for - once its page is drawn it is scrolled to the top, as a loaded one is. */
   private pendingJumpTarget: string | null = null;
+  /** 1.52.0 (N2): the entry the last reloading jump landed on, until the page above it is prepended once (then it is put back on top). */
+  private jumpAnchor: string | null = null;
 
   readonly nodes = signal<CatalogNodeDto[]>([]);
   readonly hasMore = signal(false);
@@ -742,6 +744,7 @@ export class FavoritesComponent implements OnInit, OnDestroy {
       next: (page) => {
         if (generation !== this.generation) return;
         this.nodes.update((prev) => (append ? [...prev, ...page.items] : page.items));
+        if (!append) this.jumpAnchor = null;
         if (!append && this.pendingJumpTarget) this.revealJumpTarget(this.pendingJumpTarget);
         this.cursor = page.nextCursor;
         this.hasMore.set(page.hasMore);
@@ -780,7 +783,12 @@ export class FavoritesComponent implements OnInit, OnDestroy {
         this.prevCursor = page.prevCursor ?? null;
         this.hasPrevious.set(page.hasPrevious ?? false);
         this.loadingPrevious.set(false);
-        this.anchorAfterPrepend(container, before);
+        // Right after a reloading jump the page above comes at once (its sentinel is in reach): the picked entry goes back on top -
+        // a height-difference anchor would be off by the sentinel line, which goes with the last page (1.52.0, N2).
+        const anchor = this.jumpAnchor;
+        this.jumpAnchor = null;
+        if (anchor) this.revealJumpTarget(anchor);
+        else this.anchorAfterPrepend(container, before);
         if (this.hasPrevious()) this.rearmTopSentinel();
       },
       error: () => { if (generation === this.generation) this.loadingPrevious.set(false); },
@@ -816,6 +824,7 @@ export class FavoritesComponent implements OnInit, OnDestroy {
     this.prevCursor = null;
     this.nodes.set([]);
     this.pendingJumpTarget = bucket.firstNodeId ?? null;
+    this.jumpAnchor = null;
     this.load(false, bucket.firstCursor ?? null);
     this.scrollListToTop();
   }
@@ -826,6 +835,7 @@ export class FavoritesComponent implements OnInit, OnDestroy {
    * the page above it is prepended (which keeps what is on screen in place).
    */
   private revealJumpTarget(nodeId: string): void {
+    if (this.pendingJumpTarget === nodeId) this.jumpAnchor = nodeId;
     this.pendingJumpTarget = null;
     afterNextRender(() => {
       const index = this.nodes().findIndex((n) => n.id === nodeId);
