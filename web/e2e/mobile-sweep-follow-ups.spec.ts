@@ -153,6 +153,25 @@ const tapHits = (locator: Locator) => locator.evaluate((el) => {
   return !!hit && (hit === el || el.contains(hit));
 });
 
+/** C1: the touch measurement, compared with the mouse one in a later test (one worker runs the file in order). */
+let c1Touch: { line: number; textTop: number; textLeft: number; trail: number } | null = null;
+
+/** The volume stack page of the fixture's "Stacked Saga" (volume 1). */
+async function stackPage(page: Page): Promise<string> {
+  const libraryId = await volumeLibrary(page.request);
+  const folder = await folderNamed(page.request, libraryId, 'Stacked Saga');
+  return `/libraries/${libraryId}/browse/${folder.id}/volume/1`;
+}
+
+/** The link's first line box (a link may wrap in the trail), its text's place in the trail, and the trail's height. */
+const measureTrailLink = (link: Locator) => link.evaluate((el) => {
+  const trail = el.closest('.crumbs')!.getBoundingClientRect();
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  const text = range.getClientRects()[0];
+  return { line: el.getClientRects()[0].height, textTop: text.top - trail.top, textLeft: text.left - trail.left, trail: trail.height };
+});
+
 test.describe('phone, touch', () => {
   test.use({ ...TOUCH, viewport: { width: 360, height: 780 } });
 
@@ -225,6 +244,7 @@ test.describe('phone, touch', () => {
     await shot(page, 'select-360-closed');
 
     await page.getByTestId('selection-more').tap();
+    await shot(page, 'select-360-more-tapped');
     await expect(page.getByTestId('selection-more')).toHaveAttribute('aria-expanded', 'true');
     for (const id of ['selection-mark-unread', 'selection-favorites', 'series-selection-menu']) {
       await expect(page.getByTestId(id), `${id} behind More`).toBeVisible();
@@ -235,44 +255,16 @@ test.describe('phone, touch', () => {
     await shot(page, 'select-360-more');
   });
 
-  test('C1: the volume stack trail links are 40 px tall targets on a touch screen; the trail does not move', async ({ page, browser }) => {
+  test('C1: the volume stack trail links are 40 px tall targets on a touch screen', async ({ page }) => {
     test.setTimeout(240_000);
     await login(page);
-    const libraryId = await volumeLibrary(page.request);
-    const folder = await folderNamed(page.request, libraryId, 'Stacked Saga');
-    const url = `/libraries/${libraryId}/browse/${folder.id}/volume/1`;
-    /** The link's first line box (a link may wrap in the trail), its text's place in the trail, and the trail's height. */
-    const measure = (link: Locator) => link.evaluate((el) => {
-      const trail = el.closest('.crumbs')!.getBoundingClientRect();
-      const range = document.createRange();
-      range.selectNodeContents(el);
-      const text = range.getClientRects()[0];
-      return { line: el.getClientRects()[0].height, textTop: text.top - trail.top, textLeft: text.left - trail.left, trail: trail.height };
-    });
+    const url = await stackPage(page);
     await page.goto(url);
     const link = page.getByTestId('stack-folder-link');
     await expect(link).toBeVisible();
-    const touch = await measure(link);
-    expect(Math.round(touch.line), 'folder link hit box on touch').toBeGreaterThanOrEqual(40);
+    c1Touch = await measureTrailLink(link);
+    expect(Math.round(c1Touch.line), 'folder link hit box on touch').toBeGreaterThanOrEqual(40);
     expect(await tapHits(link), 'a tap at the link reaches it').toBe(true);
-
-    // The same page with a mouse: the same trail and the same text position; the link keeps its text-high box.
-    const context = await browser.newContext({ baseURL: test.info().project.use.baseURL, viewport: { width: 360, height: 780 } });
-    try {
-      const mouse = await context.newPage();
-      expect((await mouse.request.post('/api/v1/auth/login', { data: { username: ADMIN_USER, password: ADMIN_PASSWORD } })).ok()).toBeTruthy();
-      await mouse.goto(url);
-      const mouseLink = mouse.getByTestId('stack-folder-link');
-      await expect(mouseLink).toBeVisible();
-      const m = await measure(mouseLink);
-      // (Within a pixel: the touch device draws at twice the pixel density.)
-      expect(Math.abs(touch.trail - m.trail), 'the trail is as tall as with a mouse').toBeLessThanOrEqual(1);
-      expect(Math.abs(touch.textTop - m.textTop), 'the link text sits as high as with a mouse').toBeLessThanOrEqual(1);
-      expect(Math.abs(touch.textLeft - m.textLeft), 'the link text sits as far left as with a mouse').toBeLessThanOrEqual(1);
-      expect(Math.round(m.line), 'a mouse keeps the text-high link').toBeLessThan(40);
-    } finally {
-      await context.close();
-    }
   });
 });
 
@@ -311,6 +303,25 @@ test.describe('phone held sideways, touch', () => {
     } finally {
       await page.context().close();
     }
+  });
+});
+
+test.describe('phone width, mouse', () => {
+  test.use({ viewport: { width: 360, height: 780 } });
+
+  test('C1: with a mouse the trail links keep their text-high box, and the trail text sits where it sits on touch', async ({ page }) => {
+    test.setTimeout(240_000);
+    await login(page);
+    await page.goto(await stackPage(page));
+    const link = page.getByTestId('stack-folder-link');
+    await expect(link).toBeVisible();
+    const m = await measureTrailLink(link);
+    expect(Math.round(m.line), 'a mouse keeps the text-high link').toBeLessThan(40);
+    test.skip(!c1Touch, 'the touch half did not run');
+    // (Within a pixel: the touch device draws at twice the pixel density.)
+    expect(Math.abs(c1Touch!.trail - m.trail), 'the trail is as tall as on touch').toBeLessThanOrEqual(1);
+    expect(Math.abs(c1Touch!.textTop - m.textTop), 'the link text sits as high as on touch').toBeLessThanOrEqual(1);
+    expect(Math.abs(c1Touch!.textLeft - m.textLeft), 'the link text sits as far left as on touch').toBeLessThanOrEqual(1);
   });
 });
 
