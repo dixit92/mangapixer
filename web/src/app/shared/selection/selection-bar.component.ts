@@ -47,7 +47,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
            Favorites, the host's actions) in rows of their own below, with their names. Wider screens show every action and no More. -->
       <button mat-button class="more-toggle" (click)="moreOpen.set(!moreOpen())" [attr.aria-expanded]="moreOpen()"
               data-testid="selection-more">
-        <mat-icon>{{ moreOpen() ? 'expand_less' : 'more_horiz' }}</mat-icon><span class="lbl">More actions</span>
+        <mat-icon>{{ moreOpen() ? 'expand_less' : 'more_horiz' }}</mat-icon><span class="lbl">{{ moreOpen() ? 'Fewer actions' : 'More actions' }}</span>
       </button>
       <button mat-button (click)="markRead.emit(false)" [disabled]="busy() || count() === 0" data-testid="selection-mark-unread">
         <mat-icon>remove_done</mat-icon><span class="lbl">Mark unread</span>
