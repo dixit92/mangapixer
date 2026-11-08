@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- Developer: the server tests no longer run out of memory. A disposed test host stayed reachable through three timers - the request
+  limiter of API tokens (never disposed by ASP.NET's rate-limiting middleware, now owned and disposed by the server itself), the HTTP
+  client handlers' lifetime and the SQLite connection pools - so the test process grew to its memory limit and could crash mid-run. One
+  test process now peaks at about a third of the managed memory and the suite runs about a third faster. A new test fails if anything
+  keeps a disposed host alive. The per-token request limit of the export works as before.
+
 ## [1.51.0] - 2026-11-07
 
 ### Added
