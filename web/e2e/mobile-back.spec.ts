@@ -1,5 +1,7 @@
 import { test, expect, Page, APIRequestContext, Route, Locator } from '@playwright/test';
 
+import { routeFakeItem } from './reader-fixture';
+
 /**
  * Back closes an open surface and only that (1.52.0, mobile sweep finding m1). A phone's back gesture and a browser's Back button
  * with a menu, a bottom sheet, a dialog or a select's list open close that surface and stay on the page; the next Back navigates as
@@ -208,6 +210,28 @@ test.describe('desktop, mouse', () => {
     await page.getByRole('button', { name: 'Info', exact: true }).click();
     await expect(dialog(page)).toBeVisible();
     await expectBackClosesOnly(page, dialog(page), /^\/settings/, 'Info dialog');
+  });
+
+  test('reader: a menu closed with Escape leaves no extra step - Back with the help open leaves the reader, the menu Back stays', async ({ page }) => {
+    await login(page);
+    await routeFakeItem(page, { id: 'e2eback1', pageCount: 4, pageWidth: 300, pageHeight: 420, readerMode: 'PagedLtr' });
+    await arrive(page, '/settings', '/reader/e2eback1');
+    const display = page.getByRole('button', { name: 'Display', exact: true });
+    // Back with the Display menu open closes it and stays in the reader.
+    await display.click();
+    await expect(menuPanel(page)).toBeVisible();
+    await back(page);
+    await expect(menuPanel(page)).toHaveCount(0);
+    expect(path(page)).toBe('/reader/e2eback1');
+    // Closed another way (Escape): no extra step - with the help overlay open (not a menu), Back leaves the reader as before.
+    await display.click();
+    await expect(menuPanel(page)).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(menuPanel(page)).toHaveCount(0);
+    await page.getByRole('button', { name: 'Reading help' }).click();
+    await expect(page.locator('.help-overlay')).toBeVisible();
+    await back(page);
+    await expect.poll(() => path(page), { message: 'Back from the reader with its help open' }).toMatch(/^\/settings/);
   });
 
   test('menu: Back in a desktop browser closes the menu too', async ({ page }) => {
