@@ -28,6 +28,7 @@ export const TOUCH_LINK_CSS = `
  */
 export const TOUCH_TARGET_CSS = `
   @media (pointer: coarse) {
-    .touch-target { min-height: 40px; min-width: 40px; box-sizing: border-box; }
+    /* The class twice: it out-ranks a component's own single-class size rule (a 32 px min-height) wherever it is written. */
+    .touch-target.touch-target { min-height: 40px; min-width: 40px; box-sizing: border-box; }
   }
 `;

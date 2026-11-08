@@ -273,6 +273,8 @@ html {
 @media (pointer: coarse) {
   a.touch-inline-link,
   .touch-inline-links a {
-    padding-block: 11px;
+    /* An inline box is about 1.17em tall (the font's content area): 21 px - 0.6em of padding each side makes it 40 - 42 px at any
+       text size from 12 to 18 px. */
+    padding-block: calc(21px - 0.6em);
   }
 }

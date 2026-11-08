@@ -2,6 +2,7 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
 import { EscapeCancelsDirective } from './escape-cancels.directive';
+import { OverlayBackService } from './overlay-back/overlay-back.service';
 
 @Component({
   standalone: true,
@@ -74,5 +75,24 @@ describe('EscapeCancelsDirective', () => {
     fixture.detectChanges();
     expect(host.cancelled).toBe(0);
     expect(el.querySelector('[role="alertdialog"]')).not.toBeNull();
+  });
+
+  it('is a Back surface while shown: Back cancels it (m1); a busy panel refuses', async () => {
+    const opened: { close(): boolean }[] = [];
+    const closed: unknown[] = [];
+    TestBed.overrideProvider(OverlayBackService, { useValue: { opened: (x: { close(): boolean }) => opened.push(x), closed: (x: unknown) => closed.push(x) } });
+    const { fixture, el, host, open } = setup();
+    open();
+    expect(opened).toHaveLength(1);
+    host.busy.set(true);
+    fixture.detectChanges();
+    expect(opened[0].close()).toBe(false);
+    host.busy.set(false);
+    fixture.detectChanges();
+    expect(opened[0].close()).toBe(true);
+    fixture.detectChanges();
+    expect(host.cancelled).toBe(1);
+    expect(el.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(closed).toEqual([opened[0]]);
   });
 });
