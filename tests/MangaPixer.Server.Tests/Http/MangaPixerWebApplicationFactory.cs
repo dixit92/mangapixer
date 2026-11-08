@@ -45,6 +45,15 @@ public sealed class MangaPixerWebApplicationFactory : WebApplicationFactory<Prog
     private readonly bool _rateLimitDisabled;
     private readonly bool _withoutBackgroundServices;
 
+    // Microsoft.Data.Sqlite creates its process-wide pool factory - and the factory's prune timer - on first use. Created inside a
+    // host build, that timer would capture the execution context holding that host's factory and keep the host for the rest of the
+    // run; created here with the flow suppressed, it captures nothing.
+    static MangaPixerWebApplicationFactory()
+    {
+        using (ExecutionContext.SuppressFlow())
+            SqliteConnection.ClearAllPools();
+    }
+
     public string DataRoot => Path.Combine(_tempRoot, "data");
     public string CacheRoot => Path.Combine(_tempRoot, "cache");
     public string ScratchRoot => Path.Combine(_tempRoot, "scratch");
