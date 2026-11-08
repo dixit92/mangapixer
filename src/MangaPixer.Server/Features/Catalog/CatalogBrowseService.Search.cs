@@ -180,8 +180,9 @@ public sealed partial class CatalogBrowseService
             var nextCursor = hasMore ? EncodeSearchCursor(pageHits[^1]) : null;
 
             var (results, internalIds) = await ReadSearchNodesAsync(connection, pageHits.Select(h => h.Id).ToList(), ct);
+            // 1.52.0 lane R: a search of only a rating lists rated nodes, not names - nothing is "found inside" a folder there.
             var insideCounts = await InsideCountsAsync(connection,
-                pageHits.Where(h => h.Kind == (int)CatalogNodeKind.Folder).Select(h => h.Id).ToList(), nameHitIds, parsed, ct);
+                ratedOnly ? [] : pageHits.Where(h => h.Kind == (int)CatalogNodeKind.Folder).Select(h => h.Id).ToList(), nameHitIds, parsed, ct);
 
             // Alt-title matches (1.26.0): first page only, one extra query; 1.49.0 the same words and rank. 1.50.0: also for a search of
             // 1-2 letters, and close (typo) titles after the exact ones while the page looks for close names.

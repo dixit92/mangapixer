@@ -257,6 +257,8 @@ public sealed class RatingsHttpTests
         static async Task<string[]> Ids(Task<SearchResultsDto> search) => (await search).Items.Select(n => n.Id).Order(StringComparer.Ordinal).ToArray();
 
         Assert.Equal(["rtB", "rtB1", "rtP"], await Ids(SearchAsync(w.A.Client, "rating:4")));
+        // A rating-only search lists rated nodes, not names: no "+N inside" on the rated folder.
+        Assert.Null((await SearchAsync(w.A.Client, "rating:4")).InsideCounts);
         Assert.Equal(["rtA", "rtB", "rtB1", "rtP"], await Ids(SearchAsync(w.A.Client, "rating:3.5")));
         Assert.Equal(["rtB1"], await Ids(SearchAsync(w.A.Client, "rating:5")));
         Assert.Equal(["rtB", "rtB1"], await Ids(SearchAsync(w.A.Client, "berserk rating:4")));
