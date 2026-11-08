@@ -463,6 +463,7 @@ public sealed class LogLevelWebApplicationFactory : WebApplicationFactory<com.li
 
         builder.ConfigureTestServices(services =>
         {
+            TestHostServices.ReleaseWithTheHost(services);
             var workerHosted = services.FirstOrDefault(
                 d => d.ImplementationType == typeof(MediaWorkerHostedService));
             if (workerHosted is not null)

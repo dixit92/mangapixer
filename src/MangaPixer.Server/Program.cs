@@ -6,6 +6,7 @@ using com.lifepixer.mangapixer.Server.Features.Auth;
 using com.lifepixer.mangapixer.Server.Features.Catalog;
 using com.lifepixer.mangapixer.Server.Features.Home;
 using com.lifepixer.mangapixer.Server.Features.Reading;
+using com.lifepixer.mangapixer.Server.Features.Tokens;
 using com.lifepixer.mangapixer.Server.Hosting;
 using com.lifepixer.mangapixer.Server.Media;
 using com.lifepixer.mangapixer.Server.Operations;
@@ -519,7 +520,7 @@ public sealed partial class Program
 
             // Per-token request ceiling of the export (1.33.0, ApiTokenServicesExtensions). After authorization on purpose: the
             // token principal exists only once the export policy has run its scheme; every other request is not limited.
-            app.UseRateLimiter();
+            app.UseApiTokenRequestLimit();
 
             // API controllers
             app.MapControllers();

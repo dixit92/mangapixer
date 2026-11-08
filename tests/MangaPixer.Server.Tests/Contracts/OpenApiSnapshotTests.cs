@@ -22,7 +22,7 @@ public sealed class OpenApiSnapshotTests
     [Fact]
     public async Task OpenApi_Endpoint_ReturnsDocument()
     {
-        var factory = new MangaPixerWebApplicationFactory();
+        using var factory = new MangaPixerWebApplicationFactory();
         using var client = factory.CreateClient();
 
         // The OpenAPI endpoint is unauthenticated (no private data)
@@ -42,7 +42,7 @@ public sealed class OpenApiSnapshotTests
     [Fact]
     public async Task OpenApi_Snapshot_MatchesLiveDocument()
     {
-        var factory = new MangaPixerWebApplicationFactory();
+        using var factory = new MangaPixerWebApplicationFactory();
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/openapi/v1.json");
