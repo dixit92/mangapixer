@@ -263,6 +263,7 @@ test.describe('phone, touch', () => {
     await page.goto('/admin');
     const help = page.getByTestId('admin-trackers-help');
     await expect(help).toBeVisible();
+    await help.scrollIntoViewIfNeeded();
     c1Touch = await measureSentenceLink(help);
     expect(Math.round(c1Touch.line), 'sentence link hit box on touch').toBeGreaterThanOrEqual(40);
     expect(await tapHits(help), 'a tap at the sentence link reaches it').toBe(true);
