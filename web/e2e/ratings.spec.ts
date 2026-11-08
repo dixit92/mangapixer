@@ -22,6 +22,23 @@ const SERIES = 'Synthetic Series';
 test.skip(!FIXTURE_ROOT, 'E2E_SERIES_FIXTURE_ROOT not set: no synthetic ComicInfo library available');
 test.describe.configure({ mode: 'serial' });
 
+/**
+ * The shared admin's state before the first test: its stored browse preferences (the sort menu changes them) and the series id. Put back
+ * in `afterAll`, which has its own timeout - a test that times out must not leave the admin on "My rating" (the Volumes view needs Name).
+ */
+let saved: { prefs: Record<string, unknown>; series: string } | null = null;
+
+test.afterAll(async ({ browser }) => {
+  if (!saved) return;
+  const page = await browser.newPage();
+  try {
+    await login(page);
+    await restore(page, saved.series, saved.prefs);
+  } finally {
+    await page.close();
+  }
+});
+
 interface Node { id: string; displayName: string; kind: string; hasSeriesInfo?: boolean; myRating?: number | null }
 
 async function login(page: Page): Promise<void> {
@@ -93,9 +110,9 @@ async function rateFromInfoSheet(page: Page, libraryId: string, series: string, 
   await shot(page, `ratings-01-info-sheet-${phone ? 'phone' : 'desktop'}`);
 
   // The right half of the 4th star = 4 stars = score 8.
-  const saved = page.waitForResponse((r) => r.url().endsWith(`/nodes/${series}/rating`) && r.request().method() === 'PUT');
+  const put = page.waitForResponse((r) => r.url().endsWith(`/nodes/${series}/rating`) && r.request().method() === 'PUT');
   await overlay.getByTestId('rating-half-8').click();
-  const response = await saved;
+  const response = await put;
   expect(response.status()).toBe(204);
   expect(response.request().postDataJSON()).toEqual({ score: 8 });
   await expect(slider).toHaveAttribute('aria-valuetext', '4 of 5 stars');
@@ -131,10 +148,12 @@ async function sortByMyRating(page: Page, libraryId: string): Promise<void> {
 }
 
 test('rate from the Info sheet: the badge, the My rating sort, the rating: search, and Clear rating', async ({ page }) => {
+  test.setTimeout(150_000); // several page loads on a shared, busy box (the 30 s default ran out at the search step)
   await page.setViewportSize({ width: 1280, height: 900 });
   await login(page);
   const [libraryId, series] = await ensureSeries(page);
-  const prefs = await preferences(page);
+  const prefs = saved?.prefs ?? await preferences(page);
+  saved ??= { prefs, series };
   await restore(page, series, prefs);
   try {
     await page.goto(`/libraries/${libraryId}/browse`);
@@ -175,10 +194,12 @@ test('rate from the Info sheet: the badge, the My rating sort, the rating: searc
 });
 
 test('phone 390 px: rate from the Info sheet, the badge fits, sort by My rating, clear', async ({ page }) => {
+  test.setTimeout(150_000);
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page);
   const [libraryId, series] = await ensureSeries(page);
-  const prefs = await preferences(page);
+  const prefs = saved?.prefs ?? await preferences(page);
+  saved ??= { prefs, series };
   await restore(page, series, prefs);
   try {
     await rateFromInfoSheet(page, libraryId, series, true);
