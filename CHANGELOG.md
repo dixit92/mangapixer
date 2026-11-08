@@ -6,13 +6,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Ratings.** Give any series or archive your own rating from half a star to five stars: in the **Info** sheet and on the series page
+  (**Your rating**), or from the reader with **Rate** (this archive and its folder). Tap the left half of a star for a half star; the
+  stars work with the keyboard and a screen reader too, and **Clear rating** removes a rating. Rated cards show a small star with the
+  number, and list view shows it in the row.
+- **My rating** sort in the library view and on the Favorites page (highest first, unrated last), and a **Rated / Not rated** filter on
+  the Favorites page.
+- Search: `rating:4` finds what you rated four stars or more (`rating:3.5`, `rating:none`), alone or with other words.
+- Ratings are private to your account - never shown to other users or admins, not in the metadata export, never sent to a tracker - and
+  follow a series or archive that is moved or renamed. See [Ratings](docs/ratings.md).
+
 ### Changed
 
+- **Back closes what is open.** On a phone the back gesture - and the browser's Back button on any screen - now closes an open menu,
+  list, bottom sheet, dialog or confirmation and stays on the page; the next Back goes back as before. A menu opened inside a sheet takes
+  a Back of its own. Closing something another way (Escape, a tap outside, a choice) leaves no extra Back step behind, and a choice that
+  opens another page needs one Back to return.
+- **Selection bar on a phone:** the row shows Select, Mark read and More; More shows the other actions (Mark unread, Favorites and the
+  admin actions) below, with their names. Wider screens are unchanged.
+- **Metadata Manager on a touch screen:** the tab strip scrolls sideways under the finger instead of paging with arrows, and the open
+  tab is always fully in view.
+- Angular 22.2.4 (CDK / Material 22.2.6) and tslib 2.9.1 (dependency updates).
 - Developer: the server tests no longer run out of memory. A disposed test host stayed reachable through three timers - the request
   limiter of API tokens (never disposed by ASP.NET's rate-limiting middleware, now owned and disposed by the server itself), the HTTP
   client handlers' lifetime and the SQLite connection pools - so the test process grew to its memory limit and could crash mid-run. One
   test process now peaks at about a third of the managed memory and the suite runs about a third faster. A new test fails if anything
   keeps a disposed host alive. The per-token request limit of the export works as before.
+
+### Fixed
+
+- Opening a library your account has no access to (or one that does not exist) by its address now says so, instead of "This folder is
+  empty".
+- Favorites, phone held sideways: a letter jump now lands with that letter's row at the top of the screen.
+- Touch screens: the Info panel's tag chips and their creator menus, "2 locations" in search, the tracker link in a series' tracking
+  panel, the reader's Display menu held sideways and links inside sentences (Tracking page, How tracker sync works, the volume page's
+  folder links, the tracker setup links) are easier to tap.
+- Escape now cancels the inline confirmations (revoke or clear API tokens, empty the trash, clean bundles, automatic cleaning,
+  disconnect a tracker, set progress from a tracker) and puts the focus back on the button that opened them.
+- The series page no longer asks for a missing-volumes line for a series that cannot have one (a 404 in the browser console).
 
 ## [1.51.0] - 2026-11-07
 
