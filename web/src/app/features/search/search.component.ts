@@ -14,6 +14,7 @@ import { MatChipListbox, MatChipsModule } from '@angular/material/chips';
 import { ApiService } from '../../core/api/api.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.component';
+import { RatingStarsComponent } from '../ratings/rating-stars.component';
 import { ContextLineComponent } from '../../shared/context-line/context-line.component';
 import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.component';
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
@@ -83,6 +84,8 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
   { example: 'publisher:"Big Comic" type:manga', meaning: 'Publisher, magazine:, type:' },
   { example: 'is:unread', meaning: 'Read state: is:read, is:unread, is:reading' },
   { example: 'library:manga', meaning: 'Only this library' },
+  // 1.52.0 (lane R): your own rating - a minimum in stars (half steps), or none.
+  { example: 'rating:4', meaning: 'Your rating: at least 4 stars (rating:3.5, rating:none)' },
 ];
 
 /**
@@ -101,6 +104,7 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
   selector: 'app-search',
   standalone: true,
   imports: [
+    RatingStarsComponent,
     CommonModule,
     FormsModule,
     RouterLink,
@@ -372,6 +376,8 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
             <app-star-toggle [nodeId]="node.id" [favorite]="!!node.isFavorite" [overlay]="true" [compact]="true" />
           }
           <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo" [overlay]="true" />
+          <!-- 1.52.0 (lane R): the viewer's own rating (rated only). -->
+          <app-rating-stars mode="badge" [overlay]="true" [nodeId]="node.id" [rating]="node.myRating" />
           <!-- The viewer's read state (1.45.0), as browse cards show it: an archive's mark, a folder's rollup (top-right corner). -->
           @if (node.isRead) {
             <span class="badge read" matTooltip="Read">✓ Read</span>

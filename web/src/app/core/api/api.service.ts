@@ -108,6 +108,7 @@ import {
   SearchSuggestDto,
   FavoritesQuery,
   FavoritesJumpIndexDto,
+  SetRatingRequest,
 } from './api-types';
 
 /** Options of {@link ApiService.search} (1.45.0). */
@@ -848,6 +849,7 @@ export class ApiService {
     // 1.51.0 (lane F): group by library and the backward page (both only when set - the home row's call stays the same).
     if (query.groupByLibrary) params = params.set('group', 'library');
     if (query.before) params = params.set('before', query.before);
+    if (query.rating && query.rating !== 'all') params = params.set('rating', query.rating); // 1.52.0
     return this.get<PageResponse<CatalogNodeDto>>('/favorites', params);
   }
 
@@ -862,6 +864,7 @@ export class ApiService {
     if (query.kind && query.kind !== 'all') params = params.set('kind', query.kind);
     if (query.libraryId) params = params.set('libraryId', query.libraryId);
     if (query.groupByLibrary) params = params.set('group', 'library');
+    if (query.rating && query.rating !== 'all') params = params.set('rating', query.rating); // 1.52.0
     return this.get<FavoritesJumpIndexDto>('/favorites/jump-index', params);
   }
 
@@ -870,6 +873,15 @@ export class ApiService {
     return favorite
       ? this.post<void>(`/nodes/${nodeId}/favorite`, {})
       : this.delete<void>(`/nodes/${nodeId}/favorite`);
+  }
+
+  // --- Ratings (1.52.0) ---
+
+  /** Sets the current user's rating of a node (1-10; idempotent), or clears it (null). */
+  setRating(nodeId: string, score: number | null): Observable<void> {
+    return score === null
+      ? this.delete<void>(`/nodes/${nodeId}/rating`)
+      : this.put<void>(`/nodes/${nodeId}/rating`, { score } satisfies SetRatingRequest);
   }
 
   // --- HTTP helpers ---

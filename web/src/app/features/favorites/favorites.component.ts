@@ -21,6 +21,7 @@ import {
 } from '../../core/preferences/favorites-display-preferences.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.component';
+import { RatingStarsComponent } from '../ratings/rating-stars.component';
 import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.component';
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { StackCardComponent } from '../../shared/stack-card/stack-card.component';
@@ -111,6 +112,7 @@ export function groupHeaders(
   selector: 'app-favorites',
   standalone: true,
   imports: [
+    RatingStarsComponent,
     CommonModule,
     RouterLink,
     MatIconModule,
@@ -222,6 +224,16 @@ export function groupHeaders(
             {{ opt.label }}
           </button>
         }
+        <!-- 1.52.0 (lane R): Rated / Not rated, by your own rating. -->
+        <span class="menu-caption">Rating</span>
+        @for (opt of ratingOptions; track opt.value) {
+          <button mat-menu-item role="menuitemradio" [attr.data-testid]="'favorites-rating-' + opt.value"
+                  [class.selected-option]="rated() === opt.value" [attr.aria-checked]="rated() === opt.value"
+                  (click)="setRated(opt.value)">
+            <mat-icon>{{ opt.icon }}</mat-icon>
+            {{ opt.label }}
+          </button>
+        }
         @if (libraries().length > 1) {
           <span class="menu-caption">Library</span>
           <button mat-menu-item role="menuitemradio" data-testid="favorites-library-all"
@@ -326,6 +338,8 @@ export function groupHeaders(
                 }
                 <app-folder-rollup-badge [rollup]="node.readRollup" />
                 <app-star-toggle [nodeId]="node.id" [favorite]="true" [overlay]="true" [compact]="true" />
+                <!-- 1.52.0 (lane R): the viewer's own rating, above the star (rated only). -->
+                <app-rating-stars mode="badge" [overlay]="true" [nodeId]="node.id" [rating]="node.myRating" />
                 <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo"
                                  [anchored]="node.kind === 'Archive'" [overlay]="true" />
               </div>
@@ -513,6 +527,8 @@ export class FavoritesComponent implements OnInit, OnDestroy {
     { sort: 'recentlyAdded', direction: 'desc', label: 'Recently added', icon: 'new_releases', hint: 'New items appear' },
     { sort: 'recentlyUpdated', direction: 'desc', label: 'Recently updated', icon: 'update', hint: 'Folders with new content' },
     { sort: 'recentlyRead', direction: 'desc', label: 'Recently read', icon: 'history', hint: 'What you read last' },
+    // 1.52.0 (lane R): your own rating, highest first; not rated last (a stack by its folder's rating).
+    { sort: 'myRating', direction: 'desc', label: 'My rating', icon: 'star_half', hint: 'Your highest rated first' },
   ];
 
   // Group by library (1.51.0, per device - decision 9). Effective only without a library filter: one library needs no header.
@@ -559,10 +575,18 @@ export class FavoritesComponent implements OnInit, OnDestroy {
     { value: 'folders', label: 'Folders', icon: 'folder' },
     { value: 'archives', label: 'Archives', icon: 'menu_book' },
   ];
-  readonly filterActive = computed(() => this.readState() !== 'all' || this.kind() !== 'all' || this.libraryId() !== null);
+  /** 1.52.0 (lane R): the Rated / Not rated filter (transient, as the others). */
+  readonly rated = signal<'all' | 'rated' | 'unrated'>('all');
+  readonly ratingOptions: { value: 'all' | 'rated' | 'unrated'; label: string; icon: string }[] = [
+    { value: 'all', label: 'Rated or not', icon: 'star_outline' },
+    { value: 'rated', label: 'Rated', icon: 'star' },
+    { value: 'unrated', label: 'Not rated', icon: 'star_border' },
+  ];
+  readonly filterActive = computed(() => this.readState() !== 'all' || this.kind() !== 'all' || this.libraryId() !== null
+    || this.rated() !== 'all');
   /** The Filter button's label: the read state when only it is set, "Filtered" for any other filter, else "Filter". */
   readonly filterLabel = computed(() => {
-    if (this.kind() !== 'all' || this.libraryId() !== null) return 'Filtered';
+    if (this.kind() !== 'all' || this.libraryId() !== null || this.rated() !== 'all') return 'Filtered';
     const state = this.readState();
     return state === 'all' ? 'Filter' : this.readStateOptions.find((o) => o.value === state)?.label ?? 'Filter';
   });
@@ -682,6 +706,13 @@ export class FavoritesComponent implements OnInit, OnDestroy {
     this.reload();
   }
 
+  /** 1.52.0 (lane R): Rated / Not rated / either. */
+  setRated(rated: 'all' | 'rated' | 'unrated'): void {
+    if (this.rated() === rated) return;
+    this.rated.set(rated);
+    this.reload();
+  }
+
   setLibrary(libraryId: string | null): void {
     if (this.libraryId() === libraryId) return;
     this.libraryId.set(libraryId);
@@ -698,6 +729,7 @@ export class FavoritesComponent implements OnInit, OnDestroy {
     this.readState.set('all');
     this.kind.set('all');
     this.libraryId.set(null);
+    this.rated.set('all');
     this.reload();
   }
 
@@ -723,6 +755,7 @@ export class FavoritesComponent implements OnInit, OnDestroy {
       readState: this.readState(),
       kind: this.kind(),
       libraryId: this.libraryId(),
+      ...(this.rated() !== 'all' ? { rating: this.rated() } : {}),
     };
     return this.grouped() ? { ...query, groupByLibrary: true } : query;
   }
@@ -791,8 +824,8 @@ export class FavoritesComponent implements OnInit, OnDestroy {
     this.jumpBuckets.set([]);
     this.activeJump.set(null);
     if (this.sortChoice().sort !== 'name' || this.grouped()) return;
-    const { direction, readState, kind, libraryId } = this.query();
-    this.api.getFavoritesJumpIndex({ direction, readState, kind, libraryId }).pipe(catchError(() => of(null))).subscribe((rail) => {
+    const { direction, readState, kind, libraryId, rating } = this.query();
+    this.api.getFavoritesJumpIndex({ direction, readState, kind, libraryId, rating }).pipe(catchError(() => of(null))).subscribe((rail) => {
       if (generation !== this.jumpGeneration) return;
       this.jumpBuckets.set(rail?.buckets ?? []);
     });

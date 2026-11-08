@@ -36,6 +36,7 @@ function makeHost(view: ReaderView = 'paged') {
     toggleBookmark: vi.fn(),
     openBookmarks: vi.fn(),
     toggleFavorite: vi.fn(),
+    openRating: vi.fn(), // 1.52.0 lane R
     openSeriesInfo: vi.fn(),
   } satisfies ReaderOptionsHost;
 }

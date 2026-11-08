@@ -464,6 +464,8 @@ export interface ReaderOptionsHost {
   toggleBookmark(): void;
   openBookmarks(): void;
   toggleFavorite(): void;
+  /** 1.52.0 (lane R): the Rate sheet - this archive and its folder. */
+  openRating(): void;
   /** Leave the reader for the series page (1.41.0); the reader saves the page on the way out. */
   openSeriesInfo(): void;
 }
@@ -536,6 +538,12 @@ export interface ReaderOptionsHost {
                 [attr.aria-label]="host.currentFavorite() ? 'Remove from favorites' : 'Add to favorites'">
           <mat-icon aria-hidden="true">{{ host.currentFavorite() ? 'star' : 'star_border' }}</mat-icon>
           Favorite
+        </button>
+        <!-- 1.52.0 (lane R): Rate - opens its own sheet once this one has gone (one sheet at a time). -->
+        <button type="button" class="chip action" (click)="rate()" aria-label="Rate this archive or its folder" aria-haspopup="dialog"
+                data-testid="reader-options-rate">
+          <mat-icon aria-hidden="true">star_half</mat-icon>
+          Rate
         </button>
         @if (host.seriesInfoAnchor()) {
           <!-- 1.41.0: the bar's Series info, when the archive resolves to series information. -->
@@ -914,6 +922,12 @@ export class ReaderOptionsSheetComponent {
    */
   bookmarks(): void {
     this.ref.afterDismissed().subscribe(() => this.host.openBookmarks());
+    this.ref.dismiss();
+  }
+
+  /** 1.52.0 (lane R): the Rate sheet is a sheet too - open it once this one has gone, as the bookmarks list. */
+  rate(): void {
+    this.ref.afterDismissed().subscribe(() => this.host.openRating());
     this.ref.dismiss();
   }
 
