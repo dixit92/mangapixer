@@ -5,9 +5,11 @@ using System.Net.Http.Json;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Server;
 using com.lifepixer.mangapixer.Server.Hosting;
+using com.lifepixer.mangapixer.Server.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -284,10 +286,15 @@ public sealed class MangaPixerWebApplicationFactory : WebApplicationFactory<Prog
 
     protected override void Dispose(bool disposing)
     {
+        base.Dispose(disposing);
         if (disposing)
         {
+            // After the host stopped (its connections are back in the pool): Microsoft.Data.Sqlite keeps one pool per connection
+            // string in a static, and the pool's prune timer captured the execution context that holds this factory - so this
+            // host's own database pool would keep the whole host reachable (TestHostLifetimeTests).
+            using (var connection = new SqliteConnection(DatabaseInitialization.BuildConnectionString(Path.Combine(DataRoot, "mangapixer.db"))))
+                SqliteConnection.ClearPool(connection);
             try { Directory.Delete(_tempRoot, true); } catch { }
         }
-        base.Dispose(disposing);
     }
 }
