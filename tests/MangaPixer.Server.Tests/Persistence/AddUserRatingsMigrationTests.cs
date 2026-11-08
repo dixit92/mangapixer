@@ -126,7 +126,7 @@ public sealed class AddUserRatingsMigrationTests : IDisposable
         {
             foreach (var bad in new[] { 0, 11, -1 })
             {
-                await Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlRawAsync(
+                await Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlAsync(
                     $"INSERT INTO user_ratings (UserId, CatalogNodeId, Score, RatedAt) VALUES (2, 11, {bad}, 0);"));
             }
             Assert.Equal(3, await db.UserRatings.CountAsync());
