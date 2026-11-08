@@ -9,6 +9,7 @@ import { AdminTrackerAccountDto, AdminTrackerSettingsDto } from '../../core/api/
 import { AdminTrackerPanelComponent } from './admin-tracker-panel.component';
 import { TrackersApiService } from './trackers-api.service';
 import { TRACKER_SETUP_DOCS_URL, failureText, trackerName } from './tracker-texts';
+import { EscapeCancelsDirective } from '../../shared/escape-cancels.directive';
 
 /**
  * Administration > Trackers (1.43.0, `<app-admin-trackers-card />`): per tracker (MyAnimeList, MangaUpdates) the allow switch
@@ -18,7 +19,7 @@ import { TRACKER_SETUP_DOCS_URL, failureText, trackerName } from './tracker-text
 @Component({
   selector: 'app-admin-trackers-card',
   standalone: true,
-  imports: [DatePipe, MatButtonModule, MatCardModule, MatDividerModule, MatIconModule, AdminTrackerPanelComponent],
+  imports: [DatePipe, MatButtonModule, MatCardModule, MatDividerModule, MatIconModule, AdminTrackerPanelComponent, EscapeCancelsDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <mat-card data-testid="admin-trackers-card">
@@ -58,7 +59,10 @@ import { TRACKER_SETUP_DOCS_URL, failureText, trackerName } from './tracker-text
                   </div>
                   @if (a.state !== 'DisconnectedByAdmin') {
                     @if (confirming() === a.tracker + ':' + a.userId) {
-                      <div class="confirm" role="alertdialog" data-testid="admin-tracker-disconnect-confirm">
+                      <div class="confirm" role="alertdialog" data-testid="admin-tracker-disconnect-confirm"
+                           appEscapeCancels [escapeDisabled]="busy()"
+                           [returnFocus]="'[data-testid=admin-tracker-disconnect-' + a.tracker + '-' + a.userId + ']'"
+                           (escapeCancel)="confirming.set(null)">
                         <p>Disconnect {{ a.username }}'s {{ name(a.tracker) }} account? Its sign-in is deleted and syncing stops.
                           The user sees that an admin disconnected it and can connect again.</p>
                         <div class="actions">
