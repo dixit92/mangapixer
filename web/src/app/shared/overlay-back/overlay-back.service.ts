@@ -13,8 +13,9 @@ import { Injectable, InjectionToken, inject } from '@angular/core';
  *
  * The service never steps through history on its own while the page may be navigating: a surface closed another way (Escape, a tap
  * outside, a choice) leaves its entry in place, SPENT - the next surface reuses it, and a Back that finds nothing open goes on past
- * the page's own entries to the page before (one Back, as the user meant). So a reload or a full navigation right after a close never
- * races a history step of ours. The router never writes on top of a marked entry: its push (through `OverlayBackLocationStrategy`)
+ * the page's own entries to the page before (one Back, as the user meant). Only once the page has been quiet for a moment
+ * (`OVERLAY_BACK_TIDY_MS`: no navigation, no surface, the page not unloading) are spent entries stepped over, so a later reload
+ * (pull-to-refresh) finds none below it; a reload or a full navigation right after a close never races a history step of ours. The router never writes on top of a marked entry: its push (through `OverlayBackLocationStrategy`)
  * REPLACES the top marked entry, so the old page keeps exactly one entry a Back can land on; a replace (a query parameter) rewrites the
  * top entry and keeps its mark. `Location.back()` / `historyGo` (the reader's in-app Back) step over the marked entries to the real
  * previous page.
@@ -47,6 +48,8 @@ export interface OverlayBackHistory {
   go(delta: number): void;
   /** Listens to `popstate` before any other listener (capturing, on `window`). */
   listen(listener: (event: BackPopState) => void): void;
+  /** Calls `listener` when the document starts to go away (`beforeunload`, `pagehide`). */
+  onLeave(listener: () => void): void;
 }
 
 export const OVERLAY_BACK_HISTORY = new InjectionToken<OverlayBackHistory>('OVERLAY_BACK_HISTORY', {
@@ -58,11 +61,18 @@ export const OVERLAY_BACK_HISTORY = new InjectionToken<OverlayBackHistory>('OVER
     replaceState: (state, url) => globalThis.history?.replaceState(state, '', url),
     go: (delta) => globalThis.history?.go(delta),
     listen: (listener) => globalThis.addEventListener?.('popstate', listener as unknown as EventListener, { capture: true }),
+    onLeave: (listener) => {
+      globalThis.addEventListener?.('beforeunload', listener);
+      globalThis.addEventListener?.('pagehide', listener);
+    },
   }),
 });
 
 /** How long a step of ours may take before the service stops waiting for its `popstate` (a step the browser did not take). */
 export const OVERLAY_BACK_STEP_TIMEOUT_MS = 1000;
+
+/** How long the page must be quiet after a surface closed before its spent entries are stepped over. */
+export const OVERLAY_BACK_TIDY_MS = 250;
 
 type State = Record<string, unknown>;
 
@@ -107,9 +117,16 @@ export class OverlayBackService {
   /** Work that waits for the step in flight to land. */
   private readonly queue: (() => void)[] = [];
   private scheduled = false;
+  private tidyTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The document is going away: no step of ours any more. */
+  private leaving = false;
 
   constructor() {
     this.history.listen((event) => this.onPopState(event));
+    this.history.onLeave(() => {
+      this.leaving = true;
+      this.cancelTidy();
+    });
     // A reload (or a restored tab) on an entry of ours: its surfaces are gone, so are the marks.
     const state = this.history.state;
     if (overlayBackDepth(state) > 0 || pageOf(state) !== null) this.history.replaceState(unmarked(state), this.history.href);
@@ -123,6 +140,7 @@ export class OverlayBackService {
   /** A surface opened: it gets an entry of its own (a spent one when there is one). */
   opened(surface: BackSurface): void {
     if (this.open.includes(surface)) return;
+    this.cancelTidy();
     this.open.push(surface);
     this.schedule();
   }
@@ -130,7 +148,9 @@ export class OverlayBackService {
   /** A surface closed (by any means): its entry stays, spent, for the next surface or for a Back that leaves. */
   closed(surface: BackSurface): void {
     const i = this.open.indexOf(surface);
-    if (i >= 0) this.open.splice(i, 1);
+    if (i < 0) return;
+    this.open.splice(i, 1);
+    this.scheduleTidy();
   }
 
   /**
@@ -138,6 +158,7 @@ export class OverlayBackService {
    * below it); the surfaces still open go with the old page.
    */
   routerPush(push: () => void, replace: () => void): void {
+    this.cancelTidy();
     this.whenIdle(() => {
       if (this.entries === 0) {
         push();
@@ -153,6 +174,7 @@ export class OverlayBackService {
 
   /** The router rewrites the current entry (`replace`): with marked entries the top one keeps its mark, with the new address. */
   routerReplace(replace: () => void): void {
+    this.cancelTidy();
     this.whenIdle(() => {
       replace();
       this.remember();
@@ -162,6 +184,7 @@ export class OverlayBackService {
 
   /** The app steps through history itself (`Location.back()` / `historyGo`): a step back goes past the marked entries. */
   appStep(delta: number, go: (delta: number) => void): void {
+    this.cancelTidy();
     this.whenIdle(() => {
       if (this.entries === 0 || delta >= 0) {
         go(delta);
@@ -176,6 +199,7 @@ export class OverlayBackService {
   }
 
   private onPopState(event: BackPopState): void {
+    this.cancelTidy();
     if (this.pending) {
       const kind = this.pending;
       this.clearPending();
@@ -220,6 +244,24 @@ export class OverlayBackService {
     this.forget();
     // A marked entry an earlier visit left behind (a navigation away, a reload): once the router has it, down to that page's entry.
     if (depth > 0) this.step(-depth, 'drop');
+  }
+
+  /** Spent entries are stepped over once the page has been quiet for a moment (see the class comment). */
+  private scheduleTidy(): void {
+    this.cancelTidy();
+    if (this.leaving) return;
+    this.tidyTimer = setTimeout(() => {
+      this.tidyTimer = null;
+      const spent = this.entries - this.open.length;
+      if (this.leaving || this.pending || this.scheduled || spent <= 0) return;
+      this.entries -= spent;
+      this.step(-spent, 'drop');
+    }, OVERLAY_BACK_TIDY_MS);
+  }
+
+  private cancelTidy(): void {
+    if (this.tidyTimer !== null) clearTimeout(this.tidyTimer);
+    this.tidyTimer = null;
   }
 
   /** Gives the open surfaces their entries (batched: a menu that hands over to a dialog nets out to the entry it had). */

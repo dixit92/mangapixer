@@ -2,8 +2,8 @@ import { TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
 
 import {
-  BackPopState, BackSurface, OVERLAY_BACK_HISTORY, OVERLAY_BACK_MARK, OVERLAY_BACK_PAGE, OVERLAY_BACK_STEP_TIMEOUT_MS, OverlayBackHistory,
-  OverlayBackService, overlayBackDepth,
+  BackPopState, BackSurface, OVERLAY_BACK_HISTORY, OVERLAY_BACK_MARK, OVERLAY_BACK_PAGE, OVERLAY_BACK_STEP_TIMEOUT_MS, OVERLAY_BACK_TIDY_MS,
+  OverlayBackHistory, OverlayBackService, overlayBackDepth,
 } from './overlay-back.service';
 
 /**
@@ -28,6 +28,10 @@ class FakeHistory implements OverlayBackHistory {
   replaceState(state: unknown, url: string): void { this.entries[this.index] = { state, url }; }
   go(delta: number): void { this.steps.push(delta); }
   listen(listener: (e: BackPopState) => void): void { this.listener = listener; }
+  onLeave(listener: () => void): void { this.leaveListener = listener; }
+  /** The document starts to go away (a reload, a full navigation). */
+  leave(): void { this.leaveListener?.(); }
+  private leaveListener: (() => void) | null = null;
 
   /** The user's Back (-1) / Forward (+1). */
   user(delta: number): void { this.land(delta); }
@@ -282,5 +286,54 @@ describe('OverlayBackService', () => {
     TestBed.configureTestingModule({ providers: [{ provide: OVERLAY_BACK_HISTORY, useValue: h }] });
     TestBed.inject(OverlayBackService);
     expect(h.state).toEqual({ navigationId: 2 });
+  });
+
+  describe('tidying spent entries', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it('once the page has been quiet for a moment, a spent entry is stepped over unseen; Back then reaches the router directly', async () => {
+      const menu = await openSurface();
+      service.closed(menu);
+      await vi.advanceTimersByTimeAsync(OVERLAY_BACK_TIDY_MS);
+      await history.settle();
+      expect(history.picture).toBe('/a >/b /b*1');
+      expect(history.routerSaw).toEqual([]);
+      expect(service.depth).toBe(0);
+      history.user(-1);
+      expect(history.routerSaw).toEqual(['/a']);
+    });
+
+    it('the document going away (a reload, a full navigation) right after a close: no step of its own', async () => {
+      const menu = await openSurface();
+      service.closed(menu);
+      history.leave();
+      await vi.advanceTimersByTimeAsync(OVERLAY_BACK_TIDY_MS * 4);
+      expect(history.pendingSteps).toBe(0);
+      expect(history.picture).toBe('/a /b >/b*1');
+    });
+
+    it('a surface opened within the moment reuses the spent entry instead', async () => {
+      const menu = await openSurface();
+      service.closed(menu);
+      const dialog = await openSurface();
+      await vi.advanceTimersByTimeAsync(OVERLAY_BACK_TIDY_MS * 4);
+      expect(history.pendingSteps).toBe(0);
+      expect(history.picture).toBe('/a /b >/b*1');
+      history.user(-1);
+      expect(dialog.closes).toBe(1);
+    });
+
+    it('a spent entry above an open sheet is stepped over; the sheet keeps its own', async () => {
+      const sheet = await openSurface();
+      const menu = await openSurface();
+      service.closed(menu);
+      await vi.advanceTimersByTimeAsync(OVERLAY_BACK_TIDY_MS);
+      await history.settle();
+      expect(history.picture).toBe('/a /b >/b*1 /b*2');
+      history.user(-1);
+      expect(sheet.closes).toBe(1);
+      expect(history.routerSaw).toEqual([]);
+    });
   });
 });
