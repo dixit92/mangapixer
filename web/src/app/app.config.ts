@@ -18,6 +18,7 @@ import { incognitoInterceptor } from './core/incognito/incognito.interceptor';
 import { AuthService } from './core/auth/auth.service';
 import { LibraryBrowseReuseStrategy } from './core/routing/library-browse-reuse.strategy';
 import { ThemeService } from './core/theme/theme.service';
+import { provideOverlayBack } from './shared/overlay-back/overlay-back.providers';
 
 /**
  * App configuration. Provides router, animations, HTTP client with XSRF
@@ -37,6 +38,8 @@ export const appConfig: ApplicationConfig = {
       withInMemoryScrolling({ scrollPositionRestoration: 'enabled', anchorScrolling: 'enabled' }),
     ),
     { provide: RouteReuseStrategy, useClass: LibraryBrowseReuseStrategy },
+    // 1.52.0 (m1): a phone's back gesture / the browser's Back closes an open menu, sheet, dialog or list and stays on the page.
+    provideOverlayBack(),
     provideAnimations(),
     provideHttpClient(
       withInterceptorsFromDi(),

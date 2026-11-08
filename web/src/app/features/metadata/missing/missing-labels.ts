@@ -1,6 +1,6 @@
 import {
   MissingConfidence, MissingConversionBatchResultDto, MissingConversionDto, MissingSeriesDto, MissingTotalSource, MissingUnitGapDto,
-  MissingVerdict,
+  MissingVerdict, SeriesInfoDto,
 } from '../../../core/api/api-types';
 
 // Wording of the missing volumes / chapters report (1.28.0). Pure functions so the tab, the series page line
@@ -115,4 +115,17 @@ export function batchSentence(r: MissingConversionBatchResultDto): string {
   if (r.remaining > 0) parts.push(`${r.remaining} still without chapters per volume.`);
   if (r.stoppedMessage) parts.push(`Stopped: ${r.stoppedMessage}`);
   return parts.join(' ');
+}
+
+/**
+ * Whether the series page should ask for the folder's Missing line (1.52.0, sweep C3). The server answers a row only for a folder with
+ * its OWN confirmed or automatic series link (else 404 - console noise on every other series page). The series information already
+ * says so: no request when it is visible and shows no such link. When it shows nothing at all (state None - which is also what a
+ * library with series information hidden answers), the page still asks, as before.
+ */
+export function mayHaveMissingLine(info: SeriesInfoDto): boolean {
+  if (info.anchorKind !== 'Folder') return false;
+  if (info.state === 'None') return true;
+  const link = info.link;
+  return !!link && (link.state === 'Confirmed' || link.state === 'Auto') && link.nodeId === info.anchorNodeId;
 }

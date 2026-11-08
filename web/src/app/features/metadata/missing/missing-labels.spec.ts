@@ -1,4 +1,5 @@
-import { compactNumbers, gapDetail, haveSentence, noVerdictReason, totalTooltip } from './missing-labels';
+import { SeriesInfoDto } from '../../../core/api/api-types';
+import { compactNumbers, gapDetail, haveSentence, mayHaveMissingLine, noVerdictReason, totalTooltip } from './missing-labels';
 import { gap, missingRow } from './missing.testing';
 
 describe('missing report labels', () => {
@@ -44,5 +45,29 @@ describe('missing labels, preferred language (1.29.0 RC)', () => {
     expect(haveSentence(gap)).toBe('You have chapters 1-3 of 5 (released in your language)');
     expect(totalTooltip(gap)).toContain('released in your preferred language');
     expect(totalTooltip({ ...gap, source: 'English', confidence: 'High' })).toBe('Total from the English publisher total');
+  });
+});
+
+describe('mayHaveMissingLine (1.52.0, C3: no request the server can only answer 404)', () => {
+  const info = (over: Partial<SeriesInfoDto>): SeriesInfoDto => ({
+    nodeId: 'f1', nodeKind: 'Folder', anchorNodeId: 'f1', anchorKind: 'Folder', anchorDisplayName: 'Synthetic Saga', libraryId: 'l1',
+    state: 'Web', precedence: 'WebFirst', precedenceSource: 'Default', ...over,
+  });
+
+  it('asks for a folder with its own confirmed or automatic link', () => {
+    expect(mayHaveMissingLine(info({ link: { state: 'Confirmed', nodeId: 'f1', inherited: false } }))).toBe(true);
+    expect(mayHaveMissingLine(info({ link: { state: 'Auto', nodeId: 'f1', inherited: false } }))).toBe(true);
+  });
+
+  it('does not ask without such a link: ComicInfo only, a link on another folder, Don\'t match, a collection, an archive', () => {
+    expect(mayHaveMissingLine(info({ state: 'ComicInfo', link: null }))).toBe(false);
+    expect(mayHaveMissingLine(info({ link: { state: 'Confirmed', nodeId: 'parent', inherited: true } }))).toBe(false);
+    expect(mayHaveMissingLine(info({ state: 'DontMatch', link: { state: 'DontMatch', nodeId: 'f1', inherited: false } }))).toBe(false);
+    expect(mayHaveMissingLine(info({ state: 'CollectionAbout', link: { state: 'CollectionAbout', nodeId: 'f1', inherited: false } }))).toBe(false);
+    expect(mayHaveMissingLine(info({ anchorKind: 'Archive', link: { state: 'Confirmed', nodeId: 'f1', inherited: false } }))).toBe(false);
+  });
+
+  it('still asks when the series information shows nothing (it may be hidden for the library)', () => {
+    expect(mayHaveMissingLine(info({ state: 'None', link: null }))).toBe(true);
   });
 });

@@ -266,3 +266,21 @@ html {
     min-height: 40px;
   }
 }
+
+/* Touch targets (1.52.0, mobile sweep C1). A link inside a sentence (`.touch-inline-link`) gets a 40 px tall hit area on a touch screen
+   WITHOUT moving any text: vertical padding on an inline box grows the box a tap hits, not the line it sits on (an inline box is about
+   1.17em tall: 21 px - 0.6em of padding each side makes it 40 - 42 px at 12 to 18 px text). Only for a link that stays inline and has
+   no other link on the line above or below. A trail of links (`.touch-inline-links`: the volume / collection stack crumbs) wraps on a
+   phone, where padded links on neighbouring lines would cover each other's text: on a touch screen it lays out as browse's trail does
+   (1.51.0, M13) - 40 px tall items in a wrapping row. A mouse keeps the old boxes. */
+@media (pointer: coarse) {
+  a.touch-inline-link {
+    padding-block: calc(21px - 0.6em);
+  }
+  .touch-inline-links {
+    display: flex; flex-wrap: wrap; align-items: center; column-gap: 4px;
+  }
+  .touch-inline-links a {
+    display: inline-flex; align-items: center; min-height: 40px;
+  }
+}

@@ -11,6 +11,7 @@ import { TrackersApiService } from './trackers-api.service';
 import { TrackerConsentTextComponent } from './tracker-consent-text.component';
 import { TrackerNavigationService } from './tracker-navigation.service';
 import { TRACKER_USER_CONSENT_VERSION, accountProblem, failureText, revokeHint } from './tracker-texts';
+import { EscapeCancelsDirective } from '../../shared/escape-cancels.directive';
 
 /**
  * One tracker's account card on the Tracking page (1.43.0; Settings > Connected accounts until the owner's redesign), for the
@@ -25,7 +26,7 @@ import { TRACKER_USER_CONSENT_VERSION, accountProblem, failureText, revokeHint }
 @Component({
   selector: 'app-tracker-account-panel',
   standalone: true,
-  imports: [DatePipe, FormsModule, MatButtonModule, MatCheckboxModule, MatIconModule, MatSlideToggleModule,
+  imports: [DatePipe, FormsModule, MatButtonModule, MatCheckboxModule, MatIconModule, MatSlideToggleModule, EscapeCancelsDirective,
     TrackerConsentTextComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -115,7 +116,9 @@ import { TRACKER_USER_CONSENT_VERSION, accountProblem, failureText, revokeHint }
           </div>
         }
         @if (confirmDisconnect()) {
-          <div class="confirm" role="alertdialog" [attr.aria-label]="'Disconnect ' + t.name" [attr.data-testid]="'tracker-disconnect-confirm-' + t.slug">
+          <div class="confirm" role="alertdialog" [attr.aria-label]="'Disconnect ' + t.name" [attr.data-testid]="'tracker-disconnect-confirm-' + t.slug"
+               appEscapeCancels [escapeDisabled]="busy()" [returnFocus]="'[data-testid=tracker-disconnect-' + t.slug + ']'"
+               (escapeCancel)="confirmDisconnect.set(false)">
             <p>Disconnect your {{ t.name }} account? MangaPixer deletes its sign-in and your series list for {{ t.name }} here;
               nothing on {{ t.name }} is changed. {{ revokeText() }}</p>
             <div class="actions">

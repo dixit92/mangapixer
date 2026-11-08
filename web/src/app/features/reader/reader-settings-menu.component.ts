@@ -244,6 +244,11 @@ export const READER_MENU_STYLES = `
     ::ng-deep .reader-display-menu .mat-mdc-menu-item { min-height: 36px; }
     ::ng-deep .reader-display-menu .menu-group-label { padding-top: 6px; }
   }
+  /* Touch screens (1.52.0, sweep m6): a phone held sideways is a short screen too, but its menu items stay 40 px targets (the 36 px
+     above is for a mouse). */
+  @media (max-height: 880px) and (pointer: coarse) {
+    ::ng-deep .reader-options-menu .mat-mdc-menu-item { min-height: 40px; }
+  }
 `;
 
 /**

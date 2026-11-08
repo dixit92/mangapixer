@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ViewEncapsulation, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ViewEncapsulation, input, output, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
@@ -24,8 +24,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
   encapsulation: ViewEncapsulation.None,
   template: `
     <span class="count" data-testid="selection-count">{{ count() }} selected</span>
-    <div class="actions">
-      <button mat-button [matMenuTriggerFor]="selectMenu" [disabled]="busy() || selectDisabled()"
+    <div class="actions" [class.more-open]="moreOpen()">
+      <button mat-button class="primary" [matMenuTriggerFor]="selectMenu" [disabled]="busy() || selectDisabled()"
               matTooltip="Select the whole list" data-testid="selection-select-menu">
         <mat-icon>playlist_add_check</mat-icon><span class="lbl">Select</span>
       </button>
@@ -40,8 +40,14 @@ import { MatTooltipModule } from '@angular/material/tooltip';
           <mat-icon>check_circle</mat-icon> Select all read
         </button>
       </mat-menu>
-      <button mat-button (click)="markRead.emit(true)" [disabled]="busy() || count() === 0" data-testid="selection-mark-read">
+      <button mat-button class="primary" (click)="markRead.emit(true)" [disabled]="busy() || count() === 0" data-testid="selection-mark-read">
         <mat-icon>check_circle</mat-icon><span class="lbl">Mark read</span>
+      </button>
+      <!-- 1.52.0 (sweep: 2 of 8 actions at 360 px): on a phone the row shows Select and Mark read; More opens the rest (Mark unread,
+           Favorites, the host's actions) in rows of their own below, with their names. Wider screens show every action and no More. -->
+      <button mat-button class="more-toggle" (click)="moreOpen.set(!moreOpen())" [attr.aria-expanded]="moreOpen()"
+              data-testid="selection-more">
+        <mat-icon>{{ moreOpen() ? 'expand_less' : 'more_horiz' }}</mat-icon><span class="lbl">{{ moreOpen() ? 'Fewer actions' : 'More actions' }}</span>
       </button>
       <button mat-button (click)="markRead.emit(false)" [disabled]="busy() || count() === 0" data-testid="selection-mark-unread">
         <mat-icon>remove_done</mat-icon><span class="lbl">Mark unread</span>
@@ -71,6 +77,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
     app-selection-bar .actions mat-icon, app-selection-bar .done mat-icon { margin-right: 4px; }
     /* 1.50.1: Done never shrinks - squeezed on a phone it drew its icon across its border; the actions beside it wrap instead. */
     app-selection-bar .done { flex: none; }
+    app-selection-bar .more-toggle { display: none; }
     @media (max-width: 599.98px), (max-height: 499.98px) and (pointer: coarse) {
       /* 1.51.0 (mobile sweep M2): ONE short row on a phone (and a phone held sideways, M1) - "N selected", the action icons, Done. The icons no longer wrap
          into a column beside Done (216-323 px of bar); they scroll sideways inside their own row, which takes what the count
@@ -94,6 +101,28 @@ import { MatTooltipModule } from '@angular/material/tooltip';
         overflow: hidden; clip-path: inset(50%); white-space: nowrap;
       }
     }
+    @media (max-width: 599.98px) {
+      /* 1.52.0: a phone in portrait. Closed: Select, Mark read and More in the row (they fit at 360 px - Done drops its icon);
+         the rest waits behind More. Open: the actions take the rows below "N selected" and Done, wrapped, each with its name. */
+      app-selection-bar .more-toggle { display: inline-flex; }
+      /* (Out-ranks Material's own outlined-button rules, which use :has(mat-icon).) */
+      app-selection-bar .done.mat-mdc-outlined-button { min-width: 0; padding: 0 12px; }
+      app-selection-bar .done.mat-mdc-outlined-button > mat-icon { display: none; }
+      app-selection-bar .actions:not(.more-open) .mat-mdc-button { min-width: 40px; padding: 0 8px; }
+      :has(> app-selection-bar) { column-gap: 8px; }
+      app-selection-bar .actions:not(.more-open) { padding-right: 0; mask-image: none; }
+      app-selection-bar .actions:not(.more-open) > :not(.primary):not(.more-toggle) { display: none; }
+      app-selection-bar .actions.more-open {
+        order: 3; flex: 1 0 100%; flex-wrap: wrap; overflow: visible; padding-right: 0; mask-image: none; gap: 4px 8px;
+      }
+      app-selection-bar .actions.more-open .mat-mdc-button { padding: 0 12px; }
+      app-selection-bar .actions.more-open mat-icon { margin-right: 4px; }
+      app-selection-bar .actions.more-open .lbl {
+        position: static; width: auto; height: auto; margin: 0; overflow: visible; clip-path: none;
+      }
+      app-selection-bar .actions.more-open ~ .done { margin-left: auto; }
+      :has(> app-selection-bar > .actions.more-open) { flex-wrap: wrap; row-gap: 8px; }
+    }
   `],
 })
 export class SelectionBarComponent {
@@ -113,4 +142,7 @@ export class SelectionBarComponent {
   /** True = add to favorites, false = remove. */
   readonly favorite = output<boolean>();
   readonly done = output<void>();
+
+  /** Phone: the actions behind More are shown (1.52.0). */
+  readonly moreOpen = signal(false);
 }

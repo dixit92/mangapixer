@@ -1,5 +1,5 @@
 import { test, expect, Page, APIRequestContext, Route } from '@playwright/test';
-import { expectFitsScreen } from './layout';
+import { expectFitsScreen, openSelectionMore } from './layout';
 
 /**
  * Author search by name (1.45.0) on the owner's path - NEVER the real network (the author search and the marks are answered IN THE
@@ -122,6 +122,7 @@ async function selectFolders(page: Page, libraryId: string, names: string[]): Pr
   await page.goto(`/libraries/${libraryId}/browse`);
   await page.locator('button.select-toggle').click();
   for (const name of names) await page.locator('.node-wrap', { hasText: name }).locator('.node-card').click();
+  await openSelectionMore(page);
   await page.getByTestId('series-selection-menu').click();
 }
 

@@ -8,6 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { ApiService } from '../../../core/api/api.service';
 import { ApiError, ApiTokenDto, ApiTokenScope, CreateApiTokenResponse } from '../../../core/api/api-types';
 import { TOUCH_FIELDS_CSS } from '../../../shared/touch-targets';
+import { EscapeCancelsDirective } from '../../../shared/escape-cancels.directive';
 
 /** The expiry choices in days; null = never. 365 is the default. */
 export const EXPIRY_CHOICES: { days: number | null; label: string }[] = [
@@ -57,7 +58,7 @@ const STATUS_TEXT: Record<ApiTokenDto['status'], string> = {
 @Component({
   selector: 'app-api-tokens-card',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatButtonModule, MatCardModule, MatIconModule],
+  imports: [CommonModule, FormsModule, MatButtonModule, MatCardModule, MatIconModule, EscapeCancelsDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <mat-card data-testid="api-tokens-card">
@@ -112,7 +113,9 @@ const STATUS_TEXT: Record<ApiTokenDto['status'], string> = {
                 <div class="can" [attr.data-testid]="'api-token-scopes-' + t.id">May: {{ scopesText(t) }}</div>
                 @if (t.status !== 'revoked') {
                   @if (revoking() === t.id) {
-                    <div class="confirm" role="alertdialog" [attr.data-testid]="'api-token-confirm-' + t.id">
+                    <div class="confirm" role="alertdialog" [attr.data-testid]="'api-token-confirm-' + t.id"
+                         appEscapeCancels [escapeDisabled]="busy()" [returnFocus]="'[data-testid=api-token-revoke-' + t.id + ']'"
+                         (escapeCancel)="revoking.set(null)">
                       <p>Revoke "{{ t.name }}"? Apps using it lose access at once. This cannot be undone.</p>
                       <div class="actions">
                         <button mat-flat-button color="warn" type="button" data-testid="api-token-revoke-yes"
@@ -130,7 +133,8 @@ const STATUS_TEXT: Record<ApiTokenDto['status'], string> = {
           </ul>
           @if (clearable() > 0) {
             @if (clearing()) {
-              <div class="confirm" role="alertdialog" data-testid="api-tokens-clear-confirm">
+              <div class="confirm" role="alertdialog" data-testid="api-tokens-clear-confirm"
+                   appEscapeCancels [escapeDisabled]="busy()" returnFocus="[data-testid=api-tokens-clear]" (escapeCancel)="clearing.set(false)">
                 <p>
                   Remove {{ clearable() === 1 ? 'the revoked or expired token' : 'the ' + clearable() + ' revoked or expired tokens' }}
                   from this list? They no longer work. The audit trail keeps their history.

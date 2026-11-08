@@ -30,9 +30,10 @@ describe('LibraryBrowseComponent breadcrumbs', () => {
     parentId: string | null,
     trail: { id: string; displayName: string }[] = [],
     folderName = 'Current Folder',
+    listed = true,
   ) {
     const prefs: LibraryViewPreferencesDto = { viewMode: 'grid', density: 'comfortable', sort: 'name' };
-    const libs: LibraryDto[] = [{ id: libraryId, name: 'Test Lib', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }];
+    const libs: LibraryDto[] = [{ id: listed ? libraryId : 'other', name: 'Test Lib', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }];
     const emptyPage: PageResponse<CatalogNodeDto> = { items: [], totalCount: 0, nextCursor: null, hasMore: false };
     const currentNode = {
       id: parentId ?? 'x', parentId: 'p', libraryId, kind: 'Folder', displayName: folderName,
@@ -99,6 +100,16 @@ describe('LibraryBrowseComponent breadcrumbs', () => {
       expect(button.querySelector('.lbl')?.textContent?.trim(), cls).toBe(label);
       expect(button.getAttribute('aria-label'), cls).toBeTruthy();
     }
+  });
+
+  it('1.52.0 (sweep m8): a library not in the account\'s list (unknown or not granted) says so - never "This folder is empty"', () => {
+    const hidden = setup('lib1', null, [], 'Current Folder', false).fixture.nativeElement as HTMLElement;
+    expect(hidden.querySelector('[data-testid="browse-not-found"]')?.textContent).toContain('does not exist, or your account has no access');
+    expect(hidden.textContent).not.toContain('This folder is empty.');
+    TestBed.resetTestingModule();
+    const listed = setup('lib1', null).fixture.nativeElement as HTMLElement;
+    expect(listed.querySelector('[data-testid="browse-not-found"]')).toBeNull();
+    expect(listed.textContent).toContain('This folder is empty.');
   });
 
   it('does not link to the library landing page /libraries/{id}', () => {

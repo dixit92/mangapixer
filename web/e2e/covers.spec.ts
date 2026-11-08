@@ -1,5 +1,5 @@
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
-import { expectFitsScreen } from './layout';
+import { expectFitsScreen, openSelectionMore } from './layout';
 
 /**
  * The cover layer (1.29.0) in a real browser against a real server: an admin opens "Choose cover..." from the browse
@@ -71,6 +71,7 @@ async function shot(page: Page, name: string): Promise<void> {
 async function openPickerFor(page: Page, cardText: string): Promise<void> {
   await page.locator('button.select-toggle').click();
   await page.locator('.node-wrap', { hasText: cardText }).locator('.node-card').click();
+  await openSelectionMore(page);
   await page.getByTestId('selection-cover').click();
   await expect(page.getByTestId('cover-picker-current')).toBeVisible();
 }

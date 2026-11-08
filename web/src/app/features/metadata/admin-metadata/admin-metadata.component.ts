@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, OnInit, afterNextRender, computed, effect, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTabsModule } from '@angular/material/tabs';
@@ -46,7 +46,8 @@ export { ADMIN_METADATA_TABS, type AdminMetadataTab };
       <app-metadata-summary-tile [inPage]="true" (tabSelect)="onTileTab($event)" />
       <app-consent-renewal-banner [inPage]="true" (openSettings)="select(0)" />
       <mat-tab-group [selectedIndex]="index()" (selectedIndexChange)="select($event)" animationDuration="0ms"
-                     mat-stretch-tabs="false" mat-align-tabs="start">
+                     mat-stretch-tabs="false" mat-align-tabs="start" [disablePagination]="touch"
+                     [class.touch-tabs]="touch">
         <mat-tab label="Settings">
           <ng-template matTabContent>
             <div class="tab"><app-metadata-settings (runStarted)="select(3)" /></div>
@@ -101,6 +102,10 @@ export { ADMIN_METADATA_TABS, type AdminMetadataTab };
     .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; margin: 8px 0 4px; }
     h1 { font-size: 24px; font-weight: 500; margin: 0; }
     .tab { padding: 16px 2px 0; }
+    /* Touch screens (1.52.0, sweep m3): no paging chevrons - the tab strip scrolls sideways under the finger, and the selected tab is
+       scrolled into view, so no tab sits half-hidden under a chevron that takes its tap. A mouse keeps Material's paging. */
+    .touch-tabs ::ng-deep .mat-mdc-tab-label-container { overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
+    .touch-tabs ::ng-deep .mat-mdc-tab-label-container::-webkit-scrollbar { display: none; }
     .count { margin-left: 6px; font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 9px; background: var(--mp-accent-strong); color: var(--mp-on-accent);
       line-height: 18px; }
     @media (max-width: 599.98px) {
@@ -121,6 +126,19 @@ export class AdminMetadataComponent implements OnInit {
   readonly libraries = signal<ReviewLibraryOption[]>([]);
   readonly index = computed(() => ADMIN_METADATA_TABS.indexOf(this.tab()));
   readonly officialIndex = ADMIN_METADATA_TABS.indexOf('completion');
+  /** A touch screen (portrait or landscape): the tab strip scrolls instead of paging (m3). */
+  readonly touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+
+  constructor() {
+    if (!this.touch) return;
+    // The selected tab (also one opened by the URL or the summary tile) is scrolled fully into the strip.
+    effect(() => {
+      this.index();
+      afterNextRender(() => this.revealSelectedTab(), { injector: this.injector });
+    });
+  }
 
   ngOnInit(): void {
     const q = this.route.snapshot.queryParamMap;
@@ -155,6 +173,17 @@ export class AdminMetadataComponent implements OnInit {
     this.list.set(state.tab);
     this.library.set(state.library);
     this.syncUrl();
+  }
+
+  private revealSelectedTab(): void {
+    const strip = this.host.nativeElement.querySelector<HTMLElement>('.mat-mdc-tab-label-container');
+    const tab = strip?.querySelector<HTMLElement>('.mdc-tab--active');
+    if (!strip || !tab) return;
+    const s = strip.getBoundingClientRect();
+    const t = tab.getBoundingClientRect();
+    const margin = 24; // a hint of the neighbour, so the strip reads as scrollable
+    if (t.left < s.left) strip.scrollLeft -= s.left - t.left + margin;
+    else if (t.right > s.right) strip.scrollLeft += t.right - s.right + margin;
   }
 
   private syncUrl(): void {

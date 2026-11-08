@@ -1,5 +1,5 @@
 import { test, expect, Page, APIRequestContext, Route } from '@playwright/test';
-import { expectFitsScreen } from './layout';
+import { expectFitsScreen, openSelectionMore } from './layout';
 
 /**
  * "Collection about" (1.34.0): a folder of works about one series (fan works) - NEVER the real network:
@@ -214,6 +214,7 @@ for (const viewport of [{ width: 1280, height: 900, name: 'desktop' }, { width: 
     await page.goto(`/libraries/${libraryId}/browse`);
     await page.locator('button.select-toggle').click();
     await page.locator('.node-wrap', { hasText: 'Synthetic Anthology' }).locator('.node-card').click();
+    await openSelectionMore(page);
     await page.getByTestId('series-selection-menu').click();
     await page.getByTestId('bulk-collection').click();
     await expect(page.getByTestId('identify-collection-title')).toContainText('pick the series');

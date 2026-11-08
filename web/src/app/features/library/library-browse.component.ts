@@ -566,6 +566,13 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
             <p>Nothing here matches the filter.</p>
             <button mat-stroked-button type="button" (click)="clearFilters()" data-testid="browse-empty-clear">Clear filter</button>
           </div>
+        } @else if (notFound()) {
+          <!-- 1.52.0 (sweep m8): a library that is not in this account's list - unknown, or not granted - shows the same words either
+               way, so nothing tells them apart (and nothing of it is shown). -->
+          <div class="empty" role="status" data-testid="browse-not-found">
+            <p>This library does not exist, or your account has no access to it.</p>
+            <a mat-stroked-button routerLink="/libraries">Your libraries</a>
+          </div>
         } @else {
           <p class="empty">This folder is empty.</p>
         }
@@ -830,6 +837,13 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   readonly libraryName = signal('');
   readonly parentId = signal<string | null>(null);
   readonly nodes = signal<CatalogNodeDto[]>([]);
+  /**
+   * 1.52.0 (sweep m8): whether the library is in this account's list (null until the list arrives). A library that is not - unknown,
+   * or not granted (its browse answers an empty list) - and shows nothing is "not found / no access", in the same words either way.
+   * A private library hidden by Incognito is still opened by its address and shows its items as before.
+   */
+  private readonly libraryListed = signal<boolean | null>(null);
+  readonly notFound = computed(() => this.libraryListed() === false && !this.loadingMore());
   /** Folder's next-to-read archive (1.7.0), rendered as the pinned "Continue" row above the
    *  sorted list. Captured from the initial page's PageResponse.nextUnread (null on load-more). */
   readonly nextUnread = signal<CatalogNodeDto | null>(null);
@@ -1551,8 +1565,13 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
 
   /** Resolve the library's display name for the breadcrumb root (reader-accessible). */
   private loadLibraryName(libId: string): void {
+    this.libraryListed.set(null);
     this.api.getLibraries().subscribe({
-      next: (libs) => this.libraryName.set(libs.find((l) => l.id === libId)?.name ?? ''),
+      next: (libs) => {
+        const lib = libs.find((l) => l.id === libId);
+        this.libraryName.set(lib?.name ?? '');
+        this.libraryListed.set(!!lib);
+      },
       error: () => { /* fall back to "Library" in the template */ },
     });
   }

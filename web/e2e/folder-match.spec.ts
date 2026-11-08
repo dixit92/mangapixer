@@ -1,5 +1,5 @@
 import { test, expect, Page, APIRequestContext, Route } from '@playwright/test';
-import { expectFitsScreen } from './layout';
+import { expectFitsScreen, openSelectionMore } from './layout';
 
 /**
  * "Match folders by name" (1.38.0) from the browse Series menu - NEVER the real network:
@@ -151,6 +151,7 @@ for (const viewport of [
     await page.goto(`/libraries/${libraryId}/browse`);
     await page.locator('button.select-toggle').click();
     for (const name of NAMES) await page.locator('.node-wrap', { hasText: name }).locator('.node-card').click();
+    await openSelectionMore(page);
     await page.getByTestId('series-selection-menu').click();
     await expect(page.getByTestId('bulk-folder-match')).toContainText('Match folders by name');
     await page.getByTestId('bulk-folder-match').click();

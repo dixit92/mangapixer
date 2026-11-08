@@ -17,6 +17,7 @@ import { SeriesInfoSummaryComponent } from './series-info-summary.component';
 import { InfoTagsComponent } from './info/info-tags.component';
 import { InfoPanelDto } from './info/info-types';
 import { SeriesMissingLineComponent } from './missing/series-missing-line.component';
+import { mayHaveMissingLine } from './missing/missing-labels';
 import { SeriesRefreshCadenceComponent } from './series-refresh-cadence/series-refresh-cadence.component';
 
 /**
@@ -69,7 +70,8 @@ import { SeriesRefreshCadenceComponent } from './series-refresh-cadence/series-r
               </a>
             }
           </div>
-          @if (i.anchorKind === 'Folder') { <app-series-missing-line [nodeId]="i.anchorNodeId" [showReportLink]="auth.isAdmin()" /> }
+          <!-- 1.52.0 (C3): only where the server can answer a row (no 404 on every other series page). -->
+          @if (mayHaveMissingLine(i)) { <app-series-missing-line [nodeId]="i.anchorNodeId" [showReportLink]="auth.isAdmin()" /> }
         </header>
 
         @if (i.description) {
@@ -210,6 +212,7 @@ export class SeriesPageComponent implements OnInit {
   private readonly metadata = inject(MetadataApiService);
   private readonly destroyRef = inject(DestroyRef);
   readonly auth = inject(AuthService);
+  readonly mayHaveMissingLine = mayHaveMissingLine;
 
   readonly info = signal<SeriesInfoDto | null>(null);
   /** The Tags block's answer (1.45.0), handed to the summary so its chips replace the plain-text lines. */
