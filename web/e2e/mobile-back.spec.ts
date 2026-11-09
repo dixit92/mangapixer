@@ -212,7 +212,7 @@ test.describe('desktop, mouse', () => {
     await expectBackClosesOnly(page, dialog(page), /^\/settings/, 'Info dialog');
   });
 
-  test('reader: a menu closed with Escape leaves no extra step - Back with the help open leaves the reader, the menu Back stays', async ({ page }) => {
+  test('reader: Back closes the Display menu and the help overlay and stays; a menu closed with Escape leaves no extra step', async ({ page }) => {
     await login(page);
     await routeFakeItem(page, { id: 'e2eback1', pageCount: 4, pageWidth: 300, pageHeight: 420, readerMode: 'PagedLtr' });
     await arrive(page, '/settings', '/reader/e2eback1');
@@ -230,7 +230,8 @@ test.describe('desktop, mouse', () => {
     await back(page);
     await expect(menuPanel(page)).toHaveCount(0);
     expect(path(page)).toBe('/reader/e2eback1');
-    // Closed another way (Escape): no extra step - with the help overlay open (not a menu), Back leaves the reader as before.
+    // Closed another way (Escape): no extra step. The help overlay ("Reader controls", a dialog) is a Back surface too (1.52.0 gate
+    // sweep): Back closes it and stays; the next Back leaves the reader.
     await display.click();
     await expect(menuPanel(page)).toBeVisible();
     await page.keyboard.press('Escape');
@@ -238,7 +239,10 @@ test.describe('desktop, mouse', () => {
     await page.getByRole('button', { name: 'Reading help' }).click();
     await expect(helpOverlay).toBeVisible();
     await back(page);
-    await expect.poll(() => path(page), { message: 'Back from the reader with its help open' }).toMatch(/^\/settings/);
+    await expect(helpOverlay).toHaveCount(0);
+    expect(path(page)).toBe('/reader/e2eback1');
+    await back(page);
+    await expect.poll(() => path(page), { message: 'Back from the reader' }).toMatch(/^\/settings/);
   });
 
   test('menu: Back in a desktop browser closes the menu too', async ({ page }) => {
