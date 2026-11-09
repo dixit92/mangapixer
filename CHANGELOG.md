@@ -46,6 +46,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Escape now cancels the inline confirmations (revoke or clear API tokens, empty the trash, clean bundles, automatic cleaning,
   disconnect a tracker, set progress from a tracker) and puts the focus back on the button that opened them.
 - The series page no longer asks for a missing-volumes line for a series that cannot have one (a 404 in the browser console).
+- A page could fail with "This page could not be loaded" when it was asked for twice at the same moment before it was cached (two
+  readers, or the reader's own requests on opening): both copies wrote the same temporary file and the second failed. Each now writes its
+  own.
+- On a phone, Back with the reader's help open now closes the help and stays in the reader.
 
 ## [1.51.0] - 2026-11-07
 

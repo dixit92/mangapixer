@@ -267,6 +267,50 @@ public sealed class CacheServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task PublishAsync_WhileAnotherPublishOfTheSameKeyIsWriting_Succeeds_AndTheEntryIsReadable()
+    {
+        // 1.52.0 (the gate sweep's page 500): two requests for one page publish its key at once. The temp file used to be the key's own
+        // path + ".tmp", opened exclusively, so the second publisher failed - and its page request answered 500.
+        var cacheRoot = Path.Combine(_tempDir, "cache");
+        var cache = new CacheService(cacheRoot, 10 * 1024 * 1024);
+        cache.Initialize();
+        var sourceFile = Path.Combine(_tempDir, "source.png");
+        File.WriteAllText(sourceFile, "fake image data");
+        var cacheKey = CacheService.BuildCacheKey(1, 1, "page001.png", "original");
+        var path = cache.GetCacheFilePath(cacheKey);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+        using (new FileStream(path + ".tmp", FileMode.Create, FileAccess.Write, FileShare.None))
+            await cache.PublishAsync(cacheKey, sourceFile, "image/png");
+
+        using var read = cache.OpenRead(cacheKey);
+        Assert.NotNull(read);
+        Assert.Equal("fake image data", await new StreamReader(read).ReadToEndAsync());
+    }
+
+    [Fact]
+    public async Task PublishAsync_SameKeyManyTimesAtOnce_AllSucceed()
+    {
+        var cacheRoot = Path.Combine(_tempDir, "cache");
+        var cache = new CacheService(cacheRoot, 10 * 1024 * 1024);
+        cache.Initialize();
+        var cacheKey = CacheService.BuildCacheKey(1, 1, "page001.png", "original");
+        var sources = Enumerable.Range(0, 16).Select(i =>
+        {
+            var file = Path.Combine(_tempDir, $"source-{i}.png");
+            File.WriteAllText(file, new string('p', 64 * 1024));
+            return file;
+        }).ToList();
+
+        await Task.WhenAll(sources.Select(source => Task.Run(() => cache.PublishAsync(cacheKey, source, "image/png"))));
+
+        using var read = cache.OpenRead(cacheKey);
+        Assert.NotNull(read);
+        Assert.Equal(64 * 1024, read.Length);
+        Assert.Empty(Directory.EnumerateFiles(Path.GetDirectoryName(cache.GetCacheFilePath(cacheKey))!, "*.tmp"));
+    }
+
+    [Fact]
     public async Task DeleteStaleRuns_RemovesEarlierRunsAndLegacyLayout_KeepsCurrentRunAndForeignFiles()
     {
         var cacheRoot = Path.Combine(_tempDir, "cache");
