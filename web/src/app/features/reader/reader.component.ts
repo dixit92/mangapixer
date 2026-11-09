@@ -43,6 +43,7 @@ import { WheelPager } from './wheel-paging';
 import { archiveTitle } from './archive-title';
 import { PagePrefetchQueue } from './page-prefetch-queue';
 import { InstallHintService } from '../../shared/install-hint/install-hint.service';
+import { BackSurface, OverlayBackService } from '../../shared/overlay-back/overlay-back.service';
 import {
   groupSpreads, fallbackSpreadStarts, normalizeSpreadStarts, isShiftedSpread, shiftSpreadAt, ensureSpreadStart,
 } from './spread-layout';
@@ -1009,6 +1010,15 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   // keyboard shortcuts. The zones are direction-aware — the physical left edge goes
   // "back" in LTR but "forward" in RTL — so the labels follow `direction`.
   readonly helpVisible = signal(false);
+  // 1.52.0 (the gate sweep, m1): the help overlay is a dialog, so phone / browser Back closes it and stays in the reader, as for the
+  // menus, sheets and dialogs of the shared Back mechanism.
+  private readonly overlayBack = inject(OverlayBackService);
+  private readonly helpBackSurface: BackSurface = { close: () => { this.closeHelp(); return true; } };
+  private helpBackOpen = false;
+  private readonly helpBackEffect = effect(() => {
+    const shown = this.helpVisible();
+    untracked(() => this.syncHelpBack(shown));
+  });
   readonly leftZoneLabel = computed(() => this.direction() === 'rtl' ? 'Next page' : 'Previous page');
   readonly rightZoneLabel = computed(() => this.direction() === 'rtl' ? 'Previous page' : 'Next page');
   // Webtoon edge taps (1.41.0): the side that steps back, and the help legend's edge labels, follow the per-device
@@ -1560,6 +1570,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
 
   ngOnDestroy(): void {
     this.destroyed = true;
+    this.syncHelpBack(false);
     this.prefetchQueue.abortAll();
     window.visualViewport?.removeEventListener('resize', this.onVisualViewportChange);
     this.clearPoll();
@@ -1807,6 +1818,14 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     this.helpVisible.set(false);
     // The first-open install hint waits for the help overlay (a no-op after its first call).
     this.installHint.onReaderOpened();
+  }
+
+  /** Opens / closes the help overlay's Back surface with the overlay. */
+  private syncHelpBack(shown: boolean): void {
+    if (shown === this.helpBackOpen) return;
+    this.helpBackOpen = shown;
+    if (shown) this.overlayBack.opened(this.helpBackSurface);
+    else this.overlayBack.closed(this.helpBackSurface);
   }
 
   /**
