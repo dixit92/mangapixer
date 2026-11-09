@@ -6,6 +6,7 @@ using com.lifepixer.mangapixer.Server.Media;
 using com.lifepixer.mangapixer.Server.Operations;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
+using com.lifepixer.mangapixer.Tests.Server.Http;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -369,6 +370,7 @@ public sealed class C00WebApplicationFactory : WebApplicationFactory<com.lifepix
 
         builder.ConfigureTestServices(services =>
         {
+            TestHostServices.ReleaseWithTheHost(services);
             // Remove the worker pool hosted service so tests don't spawn workers.
             var workerHosted = services.FirstOrDefault(
                 d => d.ImplementationType == typeof(com.lifepixer.mangapixer.Server.Hosting.MediaWorkerHostedService));

@@ -85,6 +85,7 @@ test.describe('desktop and tablet bar', () => {
       await expect(page.getByRole('button', { name: 'Series info', exact: true })).toBeVisible();
       expect(await barLabels(page)).toEqual([
         'Back to folder', 'No previous archive', 'No next archive', 'Series info', 'Bookmark menu', 'Add to favorites',
+        'Rate this archive or its folder', // 1.52.0 lane R
         'Display', 'Quality', 'Reading help', 'Enter fullscreen',
       ]);
       await expectFitsScreen(page, 'the reader bar');

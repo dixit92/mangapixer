@@ -15,6 +15,7 @@ import { Subscription, map } from 'rxjs';
 import { ApiService } from '../../core/api/api.service';
 import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.component';
 import { FavoritesStateService } from '../../core/favorites/favorites-state.service';
+import { RatingSheetService } from '../ratings/rating-sheet.service';
 import { ReadStateService } from '../../core/reading/read-state.service';
 import { ReaderPreferencesService } from '../../core/reading/reader-preferences.service';
 import {
@@ -42,6 +43,7 @@ import { WheelPager } from './wheel-paging';
 import { archiveTitle } from './archive-title';
 import { PagePrefetchQueue } from './page-prefetch-queue';
 import { InstallHintService } from '../../shared/install-hint/install-hint.service';
+import { BackSurface, OverlayBackService } from '../../shared/overlay-back/overlay-back.service';
 import {
   groupSpreads, fallbackSpreadStarts, normalizeSpreadStarts, isShiftedSpread, shiftSpreadAt, ensureSpreadStart,
 } from './spread-layout';
@@ -252,6 +254,9 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                archive (itemId). Its own component styles keep the reader's near-budget
                inline CSS untouched. -->
           <app-star-toggle [nodeId]="itemId()" [favorite]="currentFavorite()" />
+          <!-- 1.52.0 (lane R): Rate - this archive and its folder, in a small sheet. -->
+          <button mat-icon-button (click)="openRating()" matTooltip="Rate" aria-label="Rate this archive or its folder"
+                  aria-haspopup="dialog" data-testid="reader-rate"><mat-icon>star_half</mat-icon></button>
           <!-- Display: layout, image fit (page width in webtoon), direction, page transition (tap to scroll in
                webtoon). Quality: upscaling, enhance quality, page quality, downscale filter. Both pin the chrome
                while open. -->
@@ -848,6 +853,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   private readonly snackBar = inject(MatSnackBar);
   private readonly readState = inject(ReadStateService);
   private readonly favorites = inject(FavoritesStateService);
+  private readonly ratingSheet = inject(RatingSheetService); // 1.52.0 lane R: the Rate sheet
   private readonly bottomSheet = inject(MatBottomSheet);
   private readonly breakpoints = inject(BreakpointObserver);
   private readonly metadataApi = inject(MetadataApiService);
@@ -1004,6 +1010,15 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   // keyboard shortcuts. The zones are direction-aware — the physical left edge goes
   // "back" in LTR but "forward" in RTL — so the labels follow `direction`.
   readonly helpVisible = signal(false);
+  // 1.52.0 (the gate sweep, m1): the help overlay is a dialog, so phone / browser Back closes it and stays in the reader, as for the
+  // menus, sheets and dialogs of the shared Back mechanism.
+  private readonly overlayBack = inject(OverlayBackService);
+  private readonly helpBackSurface: BackSurface = { close: () => { this.closeHelp(); return true; } };
+  private helpBackOpen = false;
+  private readonly helpBackEffect = effect(() => {
+    const shown = this.helpVisible();
+    untracked(() => this.syncHelpBack(shown));
+  });
   readonly leftZoneLabel = computed(() => this.direction() === 'rtl' ? 'Next page' : 'Previous page');
   readonly rightZoneLabel = computed(() => this.direction() === 'rtl' ? 'Previous page' : 'Next page');
   // Webtoon edge taps (1.41.0): the side that steps back, and the help legend's edge labels, follow the per-device
@@ -1555,6 +1570,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
 
   ngOnDestroy(): void {
     this.destroyed = true;
+    this.syncHelpBack(false);
     this.prefetchQueue.abortAll();
     window.visualViewport?.removeEventListener('resize', this.onVisualViewportChange);
     this.clearPoll();
@@ -1804,6 +1820,14 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     this.installHint.onReaderOpened();
   }
 
+  /** Opens / closes the help overlay's Back surface with the overlay. */
+  private syncHelpBack(shown: boolean): void {
+    if (shown === this.helpBackOpen) return;
+    this.helpBackOpen = shown;
+    if (shown) this.overlayBack.opened(this.helpBackSurface);
+    else this.overlayBack.closed(this.helpBackSurface);
+  }
+
   /**
    * Toolbar bookmark toggle (1.17.0): add or remove a bookmark on the current
    * page. Delegates to `deleteBookmark` when one already exists at this ordinal
@@ -1834,6 +1858,12 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
    * which works the same way: flip optimistically, persist, revert on error. The
    * service announces the change, so the desktop star follows.
    */
+  /** 1.52.0 (lane R): the Rate sheet (this archive and its folder); the chrome stays pinned while it is open. */
+  openRating(): void {
+    this.menuOpen.set(true);
+    void this.ratingSheet.open(this.itemId()).then((closed) => closed.subscribe(() => this.onMenuClosed()));
+  }
+
   toggleFavorite(): void {
     const itemId = this.itemId();
     const next = !this.currentFavorite();

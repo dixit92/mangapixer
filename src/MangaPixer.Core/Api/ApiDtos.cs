@@ -195,6 +195,15 @@ public sealed record CatalogNodeDto
     public bool IsFavorite { get; init; }
 
     /// <summary>
+    /// The current user's own rating of this node (1.52.0): 1-10, shown as 5 stars with halves (score / 2). Left out when the user has not
+    /// rated it. Per user and private - never another user's. Filled wherever <see cref="IsFavorite"/> is (browse, search, single-node
+    /// lookup, the Favorites list) by the same batched lookup; a Favorites stack carries its folder's rating (a stack is a view of the
+    /// folder). No rollup: a folder's rating is the folder's own.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? MyRating { get; init; }
+
+    /// <summary>
     /// The archive context line (1.50.0): the name of the folder this ARCHIVE belongs to - its nearest ancestor that is not a plain
     /// unit / kind folder (<c>Volumes</c>, <c>Vol 3</c>, <c>Chapters</c>, <c>Extras</c>, ...) - so a found <c>Vol. 012</c> says which
     /// series it is. A display name only, never a path. Null for folders, for archives directly in a library root, and wherever the

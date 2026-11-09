@@ -73,6 +73,7 @@ public sealed class ApiTokenTestFactory : WebApplicationFactory<Program>
         builder.UseEnvironment("Testing");
         builder.ConfigureTestServices(services =>
         {
+            TestHostServices.ReleaseWithTheHost(services);
             foreach (var type in new[] { typeof(MediaWorkerHostedService), typeof(ThumbnailBackfillHostedService), typeof(ComicInfoBackfillHostedService) })
             {
                 var descriptor = services.FirstOrDefault(d => d.ImplementationType == type);

@@ -172,6 +172,7 @@ internal sealed class ForwardedHeadersTestFactory : WebApplicationFactory<Progra
 
         builder.ConfigureTestServices(services =>
         {
+            TestHostServices.ReleaseWithTheHost(services);
             // Don't spawn real worker processes in tests.
             var workerHosted = services.FirstOrDefault(d => d.ImplementationType == typeof(MediaWorkerHostedService));
             if (workerHosted is not null)

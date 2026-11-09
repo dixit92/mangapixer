@@ -5,9 +5,11 @@ using System.Net.Http.Json;
 using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Server;
 using com.lifepixer.mangapixer.Server.Hosting;
+using com.lifepixer.mangapixer.Server.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -42,6 +44,15 @@ public sealed class MangaPixerWebApplicationFactory : WebApplicationFactory<Prog
     private readonly IReadOnlyDictionary<string, string?>? _extraConfiguration;
     private readonly bool _rateLimitDisabled;
     private readonly bool _withoutBackgroundServices;
+
+    // Microsoft.Data.Sqlite creates its process-wide pool factory - and the factory's prune timer - on first use. Created inside a
+    // host build, that timer would capture the execution context holding that host's factory and keep the host for the rest of the
+    // run; created here with the flow suppressed, it captures nothing.
+    static MangaPixerWebApplicationFactory()
+    {
+        using (ExecutionContext.SuppressFlow())
+            SqliteConnection.ClearAllPools();
+    }
 
     public string DataRoot => Path.Combine(_tempRoot, "data");
     public string CacheRoot => Path.Combine(_tempRoot, "cache");
@@ -158,6 +169,7 @@ public sealed class MangaPixerWebApplicationFactory : WebApplicationFactory<Prog
 
         builder.ConfigureTestServices(services =>
         {
+            TestHostServices.ReleaseWithTheHost(services);
             services.AddSingleton<IStartupFilter>(UnhandledErrors);
 
             // Remove the worker pool hosted service so tests don't spawn workers.
@@ -283,10 +295,15 @@ public sealed class MangaPixerWebApplicationFactory : WebApplicationFactory<Prog
 
     protected override void Dispose(bool disposing)
     {
+        base.Dispose(disposing);
         if (disposing)
         {
+            // After the host stopped (its connections are back in the pool): Microsoft.Data.Sqlite keeps one pool per connection
+            // string in a static, and the pool's prune timer captured the execution context that holds this factory - so this
+            // host's own database pool would keep the whole host reachable (TestHostLifetimeTests).
+            using (var connection = new SqliteConnection(DatabaseInitialization.BuildConnectionString(Path.Combine(DataRoot, "mangapixer.db"))))
+                SqliteConnection.ClearPool(connection);
             try { Directory.Delete(_tempRoot, true); } catch { }
         }
-        base.Dispose(disposing);
     }
 }

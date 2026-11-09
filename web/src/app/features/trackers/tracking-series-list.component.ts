@@ -22,6 +22,7 @@ import {
 import { SelectFlags, applies, flagsOfRow, flagsOfSelectable, noneReason, reachesTracker } from './tracking-selection';
 import { provideTrackerTooltips } from './tracker-tooltips';
 import { TrackingListMemory } from './tracking-list-memory.service';
+import { EscapeCancelsDirective } from '../../shared/escape-cancels.directive';
 
 /** Rows per page (the server's page size). */
 export const TRACKING_PAGE_SIZE = 50;
@@ -61,7 +62,7 @@ const SEARCH_DELAY_MS = 300;
 @Component({
   selector: 'app-tracking-series-list',
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule, CoverImageDirective],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule, CoverImageDirective, EscapeCancelsDirective],
   providers: [provideTrackerTooltips()],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -164,7 +165,9 @@ const SEARCH_DELAY_MS = 300;
               }
               <div class="cell actions-cell">
                 @if (confirmFrom() === r.seriesId) {
-                  <div class="confirm" role="alertdialog" aria-label="Set progress from the tracker" [attr.data-testid]="'tracking-from-confirm-' + r.seriesId">
+                  <div class="confirm" role="alertdialog" aria-label="Set progress from the tracker" [attr.data-testid]="'tracking-from-confirm-' + r.seriesId"
+                       appEscapeCancels [escapeDisabled]="busy()" [returnFocus]="'[data-testid=tracking-from-' + r.seriesId + ']'"
+                       (escapeCancel)="confirmFrom.set(null)">
                     <p>{{ question(r) }} Nothing is unmarked.</p>
                     <div class="actions">
                       <button mat-flat-button color="primary" type="button" [disabled]="busy()" (click)="fromTracker(r)"
@@ -277,7 +280,8 @@ const SEARCH_DELAY_MS = 300;
                 {{ cancelRequested() ? 'Stopping after this part…' : 'Cancel' }}</button>
             </div>
           } @else if (batchConfirm(); as action) {
-            <div class="confirm" role="alertdialog" aria-label="Apply to the selected series" data-testid="tracking-batch-confirm">
+            <div class="confirm" role="alertdialog" aria-label="Apply to the selected series" data-testid="tracking-batch-confirm"
+                 appEscapeCancels [returnFocus]="'[data-testid=tracking-batch-' + action + ']'" (escapeCancel)="batchConfirm.set(null)">
               <p>{{ batchQuestionText(action) }}</p>
               <div class="actions">
                 <button mat-flat-button color="primary" type="button" (click)="applyBatch(action)" data-testid="tracking-batch-yes">

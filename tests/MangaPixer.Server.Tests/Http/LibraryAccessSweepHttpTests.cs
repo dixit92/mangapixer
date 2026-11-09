@@ -92,6 +92,9 @@ public sealed class LibraryAccessSweepHttpTests
         ["GET api/v1/nodes/{nodeId}/collection-stacks/{key}/cover"] = Answer(202, 404, 202),
         ["POST api/v1/nodes/{nodeId}/favorite"] = Answer(204, 404, 204),
         ["DELETE api/v1/nodes/{nodeId}/favorite"] = Answer(204, 204, 204),
+        // 1.52.0 lane R: the caller's own rating - set like a favourite (404 for U; P reachable under Incognito by design), cleared idempotently.
+        ["PUT api/v1/nodes/{nodeId}/rating"] = Answer(204, 404, 204),
+        ["DELETE api/v1/nodes/{nodeId}/rating"] = Answer(204, 204, 204),
         // ---- items and the reader (direct)
         ["GET api/v1/items/{itemId}/cover"] = Answer(202, 404, 202),
         ["GET api/v1/items/{itemId}/manifest"] = Answer(200, 404, 200),
@@ -135,6 +138,7 @@ public sealed class LibraryAccessSweepHttpTests
         ["GET api/v1/items/{itemId}/pages/{entryKey}/thumbnail"] = "as pages: no analysed archive without the worker",
         ["GET api/v1/nodes/{nodeId}/series-info/image"] = "no stored series image in the sweep's seed (SeriesInfoImage HTTP tests)",
         ["DELETE api/v1/nodes/{nodeId}/favorite"] = "idempotent: 204 whether or not the star exists; the caller's own U star may go (RowChanges)",
+        ["DELETE api/v1/nodes/{nodeId}/rating"] = "idempotent (1.52.0): 204 whether or not a rating exists; the caller's own U rating may go (RowChanges)",
         ["PUT api/v1/trackers/{slug}/entries/{seriesId}/dates"] = "only MyAnimeList keeps dates; the sweep connects MangaUpdates, refused before the series is read (TrackerRowDatesTests)",
     };
 
@@ -329,6 +333,13 @@ public sealed class LibraryAccessSweepHttpTests
         urls.Add("/api/v1/favorites?sort=name&group=library&pageSize=1");
         urls.Add("/api/v1/favorites/jump-index");
         urls.Add("/api/v1/favorites/jump-index?direction=desc&kind=archives");
+        // 1.52.0 lane R: the My rating sort, the Rated filter and the rating: search term (the reader rated its own nodes in every library).
+        urls.Add("/api/v1/favorites?sort=myRating");
+        urls.Add("/api/v1/favorites?rating=rated");
+        urls.Add("/api/v1/favorites?rating=unrated&sort=myRating");
+        urls.Add("/api/v1/favorites/jump-index?rating=rated");
+        urls.Add("/api/v1/search?q=" + Uri.EscapeDataString("rating:0.5"));
+        urls.Add("/api/v1/search?q=" + Uri.EscapeDataString("Saga rating:none"));
         // 1.49.0 lane O: the quick results (a discovery GET with no id: listed here, swept with every canary and typed-field value).
         foreach (var text in new[] { "Saga", HiddenWord, PrivateWord, GrantedWord, "library:", "creator:", "tag:", "genre:", "series:" + HiddenWord })
             urls.Add("/api/v1/search/suggest?q=" + Uri.EscapeDataString(text));
@@ -526,6 +537,7 @@ public sealed class LibraryAccessSweepHttpTests
             "POST api/v1/nodes/{nodeId}/series-info/flags" => "{\"reason\":\"WrongDetails\",\"note\":\"sweep\"}",
             "POST api/v1/trackers/{slug}/entries/{seriesId}/set" => "{\"chapters\":1}",
             "PUT api/v1/trackers/{slug}/entries/{seriesId}/dont-sync" => "{\"dontSync\":true}",
+            "PUT api/v1/nodes/{nodeId}/rating" => "{\"score\":7}",
             _ => null,
         };
         return (url, body);
@@ -578,6 +590,8 @@ public sealed class LibraryAccessSweepHttpTests
             .Select(b => new { b.Id, b.UserId, b.ItemId, b.Label }).ToListAsync(), r => r.UserId);
         Add("favorite", await db.Favorites.AsNoTracking().Where(f => nodes.Contains(f.CatalogNodeId)).OrderBy(f => f.Id)
             .Select(f => new { f.Id, f.UserId, f.CatalogNodeId }).ToListAsync(), r => r.UserId);
+        Add("rating", await db.UserRatings.AsNoTracking().Where(r => nodes.Contains(r.CatalogNodeId)).OrderBy(r => r.Id)
+            .Select(r => new { r.Id, r.UserId, r.CatalogNodeId, r.Score }).ToListAsync(), r => r.UserId);
         Add("flag", await db.MetadataFlags.AsNoTracking().Where(f => f.LibraryId == lib.Id).OrderBy(f => f.Id)
             .Select(f => new { f.Id, f.NodeId, f.ReporterUserId }).ToListAsync(), r => r.ReporterUserId);
         Add("spread", await db.ArchiveSpreadLayouts.AsNoTracking().Where(l => nodes.Contains(l.NodeId)).OrderBy(l => l.NodeId)
@@ -726,6 +740,8 @@ public sealed class LibraryAccessSweepHttpTests
     {
         db.Favorites.Add(new FavoriteEntity { UserId = userId, CatalogNodeId = lib.SeriesId, CreatedAt = DateTimeOffset.UtcNow });
         db.Favorites.Add(new FavoriteEntity { UserId = userId, CatalogNodeId = lib.Chapters[3].Id, CreatedAt = DateTimeOffset.UtcNow });
+        // 1.52.0 lane R: the series rated (the My rating sort, the Rated filter and rating: must list nothing of U, nor P under Incognito).
+        db.UserRatings.Add(new UserRatingEntity { UserId = userId, CatalogNodeId = lib.SeriesId, Score = 1, RatedAt = DateTimeOffset.UtcNow });
         db.ReadingProgress.Add(new ReadingProgressEntity
         {
             UserId = userId,

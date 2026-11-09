@@ -3356,6 +3356,39 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.UserRatingEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CatalogNodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("RatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Score")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CatalogNodeId");
+
+                    b.HasIndex("UserId", "CatalogNodeId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "Score");
+
+                    b.ToTable("user_ratings", t =>
+                        {
+                            t.HasCheckConstraint("CK_user_ratings_Score", "\"Score\" >= 1 AND \"Score\" <= 10");
+                        });
+                });
+
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.VolumeContentEntity", b =>
                 {
                     b.Property<long>("VolumeNodeId")
@@ -4318,6 +4351,25 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Navigation("PrivateLibraries");
 
                     b.Navigation("ReadingProgress");
+                });
+
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.UserRatingEntity", b =>
+                {
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.CatalogNodeEntity", "Node")
+                        .WithMany()
+                        .HasForeignKey("CatalogNodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Node");
+
+                    b.Navigation("User");
                 });
 #pragma warning restore 612, 618
         }

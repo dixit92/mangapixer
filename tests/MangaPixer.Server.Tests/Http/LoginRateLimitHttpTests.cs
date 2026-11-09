@@ -157,6 +157,7 @@ internal sealed class LoginRateLimitTestFactory : WebApplicationFactory<Program>
 
         builder.ConfigureTestServices(services =>
         {
+            TestHostServices.ReleaseWithTheHost(services);
             var workerHosted = services.FirstOrDefault(d => d.ImplementationType == typeof(MediaWorkerHostedService));
             if (workerHosted is not null)
                 services.Remove(workerHosted);

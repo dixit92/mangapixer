@@ -132,6 +132,8 @@ public sealed class MangaPixerDbContext : DbContext
     public DbSet<LibraryFreshnessEntity> LibraryFreshness => Set<LibraryFreshnessEntity>();
     public DbSet<FreshnessStateEntity> FreshnessState => Set<FreshnessStateEntity>();
     public DbSet<MetadataRefreshNudgeEntity> MetadataRefreshNudges => Set<MetadataRefreshNudgeEntity>();
+    // 1.52.0 ratings (lane R, migration AddUserRatings; configured in RatingModel).
+    public DbSet<UserRatingEntity> UserRatings => Set<UserRatingEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -173,6 +175,7 @@ public sealed class MangaPixerDbContext : DbContext
         VolumeScanModel.Configure(modelBuilder);
         FacetModel.Configure(modelBuilder);
         FreshnessModel.Configure(modelBuilder);
+        RatingModel.Configure(modelBuilder);
     }
 
     private static void ConfigureAppSettings(ModelBuilder mb)

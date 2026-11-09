@@ -17,7 +17,9 @@ import { SeriesInfoSummaryComponent } from './series-info-summary.component';
 import { InfoTagsComponent } from './info/info-tags.component';
 import { InfoPanelDto } from './info/info-types';
 import { SeriesMissingLineComponent } from './missing/series-missing-line.component';
+import { mayHaveMissingLine } from './missing/missing-labels';
 import { SeriesRefreshCadenceComponent } from './series-refresh-cadence/series-refresh-cadence.component';
+import { NodeRatingComponent } from '../ratings/node-rating.component';
 
 /**
  * The series page `/series/:nodeId` (1.24.0): the canonical, bookmarkable home of a
@@ -33,7 +35,7 @@ import { SeriesRefreshCadenceComponent } from './series-refresh-cadence/series-r
 @Component({
   selector: 'app-series-page',
   standalone: true,
-  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressSpinnerModule, SeriesInfoSummaryComponent, SeriesAdminActionsComponent, WrongSeriesFlagComponent, SeriesMissingLineComponent, SeriesRefreshCadenceComponent, InfoTagsComponent],
+  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressSpinnerModule, SeriesInfoSummaryComponent, SeriesAdminActionsComponent, WrongSeriesFlagComponent, SeriesMissingLineComponent, SeriesRefreshCadenceComponent, InfoTagsComponent, NodeRatingComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page" data-testid="series-page">
@@ -48,6 +50,8 @@ import { SeriesRefreshCadenceComponent } from './series-refresh-cadence/series-r
 
         <header class="hero">
           <app-series-info-summary [info]="i" [showDescription]="false" [shortAltTitles]="true" [tagsPanel]="tags()" />
+          <!-- 1.52.0 (lane R): the viewer's own rating of the series (its anchor node). -->
+          <app-node-rating [nodeId]="i.anchorNodeId" [name]="i.title || i.anchorDisplayName" />
           <!-- 1.45.0: the Tags block, as in the Info overlay. -->
           <app-info-tags [nodeId]="i.nodeId" (loaded)="tags.set($event)" />
           <div class="hero-actions">
@@ -69,7 +73,8 @@ import { SeriesRefreshCadenceComponent } from './series-refresh-cadence/series-r
               </a>
             }
           </div>
-          @if (i.anchorKind === 'Folder') { <app-series-missing-line [nodeId]="i.anchorNodeId" [showReportLink]="auth.isAdmin()" /> }
+          <!-- 1.52.0 (C3): only where the server can answer a row (no 404 on every other series page). -->
+          @if (mayHaveMissingLine(i)) { <app-series-missing-line [nodeId]="i.anchorNodeId" [showReportLink]="auth.isAdmin()" /> }
         </header>
 
         @if (i.description) {
@@ -210,6 +215,7 @@ export class SeriesPageComponent implements OnInit {
   private readonly metadata = inject(MetadataApiService);
   private readonly destroyRef = inject(DestroyRef);
   readonly auth = inject(AuthService);
+  readonly mayHaveMissingLine = mayHaveMissingLine;
 
   readonly info = signal<SeriesInfoDto | null>(null);
   /** The Tags block's answer (1.45.0), handed to the summary so its chips replace the plain-text lines. */

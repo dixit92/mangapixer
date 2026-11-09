@@ -686,4 +686,20 @@ public static class LogEvents
         /// <summary>A quick-results request answered (Debug): typed field or groups, items listed per group, milliseconds.</summary>
         public const int Answered = 3331;
     }
+
+    /// <summary>
+    /// 1.52.0 lane R: ratings (3410-3419, inside the 3xxx range; reserved for lane R). User id, node id and score only - never a title or
+    /// a path. Debug: a rating is the user's private data, so it is not written at Information level.
+    /// </summary>
+    public static class Ratings
+    {
+        public const int Min = 3410;
+        public const int Max = 3419;
+
+        /// <summary>A user set or changed a rating (Debug): user id, node id, score.</summary>
+        public const int RatingSet = 3410;
+
+        /// <summary>A user cleared a rating (Debug): user id, node id (and whether a rating was there).</summary>
+        public const int RatingCleared = 3411;
+    }
 }

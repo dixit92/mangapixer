@@ -70,7 +70,8 @@ public sealed partial class CatalogBrowseService
         CancellationToken ct = default)
     {
         var parsed = SearchText.Parse(query);
-        if (parsed.IsEmpty)
+        // 1.52.0 lane R: a search of only a rating:N minimum lists the viewer's nodes rated that high (RatedSearchCandidatesSql).
+        if (parsed.IsEmpty && !parsed.ListsRatedOnly)
             return EmptySearch(query ?? "");
 
         pageSize = Math.Clamp(pageSize, 1, MaxSearchPageSize);
@@ -99,7 +100,10 @@ public sealed partial class CatalogBrowseService
         {
             // 1. Exact hits: the index's candidates (or, for a short search, every visible live name), checked and ranked here.
             var exactFts = SearchText.ExactFtsQuery(parsed);
-            var candidates = exactFts is null
+            var ratedOnly = parsed.ListsRatedOnly;
+            var candidates = ratedOnly
+                ? await ReadSearchCandidatesAsync(connection, RatedSearchCandidatesSql(userId, parsed.Rating!.MinScore!.Value, libIds), null, ct)
+                : exactFts is null
                 ? await ReadSearchCandidatesAsync(connection, $"""
                     SELECT cn.Id, cn.Kind, cn.DisplayName, cn.SortKey, cn.ParentId
                     FROM catalog_nodes cn
@@ -123,7 +127,8 @@ public sealed partial class CatalogBrowseService
                 var folded = SearchText.FoldName(c.Name, c.Kind == (int)CatalogNodeKind.Archive);
                 // 1.50.0: a name holding a -word term, or inside a folder whose name holds one, is left out after ranking (never a hit,
                 // never counted inside a folder card).
-                if (SearchText.Rank(parsed, folded) is { } rank && !SearchText.IsExcluded(parsed, folded) && !InsideExcluded(tree, c.Parent))
+                if ((ratedOnly ? SearchText.RankContains : SearchText.Rank(parsed, folded)) is { } rank
+                    && !SearchText.IsExcluded(parsed, folded) && !InsideExcluded(tree, c.Parent))
                     exact.Add(new SearchHit(c.Id, c.Kind, c.SortKey, 1, rank));
             }
             // Every name hit, before the read filter: "+N inside" never counts an archive that is a hit of its own.
@@ -131,11 +136,15 @@ public sealed partial class CatalogBrowseService
 
             // 1b. Cross-level hits (1.50.0, decision 4): the words spread over the node's own name and its ancestors' names, at least one
             // in its own name - after every name hit. Listed hits too: "+N inside" does not count them.
-            var crossLevel = tree is null ? [] : await CrossLevelHitsAsync(connection, parsed, tree, nameHitIds, ct);
+            var crossLevel = tree is null || ratedOnly ? [] : await CrossLevelHitsAsync(connection, parsed, tree, nameHitIds, ct);
             nameHitIds.UnionWith(crossLevel.Select(h => h.Id));
             exact.AddRange(crossLevel);
             if (readState != BrowseReadStateFilter.All)
                 exact = await KeepByReadStateAsync(connection, exact, userId, readState, ct);
+            // 1.52.0 lane R: the rating: term keeps only the viewer's own ratings that pass it (one query for the viewer's ratings).
+            var ratings = parsed.Rating is null ? null : await ViewerRatingsAsync(connection, userId, ct);
+            if (parsed.Rating is { } ratingTerm)
+                exact = KeepByRating(exact, ratingTerm, ratings!);
 
             // 2. Close matches (decision 5 b): only while the exact hits are few, always after them.
             var close = new List<SearchHit>();
@@ -145,6 +154,8 @@ public sealed partial class CatalogBrowseService
                 close = await CloseNodeMatchesAsync(connection, parsed, libIds, nameHitIds, tree, foldersOnly: false, ct);
                 if (readState != BrowseReadStateFilter.All)
                     close = await KeepByReadStateAsync(connection, close, userId, readState, ct);
+                if (parsed.Rating is { } closeTerm)
+                    close = KeepByRating(close, closeTerm, ratings!);
                 close = await WithSortKeysAsync(connection, close, ct);
                 close = close.OrderBy(h => h.Rank).ThenBy(h => h.SortKey, StringComparer.Ordinal).ThenBy(h => h.Id).Take(MaxCloseMatches).ToList();
                 nameHitIds.UnionWith(close.Select(h => h.Id));
@@ -169,12 +180,14 @@ public sealed partial class CatalogBrowseService
             var nextCursor = hasMore ? EncodeSearchCursor(pageHits[^1]) : null;
 
             var (results, internalIds) = await ReadSearchNodesAsync(connection, pageHits.Select(h => h.Id).ToList(), ct);
+            // 1.52.0 lane R: a search of only a rating lists rated nodes, not names - nothing is "found inside" a folder there.
             var insideCounts = await InsideCountsAsync(connection,
-                pageHits.Where(h => h.Kind == (int)CatalogNodeKind.Folder).Select(h => h.Id).ToList(), nameHitIds, parsed, ct);
+                ratedOnly ? [] : pageHits.Where(h => h.Kind == (int)CatalogNodeKind.Folder).Select(h => h.Id).ToList(), nameHitIds, parsed, ct);
 
             // Alt-title matches (1.26.0): first page only, one extra query; 1.49.0 the same words and rank. 1.50.0: also for a search of
             // 1-2 letters, and close (typo) titles after the exact ones while the page looks for close names.
-            var anchors = position is null
+            // 1.52.0 lane R: not under a rating: term - a series match is a record's title, not one of the viewer's rated nodes.
+            var anchors = position is null && parsed.Rating is null
                 ? await SeriesMatchAnchorsAsync(connection, parsed, exactFts, libIds, readState, closePass, ct)
                 : null;
 

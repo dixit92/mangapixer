@@ -1,5 +1,5 @@
 import { test, expect, Page, APIRequestContext, Route } from '@playwright/test';
-import { expectFitsScreen, layoutProblems } from './layout';
+import { expectFitsScreen, layoutProblems, openSelectionMore } from './layout';
 
 /**
  * Every main page fits a phone (390 px) and a tablet (820 px) screen (1.29.2): no sideways page scroll, nothing past the
@@ -453,6 +453,7 @@ test('the identify dialog with its site switch fits a phone and a tablet screen'
     await page.goto(`/libraries/${libraryId}/browse`);
     await page.locator('.select-toggle').click();
     await page.locator('.node-wrap', { hasText: 'Stacked Saga' }).first().click();
+    await openSelectionMore(page);
     await page.getByTestId('series-selection-menu').click();
     await page.getByTestId('bulk-identify').click();
     await expect(page.getByTestId('identify-site')).toBeVisible();
@@ -598,6 +599,7 @@ test('Match folders by name as artists, with MangaUpdates authors offered, fits 
     await page.goto(`/libraries/${libraryId}/browse`);
     await page.locator('.select-toggle').click();
     await page.locator('.node-wrap', { hasText: 'Stacked Saga' }).first().click();
+    await openSelectionMore(page);
     await page.getByTestId('series-selection-menu').click();
     await page.getByTestId('bulk-folder-match').click();
     await page.getByTestId('folder-match-artists').click();

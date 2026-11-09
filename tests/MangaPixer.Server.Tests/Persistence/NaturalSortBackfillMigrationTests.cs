@@ -150,6 +150,10 @@ public sealed class NaturalSortBackfillMigrationTests : IDisposable
                 "CREATE TABLE IF NOT EXISTS \"embedded_metadata\" (\"NodeId\" INTEGER NOT NULL PRIMARY KEY, " +
                 "\"State\" INTEGER NOT NULL, \"ContentVersion\" INTEGER NOT NULL, \"Volume\" INTEGER NULL, \"Number\" TEXT NULL);");
 
+            // 1.52.0 (lane R): browse reads the viewer's ratings with the favourite flag (user_ratings, migration 60) - an empty shim of
+            // that later table, as the shims for the other later tables browse reads.
+            await db.Database.ExecuteSqlRawAsync(CaseInsensitiveSortKeysMigrationTests.UserRatingsShim);
+
             var browse = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var page = await browse.BrowseAsync(userId, libraryId, seriesId, cursor: null, pageSize: 50, sort: "name");
 

@@ -213,8 +213,8 @@ shared framework.
 
 - `Microsoft.AspNetCore.Cryptography.Internal` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.AspNetCore.Cryptography.KeyDerivation` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.AspNetCore.Mvc.Testing` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
-- `Microsoft.AspNetCore.TestHost` - 10.0.12 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.AspNetCore.Mvc.Testing` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
+- `Microsoft.AspNetCore.TestHost` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.CodeAnalysis.Analyzers` - 3.11.0 - MIT - https://github.com/dotnet/roslyn-analyzers
 - `xunit.abstractions` - 2.0.3 - Apache-2.0 (the nuspec has only a licenseUrl, which points at upstream xUnit's Apache-2.0 license) - https://github.com/xunit/xunit
 - `Microsoft.CodeCoverage` - 18.11.0 - MIT - https://github.com/microsoft/vstest
@@ -247,15 +247,15 @@ and Enhance where WebGPU is missing) is another such chunk; it carries shader co
 ported or copied from two upstream projects, attributed under "Ported shader code"
 below.
 
-- `@angular/animations` - 22.2.3 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/cdk` - 22.2.4 - MIT - https://github.com/angular/components *(bundled)*
-- `@angular/common` - 22.2.3 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/compiler` - 22.2.3 - MIT - https://github.com/angular/angular
-- `@angular/core` - 22.2.3 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/forms` - 22.2.3 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/material` - 22.2.4 - MIT - https://github.com/angular/components *(bundled)*
-- `@angular/platform-browser` - 22.2.3 - MIT - https://github.com/angular/angular *(bundled)*
-- `@angular/router` - 22.2.3 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/animations` - 22.2.4 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/cdk` - 22.2.6 - MIT - https://github.com/angular/components *(bundled)*
+- `@angular/common` - 22.2.4 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/compiler` - 22.2.4 - MIT - https://github.com/angular/angular
+- `@angular/core` - 22.2.4 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/forms` - 22.2.4 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/material` - 22.2.6 - MIT - https://github.com/angular/components *(bundled)*
+- `@angular/platform-browser` - 22.2.4 - MIT - https://github.com/angular/angular *(bundled)*
+- `@angular/router` - 22.2.4 - MIT - https://github.com/angular/angular *(bundled)*
 - `@fontsource/roboto` - 5.3.0 - OFL-1.1 - https://github.com/fontsource/font-files *(bundled)*
 - `@standard-schema/spec` - 1.1.0 - MIT - https://github.com/standard-schema/standard-schema
 - `@webgpu/types` - 0.1.72 - BSD-3-Clause - https://github.com/gpuweb/types
@@ -264,7 +264,7 @@ below.
 - `material-icons` - 1.13.14 - Apache-2.0 - https://github.com/marella/material-icons *(bundled)*
 - `parse5` - 8.0.1 - MIT - https://github.com/inikulin/parse5
 - `rxjs` - 7.8.2 - Apache-2.0 - https://github.com/reactivex/rxjs *(bundled)*
-- `tslib` - 2.8.1 - 0BSD - https://github.com/microsoft/tslib *(bundled)*
+- `tslib` - 2.9.1 - 0BSD - https://github.com/microsoft/tslib *(bundled)*
 - `zod` - 4.6.6 - MIT - https://github.com/colinhacks/zod
 - `zone.js` - 0.16.3 - MIT - https://github.com/angular/angular *(bundled)*
 
@@ -368,7 +368,7 @@ THE SOFTWARE.
   https://github.com/marella/material-icons. The icon fonts ship as
   `.woff`/`.woff2` in the SPA.
 
-## 4. Web build and test packages - npm (759)
+## 4. Web build and test packages - npm (777)
 
 These are dev dependencies and their transitive trees: the Angular CLI and build
 toolchain, TypeScript, ESLint, Vitest, jsdom and Playwright. None is in the shipped
@@ -378,11 +378,13 @@ places in `node_modules`. Platform-specific optional binaries such as
 `lightningcss-*`, `@esbuild/*` and `@rollup/*` differ on other operating systems.
 
 - `@ampproject/remapping` - 2.3.0 - Apache-2.0 - https://github.com/ampproject/remapping
-- `@angular-devkit/architect` - 0.2202.3 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/architect` - 0.2202.4 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/architect` - 0.2202.5 - MIT - https://github.com/angular/angular-cli
 - `@angular-devkit/build-angular` - 22.2.4 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/build-webpack` - 0.2202.3 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/build-webpack` - 0.2202.4 - MIT - https://github.com/angular/angular-cli
 - `@angular-devkit/core` - 22.2.4 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/schematics` - 22.2.4 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/core` - 22.2.5 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/schematics` - 22.2.5 - MIT - https://github.com/angular/angular-cli
 - `@angular-eslint/builder` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/bundled-angular-compiler` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/eslint-plugin-template` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
@@ -391,8 +393,9 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `@angular-eslint/template-parser` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/utils` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular/build` - 22.2.4 - MIT - https://github.com/angular/angular-cli
-- `@angular/cli` - 22.2.4 - MIT - https://github.com/angular/angular-cli
-- `@angular/compiler-cli` - 22.2.3 - MIT - https://github.com/angular/angular
+- `@angular/build` - 22.2.5 - MIT - https://github.com/angular/angular-cli
+- `@angular/cli` - 22.2.5 - MIT - https://github.com/angular/angular-cli
+- `@angular/compiler-cli` - 22.2.4 - MIT - https://github.com/angular/angular
 - `@asamuzakjp/css-color` - 7.1.3 - MIT - https://github.com/asamuzaK/cssColor
 - `@asamuzakjp/dom-selector` - 10.0.4 - MIT - https://github.com/asamuzaK/domSelector
 - `@babel/code-frame` - 7.29.7 - MIT - https://github.com/babel/babel
@@ -511,6 +514,12 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `@csstools/css-syntax-patches-for-csstree` - 1.1.15 - MIT-0 - https://github.com/csstools/postcss-plugins
 - `@csstools/css-tokenizer` - 4.0.2 - MIT - https://github.com/csstools/postcss-plugins
 - `@discoveryjs/json-ext` - 1.1.0 - MIT - https://github.com/discoveryjs/json-ext
+- `@emnapi/core` - 1.11.3 - MIT - https://github.com/toyobayashi/emnapi
+- `@emnapi/core` - 2.0.0-alpha.3 - MIT - https://github.com/toyobayashi/emnapi
+- `@emnapi/runtime` - 1.11.3 - MIT - https://github.com/toyobayashi/emnapi
+- `@emnapi/runtime` - 2.0.0-alpha.3 - MIT - https://github.com/toyobayashi/emnapi
+- `@emnapi/wasi-threads` - 1.2.3 - MIT - https://github.com/toyobayashi/emnapi
+- `@emnapi/wasi-threads` - 2.0.1 - MIT - https://github.com/toyobayashi/emnapi
 - `@esbuild/linux-x64` - 0.28.2 - MIT - https://github.com/evanw/esbuild
 - `@eslint-community/eslint-utils` - 4.10.1 - MIT - https://github.com/eslint-community/eslint-utils
 - `@eslint-community/regexpp` - 4.12.2 - MIT - https://github.com/eslint-community/regexpp
@@ -522,7 +531,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `@eslint/object-schema` - 2.1.7 - Apache-2.0 - https://github.com/eslint/rewrite
 - `@eslint/plugin-kit` - 0.4.1 - Apache-2.0 - https://github.com/eslint/rewrite
 - `@exodus/bytes` - 1.16.0 - MIT - https://github.com/ExodusOSS/bytes
-- `@harperfast/extended-iterable` - 1.0.3 - Apache-2.0 - https://github.com/harperdb/extended-iterable
+- `@harperfast/extended-iterable` - 1.0.5 - Apache-2.0 - https://github.com/harperdb/extended-iterable
 - `@humanfs/core` - 0.19.2 - Apache-2.0 - https://github.com/humanwhocodes/humanfs
 - `@humanfs/node` - 0.16.8 - Apache-2.0 - https://github.com/humanwhocodes/humanfs
 - `@humanfs/types` - 0.15.0 - Apache-2.0 - https://github.com/humanwhocodes/humanfs
@@ -577,14 +586,17 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `@lmdb/lmdb-linux-x64` - 3.5.6 - MIT - https://github.com/kriszyp/lmdb-js
 - `@modelcontextprotocol/core` - 2.3.1 - Apache-2.0 - https://github.com/modelcontextprotocol/typescript-sdk
 - `@modelcontextprotocol/server` - 2.3.1 - Apache-2.0 - https://github.com/modelcontextprotocol/typescript-sdk
-- `@msgpackr-extract/msgpackr-extract-linux-x64` - 3.0.4 - MIT - https://github.com/kriszyp/msgpackr-extract
+- `@msgpackr-extract/msgpackr-extract-linux-x64` - 3.0.6 - MIT - https://github.com/kriszyp/msgpackr-extract
 - `@napi-rs/nice-linux-x64-gnu` - 1.1.1 - MIT - https://github.com/Brooooooklyn/nice
 - `@napi-rs/nice` - 1.1.1 - MIT - https://github.com/Brooooooklyn/nice
+- `@napi-rs/wasm-runtime` - 1.2.7 - MIT - https://github.com/napi-rs/napi-rs
 - `@ngtools/webpack` - 22.2.4 - MIT - https://github.com/angular/angular-cli
 - `@noble/hashes` - 1.8.0 - MIT - https://github.com/paulmillr/noble-hashes
 - `@oxc-parser/binding-linux-x64-gnu` - 0.150.0 - MIT - https://github.com/oxc-project/oxc
+- `@oxc-parser/binding-wasm32-wasi` - 0.150.0 - MIT - https://github.com/oxc-project/oxc
 - `@oxc-project/types` - 0.149.0 - MIT - https://github.com/oxc-project/oxc
 - `@oxc-project/types` - 0.150.0 - MIT - https://github.com/oxc-project/oxc
+- `@oxc-project/types` - 0.155.0 - MIT - https://github.com/oxc-project/oxc
 - `@parcel/watcher-linux-x64-glibc` - 2.6.0 - MIT - https://github.com/parcel-bundler/watcher
 - `@parcel/watcher` - 2.6.0 - MIT - https://github.com/parcel-bundler/watcher
 - `@peculiar/asn1-cms` - 2.11.0 - MIT - https://github.com/PeculiarVentures/asn1-schema
@@ -600,9 +612,11 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `@peculiar/utils` - 2.0.3 - MIT - https://github.com/PeculiarVentures/pvtsutils
 - `@peculiar/x509` - 1.14.3 - MIT - https://github.com/PeculiarVentures/x509
 - `@playwright/test` - 1.64.1 - Apache-2.0 - https://github.com/microsoft/playwright
+- `@rolldown/binding-linux-x64-gnu` - 1.2.15 - MIT - https://github.com/rolldown/rolldown
 - `@rolldown/binding-linux-x64-gnu` - 1.2.8 - MIT - https://github.com/rolldown/rolldown
 - `@rolldown/pluginutils` - 1.0.1 - MIT - https://github.com/rolldown/plugins
-- `@schematics/angular` - 22.2.4 - MIT - https://github.com/angular/angular-cli
+- `@schematics/angular` - 22.2.5 - MIT - https://github.com/angular/angular-cli
+- `@tybys/wasm-util` - 0.10.4 - MIT - https://github.com/toyobayashi/wasm-util
 - `@types/body-parser` - 1.19.6 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/bonjour` - 3.5.13 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/chai` - 5.2.3 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
@@ -692,7 +706,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `beasties` - 0.5.4 - Apache-2.0 - https://github.com/danielroe/beasties
 - `bidi-js` - 1.1.0 - MIT - https://github.com/lojjic/bidi-js
 - `big.js` - 5.2.2 - MIT - https://github.com/MikeMcl/big.js
-- `body-parser` - 2.3.0 - MIT - https://github.com/expressjs/body-parser
+- `body-parser` - 2.4.0 - MIT - https://github.com/expressjs/body-parser
 - `bonjour-service` - 1.4.4 - MIT - https://github.com/onlxltd/bonjour-service
 - `boolbase` - 2.0.0 - ISC - https://github.com/fb55/boolbase
 - `brace-expansion` - 1.1.18 - MIT - https://github.com/juliangruber/brace-expansion
@@ -768,7 +782,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `emojis-list` - 3.0.0 - MIT - https://github.com/kikobeats/emojis-list
 - `empathic` - 2.0.1 - MIT - https://github.com/lukeed/empathic
 - `encodeurl` - 2.0.0 - MIT - https://github.com/pillarjs/encodeurl
-- `enhanced-resolve` - 5.25.1 - MIT - https://github.com/webpack/enhanced-resolve
+- `enhanced-resolve` - 5.26.0 - MIT - https://github.com/webpack/enhanced-resolve
 - `env-paths` - 2.2.1 - MIT - https://github.com/sindresorhus/env-paths
 - `environment` - 1.1.0 - MIT - https://github.com/sindresorhus/environment
 - `errno` - 0.1.8 - MIT - https://github.com/rvagg/node-errno
@@ -838,7 +852,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `http-errors` - 2.0.1 - MIT - https://github.com/jshttp/http-errors
 - `http-proxy-middleware` - 4.2.0 - MIT - https://github.com/chimurai/http-proxy-middleware
 - `https-proxy-agent` - 9.1.0 - MIT - https://github.com/TooTallNate/proxy-agents
-- `httpxy` - 0.5.5 - MIT - https://github.com/unjs/httpxy
+- `httpxy` - 0.5.6 - MIT - https://github.com/unjs/httpxy
 - `hyperdyperid` - 1.2.0 - MIT - https://github.com/streamich/hyperdyperid
 - `iconv-lite` - 0.4.24 - MIT - https://github.com/ashtuchkin/iconv-lite
 - `iconv-lite` - 0.6.3 - MIT - https://github.com/ashtuchkin/iconv-lite
@@ -929,15 +943,15 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `mini-css-extract-plugin` - 2.10.2 - MIT - https://github.com/webpack/mini-css-extract-plugin
 - `minimatch` - 10.2.6 - BlueOak-1.0.0 - https://github.com/isaacs/minimatch
 - `minimatch` - 3.1.5 - ISC - https://github.com/isaacs/minimatch
-- `minimizer-webpack-plugin` - 5.9.0 - MIT - https://github.com/webpack/minimizer-webpack-plugin
+- `minimizer-webpack-plugin` - 5.13.1 - MIT - https://github.com/webpack/minimizer-webpack-plugin
 - `mrmime` - 2.0.1 - MIT - https://github.com/lukeed/mrmime
 - `ms` - 2.0.0 - MIT - https://github.com/zeit/ms
 - `ms` - 2.1.3 - MIT - https://github.com/vercel/ms
-- `msgpackr-extract` - 3.0.4 - MIT - https://github.com/kriszyp/msgpackr-extract
+- `msgpackr-extract` - 3.0.6 - MIT - https://github.com/kriszyp/msgpackr-extract
 - `msgpackr` - 1.12.1 - MIT - https://github.com/kriszyp/msgpackr
 - `multicast-dns` - 7.2.5 - MIT - https://github.com/mafintosh/multicast-dns
 - `mute-stream` - 3.0.0 - ISC - https://github.com/npm/mute-stream
-- `nanoid` - 3.3.18 - MIT - https://github.com/ai/nanoid
+- `nanoid` - 3.3.20 - MIT - https://github.com/ai/nanoid
 - `natural-compare` - 1.4.0 - MIT - https://github.com/litejs/natural-compare-lite
 - `needle` - 2.9.1 - MIT - https://github.com/tomas/needle
 - `needle` - 3.5.0 - MIT - https://github.com/tomas/needle
@@ -953,14 +967,14 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `nth-check` - 3.0.1 - BSD-2-Clause - https://github.com/fb55/nth-check
 - `object-inspect` - 1.13.4 - MIT - https://github.com/inspect-js/object-inspect
 - `obug` - 2.1.4 - MIT - https://github.com/sxzz/obug
-- `on-finished` - 2.4.1 - MIT - https://github.com/jshttp/on-finished
+- `on-finished` - 2.4.2 - MIT - https://github.com/jshttp/on-finished
 - `on-headers` - 1.1.0 - MIT - https://github.com/jshttp/on-headers
 - `once` - 1.4.0 - ISC - https://github.com/isaacs/once
 - `onetime` - 7.0.0 - MIT - https://github.com/sindresorhus/onetime
 - `open` - 11.0.4 - MIT - https://github.com/sindresorhus/open
 - `optionator` - 0.9.4 - MIT - https://github.com/gkz/optionator
 - `ora` - 9.4.1 - MIT - https://github.com/sindresorhus/ora
-- `ordered-binary` - 1.6.2 - MIT - https://github.com/kriszyp/ordered-binary
+- `ordered-binary` - 1.6.3 - MIT - https://github.com/kriszyp/ordered-binary
 - `oxc-parser` - 0.150.0 - MIT - https://github.com/oxc-project/oxc
 - `p-limit` - 3.1.0 - MIT - https://github.com/sindresorhus/p-limit
 - `p-locate` - 5.0.0 - MIT - https://github.com/sindresorhus/p-locate
@@ -979,7 +993,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `picomatch` - 2.3.2 - MIT - https://github.com/micromatch/picomatch
 - `picomatch` - 4.0.7 - MIT - https://github.com/micromatch/picomatch
 - `piscina` - 5.3.2 - MIT - https://github.com/piscinajs/piscina
-- `pkijs` - 3.4.1 - BSD-3-Clause - https://github.com/PeculiarVentures/PKI.js
+- `pkijs` - 3.4.3 - BSD-3-Clause - https://github.com/PeculiarVentures/PKI.js
 - `playwright-core` - 1.64.1 - Apache-2.0 - https://github.com/microsoft/playwright
 - `playwright` - 1.64.1 - Apache-2.0 - https://github.com/microsoft/playwright
 - `postcss-loader` - 8.2.1 - MIT - https://github.com/webpack/postcss-loader
@@ -992,6 +1006,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `postcss-selector-parser` - 7.1.6 - MIT - https://github.com/postcss/postcss-selector-parser
 - `postcss-value-parser` - 4.2.0 - MIT - https://github.com/TrySound/postcss-value-parser
 - `postcss` - 8.5.28 - MIT - https://github.com/postcss/postcss
+- `postcss` - 8.5.32 - MIT - https://github.com/postcss/postcss
 - `powershell-utils` - 0.2.1 - MIT - https://github.com/sindresorhus/powershell-utils
 - `prelude-ls` - 1.2.1 - MIT - https://github.com/gkz/prelude-ls
 - `probe-image-size` - 7.4.0 - MIT - https://github.com/nodeca/probe-image-size
@@ -1017,6 +1032,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `resolve-from` - 4.0.0 - MIT - https://github.com/sindresorhus/resolve-from
 - `resolve-url-loader` - 5.0.0 - MIT - https://github.com/bholloway/resolve-url-loader
 - `restore-cursor` - 5.1.0 - MIT - https://github.com/sindresorhus/restore-cursor
+- `rolldown` - 1.2.15 - MIT - https://github.com/rolldown/rolldown
 - `rolldown` - 1.2.8 - MIT - https://github.com/rolldown/rolldown
 - `router` - 2.2.0 - MIT - https://github.com/pillarjs/router
 - `run-applescript` - 7.1.0 - MIT - https://github.com/sindresorhus/run-applescript
@@ -1028,7 +1044,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `sass` - 1.104.1 - MIT - https://github.com/sass/dart-sass
 - `sax` - 1.6.1 - BlueOak-1.0.0 - https://github.com/isaacs/sax-js
 - `saxes` - 6.0.0 - ISC - https://github.com/lddubeau/saxes
-- `schema-utils` - 4.5.0 - MIT - https://github.com/webpack/schema-utils
+- `schema-utils` - 4.8.1 - MIT - https://github.com/webpack/schema-utils
 - `selfsigned` - 5.5.0 - MIT - https://github.com/jfromaniello/selfsigned
 - `semver` - 6.3.1 - ISC - https://github.com/npm/node-semver
 - `semver` - 7.8.5 - ISC - https://github.com/npm/node-semver
@@ -1048,7 +1064,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `siginfo` - 2.0.0 - ISC - https://github.com/emilbayes/siginfo
 - `signal-exit` - 4.1.0 - ISC - https://github.com/tapjs/signal-exit
 - `slice-ansi` - 9.0.0 - MIT - https://github.com/chalk/slice-ansi
-- `source-map-js` - 1.2.1 - BSD-3-Clause - https://github.com/7rulnik/source-map-js
+- `source-map-js` - 1.2.2 - BSD-3-Clause - https://github.com/7rulnik/source-map-js
 - `source-map-loader` - 5.0.0 - MIT - https://github.com/webpack-contrib/source-map-loader
 - `source-map-support` - 0.5.21 - MIT - https://github.com/evanw/node-source-map-support
 - `source-map` - 0.6.1 - BSD-3-Clause - https://github.com/mozilla/source-map
@@ -1084,6 +1100,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `tree-dump` - 1.1.0 - Apache-2.0 - https://github.com/streamich/tree-dump
 - `ts-api-utils` - 2.5.0 - MIT - https://github.com/JoshuaKGoldberg/ts-api-utils
 - `tslib` - 1.14.1 - 0BSD - https://github.com/microsoft/tslib
+- `tslib` - 2.8.1 - 0BSD - https://github.com/Microsoft/tslib
 - `tsyringe` - 4.10.0 - MIT - https://github.com/microsoft/tsyringe
 - `type-check` - 0.4.0 - MIT - https://github.com/gkz/type-check
 - `type-is` - 2.1.0 - MIT - https://github.com/jshttp/type-is
@@ -1105,17 +1122,18 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `vary` - 1.1.2 - MIT - https://github.com/jshttp/vary
 - `verkit` - 0.3.2 - MIT - https://github.com/sxzz/verkit
 - `vite` - 8.3.0 - MIT - https://github.com/vitejs/vite
+- `vite` - 8.3.5 - MIT - https://github.com/vitejs/vite
 - `vitest` - 4.1.12 - MIT - https://github.com/vitest-dev/vitest
 - `w3c-xmlserializer` - 6.0.0 - MIT - https://github.com/jsdom/w3c-xmlserializer
-- `watchpack` - 2.5.2 - MIT - https://github.com/webpack/watchpack
-- `weak-lru-cache` - 1.2.2 - MIT - https://github.com/kriszyp/weak-lru-cache
+- `watchpack` - 2.6.3 - MIT - https://github.com/webpack/watchpack
+- `weak-lru-cache` - 1.2.3 - MIT - https://github.com/kriszyp/weak-lru-cache
 - `webidl-conversions` - 8.0.1 - BSD-2-Clause - https://github.com/jsdom/webidl-conversions
 - `webpack-dev-middleware` - 8.3.0 - MIT - https://github.com/webpack/webpack-dev-middleware
 - `webpack-dev-server` - 6.0.0 - MIT - https://github.com/webpack/webpack-dev-server
 - `webpack-merge` - 6.0.1 - MIT - https://github.com/survivejs/webpack-merge
-- `webpack-sources` - 3.5.1 - MIT - https://github.com/webpack/webpack-sources
+- `webpack-sources` - 3.6.0 - MIT - https://github.com/webpack/webpack-sources
 - `webpack-subresource-integrity` - 5.1.0 - MIT - https://github.com/waysact/webpack-subresource-integrity
-- `webpack` - 5.111.0 - MIT - https://github.com/webpack/webpack
+- `webpack` - 5.112.0 - MIT - https://github.com/webpack/webpack
 - `whatwg-mimetype` - 5.0.0 - MIT - https://github.com/jsdom/whatwg-mimetype
 - `whatwg-url` - 17.2.0 - MIT - https://github.com/jsdom/whatwg-url
 - `which` - 2.0.2 - ISC - https://github.com/isaacs/node-which

@@ -109,6 +109,11 @@ public sealed class CaseInsensitiveSortKeysMigrationTests : IDisposable
             CreatedAt = DateTimeOffset.UtcNow,
         };
 
+    /// <summary>1.52.0: an empty <c>user_ratings</c> as migration 60 creates it (only for a database that is NOT migrated afterwards).</summary>
+    internal const string UserRatingsShim =
+        "CREATE TABLE IF NOT EXISTS \"user_ratings\" (\"Id\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, \"UserId\" INTEGER NOT NULL, " +
+        "\"CatalogNodeId\" INTEGER NOT NULL, \"Score\" INTEGER NOT NULL, \"RatedAt\" INTEGER NOT NULL);";
+
     private async Task<string[]> BrowseNamesAsync(long userId, long libraryId, long seriesId)
     {
         await using var db = new MangaPixerDbContext(_options);
@@ -122,6 +127,10 @@ public sealed class CaseInsensitiveSortKeysMigrationTests : IDisposable
     public async Task PreviousKeys_ListCapitalisedNamesFirst_BeforeTheMigration()
     {
         var (userId, libraryId, seriesId) = await SeedPreviousFormatAsync();
+        // 1.52.0 (lane R): browse reads the viewer's ratings with the favourite flag (user_ratings, migration 60) - an empty shim of
+        // that later table, as the shims for the other later tables browse reads.
+        await using (var db = new MangaPixerDbContext(_options))
+            await db.Database.ExecuteSqlRawAsync(UserRatingsShim);
 
         Assert.Equal(
             ["Banana.cbz", "Cherry 10.cbz", "Zebra.cbz", "apple.cbz", "banana.cbz", "cherry 2.cbz"],

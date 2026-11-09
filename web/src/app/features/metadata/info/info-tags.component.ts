@@ -7,6 +7,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { AuthService } from '../../../core/auth/auth.service';
+import { TOUCH_TARGET_CSS } from '../../../shared/touch-targets';
 import { CreatorAdminService } from './creator-admin/creator-admin.service';
 import { InfoApiService, InfoTarget } from './info-api.service';
 import { addFilterParam, bucketLabel, bucketRank, chipCount, chipText, chipTitle, isFilterParam, locationText, roleLabel } from './info-labels';
@@ -42,7 +43,7 @@ import { FacetBucket, FacetBucketDto, FacetChipDto, FacetLocationDto, InfoPanelD
             <ul class="chips">
               @for (chip of b.chips; track chip.id) {
                 <li class="chip-wrap" [class.conflict]="chip.conflict">
-                  <a class="chip" [routerLink]="['/search']" [queryParams]="chipQuery(chip)"
+                  <a class="chip touch-target" [routerLink]="['/search']" [queryParams]="chipQuery(chip)"
                      [attr.aria-label]="title(b.bucket, chip)" [matTooltip]="title(b.bucket, chip)" matTooltipShowDelay="600"
                      [class.has-menu]="menuFor(b.bucket)" data-testid="info-chip" [attr.data-value]="chip.id"
                      (click)="opened()">
@@ -52,7 +53,7 @@ import { FacetBucket, FacetBucketDto, FacetChipDto, FacetLocationDto, InfoPanelD
                     @if (count(chip); as c) { <span class="count" data-testid="info-chip-count">{{ c }}</span> }
                   </a>
                   @if (menuFor(b.bucket)) {
-                    <button type="button" class="chip-menu" [matMenuTriggerFor]="creatorMenu" [matMenuTriggerData]="{ chip: chip }"
+                    <button type="button" class="chip-menu touch-target" [matMenuTriggerFor]="creatorMenu" [matMenuTriggerData]="{ chip: chip }"
                             [attr.aria-label]="'Creator actions for ' + chip.display" data-testid="info-chip-menu">
                       <mat-icon>more_vert</mat-icon>
                     </button>
@@ -61,7 +62,7 @@ import { FacetBucket, FacetBucketDto, FacetChipDto, FacetLocationDto, InfoPanelD
               }
               @if (b.more > 0) {
                 <li class="chip-wrap">
-                  <button type="button" class="more" data-testid="info-more" (click)="showMore(b)" [disabled]="loadingMore().has(b.bucket)"
+                  <button type="button" class="more touch-target" data-testid="info-more" (click)="showMore(b)" [disabled]="loadingMore().has(b.bucket)"
                           [attr.aria-label]="'Show ' + b.more + ' more in ' + label(b.bucket)">+{{ b.more }} more</button>
                 </li>
               }
@@ -91,7 +92,7 @@ import { FacetBucket, FacetBucketDto, FacetChipDto, FacetLocationDto, InfoPanelD
       </ng-template>
     </mat-menu>
   `,
-  styles: [`
+  styles: [TOUCH_TARGET_CSS, `
     :host { display: block; clear: both; }
     .tags { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgb(var(--mp-ink-rgb) / 0.08); }
     .bucket { margin: 0 0 10px; min-width: 0; }
@@ -136,6 +137,13 @@ import { FacetBucket, FacetBucketDto, FacetChipDto, FacetLocationDto, InfoPanelD
     .more:disabled { color: var(--mp-text-muted); cursor: default; }
     .places { margin: 0; padding: 0; list-style: none; font-size: 13px; }
     .places li { min-width: 0; }
+    /* Touch screens (1.52.0, sweep m4): chips, their creator menu and "+N more" are 40 px targets (TOUCH_TARGET_CSS); the pill keeps
+       its round ends at that height. */
+    @media (pointer: coarse) {
+      .chip, .more { border-radius: 20px; }
+      .chip.has-menu { border-radius: 20px 0 0 20px; }
+      .chip-menu { border-radius: 0 20px 20px 0; }
+    }
     .places a {
       display: block; padding: 6px 0; color: var(--mp-accent); text-decoration: none;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;

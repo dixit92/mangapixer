@@ -59,6 +59,7 @@ Everything MangaPixer does today, by area. The [README](../README.md) has the sh
 - *New in 1.40.0:* a volume file that replaces its chapter files keeps their read state (see [Rescans, moves and deletions](library-layout.md#rescans-moves-and-deletions)).
 - *New in 1.43.0:* **Tracker sync** - send your reading progress to your own **MyAnimeList** or **MangaUpdates** list while you read, once an admin allows it ([Tracker sync](tracker-sync.md); admins: [Tracker setup](tracker-setup.md)).
 - *New in 1.44.0:* split chapters (33.1 + 33.2) count toward your trackers; the series' **Tracking** button says why a folder is not synced and can turn sync on; and when a tracker's own chapters finish more volumes than it lists, MangaPixer offers **Set *tracker*'s volumes to N** (only on your click; see [Tracker sync](tracker-sync.md)).
+- *New in 1.52.0:* **Ratings** - give a series or an archive your own rating from half a star to five stars, kept private to your account: in the **Info** sheet, on the series page or with **Rate** in the reader. Rated cards show your rating; sort by **My rating** in the library and on **Favorites**, filter **Favorites** by **Rated**, and search `rating:4` for what you rated four stars or more ([Ratings](ratings.md)).
 
 ## Home
 
@@ -92,6 +93,7 @@ Everything MangaPixer does today, by area. The [README](../README.md) has the sh
 - Health endpoints (`/health`, `/health/ready`) and an OpenAPI document at `/openapi/v1.json` (the checked-in contract is `contracts/openapi.json` in the repository).
 - Web app manifest and icons, so MangaPixer can be added to a phone or tablet home screen.
 - *New in 1.51.0:* on a touch screen every control is at least 40 px to tap and every icon button has a name for screen readers; phones held sideways keep the library sidebar at its width; the select bar is one row; the scrub strip of a long folder follows your finger from the top of the page.
+- *New in 1.52.0:* the phone's Back gesture - and the browser's Back button - closes an open menu, list, bottom sheet, dialog or confirmation and stays on the page; on a phone the selection bar shows **Select**, **Mark read** and **More**; the Metadata Manager tabs scroll under the finger on a touch screen.
 
 ## Supported formats
 

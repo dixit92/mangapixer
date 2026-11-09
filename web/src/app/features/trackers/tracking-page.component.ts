@@ -33,7 +33,7 @@ import { TrackingSeriesListComponent } from './tracking-series-list.component';
         <p>Your reading progress on your own tracker lists. MangaPixer only ever raises a number on a tracker; lowering one is always
           your click. Private libraries and doujinshi are not synced unless you turn sync on for a folder or series (Select in a
           library, then "Sync").
-          <a [href]="docsUrl" target="_blank" rel="noopener noreferrer" data-testid="tracking-help">How tracker sync works</a></p>
+          <a class="touch-inline-link" [href]="docsUrl" target="_blank" rel="noopener noreferrer" data-testid="tracking-help">How tracker sync works</a></p>
         <p class="legend" data-testid="tracking-ring-legend"><span class="ring-swatch" aria-hidden="true"></span>{{ ringLegend }}</p>
       </header>
 
