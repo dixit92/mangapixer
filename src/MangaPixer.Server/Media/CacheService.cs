@@ -162,6 +162,11 @@ public sealed class CacheService
         catch (UnauthorizedAccessException) { }
     }
 
+    // A temp file of this publish's own (1.52.0): requests for one page can publish its key at the same time - the reader's own
+    // requests, or two readers - and a shared "<file>.tmp", opened exclusively, failed the second publisher (its page answered 500).
+    private static string TempPathFor(string cacheFilePath) =>
+        cacheFilePath + "." + Guid.NewGuid().ToString("N")[..12] + ".tmp";
+
     // Pre-1.24.1 cache files: the SHA-256 of the key as 64 lower-case hex
     // digits, or the same name + ".tmp" for a publish interrupted mid-write.
     private static bool IsLegacyCacheFileName(string fileName)
@@ -269,7 +274,7 @@ public sealed class CacheService
         Directory.CreateDirectory(cacheDir);
 
         // Write to a temp file in the same directory (same filesystem for atomic rename)
-        var tempPath = cacheFilePath + ".tmp";
+        var tempPath = TempPathFor(cacheFilePath);
 
         try
         {
@@ -285,10 +290,16 @@ public sealed class CacheService
         }
 
         // Atomic rename within the cache filesystem
-        if (File.Exists(cacheFilePath))
-            File.Delete(cacheFilePath);
-
-        File.Move(tempPath, cacheFilePath);
+        try
+        {
+            // Atomic replace: whatever an earlier publisher of this key put there (the same bytes) is swapped out in one step.
+            File.Move(tempPath, cacheFilePath, overwrite: true);
+        }
+        catch
+        {
+            TryDeleteFile(tempPath);
+            throw;
+        }
 
         // Record the entry
         var fileInfo = new FileInfo(cacheFilePath);
@@ -322,7 +333,7 @@ public sealed class CacheService
 
         Directory.CreateDirectory(cacheDir);
 
-        var tempPath = cacheFilePath + ".tmp";
+        var tempPath = TempPathFor(cacheFilePath);
 
         try
         {
@@ -335,10 +346,16 @@ public sealed class CacheService
             throw;
         }
 
-        if (File.Exists(cacheFilePath))
-            File.Delete(cacheFilePath);
-
-        File.Move(tempPath, cacheFilePath);
+        try
+        {
+            // Atomic replace: whatever an earlier publisher of this key put there (the same bytes) is swapped out in one step.
+            File.Move(tempPath, cacheFilePath, overwrite: true);
+        }
+        catch
+        {
+            TryDeleteFile(tempPath);
+            throw;
+        }
 
         var fileInfo = new FileInfo(cacheFilePath);
         _entries[cacheKey] = new CacheEntry
