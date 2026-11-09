@@ -745,6 +745,11 @@ test.describe('tracker sync web (1.43.0)', () => {
       await second.locator('a.node-card').click();
       await expect(page).toHaveURL(new RegExp(`/reader/${readId}`));
       await page.waitForTimeout(1500);
+      // A new device opens the reader with its help shown once; since 1.52.0 Back would close that first - close it here.
+      if (await page.locator('.help-overlay').isVisible()) {
+        await page.keyboard.press('Escape');
+        await expect(page.locator('.help-overlay')).toHaveCount(0);
+      }
       await page.keyboard.press('End');
       await page.waitForTimeout(1200);
       await page.goBack();
