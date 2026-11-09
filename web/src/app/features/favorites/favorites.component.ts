@@ -1,5 +1,5 @@
 import {
-  Component, ElementRef, NgZone, OnDestroy, OnInit, afterNextRender, computed, effect, inject, signal, viewChild,
+  Component, ElementRef, Injector, NgZone, OnDestroy, OnInit, afterNextRender, computed, effect, inject, signal, viewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { NavigationEnd, NavigationStart, Router, RouterLink } from '@angular/router';
@@ -21,6 +21,7 @@ import {
 } from '../../core/preferences/favorites-display-preferences.service';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
 import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.component';
+import { RatingStarsComponent } from '../ratings/rating-stars.component';
 import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.component';
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { StackCardComponent } from '../../shared/stack-card/stack-card.component';
@@ -111,6 +112,7 @@ export function groupHeaders(
   selector: 'app-favorites',
   standalone: true,
   imports: [
+    RatingStarsComponent,
     CommonModule,
     RouterLink,
     MatIconModule,
@@ -222,6 +224,16 @@ export function groupHeaders(
             {{ opt.label }}
           </button>
         }
+        <!-- 1.52.0 (lane R): Rated / Not rated, by your own rating. -->
+        <span class="menu-caption">Rating</span>
+        @for (opt of ratingOptions; track opt.value) {
+          <button mat-menu-item role="menuitemradio" [attr.data-testid]="'favorites-rating-' + opt.value"
+                  [class.selected-option]="rated() === opt.value" [attr.aria-checked]="rated() === opt.value"
+                  (click)="setRated(opt.value)">
+            <mat-icon>{{ opt.icon }}</mat-icon>
+            {{ opt.label }}
+          </button>
+        }
         @if (libraries().length > 1) {
           <span class="menu-caption">Library</span>
           <button mat-menu-item role="menuitemradio" data-testid="favorites-library-all"
@@ -326,6 +338,8 @@ export function groupHeaders(
                 }
                 <app-folder-rollup-badge [rollup]="node.readRollup" />
                 <app-star-toggle [nodeId]="node.id" [favorite]="true" [overlay]="true" [compact]="true" />
+                <!-- 1.52.0 (lane R): the viewer's own rating, above the star (rated only). -->
+                <app-rating-stars mode="badge" [overlay]="true" [nodeId]="node.id" [rating]="node.myRating" />
                 <app-info-toggle [nodeId]="node.id" [hasSeriesInfo]="!!node.hasSeriesInfo"
                                  [anchored]="node.kind === 'Archive'" [overlay]="true" />
               </div>
@@ -484,6 +498,11 @@ export class FavoritesComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly zone = inject(NgZone);
+  private readonly injector = inject(Injector);
+  /** 1.52.0 (sweep N2): the entry a reloading jump is for - once its page is drawn it is scrolled to the top, as a loaded one is. */
+  private pendingJumpTarget: string | null = null;
+  /** 1.52.0 (N2): the entry the last reloading jump landed on, until the page above it is prepended once (then it is put back on top). */
+  private jumpAnchor: string | null = null;
 
   readonly nodes = signal<CatalogNodeDto[]>([]);
   readonly hasMore = signal(false);
@@ -513,6 +532,8 @@ export class FavoritesComponent implements OnInit, OnDestroy {
     { sort: 'recentlyAdded', direction: 'desc', label: 'Recently added', icon: 'new_releases', hint: 'New items appear' },
     { sort: 'recentlyUpdated', direction: 'desc', label: 'Recently updated', icon: 'update', hint: 'Folders with new content' },
     { sort: 'recentlyRead', direction: 'desc', label: 'Recently read', icon: 'history', hint: 'What you read last' },
+    // 1.52.0 (lane R): your own rating, highest first; not rated last (a stack by its folder's rating).
+    { sort: 'myRating', direction: 'desc', label: 'My rating', icon: 'star_half', hint: 'Your highest rated first' },
   ];
 
   // Group by library (1.51.0, per device - decision 9). Effective only without a library filter: one library needs no header.
@@ -559,10 +580,18 @@ export class FavoritesComponent implements OnInit, OnDestroy {
     { value: 'folders', label: 'Folders', icon: 'folder' },
     { value: 'archives', label: 'Archives', icon: 'menu_book' },
   ];
-  readonly filterActive = computed(() => this.readState() !== 'all' || this.kind() !== 'all' || this.libraryId() !== null);
+  /** 1.52.0 (lane R): the Rated / Not rated filter (transient, as the others). */
+  readonly rated = signal<'all' | 'rated' | 'unrated'>('all');
+  readonly ratingOptions: { value: 'all' | 'rated' | 'unrated'; label: string; icon: string }[] = [
+    { value: 'all', label: 'Rated or not', icon: 'star_outline' },
+    { value: 'rated', label: 'Rated', icon: 'star' },
+    { value: 'unrated', label: 'Not rated', icon: 'star_border' },
+  ];
+  readonly filterActive = computed(() => this.readState() !== 'all' || this.kind() !== 'all' || this.libraryId() !== null
+    || this.rated() !== 'all');
   /** The Filter button's label: the read state when only it is set, "Filtered" for any other filter, else "Filter". */
   readonly filterLabel = computed(() => {
-    if (this.kind() !== 'all' || this.libraryId() !== null) return 'Filtered';
+    if (this.kind() !== 'all' || this.libraryId() !== null || this.rated() !== 'all') return 'Filtered';
     const state = this.readState();
     return state === 'all' ? 'Filter' : this.readStateOptions.find((o) => o.value === state)?.label ?? 'Filter';
   });
@@ -682,6 +711,13 @@ export class FavoritesComponent implements OnInit, OnDestroy {
     this.reload();
   }
 
+  /** 1.52.0 (lane R): Rated / Not rated / either. */
+  setRated(rated: 'all' | 'rated' | 'unrated'): void {
+    if (this.rated() === rated) return;
+    this.rated.set(rated);
+    this.reload();
+  }
+
   setLibrary(libraryId: string | null): void {
     if (this.libraryId() === libraryId) return;
     this.libraryId.set(libraryId);
@@ -698,6 +734,7 @@ export class FavoritesComponent implements OnInit, OnDestroy {
     this.readState.set('all');
     this.kind.set('all');
     this.libraryId.set(null);
+    this.rated.set('all');
     this.reload();
   }
 
@@ -723,6 +760,7 @@ export class FavoritesComponent implements OnInit, OnDestroy {
       readState: this.readState(),
       kind: this.kind(),
       libraryId: this.libraryId(),
+      ...(this.rated() !== 'all' ? { rating: this.rated() } : {}),
     };
     return this.grouped() ? { ...query, groupByLibrary: true } : query;
   }
@@ -739,6 +777,8 @@ export class FavoritesComponent implements OnInit, OnDestroy {
       next: (page) => {
         if (generation !== this.generation) return;
         this.nodes.update((prev) => (append ? [...prev, ...page.items] : page.items));
+        if (!append) this.jumpAnchor = null;
+        if (!append && this.pendingJumpTarget) this.revealJumpTarget(this.pendingJumpTarget);
         this.cursor = page.nextCursor;
         this.hasMore.set(page.hasMore);
         if (!append) {
@@ -776,7 +816,12 @@ export class FavoritesComponent implements OnInit, OnDestroy {
         this.prevCursor = page.prevCursor ?? null;
         this.hasPrevious.set(page.hasPrevious ?? false);
         this.loadingPrevious.set(false);
-        this.anchorAfterPrepend(container, before);
+        // Right after a reloading jump the page above comes at once (its sentinel is in reach): the picked entry goes back on top -
+        // a height-difference anchor would be off by the sentinel line, which goes with the last page (1.52.0, N2).
+        const anchor = this.jumpAnchor;
+        this.jumpAnchor = null;
+        if (anchor) this.revealJumpTarget(anchor);
+        else this.anchorAfterPrepend(container, before);
         if (this.hasPrevious()) this.rearmTopSentinel();
       },
       error: () => { if (generation === this.generation) this.loadingPrevious.set(false); },
@@ -791,8 +836,8 @@ export class FavoritesComponent implements OnInit, OnDestroy {
     this.jumpBuckets.set([]);
     this.activeJump.set(null);
     if (this.sortChoice().sort !== 'name' || this.grouped()) return;
-    const { direction, readState, kind, libraryId } = this.query();
-    this.api.getFavoritesJumpIndex({ direction, readState, kind, libraryId }).pipe(catchError(() => of(null))).subscribe((rail) => {
+    const { direction, readState, kind, libraryId, rating } = this.query();
+    this.api.getFavoritesJumpIndex({ direction, readState, kind, libraryId, rating }).pipe(catchError(() => of(null))).subscribe((rail) => {
       if (generation !== this.jumpGeneration) return;
       this.jumpBuckets.set(rail?.buckets ?? []);
     });
@@ -811,8 +856,24 @@ export class FavoritesComponent implements OnInit, OnDestroy {
     this.hasPrevious.set(false);
     this.prevCursor = null;
     this.nodes.set([]);
+    this.pendingJumpTarget = bucket.firstNodeId ?? null;
+    this.jumpAnchor = null;
     this.load(false, bucket.firstCursor ?? null);
     this.scrollListToTop();
+  }
+
+  /**
+   * 1.52.0 (sweep N2): the page a jump reloaded is drawn below the page's own header, and on a short screen (a phone held sideways,
+   * 390 px tall) the picked letter's first row sat under the bottom edge. Once drawn, it is scrolled to the top like a loaded one - before
+   * the page above it is prepended (which keeps what is on screen in place).
+   */
+  private revealJumpTarget(nodeId: string): void {
+    if (this.pendingJumpTarget === nodeId) this.jumpAnchor = nodeId;
+    this.pendingJumpTarget = null;
+    afterNextRender(() => {
+      const index = this.nodes().findIndex((n) => n.id === nodeId);
+      if (index !== -1) this.scrollToCard(index);
+    }, { injector: this.injector });
   }
 
   /**

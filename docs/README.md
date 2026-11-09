@@ -39,6 +39,7 @@ These guides are for people who run MangaPixer on their own hardware. They descr
 | [Tracker sync](tracker-sync.md) | Send your reading progress to your own MyAnimeList or MangaUpdates list: connecting, what is sent and never sent, held jumps and Send, Private libraries and Sync to trackers, your list, disconnecting. |
 | [Covers](covers.md) | How cards get their cover - the file's page 1, the front half of a jacket spread, or a saved cover from the web for linked series - and how admins choose a cover with **Choose cover...**. |
 | [Volumes view](volumes.md) | How a series' chapters group into volume stacks ordered by volume, what the "8/9" mark and the missing-chapter cards mean, and the Volumes / Folders switch. |
+| [Ratings](ratings.md) | Your own 1 to 5 star rating (in half stars) of a series or an archive: where to rate, the badge, the My rating sorts, the Favorites filter and the rating: search term. |
 
 ## Help
 

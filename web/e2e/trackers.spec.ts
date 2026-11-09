@@ -1,5 +1,5 @@
 import { test, expect, Page, APIRequestContext, Request } from '@playwright/test';
-import { layoutProblems } from './layout';
+import { layoutProblems, openSelectionMore } from './layout';
 
 /**
  * Tracker sync web (1.43.0) against a real instance with NO tracker reachable: nothing in these tests leaves the test instance.
@@ -257,6 +257,7 @@ test.describe('tracker sync web (1.43.0)', () => {
     await page.goto(`/libraries/${libraryId}/browse`);
     await page.locator('button.select-toggle').click();
     await page.locator('.node-wrap', { hasText: 'Stacked Saga' }).first().click();
+    await openSelectionMore(page);
     await page.getByTestId('tracker-sync-action').click();
     await expect(page.getByTestId('tracker-sync-note')).toContainText("A folder's setting covers everything inside it");
     await expect(page.getByTestId('tracker-sync-note')).toContainText('Private libraries and doujinshi are not synced');
@@ -268,6 +269,7 @@ test.describe('tracker sync web (1.43.0)', () => {
     let stored = await (await page.request.get('/api/v1/trackers/sync-overrides')).json();
     expect(stored).toEqual([expect.objectContaining({ nodeId: folderId, enabled: true })]);
 
+    await openSelectionMore(page);
     await page.getByTestId('tracker-sync-action').click();
     const cleared = page.waitForResponse((r) => r.request().method() === 'PUT' && r.url().endsWith('/api/v1/trackers/sync-overrides'));
     await page.getByTestId('tracker-sync-default').click();
@@ -358,6 +360,7 @@ test.describe('tracker sync web (1.43.0)', () => {
       await page.goto(`/libraries/${libraryId}/browse`);
       await page.locator('button.select-toggle').click();
       await page.locator('.node-wrap', { hasText: 'Stacked Saga' }).first().click();
+      await openSelectionMore(page);
       await page.getByTestId('tracker-sync-action').click();
       await expect(page.getByTestId('tracker-sync-note')).toBeVisible();
       await check('sync menu', size.width);
@@ -742,6 +745,11 @@ test.describe('tracker sync web (1.43.0)', () => {
       await second.locator('a.node-card').click();
       await expect(page).toHaveURL(new RegExp(`/reader/${readId}`));
       await page.waitForTimeout(1500);
+      // A new device opens the reader with its help shown once; since 1.52.0 Back would close that first - close it here.
+      if (await page.locator('.help-overlay').isVisible()) {
+        await page.keyboard.press('Escape');
+        await expect(page.locator('.help-overlay')).toHaveCount(0);
+      }
       await page.keyboard.press('End');
       await page.waitForTimeout(1200);
       await page.goBack();
@@ -877,17 +885,17 @@ test.describe('tracker sync web (1.43.0)', () => {
     await expect(page.getByTestId('series-tracking-button')).toBeVisible();
     await expect(page.getByTestId('series-tracking-button')).toHaveAttribute('aria-expanded', 'false');
     await expect(page.getByTestId('series-tracking-popover')).toHaveCount(0);
-    // A click-less navigation away while it is open (an iPad back / forward swipe - no outside click to close it first): the browse
-    // page is kept and detached, so the popover must be closed before it goes (UX review UX0).
+    // A click-less Back while it is open (an iPad back swipe, a phone's back gesture - no outside click to close it first): since
+    // 1.52.0 (m1) Back closes the popover and stays on the series (opening it gave it a history entry of its own - which also ends
+    // the forward history, so a forward swipe has nowhere to go). The UX review's point (UX0) holds: it never stays open over another
+    // page.
+    const browseUrl = page.url();
     await page.getByTestId('series-tracking-button').click();
     await expect(page.getByTestId('series-tracking-popover')).toBeVisible();
-    await page.goForward();
-    await expect(page).toHaveURL(/\/tracking\?tracker=mal&series=s7$/);
-    await expect(page.getByTestId('tracking-row-s7')).toBeVisible();
-    await expect(page.getByTestId('series-tracking-popover')).toHaveCount(0);
     await page.goBack();
-    await expect(page.getByTestId('series-tracking-button')).toHaveAttribute('aria-expanded', 'false');
     await expect(page.getByTestId('series-tracking-popover')).toHaveCount(0);
+    expect(page.url()).toBe(browseUrl);
+    await expect(page.getByTestId('series-tracking-button')).toHaveAttribute('aria-expanded', 'false');
     // The title travels in the navigation state and seeds the search; it is never in the address.
     expect(asked.at(-1)).toBe('Synthetic Saga s7');
     expect(page.url()).not.toContain('Synthetic');

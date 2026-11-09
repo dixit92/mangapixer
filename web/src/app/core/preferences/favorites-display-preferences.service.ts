@@ -25,7 +25,7 @@ export const FAVORITES_DISPLAY_KEYS: DeviceDisplayKeys = {
 };
 
 /** The Favorites sorts (owner decision 6; 1.51.0: Recently read, decision 2). The wire value of `GET favorites?sort=`. */
-export type FavoritesSort = 'favorited' | 'name' | 'recentlyAdded' | 'recentlyUpdated' | 'recentlyRead';
+export type FavoritesSort = 'favorited' | 'name' | 'recentlyAdded' | 'recentlyUpdated' | 'recentlyRead' | 'myRating'; // 1.52.0: My rating
 export type FavoritesSortDirection = 'asc' | 'desc';
 
 /** A sort with its direction (only Name has one; the date sorts and Recently favorited are newest first). */
@@ -122,6 +122,7 @@ export function decodeSort(raw: string | null): FavoritesSortChoice | null {
     case 'recentlyAdded':
     case 'recentlyUpdated':
     case 'recentlyRead':
+    case 'myRating':
       return { sort: raw, direction: 'desc' };
     case 'name':
       return { sort: 'name', direction: 'asc' };

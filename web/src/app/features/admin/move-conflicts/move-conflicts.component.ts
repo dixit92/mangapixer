@@ -11,6 +11,7 @@ import { MoveConflictsApiService } from './move-conflicts-api.service';
 import {
   MOVE_CONFLICT_KIND_LABELS, MOVE_CONFLICT_STATE_LABELS, fromText, resolvedSentence, sideText, whoText,
 } from './move-conflict-labels';
+import { EscapeCancelsDirective } from '../../../shared/escape-cancels.directive';
 
 type View = 'open' | 'resolved';
 
@@ -23,7 +24,7 @@ type View = 'open' | 'resolved';
 @Component({
   selector: 'app-move-conflicts',
   standalone: true,
-  imports: [RouterLink, MatButtonModule, MatButtonToggleModule, MatCheckboxModule, MatIconModule, MatProgressSpinnerModule],
+  imports: [RouterLink, MatButtonModule, MatButtonToggleModule, MatCheckboxModule, MatIconModule, MatProgressSpinnerModule, EscapeCancelsDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page" data-testid="move-conflicts">
@@ -57,7 +58,8 @@ type View = 'open' | 'resolved';
       </div>
 
       @if (confirmAll(); as resolution) {
-        <div class="confirm" role="alertdialog" aria-label="Resolve every open conflict" data-testid="move-conflicts-confirm">
+        <div class="confirm" role="alertdialog" aria-label="Resolve every open conflict" data-testid="move-conflicts-confirm"
+             appEscapeCancels [escapeDisabled]="busy()" (escapeCancel)="confirmAll.set(null)">
           <p>{{ resolution === 'Overwrite' ? 'Use the old state' : 'Keep the new state' }} for all {{ openCount() }} open conflicts?</p>
           <div class="confirm-actions">
             <button mat-flat-button color="primary" type="button" [disabled]="busy()" (click)="resolveAll(resolution)"

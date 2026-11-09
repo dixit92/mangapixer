@@ -16,6 +16,7 @@ import {
 } from '../../../core/api/api-types';
 import { formatBytes } from '../backup-snapshot-move-status.component';
 import { TOUCH_FIELDS_CSS, TOUCH_LINK_CSS } from '../../../shared/touch-targets';
+import { EscapeCancelsDirective } from '../../../shared/escape-cancels.directive';
 
 /** The retention presets as the admin reads them. */
 const RETENTION_LABELS: Record<number, string> = {
@@ -65,7 +66,7 @@ type Pending =
 @Component({
   selector: 'app-trash-card',
   standalone: true,
-  imports: [CommonModule, MatButtonModule, MatCardModule, MatIconModule],
+  imports: [CommonModule, MatButtonModule, MatCardModule, MatIconModule, EscapeCancelsDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <mat-card data-testid="trash-card">
@@ -151,7 +152,8 @@ type Pending =
           </p>
 
           @if (pending(); as p) {
-            <div class="confirm" role="alertdialog" aria-labelledby="trash-confirm-h" data-testid="trash-confirm">
+            <div class="confirm" role="alertdialog" aria-labelledby="trash-confirm-h" data-testid="trash-confirm"
+                 appEscapeCancels [escapeDisabled]="busy()" [returnFocus]="triggerOf(p)" (escapeCancel)="cancel()">
               <h5 id="trash-confirm-h">{{ confirmTitle(p) }}</h5>
               <p>{{ confirmText(p, o) }}</p>
               @if (p.kind === 'empty-library' && p.library.hold) {
@@ -288,6 +290,12 @@ export class TrashCardComponent implements OnInit {
 
   cancel(): void {
     this.pending.set(null);
+  }
+
+  /** The button that opened the confirm (focus goes back to it when the confirm closes - 1.52.0, C2). */
+  triggerOf(p: Pending): string {
+    if (p.kind === 'empty-library') return `[data-testid=trash-empty-lib-${p.library.libraryId}]`;
+    return p.kind === 'empty-all' ? '[data-testid=trash-empty-all]' : '[data-testid=trash-clean]';
   }
 
   confirmTitle(p: Pending): string {

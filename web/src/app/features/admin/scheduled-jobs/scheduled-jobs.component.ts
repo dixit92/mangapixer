@@ -19,6 +19,7 @@ import {
 import { LibraryScanScheduleComponent, hourLabel } from '../library-scan-schedule/library-scan-schedule.component';
 import { trashCountsText } from '../trash-card/trash-card.component';
 import { TOUCH_FIELDS_CSS } from '../../../shared/touch-targets';
+import { EscapeCancelsDirective } from '../../../shared/escape-cancels.directive';
 
 /** Each job's name and one plain line on what it does. */
 export const JOB_TEXT: Record<string, { name: string; what: string }> = {
@@ -181,7 +182,7 @@ function rhythm(job: ScheduledJobDto): string {
 @Component({
   selector: 'app-scheduled-jobs',
   standalone: true,
-  imports: [MatButtonModule, MatCardModule, MatSlideToggleModule, LibraryScanScheduleComponent],
+  imports: [MatButtonModule, MatCardModule, MatSlideToggleModule, LibraryScanScheduleComponent, EscapeCancelsDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <mat-card data-testid="scheduled-jobs">
@@ -323,7 +324,9 @@ function rhythm(job: ScheduledJobDto): string {
                             <p class="hint">Off: nothing is removed unless you choose "Empty trash now" or "Clean bundles now" in the Trash card.</p>
                           }
                           @if (trashAsk(); as ask) {
-                            <div class="confirm" role="alertdialog" aria-labelledby="job-trash-confirm-h" data-testid="job-trash-confirm">
+                            <div class="confirm" role="alertdialog" aria-labelledby="job-trash-confirm-h" data-testid="job-trash-confirm"
+                                 appEscapeCancels [escapeDisabled]="busy()" returnFocus="[data-testid=job-trash-auto] button"
+                                 (escapeCancel)="cancelTrashOn()">
                               <h5 id="job-trash-confirm-h">Turn automatic cleaning on?</h5>
                               <p>{{ trashConfirmText(ask, job.hour ?? job.defaultHour ?? 4) }}</p>
                               <div class="actions">

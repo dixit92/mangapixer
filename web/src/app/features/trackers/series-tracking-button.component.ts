@@ -8,6 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { TrackerSeriesRowDto, TrackerSeriesSummaryDto } from '../../core/api/api-types';
+import { TOUCH_TARGET_CSS } from '../../shared/touch-targets';
 import { TrackerStateService } from './tracker-state.service';
 import { TrackersApiService } from './trackers-api.service';
 import {
@@ -71,7 +72,8 @@ const POSITIONS: ConnectedPosition[] = [
                   <span class="cap">{{ name(row.tracker) }}</span>
                   @if (seriesUrl(row); as url) {
                     <!-- 1.43.2: the series on the tracker's site - a new tab, no referrer. -->
-                    <a class="num ext" [href]="url" target="_blank" rel="noopener noreferrer"
+                    <!-- 1.52.0 (sweep m5): a 40 px touch target (TOUCH_TARGET_CSS). -->
+                    <a class="num ext touch-target" [href]="url" target="_blank" rel="noopener noreferrer"
                        [attr.aria-label]="'Open on ' + name(row.tracker) + ': ' + remote(row)"
                        [attr.data-testid]="'series-tracking-remote-link-' + row.tracker">
                       <span [attr.data-testid]="'series-tracking-remote-' + row.tracker">{{ remote(row) }}</span>
@@ -123,7 +125,7 @@ const POSITIONS: ConnectedPosition[] = [
       </ng-template>
     }
   `,
-  styles: [`
+  styles: [TOUCH_TARGET_CSS, `
     :host { display: contents; }
     .tracking-btn { flex: none; border-color: var(--mp-warn-strong); color: var(--mp-warn); background: rgb(var(--mp-warn-strong-rgb) / 0.12); }
     .tracking-btn mat-icon { margin-right: 4px; color: var(--mp-warn); }

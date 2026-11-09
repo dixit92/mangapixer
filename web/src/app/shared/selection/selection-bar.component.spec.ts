@@ -77,4 +77,18 @@ describe('SelectionBarComponent', () => {
     expect(button(busy.el, 'selection-select-menu').disabled).toBe(true);
     expect(button(busy.el, 'selection-done').disabled).toBe(false); // Done always works
   });
+
+  it('More (phone) opens and closes the less-used actions; it says whether they are shown', () => {
+    const { fixture, el } = create();
+    const more = button(el, 'selection-more');
+    expect(more.getAttribute('aria-expanded')).toBe('false');
+    expect(el.querySelector('.actions.more-open')).toBeNull();
+    more.click();
+    fixture.detectChanges();
+    expect(more.getAttribute('aria-expanded')).toBe('true');
+    expect(el.querySelector('.actions.more-open [data-testid="host-action"]')).not.toBeNull();
+    more.click();
+    fixture.detectChanges();
+    expect(el.querySelector('.actions.more-open')).toBeNull();
+  });
 });

@@ -6,6 +6,7 @@ import { MAT_BOTTOM_SHEET_DATA, MatBottomSheetRef } from '@angular/material/bott
 import { of, throwError } from 'rxjs';
 
 import { AuthService } from '../../core/auth/auth.service';
+import { ApiService } from '../../core/api/api.service';
 import { SeriesInfoDto } from '../../core/api/api-types';
 import { MetadataApiService } from './metadata-api.service';
 import { SeriesInfoOverlayComponent } from './series-info-overlay.component';
@@ -35,6 +36,8 @@ describe('SeriesInfoOverlayComponent', () => {
       provideRouter([]),
       { provide: MetadataApiService, useValue: api },
       { provide: AuthService, useValue: { isAdmin: () => !!opts.admin } },
+      // 1.52.0 (lane R): the rating row reads the node's own rating.
+      { provide: ApiService, useValue: { getNode: vi.fn(() => of({ id: 'card-1', myRating: null })) } },
       // 1.45.0: the Tags block's answer (nothing indexed by default).
       { provide: InfoApiService, useValue: { getInfo: vi.fn(() => (opts.tags === 'error' ? throwError(() => ({ status: 404 })) : of(opts.tags ?? emptyPanel()))) } },
     ];

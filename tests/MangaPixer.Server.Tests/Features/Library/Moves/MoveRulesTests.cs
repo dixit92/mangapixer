@@ -139,6 +139,8 @@ public sealed class MoveRulesTests
             ["folder_cover_preferences"] = "copied",
             // 1.43.0: each user's tracker sync switch follows like a favorite (TrackerNodeOverrideMoves); the trash purge deletes it with the node.
             ["tracker_node_overrides"] = "copied",
+            // 1.52.0 lane R: each user's rating follows like a favorite (RatingMoves); the trash purge deletes it with the node (cascade).
+            ["user_ratings"] = "copied",
             // The new copy has (or derives) its own.
             ["archive_items"] = "regenerated",
             ["page_entries"] = "regenerated",

@@ -1,5 +1,5 @@
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
-import { expectFitsScreen } from './layout';
+import { expectFitsScreen, openSelectionMore } from './layout';
 
 /**
  * The per-folder cover preference (1.32.0) in a real browser against a real server: an admin selects one folder in the library,
@@ -63,6 +63,7 @@ async function openDialog(page: Page, libraryId: string): Promise<void> {
   await page.goto(`/libraries/${libraryId}/browse`);
   await page.locator('button.select-toggle').click();
   await page.locator('.node-wrap', { hasText: 'Synthetic Series' }).locator('.node-card').click();
+  await openSelectionMore(page);
   await page.getByTestId('folder-cover-preference-action').click();
   await expect(page.getByTestId('folder-cover-choices')).toBeVisible();
 }

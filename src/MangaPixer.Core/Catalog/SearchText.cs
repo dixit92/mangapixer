@@ -36,6 +36,18 @@ public sealed record SearchQuery(IReadOnlyList<SearchWord> Words, IReadOnlyList<
     public bool HasOnlyExclusions => IsEmpty && Negated.Count > 0;
 
     /// <summary>
+    /// 1.52.0: the viewer's own rating the listed nodes must have (<c>rating:4</c> = at least 4 stars, <c>rating:none</c> = not rated);
+    /// null when the search has no <c>rating:</c> term. Never a word: it is not looked up in the index.
+    /// </summary>
+    public SearchRatingTerm? Rating { get; init; }
+
+    /// <summary>
+    /// 1.52.0: a search of nothing but a <c>rating:N</c> minimum (and perhaps <c>-word</c> terms) - it lists the viewer's nodes rated at
+    /// least N stars. A lone <c>rating:none</c> lists nothing, like a search of only <c>-word</c> terms (it would be every unrated name).
+    /// </summary>
+    public bool ListsRatedOnly => IsEmpty && Rating is { MinScore: not null };
+
+    /// <summary>
     /// The words the trigram index can look up (3+ characters), distinct by their folded form. Empty for a short search, which is matched
     /// by word starts instead (<see cref="SearchText.IsShort"/>).
     /// </summary>
@@ -43,6 +55,16 @@ public sealed record SearchQuery(IReadOnlyList<SearchWord> Words, IReadOnlyList<
         .Where(w => w.Length >= SearchText.TrigramLength)
         .DistinctBy(w => w.Folded, StringComparer.Ordinal)
         .ToList();
+}
+
+/// <summary>
+/// The <c>rating:</c> term of a search (1.52.0): <see cref="MinScore"/> is the lowest stored score (1-10) a listed node may carry -
+/// <c>rating:4</c> is 8 (four stars and up), <c>rating:3.5</c> is 7 - or null for <c>rating:none</c> (not rated by the viewer).
+/// </summary>
+public sealed record SearchRatingTerm(int? MinScore)
+{
+    /// <summary>Whether a node with the viewer's <paramref name="score"/> (null = not rated) passes the term.</summary>
+    public bool Accepts(int? score) => MinScore is { } min ? score >= min : score is null;
 }
 
 /// <summary>
@@ -70,12 +92,16 @@ public static class SearchText
     /// right before a letter, digit or quote, makes the next term (up to the next white space or quote, or the quoted phrase) one that a
     /// name must not hold (<see cref="SearchQuery.Negated"/>). A <c>-</c> anywhere else - inside a word (<c>Spider-Man</c>) or before a
     /// space - separates words as before.
+    /// 1.52.0: <c>rating:</c> at the start of the text or after white space, with a value up to the next white space, is the viewer's
+    /// rating filter (<see cref="SearchQuery.Rating"/>; see <see cref="TryParseRating"/>) and no word. A value it does not accept leaves
+    /// the text plain words, as before (so a name such as "Rating: 18+" stays searchable). With two terms the last one counts.
     /// </summary>
     public static SearchQuery Parse(string? input)
     {
         var words = new List<SearchWord>();
         var phrases = new List<IReadOnlyList<SearchWord>>();
         var negated = new List<IReadOnlyList<SearchWord>>();
+        SearchRatingTerm? rating = null;
         if (string.IsNullOrWhiteSpace(input))
             return new SearchQuery(words, phrases);
 
@@ -85,6 +111,19 @@ public static class SearchText
         while (i < text.Length)
         {
             var c = text[i];
+            if ((i == 0 || char.IsWhiteSpace(text[i - 1])) && text.AsSpan(i).StartsWith(RatingPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                var end = i + RatingPrefix.Length;
+                while (end < text.Length && !char.IsWhiteSpace(text[end]))
+                    end++;
+                if (TryParseRating(text.AsSpan(i + RatingPrefix.Length, end - i - RatingPrefix.Length), out var term))
+                {
+                    words.AddRange(SplitWords(text.AsSpan(plain, i - plain)));
+                    rating = term;
+                    i = plain = end;
+                    continue;
+                }
+            }
             if (c == '"')
             {
                 words.AddRange(SplitWords(text.AsSpan(plain, i - plain)));
@@ -121,7 +160,34 @@ public static class SearchText
             i++;
         }
         words.AddRange(SplitWords(text.AsSpan(plain)));
-        return new SearchQuery(words, phrases) { Negated = negated };
+        return new SearchQuery(words, phrases) { Negated = negated, Rating = rating };
+    }
+
+    /// <summary>The search term of the viewer's rating (1.52.0), case-insensitive.</summary>
+    public const string RatingPrefix = "rating:";
+
+    /// <summary>
+    /// The value of a <c>rating:</c> term (1.52.0): <c>none</c> (case-insensitive), or a star count from 0.5 to 5 in half steps -
+    /// <c>4</c>, <c>3.5</c>, <c>3,5</c>, <c>4.0</c> - the minimum, as the stored score (stars x 2). False for anything else (<c>6</c>,
+    /// <c>3.3</c>, <c>0</c>, <c>-1</c>, <c>abc</c>, nothing).
+    /// </summary>
+    public static bool TryParseRating(ReadOnlySpan<char> value, out SearchRatingTerm term)
+    {
+        term = new SearchRatingTerm(null);
+        if (value.Equals("none", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (value.IsEmpty || value.Length > 4)
+            return false;
+        Span<char> buffer = stackalloc char[value.Length];
+        value.CopyTo(buffer);
+        buffer.Replace(',', '.');
+        if (!decimal.TryParse(buffer, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var stars))
+            return false;
+        var doubled = stars * 2;
+        if (doubled != decimal.Truncate(doubled) || doubled < 1 || doubled > 10)
+            return false;
+        term = new SearchRatingTerm((int)doubled);
+        return true;
     }
 
     /// <summary>The words of the quoted part opening at <paramref name="quote"/> and the index after it (an unclosed quote runs to the end).</summary>

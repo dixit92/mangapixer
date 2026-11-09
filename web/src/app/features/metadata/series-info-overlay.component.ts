@@ -16,6 +16,7 @@ import { SeriesInfoOverlayData } from './series-info-overlay.service';
 import { SeriesInfoSummaryComponent } from './series-info-summary.component';
 import { InfoTagsComponent } from './info/info-tags.component';
 import { InfoPanelDto } from './info/info-types';
+import { NodeRatingComponent } from '../ratings/node-rating.component';
 
 /**
  * The Info overlay (1.24.0 series info; 1.45.0 "Info" with the Tags block): a glance at a node's series information and tags without
@@ -29,7 +30,7 @@ import { InfoPanelDto } from './info/info-types';
 @Component({
   selector: 'app-series-info-overlay',
   standalone: true,
-  imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule, SeriesInfoSummaryComponent, SeriesAdminActionsComponent, WrongSeriesFlagComponent, InfoTagsComponent],
+  imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule, SeriesInfoSummaryComponent, SeriesAdminActionsComponent, WrongSeriesFlagComponent, InfoTagsComponent, NodeRatingComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="sheet" data-testid="series-overlay">
@@ -57,6 +58,8 @@ import { InfoPanelDto } from './info/info-types';
       } @else if (info(); as i) {
         <div class="body">
           <app-series-info-summary [info]="i" [compact]="true" [tagsPanel]="tags()" />
+          <!-- 1.52.0 (lane R): the viewer's own rating of this node. -->
+          <app-node-rating [nodeId]="i.nodeId" [name]="i.title || i.anchorDisplayName" />
           <!-- 1.45.0: the Tags block (a chip opens the tag search and closes this overlay). -->
           <app-info-tags [nodeId]="i.nodeId" (loaded)="tags.set($event)" />
         </div>
