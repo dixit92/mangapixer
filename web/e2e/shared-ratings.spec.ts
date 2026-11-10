@@ -130,14 +130,17 @@ async function openInfoSheet(page: Page, libraryId: string, series: string): Pro
 }
 
 /**
- * The rating block's geometry: the slider's place and the whole block's height - read once it has settled (the Info sheet slides in;
+ * The rating block's geometry: the slider's place (from the caption) and the stars row's height - read once it has settled (the Info sheet slides in;
  * a reading taken while it moves would compare an animation, not the layout).
  */
 async function ratingGeometry(block: Locator): Promise<{ x: number; y: number; height: number }> {
+  // Relative to the block's caption: a phone's bottom sheet is anchored at the bottom, so the whole block moves up when the server line
+  // arrives under it - the stars must not move inside the block.
   const read = async () => {
+    const caption = (await block.locator('.caption').first().boundingBox())!;
     const slider = (await block.getByTestId('rating-slider').boundingBox())!;
     const row = (await block.locator('app-rating-stars').boundingBox())!;
-    return { x: Math.round(slider.x), y: Math.round(slider.y), height: Math.round(row.height) };
+    return { x: Math.round(slider.x - caption.x), y: Math.round(slider.y - caption.y), height: Math.round(row.height) };
   };
   let last = await read();
   for (let i = 0; i < 30; i++) {
