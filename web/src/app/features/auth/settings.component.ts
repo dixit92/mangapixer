@@ -379,7 +379,7 @@ import { RatingSharingService } from '../ratings/rating-sharing.service';
     h3 { margin: 0 0 16px 0; }
     .private-library-list { display: flex; flex-direction: column; gap: 8px; }
     .ratings-card .fav-toggle + .fav-toggle { margin-top: 4px; }
-    .sub-hint { margin: 0 0 8px 34px; }
+    .sub-hint { margin: 0 0 8px 44px; } /* under the checkbox label, not under its box */
   `],
 })
 export class SettingsComponent implements OnInit {
