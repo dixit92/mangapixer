@@ -533,7 +533,7 @@ export class FavoritesComponent implements OnInit, OnDestroy {
     { sort: 'recentlyUpdated', direction: 'desc', label: 'Recently updated', icon: 'update', hint: 'Folders with new content' },
     { sort: 'recentlyRead', direction: 'desc', label: 'Recently read', icon: 'history', hint: 'What you read last' },
     // 1.52.0 (lane R): your own rating, highest first; not rated last (a stack by its folder's rating).
-    { sort: 'myRating', direction: 'desc', label: 'My rating', icon: 'star_half', hint: 'Your highest rated first' },
+    { sort: 'myRating', direction: 'desc', label: 'My rating', icon: 'stars', hint: 'Your highest rated first' },
   ];
 
   // Group by library (1.51.0, per device - decision 9). Effective only without a library filter: one library needs no header.

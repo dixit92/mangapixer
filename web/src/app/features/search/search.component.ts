@@ -127,7 +127,10 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
     <!-- 1.49.0 (lane T): the field and its "?" syntax help side by side. -->
     <div class="search-wrap">
     <div class="search-row">
-    <mat-form-field appearance="outline" class="search-field" [class.has-filters]="filterChips().length > 0">
+    <!-- 1.53.0 (audit V1): the label always floats - with a chip grid plus a separate text input the field counts as empty while
+         there are no chips, so the label was painted over typed text. The placeholder covers the empty case. -->
+    <mat-form-field appearance="outline" class="search-field" floatLabel="always" data-testid="search-field"
+                    [class.has-filters]="filterChips().length > 0">
       <mat-label>Search libraries</mat-label>
       <!-- Tag filters (1.45.0): removable chips in the field, in their own rows (1.51.0: they wrap; a long name ends in an ellipsis). -->
       <mat-chip-grid #filterGrid class="filter-chips" aria-label="Tag filters" data-testid="search-filters">

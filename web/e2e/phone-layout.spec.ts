@@ -678,3 +678,50 @@ test('the library bar keeps every icon inside its button and the name clear of t
   }
   expect(failures, `the library bar does not fit:\n${failures.join('\n')}`).toEqual([]);
 });
+
+/**
+ * 1.53.0 lane S (audit V5, V6): Settings is one column of cards 24 px apart (two pairs used to touch) with the accent-coloured sliders;
+ * the browse trail never leaves a "/" alone or at the end of a line, and a tablet's library-root trail is not cut (it may wrap now).
+ */
+test('Settings keeps one 24 px rhythm, and the browse trail never strands a separator (audit V5, V6)', async ({ page }) => {
+  test.setTimeout(150_000);
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  const failures: string[] = [];
+  for (const size of [{ width: 360, height: 780 }, ...SIZES, { width: 1280, height: 900 }]) {
+    await page.setViewportSize(size);
+    await page.goto('/settings');
+    await expect(page.getByTestId('ratings-card')).toBeVisible();
+    await settle(page);
+    const settings = await page.locator('app-settings').evaluate((host) => {
+      const cards = Array.from(host.querySelectorAll('mat-card')).filter((c) => (c as HTMLElement).offsetHeight > 0)
+        .map((c) => c.getBoundingClientRect());
+      cards.sort((a, b) => a.top - b.top);
+      const gaps = cards.slice(1).map((c, i) => Math.round(c.top - cards[i].bottom));
+      const sliders = Array.from(host.querySelectorAll('.display-slider')).map((s) => getComputedStyle(s).accentColor);
+      return { gaps, sliders };
+    });
+    if (settings.gaps.some((g) => g !== 24)) failures.push(`${size.width} px Settings: gaps between cards ${settings.gaps.join(', ')} (want 24)`);
+    if (settings.sliders.some((c) => c === 'auto')) failures.push(`${size.width} px Settings: a Library display slider has the browser's default colour`);
+
+    for (const url of [`/libraries/${libraryId}/browse`, `/libraries/${libraryId}/browse/${folderId}`]) {
+      await page.goto(url);
+      await expect(page.locator('.browse-bar .breadcrumbs a').first()).toBeVisible();
+      await settle(page);
+      const trail = await page.locator('.browse-bar .breadcrumbs').evaluate((el) => {
+        const seps = Array.from(el.querySelectorAll('.sep')).filter((s) => getComputedStyle(s).display !== 'none');
+        const stranded = seps.filter((s) => {
+          const next = s.nextElementSibling;
+          if (!next) return true;
+          const a = s.getBoundingClientRect();
+          const b = next.getBoundingClientRect();
+          return Math.abs(a.top - b.top) > 4 && Math.abs(a.bottom - b.bottom) > 4;
+        }).length;
+        return { stranded, clipped: el.scrollWidth > el.clientWidth + 1 };
+      });
+      if (trail.stranded > 0) failures.push(`${size.width} px ${url}: ${trail.stranded} separator(s) alone on a line`);
+      if (trail.clipped && size.width >= 600) failures.push(`${size.width} px ${url}: the trail is cut`);
+    }
+  }
+  expect(failures, failures.join('\n')).toEqual([]);
+});

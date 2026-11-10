@@ -80,6 +80,15 @@ describe('SearchComponent', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers(); });
 
+  it('1.53.0 (audit V1): the "Search libraries" label floats above typed text (it was painted over it without a chip)', () => {
+    setup([]);
+    runSearch('saga');
+    const field = fixture.nativeElement.querySelector('[data-testid="search-field"]') as HTMLElement;
+    expect(fixture.componentInstance.filterChips().length).toBe(0);
+    expect(field.classList.contains('mat-form-field-should-float')).toBe(true);
+    expect(field.querySelector('.mdc-floating-label--float-above')?.textContent?.trim()).toBe('Search libraries');
+  });
+
   it('renders a cover image for a folder result that carries a backend coverUrl', () => {
     setup([
       makeNode({ id: 'f1', kind: 'Folder', displayName: 'Failure Frame', coverUrl: '/api/v1/items/v1/cover' }),
