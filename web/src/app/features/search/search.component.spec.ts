@@ -85,7 +85,6 @@ describe('SearchComponent', () => {
     runSearch('saga');
     const field = fixture.nativeElement.querySelector('mat-form-field.search-field') as HTMLElement;
     expect(fixture.componentInstance.filterChips().length).toBe(0);
-    expect(field.classList.contains('mat-form-field-should-float')).toBe(true);
     expect(field.querySelector('.mdc-floating-label--float-above')?.textContent?.trim()).toBe('Search libraries');
   });
 

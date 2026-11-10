@@ -59,7 +59,7 @@ export type RatingStarsMode = 'edit' | 'stars' | 'badge';
           <span class="value" aria-hidden="true">{{ value() ? starsLabel() : 'Not rated' }}</span>
           <!-- 1.53.0 (audit V4): the button is always there and only hidden while unrated, so the row never changes size when you rate. -->
           <button mat-button type="button" class="clear" data-testid="rating-clear" [class.unrated]="!value()"
-                  [attr.aria-hidden]="value() ? null : 'true'" [attr.tabindex]="value() ? null : -1"
+                  [attr.aria-hidden]="value() ? null : 'true'"
                   [disabled]="disabled() || !value()" (click)="clear($event)">
             Clear rating
           </button>

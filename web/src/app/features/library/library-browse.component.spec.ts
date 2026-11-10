@@ -199,6 +199,8 @@ describe('LibraryBrowseComponent jump rail', () => {
   /** 1.47.0: the library root's Info slot asks the tag index for the library (nothing indexed here). */
   function flushLibraryInfo(httpMock: HttpTestingController) {
     for (const req of httpMock.match((r) => r.url.endsWith('/libraries/lib1/info'))) req.flush({ nodeId: 'lib1', mode: 'None', buckets: [] });
+    // 1.53.0: browse asks once whether shared ratings are on (the "Server rating" sort).
+    for (const req of httpMock.match((r) => r.url.endsWith('/ratings/sharing'))) req.flush({ share: true, serverEnabled: false });
   }
 
   it('renders the rail with buckets from the jump-index endpoint', () => {
@@ -2038,11 +2040,13 @@ describe('LibraryBrowseComponent browse visual polish (1.17.0)', () => {
     return { fixture, comp: fixture.componentInstance, el: fixture.nativeElement as HTMLElement };
   }
 
-  it('gives all five sort options a distinct icon (1.52.0: My rating), with at most one clock-style glyph', () => {
+  it('gives all six sort options a distinct icon (1.52.0: My rating; 1.53.0: Server rating), with at most one clock-style glyph', () => {
     const { comp } = setup('card');
     const icons = comp.sortOptions.map((o) => o.icon);
-    expect(icons).toHaveLength(5);
-    expect(new Set(icons).size).toBe(5);
+    expect(icons).toHaveLength(6);
+    expect(new Set(icons).size).toBe(6);
+    // 1.53.0 (audit V8): "My rating" wears the app's one Rate icon.
+    expect(comp.sortOptions.find((o) => o.value === 'myRating')!.icon).toBe('stars');
     expect(comp.sortOptions.find((o) => o.value === 'name')!.icon).toBe('sort_by_alpha');
     const clockFaces = ['schedule', 'history', 'update', 'access_time', 'watch_later', 'restore', 'query_builder'];
     expect(icons.filter((i) => clockFaces.includes(i)).length).toBeLessThanOrEqual(1);
@@ -2298,5 +2302,49 @@ describe('LibraryBrowseComponent transient ?favorites=1 (1.27.0)', () => {
     comp.toggleFavoritesOnly();
     comp.toggleFavoritesOnly();
     expect(navigateByUrl).not.toHaveBeenCalled();
+  });
+});
+
+/** 1.53.0 lane S: "Server rating" is offered only while the administrator's shared-ratings switch is on. */
+describe('LibraryBrowseComponent Server rating sort (1.53.0)', () => {
+  function setup(serverEnabled: boolean) {
+    const page: PageResponse<CatalogNodeDto> = { items: [], totalCount: 0, nextCursor: null, hasMore: false };
+    const apiSpy = {
+      getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
+      getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name', direction: 'asc' })),
+      getRatingSharing: vi.fn().mockReturnValue(of({ share: true, serverEnabled })),
+      setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
+      getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
+      browseLibrary: vi.fn().mockReturnValue(of(page)),
+      getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
+      getJumpIndex: vi.fn().mockReturnValue(of({ libraryId: 'lib1', buckets: [] })),
+      getNode: vi.fn().mockReturnValue(of({} as CatalogNodeDto)),
+      getReadMark: vi.fn().mockReturnValue(of({ itemId: '', isRead: false })),
+      getProgress: vi.fn().mockReturnValue(of(null)),
+    };
+    TestBed.configureTestingModule({
+      imports: [LibraryBrowseComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: ApiService, useValue: apiSpy },
+        { provide: AuthService, useValue: { isAdmin: () => false } },
+        { provide: ReadStateService, useValue: new ReadStateService() },
+        { provide: ActivatedRoute, useValue: { paramMap: of({ get: (k: string) => (k === 'libraryId' ? 'lib1' : null) }) } },
+      ],
+    });
+    const fixture = TestBed.createComponent(LibraryBrowseComponent);
+    fixture.detectChanges();
+    return fixture.componentInstance;
+  }
+
+  it('is not offered while the switch is off', () => {
+    expect(setup(false).shownSortOptions().map((o) => o.value)).not.toContain('serverRating');
+  });
+
+  it('is offered while the switch is on', () => {
+    expect(setup(true).shownSortOptions().map((o) => o.value)).toContain('serverRating');
   });
 });

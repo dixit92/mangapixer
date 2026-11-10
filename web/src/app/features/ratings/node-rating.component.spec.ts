@@ -56,7 +56,8 @@ describe('NodeRatingComponent', () => {
     const line = el.querySelector('[data-testid="server-rating"]')!;
     expect(line.getAttribute('role')).toBe('img');
     expect(line.getAttribute('aria-label')).toBe('Server average 4.0 of 5, 3 ratings');
-    expect(line.textContent!.replace(/\s+/g, ' ').trim()).toBe('Server star 4.0 · 3 ratings');
+    expect(line.querySelector('.caption')!.textContent!.trim()).toBe('Server');
+    expect(line.querySelector('.server-value')!.textContent!.trim()).toBe('4.0 · 3 ratings');
     expect(line.querySelectorAll('mat-icon').length).toBe(1);
     // After the stars, inside the one-column block.
     const block = el.querySelector('[data-testid="node-rating"]')!;

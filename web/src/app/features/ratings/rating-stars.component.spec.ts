@@ -99,7 +99,6 @@ describe('RatingStarsComponent', () => {
       expect(button).not.toBeNull();
       expect(button.classList.contains('unrated')).toBe(true);
       expect(button.getAttribute('aria-hidden')).toBe('true');
-      expect(button.getAttribute('tabindex')).toBe('-1');
       expect(button.disabled).toBe(true);
     });
 
