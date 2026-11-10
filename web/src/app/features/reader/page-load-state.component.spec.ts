@@ -50,8 +50,12 @@ class StripPageHostComponent {
   readonly pages = [0, 1];
 }
 
+// Fake only the component's own timers: jsdom 31 finishes an inserted <style> block with setImmediate, so faking every
+// timer would count jsdom's task in getTimerCount().
+const fakeComponentTimers = () => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
 describe('PageLoadIndicatorComponent', () => {
-  beforeEach(() => vi.useFakeTimers());
+  beforeEach(() => fakeComponentTimers());
   afterEach(() => vi.useRealTimers());
 
   function create() {
@@ -109,7 +113,7 @@ describe('WebtoonPageComponent', () => {
   let realIO: typeof IntersectionObserver | undefined;
 
   beforeEach(() => {
-    vi.useFakeTimers();
+    fakeComponentTimers();
     FakeIO.all = [];
     realIO = globalThis.IntersectionObserver;
     (globalThis as unknown as { IntersectionObserver: unknown }).IntersectionObserver = FakeIO;

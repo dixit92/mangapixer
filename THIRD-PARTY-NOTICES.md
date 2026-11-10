@@ -40,8 +40,8 @@ The ASP.NET Core and .NET runtime assemblies themselves come from the base image
 
 ### 1a. Application runtime (51)
 
-- `Magick.NET-Q8-AnyCPU` - 15.0.0 - Apache-2.0 - https://github.com/dlemstra/Magick.NET
-- `Magick.NET.Core` - 15.0.0 - Apache-2.0 - https://github.com/dlemstra/Magick.NET
+- `Magick.NET-Q8-AnyCPU` - 15.1.0 - Apache-2.0 - https://github.com/dlemstra/Magick.NET
+- `Magick.NET.Core` - 15.1.0 - Apache-2.0 - https://github.com/dlemstra/Magick.NET
 - `Microsoft.AspNetCore.Identity.EntityFrameworkCore` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.AspNetCore.OpenApi` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
 - `Microsoft.Data.Sqlite.Core` - 10.0.14 - MIT - https://github.com/dotnet/dotnet
@@ -84,7 +84,7 @@ The ASP.NET Core and .NET runtime assemblies themselves come from the base image
 - `Serilog.Sinks.Console` - 6.1.1 - Apache-2.0 - https://github.com/serilog/serilog-sinks-console
 - `Serilog.Sinks.File` - 7.0.0 - Apache-2.0 - https://github.com/serilog/serilog-sinks-file
 - `Serilog` - 4.3.0 - Apache-2.0 - https://github.com/serilog/serilog
-- `SharpCompress` - 0.50.7 - MIT - https://github.com/adamhathcock/sharpcompress
+- `SharpCompress` - 0.50.8 - MIT - https://github.com/adamhathcock/sharpcompress
 - `SQLite` - 3.53.4 - blessing (SQLite public-domain dedication; the nuspec has no SPDX expression and points to https://sqlite.org/copyright.html) - https://sqlite.org/
 - `SQLitePCLRaw.bundle_e_sqlite3` - 3.0.5 - Apache-2.0 - https://github.com/ericsink/SQLitePCL.raw
 - `SQLitePCLRaw.config.e_sqlite3` - 3.0.5 - Apache-2.0 - https://github.com/ericsink/SQLitePCL.raw
@@ -123,13 +123,13 @@ which is under the ImageMagick License, an Apache-2.0-derived license
 (https://imagemagick.org/license/; Copyright 1999 ImageMagick Studio LLC).
 The native `Magick.Native-Q8` library contains the components below. Full license
 texts and copyright notices for all of them are in `Notice.txt` at the root of
-the `Magick.NET-Q8-AnyCPU` 15.0.0 NuGet package. Versions and licenses below are
+the `Magick.NET-Q8-AnyCPU` 15.1.0 NuGet package. Versions and licenses below are
 taken from that file. The notice gives upstream URLs only for ImageMagick and
 FreeType; for the rest, the package's `Notice.txt` is the reference.
 
-- `ImageMagick` - 7.1.2-33 - ImageMagick (Apache-2.0-derived) - https://imagemagick.org
-- `aom` - 3.15.1 - BSD-2-Clause - see Notice.txt
-- `brotli` - 1.2.0 - MIT - see Notice.txt
+- `ImageMagick` - 7.1.2-35 - ImageMagick (Apache-2.0-derived) - https://imagemagick.org
+- `aom` - 3.15.2 - BSD-2-Clause - see Notice.txt
+- `brotli` - 1.2.1 - MIT - see Notice.txt
 - `libbzip2` - 1.0.8 - bzip2-1.0.6 - see Notice.txt
 - `cairo` - 1.18.6 - MPL-1.1 (text reproduced in the notice; upstream cairo is LGPL-2.1 OR MPL-1.1) - see Notice.txt
 - `libcroco` - 0.6.13 - LGPL-2.0 (GNU Library GPL v2 text) - see Notice.txt
@@ -137,32 +137,32 @@ FreeType; for the rest, the package's `Notice.txt` is the reference.
 - `openexr` - 3.5.2 - BSD-3-Clause - see Notice.txt
 - `libffi` - 3.8.0 - MIT - see Notice.txt
 - `fontconfig` - 2.18.3 - MIT-style (fontconfig license) incl. Unicode data terms - see Notice.txt
-- `freetype` - 2.14.3 - FTL - https://freetype.org
-- `fribidi` - 1.0.17 - LGPL-2.1-or-later - see Notice.txt
+- `freetype` - 2.15.0 - FTL - https://freetype.org
+- `fribidi` - 1.0.18 - LGPL-2.1-or-later - see Notice.txt
 - `gdk-pixbuf` - 2.44.8 - LGPL-2.1-or-later - see Notice.txt
 - `glib` - 2.64.3 - LGPL-2.1-or-later - see Notice.txt
-- `harfbuzz` - 14.6.0 - MIT-style ("Old MIT") - see Notice.txt
-- `libheif` - 1.23.6 - LGPL-3.0 (library; samples and wrappers MIT) - see Notice.txt
+- `harfbuzz` - 15.0.0 - MIT-style ("Old MIT") - see Notice.txt
+- `libheif` - 1.23.7 - LGPL-3.0 (library; samples and wrappers MIT) - see Notice.txt
 - `libhwy` - 1.4.0 - Apache-2.0 OR BSD-3-Clause - see Notice.txt
 - `imath` - 3.2.3 - BSD-3-Clause - see Notice.txt
-- `libjpeg-turbo` - 3.2.0 - IJG AND BSD-3-Clause (its Zlib-licensed parts are subsumed, per the notice) - see Notice.txt
+- `libjpeg-turbo` - 3.2.1 - IJG AND BSD-3-Clause (its Zlib-licensed parts are subsumed, per the notice) - see Notice.txt
 - `libjxl` - 0.12.0 - BSD-3-Clause - see Notice.txt
 - `lcms` - 2.19.1 - MIT - see Notice.txt
 - `liblqr` - 0.4.2 - LGPL-3.0 - see Notice.txt
 - `liblzma` - 5.8.4 - LGPL-2.1-or-later (as reproduced in the notice) - see Notice.txt
-- `openh264` - 2.6.0 - BSD-2-Clause - see Notice.txt
+- `openh264` - 2.7.0 - BSD-2-Clause - see Notice.txt
 - `openjpeg` - 2.5.4 - BSD-2-Clause - see Notice.txt
 - `openjph` - 0.32.0 - BSD-2-Clause - see Notice.txt
 - `pango` - 1.45.3 - LGPL-2.0 (GNU Library GPL v2 text) - see Notice.txt
 - `pixman` - 0.46.4 - MIT - see Notice.txt
 - `libpng` - 1.6.59 - libpng-2.0 - see Notice.txt
 - `libraqm` - 0.11.0 - MIT - see Notice.txt
-- `libraw` - 0.22.2 - LGPL-2.1 (as reproduced in the notice) - see Notice.txt
+- `libraw` - 0.22.3 - LGPL-2.1 (as reproduced in the notice) - see Notice.txt
 - `librsvg` - 2.40.20 - LGPL-2.0 (GNU Library GPL v2 text) - see Notice.txt
 - `libtiff` - 4.7.2 - libtiff - see Notice.txt
 - `libwebp` - 1.6.0 - BSD-3-Clause - see Notice.txt
 - `libxml2` - 2.15.4 - MIT - see Notice.txt
-- `libzip` - 1.11.4 - BSD-3-Clause - see Notice.txt
+- `libzip` - 1.12.1 - BSD-3-Clause - see Notice.txt
 - `zlib` - 1.3.2 - Zlib - see Notice.txt
 - `zstd` - 1.5.7 - BSD-3-Clause - see Notice.txt
 
@@ -260,9 +260,9 @@ below.
 - `@standard-schema/spec` - 1.1.0 - MIT - https://github.com/standard-schema/standard-schema
 - `@webgpu/types` - 0.1.72 - BSD-3-Clause - https://github.com/gpuweb/types
 - `anime4k-webgpu` - 1.0.0 - MIT - https://github.com/Anime4KWebBoost/Anime4K-WebGPU *(bundled)*
-- `entities` - 8.1.0 - BSD-2-Clause - https://github.com/fb55/entities
+- `entities` - 9.0.0 - BSD-2-Clause - https://github.com/fb55/entities
 - `material-icons` - 1.13.14 - Apache-2.0 - https://github.com/marella/material-icons *(bundled)*
-- `parse5` - 8.0.1 - MIT - https://github.com/inikulin/parse5
+- `parse5` - 8.1.0 - MIT - https://github.com/inikulin/parse5
 - `rxjs` - 7.8.2 - Apache-2.0 - https://github.com/reactivex/rxjs *(bundled)*
 - `tslib` - 2.9.1 - 0BSD - https://github.com/microsoft/tslib *(bundled)*
 - `zod` - 4.6.6 - MIT - https://github.com/colinhacks/zod
@@ -368,7 +368,7 @@ THE SOFTWARE.
   https://github.com/marella/material-icons. The icon fonts ship as
   `.woff`/`.woff2` in the SPA.
 
-## 4. Web build and test packages - npm (777)
+## 4. Web build and test packages - npm (765)
 
 These are dev dependencies and their transitive trees: the Angular CLI and build
 toolchain, TypeScript, ESLint, Vitest, jsdom and Playwright. None is in the shipped
@@ -378,13 +378,11 @@ places in `node_modules`. Platform-specific optional binaries such as
 `lightningcss-*`, `@esbuild/*` and `@rollup/*` differ on other operating systems.
 
 - `@ampproject/remapping` - 2.3.0 - Apache-2.0 - https://github.com/ampproject/remapping
-- `@angular-devkit/architect` - 0.2202.4 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/architect` - 0.2202.5 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/build-angular` - 22.2.4 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/build-webpack` - 0.2202.4 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/core` - 22.2.4 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/core` - 22.2.5 - MIT - https://github.com/angular/angular-cli
-- `@angular-devkit/schematics` - 22.2.5 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/architect` - 0.2202.6 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/build-angular` - 22.2.6 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/build-webpack` - 0.2202.6 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/core` - 22.2.6 - MIT - https://github.com/angular/angular-cli
+- `@angular-devkit/schematics` - 22.2.6 - MIT - https://github.com/angular/angular-cli
 - `@angular-eslint/builder` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/bundled-angular-compiler` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/eslint-plugin-template` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
@@ -392,12 +390,9 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `@angular-eslint/schematics` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/template-parser` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
 - `@angular-eslint/utils` - 22.6.0 - MIT - https://github.com/angular-eslint/angular-eslint
-- `@angular/build` - 22.2.4 - MIT - https://github.com/angular/angular-cli
-- `@angular/build` - 22.2.5 - MIT - https://github.com/angular/angular-cli
-- `@angular/cli` - 22.2.5 - MIT - https://github.com/angular/angular-cli
+- `@angular/build` - 22.2.6 - MIT - https://github.com/angular/angular-cli
+- `@angular/cli` - 22.2.6 - MIT - https://github.com/angular/angular-cli
 - `@angular/compiler-cli` - 22.2.4 - MIT - https://github.com/angular/angular
-- `@asamuzakjp/css-color` - 7.1.3 - MIT - https://github.com/asamuzaK/cssColor
-- `@asamuzakjp/dom-selector` - 10.0.4 - MIT - https://github.com/asamuzaK/domSelector
 - `@babel/code-frame` - 7.29.7 - MIT - https://github.com/babel/babel
 - `@babel/code-frame` - 8.0.6 - MIT - https://github.com/babel/babel
 - `@babel/compat-data` - 7.29.7 - MIT - https://github.com/babel/babel
@@ -505,21 +500,14 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `@babel/traverse` - 8.0.6 - MIT - https://github.com/babel/babel
 - `@babel/types` - 7.29.8 - MIT - https://github.com/babel/babel
 - `@babel/types` - 8.0.6 - MIT - https://github.com/babel/babel
-- `@bramus/specificity` - 2.4.2 - MIT - https://github.com/bramus/specificity
 - `@bufbuild/protobuf` - 2.15.0 - Apache-2.0 AND BSD-3-Clause - https://github.com/bufbuild/protobuf-es
-- `@csstools/color-helpers` - 6.1.2 - MIT-0 - https://github.com/csstools/postcss-plugins
-- `@csstools/css-calc` - 3.4.3 - MIT - https://github.com/csstools/postcss-plugins
-- `@csstools/css-color-parser` - 4.2.6 - MIT - https://github.com/csstools/postcss-plugins
-- `@csstools/css-parser-algorithms` - 4.0.2 - MIT - https://github.com/csstools/postcss-plugins
-- `@csstools/css-syntax-patches-for-csstree` - 1.1.15 - MIT-0 - https://github.com/csstools/postcss-plugins
-- `@csstools/css-tokenizer` - 4.0.2 - MIT - https://github.com/csstools/postcss-plugins
 - `@discoveryjs/json-ext` - 1.1.0 - MIT - https://github.com/discoveryjs/json-ext
 - `@emnapi/core` - 1.11.3 - MIT - https://github.com/toyobayashi/emnapi
-- `@emnapi/core` - 2.0.0-alpha.3 - MIT - https://github.com/toyobayashi/emnapi
+- `@emnapi/core` - 2.0.0-alpha.6 - MIT - https://github.com/toyobayashi/emnapi
 - `@emnapi/runtime` - 1.11.3 - MIT - https://github.com/toyobayashi/emnapi
-- `@emnapi/runtime` - 2.0.0-alpha.3 - MIT - https://github.com/toyobayashi/emnapi
+- `@emnapi/runtime` - 2.0.0-alpha.6 - MIT - https://github.com/toyobayashi/emnapi
 - `@emnapi/wasi-threads` - 1.2.3 - MIT - https://github.com/toyobayashi/emnapi
-- `@emnapi/wasi-threads` - 2.0.1 - MIT - https://github.com/toyobayashi/emnapi
+- `@emnapi/wasi-threads` - 2.2.0 - MIT - https://github.com/toyobayashi/emnapi
 - `@esbuild/linux-x64` - 0.28.2 - MIT - https://github.com/evanw/esbuild
 - `@eslint-community/eslint-utils` - 4.10.1 - MIT - https://github.com/eslint-community/eslint-utils
 - `@eslint-community/regexpp` - 4.12.2 - MIT - https://github.com/eslint-community/regexpp
@@ -590,32 +578,29 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `@napi-rs/nice-linux-x64-gnu` - 1.1.1 - MIT - https://github.com/Brooooooklyn/nice
 - `@napi-rs/nice` - 1.1.1 - MIT - https://github.com/Brooooooklyn/nice
 - `@napi-rs/wasm-runtime` - 1.2.7 - MIT - https://github.com/napi-rs/napi-rs
-- `@ngtools/webpack` - 22.2.4 - MIT - https://github.com/angular/angular-cli
+- `@ngtools/webpack` - 22.2.6 - MIT - https://github.com/angular/angular-cli
 - `@noble/hashes` - 1.8.0 - MIT - https://github.com/paulmillr/noble-hashes
-- `@oxc-parser/binding-linux-x64-gnu` - 0.150.0 - MIT - https://github.com/oxc-project/oxc
-- `@oxc-parser/binding-wasm32-wasi` - 0.150.0 - MIT - https://github.com/oxc-project/oxc
-- `@oxc-project/types` - 0.149.0 - MIT - https://github.com/oxc-project/oxc
-- `@oxc-project/types` - 0.150.0 - MIT - https://github.com/oxc-project/oxc
-- `@oxc-project/types` - 0.155.0 - MIT - https://github.com/oxc-project/oxc
+- `@oxc-parser/binding-linux-x64-gnu` - 0.156.0 - MIT - https://github.com/oxc-project/oxc
+- `@oxc-parser/binding-wasm32-wasi` - 0.156.0 - MIT - https://github.com/oxc-project/oxc
+- `@oxc-project/types` - 0.156.0 - MIT - https://github.com/oxc-project/oxc
 - `@parcel/watcher-linux-x64-glibc` - 2.6.0 - MIT - https://github.com/parcel-bundler/watcher
 - `@parcel/watcher` - 2.6.0 - MIT - https://github.com/parcel-bundler/watcher
-- `@peculiar/asn1-cms` - 2.11.0 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-csr` - 2.11.0 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-ecc` - 2.11.0 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-pfx` - 2.11.0 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-pkcs8` - 2.11.0 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-pkcs9` - 2.11.0 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-rsa` - 2.11.0 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-schema` - 2.11.0 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-x509-attr` - 2.11.0 - MIT - https://github.com/PeculiarVentures/asn1-schema
-- `@peculiar/asn1-x509` - 2.11.0 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-cms` - 2.11.1 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-csr` - 2.11.1 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-ecc` - 2.11.1 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-pfx` - 2.11.1 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-pkcs8` - 2.11.1 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-pkcs9` - 2.11.1 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-rsa` - 2.11.1 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-schema` - 2.11.1 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-x509-attr` - 2.11.1 - MIT - https://github.com/PeculiarVentures/asn1-schema
+- `@peculiar/asn1-x509` - 2.11.1 - MIT - https://github.com/PeculiarVentures/asn1-schema
 - `@peculiar/utils` - 2.0.3 - MIT - https://github.com/PeculiarVentures/pvtsutils
 - `@peculiar/x509` - 1.14.3 - MIT - https://github.com/PeculiarVentures/x509
-- `@playwright/test` - 1.64.1 - Apache-2.0 - https://github.com/microsoft/playwright
-- `@rolldown/binding-linux-x64-gnu` - 1.2.15 - MIT - https://github.com/rolldown/rolldown
-- `@rolldown/binding-linux-x64-gnu` - 1.2.8 - MIT - https://github.com/rolldown/rolldown
+- `@playwright/test` - 1.65.0 - Apache-2.0 - https://github.com/microsoft/playwright
+- `@rolldown/binding-linux-x64-gnu` - 1.2.16 - MIT - https://github.com/rolldown/rolldown
 - `@rolldown/pluginutils` - 1.0.1 - MIT - https://github.com/rolldown/plugins
-- `@schematics/angular` - 22.2.5 - MIT - https://github.com/angular/angular-cli
+- `@schematics/angular` - 22.2.6 - MIT - https://github.com/angular/angular-cli
 - `@tybys/wasm-util` - 0.10.4 - MIT - https://github.com/toyobayashi/wasm-util
 - `@types/body-parser` - 1.19.6 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
 - `@types/bonjour` - 3.5.13 - MIT - https://github.com/DefinitelyTyped/DefinitelyTyped
@@ -703,8 +688,9 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `balanced-match` - 4.0.4 - MIT - https://github.com/juliangruber/balanced-match
 - `baseline-browser-mapping` - 2.11.21 - Apache-2.0 - https://github.com/web-platform-dx/baseline-browser-mapping
 - `batch` - 0.6.1 - MIT - https://github.com/visionmedia/batch
+- `bcp-47-match` - 2.0.3 - MIT - https://github.com/wooorm/bcp-47-match
+- `bcp-47` - 2.1.2 - MIT - https://github.com/wooorm/bcp-47
 - `beasties` - 0.5.4 - Apache-2.0 - https://github.com/danielroe/beasties
-- `bidi-js` - 1.1.0 - MIT - https://github.com/lojjic/bidi-js
 - `big.js` - 5.2.2 - MIT - https://github.com/MikeMcl/big.js
 - `body-parser` - 2.4.0 - MIT - https://github.com/expressjs/body-parser
 - `bonjour-service` - 1.4.4 - MIT - https://github.com/onlxltd/bonjour-service
@@ -754,7 +740,6 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `cross-spawn` - 7.0.6 - MIT - https://github.com/moxystudio/node-cross-spawn
 - `css-loader` - 7.1.5 - MIT - https://github.com/webpack/css-loader
 - `css-select` - 7.0.0 - BSD-2-Clause - https://github.com/fb55/css-select
-- `css-tree` - 3.2.1 - MIT - https://github.com/csstree/csstree
 - `css-what` - 8.0.0 - BSD-2-Clause - https://github.com/fb55/css-what
 - `cssesc` - 3.0.0 - MIT - https://github.com/mathiasbynens/cssesc
 - `data-urls` - 8.0.0 - MIT - https://github.com/jsdom/data-urls
@@ -781,8 +766,9 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `emoji-regex` - 10.6.0 - MIT - https://github.com/mathiasbynens/emoji-regex
 - `emojis-list` - 3.0.0 - MIT - https://github.com/kikobeats/emojis-list
 - `empathic` - 2.0.1 - MIT - https://github.com/lukeed/empathic
-- `encodeurl` - 2.0.0 - MIT - https://github.com/pillarjs/encodeurl
+- `encodeurl` - 2.0.1 - MIT - https://github.com/pillarjs/encodeurl
 - `enhanced-resolve` - 5.26.0 - MIT - https://github.com/webpack/enhanced-resolve
+- `entities` - 8.1.0 - BSD-2-Clause - https://github.com/fb55/entities
 - `env-paths` - 2.2.1 - MIT - https://github.com/sindresorhus/env-paths
 - `environment` - 1.1.0 - MIT - https://github.com/sindresorhus/environment
 - `errno` - 0.1.8 - MIT - https://github.com/rvagg/node-errno
@@ -867,7 +853,10 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `inherits` - 2.0.4 - ISC - https://github.com/isaacs/inherits
 - `ipaddr.js` - 1.9.1 - MIT - https://github.com/whitequark/ipaddr.js
 - `ipaddr.js` - 2.5.0 - MIT - https://github.com/whitequark/ipaddr.js
+- `is-alphabetical` - 2.0.1 - MIT - https://github.com/wooorm/is-alphabetical
+- `is-alphanumerical` - 2.0.1 - MIT - https://github.com/wooorm/is-alphanumerical
 - `is-arrayish` - 0.2.1 - MIT - https://github.com/qix-/node-is-arrayish
+- `is-decimal` - 2.0.1 - MIT - https://github.com/wooorm/is-decimal
 - `is-docker` - 3.0.0 - MIT - https://github.com/sindresorhus/is-docker
 - `is-extglob` - 2.1.1 - MIT - https://github.com/jonschlinkert/is-extglob
 - `is-fullwidth-code-point` - 5.1.0 - MIT - https://github.com/sindresorhus/is-fullwidth-code-point
@@ -893,7 +882,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `js-tokens` - 10.0.0 - MIT - https://github.com/lydell/js-tokens
 - `js-tokens` - 4.0.0 - MIT - https://github.com/lydell/js-tokens
 - `js-yaml` - 4.3.2 - MIT - https://github.com/nodeca/js-yaml
-- `jsdom` - 30.1.3 - MIT - https://github.com/jsdom/jsdom
+- `jsdom` - 31.0.0 - MIT - https://github.com/jsdom/jsdom
 - `jsesc` - 3.1.0 - MIT - https://github.com/mathiasbynens/jsesc
 - `json-buffer` - 3.0.1 - MIT - https://github.com/dominictarr/json-buffer
 - `json-parse-even-better-errors` - 2.3.1 - MIT - https://github.com/npm/json-parse-even-better-errors
@@ -928,7 +917,6 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `magic-string` - 1.4.1 - MIT - https://github.com/Rich-Harris/magic-string
 - `make-dir` - 5.1.0 - MIT - https://github.com/sindresorhus/make-dir
 - `math-intrinsics` - 1.1.0 - MIT - https://github.com/es-shims/math-intrinsics
-- `mdn-data` - 2.27.1 - CC0-1.0 - https://github.com/mdn/data
 - `media-typer` - 1.1.1 - MIT - https://github.com/jshttp/media-typer
 - `memfs` - 4.80.0 - Apache-2.0 - https://github.com/streamich/memfs
 - `merge-descriptors` - 2.0.0 - MIT - https://github.com/sindresorhus/merge-descriptors
@@ -975,7 +963,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `optionator` - 0.9.4 - MIT - https://github.com/gkz/optionator
 - `ora` - 9.4.1 - MIT - https://github.com/sindresorhus/ora
 - `ordered-binary` - 1.6.3 - MIT - https://github.com/kriszyp/ordered-binary
-- `oxc-parser` - 0.150.0 - MIT - https://github.com/oxc-project/oxc
+- `oxc-parser` - 0.156.0 - MIT - https://github.com/oxc-project/oxc
 - `p-limit` - 3.1.0 - MIT - https://github.com/sindresorhus/p-limit
 - `p-locate` - 5.0.0 - MIT - https://github.com/sindresorhus/p-locate
 - `p-retry` - 8.0.1 - MIT - https://github.com/sindresorhus/p-retry
@@ -983,6 +971,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `parse-json` - 5.2.0 - MIT - https://github.com/sindresorhus/parse-json
 - `parse-node-version` - 1.0.1 - MIT - https://github.com/gulpjs/parse-node-version
 - `parse5-html-rewriting-stream` - 8.0.1 - MIT - https://github.com/inikulin/parse5
+- `parse5-parser-stream` - 8.1.0 - MIT - https://github.com/inikulin/parse5
 - `parse5-sax-parser` - 8.0.0 - MIT - https://github.com/inikulin/parse5
 - `parseurl` - 1.3.3 - MIT - https://github.com/pillarjs/parseurl
 - `path-exists` - 4.0.0 - MIT - https://github.com/sindresorhus/path-exists
@@ -994,8 +983,8 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `picomatch` - 4.0.7 - MIT - https://github.com/micromatch/picomatch
 - `piscina` - 5.3.2 - MIT - https://github.com/piscinajs/piscina
 - `pkijs` - 3.4.3 - BSD-3-Clause - https://github.com/PeculiarVentures/PKI.js
-- `playwright-core` - 1.64.1 - Apache-2.0 - https://github.com/microsoft/playwright
-- `playwright` - 1.64.1 - Apache-2.0 - https://github.com/microsoft/playwright
+- `playwright-core` - 1.65.0 - Apache-2.0 - https://github.com/microsoft/playwright
+- `playwright` - 1.65.0 - Apache-2.0 - https://github.com/microsoft/playwright
 - `postcss-loader` - 8.2.1 - MIT - https://github.com/webpack/postcss-loader
 - `postcss-media-query-parser` - 0.2.3 - MIT - https://github.com/dryoma/postcss-media-query-parser
 - `postcss-modules-extract-imports` - 3.1.0 - ISC - https://github.com/css-modules/postcss-modules-extract-imports
@@ -1017,7 +1006,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `punycode` - 2.3.1 - MIT - https://github.com/mathiasbynens/punycode.js
 - `pvtsutils` - 1.3.6 - MIT - https://github.com/PeculiarVentures/pvtsutils
 - `pvutils` - 1.2.0 - MIT - https://github.com/PeculiarVentures/pvutils
-- `qs` - 6.16.1 - BSD-3-Clause - https://github.com/ljharb/qs
+- `qs` - 6.17.1 - BSD-3-Clause - https://github.com/ljharb/qs
 - `range-parser` - 1.3.0 - MIT - https://github.com/jshttp/range-parser
 - `raw-body` - 3.0.2 - MIT - https://github.com/stream-utils/raw-body
 - `readdirp` - 5.1.1 - MIT - https://github.com/paulmillr/readdirp
@@ -1032,8 +1021,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `resolve-from` - 4.0.0 - MIT - https://github.com/sindresorhus/resolve-from
 - `resolve-url-loader` - 5.0.0 - MIT - https://github.com/bholloway/resolve-url-loader
 - `restore-cursor` - 5.1.0 - MIT - https://github.com/sindresorhus/restore-cursor
-- `rolldown` - 1.2.15 - MIT - https://github.com/rolldown/rolldown
-- `rolldown` - 1.2.8 - MIT - https://github.com/rolldown/rolldown
+- `rolldown` - 1.2.16 - MIT - https://github.com/rolldown/rolldown
 - `router` - 2.2.0 - MIT - https://github.com/pillarjs/router
 - `run-applescript` - 7.1.0 - MIT - https://github.com/sindresorhus/run-applescript
 - `safe-buffer` - 5.2.1 - MIT - https://github.com/feross/safe-buffer
@@ -1108,7 +1096,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `typescript-eslint` - 8.69.0 - MIT - https://github.com/typescript-eslint/typescript-eslint
 - `typescript` - 6.0.3 - Apache-2.0 - https://github.com/microsoft/TypeScript
 - `undici-types` - 7.24.6 - MIT - https://github.com/nodejs/undici
-- `undici` - 8.12.2 - MIT - https://github.com/nodejs/undici
+- `undici` - 8.12.4 - MIT - https://github.com/nodejs/undici
 - `unicode-canonical-property-names-ecmascript` - 2.0.1 - MIT - https://github.com/mathiasbynens/unicode-canonical-property-names-ecmascript
 - `unicode-match-property-ecmascript` - 2.0.0 - MIT - https://github.com/mathiasbynens/unicode-match-property-ecmascript
 - `unicode-match-property-value-ecmascript` - 2.2.1 - MIT - https://github.com/mathiasbynens/unicode-match-property-value-ecmascript
@@ -1128,14 +1116,14 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `watchpack` - 2.6.3 - MIT - https://github.com/webpack/watchpack
 - `weak-lru-cache` - 1.2.3 - MIT - https://github.com/kriszyp/weak-lru-cache
 - `webidl-conversions` - 8.0.1 - BSD-2-Clause - https://github.com/jsdom/webidl-conversions
-- `webpack-dev-middleware` - 8.3.0 - MIT - https://github.com/webpack/webpack-dev-middleware
+- `webpack-dev-middleware` - 8.5.0 - MIT - https://github.com/webpack/webpack-dev-middleware
 - `webpack-dev-server` - 6.0.0 - MIT - https://github.com/webpack/webpack-dev-server
 - `webpack-merge` - 6.0.1 - MIT - https://github.com/survivejs/webpack-merge
 - `webpack-sources` - 3.6.0 - MIT - https://github.com/webpack/webpack-sources
 - `webpack-subresource-integrity` - 5.1.0 - MIT - https://github.com/waysact/webpack-subresource-integrity
 - `webpack` - 5.112.0 - MIT - https://github.com/webpack/webpack
 - `whatwg-mimetype` - 5.0.0 - MIT - https://github.com/jsdom/whatwg-mimetype
-- `whatwg-url` - 17.2.0 - MIT - https://github.com/jsdom/whatwg-url
+- `whatwg-url` - 17.3.0 - MIT - https://github.com/jsdom/whatwg-url
 - `which` - 2.0.2 - ISC - https://github.com/isaacs/node-which
 - `why-is-node-running` - 2.3.0 - MIT - https://github.com/mafintosh/why-is-node-running
 - `wildcard` - 2.0.1 - MIT - https://github.com/DamonOehlman/wildcard
@@ -1143,7 +1131,7 @@ places in `node_modules`. Platform-specific optional binaries such as
 - `wrap-ansi` - 10.0.1 - MIT - https://github.com/chalk/wrap-ansi
 - `wrap-ansi` - 9.0.2 - MIT - https://github.com/chalk/wrap-ansi
 - `wrappy` - 1.0.2 - ISC - https://github.com/npm/wrappy
-- `ws` - 8.22.0 - MIT - https://github.com/websockets/ws
+- `ws` - 8.22.1 - MIT - https://github.com/websockets/ws
 - `wsl-utils` - 1.0.1 - MIT - https://github.com/sindresorhus/wsl-utils
 - `xml-name-validator` - 5.0.0 - Apache-2.0 - https://github.com/jsdom/xml-name-validator
 - `xmlchars` - 2.2.0 - MIT - https://github.com/lddubeau/xmlchars
@@ -1187,7 +1175,7 @@ The Windows package (`scripts/Publish-Windows.ps1` stages it; `installer/MangaPi
 - `.NET runtime` - 10.0.12 (win-x64, self-contained: `coreclr.dll`, `clrjit.dll`, `hostfxr.dll`, `hostpolicy.dll`, `msquic.dll`, `System.IO.Compression.Native.dll`, the `System.*` assemblies and the diagnostics helpers, published into `server\` and `worker\`) - MIT - https://github.com/dotnet/runtime. Microsoft's own third-party notices for the runtime are in that repository's `THIRD-PARTY-NOTICES.TXT`; `dotnet publish` does not copy that file.
 - `ASP.NET Core runtime` - 10.0.12 (`Microsoft.AspNetCore.*` assemblies, server only) - MIT - https://github.com/dotnet/aspnetcore
 - `.NET Windows Desktop runtime` (Windows Forms) - 10.0.12, inside the single-file `MangaPixer.Tray.exe` - MIT - https://github.com/dotnet/winforms. The tray project references no NuGet packages; the framework is all it ships.
-- `Magick.Native-Q8-x64.dll` - the Windows build of the native library described in section 1c: the same bundled components and licenses, from the same `Magick.NET-Q8-AnyCPU` 15.0.0 package. Its `Notice.txt` ships as `Magick.NET-Notice.txt` next to the tray executable.
+- `Magick.Native-Q8-x64.dll` - the Windows build of the native library described in section 1c: the same bundled components and licenses, from the same `Magick.NET-Q8-AnyCPU` 15.1.0 package. Its `Notice.txt` ships as `Magick.NET-Notice.txt` next to the tray executable.
 - `e_sqlite3.dll` - SQLite 3.53.4 (win-x64, from `SQLitePCLRaw.bundle_e_sqlite3`, section 1a) - blessing (SQLite public-domain dedication) - https://sqlite.org/
 - `WiX Toolset` - 6.0.2 (`WixToolset.Sdk`, `WixToolset.UI.wixext`, `WixToolset.Util.wixext`, restored as the pinned `wix` .NET tool by `scripts/Build-Installer.ps1`) - MS-RL (Microsoft Reciprocal License) for the source; the prebuilt packages are provided under the WiX Open Source Maintenance Fee agreement, whose fee applies only to revenue-generating use and which leaves redistribution of built output governed by MS-RL - https://github.com/wixtoolset/wix. The MSI embeds the two extensions' custom-action libraries (the WixUI and WixUtil custom actions) in its `Binary` table; nothing else from the toolset reaches users. `License.rtf`, shown by the installer, is the MIT text of `LICENSE`.
 
