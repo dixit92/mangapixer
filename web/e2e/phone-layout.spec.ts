@@ -860,7 +860,11 @@ test('the loading and failed states of browse, Home and Search fit a phone and a
               failures.push(`${size.width} px ${p.name} ${state}: ${problem.kind}: ${problem.what} - ${problem.detail}`);
             }
           }
-          if (shoot) await page.screenshot({ path: `${SHOTS}/states-${p.name}-${state}-${size.width}-${t}.png` });
+          if (shoot) {
+            // Home's Libraries section sits under the other rows: bring the state into the shot.
+            await page.getByTestId(p[state]).scrollIntoViewIfNeeded();
+            await page.screenshot({ path: `${SHOTS}/states-${p.name}-${state}-${size.width}-${t}.png` });
+          }
           mode = 'pass';
           for (const route of held.splice(0)) await route.abort().catch(() => { /* the page moved on */ });
         }
