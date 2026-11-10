@@ -569,6 +569,21 @@ public sealed class ReaderPreferencesEntity
     public string? Accent { get; set; }
 
     public UserEntity? User { get; set; }
+
+    // 1.53.0 step 0 (migration AddCycle153Settings). Columns only: the lanes add the routes and the UI.
+
+    /// <summary>
+    /// Per-user "Share my ratings" (1.53.0): whether this user's ratings count in the server-wide average while the admin's
+    /// <see cref="AppSettingsEntity.RatingSharingEnabled"/> is on. ON by default: new rows start true, and the migration that added
+    /// this column gives every existing row true (owner decision 3b). Not part of the <c>library-preferences</c> blob.
+    /// </summary>
+    public bool ShareRatings { get; set; } = true;
+
+    /// <summary>
+    /// Per-user Home "Recommended for you" row (1.53.0). ON by default: new rows start true, and the migration that added this column
+    /// gives every existing row true.
+    /// </summary>
+    public bool ShowRecommendationsHomeRow { get; set; } = true;
 }
 
 /// <summary>
@@ -865,6 +880,12 @@ public sealed class UserEntity
     public ICollection<HomeExcludedLibraryEntity> HomeExcludedLibraries { get; set; } = [];
     public ICollection<FavoriteEntity> Favorites { get; set; } = [];
     public ReaderPreferencesEntity? Preferences { get; set; }
+
+    /// <summary>
+    /// 1.53.0 step 0 (migration AddCycle153Settings): the app version (max 64) whose "What's new" this user last saw; null = never
+    /// recorded (every user that existed before 1.53.0).
+    /// </summary>
+    public string? LastSeenVersion { get; set; }
 }
 
 /// <summary>
@@ -1087,6 +1108,12 @@ public sealed class AppSettingsEntity
 
     /// <summary>Background work while someone reads (<c>BackgroundWhileReading</c>: 0 pause, 1 slow, 2 normal), or null.</summary>
     public int? PerformanceBackgroundWhileReading { get; set; }
+
+    /// <summary>
+    /// 1.53.0 step 0 (migration AddCycle153Settings): the server-wide "Share ratings" switch in Administration. OFF until an admin
+    /// turns it on (owner decision 3b); the migration gives the existing row false.
+    /// </summary>
+    public bool RatingSharingEnabled { get; set; }
 }
 
 /// <summary>

@@ -92,6 +92,12 @@ public sealed class TrackerAccountEntity
     public int RequestsUsed { get; set; }
 
     public UserEntity? User { get; set; }
+
+    /// <summary>
+    /// 1.53.0 step 0 (migration AddCycle153Settings): user setting "Sync my scores" for this tracker. OFF by default; the migration
+    /// gives every existing account false.
+    /// </summary>
+    public bool SyncScores { get; set; }
 }
 
 /// <summary>

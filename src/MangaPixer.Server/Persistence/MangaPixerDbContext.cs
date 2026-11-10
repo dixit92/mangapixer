@@ -413,6 +413,7 @@ public sealed class MangaPixerDbContext : DbContext
             e.Property(x => x.PasswordHash).IsRequired();
             e.Property(x => x.SecurityStamp).IsRequired().HasMaxLength(64);
             e.Property(x => x.ActivationTokenHash).HasMaxLength(128);
+            e.Property(x => x.LastSeenVersion).HasMaxLength(64); // 1.53.0 step 0
             e.HasIndex(x => x.NormalizedUserName).IsUnique();
             e.HasIndex(x => x.PublicId).IsUnique();
         });
