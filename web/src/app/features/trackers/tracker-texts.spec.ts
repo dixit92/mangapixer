@@ -10,7 +10,7 @@ import { TrackerAccountDto } from '../../core/api/api-types';
 function account(overrides: Partial<TrackerAccountDto> = {}): TrackerAccountDto {
   return {
     tracker: 'mal', state: 'Ok', displayName: 'reader', connectedAt: '2026-10-13T00:00:00Z', consentRenewalNeeded: false,
-    addStartedSeries: true, privateEntries: true, requestsToday: 0, dailyRequestCap: 2000, ...overrides,
+    addStartedSeries: true, privateEntries: true, syncScores: false, requestsToday: 0, dailyRequestCap: 2000, ...overrides,
   };
 }
 
