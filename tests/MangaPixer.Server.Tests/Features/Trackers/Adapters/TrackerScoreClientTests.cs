@@ -156,10 +156,14 @@ public sealed class TrackerScoreClientTests : IDisposable
             var items = Enumerable.Range(0, count).Select(i =>
             {
                 var id = 1000 + list * 1000 + (page - 1) * 100 + i;
-                var rating = i == 0 ? "null" : (i % 10 + 0.4).ToString(System.Globalization.CultureInfo.InvariantCulture);
-                return $$"""{"record":{"series":{"id":{{id}},"title":"Public Title {{id}}"},"list_id":{{list}},"status":{"chapter":1}},"metadata":{"series":{"series_id":{{id}},"title":"Public Title {{id}}"},"user_rating":{{rating}}}}""";
-            });
-            return TrackerAdapterHarness.Json($$"""{"total_hits":{{total}},"page":{{page}},"per_page":100,"results":[{{string.Join(',', items)}}]}""");
+                double? rating = i == 0 ? null : i % 10 + 0.4;
+                return new
+                {
+                    record = new { series = new { id, title = $"Public Title {id}" }, list_id = list, status = new { chapter = 1 } },
+                    metadata = new { series = new { series_id = id, title = $"Public Title {id}" }, user_rating = rating },
+                };
+            }).ToList();
+            return TrackerAdapterHarness.Json(JsonSerializer.Serialize(new { total_hits = total, page, per_page = 100, results = items }));
         });
 
         var all = new List<TrackerScoreItem>();
