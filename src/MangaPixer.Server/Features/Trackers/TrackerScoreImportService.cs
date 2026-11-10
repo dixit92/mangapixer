@@ -170,16 +170,17 @@ public sealed class TrackerScoreImportService(
 
     /// <summary>
     /// "Use &lt;tracker&gt;'s" for one listed series: the caller's rating of the series' rated folder (or, when none is rated any more, its
-    /// first linked folder) becomes <paramref name="score"/>. No request to the tracker; not sent back to it.
+    /// first linked folder) becomes <paramref name="score"/>. No request to the tracker; not sent back to it. A direct write like the rating
+    /// route's: any library the caller can open, Incognito or not (Incognito only hides listings).
     /// </summary>
-    public async Task<TrackerProblem?> UseAsync(long userId, string tracker, string seriesId, int? score, bool incognito, CancellationToken ct)
+    public async Task<TrackerProblem?> UseAsync(long userId, string tracker, string seriesId, int? score, CancellationToken ct)
     {
         if (!TrackerFacts.IsKnown(tracker))
             return TrackerProblem.UnknownTracker;
         if (score is not { } value || !RatingsService.IsValidScore(value))
             return TrackerProblem.Bad("invalid_score", "Give a score from 1 to 10.");
         var recordId = await entries.RecordIdAsync(userId, seriesId, ct);
-        if (recordId is null || !(await FoldersAsync(userId, [recordId.Value], incognito, ct)).TryGetValue(recordId.Value, out var series))
+        if (recordId is null || !(await FoldersAsync(userId, [recordId.Value], incognito: false, ct)).TryGetValue(recordId.Value, out var series))
             return TrackerProblem.NotFound("unknown_series", "There is no such series in your libraries.");
         using (TrackerScoreSink.SuppressFor(tracker))
         {

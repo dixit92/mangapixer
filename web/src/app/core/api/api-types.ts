@@ -3676,6 +3676,8 @@ export interface TrackerAccountDto {
   consentRenewalNeeded: boolean;
   addStartedSeries: boolean;
   privateEntries: boolean;
+  /** 1.53.0: "Keep my score in step with my MangaPixer rating" (off by default). */
+  syncScores: boolean;
   requestsToday: number;
   dailyRequestCap: number;
 }
@@ -3707,6 +3709,40 @@ export interface TrackerConnectPasswordRequest {
 export interface UpdateTrackerUserSettingsRequest {
   addStartedSeries?: boolean | null;
   privateEntries?: boolean | null;
+  /** 1.53.0: "Keep my score in step with my MangaPixer rating". */
+  syncScores?: boolean | null;
+}
+
+/**
+ * 1.53.0 `POST /api/v1/trackers/{slug}/scores/import` ("Take my scores from <tracker>"): unrated series got the tracker's score; a
+ * different MangaPixer rating was kept and is listed in `differ`.
+ */
+export interface TrackerScoreImportResultDto {
+  /** Scored entries read from the caller's list on the tracker. */
+  scored: number;
+  /** Of those, series here. */
+  matched: number;
+  filled: number;
+  same: number;
+  /** Kept MangaPixer ratings that differ, by title. */
+  differ: TrackerScoreDifferenceDto[];
+  requests: number;
+  capReached: boolean;
+}
+
+/** One series whose MangaPixer rating differs from the caller's score on the tracker (both 1-10). */
+export interface TrackerScoreDifferenceDto {
+  seriesId: string;
+  title: string;
+  /** The folder whose rating it is. */
+  nodeId: string;
+  myScore: number;
+  trackerScore: number;
+}
+
+/** 1.53.0 `PUT /api/v1/trackers/{slug}/scores/{seriesId}`: "Use <tracker>'s". */
+export interface TrackerUseScoreRequest {
+  score?: number | null;
 }
 
 /** One linked series in the caller's tracker list. */

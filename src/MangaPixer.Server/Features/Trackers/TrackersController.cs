@@ -322,7 +322,7 @@ public sealed class TrackersController(
     {
         if (UserId() is not { } userId)
             return Forbid();
-        var problem = await scores.UseAsync(userId, slug, seriesId, request.Score, incognito.IsIncognito, ct);
+        var problem = await scores.UseAsync(userId, slug, seriesId, request.Score, ct);
         return problem is null ? NoContent() : Problem(problem);
     }
 
