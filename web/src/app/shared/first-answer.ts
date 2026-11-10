@@ -27,8 +27,13 @@ export class FirstAnswer {
     inject(DestroyRef).onDestroy(() => this.clearTimer());
   }
 
-  /** A first request starts (again): back to "not loaded", the spinner only after the delay. */
+  /**
+   * A first request starts (again): back to "not loaded", the spinner only after the delay. 1.53.0 pre-cut (guide finding 3): while the
+   * page is still waiting (a page that waits for its settings first, then for its list), a start keeps the clock running - the spinner
+   * neither restarts its delay nor blinks off.
+   */
   start(): void {
+    if (this.state() === 'pending' && (this.timer !== null || this.pendingLong())) return;
     this.clearTimer();
     this.state.set('pending');
     this.pendingLong.set(false);

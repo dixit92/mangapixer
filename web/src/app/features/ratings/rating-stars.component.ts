@@ -17,8 +17,9 @@ export type RatingStarsMode = 'edit' | 'stars' | 'badge';
  *   click on the LEFT half of a star sets that half star, on the right half the whole star. Keyboard: Right / Up a half star more, Left /
  *   Down a half star less, Page Up / Down a whole star, Home / End half a star / five stars, Delete / Backspace clears. A visible
  *   "Clear rating" button next to it (never a hidden "tap the same value to clear"); 1.53.0 (audit V4): the button keeps its slot while
- *   unrated (hidden, not removed), so the stars never move on the first click. On a touch screen each half is a 20 x 40 target, so a
- *   whole star is 40 x 40.
+ *   unrated (hidden, not removed), so the stars never move on the first click; 1.53.0 pre-cut: "Not rated" lies over that slot, so the
+ *   row is as wide (and as tall) unrated as rated, and in a block narrower than 360 px Clear is an icon button named "Clear rating".
+ *   On a touch screen each half is a 20 x 40 target, so a whole star is 40 x 40.
  * - `stars`: the five stars read-only (`role="img"`, "Rated 3.5 of 5"); nothing when not rated.
  * - `badge`: one star and the number ("4.5") for cards and list rows; nothing when not rated. `overlay` places it on a cover, just above
  *   the favourite star's corner (bottom-right), so it never covers the card's title.
@@ -56,13 +57,17 @@ export type RatingStarsMode = 'edit' | 'stars' | 'badge';
               </span>
             }
           </div>
-          <span class="value" aria-hidden="true">{{ value() ? starsLabel() : 'Not rated' }}</span>
-          <!-- 1.53.0 (audit V4): the button is always there and only hidden while unrated, so the row never changes size when you rate. -->
-          <button mat-button type="button" class="clear" data-testid="rating-clear" [class.unrated]="!value()"
-                  [attr.aria-hidden]="value() ? null : 'true'"
-                  [disabled]="disabled() || !value()" (click)="clear($event)">
-            Clear rating
-          </button>
+          <!-- 1.53.0 (audit V4): the button is always there and only hidden while unrated, so the row never changes size when you rate.
+               1.53.0 pre-cut (guide finding 1): the value and the button share one slot - unrated, "Not rated" lies over the hidden
+               button - so the row is as wide unrated as rated and wraps (if ever) the same way: its height never changes. -->
+          <span class="tail">
+            <span class="value" [class.unrated]="!value()" aria-hidden="true">{{ value() ? starsLabel() : 'Not rated' }}</span>
+            <button mat-button type="button" class="clear" data-testid="rating-clear" [class.unrated]="!value()"
+                    [attr.aria-hidden]="value() ? null : 'true'"
+                    [disabled]="disabled() || !value()" (click)="clear($event)">
+              <span class="clear-icon material-icons" aria-hidden="true"></span><span class="clear-lbl">Clear rating</span>
+            </button>
+          </span>
         </div>
       }
       @case ('stars') {
@@ -95,9 +100,29 @@ export type RatingStarsMode = 'edit' | 'stars' | 'badge';
     .half { position: absolute; top: 0; bottom: 0; width: 50%; }
     .half.left { left: 0; }
     .half.right { right: 0; }
-    .value { font-size: 13px; color: var(--mp-text-muted); min-width: 2.5em; }
-    .clear { flex: none; }
+    /* The value and Clear in one grid slot (pre-cut, guide finding 1): rated, the value then the button; unrated, "Not rated" spans
+       both columns over the hidden button. The slot is as wide either way. */
+    .tail {
+      display: inline-grid; grid-template-columns: minmax(2.5em, auto) auto; align-items: center; column-gap: 8px;
+      font-size: 13px;
+    }
+    .value { grid-row: 1; grid-column: 1; color: var(--mp-text-muted); white-space: nowrap; }
+    .value.unrated { grid-column: 1 / -1; }
+    .clear { grid-row: 1; grid-column: 2; flex: none; }
     .clear.unrated { visibility: hidden; }
+    .clear-icon { display: none; }
+    /* The block is narrower than the stars, the value and a worded "Clear rating" (a touch phone's 40 px stars at 360 - 390 px):
+       Clear is a 40 px icon button - its words stay its accessible name - so the row keeps one line. The block (app-node-rating) is
+       the container. */
+    @container (max-width: 359.98px) {
+      .clear.mat-mdc-button { min-width: 40px; padding: 0 8px; }
+      .clear-icon { display: inline-block; font-size: 22px; line-height: 1; }
+      .clear-icon::before { content: 'close'; }
+      .clear-lbl {
+        position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+        overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+      }
+    }
     .readonly { cursor: default; }
     .readonly .glyph { font-size: 18px; width: 18px; height: 18px; }
     .badge {

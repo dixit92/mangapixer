@@ -127,6 +127,75 @@ public sealed class RecommendationScorerTests
         Assert.Equal(2, WorkId(index, mixed[0]));
     }
 
+    /// <summary>
+    /// 1.53.0 pre-cut (the visual change guide's "seen" item): the guide's 14 invented series and its Home seeds - Quartz Harbor rated five
+    /// stars (1.0), Copper Lantern four (0.6), Hollow Ferry one star (-0.5), Saffron Kite a favourite (0.6), Tin Sparrow finished (0.4).
+    /// Pale Signal and Salt Ledger share Hollow Ferry's author and Quartz Harbor's tag and genres. The designed arithmetic (the weighted sum
+    /// of the normalised seed vectors, a creator weighing 3.0 and a tag 1.5, then the cosine) gives them a NEGATIVE score: the disliked
+    /// author outweighs the liked tag, so they drop out of the row (not just rank lower) - the docs say "rank lower or drop out". Without
+    /// the one-star rating both are picks; "More like this" on Quartz Harbor (that series alone) lists them.
+    /// </summary>
+    [Fact]
+    public void NegativeSeed_CanDropASeriesOfTheSameAuthor_EvenWhenItSharesATagWithAFiveStarSeries()
+    {
+        (string Series, string Writer, string Genres, string? Tags)[] library =
+        [
+            ("Quartz Harbor", "Ilse Marrow", "Mystery, Drama", "Lighthouse"), ("Quartz Tide", "Ilse Marrow", "Drama", null),
+            ("Velvet Orchard", "Odo Fenwick", "Mystery, Horror", "Lighthouse"), ("Copper Lantern", "Odo Fenwick", "Comedy", null),
+            ("Saffron Kite", "Pia Lund", "Romance", null), ("Glass Meridian", "Ilse Marrow", "Mystery", "Lighthouse, Harbor Town"),
+            ("Pale Signal", "Tam Orrin", "Mystery, Drama", "Lighthouse"), ("Hollow Ferry", "Tam Orrin", "Horror", "Harbor Town"),
+            ("Lantern Street", "Odo Fenwick", "Comedy, Slice of Life", null), ("Paper Comet", "Pia Lund", "Romance, Comedy", null),
+            ("Almanac", "Ilse Marrow", "Drama, Slice of Life", null), ("Tin Sparrow", "Wren Sato", "Action", null),
+            ("Brass Tidewater", "Wren Sato", "Action, Mystery", "Harbor Town"), ("Salt Ledger", "Tam Orrin", "Mystery", "Lighthouse"),
+        ];
+        var valueIds = new Dictionary<string, long>();
+        long ValueId(string key) => valueIds.TryGetValue(key, out var id) ? id : valueIds[key] = 500 + valueIds.Count;
+        var entries = new List<RecommendationIndex.EntryRow>();
+        for (var i = 0; i < library.Length; i++)
+        {
+            var (_, writer, genres, tags) = library[i];
+            var work = 1L + i;
+            void Add(string key, FacetBucket bucket) =>
+                entries.Add(new RecommendationIndex.EntryRow(work, 1000 + work, 1, ValueId(key), (int)bucket));
+            Add("c:" + writer, FacetBucket.Creators);
+            foreach (var g in genres.Split(", "))
+                Add("g:" + g, FacetBucket.Genres);
+            foreach (var t in tags?.Split(", ") ?? [])
+                Add("t:" + t, FacetBucket.Tags);
+        }
+        var index = RecommendationIndex.Build(entries, [], []);
+        long Work(string series) => 1L + Array.FindIndex(library, s => s.Series == series);
+        var homeSeeds = new (string Series, double Weight)[]
+        {
+            ("Quartz Harbor", RecommendationService.RatingWeight(10)!.Value), ("Copper Lantern", RecommendationService.RatingWeight(8)!.Value),
+            ("Hollow Ferry", RecommendationService.RatingWeight(2)!.Value), ("Saffron Kite", RecommendationService.FavoriteWeight),
+            ("Tin Sparrow", RecommendationService.FinishedWeight),
+        };
+        var seedWorks = homeSeeds.Select(s => Work(s.Series)).ToHashSet();
+        bool IsCandidate(int w) => !seedWorks.Contains(index.WorkIds[w]);
+        IReadOnlyList<RecommendationScorer.Pick> Home(IEnumerable<(string Series, double Weight)> seeds) =>
+            RecommendationScorer.Score(index, seeds.Select(s => SeedOf(index, Work(s.Series), s.Weight)).ToList(), IsCandidate, 12);
+        double? ScoreOf(IReadOnlyList<RecommendationScorer.Pick> picks, string series) =>
+            picks.FirstOrDefault(p => WorkId(index, p) == Work(series))?.Score;
+
+        // With the one-star rating: seven picks (room for twelve); the two Tam Orrin series are not among them.
+        var withLow = Home(homeSeeds);
+        Assert.Equal(7, withLow.Count);
+        Assert.Null(ScoreOf(withLow, "Pale Signal"));
+        Assert.Null(ScoreOf(withLow, "Salt Ledger"));
+        // Without it both are picks, on the shared tag and genres alone.
+        var withoutLow = Home(homeSeeds.Where(s => s.Series != "Hollow Ferry"));
+        Assert.Equal(9, withoutLow.Count);
+        Assert.Equal(0.154, ScoreOf(withoutLow, "Pale Signal")!.Value, 3);
+        Assert.Equal(0.106, ScoreOf(withoutLow, "Salt Ledger")!.Value, 3);
+
+        // "More like this" on Quartz Harbor (that series is the only seed): both are there.
+        var harbor = Work("Quartz Harbor");
+        var similar = RecommendationScorer.Score(index, [SeedOf(index, harbor, 1.0)], w => index.WorkIds[w] != harbor, 12);
+        Assert.NotNull(ScoreOf(similar, "Pale Signal"));
+        Assert.NotNull(ScoreOf(similar, "Salt Ledger"));
+    }
+
     [Fact]
     public void OnlyNegativeSeeds_PickNothing_AndNothingInCommon_IsBelowTheFloor()
     {

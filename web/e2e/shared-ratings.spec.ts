@@ -362,3 +362,138 @@ test('list rows keep the star and (i) in fixed columns whatever the badges (audi
     await restore(page);
   }
 });
+
+/**
+ * 1.53.0 pre-cut (the visual change guide's finding 1): V4 on a touch phone. With a touch pointer the stars are 40 px, and at 390 px the
+ * unrated row (stars, "Not rated", the kept Clear slot) no longer fitted: "Clear rating" sat alone on a hidden second line (84 px), and
+ * rating closed it (40 px) - everything below jumped. Now, at 360 / 390 / 430 px with `hasTouch`: the stars, the value or "Not rated"
+ * and the Clear slot on one line, and the row the same height rated and unrated - in the Info sheet, on the series page and in the
+ * reader's Rate sheet. (The 390 px case above has no touch pointer: 28 px stars.)
+ */
+async function rowLayout(block: Locator): Promise<{ starsY: number; height: number; oneLine: boolean; inside: boolean; star: number }> {
+  const read = () => block.evaluate((el) => {
+    const r = (s: string) => el.querySelector(s)!.getBoundingClientRect();
+    const caption = r('.caption');
+    const stars = r('[data-testid="rating-slider"]');
+    const value = r('app-rating-stars .value');
+    const clear = r('[data-testid="rating-clear"]');
+    const row = r('app-rating-stars');
+    const mid = (b: DOMRect) => b.top + b.height / 2;
+    return {
+      starsY: Math.round(stars.top - caption.top),
+      height: Math.round(row.height),
+      oneLine: Math.abs(mid(value) - mid(stars)) <= 4 && Math.abs(mid(clear) - mid(stars)) <= 4,
+      inside: clear.right <= el.getBoundingClientRect().right + 1,
+      star: Math.round(stars.width / 5),
+    };
+  });
+  let last = await read();
+  for (let i = 0; i < 30; i++) {
+    await block.page().waitForTimeout(150);
+    const now = await read();
+    if (JSON.stringify(now) === JSON.stringify(last)) return now;
+    last = now;
+  }
+  return last;
+}
+
+/** The phone's Rate bottom sheet is no wider than the screen: nothing in it scrolls sideways, the close button inside (gate sweep item 6). */
+async function expectSheetFits(page: Page, where: string): Promise<void> {
+  const container = page.locator('.mat-bottom-sheet-container');
+  await expect(container).toBeVisible();
+  await page.waitForTimeout(400); // the sheet slides up
+  const fit = await container.evaluate((el) => {
+    const close = el.querySelector('button[aria-label="Close"]')!.getBoundingClientRect();
+    return { scroll: el.scrollWidth, client: el.clientWidth, closeRight: Math.round(close.right), width: window.innerWidth };
+  });
+  expect(fit.scroll, `${where} scrolls sideways (${fit.scroll} in ${fit.client})`).toBeLessThanOrEqual(fit.client);
+  expect(fit.closeRight, `${where}: the close button inside the screen`).toBeLessThanOrEqual(fit.width - 8);
+  await expectFitsScreen(page, where);
+}
+
+for (const width of [360, 390, 430]) {
+  test.describe(`${width} px touch phone: the rating row (guide finding 1)`, () => {
+    test.use({ viewport: { width, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+
+    test('one line and one height, rated or not - Info sheet, series page and the reader\'s Rate sheet', async ({ page }) => {
+      test.setTimeout(240_000);
+      await login(page);
+      const { libraryId, series, plain } = await ensureFixture(page);
+      await restore(page);
+      const archive = ((await (await page.request.get(`/api/v1/libraries/${libraryId}/browse?parentId=${series}&pageSize=10`)).json())
+        .items as Node[]).find((n) => n.kind === 'Archive')!;
+      const expectRow = (l: Awaited<ReturnType<typeof rowLayout>>, where: string) => {
+        expect(l.star, `${where}: 40 px touch stars`).toBeGreaterThanOrEqual(40);
+        expect(l.oneLine, `${where}: the stars, the value and the Clear slot on one line (${JSON.stringify(l)})`).toBe(true);
+        expect(l.inside, `${where}: the Clear slot inside the block`).toBe(true);
+      };
+      try {
+        // The Info sheet: unrated, then rated - one line both times, the same height, the stars where they were.
+        const overlay = await openInfoSheet(page, libraryId, series);
+        const block = overlay.getByTestId('node-rating');
+        const unrated = await rowLayout(block);
+        expectRow(unrated, 'Info sheet, unrated');
+        await shots(page, 'touch-rating-info-unrated');
+        const put = page.waitForResponse((r) => r.url().endsWith(`/nodes/${series}/rating`) && r.request().method() === 'PUT');
+        await block.getByTestId('rating-half-9').click();
+        expect((await put).status()).toBe(204);
+        await expect(block.getByTestId('rating-clear')).toBeVisible();
+        const rated = await rowLayout(block);
+        expectRow(rated, 'Info sheet, rated');
+        expect(rated, 'Info sheet: the row keeps its height and the stars their place when you rate').toEqual(unrated);
+        await shots(page, 'touch-rating-info-rated');
+        await page.keyboard.press('Escape');
+
+        // The series page: rated (4.5), then cleared.
+        await page.goto(`/series/${series}`);
+        const hero = page.getByTestId('node-rating').first();
+        await expect(hero.getByTestId('rating-slider')).toHaveAttribute('aria-valuetext', '4.5 of 5 stars');
+        const heroRated = await rowLayout(hero);
+        expectRow(heroRated, 'series page, rated');
+        await shots(page, 'touch-rating-series-rated');
+        await hero.getByTestId('rating-clear').click();
+        await expect(hero.getByTestId('rating-slider')).toHaveAttribute('aria-valuetext', 'Not rated');
+        const heroUnrated = await rowLayout(hero);
+        expectRow(heroUnrated, 'series page, unrated');
+        expect(heroUnrated, 'series page: the row keeps its height when the rating is cleared').toEqual(heroRated);
+        await shots(page, 'touch-rating-series-unrated');
+
+        // The reader's Rate sheet (a bottom sheet on a phone): this archive and its folder.
+        await page.addInitScript(() => localStorage.setItem('mangapixer-reader-help-seen', '1'));
+        await page.goto(`/reader/${archive.id}`);
+        await page.getByRole('button', { name: 'Reader options' }).click();
+        await page.getByTestId('reader-options-rate').click();
+        const sheet = page.getByTestId('rating-sheet');
+        await expect(sheet.getByTestId('rating-sheet-folder')).toBeVisible();
+        const row = sheet.getByTestId('rating-sheet-archive').getByTestId('node-rating');
+        await expect(row.getByTestId('rating-slider')).not.toHaveAttribute('aria-disabled', 'true');
+        const sheetUnrated = await rowLayout(row);
+        expectRow(sheetUnrated, 'Rate sheet, unrated');
+        expectRow(await rowLayout(sheet.getByTestId('rating-sheet-folder').getByTestId('node-rating')), 'Rate sheet, its folder');
+        await shots(page, 'touch-rating-sheet-unrated');
+        const sheetPut = page.waitForResponse((r) => r.url().endsWith(`/nodes/${archive.id}/rating`) && r.request().method() === 'PUT');
+        await row.getByTestId('rating-half-6').click();
+        expect((await sheetPut).status()).toBe(204);
+        const sheetRated = await rowLayout(row);
+        expectRow(sheetRated, 'Rate sheet, rated');
+        expect(sheetRated, 'Rate sheet: the row keeps its height when you rate').toEqual(sheetUnrated);
+        await expectSheetFits(page, 'the reader\'s Rate sheet');
+        await shots(page, 'touch-rating-sheet-rated');
+        await sheet.getByRole('button', { name: 'Close' }).click();
+        await expect(sheet).toHaveCount(0);
+
+        // Item 6 (the 1.53.0 gate sweep): the browse bar's "Rate this folder" opens the one-row sheet - it does not scroll sideways.
+        await page.goto(`/libraries/${libraryId}/browse/${plain}`);
+        await page.getByTestId('folder-rate-button').click();
+        const one = page.getByTestId('rating-sheet');
+        await expect(one.getByTestId('rating-sheet-archive')).toContainText('This folder');
+        expectRow(await rowLayout(one.getByTestId('node-rating')), 'one-row Rate sheet, unrated');
+        await expectSheetFits(page, 'the one-row Rate sheet');
+        await shots(page, 'touch-rate-this-folder');
+      } finally {
+        await page.request.delete(`/api/v1/nodes/${archive.id}/rating`, { headers: await csrf(page.request) });
+        await restore(page);
+      }
+    });
+  });
+}
