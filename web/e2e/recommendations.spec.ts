@@ -131,7 +131,7 @@ test('Home shows "Recommended for you" from the reader\'s own rating, with the c
   await page.context().close();
 });
 
-test('the series page shows "More like this" after About and before Details', async ({ browser, request }) => {
+test('the series page shows "More like this" after About (when there is one) and before Details', async ({ browser, request }) => {
   test.setTimeout(240_000);
   const { username, harborId } = await setUp(request);
   const page = await device(browser, username, 1280, 900);
@@ -139,13 +139,14 @@ test('the series page shows "More like this" after About and before Details', as
   const row = page.getByTestId('series-more-like-this');
   await expectPicks(row);
   await expect(card(row, 'Velvet Orchard').getByTestId('recommendation-reason')).not.toHaveText(/^Like /); // no "Like <this page>" here
-  // Order: About, then the row, then the next block.
+  // Order: (About - only with a web synopsis, which this offline fixture has not; the unit spec covers About first), the row, then
+  // Details (the ComicInfo writer and genres).
   const order = await page.evaluate(() => {
     const blocks = Array.from(document.querySelectorAll('[data-testid="series-page"] details.section > summary, [data-testid="series-more-like-this"] h3'));
     return blocks.map((b) => (b.textContent ?? '').trim());
   });
-  expect(order[0]).toBe('About');
-  expect(order[1]).toBe('More like this');
+  expect(order.filter((b) => b !== 'About').slice(0, 2)).toEqual(['More like this', 'Details']);
+  expect(order.indexOf('More like this')).toBe(order.includes('About') ? 1 : 0);
   await shot(page, 'series-1280-dark');
   await expectFitsScreen(page, 'series page with More like this');
   await page.context().close();
