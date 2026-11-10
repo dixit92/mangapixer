@@ -494,6 +494,56 @@
         }
       }
     },
+    "/api/v1/admin/whats-new": {
+      "get": {
+        "tags": [
+          "WhatsNew"
+        ],
+        "parameters": [
+          {
+            "name": "current",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhatsNewDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhatsNewDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhatsNewDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/whats-new/seen": {
+      "post": {
+        "tags": [
+          "WhatsNew"
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
     "/api/v1/admin/volume-contents": {
       "get": {
         "tags": [
@@ -25732,6 +25782,103 @@
           }
         }
       },
+      "WhatsNewDto": {
+        "required": [
+          "current",
+          "sections"
+        ],
+        "type": "object",
+        "properties": {
+          "current": {
+            "type": "string"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WhatsNewSectionDto"
+            }
+          }
+        }
+      },
+      "WhatsNewGroupDto": {
+        "required": [
+          "name",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WhatsNewItemDto"
+            }
+          }
+        }
+      },
+      "WhatsNewInlineDto": {
+        "required": [
+          "text"
+        ],
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "bold": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "boolean"
+          },
+          "link": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "WhatsNewItemDto": {
+        "required": [
+          "parts"
+        ],
+        "type": "object",
+        "properties": {
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WhatsNewInlineDto"
+            }
+          }
+        }
+      },
+      "WhatsNewSectionDto": {
+        "required": [
+          "version",
+          "groups"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "date": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WhatsNewGroupDto"
+            }
+          }
+        }
+      },
       "WikipediaListDto": {
         "required": [
           "state",
@@ -25894,6 +26041,9 @@
     },
     {
       "name": "PerformanceSettings"
+    },
+    {
+      "name": "WhatsNew"
     },
     {
       "name": "VolumeScan"

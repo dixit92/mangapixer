@@ -145,6 +145,8 @@ The server always listens on port 8080 inside the container. To use a different 
 
 Your volumes are kept. On start-up the server upgrades the database schema if the new version needs it. **Before it changes an existing database it writes a snapshot** called `pre-migration-<UTC timestamp>.db` to `/data/backups`. If that snapshot fails, the server refuses to start rather than risk your data. These snapshots are separate from the daily backups: the server keeps the newest 3 of them and deletes older ones only after a new one has been written successfully.
 
+**What's new after an update** (*from 1.53.0*, every install - Docker, Unraid and Windows): the first time an admin opens MangaPixer after an update, a **What's new in MangaPixer** window (with the version you updated to) lists what changed since the version that admin last saw - the release notes of each version in between, newest first, grouped as Added, Changed and Fixed, with links to the settings that need you (a feature that stays off until an admin turns it on, a consent to accept again). **Got it**, Escape or a tap outside closes it, and it does not come back for that version. It never opens over the reader: if the first page is the reader, it waits for the next page. Open it again any time from the account menu > **What's new**. Readers never see it, and an admin account created on this version starts with nothing to show. The notes are built into the server - opening them sends nothing anywhere.
+
 Each version is its own image tag, so the previous image stays on disk. Once the new version is running, you can remove old ones with `docker image rm ghcr.io/dixit92/mangapixer:<old-version>`.
 
 ## Building from source
