@@ -37,7 +37,8 @@ import { InstallHintService } from './shared/install-hint/install-hint.service';
       right: 0;
       padding: 2px 8px;
       font-size: 11px;
-      color: rgb(var(--mp-ink-rgb) / 0.35);
+      /* 1.53.0 audit V3: ink 35 % read 3.21 / 2.43:1; still the quietest text on the page */
+      color: var(--mp-text-dim);
       text-align: right;
       pointer-events: none;
       /* Under the page's content (UX review 1.43.0, UX9): a watermark, so a button or a card scrolled to the bottom line is never

@@ -211,9 +211,9 @@ import { SeriesSelectionActionsComponent } from '../metadata/series-selection-ac
     .slot:hover .cover, .slot:focus-visible .cover { outline: 2px solid rgb(var(--mp-accent-strong-rgb) / 0.6); outline-offset: 1px; }
     .badge {
       position: absolute; top: 6px; right: 6px; z-index: 2; font-size: 11px; font-weight: 600;
-      padding: 2px 6px; border-radius: 10px; background: rgb(var(--mp-accent-strong-rgb) / 0.9); color: var(--mp-on-accent);
+      padding: 2px 6px; border-radius: 10px; background: var(--mp-accent-strong); color: var(--mp-on-accent);
     }
-    .badge.read { background: rgb(var(--mp-success-strong-rgb) / 0.95); }
+    .badge.read { background: var(--mp-success-fill); color: var(--mp-on-scrim); }
     .check {
       position: absolute; top: 6px; left: 6px; z-index: 3; color: var(--mp-on-scrim); line-height: 0;
       border-radius: 50%; background: rgb(var(--mp-shade-rgb) / 0.45);

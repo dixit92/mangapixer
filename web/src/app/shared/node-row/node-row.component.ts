@@ -161,10 +161,10 @@ export function directionShort(mode: ReaderMode): string {
     .row-markers { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding-right: 4px; }
     .badge {
       position: static; font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 10px;
-      background: rgb(var(--mp-accent-strong-rgb) / 0.9); color: var(--mp-on-accent);
+      background: var(--mp-accent-strong); color: var(--mp-on-accent);
     }
     :host .node-card .row-markers ::ng-deep .badge { position: static; font-size: 11px; padding: 2px 6px; }
-    .badge.read { background: rgb(var(--mp-success-strong-rgb) / 0.95); color: var(--mp-on-scrim); }
+    .badge.read { background: var(--mp-success-fill); color: var(--mp-on-scrim); }
     .badge.dir { background: rgb(var(--mp-shade-rgb) / 0.65); color: var(--mp-on-scrim); }
     .check { line-height: 0; color: var(--mp-on-scrim); border-radius: 50%; background: transparent; }
     .check.on { color: var(--mp-accent-strong); background: var(--mp-on-scrim); }

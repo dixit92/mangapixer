@@ -709,9 +709,9 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     .badge {
       position: absolute; top: 6px; right: 6px; z-index: 2;
       font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 10px;
-      background: rgb(var(--mp-accent-strong-rgb) / 0.9); color: var(--mp-on-accent);
+      background: var(--mp-accent-strong); color: var(--mp-on-accent);
     }
-    .badge.read { background: rgb(var(--mp-success-strong-rgb) / 0.95); }
+    .badge.read { background: var(--mp-success-fill); color: var(--mp-on-scrim); }
     /* The star owns bottom-right (1.28.0); the direction badge takes the top-left the star left, and moves
        back to bottom-right in select mode, where the select check owns top-left and the star is hidden. */
     .badge.dir { right: auto; left: 6px; background: rgb(var(--mp-shade-rgb) / 0.65); }
