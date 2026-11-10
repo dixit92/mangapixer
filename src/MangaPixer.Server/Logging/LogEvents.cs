@@ -708,4 +708,24 @@ public static class LogEvents
         /// </summary>
         public const int RatingSinkFailed = 3412;
     }
+
+    /// <summary>
+    /// 1.53.0 lane C: recommendations - the Home "Recommended for you" row and the series page's "More like this" (3430-3439, inside the
+    /// 3xxx range; reserved for lane C). User ids, node ids, counts and timings only - never a title, a tag, a seed or a path; Debug, as a
+    /// user's recommendations are derived from their private ratings and reading.
+    /// </summary>
+    public static class Recommendations
+    {
+        public const int Min = 3430;
+        public const int Max = 3439;
+
+        /// <summary>The scope index was built (Debug): works, values, entries, relation records, milliseconds.</summary>
+        public const int IndexBuilt = 3430;
+
+        /// <summary>A Home answer (Debug): user id, seeds, candidates scored, picks, cached or not, milliseconds.</summary>
+        public const int HomeAnswered = 3431;
+
+        /// <summary>A "More like this" answer (Debug): node id, picks, cached or not, milliseconds.</summary>
+        public const int SimilarAnswered = 3432;
+    }
 }

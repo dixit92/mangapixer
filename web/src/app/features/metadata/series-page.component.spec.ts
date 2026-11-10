@@ -12,6 +12,8 @@ import { emptyPanel, panel } from './info/info.testing';
 import { InfoPanelDto } from './info/info-types';
 import { MissingReportApiService } from './missing/missing-report-api.service';
 import { SeriesPageComponent } from './series-page.component';
+import { RecommendationsApiService } from '../recommendations/recommendations-api.service';
+import { RecommendationsDto } from '../../core/api/api-types';
 import { seriesInfo } from './series-info.testing';
 
 /**
@@ -22,7 +24,9 @@ import { seriesInfo } from './series-info.testing';
 describe('SeriesPageComponent', () => {
   /** 1.45.0: the Tags block's answer (nothing indexed unless a test says otherwise). */
   let tagsAnswer: InfoPanelDto = emptyPanel();
-  afterEach(() => { tagsAnswer = emptyPanel(); });
+  /** 1.53.0: the "More like this" answer (nothing unless a test says otherwise). */
+  let similarAnswer: RecommendationsDto | 'error' = { items: [] };
+  afterEach(() => { tagsAnswer = emptyPanel(); similarAnswer = { items: [] }; });
 
   function create(
     nodeId: string, info: SeriesInfoDto | 'error', nextUnread: CatalogNodeDto | null = null, admin = false,
@@ -48,6 +52,10 @@ describe('SeriesPageComponent', () => {
         // 1.45.0: the Tags block under the summary.
         { provide: InfoApiService, useValue: { getInfo: vi.fn(() => of(tagsAnswer)) } },
         { provide: MissingReportApiService, useValue: { forNodeViewer: vi.fn(() => throwError(() => ({ status: 404 }))) } },
+        {
+          provide: RecommendationsApiService,
+          useValue: { similar: vi.fn(() => (similarAnswer === 'error' ? throwError(() => ({ status: 500 })) : of(similarAnswer))) },
+        },
         { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ nodeId })) } },
       ],
     });
@@ -184,5 +192,37 @@ describe('SeriesPageComponent', () => {
     TestBed.resetTestingModule();
     const admin = create('series-1', info, null, true);
     expect(admin.el.querySelector('app-wrong-series-flag')).toBeNull();
+  });
+  // --- 1.53.0: "More like this" (audit N2) ---
+
+  const pick = (id: string, name: string, reason: string) => ({
+    node: { id, parentId: '', libraryId: 'lib-1', kind: 'Folder', displayName: name, availability: 'Available', isRead: false, isFavorite: false },
+    reason: { kind: 'SharedValues', display: reason },
+  }) as RecommendationsDto['items'][number];
+
+  it('shows "More like this" after About and before Details, as a plain block with each pick\'s reason', () => {
+    similarAnswer = { items: [pick('s2', 'Monster', 'Same author: Naoki Urasawa'), pick('s3', 'Ghost', 'Horror, School Life')] };
+    const { el } = create('series-1', seriesInfo({
+      nodeId: 'series-1', anchorNodeId: 'series-1', description: 'A synthetic synopsis.', genres: ['Mystery'],
+    }));
+    const row = el.querySelector('[data-testid="series-more-like-this"]') as HTMLElement;
+    expect(row).not.toBeNull();
+    expect(row.closest('details')).toBeNull();
+    const blocks = Array.from(el.querySelectorAll('details.section > summary, [data-testid="series-more-like-this"] h3'))
+      .map((n) => n.textContent!.trim());
+    expect(blocks.slice(0, 3)).toEqual(['About', 'More like this', 'Details']);
+    expect(Array.from(row.querySelectorAll('[data-testid="recommendation-reason"]')).map((r) => r.textContent!.trim()))
+      .toEqual(['Same author: Naoki Urasawa', 'Horror, School Life']);
+  });
+
+  it('renders no "More like this" heading when the answer is empty or fails', () => {
+    for (const answer of [{ items: [] }, 'error'] as const) {
+      similarAnswer = answer;
+      const { el } = create('series-1', seriesInfo({ nodeId: 'series-1', anchorNodeId: 'series-1', description: 'Text.' }));
+      expect(el.querySelector('[data-testid="series-more-like-this"]')).toBeNull();
+      expect(el.textContent).not.toContain('More like this');
+      expect(el.querySelector('[data-testid="series-page"] details.section')).not.toBeNull(); // the page itself still renders
+      TestBed.resetTestingModule();
+    }
   });
 });

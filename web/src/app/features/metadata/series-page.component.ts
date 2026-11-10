@@ -4,11 +4,11 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { catchError, of } from 'rxjs';
+import { catchError, forkJoin, of } from 'rxjs';
 
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
-import { CatalogNodeDto, SeriesInfoDto } from '../../core/api/api-types';
+import { CatalogNodeDto, RecommendationDto, SeriesInfoDto } from '../../core/api/api-types';
 import { MetadataApiService } from './metadata-api.service';
 import { SeriesAdminActionsComponent } from './series-admin-actions.component';
 import { WrongSeriesFlagComponent } from './flag-dialog/wrong-series-flag.component';
@@ -20,6 +20,8 @@ import { SeriesMissingLineComponent } from './missing/series-missing-line.compon
 import { mayHaveMissingLine } from './missing/missing-labels';
 import { SeriesRefreshCadenceComponent } from './series-refresh-cadence/series-refresh-cadence.component';
 import { NodeRatingComponent } from '../ratings/node-rating.component';
+import { RecommendationRowComponent } from '../recommendations/recommendation-row.component';
+import { RecommendationsApiService } from '../recommendations/recommendations-api.service';
 
 /**
  * The series page `/series/:nodeId` (1.24.0): the canonical, bookmarkable home of a
@@ -35,7 +37,7 @@ import { NodeRatingComponent } from '../ratings/node-rating.component';
 @Component({
   selector: 'app-series-page',
   standalone: true,
-  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressSpinnerModule, SeriesInfoSummaryComponent, SeriesAdminActionsComponent, WrongSeriesFlagComponent, SeriesMissingLineComponent, SeriesRefreshCadenceComponent, InfoTagsComponent, NodeRatingComponent],
+  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressSpinnerModule, SeriesInfoSummaryComponent, SeriesAdminActionsComponent, WrongSeriesFlagComponent, SeriesMissingLineComponent, SeriesRefreshCadenceComponent, InfoTagsComponent, NodeRatingComponent, RecommendationRowComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page" data-testid="series-page">
@@ -83,6 +85,10 @@ import { NodeRatingComponent } from '../ratings/node-rating.component';
             <p class="about">{{ i.description }}</p>
           </details>
         }
+
+        <!-- 1.53.0 (audit N2): "More like this" after About, before Details - a plain block (heading + Home's strip), loaded with the
+             page's own data so nothing below moves; empty or an error renders nothing. -->
+        <app-recommendation-row heading="More like this" [items]="similar()" variant="page" testId="series-more-like-this" />
 
         @if (detailRows().length > 0) {
           <details class="section" [open]="!phone">
@@ -181,7 +187,8 @@ import { NodeRatingComponent } from '../ratings/node-rating.component';
     .hero ::ng-deep .title { font-size: 26px; }
     .hero-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; clear: both; }
     .hero-actions mat-icon { margin-right: 4px; }
-    .section { margin: 10px 0; padding: 10px 16px; border-radius: 10px; background: rgb(var(--mp-ink-rgb) / 0.03); }
+    /* Audit V9 (1.53.0): the page's blocks are the hero's card family - surface, hairline, 12 px radius. */
+    .section { margin: 10px 0; padding: 10px 16px; border-radius: 12px; background: var(--mp-surface); border: 1px solid rgb(var(--mp-ink-rgb) / 0.08); }
     .section summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
     .section h3 { margin: 4px 0 8px; font-size: 15px; }
     .about { white-space: pre-line; line-height: 1.55; }
@@ -213,6 +220,7 @@ export class SeriesPageComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly api = inject(ApiService);
   private readonly metadata = inject(MetadataApiService);
+  private readonly recommendations = inject(RecommendationsApiService);
   private readonly destroyRef = inject(DestroyRef);
   readonly auth = inject(AuthService);
   readonly mayHaveMissingLine = mayHaveMissingLine;
@@ -223,6 +231,8 @@ export class SeriesPageComponent implements OnInit {
   readonly loading = signal(true);
   readonly notFound = signal(false);
   readonly continueTarget = signal<CatalogNodeDto | null>(null);
+  /** "More like this" (1.53.0): series like this one on this server; empty = no row. */
+  readonly similar = signal<RecommendationDto[]>([]);
   /** An archive anchor's own node (its parent folder and reading state). */
   readonly archiveNode = signal<CatalogNodeDto | null>(null);
 
@@ -273,14 +283,19 @@ export class SeriesPageComponent implements OnInit {
 
   load(nodeId: string): void {
     this.loading.set(this.info()?.anchorNodeId !== nodeId);
-    this.metadata.getSeriesInfo(nodeId, true).subscribe({
-      next: (info) => {
+    // "More like this" comes with the page's own data (one render pass, nothing below it moves); it is an aid, so its failure is empty.
+    forkJoin({
+      info: this.metadata.getSeriesInfo(nodeId, true),
+      similar: this.recommendations.similar(nodeId).pipe(catchError(() => of({ items: [] as RecommendationDto[] }))),
+    }).subscribe({
+      next: ({ info, similar }) => {
         // Canonical home: any other node id redirects to the anchor.
         if (info.anchorNodeId !== nodeId) {
           void this.router.navigate(['/series', info.anchorNodeId], { replaceUrl: true });
           return;
         }
         this.info.set(info);
+        this.similar.set(similar.items);
         this.notFound.set(false);
         this.loading.set(false);
         this.loadContinue(info);

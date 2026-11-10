@@ -271,6 +271,7 @@ public sealed partial class Program
             Features.Trackers.TrackerServicesExtensions.AddTrackers(builder.Services);
             Features.VolumeScan.VolumeScanServicesExtensions.AddVolumeScan(builder.Services);
             Features.Metadata.Facets.FacetServicesExtensions.AddFacets(builder.Services); // 1.45.0: the tag index (seam I0; lanes F / Q)
+            Features.Recommendations.RecommendationServicesExtensions.AddRecommendations(builder.Services); // 1.53.0 lane C
             AddMetadataExport(builder.Services);
             Features.Reading.Suggestions.ReadingModeSuggestionServices.AddReadingModeSuggestions(builder.Services); // 1.41.0 lane R
 
