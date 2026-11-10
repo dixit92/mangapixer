@@ -129,11 +129,24 @@ async function openInfoSheet(page: Page, libraryId: string, series: string): Pro
   return overlay;
 }
 
-/** The rating block's geometry: the slider's place and the whole block's height. */
+/**
+ * The rating block's geometry: the slider's place and the whole block's height - read once it has settled (the Info sheet slides in;
+ * a reading taken while it moves would compare an animation, not the layout).
+ */
 async function ratingGeometry(block: Locator): Promise<{ x: number; y: number; height: number }> {
-  const slider = (await block.getByTestId('rating-slider').boundingBox())!;
-  const row = (await block.locator('app-rating-stars').boundingBox())!;
-  return { x: Math.round(slider.x), y: Math.round(slider.y), height: Math.round(row.height) };
+  const read = async () => {
+    const slider = (await block.getByTestId('rating-slider').boundingBox())!;
+    const row = (await block.locator('app-rating-stars').boundingBox())!;
+    return { x: Math.round(slider.x), y: Math.round(slider.y), height: Math.round(row.height) };
+  };
+  let last = await read();
+  for (let i = 0; i < 30; i++) {
+    await block.page().waitForTimeout(150);
+    const now = await read();
+    if (now.x === last.x && now.y === last.y && now.height === last.height) return now;
+    last = now;
+  }
+  return last;
 }
 
 for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
