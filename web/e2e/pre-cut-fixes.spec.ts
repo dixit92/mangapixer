@@ -111,7 +111,7 @@ test('a library page shows the spinner while it waits for its view settings (gui
     return route.continue();
   });
   const browses: string[] = [];
-  page.on('request', (r) => { if (r.url().includes(`/libraries/${libraryId}/browse`)) browses.push(r.url()); });
+  page.on('request', (r) => { if (r.url().includes(`/api/v1/libraries/${libraryId}/browse`)) browses.push(r.url()); });
   await page.goto(`/libraries/${libraryId}/browse`);
   await expect(page.locator('.browse-bar')).toBeVisible();
   // Held view settings: no folder request yet, but the spinner (after its 300 ms) - not a bar over nothing.
