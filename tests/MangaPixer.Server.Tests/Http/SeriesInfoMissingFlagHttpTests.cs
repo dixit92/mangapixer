@@ -3,6 +3,7 @@ namespace com.lifepixer.mangapixer.Tests.Server.Http;
 using System.Net;
 using System.Net.Http.Json;
 using com.lifepixer.mangapixer.Core.Api;
+using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Server.Persistence;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
