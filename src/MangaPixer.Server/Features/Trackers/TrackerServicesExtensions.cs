@@ -30,6 +30,10 @@ public static class TrackerServicesExtensions
         services.TryAddScoped<TrackerCardMarks>();
         services.TryAddScoped<TrackerListCheckService>();
         services.TryAddScoped<TrackerBatchService>();
+        // 1.53.0 (lane T): tracker scores - the rating-change sink (enqueues), the relay's sender, and "Take my scores".
+        services.TryAddScoped<TrackerScoreSync>();
+        services.TryAddScoped<TrackerScoreImportService>();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<Ratings.IRatingChangeSink, TrackerScoreSink>());
         services.AddHostedService<TrackerRelayService>();
         Adapters.TrackerAdapterServicesExtensions.AddTrackerAdapters(services);
         return services;

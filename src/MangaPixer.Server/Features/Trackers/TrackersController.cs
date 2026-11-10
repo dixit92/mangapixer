@@ -24,6 +24,7 @@ public sealed class TrackersController(
     TrackerListService list,
     TrackerPullService pull,
     TrackerBatchService batch,
+    TrackerScoreImportService scores,
     Catalog.CatalogBrowseService browse,
     Auth.IncognitoAccessor incognito) : ControllerBase
 {
@@ -289,6 +290,40 @@ public sealed class TrackersController(
             return Forbid();
         var (row, problem) = await pull.SetDatesAsync(userId, slug, seriesId, request, ct);
         return problem is null ? Ok(row) : Problem(problem);
+    }
+
+    /// <summary>
+    /// 1.53.0 "Take my scores from &lt;tracker&gt;": reads the caller's own scores on the tracker (each page one request against the daily cap)
+    /// and gives every series here without a MangaPixer rating the tracker's score; a different MangaPixer rating is kept and listed. Nothing is
+    /// written to the tracker.
+    /// </summary>
+    [HttpPost("{slug}/scores/import")]
+    [ProducesResponseType<TrackerScoreImportResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> ImportScores(string slug, CancellationToken ct)
+    {
+        if (UserId() is not { } userId)
+            return Forbid();
+        var (result, problem) = await scores.ImportAsync(userId, slug, incognito.IsIncognito, ct);
+        return problem is null ? Ok(result) : Problem(problem);
+    }
+
+    /// <summary>
+    /// 1.53.0 "Use &lt;tracker&gt;'s" (a row the import listed): the caller's MangaPixer rating of the series becomes the given score. No request
+    /// to the tracker; the score is not sent back to it.
+    /// </summary>
+    [HttpPut("{slug}/scores/{seriesId}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiError>(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UseTrackerScore(string slug, string seriesId, [FromBody] TrackerUseScoreRequest request, CancellationToken ct)
+    {
+        if (UserId() is not { } userId)
+            return Forbid();
+        var problem = await scores.UseAsync(userId, slug, seriesId, request.Score, incognito.IsIncognito, ct);
+        return problem is null ? NoContent() : Problem(problem);
     }
 
     /// <summary>The caller's sync switches on folders / series (owner Q3).</summary>

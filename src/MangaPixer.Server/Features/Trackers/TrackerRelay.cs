@@ -52,6 +52,12 @@ public sealed class TrackerRelay : IReadMarkObserver
         Enqueue(new TrackerRelayWork([], null) { ChangedRecords = recordIds.Distinct().ToList() });
     }
 
+    /// <summary>
+    /// 1.53.0 (lane T): a user's rating of a folder changed and they keep their score in step on <see cref="TrackerScoreWork.Trackers"/> -
+    /// <see cref="TrackerScoreSync"/> sends it. Never blocks (the rating request only enqueues).
+    /// </summary>
+    public void EnqueueScore(TrackerScoreWork score) => Enqueue(new TrackerRelayWork([], null) { Score = score });
+
     private void Enqueue(TrackerRelayWork work)
     {
         lock (_gate)
@@ -99,7 +105,16 @@ public sealed record TrackerRelayWork(IReadOnlyList<ReadMarkChange> Changes, lon
 
     /// <summary>1.43.0 (lane G): series records whose stored volume list changed (E1 catch-up), or empty.</summary>
     public IReadOnlyList<long> ChangedRecords { get; init; } = [];
+
+    /// <summary>1.53.0 (lane T): a rating change to keep the user's tracker scores in step with, or null.</summary>
+    public TrackerScoreWork? Score { get; init; }
 }
+
+/// <summary>
+/// 1.53.0 (lane T): send the user's CURRENT rating of folder <paramref name="NodeId"/> to <paramref name="Trackers"/> (read when it is
+/// processed, so quick changes end on the last one). <paramref name="Attempt"/> counts rate-limited retries (in-process only).
+/// </summary>
+public sealed record TrackerScoreWork(long UserId, long NodeId, IReadOnlyList<string> Trackers, int Attempt = 0);
 
 /// <summary>
 /// The relay's consumer (1.43.0): one item at a time, in its own DI scope. For each user with a usable tracker account: a new mark
@@ -118,6 +133,15 @@ public sealed class TrackerRelayService(TrackerRelay relay, IServiceScopeFactory
             try
             {
                 using var scope = scopes.CreateScope();
+                if (work.Score is { } score)
+                {
+                    // 1.53.0 (lane T): a score change. A rate-limited tracker is tried again after its delay (in-process, as the writes below).
+                    var retries = await scope.ServiceProvider.GetRequiredService<TrackerScoreSync>().SendAsync(score, stoppingToken);
+                    foreach (var (tracker, at) in retries)
+                        ScheduleScoreRetry(score with { Trackers = [tracker], Attempt = score.Attempt + 1 }, at, stoppingToken);
+                    relay.Done();
+                    continue;
+                }
                 var processor = scope.ServiceProvider.GetRequiredService<TrackerRelayProcessor>();
                 var nextRetry = await processor.ProcessAsync(work, stoppingToken);
                 if (nextRetry is { } at)
@@ -135,6 +159,27 @@ public sealed class TrackerRelayService(TrackerRelay relay, IServiceScopeFactory
             }
             relay.Done();
         }
+    }
+
+    /// <summary>1.53.0 (lane T): a rate-limited score send waits its delay (at most 10 minutes) in-process; a restart forgets it.</summary>
+    private void ScheduleScoreRetry(TrackerScoreWork score, DateTimeOffset at, CancellationToken stoppingToken)
+    {
+        var delay = at - time.GetUtcNow();
+        if (delay < TimeSpan.Zero)
+            delay = TimeSpan.Zero;
+        if (delay > TimeSpan.FromMinutes(10))
+            return;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(delay, time, stoppingToken);
+                relay.EnqueueScore(score);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }, CancellationToken.None);
     }
 
     /// <summary>A short in-process wait for a rate-limited write (seconds); a restart forgets it - the next read or Sync now retries.</summary>
