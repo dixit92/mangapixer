@@ -216,7 +216,7 @@ describe('SeriesPageComponent', () => {
   });
 
   it('renders no "More like this" heading when the answer is empty or fails', () => {
-    for (const answer of [{ items: [] }, 'error'] as const) {
+    for (const answer of [{ items: [] }, 'error'] as (RecommendationsDto | 'error')[]) {
       similarAnswer = answer;
       const { el } = create('series-1', seriesInfo({ nodeId: 'series-1', anchorNodeId: 'series-1', description: 'Text.' }));
       expect(el.querySelector('[data-testid="series-more-like-this"]')).toBeNull();
