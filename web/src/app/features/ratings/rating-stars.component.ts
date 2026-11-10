@@ -16,7 +16,8 @@ export type RatingStarsMode = 'edit' | 'stars' | 'badge';
  * - `edit` (default): a focusable `role="slider"` (`aria-valuemin` 1, `aria-valuemax` 10, `aria-valuetext` "3.5 of 5 stars"). A tap or
  *   click on the LEFT half of a star sets that half star, on the right half the whole star. Keyboard: Right / Up a half star more, Left /
  *   Down a half star less, Page Up / Down a whole star, Home / End half a star / five stars, Delete / Backspace clears. A visible
- *   "Clear rating" button next to it (never a hidden "tap the same value to clear"). On a touch screen each half is a 20 x 40 target, so a
+ *   "Clear rating" button next to it (never a hidden "tap the same value to clear"); 1.53.0 (audit V4): the button keeps its slot while
+ *   unrated (hidden, not removed), so the stars never move on the first click. On a touch screen each half is a 20 x 40 target, so a
  *   whole star is 40 x 40.
  * - `stars`: the five stars read-only (`role="img"`, "Rated 3.5 of 5"); nothing when not rated.
  * - `badge`: one star and the number ("4.5") for cards and list rows; nothing when not rated. `overlay` places it on a cover, just above
@@ -56,11 +57,12 @@ export type RatingStarsMode = 'edit' | 'stars' | 'badge';
             }
           </div>
           <span class="value" aria-hidden="true">{{ value() ? starsLabel() : 'Not rated' }}</span>
-          @if (value()) {
-            <button mat-button type="button" class="clear" data-testid="rating-clear" [disabled]="disabled()" (click)="clear($event)">
-              Clear rating
-            </button>
-          }
+          <!-- 1.53.0 (audit V4): the button is always there and only hidden while unrated, so the row never changes size when you rate. -->
+          <button mat-button type="button" class="clear" data-testid="rating-clear" [class.unrated]="!value()"
+                  [attr.aria-hidden]="value() ? null : 'true'" [attr.tabindex]="value() ? null : -1"
+                  [disabled]="disabled() || !value()" (click)="clear($event)">
+            Clear rating
+          </button>
         </div>
       }
       @case ('stars') {
@@ -93,8 +95,9 @@ export type RatingStarsMode = 'edit' | 'stars' | 'badge';
     .half { position: absolute; top: 0; bottom: 0; width: 50%; }
     .half.left { left: 0; }
     .half.right { right: 0; }
-    .value { font-size: 13px; color: var(--mp-text-muted); min-width: 4.5em; }
+    .value { font-size: 13px; color: var(--mp-text-muted); min-width: 2.5em; }
     .clear { flex: none; }
+    .clear.unrated { visibility: hidden; }
     .readonly { cursor: default; }
     .readonly .glyph { font-size: 18px; width: 18px; height: 18px; }
     .badge {

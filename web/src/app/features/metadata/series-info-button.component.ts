@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -104,6 +104,13 @@ export class SeriesInfoButtonComponent {
     })),
     { initialValue: 'none' as SeriesSlot },
   );
+
+  /** 1.53.0 (lane S, audit N5): the resolved slot, so browse can put "Rate" where no "Info" is. */
+  readonly slotChange = output<SeriesSlot>();
+
+  constructor() {
+    effect(() => this.slotChange.emit(this.slot()));
+  }
 
   open(): void {
     const libraryId = this.libraryId();

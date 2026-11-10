@@ -44,6 +44,7 @@ describe('LibraryBrowseComponent breadcrumbs', () => {
     const apiSpy = {
       getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of(prefs)),
+      getRatingSharing: vi.fn().mockReturnValue(of({ share: true, serverEnabled: false })), // 1.53.0
       getLibraries: vi.fn().mockReturnValue(of(libs)),
       browseLibrary: vi.fn().mockReturnValue(of(emptyPage)),
       getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: parentId ?? 'x', trail })),
@@ -330,6 +331,7 @@ describe('LibraryBrowseComponent card view', () => {
     const apiSpy = {
       getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of(fullPrefs)),
+      getRatingSharing: vi.fn().mockReturnValue(of({ share: true, serverEnabled: false })), // 1.53.0
       setLibraryPreferences,
       getLibraries: vi.fn().mockReturnValue(of(libs)),
       browseLibrary: vi.fn().mockReturnValue(of(emptyPage)),
@@ -438,6 +440,7 @@ describe('LibraryBrowseComponent list columns', () => {
     const apiSpy = {
       getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of(fullPrefs)),
+      getRatingSharing: vi.fn().mockReturnValue(of({ share: true, serverEnabled: false })), // 1.53.0
       setLibraryPreferences,
       getLibraries: vi.fn().mockReturnValue(of(libs)),
       browseLibrary: vi.fn().mockReturnValue(of(emptyPage)),
@@ -514,6 +517,7 @@ describe('LibraryBrowseComponent per-device display', () => {
     const apiSpy = {
       getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of(fullPrefs)),
+      getRatingSharing: vi.fn().mockReturnValue(of({ share: true, serverEnabled: false })), // 1.53.0
       setLibraryPreferences,
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'Test Lib', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary: vi.fn().mockReturnValue(of(emptyPage)),
@@ -604,6 +608,7 @@ describe('LibraryBrowseComponent mark unread', () => {
     const apiSpy = {
       getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
+      getRatingSharing: vi.fn().mockReturnValue(of({ share: true, serverEnabled: false })), // 1.53.0
       setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary: vi.fn().mockReturnValue(of(page)),
@@ -700,6 +705,7 @@ describe('LibraryBrowseComponent range multi-select', () => {
     const apiSpy = {
       getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
+      getRatingSharing: vi.fn().mockReturnValue(of({ share: true, serverEnabled: false })), // 1.53.0
       setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary: vi.fn().mockReturnValue(of(page)),
@@ -955,6 +961,7 @@ describe('LibraryBrowseComponent stale read-status refresh (1.7.1)', () => {
     const apiSpy = {
       getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
+      getRatingSharing: vi.fn().mockReturnValue(of({ share: true, serverEnabled: false })), // 1.53.0
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary: vi.fn().mockReturnValue(of(page)),
       getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
@@ -1066,6 +1073,7 @@ describe('LibraryBrowseComponent continue-row refresh (1.7.3)', () => {
     const apiSpy = {
       getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name' })),
+      getRatingSharing: vi.fn().mockReturnValue(of({ share: true, serverEnabled: false })), // 1.53.0
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary,
       getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'x', trail: [] })),
@@ -1226,6 +1234,7 @@ describe('LibraryBrowseComponent infinite scroll + sticky nav (1.8.0)', () => {
     const apiSpy = {
       getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of(prefs)),
+      getRatingSharing: vi.fn().mockReturnValue(of({ share: true, serverEnabled: false })), // 1.53.0
       setLibraryPreferences,
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary,
@@ -1660,6 +1669,7 @@ describe('LibraryBrowseComponent view menu selected highlight (1.8.1)', () => {
     const apiSpy = {
       getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of(fullPrefs)),
+      getRatingSharing: vi.fn().mockReturnValue(of({ share: true, serverEnabled: false })), // 1.53.0
       setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary: vi.fn().mockReturnValue(of(emptyPage)),
@@ -1820,6 +1830,7 @@ describe('LibraryBrowseComponent "Recently updated" sort (1.12.0)', () => {
     const apiSpy = {
       getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of(fullPrefs)),
+      getRatingSharing: vi.fn().mockReturnValue(of({ share: true, serverEnabled: false })), // 1.53.0
       setLibraryPreferences,
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary,
@@ -1929,6 +1940,7 @@ describe('LibraryBrowseComponent transient home-tap sort (1.12.0)', () => {
     const apiSpy = {
       getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name', direction: 'asc', cardSize: '150', libraryPageSize: 50 })),
+      getRatingSharing: vi.fn().mockReturnValue(of({ share: true, serverEnabled: false })), // 1.53.0
       setLibraryPreferences,
       getLibraries: vi.fn().mockReturnValue(of([])),
       browseLibrary,
@@ -1998,6 +2010,7 @@ describe('LibraryBrowseComponent browse visual polish (1.17.0)', () => {
     const apiSpy = {
       getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode, density: 'comfortable', sort: 'name', direction: 'asc' })),
+      getRatingSharing: vi.fn().mockReturnValue(of({ share: true, serverEnabled: false })), // 1.53.0
       setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary: vi.fn().mockReturnValue(of(page)),
@@ -2122,6 +2135,7 @@ describe('LibraryBrowseComponent list-mode direct select (1.21.0)', () => {
     const apiSpy = {
       getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode, density: 'comfortable', sort: 'name', direction: 'asc' })),
+      getRatingSharing: vi.fn().mockReturnValue(of({ share: true, serverEnabled: false })), // 1.53.0
       setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary: vi.fn().mockReturnValue(of(page)),
@@ -2219,6 +2233,7 @@ describe('LibraryBrowseComponent transient ?favorites=1 (1.27.0)', () => {
     const apiSpy = {
       getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name', direction: 'asc', cardSize: '150', libraryPageSize: 50 })),
+      getRatingSharing: vi.fn().mockReturnValue(of({ share: true, serverEnabled: false })), // 1.53.0
       setLibraryPreferences,
       getLibraries: vi.fn().mockReturnValue(of([])),
       browseLibrary,

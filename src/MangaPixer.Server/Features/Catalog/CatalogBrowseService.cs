@@ -92,11 +92,18 @@ public sealed partial class CatalogBrowseService
         SeriesAnswer? completion = null, // 1.44.0 lane C: keep only the linked series folders with this Completion answer
         CancellationToken ct = default)
     {
+        // 1.53.0 lane S: "Server rating" only while the shared-ratings switch is on; otherwise the plain Name order (A-Z - the
+        // direction the client sent was the one-directional sort's, so it is dropped).
+        if (sort == ServerRatingSort && !await ServerRatingSortAllowedAsync(ct))
+        {
+            sort = "name";
+            direction = null;
+        }
+
         // Validate sort — unknown values fall back to "name" (tolerant, like the DTO).
         sort = sort switch
         {
-            "recentlyAdded" or "recentlyRead" or "recentlyUpdated" or MyRatingSort => sort,
-            ServerRatingSort when await ServerRatingSortAllowedAsync(ct) => sort, // 1.53.0 lane S: only while the switch is on
+            "recentlyAdded" or "recentlyRead" or "recentlyUpdated" or MyRatingSort or ServerRatingSort => sort,
             _ => "name",
         };
 
