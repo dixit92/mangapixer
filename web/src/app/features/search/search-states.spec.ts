@@ -67,7 +67,9 @@ describe('SearchComponent first-answer states', () => {
     expect(q(el, 'search-loading')).toBeNull();
     vi.advanceTimersByTime(FIRST_ANSWER_SPINNER_DELAY_MS);
     fixture.detectChanges();
-    expect(q(el, 'search-loading')?.querySelector('mat-spinner')).not.toBeNull();
+    const spinner = q(el, 'search-loading');
+    expect(spinner).not.toBeNull(); // (a ?. here would pass on a page without it)
+    expect(spinner!.querySelector('mat-spinner')).not.toBeNull();
     expect(el.textContent).not.toContain('No results found.');
     answer(0, results([node('a', 'Synthetic Saga')]));
     expect(q(el, 'search-loading')).toBeNull();

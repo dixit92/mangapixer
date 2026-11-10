@@ -79,7 +79,9 @@ describe('LibraryBrowseComponent first-answer states', () => {
     expect(el.textContent).not.toContain('This folder is empty.');
     vi.advanceTimersByTime(FIRST_ANSWER_SPINNER_DELAY_MS);
     fixture.detectChanges();
-    expect(q(el, 'browse-loading')?.querySelector('mat-spinner')).not.toBeNull();
+    const spinner = q(el, 'browse-loading');
+    expect(spinner).not.toBeNull(); // (a ?. here would pass on a page without it)
+    expect(spinner!.querySelector('mat-spinner')).not.toBeNull();
     expect(el.textContent).not.toContain('This folder is empty.');
 
     answer(0, page([node('a', 'Alpha')]));

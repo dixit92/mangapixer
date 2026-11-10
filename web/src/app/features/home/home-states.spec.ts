@@ -58,7 +58,9 @@ describe('HomeComponent first-answer states', () => {
     expect(el.textContent).not.toContain('No libraries yet');
     vi.advanceTimersByTime(FIRST_ANSWER_SPINNER_DELAY_MS);
     fixture.detectChanges();
-    expect(q(el, 'home-libraries-loading')?.querySelector('mat-spinner')).not.toBeNull();
+    const spinner = q(el, 'home-libraries-loading');
+    expect(spinner).not.toBeNull(); // (a ?. here would pass on a page without it)
+    expect(spinner!.querySelector('mat-spinner')).not.toBeNull();
     expect(el.textContent).not.toContain('No libraries yet');
     expect(el.textContent).not.toContain('Loading…');
 
