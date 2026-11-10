@@ -7,6 +7,7 @@ using com.lifepixer.mangapixer.Core.Metadata.Facets;
 using com.lifepixer.mangapixer.Core.Ordering;
 using com.lifepixer.mangapixer.Core.Reading;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Facets;
+using com.lifepixer.mangapixer.Server.Features.Recommendations;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -46,6 +47,9 @@ public sealed class RecommendationsBenchmarkTests
         var seedClock = Stopwatch.StartNew();
         var adminId = await s.WithDbAsync(db => db.Users.Where(u => u.IsAdmin).Select(u => u.Id).FirstAsync());
         var folders = await SeedAsync(s, adminId);
+        var folderIds = await s.WithDbAsync(db => db.CatalogNodes
+            .Where(n => n.PublicId.StartsWith("rbf") && !db.UserRatings.Any(r => r.CatalogNodeId == n.Id))
+            .OrderBy(n => n.Id).Select(n => n.Id).ToListAsync());
         var seeded = seedClock.Elapsed;
 
         var generation = factory.Services.GetRequiredService<IFacetIndexGeneration>();
@@ -60,10 +64,20 @@ public sealed class RecommendationsBenchmarkTests
 
         // Warm-up (JIT, connection pool), then measure.
         await TimeAsync("/api/v1/recommendations?limit=12");
+        var indexLoad = new List<double>();
         var homeCold = new List<double>();
+        var homeSignal = new List<double>();
         var homeWarm = new List<double>();
         var similarCold = new List<double>();
+        var similarNew = new List<double>();
         var similarWarm = new List<double>();
+        var libraryIds = await s.WithDbAsync(db => db.Libraries.Select(l => l.Id).ToListAsync());
+        for (var i = 0; i < 10; i++)
+        {
+            var clock = Stopwatch.StartNew();
+            await s.WithDbAsync(db => RecommendationIndexCache.LoadAsync(db, FacetViewerScope.Of(libraryIds), CancellationToken.None));
+            indexLoad.Add(clock.Elapsed.TotalMilliseconds);
+        }
         for (var i = 0; i < Runs; i++)
         {
             generation.Bump();
@@ -72,10 +86,22 @@ public sealed class RecommendationsBenchmarkTests
         }
         for (var i = 0; i < Runs; i++)
         {
+            // A new signal (one more five-star rating): the index stays warm, the answer is computed again.
+            var node = folderIds[folderIds.Count - 1 - i];
+            await s.WithDbAsync(async db =>
+            {
+                db.UserRatings.Add(new UserRatingEntity { UserId = adminId, CatalogNodeId = node, Score = 10, RatedAt = DateTimeOffset.UtcNow });
+                await db.SaveChangesAsync();
+            });
+            homeSignal.Add(await TimeAsync("/api/v1/recommendations?limit=12"));
+        }
+        for (var i = 0; i < Runs; i++)
+        {
             var node = folders[(i * 97) % folders.Count];
             generation.Bump();
             similarCold.Add(await TimeAsync($"/api/v1/nodes/{node}/similar?limit=12"));
             similarWarm.Add(await TimeAsync($"/api/v1/nodes/{node}/similar?limit=12"));
+            similarNew.Add(await TimeAsync($"/api/v1/nodes/{folders[(i * 97 + 31) % folders.Count]}/similar?limit=12"));
         }
         var home = await (await admin.GetAsync("/api/v1/recommendations?limit=12")).Content.ReadAsStringAsync();
 
@@ -96,16 +122,20 @@ public sealed class RecommendationsBenchmarkTests
         }
         var report = string.Join("\n",
             $"seeded in {seeded.TotalSeconds:F1} s: works {counts.Works}, entries {counts.Entries}, ratings {counts.Ratings}, favorites {counts.Favorites}, read marks {counts.Marks}, progress {counts.Progress}",
-            $"home cold:    {P(homeCold)}",
-            $"home warm:    {P(homeWarm)}",
-            $"similar cold: {P(similarCold)}",
-            $"similar warm: {P(similarWarm)}",
+            $"index load (direct, n 10): {P(indexLoad)}",
+            $"home cold (index rebuilt + answer): {P(homeCold)}",
+            $"home after a new rating (index warm): {P(homeSignal)}",
+            $"home warm (cached answer): {P(homeWarm)}",
+            $"similar cold (index rebuilt + answer): {P(similarCold)}",
+            $"similar, another series (index warm): {P(similarNew)}",
+            $"similar warm (cached answer): {P(similarWarm)}",
             $"home picks: {System.Text.RegularExpressions.Regex.Matches(home, "\"reason\"").Count}");
         await File.WriteAllTextAsync(Path.Combine(Path.GetTempPath(), "rec-bench.txt"), report + "\n");
 
         Assert.Contains("\"reason\"", home, StringComparison.Ordinal);
         double P95(List<double> xs) => xs.Order().ElementAt((int)Math.Ceiling(0.95 * xs.Count) - 1);
-        Assert.True(P95(homeWarm) < 150 && P95(similarWarm) < 150 && P95(homeCold) < 150 && P95(similarCold) < 150, report);
+        Assert.True(P95(homeWarm) < 150 && P95(similarWarm) < 150 && P95(homeSignal) < 150 && P95(similarNew) < 150
+            && P95(homeCold) < 150 && P95(similarCold) < 150, report);
     }
 
     /// <summary>The live-size library; returns the series folders' public ids.</summary>

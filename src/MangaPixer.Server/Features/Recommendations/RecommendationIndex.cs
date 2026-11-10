@@ -122,18 +122,29 @@ public sealed class RecommendationIndex
         var n = workIds.Length;
 
         // df per value: the works carrying it (a work at two locations counts once).
-        var worksByValue = new Dictionary<long, SortedSet<int>>();
+        var worksByValue = new Dictionary<long, List<int>>();
         var bucketByValue = new Dictionary<long, int>();
         foreach (var e in entryList)
         {
-            if (RecommendationIndex.BucketWeight((FacetBucket)e.Bucket) <= 0)
+            if (BucketWeight((FacetBucket)e.Bucket) <= 0)
                 continue;
-            if (!worksByValue.TryGetValue(e.ValueId, out var set))
+            if (!worksByValue.TryGetValue(e.ValueId, out var list))
             {
-                worksByValue[e.ValueId] = set = [];
+                worksByValue[e.ValueId] = list = [];
                 bucketByValue[e.ValueId] = e.Bucket;
             }
-            set.Add(workById[e.WorkId]);
+            list.Add(workById[e.WorkId]);
+        }
+        foreach (var list in worksByValue.Values)
+        {
+            list.Sort();
+            var distinct = 0;
+            for (var i = 0; i < list.Count; i++)
+            {
+                if (i == 0 || list[i] != list[i - 1])
+                    list[distinct++] = list[i];
+            }
+            list.RemoveRange(distinct, list.Count - distinct);
         }
 
         var weighted = worksByValue
@@ -166,15 +177,16 @@ public sealed class RecommendationIndex
         var locationsByWork = new List<LocationRow>[n];
         for (var i = 0; i < n; i++)
             locationsByWork[i] = [];
-        var worksAt = new Dictionary<long, SortedSet<int>>();
-        foreach (var row in locations.DistinctBy(l => (l.WorkId, l.NodeId)))
+        var worksAt = new Dictionary<long, List<int>>();
+        var seenLocations = new HashSet<(long, long)>();
+        foreach (var row in locations)
         {
-            if (!workById.TryGetValue(row.WorkId, out var w))
+            if (!workById.TryGetValue(row.WorkId, out var w) || !seenLocations.Add((row.WorkId, row.NodeId)))
                 continue;
             locationsByWork[w].Add(row);
-            if (!worksAt.TryGetValue(row.NodeId, out var set))
-                worksAt[row.NodeId] = set = [];
-            set.Add(w);
+            if (!worksAt.TryGetValue(row.NodeId, out var list))
+                worksAt[row.NodeId] = list = [];
+            list.Add(w);
         }
         var sortedLocations = locationsByWork
             .Select(list => list
@@ -231,7 +243,7 @@ public sealed class RecommendationIndex
             EntryCount = entryList.Count,
             WorkById = workById,
             ValueById = valueById,
-            WorksAt = worksAt.ToDictionary(kv => kv.Key, kv => kv.Value.ToArray()),
+            WorksAt = worksAt.ToDictionary(kv => kv.Key, kv => kv.Value.Order().ToArray()),
             EdgesByRecord = edges.ToDictionary(kv => kv.Key, kv => kv.Value.ToArray()),
         };
     }

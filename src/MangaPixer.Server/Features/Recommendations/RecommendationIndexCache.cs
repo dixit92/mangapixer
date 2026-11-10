@@ -49,25 +49,43 @@ public sealed class RecommendationIndexCache
         return index;
     }
 
-    /// <summary>Reads the scope's tag rows and builds the index (four queries; ids rendered as integer literals, never user text).</summary>
+    /// <summary>Reads the scope's tag rows and builds the index (a handful of queries; ids rendered as integer literals, never user text).</summary>
     internal static async Task<RecommendationIndex> LoadAsync(MangaPixerDbContext db, FacetViewerScope scope, CancellationToken ct)
     {
         var shown = scope.SqlList;
-        var entries = await QuerySql.ReadAsync(db, $"""
-            SELECT e.WorkId, e.LocationNodeId, e.LibraryId, e.ValueId, v.Bucket
-            FROM facet_entries e
-            JOIN catalog_nodes n ON n.Id = e.LocationNodeId AND n.Availability != {QuerySql.Tombstoned}
-            JOIN facet_values v ON v.Id = e.ValueId
-            WHERE e.LibraryId IN ({shown})
-            """, null, r => new RecommendationIndex.EntryRow(r.GetInt64(0), r.GetInt64(1), r.GetInt64(2), r.GetInt64(3), r.GetInt32(4)), ct);
+        // The scope's entries without joins (one pass over facet_entries), then the value buckets and the tombstoned nodes of the scope as
+        // two small lookups: an entry at a tombstoned location shows nothing (as everywhere in the tag query).
+        var raw = await QuerySql.ReadAsync(db, $"""
+            SELECT WorkId, LocationNodeId, LibraryId, ValueId FROM facet_entries WHERE LibraryId IN ({shown})
+            """, null, r => (WorkId: r.GetInt64(0), LocationNodeId: r.GetInt64(1), LibraryId: r.GetInt64(2), ValueId: r.GetInt64(3)), ct);
+        var buckets = new Dictionary<long, int>();
+        foreach (var v in await QuerySql.ReadAsync(db, "SELECT Id, Bucket FROM facet_values", null, r => (Id: r.GetInt64(0), Bucket: r.GetInt32(1)), ct))
+            buckets[v.Id] = v.Bucket;
+        var tombstoned = (await QuerySql.ReadAsync(db, $"""
+            SELECT Id FROM catalog_nodes WHERE Availability = {QuerySql.Tombstoned} AND LibraryId IN ({shown})
+            """, null, r => r.GetInt64(0), ct)).ToHashSet();
+        var entries = new List<RecommendationIndex.EntryRow>(raw.Count);
+        foreach (var e in raw)
+        {
+            if (!tombstoned.Contains(e.LocationNodeId) && buckets.TryGetValue(e.ValueId, out var bucket))
+                entries.Add(new RecommendationIndex.EntryRow(e.WorkId, e.LocationNodeId, e.LibraryId, e.ValueId, bucket));
+        }
 
-        var locations = await QuerySql.ReadAsync(db, $"""
-            SELECT DISTINCT e.WorkId, e.LocationNodeId, e.LibraryId, l.DisplayName, n.SortKey
-            FROM facet_entries e
-            JOIN catalog_nodes n ON n.Id = e.LocationNodeId AND n.Availability != {QuerySql.Tombstoned}
-            JOIN libraries l ON l.Id = e.LibraryId
-            WHERE e.LibraryId IN ({shown})
-            """, null, r => new RecommendationIndex.LocationRow(r.GetInt64(0), r.GetInt64(1), r.GetInt64(2), r.GetString(3), r.GetString(4)), ct);
+        // Each location's sort position (library name, then the node's sort key): one primary-key read per chunk of location nodes.
+        var libraryNames = await db.Libraries.AsNoTracking().Where(l => scope.Shown.Contains(l.Id))
+            .ToDictionaryAsync(l => l.Id, l => l.DisplayName, ct);
+        var sortKeys = new Dictionary<long, string>();
+        foreach (var chunk in entries.Select(e => e.LocationNodeId).Distinct().Chunk(QuerySql.Chunk))
+        {
+            var rows = await QuerySql.ReadAsync(db, $"SELECT Id, SortKey FROM catalog_nodes WHERE Id IN ({QuerySql.List(chunk)})",
+                null, r => (Id: r.GetInt64(0), SortKey: r.GetString(1)), ct);
+            foreach (var row in rows)
+                sortKeys[row.Id] = row.SortKey;
+        }
+        var locations = entries.Select(e => (e.WorkId, e.LocationNodeId, e.LibraryId)).Distinct()
+            .Select(l => new RecommendationIndex.LocationRow(l.WorkId, l.LocationNodeId, l.LibraryId,
+                libraryNames.GetValueOrDefault(l.LibraryId) ?? string.Empty, sortKeys.GetValueOrDefault(l.LocationNodeId) ?? string.Empty))
+            .ToList();
 
         // The linked records of the scope's works, with their stored relations (the first reader of RelationsJson): each relation names a
         // record of the same provider by its external id, mapped to this server's record id when it is stored here.

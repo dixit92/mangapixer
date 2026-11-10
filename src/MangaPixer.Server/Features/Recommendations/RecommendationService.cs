@@ -98,17 +98,22 @@ public sealed class RecommendationService
 
         var cached = _cache.TryGetValue(key, out List<PickedNode>? picks) && picks is not null;
         var seedCount = 0;
+        long indexMs = 0, scoreMs = 0;
         if (!cached)
         {
+            var phase = Stopwatch.GetTimestamp();
             var index = await _indexes.GetAsync(_db, scope, generation, ct);
+            indexMs = (long)Stopwatch.GetElapsedTime(phase).TotalMilliseconds;
+            phase = Stopwatch.GetTimestamp();
             (picks, seedCount) = await ScoreHomeAsync(index, scope, userId, excluded.ToHashSet(), limit, ct);
+            scoreMs = (long)Stopwatch.GetElapsedTime(phase).TotalMilliseconds;
             _cache.SetSized(key, picks!, AnswerTimeToLive, SharedMemoryCache.Kib(256L + picks!.Count * 256L));
         }
 
         var items = await CardsAsync(picks!, userId, incognito, ct);
         _logger.LogDebug(LogEvents.Recommendations.HomeAnswered,
-            "Recommendations for user {UserId}: {Seeds} seeds, {Picks} picks, cached {Cached}, in {ElapsedMs} ms",
-            userId, seedCount, items.Count, cached, (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            "Recommendations for user {UserId}: {Seeds} seeds, {Picks} picks, cached {Cached}, index {IndexMs} ms, seeds and score {ScoreMs} ms, in {ElapsedMs} ms",
+            userId, seedCount, items.Count, cached, indexMs, scoreMs, (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         return new RecommendationsDto { Items = items };
     }
 
@@ -159,6 +164,7 @@ public sealed class RecommendationService
         var ratingWeights = new Dictionary<int, List<double?>>();
         var favorite = new HashSet<int>();
         var touched = new HashSet<int>();
+        var marked = new HashSet<int>(); // touched by a read mark: only these can be finished (Read needs every archive marked)
         foreach (var signal in signals)
         {
             if (!locationOf.TryGetValue(signal.NodeId, out var location))
@@ -175,6 +181,10 @@ public sealed class RecommendationService
                     case 1:
                         favorite.Add(work);
                         break;
+                    case 2:
+                        touched.Add(work);
+                        marked.Add(work);
+                        break;
                     default:
                         touched.Add(work);
                         break;
@@ -184,10 +194,10 @@ public sealed class RecommendationService
 
         // Finished: a touched work whose visible archives the viewer has all read (the tag view's work read rule).
         var finished = new HashSet<int>();
-        if (touched.Count > 0)
+        if (marked.Count > 0)
         {
-            var rollups = await QueryWorkReadState.OfWorksAsync(_db, touched.Select(w => index.WorkIds[w]).ToList(), scope, userId, ct);
-            foreach (var w in touched)
+            var rollups = await QueryWorkReadState.OfWorksAsync(_db, marked.Select(w => index.WorkIds[w]).ToList(), scope, userId, ct);
+            foreach (var w in marked)
             {
                 if (rollups.TryGetValue(index.WorkIds[w], out var rollup) && rollup == FolderReadRollup.Read)
                     finished.Add(w);
