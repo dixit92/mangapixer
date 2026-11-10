@@ -75,8 +75,10 @@ public static class RecommendationScorer
         }
         var profileNorm = Math.Sqrt(profile.Values.Sum(x => x * x));
 
-        // Dot products over the profile's values only (the postings), in value order (deterministic sums).
-        var dot = new Dictionary<int, double>();
+        // Dot products over the profile's values only (the postings), in value order (deterministic sums); an array per work.
+        var dot = new double[index.WorkCount];
+        var reached = new bool[index.WorkCount];
+        var reachedList = new List<int>();
         if (profileNorm > 1e-12)
         {
             foreach (var (v, p) in profile.OrderBy(kv => kv.Key))
@@ -85,7 +87,14 @@ public static class RecommendationScorer
                     continue;
                 var contribution = p * index.ValueWeights[v];
                 foreach (var w in index.ValueWorks[v])
-                    dot[w] = dot.GetValueOrDefault(w) + contribution;
+                {
+                    dot[w] += contribution;
+                    if (!reached[w])
+                    {
+                        reached[w] = true;
+                        reachedList.Add(w);
+                    }
+                }
             }
         }
 
@@ -104,11 +113,11 @@ public static class RecommendationScorer
         }
 
         var scored = new List<(int Work, double Score, double Cosine)>();
-        foreach (var w in dot.Keys.Union(bonus.Keys))
+        foreach (var w in reachedList.Union(bonus.Keys))
         {
             if (!isCandidate(w))
                 continue;
-            var cosine = dot.TryGetValue(w, out var d) && index.WorkNorms[w] > 0 ? d / (profileNorm * index.WorkNorms[w]) : 0;
+            var cosine = reached[w] && index.WorkNorms[w] > 0 ? dot[w] / (profileNorm * index.WorkNorms[w]) : 0;
             var total = cosine + (bonus.TryGetValue(w, out var b) ? b.Value : 0);
             if (total >= Floor)
                 scored.Add((w, total, cosine));

@@ -192,17 +192,8 @@ public sealed class RecommendationService
             }
         }
 
-        // Finished: a touched work whose visible archives the viewer has all read (the tag view's work read rule).
-        var finished = new HashSet<int>();
-        if (marked.Count > 0)
-        {
-            var rollups = await QueryWorkReadState.OfWorksAsync(_db, marked.Select(w => index.WorkIds[w]).ToList(), scope, userId, ct);
-            foreach (var w in marked)
-            {
-                if (rollups.TryGetValue(index.WorkIds[w], out var rollup) && rollup == FolderReadRollup.Read)
-                    finished.Add(w);
-            }
-        }
+        // Finished: a work whose readable archives at its visible locations all carry the viewer's read mark (the folder rollup's Read).
+        var finished = await FinishedAsync(index, marked, userId, ct);
 
         var seeds = new List<RecommendationScorer.Seed>();
         foreach (var work in ratingWeights.Keys.Union(favorite).Union(finished).Order())
@@ -231,6 +222,52 @@ public sealed class RecommendationService
         var picks = await ReasonsAsync(index, seeds, scored, similar: false,
             w => index.Locations[w].First(l => !excludedLibraries.Contains(l.LibraryId)).NodeId, ct);
         return (picks, seeds.Count);
+    }
+
+    /// <summary>
+    /// The works of <paramref name="candidates"/> the viewer finished: every readable (not tombstoned) archive at or below each of the
+    /// work's visible locations is marked read - <see cref="FolderReadRollupRules.Classify"/>'s Read. One recursive walk down from the
+    /// locations themselves (the index already knows them), chunked.
+    /// </summary>
+    private async Task<HashSet<int>> FinishedAsync(RecommendationIndex index, HashSet<int> candidates, long userId, CancellationToken ct)
+    {
+        var finished = new HashSet<int>();
+        if (candidates.Count == 0)
+            return finished;
+        var locations = candidates.SelectMany(w => index.Locations[w].Select(l => l.NodeId)).Distinct().Order().ToList();
+        var counts = new Dictionary<long, (int Total, int Read)>();
+        foreach (var chunk in locations.Chunk(QuerySql.Chunk))
+        {
+            var rows = await QuerySql.ReadAsync(_db, $"""
+                WITH RECURSIVE located(Loc, NodeId) AS (
+                    SELECT Id, Id FROM catalog_nodes WHERE Id IN ({QuerySql.List(chunk)})
+                    UNION
+                    SELECT l.Loc, c.Id FROM located l JOIN catalog_nodes c ON c.ParentId = l.NodeId
+                )
+                SELECT l.Loc, COUNT(*), SUM(CASE WHEN rm.ItemId IS NOT NULL THEN 1 ELSE 0 END)
+                FROM located l
+                JOIN catalog_nodes a ON a.Id = l.NodeId AND a.Kind = {(int)CatalogNodeKind.Archive} AND a.Availability != {QuerySql.Tombstoned}
+                LEFT JOIN read_marks rm ON rm.ItemId = a.Id AND rm.UserId = @u
+                GROUP BY l.Loc
+                """, new Dictionary<string, object?> { ["@u"] = userId }, r => (Loc: r.GetInt64(0), Total: r.GetInt32(1), Read: r.GetInt32(2)), ct);
+            foreach (var row in rows)
+                counts[row.Loc] = (row.Total, row.Read);
+        }
+        foreach (var w in candidates)
+        {
+            int total = 0, read = 0;
+            foreach (var location in index.Locations[w])
+            {
+                if (counts.TryGetValue(location.NodeId, out var c))
+                {
+                    total += c.Total;
+                    read += c.Read;
+                }
+            }
+            if (FolderReadRollupRules.Classify(total, read, 0) == FolderReadRollup.Read)
+                finished.Add(w);
+        }
+        return finished;
     }
 
     /// <summary>
