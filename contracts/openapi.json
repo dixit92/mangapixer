@@ -3057,6 +3057,195 @@
         }
       }
     },
+    "/api/v1/trackers/{slug}/scores/import": {
+      "post": {
+        "tags": [
+          "Trackers"
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackerScoreImportResultDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackerScoreImportResultDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackerScoreImportResultDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/trackers/{slug}/scores/{seriesId}": {
+      "put": {
+        "tags": [
+          "Trackers"
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "seriesId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackerUseScoreRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackerUseScoreRequest"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackerUseScoreRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/trackers/sync-overrides": {
       "get": {
         "tags": [
@@ -22897,6 +23086,7 @@
           "consentRenewalNeeded",
           "addStartedSeries",
           "privateEntries",
+          "syncScores",
           "requestsToday",
           "dailyRequestCap"
         ],
@@ -22952,6 +23142,9 @@
             "type": "boolean"
           },
           "privateEntries": {
+            "type": "boolean"
+          },
+          "syncScores": {
             "type": "boolean"
           },
           "requestsToday": {
@@ -23764,6 +23957,106 @@
           }
         }
       },
+      "TrackerScoreDifferenceDto": {
+        "required": [
+          "seriesId",
+          "title",
+          "nodeId",
+          "myScore",
+          "trackerScore"
+        ],
+        "type": "object",
+        "properties": {
+          "seriesId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "nodeId": {
+            "type": "string"
+          },
+          "myScore": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "trackerScore": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "TrackerScoreImportResultDto": {
+        "required": [
+          "scored",
+          "matched",
+          "filled",
+          "same",
+          "differ",
+          "requests",
+          "capReached"
+        ],
+        "type": "object",
+        "properties": {
+          "scored": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "matched": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "filled": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "same": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "differ": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrackerScoreDifferenceDto"
+            }
+          },
+          "requests": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "capReached": {
+            "type": "boolean"
+          }
+        }
+      },
       "TrackerSelectableSeriesDto": {
         "required": [
           "seriesId",
@@ -24242,6 +24535,20 @@
                 "$ref": "#/components/schemas/TrackerAccountDto"
               }
             ]
+          }
+        }
+      },
+      "TrackerUseScoreRequest": {
+        "type": "object",
+        "properties": {
+          "score": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -25044,6 +25351,12 @@
             ]
           },
           "privateEntries": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "syncScores": {
             "type": [
               "null",
               "boolean"
