@@ -98,14 +98,17 @@ async function shot(page: Page, name: string): Promise<void> {
 
 const reasons = (row: ReturnType<Page['getByTestId']>) => row.getByTestId('recommendation-reason');
 
+/** The card whose TITLE is `title` (a reason line may name another series, so the card's whole text is not enough). */
+const card = (row: ReturnType<Page['getByTestId']>, title: string) =>
+  row.getByTestId('recommendation-card').filter({ has: row.page().getByTestId('recommendation-title').getByText(new RegExp(`^${title}`)) });
+
 async function expectPicks(row: ReturnType<Page['getByTestId']>): Promise<void> {
   await expect(row).toBeVisible();
-  const cards = row.getByTestId('recommendation-card');
-  await expect(cards.filter({ hasText: 'Quartz Tide' })).toHaveCount(1);
-  await expect(cards.filter({ hasText: 'Quartz Tide' }).getByTestId('recommendation-reason')).toHaveText('Same author: Ilse Marrow');
-  await expect(cards.filter({ hasText: 'Velvet Orchard' })).toHaveCount(1);
-  await expect(cards.filter({ hasText: 'Quartz Harbor' })).toHaveCount(0); // the rated series itself
-  await expect(cards.filter({ hasText: 'Saffron Kite' })).toHaveCount(0); // nothing in common
+  await expect(card(row, 'Quartz Tide')).toHaveCount(1);
+  await expect(card(row, 'Quartz Tide').getByTestId('recommendation-reason')).toHaveText('Same author: Ilse Marrow');
+  await expect(card(row, 'Velvet Orchard')).toHaveCount(1);
+  await expect(card(row, 'Quartz Harbor')).toHaveCount(0); // the rated series itself
+  await expect(card(row, 'Saffron Kite')).toHaveCount(0); // nothing in common
   await expect(reasons(row).first()).toHaveAttribute('title', /.+/);
 }
 
@@ -117,7 +120,7 @@ test('Home shows "Recommended for you" from the reader\'s own rating, with the c
   const row = page.getByTestId('home-recommendations');
   await expectPicks(row);
   await expect(row.getByRole('heading', { name: 'Recommended for you' })).toBeVisible();
-  const velvet = row.getByTestId('recommendation-card').filter({ hasText: 'Velvet Orchard' }).getByTestId('recommendation-reason');
+  const velvet = card(row, 'Velvet Orchard').getByTestId('recommendation-reason');
   await expect(velvet).toHaveText(/^Like Quartz Harbor: /);
   // V10: the reader has no Continue reading, so this is the first strip: its heading row carries the one slider; no caption row.
   await expect(page.locator('.home-toolbar')).toHaveCount(0);
@@ -135,8 +138,7 @@ test('the series page shows "More like this" after About and before Details', as
   await page.goto(`/series/${harborId}`);
   const row = page.getByTestId('series-more-like-this');
   await expectPicks(row);
-  await expect(row.getByTestId('recommendation-card').filter({ hasText: 'Velvet Orchard' }).getByTestId('recommendation-reason'))
-    .not.toHaveText(/^Like /); // no "Like <this page>" on its own page
+  await expect(card(row, 'Velvet Orchard').getByTestId('recommendation-reason')).not.toHaveText(/^Like /); // no "Like <this page>" here
   // Order: About, then the row, then the next block.
   const order = await page.evaluate(() => {
     const blocks = Array.from(document.querySelectorAll('[data-testid="series-page"] details.section > summary, [data-testid="series-more-like-this"] h3'));

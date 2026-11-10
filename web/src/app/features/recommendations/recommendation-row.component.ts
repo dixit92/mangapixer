@@ -50,7 +50,7 @@ import { favoriteLink } from '../favorites/favorite-stack';
                 <app-star-toggle [nodeId]="item.node.id" [favorite]="!!item.node.isFavorite" [overlay]="true" [compact]="true" />
                 <app-rating-stars mode="badge" [overlay]="true" [nodeId]="item.node.id" [rating]="item.node.myRating" />
               </div>
-              <div class="cont-title" [title]="item.node.displayName"
+              <div class="cont-title" [title]="item.node.displayName" data-testid="recommendation-title"
                    [appSeriesInfoHover]="item.node.hasSeriesInfo ? item.node.id : null" [hoverAnchor]="cardEl">{{ item.node.displayName }}</div>
               <div class="cont-page reason" [title]="item.reason.display" data-testid="recommendation-reason">{{ item.reason.display }}</div>
             </a>

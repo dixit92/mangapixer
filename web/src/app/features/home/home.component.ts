@@ -403,8 +403,9 @@ import {
     /* A strip's heading row (1.53.0, audit V10): the heading, and on the first strip the card-size slider at its right end. */
     .strip-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .home-size { margin-left: auto; margin-bottom: 4px; }
-    @media (max-width: 599.98px) { .home-size { display: none; } }
     .size-control { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+    /* Audit V10: no card-size slider on a phone (after .size-control, which sets display). */
+    @media (max-width: 599.98px) { .size-control.home-size { display: none; } }
     .size-control .size-icon { font-size: 18px; width: 18px; height: 18px; color: var(--mp-text-dim); }
     .size-slider {
       width: 180px; max-width: 60vw; accent-color: var(--mp-accent-strong); cursor: pointer;
