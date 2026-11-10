@@ -4258,3 +4258,25 @@ export interface WhatsNewInlineDto {
   code?: boolean;
   link?: string | null;
 }
+
+/** What a recommendation's reason is about (1.53.0). */
+export type RecommendationReasonKind = 'Creator' | 'SharedValues' | 'Relation';
+
+/** Why a pick appears (1.53.0): one line - "Same author: ...", "Like <series>: horror, school life", "Sequel of <series>". */
+export interface RecommendationReasonDto {
+  kind: RecommendationReasonKind;
+  display: string;
+  /** The seed series the reason names (its card's node); absent for a creator. */
+  relatedNodeId?: string | null;
+}
+
+/** One pick (1.53.0): the card of its best visible location, enriched like a browse card, and its reason. */
+export interface RecommendationDto {
+  node: CatalogNodeDto;
+  reason: RecommendationReasonDto;
+}
+
+/** `GET recommendations` (Home "Recommended for you") and `GET nodes/{nodeId}/similar` ("More like this"), 1.53.0. */
+export interface RecommendationsDto {
+  items: RecommendationDto[];
+}

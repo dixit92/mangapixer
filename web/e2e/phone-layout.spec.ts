@@ -760,3 +760,52 @@ test('Settings keeps one 24 px rhythm, and the browse trail never strands a sepa
   }
   expect(failures, failures.join('\n')).toEqual([]);
 });
+
+/** 1.53.0 (lane C): contract-shaped recommendation answers - long names and reasons, every card a real folder of the volume library. */
+function longRecommendations(libraryId: string, folderId: string) {
+  const reasons = [
+    { kind: 'Creator', display: `Same author: ${UNBROKEN}` },
+    { kind: 'SharedValues', display: 'Like Stacked Saga: Supernatural, Slice of Life', relatedNodeId: folderId },
+    { kind: 'Relation', display: `Sequel of ${UNBROKEN}`, relatedNodeId: folderId },
+  ];
+  return {
+    items: Array.from({ length: 12 }, (_, i) => ({
+      node: {
+        id: i === 0 ? folderId : `${folderId}rec${i}`, parentId: '', libraryId, kind: 'Folder', availability: 'Available', coverUrl: null,
+        displayName: i % 2 === 0 ? UNBROKEN : `Synthetic Recommended Series With A Long Title ${i}`,
+        isRead: i === 3, isFavorite: i === 4, myRating: i === 5 ? 7 : undefined, readRollup: i === 6 ? 'Read' : null, hasSeriesInfo: true,
+      },
+      reason: reasons[i % 3],
+    })),
+  };
+}
+
+test('the Home "Recommended for you" row and the series page\'s "More like this" fit a phone and a tablet screen (1.53.0)', async ({ page }) => {
+  test.setTimeout(120_000);
+  const failures: string[] = [];
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  await page.route('**/api/v1/recommendations?*', (route) => route.fulfill({ json: longRecommendations(libraryId, folderId) }));
+  await page.route('**/api/v1/nodes/*/similar?*', (route) => route.fulfill({ json: longRecommendations(libraryId, folderId) }));
+  // The series page of the volume library's folder (it has no series information of its own): a contract-shaped ComicInfo answer.
+  await page.route(`**/api/v1/nodes/${folderId}/series-info*`, (route) => route.fulfill({ json: {
+    nodeId: folderId, nodeKind: 'Folder', anchorNodeId: folderId, anchorKind: 'Folder', anchorDisplayName: 'Stacked Saga', libraryId,
+    state: 'ComicInfo', title: 'Stacked Saga', precedence: 'WebFirst', precedenceSource: 'Default',
+    description: 'A synthetic synopsis long enough to wrap over a few lines on a phone screen, so About has some height.',
+    genres: ['Action', 'Fantasy'],
+  } }));
+  for (const size of [{ width: 360, height: 780 }, ...SIZES, { width: 844, height: 390 }]) {
+    await page.setViewportSize(size);
+    await page.goto('/');
+    await expect(page.getByTestId('home-recommendations')).toBeVisible();
+    await settle(page);
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px Home recommendations: ${p.kind}: ${p.what} - ${p.detail}`);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-home-recommendations.png` });
+    await page.goto(`/series/${folderId}`);
+    await expect(page.getByTestId('series-more-like-this')).toBeVisible();
+    await settle(page);
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px More like this: ${p.kind}: ${p.what} - ${p.detail}`);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-more-like-this.png` });
+  }
+  expect(failures, `the recommendation rows do not fit:\n${failures.join('\n')}`).toEqual([]);
+});

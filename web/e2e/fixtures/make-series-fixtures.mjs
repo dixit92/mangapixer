@@ -34,6 +34,12 @@
 // And <outDir>-favorites (1.51.0 lane F, the Favorites jump rail / groups e2e spec; offline, no ComicInfo):
 //   <Word> Ravelin 1..3.cbz   60 archives straight in the library root (no folder: each is its own Favorites entry, never a stack),
 //                             20 invented words A (Acorn) .. T (Thistle), three each -> a 60-entry rail A .. T, more than one page of 50
+// And <outDir>-recommendations (1.53.0 lane C, the recommendation rows e2e spec; offline, ComicInfo only - invented names):
+//   Quartz Harbor/Quartz Harbor 01.cbz       Series "Quartz Harbor",  Writer Ilse Marrow, Genre Mystery, Drama, Tags Lighthouse
+//   Quartz Tide/Quartz Tide 01.cbz           Series "Quartz Tide",    Writer Ilse Marrow, Genre Drama
+//   Velvet Orchard/Velvet Orchard 01.cbz     Series "Velvet Orchard", Writer Odo Fenwick, Genre Mystery, Horror, Tags Lighthouse
+//   Copper Lantern/Copper Lantern 01.cbz     Series "Copper Lantern", Writer Odo Fenwick, Genre Comedy
+//   Saffron Kite/Saffron Kite 01.cbz         Series "Saffron Kite",   Writer Pia Lund,    Genre Romance
 // Register <outDir> as a library, scan, and let analysis run; the spec does that itself
 // when E2E_SERIES_FIXTURE_ROOT names the path as the SERVER sees it.
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -265,4 +271,18 @@ const ravelinWords = ['Acorn', 'Brook', 'Cinder', 'Dapple', 'Ember', 'Fennel', '
 ravelinWords.forEach((word, wi) => [1, 2, 3].forEach((n) => {
   archive('.', `${word} Ravelin ${n}.cbz`, [40 + wi * 10, 80 + n * 40, 200 - wi * 8], null, favoritesDir);
 }));
+// 1.53.0 (lane C): the recommendation rows - five ComicInfo series sharing writers, genres and a tag (see the header).
+const recommendationsDir = `${outDir}-recommendations`;
+for (const [i, [series, writer, genre, tags]] of [
+  ['Quartz Harbor', 'Ilse Marrow', 'Mystery, Drama', 'Lighthouse'],
+  ['Quartz Tide', 'Ilse Marrow', 'Drama', null],
+  ['Velvet Orchard', 'Odo Fenwick', 'Mystery, Horror', 'Lighthouse'],
+  ['Copper Lantern', 'Odo Fenwick', 'Comedy', null],
+  ['Saffron Kite', 'Pia Lund', 'Romance', null],
+].entries()) {
+  archive(series, `${series} 01.cbz`, [60 + i * 35, 140 - i * 15, 90 + i * 25], {
+    Series: series, Number: 1, Volume: 1, Summary: `A synthetic synopsis of ${series}.`, Writer: writer, Genre: genre,
+    ...(tags ? { Tags: tags } : {}), LanguageISO: 'en',
+  }, recommendationsDir);
+}
 console.log(`Series fixtures written to ${outDir} (and ${volumesDir}, ${readingModesDir}, ${jumpDir}, ${outDir}-volume-contents)`);

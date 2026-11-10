@@ -232,9 +232,11 @@ test.describe('phone, touch', () => {
     await login(page);
     await volumeLibrary(page);
     await page.goto('/');
-    await expect(page.locator('.home-toolbar')).toBeVisible();
+    await expect(page.locator('.recent-lib h4').first()).toBeVisible();
     await expectTarget(page.locator('a.brand'), 'header brand link');
-    await expectTarget(page.locator('.home-toolbar input[type=range]'), 'Home card size slider', { width: 1, height: 40 });
+    // 1.53.0 (audit V10): Home shows no card-size slider on a phone - the same per-device value is in any library's View menu and on
+    // Settings (both checked here and below).
+    await expect(page.getByRole('slider', { name: 'Card size' })).toBeHidden();
     const heading = page.locator('.recent-lib h4').first();
     await expect(heading).toBeVisible();
     await expectTarget(heading, 'Home library heading', { width: 1, height: 40 });

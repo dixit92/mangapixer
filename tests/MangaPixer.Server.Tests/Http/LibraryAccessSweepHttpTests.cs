@@ -83,6 +83,8 @@ public sealed class LibraryAccessSweepHttpTests
         ["GET api/v1/nodes/{nodeId}/missing"] = Answer(200, 404, 200),
         ["GET api/v1/nodes/{nodeId}/series-info"] = Answer(200, 404, 200),
         ["GET api/v1/nodes/{nodeId}/series-info/image"] = Answer(404, 404, 404),
+        // 1.53.0 lane C: "More like this" - a direct URL like the Info panel (404 for U; P reachable under Incognito, its picks leave P out).
+        ["GET api/v1/nodes/{nodeId}/similar"] = Answer(200, 404, 200),
         ["GET api/v1/nodes/{nodeId}/series-info/flags/mine"] = Answer(200, 404, 200),
         ["POST api/v1/nodes/{nodeId}/series-info/flags"] = Answer(201, 404, 201),
         ["GET api/v1/nodes/{nodeId}/volume-view"] = Answer(200, 404, 200),
