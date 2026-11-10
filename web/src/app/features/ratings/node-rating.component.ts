@@ -41,7 +41,8 @@ import { serverAverageLabel, serverAverageText } from './rating-scale';
   `,
   styles: [`
     :host { display: block; min-width: 0; }
-    .node-rating { display: grid; grid-template-columns: 1fr; gap: 2px; margin: 6px 0; justify-items: start; }
+    /* 1.53.0 pre-cut: the block is the container the stars' row measures (a narrow block draws Clear as an icon button). */
+    .node-rating { display: grid; grid-template-columns: 1fr; gap: 2px; margin: 6px 0; justify-items: start; container-type: inline-size; }
     .caption { font-size: 12px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase; color: var(--mp-text-dim); }
     .server { display: inline-flex; align-items: center; margin-top: 4px; white-space: nowrap; }
     .server .caption { margin-right: 8px; }

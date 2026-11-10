@@ -654,7 +654,10 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
        Where everything fits (desktop) nothing moves; the phone rule below still gives the trail its own row. */
     /* 1.53.0 (audit V6): the 1.38.0 rule made general - any bar may wrap, so a plain library root on a tablet no longer squeezes
        the trail to ~90 px (cut mid-letter: no ellipsis can be drawn inside the touch crumbs' inline blocks). */
-    .browse-bar { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; }
+    /* 1.53.0 pre-cut (guide finding 2): NOT the selecting bar - there the wrap put "N selected", the actions (with "Rate..." too wide for
+       one line) and Done on rows of their own (four rows at 1280 px). The selecting bar stays one band: the count left, the actions
+       (wrapping inside their own box only when they do not fit) and Done right; the phone's open More wraps it itself. */
+    .browse-bar:not(.selecting) { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; }
     .breadcrumbs {
       flex: 1 1 240px; min-width: 0;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -665,6 +668,20 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     /* Current folder: plain text, not a link. Slightly brighter than the muted
        ancestors' link color to read as "you are here", but no pointer/underline. */
     .breadcrumbs .current { color: var(--mp-text); font-weight: 500; }
+    /* 1.53.0 pre-cut (guide finding 4) - a tablet or a desktop (the phone layout below keeps its own wrapping trail): the trail is one
+       row of items that shrink, each cut with "..." on its own text (an ellipsis cannot be drawn into a touch crumb's inline block, so
+       the trail was cut bare), the library and the ancestors first; the folder you are in keeps its whole name until it alone is too
+       long (its shrink factor is tiny, so it gives way only once the others are at their minimum). Its "/" travels with it. */
+    @media (min-width: 600px) and (min-height: 500px), (min-width: 600px) and (pointer: fine), (min-width: 600px) and (pointer: none) {
+      .breadcrumbs { display: flex; align-items: baseline; }
+      .breadcrumbs > a, .breadcrumbs .crumb a, .breadcrumbs .current {
+        min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .breadcrumbs > a { flex: 0 1 auto; min-width: 2.5em; }
+      .breadcrumbs .crumb { display: flex; align-items: baseline; flex: 0 1 auto; min-width: 3.5em; }
+      .breadcrumbs .crumb .sep { flex: none; }
+      .breadcrumbs .crumb-current { flex-shrink: 0.001; min-width: 0; }
+    }
     /* The selection bar's own rules (.count, .actions, .done) live in the shared app-selection-bar (1.30.0). */
     .select-toggle mat-icon { margin-right: 4px; }
     /* Card size slider (1.6.0). Sits inline in the browse bar between the
@@ -1259,6 +1276,9 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     // routing. Sequencing matters: the sort must be known before the first browse so
     // it issues a single, correctly-ordered request. (Loading nodes from both the
     // prefs handler and the route subscription would double-append — duplicate rows.)
+    // 1.53.0 pre-cut (guide finding 3): the page's wait starts here - a slow view-settings answer shows the first-answer spinner too
+    // (after its 300 ms), not a bar over nothing; the folder request's own start keeps that clock.
+    this.listAnswer.start();
     this.api.getLibraryPreferences().subscribe({
       next: (p) => {
         this.applyStoredView(p);

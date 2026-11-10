@@ -8,7 +8,7 @@ The row sits on Home after **Continue reading**. It shows up to twelve series yo
 
 What it learns from - only your own account:
 
-- **Your ratings.** Four and a half or five stars count most; three and a half or four stars count too. A series you rated two stars or lower counts *against* what it has in common with others, so similar series rank lower. Two and a half or three stars are neutral.
+- **Your ratings.** Four and a half or five stars count most; three and a half or four stars count too. A series you rated two stars or lower counts *against* what it has in common with others, so similar series rank lower or drop out of the row - a series by the same author can disappear even when it shares tags with one you rated highly, because a shared author weighs more than a shared tag or genre. **More like this** is not affected. Two and a half or three stars are neutral.
 - **Your favorites.** A starred series counts like a good rating.
 - **Series you finished** - every archive of the series read - count a little, unless you rated them (then the rating decides).
 
