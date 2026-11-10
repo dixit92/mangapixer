@@ -24,7 +24,7 @@ export interface WhatsNewDialogData {
   imports: [MatButtonModule, MatDialogModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <h2 mat-dialog-title class="title" data-testid="whats-new-title">What's new in MangaPixer {{ data.current }}</h2>
+    <h2 mat-dialog-title class="title" data-testid="whats-new-title">What's new{{ data.current ? ' in MangaPixer ' + data.current : '' }}</h2>
     <mat-dialog-content class="body" data-testid="whats-new-body">
       @if (data.error) {
         <p class="empty" data-testid="whats-new-error">The release notes could not be loaded. Try again later.</p>

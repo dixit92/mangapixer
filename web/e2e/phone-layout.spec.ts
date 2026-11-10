@@ -316,6 +316,41 @@ test('the declared-facts dialog and its type list fit a phone and a tablet scree
   expect(failures, `declared-facts dialog does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
 });
 
+test('the What\'s new dialog fits a phone and a tablet screen (1.53.0)', async ({ page }) => {
+  // Lane W: synthetic notes (two versions, wrapped bullets, code, a link) answered by page.route - never the real CHANGELOG - and the
+  // "seen" POST answered here, so the shared admin is left as it was.
+  test.setTimeout(90_000);
+  const notes = {
+    current: '9.1.0',
+    sections: ['9.1.0', '9.0.2'].map((version) => ({
+      version, date: '2031-02-01',
+      groups: ['Added', 'Changed', 'Fixed'].map((name) => ({
+        name,
+        items: [
+          { parts: [{ text: 'A synthetic note', bold: true }, { text: ' with a ' }, { text: 'code:term', code: true }, { text: ' and a ' },
+            { text: 'link', link: '/admin' }, { text: ', long enough to wrap over two or three lines on a phone screen.' }] },
+          { parts: [{ text: 'Another synthetic note.' }] },
+        ],
+      })),
+    })),
+  };
+  await page.route('**/api/v1/admin/whats-new**', (route) =>
+    route.request().method() === 'POST' ? route.fulfill({ status: 204 }) : route.fulfill({ json: notes }));
+  const failures: string[] = [];
+  await login(page);
+  for (const size of [{ width: 360, height: 780 }, ...SIZES]) {
+    await page.setViewportSize(size);
+    await page.goto('/libraries');
+    await expect(page.getByTestId('whats-new-title')).toBeVisible();
+    await settle(page);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-whats-new.png` });
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px what's new: ${p.kind}: ${p.what} - ${p.detail}`);
+    await page.getByTestId('whats-new-got-it').click();
+    await expect(page.getByTestId('whats-new-title')).toHaveCount(0);
+  }
+  expect(failures, `the What's new dialog does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
+});
+
 test('a folder declares its own edition and turns completion tracking off; the declared line says so (1.39.0)', async ({ page }) => {
   test.setTimeout(120_000);
   await login(page);
