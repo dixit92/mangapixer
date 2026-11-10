@@ -221,6 +221,7 @@ describe('WhatsNewService', () => {
   });
 
   it('isReaderUrl matches the reader route only', () => {
+    setup(null);
     expect(isReaderUrl('/reader/abc?page=2')).toBe(true);
     expect(isReaderUrl('/reader')).toBe(true);
     expect(isReaderUrl('/libraries/x/browse')).toBe(false);
