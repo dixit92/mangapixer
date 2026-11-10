@@ -9,8 +9,11 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 import { ApiService } from '../../core/api/api.service';
+import { AuthService } from '../../core/auth/auth.service';
+import { FirstAnswer } from '../../shared/first-answer';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
 import {
   CatalogNodeDto,
@@ -99,6 +102,7 @@ import {
     MatChipsModule,
     MatMenuModule,
     MatTooltipModule,
+    MatProgressSpinnerModule,
     CoverImageDirective,
     LibraryIconComponent,
     StarToggleComponent,
@@ -330,11 +334,25 @@ import {
 
       <section>
         <h3>Libraries</h3>
-        @if (loading()) {
-          <p class="muted">Loading…</p>
+        <!-- 1.53.0 (audit V2): not loaded (the series page's spinner, after 300 ms), failed (the reader's error block), and the empty
+             line only after a successful answer - a reader is not sent to Administration, which it cannot open. -->
+        @if (librariesAnswer.failed()) {
+          <div class="status error" role="alert" data-testid="home-libraries-failed">
+            <mat-icon>error_outline</mat-icon>
+            <p>Could not load your libraries.</p>
+            <button mat-stroked-button type="button" (click)="loadLibraries()" data-testid="home-libraries-retry">Try again</button>
+          </div>
+        } @else if (!librariesAnswer.loaded()) {
+          @if (librariesAnswer.slow()) {
+            <div class="state" role="status" aria-label="Loading" data-testid="home-libraries-loading"><mat-spinner diameter="32" /></div>
+          }
         } @else if (libraries().length === 0) {
-          <p class="muted">No libraries yet. An administrator can add one under
-            <a routerLink="/admin">Administration</a>.</p>
+          @if (auth.isAdmin()) {
+            <p class="muted" data-testid="home-libraries-empty">No libraries yet. An administrator can add one under
+              <a routerLink="/admin">Administration</a>.</p>
+          } @else {
+            <p class="muted" data-testid="home-libraries-empty">Ask an administrator for access to a library.</p>
+          }
         } @else {
           <div class="library-grid">
             @for (lib of libraries(); track lib.id) {
@@ -366,6 +384,14 @@ import {
     h3 { margin: 8px 0 12px; }
     .muted { color: var(--mp-text-muted); font-size: 14px; }
     .error { color: var(--mp-error); font-size: 13px; margin: 0 0 8px; }
+    /* 1.53.0 (audit V2): the libraries' first answer - the series page's centred spinner and the reader's error block. */
+    .state { display: flex; justify-content: center; padding: 48px 0; color: var(--mp-text-muted); }
+    .status {
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+      color: var(--mp-text-muted); text-align: center; padding: 48px 24px;
+    }
+    .status p { margin: 0; font-size: 14px; }
+    .status.error mat-icon { font-size: 48px; width: 48px; height: 48px; color: var(--mp-error); }
     /* Home is a plain content page now (the shell provides the gutter padding and
        the library sidebar); no in-component sidebar/flex layout remains. */
     .strip-section { margin-bottom: 28px; }
@@ -477,7 +503,9 @@ export class HomeComponent implements OnInit {
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
 
-  readonly loading = signal(true);
+  readonly auth = inject(AuthService);
+  /** 1.53.0 (audit V2): the libraries' answer - Home's first request. */
+  readonly librariesAnswer = new FirstAnswer();
   readonly libraries = signal<LibraryDto[]>([]);
   readonly continueReading = signal<ContinueReadingEntry[]>([]);
   /** Opt-in Home "Favorites" row (1.21.0): hidden unless showFavoritesHomeRow is on. */
@@ -573,10 +601,7 @@ export class HomeComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.api.getLibraries().subscribe({
-      next: (libs) => { this.libraries.set(libs); this.loading.set(false); },
-      error: () => this.loading.set(false),
-    });
+    this.loadLibraries();
     this.loadContinueReading();
     this.loadRecentChapters();
     this.api.getLibraryPreferences().subscribe({
@@ -597,6 +622,15 @@ export class HomeComponent implements OnInit {
     this.api.getHomeLibraries().subscribe({
       next: (dto) => this.excludedLibraryIds.set(new Set(dto.excludedLibraryIds)),
       error: () => { /* leave the set empty: showing every library is the safe default */ },
+    });
+  }
+
+  /** The library grid (also "Try again" after a failed answer). */
+  loadLibraries(): void {
+    this.librariesAnswer.start();
+    this.api.getLibraries().subscribe({
+      next: (libs) => { this.libraries.set(libs); this.librariesAnswer.succeed(); },
+      error: () => this.librariesAnswer.fail(),
     });
   }
 

@@ -60,7 +60,10 @@ public sealed class SeriesInfoMissingFlagHttpTests : IClassFixture<SeriesInfoMis
     {
         var lib = new LibraryEntity
         {
-            PublicId = pub, DisplayName = "Missing Flag " + pub, RootPath = "/synthetic/" + pub, CreatedAt = DateTimeOffset.UtcNow,
+            PublicId = pub,
+            DisplayName = "Missing Flag " + pub,
+            RootPath = "/synthetic/" + pub,
+            CreatedAt = DateTimeOffset.UtcNow,
             MetadataSeriesInfoHidden = hidden,
         };
         db.Libraries.Add(lib);
@@ -70,8 +73,15 @@ public sealed class SeriesInfoMissingFlagHttpTests : IClassFixture<SeriesInfoMis
         {
             var node = new CatalogNodeEntity
             {
-                PublicId = pub + id, LibraryId = lib.Id, ParentId = parent, Kind = kind, DisplayName = name,
-                RelativePath = pub + id, PathKey = pub + id, SortKey = (kind == 0 ? "0" : "1") + name, CreatedAt = DateTimeOffset.UtcNow,
+                PublicId = pub + id,
+                LibraryId = lib.Id,
+                ParentId = parent,
+                Kind = kind,
+                DisplayName = name,
+                RelativePath = pub + id,
+                PathKey = pub + id,
+                SortKey = (kind == 0 ? "0" : "1") + name,
+                CreatedAt = DateTimeOffset.UtcNow,
             };
             db.CatalogNodes.Add(node);
             await db.SaveChangesAsync();
@@ -87,8 +97,12 @@ public sealed class SeriesInfoMissingFlagHttpTests : IClassFixture<SeriesInfoMis
         {
             var record = new MetadataRecordEntity
             {
-                PublicId = pub + id + "rec", Provider = "mangaupdates", ExternalId = pub + id, Title = "Synthetic " + id + " Record",
-                OriginVolumes = 5, FetchedAt = DateTimeOffset.UtcNow,
+                PublicId = pub + id + "rec",
+                Provider = "mangaupdates",
+                ExternalId = pub + id,
+                Title = "Synthetic " + id + " Record",
+                OriginVolumes = 5,
+                FetchedAt = DateTimeOffset.UtcNow,
             };
             db.MetadataRecords.Add(record);
             await db.SaveChangesAsync();
@@ -99,8 +113,12 @@ public sealed class SeriesInfoMissingFlagHttpTests : IClassFixture<SeriesInfoMis
         {
             db.NodeSeriesLinks.Add(new NodeSeriesLinkEntity
             {
-                NodeId = node.Id, LibraryId = lib.Id, State = (int)state, RecordId = recordId,
-                CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
+                NodeId = node.Id,
+                LibraryId = lib.Id,
+                State = (int)state,
+                RecordId = recordId,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow,
             });
             await db.SaveChangesAsync();
         }
@@ -119,7 +137,15 @@ public sealed class SeriesInfoMissingFlagHttpTests : IClassFixture<SeriesInfoMis
         // ComicInfo only: the series information shows (state ComicInfo), there is no report row.
         var ci = await AddAsync("Ci", null, 0, "Synthetic ComicInfo");
         var ciArchive = await AddAsync("Cia0", ci.Id, 1, "Synthetic ComicInfo v01");
-        db.EmbeddedMetadata.Add(new EmbeddedMetadataEntity { NodeId = ciArchive.Id, Schema = 0, ContentVersion = 1, State = 1, Series = "Synthetic ComicInfo", Volume = 1 });
+        db.EmbeddedMetadata.Add(new EmbeddedMetadataEntity
+        {
+            NodeId = ciArchive.Id,
+            Schema = 0,
+            ContentVersion = 1,
+            State = 1,
+            Series = "Synthetic ComicInfo",
+            Volume = 1,
+        });
         await db.SaveChangesAsync();
 
         var dont = await AddAsync("Dont", null, 0, "Synthetic Dont Match");
