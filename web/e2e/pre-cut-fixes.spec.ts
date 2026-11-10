@@ -143,6 +143,17 @@ async function trailState(page: Page) {
   return page.locator('.browse-bar .breadcrumbs').evaluate((trail) => {
     const box = trail.getBoundingClientRect();
     const inside = (r: DOMRect) => r.width > 0 && r.left >= box.left - 1 && r.right <= box.right + 1;
+    // The text's own width, laid out unconstrained in a copy with the same font.
+    const textWidth = (el: Element) => {
+      const style = getComputedStyle(el);
+      const probe = document.createElement('span');
+      probe.textContent = el.textContent;
+      probe.style.cssText = `position:absolute;visibility:hidden;white-space:nowrap;font:${style.font};letter-spacing:${style.letterSpacing}`;
+      document.body.appendChild(probe);
+      const width = probe.getBoundingClientRect().width;
+      probe.remove();
+      return width;
+    };
     const current = trail.querySelector('.current')!;
     const currentSep = trail.querySelector('.crumb-current .sep');
     const cuts: string[] = [];
@@ -159,7 +170,8 @@ async function trailState(page: Page) {
     }
     return {
       current: current.textContent?.trim(),
-      currentShown: inside(current.getBoundingClientRect()) && (current as HTMLElement).scrollWidth <= (current as HTMLElement).clientWidth + 1,
+      // Whole: not cut by even a fraction of a pixel (a fractional shrink already draws the "...") - its box is as wide as its text.
+      currentShown: inside(current.getBoundingClientRect()) && textWidth(current) <= current.getBoundingClientRect().width + 0.01,
       sepShown: !!currentSep && inside(currentSep.getBoundingClientRect()),
       cuts, hardCuts,
     };

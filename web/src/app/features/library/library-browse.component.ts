@@ -669,18 +669,21 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
        ancestors' link color to read as "you are here", but no pointer/underline. */
     .breadcrumbs .current { color: var(--mp-text); font-weight: 500; }
     /* 1.53.0 pre-cut (guide finding 4) - a tablet or a desktop (the phone layout below keeps its own wrapping trail): the trail is one
-       row of items that shrink, each cut with "..." on its own text (an ellipsis cannot be drawn into a touch crumb's inline block, so
-       the trail was cut bare), the library and the ancestors first; the folder you are in keeps its whole name until it alone is too
-       long (its shrink factor is tiny, so it gives way only once the others are at their minimum). Its "/" travels with it. */
+       row of items, each cut with "..." on its own text (an ellipsis cannot be drawn into a touch crumb's inline block, so the trail
+       was cut bare). The library and the ancestors shrink (down to "J..."); the folder you are in never shrinks - it keeps its whole
+       name, cut with "..." only when it alone is wider than the trail - and its "/" travels with it. Packed to the start while it fits
+       (the last item's auto margin takes the free space); should even the shortest ancestors not fit, the row overflows at the START
+       (flex-end), so the cut falls on the library's name, never on the folder you are in. */
     @media (min-width: 600px) and (min-height: 500px), (min-width: 600px) and (pointer: fine), (min-width: 600px) and (pointer: none) {
-      .breadcrumbs { display: flex; align-items: baseline; }
+      .breadcrumbs { display: flex; align-items: baseline; justify-content: flex-end; }
+      .breadcrumbs > :last-child { margin-right: auto; }
       .breadcrumbs > a, .breadcrumbs .crumb a, .breadcrumbs .current {
         min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
       .breadcrumbs > a { flex: 0 1 auto; min-width: 2.5em; }
       .breadcrumbs .crumb { display: flex; align-items: baseline; flex: 0 1 auto; min-width: 3.5em; }
       .breadcrumbs .crumb .sep { flex: none; }
-      .breadcrumbs .crumb-current { flex-shrink: 0.001; min-width: 0; }
+      .breadcrumbs .crumb-current { flex: none; min-width: 0; max-width: 100%; }
     }
     /* The selection bar's own rules (.count, .actions, .done) live in the shared app-selection-bar (1.30.0). */
     .select-toggle mat-icon { margin-right: 4px; }
