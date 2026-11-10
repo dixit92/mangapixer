@@ -57,7 +57,8 @@ async function mockTrackers(page: Page): Promise<Seen> {
     seen.imports++;
     await r.fulfill({ json: IMPORT });
   });
-  await page.route(/\/api\/v1\/trackers\/mal\/scores\/[^/]+$/, async (r: Route) => {
+  // Playwright tries the LAST registered route first: this one must not answer the import.
+  await page.route(/\/api\/v1\/trackers\/mal\/scores\/(?!import$)[^/]+$/, async (r: Route) => {
     seen.uses.push({ url: r.request().url(), body: r.request().postDataJSON() });
     await r.fulfill({ status: 204, body: '' });
   });

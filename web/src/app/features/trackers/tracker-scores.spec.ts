@@ -60,10 +60,29 @@ describe('Tracker scores (account card)', () => {
     const toggle = q(el, 'tracker-sync-scores-mal')!;
     expect(toggle.textContent).toContain('Keep my score in step with my MangaPixer rating');
     expect(toggle.querySelector('button[role="switch"]')!.getAttribute('aria-checked')).toBe('false');
-    expect(el.textContent).toContain('only for series already on your MyAnimeList list');
+    // "Take my scores" sits next to Disconnect; the hint and the offer wait for the switch.
     expect(q(el, 'tracker-import-scores-mal')!.textContent).toContain('Take my scores from MyAnimeList');
-    // No offer until the user turns the switch on.
+    expect(q(el, 'tracker-import-scores-mal')!.parentElement).toBe(q(el, 'tracker-disconnect-mal')!.parentElement);
+    expect(q(el, 'tracker-sync-scores-hint-mal')).toBeNull();
     expect(q(el, 'tracker-score-offer-mal')).toBeNull();
+  });
+
+  it('says what the switch does once it is on', () => {
+    const { el } = panel(summary({ account: trackerAccount({ syncScores: true }) }));
+    expect(q(el, 'tracker-sync-scores-mal')!.querySelector('button[role="switch"]')!.getAttribute('aria-checked')).toBe('true');
+    expect(q(el, 'tracker-sync-scores-hint-mal')!.textContent).toContain('only for series already on your MyAnimeList list');
+  });
+
+  it('the card\'s "Take my scores" runs the import and shows its summary in the card', () => {
+    const { fixture, http, el } = panel(summary({ account: trackerAccount() }));
+    q(el, 'tracker-import-scores-mal')!.click();
+    fixture.detectChanges();
+    expect((q(el, 'tracker-import-scores-mal') as HTMLButtonElement).disabled).toBe(true);
+    http.expectOne(`${BASE}/mal/scores/import`).flush(result({ differ: [] }));
+    fixture.detectChanges();
+    expect(q(el, 'tracker-score-summary-mal')!.textContent).toContain('2 unrated series now have your MyAnimeList score');
+    expect((q(el, 'tracker-import-scores-mal') as HTMLButtonElement).disabled).toBe(false);
+    http.verify();
   });
 
   it('has neither the switch nor the import before connecting, or while the account must connect again', () => {

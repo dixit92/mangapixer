@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 
@@ -16,13 +16,16 @@ interface DifferRow extends TrackerScoreDifferenceDto {
  * "Take my scores from <tracker>" on the Tracking page's account card (1.53.0, lane T): one click reads the user's own scores on the
  * tracker; series without a MangaPixer rating get the tracker's score, the same ones stay, and the ones that differ are KEPT and listed
  * here - each with "Use <tracker>'s" (the user's choice; nothing is overwritten silently). Nothing is changed on the tracker.
- * `offer` (set right after the user turned "Keep my score in step" on) adds a one-line invitation above the button.
+ * `offer` (set right after the user turned "Keep my score in step" on) adds a one-line invitation above the button. `showButton` false:
+ * the host renders the button itself (the account card puts it next to Disconnect) and calls `run()`.
  */
 @Component({
   selector: 'app-tracker-score-import',
   standalone: true,
   imports: [MatButtonModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // Nothing to show (the host renders the button): no box, so the card keeps its height.
+  host: { '[class.idle]': 'idle()' },
   template: `
     <div class="import" [attr.data-testid]="'tracker-score-import-' + slug()">
       @if (offer() && !result()) {
@@ -30,10 +33,12 @@ interface DifferRow extends TrackerScoreDifferenceDto {
           Give the series you have not rated here your {{ name() }} scores too?
         </p>
       }
-      <div class="actions">
-        <button mat-stroked-button type="button" [disabled]="busy() || disabled()" (click)="run()"
-                [attr.data-testid]="'tracker-import-scores-' + slug()">Take my scores from {{ name() }}</button>
-      </div>
+      @if (showButton()) {
+        <div class="actions">
+          <button mat-stroked-button type="button" [disabled]="busy() || disabled()" (click)="run()"
+                  [attr.data-testid]="'tracker-import-scores-' + slug()">Take my scores from {{ name() }}</button>
+        </div>
+      }
       @if (notice(); as n) { <p class="ok" role="status" [attr.data-testid]="'tracker-score-summary-' + slug()">{{ n }}</p> }
       @if (rows().length > 0) {
         <ul class="differ" [attr.aria-label]="'Ratings that differ from ' + name()" [attr.data-testid]="'tracker-score-differ-' + slug()">
@@ -63,6 +68,7 @@ interface DifferRow extends TrackerScoreDifferenceDto {
   styles: [`
     :host { display: block; min-width: 0; }
     .import { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    :host(.idle) { display: none; }
     p { margin: 0; }
     .actions { display: flex; flex-wrap: wrap; gap: 8px; }
     .actions button { flex: none; }
@@ -93,12 +99,17 @@ export class TrackerScoreImportComponent {
   readonly offer = input(false);
   /** The account cannot reach the tracker right now. */
   readonly disabled = input(false);
+  /** Render the "Take my scores" button here (false: the host renders it and calls `run()`). */
+  readonly showButton = input(true);
 
   readonly busy = signal(false);
   readonly result = signal<TrackerScoreImportResultDto | null>(null);
   readonly rows = signal<DifferRow[]>([]);
   readonly notice = signal<string | null>(null);
   readonly error = signal<string | null>(null);
+
+  readonly idle = computed(() => !this.showButton() && !(this.offer() && !this.result()) && !this.notice() && !this.error()
+    && this.rows().length === 0);
 
   stars(score: number): string {
     return starsText(score);

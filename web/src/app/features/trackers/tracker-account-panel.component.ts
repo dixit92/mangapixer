@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -120,10 +120,12 @@ import { EscapeCancelsDirective } from '../../shared/escape-cancels.directive';
                               [attr.data-testid]="'tracker-sync-scores-' + t.slug">
               Keep my score in step with my MangaPixer rating
             </mat-slide-toggle>
-            <p class="muted small hint">When you rate a series folder here, your score on {{ t.name }} follows - only for series already on
-              your {{ t.name }} list.</p>
+            @if (a.syncScores) {
+              <p class="muted small hint" [attr.data-testid]="'tracker-sync-scores-hint-' + t.slug">When you rate a series folder here, your
+                score on {{ t.name }} follows - only for series already on your {{ t.name }} list.</p>
+            }
           </div>
-          <app-tracker-score-import [slug]="t.slug" [name]="t.name" [offer]="scoresOffer()" [disabled]="busy()" />
+          <app-tracker-score-import [slug]="t.slug" [name]="t.name" [offer]="scoresOffer()" [showButton]="false" />
         }
         @if (confirmDisconnect()) {
           <div class="confirm" role="alertdialog" [attr.aria-label]="'Disconnect ' + t.name" [attr.data-testid]="'tracker-disconnect-confirm-' + t.slug"
@@ -139,6 +141,11 @@ import { EscapeCancelsDirective } from '../../shared/escape-cancels.directive';
           </div>
         } @else {
           <div class="actions bottom">
+            @if (t.allowed && !needsConnect()) {
+              <!-- 1.53.0: "Take my scores" sits next to Disconnect (its summary and rows show above, in app-tracker-score-import). -->
+              <button mat-stroked-button type="button" [disabled]="busy() || scoresBusy()" (click)="takeScores()"
+                      [attr.data-testid]="'tracker-import-scores-' + t.slug">Take my scores from {{ t.name }}</button>
+            }
             <button mat-stroked-button type="button" [disabled]="busy()" (click)="confirmDisconnect.set(true)"
                     [attr.data-testid]="'tracker-disconnect-' + t.slug">Disconnect</button>
           </div>
@@ -172,6 +179,8 @@ import { EscapeCancelsDirective } from '../../shared/escape-cancels.directive';
     .settings { display: flex; flex-direction: column; gap: 6px; }
     .hint { margin: -2px 0 0 0; }
     .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .actions button { flex: none; }
+    @media (pointer: coarse) { .actions button { min-height: 40px; } }
     .actions.bottom { margin-top: auto; padding-top: 4px; }
     .actions mat-icon { margin-right: 4px; }
     .confirm { border: 1px solid rgb(var(--mp-error-strong-rgb) / 0.5); border-radius: 6px; padding: 8px 10px; font-size: 14px; }
@@ -199,6 +208,13 @@ export class TrackerAccountPanelComponent {
   readonly error = signal<string | null>(null);
   /** The user just turned "Keep my score in step" on: the import is offered once. */
   readonly scoresOffer = signal(false);
+  private readonly scores = viewChild(TrackerScoreImportComponent);
+  readonly scoresBusy = computed(() => this.scores()?.busy() ?? false);
+
+  /** "Take my scores from <tracker>": the import component reads, sums up and lists. */
+  takeScores(): void {
+    this.scores()?.run();
+  }
 
   readonly textOutdated = computed(() => this.tracker().currentConsentVersion !== TRACKER_USER_CONSENT_VERSION[this.tracker().slug]);
   readonly problem = computed(() => {
