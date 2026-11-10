@@ -1,7 +1,6 @@
 namespace com.lifepixer.mangapixer.Tests.Server.Http;
 
 using System.Diagnostics;
-using System.Globalization;
 using System.Net;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata.Facets;
@@ -93,7 +92,7 @@ public sealed class RecommendationsBenchmarkTests
         {
             var sorted = xs.Order().ToList();
             double At(double q) => sorted[Math.Min(sorted.Count - 1, (int)Math.Ceiling(q * sorted.Count) - 1)];
-            return string.Create(CultureInfo.InvariantCulture, $"p50 {At(0.50):F1} ms, p95 {At(0.95):F1} ms, max {sorted[^1]:F1} ms (n {sorted.Count})");
+            return string.Create(System.Globalization.CultureInfo.InvariantCulture, $"p50 {At(0.50):F1} ms, p95 {At(0.95):F1} ms, max {sorted[^1]:F1} ms (n {sorted.Count})");
         }
         var report = string.Join("\n",
             $"seeded in {seeded.TotalSeconds:F1} s: works {counts.Works}, entries {counts.Entries}, ratings {counts.Ratings}, favorites {counts.Favorites}, read marks {counts.Marks}, progress {counts.Progress}",
@@ -123,10 +122,10 @@ public sealed class RecommendationsBenchmarkTests
             var folderNodes = new List<CatalogNodeEntity>(Works);
             for (var w = 0; w < Works; w++)
             {
-                var name = "Bench Series " + w.ToString("D4", CultureInfo.InvariantCulture);
+                var name = "Bench Series " + w.ToString("D4", System.Globalization.CultureInfo.InvariantCulture);
                 folderNodes.Add(new CatalogNodeEntity
                 {
-                    PublicId = "rbf" + w.ToString(CultureInfo.InvariantCulture),
+                    PublicId = "rbf" + w.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     LibraryId = libraries[w % 3],
                     Kind = (int)CatalogNodeKind.Folder,
                     DisplayName = name,
@@ -169,15 +168,15 @@ public sealed class RecommendationsBenchmarkTests
                 {
                     PublicId = "rbr" + r,
                     Provider = "mangaupdates",
-                    ExternalId = (700000 + r).ToString(CultureInfo.InvariantCulture),
+                    ExternalId = (700000 + r).ToString(System.Globalization.CultureInfo.InvariantCulture),
                     Title = "Bench Record " + r,
                     FetchedAt = now,
                 });
             }
             for (var r = 0; r < 600; r++)
             {
-                var a = (700000 + rng.Next(600)).ToString(CultureInfo.InvariantCulture);
-                var b = (700000 + rng.Next(600)).ToString(CultureInfo.InvariantCulture);
+                var a = (700000 + rng.Next(600)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                var b = (700000 + rng.Next(600)).ToString(System.Globalization.CultureInfo.InvariantCulture);
                 records[r].RelationsJson = $$"""[{"externalId":"{{a}}","relation":"sequel"},{"externalId":"{{b}}","relation":"side story"}]""";
             }
             db.MetadataRecords.AddRange(records);

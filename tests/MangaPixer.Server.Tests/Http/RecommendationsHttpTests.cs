@@ -6,6 +6,7 @@ using com.lifepixer.mangapixer.Core.Api;
 using com.lifepixer.mangapixer.Core.Catalog;
 using com.lifepixer.mangapixer.Core.Metadata.Facets;
 using com.lifepixer.mangapixer.Core.Ordering;
+using com.lifepixer.mangapixer.Core.Reading;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Xunit;
 
@@ -256,8 +257,8 @@ public sealed class RecommendationsHttpTests
         Assert.Null(forA.Items.Single(i => i.Node.Id == "rcW2").Node.MyRating);
 
         var forB = await GetAsync(w.B.Client, "/api/v1/nodes/rcW1/similar");
-        Assert.Equal("rcW2", Ids(forB)[0]); // nothing read by B: rank order
-        Assert.Equal(6, forB.Items[0].Node.MyRating);
+        Assert.Equal("rcW5", Ids(forB)[0]); // nothing read by B: rank order - the relation bonus (0.5) leads in B's wider scope
+        Assert.Equal(6, forB.Items.Single(i => i.Node.Id == "rcW2").Node.MyRating);
         Assert.Contains("rcW6", Ids(forB)); // B may open rcB
 
         // A may not open rcB: 404, as unknown; and nothing of rcB in A's answer.
