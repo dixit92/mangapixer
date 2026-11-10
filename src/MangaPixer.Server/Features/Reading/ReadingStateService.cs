@@ -991,6 +991,7 @@ public sealed class ReadingStateService
             HomeStacksPerLibrary = prefs.HomeStacksPerLibrary,
             ListColumns = prefs.ListColumns,
             ShowFavoritesHomeRow = prefs.ShowFavoritesHomeRow,
+            ShowRecommendationsHomeRow = prefs.ShowRecommendationsHomeRow, // 1.53.0 (lane S wires it; lane C reads it)
             FavoritesSearchProminence = prefs.FavoritesSearchProminence,
             SeriesInfoOnHover = prefs.SeriesInfoOnHover,
             SeriesViewMode = (Core.Metadata.SeriesViewMode?)prefs.SeriesViewMode,
@@ -1026,6 +1027,7 @@ public sealed class ReadingStateService
         prefs.HomeStacksPerLibrary = preferences.HomeStacksPerLibrary;
         prefs.ListColumns = preferences.ListColumns;
         prefs.ShowFavoritesHomeRow = preferences.ShowFavoritesHomeRow;
+        prefs.ShowRecommendationsHomeRow = preferences.ShowRecommendationsHomeRow; // 1.53.0; ShareRatings is never written here
         prefs.FavoritesSearchProminence = preferences.FavoritesSearchProminence;
         prefs.SeriesInfoOnHover = preferences.SeriesInfoOnHover;
         prefs.SeriesViewMode = preferences.SeriesViewMode is { } seriesView && Enum.IsDefined(seriesView) ? (int)seriesView : null;

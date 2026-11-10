@@ -90,10 +90,17 @@ public sealed partial class CatalogBrowseService
                 var close = await CloseNodeMatchesAsync(connection, parsed, libIds, listed, tree, foldersOnly: QuickTyposFoldersOnly, ct);
                 hits.AddRange((await WithSortKeysAsync(connection, close, ct)).Select(h => favorites.Contains(h.Id) ? h with { Group = 2 } : h));
             }
+            // 1.53.0 lane S (5c): the rating: term keeps the viewer's OWN rated nodes, as the search does (KeepByRating).
+            var ratings = parsed.Rating is null ? null : await ViewerRatingsAsync(connection, userId, ct);
+            if (parsed.Rating is { } ratingTerm)
+                hits = KeepByRating(hits, ratingTerm, ratings!);
             var ordered = hits.OrderBy(h => h.Group).ThenBy(h => h.Rank).ThenBy(h => h.SortKey, StringComparer.Ordinal).ThenBy(h => h.Id).ToList();
             var folders = ordered.Where(h => h.Kind == (int)CatalogNodeKind.Folder).Take(perKind).ToList();
             var archives = ordered.Where(h => h.Kind == (int)CatalogNodeKind.Archive).Take(perKind).ToList();
-            var series = anchors.Nodes.Take(perKind).ToList();
+            var series = anchors.Nodes
+                .Where(n => parsed.Rating is not { } seriesTerm
+                    || seriesTerm.Accepts(ratings!.TryGetValue(anchors.InternalIds[n.Id], out var score) ? score : null))
+                .Take(perKind).ToList();
 
             var details = await ReadSuggestNodesAsync(connection,
                 folders.Concat(archives).Select(h => h.Id).Concat(series.Select(s => anchors.InternalIds[s.Id])).ToList(), ct);

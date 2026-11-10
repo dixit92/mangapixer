@@ -30,7 +30,7 @@ public sealed class FacetFilterFormatException(string message) : Exception(messa
 /// scope and exact statement in <see cref="FacetCountCache"/>).
 /// </para>
 /// </summary>
-public sealed class FacetSearchService
+public sealed partial class FacetSearchService
 {
     /// <summary>
     /// The most filters (chips + typed fields) one search applies; further ones are ignored. Kept at 10 in 1.49.0 (lane T): each filter
@@ -173,9 +173,13 @@ public sealed class FacetSearchService
                          WHERE e.ValueId IN ({QuerySql.List(r.ValueIds)}) AND e.LibraryId IN ({scope.SqlList}))
                 """);
         }
-        // S5 (1.49.0): every free-text word matches the title, an alternative title or a visible location's name.
-        foreach (var word in TagViewText.Words(parsed.FreeText))
+        // S5 (1.49.0): every free-text word matches the title, an alternative title or a visible location's name. 1.53.0 (lane S, 5c): a
+        // rating: term is the viewer's own rating filter, not title text (TagViewRating.cs).
+        var (freeText, rating) = com.lifepixer.mangapixer.Core.Catalog.SearchText.SplitRating(parsed.FreeText);
+        foreach (var word in TagViewText.Words(freeText))
             conditions.Add((word.Negated ? "NOT " : "") + TitleCondition(word.Text, parameters, scope));
+        if (rating is not null)
+            conditions.Add(await RatingConditionAsync(rating, scope, userId, ct));
 
         // 1.47.0 (lane P): the read filter - the viewer's read state of each matching WORK over its visible locations
         // (QueryWorkReadState), resolved in a pre-pass and folded in as an id list, so the page, the cursor and the count agree.

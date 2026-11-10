@@ -28,11 +28,13 @@ public sealed class RatingsService
     private readonly TimeProvider _time;
     private readonly ILogger<RatingsService>? _logger;
     private readonly IRatingChangeSink[] _sinks;
+    private readonly RatingsGeneration? _generation;
 
     public RatingsService(
         MangaPixerDbContext db, LibraryAuthorizationService auth, TimeProvider? time = null, ILogger<RatingsService>? logger = null,
-        IEnumerable<IRatingChangeSink>? sinks = null)
+        IEnumerable<IRatingChangeSink>? sinks = null, RatingsGeneration? generation = null)
     {
+        _generation = generation; // 1.53.0 lane S: a change makes the cached server averages stale
         _db = db;
         _auth = auth;
         _time = time ?? TimeProvider.System;
@@ -115,7 +117,10 @@ public sealed class RatingsService
 
         _logger?.LogDebug(LogEvents.Ratings.RatingSet, "Rating set: user {UserId}, node {NodeId}, score {Score}", userId, node.Id, score);
         if (changed)
+        {
+            _generation?.Bump();
             await NotifySinksAsync(userId, node.Id, score, ct);
+        }
         return RatingResult.Ok;
     }
 
@@ -132,7 +137,10 @@ public sealed class RatingsService
         var removed = await _db.UserRatings.Where(r => r.UserId == userId && r.CatalogNodeId == nodeId.Value).ExecuteDeleteAsync(ct);
         _logger?.LogDebug(LogEvents.Ratings.RatingCleared, "Rating cleared: user {UserId}, node {NodeId}, removed {Removed}", userId, nodeId.Value, removed);
         if (removed > 0)
+        {
+            _generation?.Bump();
             await NotifySinksAsync(userId, nodeId.Value, null, ct);
+        }
         return RatingResult.Ok;
     }
 

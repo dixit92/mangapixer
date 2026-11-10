@@ -243,6 +243,7 @@ public sealed partial class Program
             builder.Services.AddScoped<ReadingStateService>();
             builder.Services.AddScoped<FavoritesService>();
             builder.Services.AddScoped<Features.Ratings.RatingsService>(); // 1.52.0 lane R: ratings writes
+            Features.Ratings.SharedRatingsRegistration.AddSharedRatings(builder.Services); // 1.53.0 lane S: shared ratings
             builder.Services.AddScoped<SpreadLayoutService>();
             builder.Services.AddScoped<CatalogIdResolver>();
             builder.Services.AddScoped<ReaderModeResolver>();
