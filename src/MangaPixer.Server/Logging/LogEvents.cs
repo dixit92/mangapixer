@@ -409,6 +409,11 @@ public static class LogEvents
         public const int ReadingModeSuggestionsListed = 7050;
         public const int ReadingModeSuggestionsApplied = 7051;
         public const int ReadingModeSuggestionsRefused = 7052;
+
+        // 1.53.0 What's new (lane W, 7060-7069): counts, user ids and versions only - never note content.
+        public const int WhatsNewNotesParsed = 7060;
+        public const int WhatsNewNotesUnreadable = 7061;
+        public const int WhatsNewSeen = 7062;
     }
 
     /// <summary>App-level request pipeline errors (unhandled 500s).</summary>

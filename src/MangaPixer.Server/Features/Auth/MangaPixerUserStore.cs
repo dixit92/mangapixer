@@ -22,11 +22,13 @@ public sealed class MangaPixerUserStore :
     IDisposable
 {
     private readonly MangaPixerDbContext _db;
+    private readonly WhatsNew.WhatsNewNotes? _whatsNew;
     private bool _disposed;
 
-    public MangaPixerUserStore(MangaPixerDbContext db, IdentityErrorDescriber? errorDescriber = null)
+    public MangaPixerUserStore(MangaPixerDbContext db, IdentityErrorDescriber? errorDescriber = null, WhatsNew.WhatsNewNotes? whatsNew = null)
     {
         _db = db;
+        _whatsNew = whatsNew;
         ErrorDescriber = errorDescriber ?? new IdentityErrorDescriber();
     }
 
@@ -44,6 +46,9 @@ public sealed class MangaPixerUserStore :
         if (string.IsNullOrEmpty(user.SecurityStamp))
             user.SecurityStamp = Guid.NewGuid().ToString("N");
         user.CreatedAt = DateTimeOffset.UtcNow;
+        // 1.53.0 "What's new": a new account starts as having seen the running version's notes (the first admin of a fresh install sees
+        // no popup; a later update shows what changed since). Every account creation - first-run setup, admin-created users - comes here.
+        user.LastSeenVersion ??= _whatsNew?.Current;
 
         _db.Users.Add(user);
         await _db.SaveChangesAsync(ct);

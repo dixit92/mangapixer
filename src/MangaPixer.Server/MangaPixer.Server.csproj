@@ -16,6 +16,13 @@
     <InternalsVisibleTo Include="MangaPixer.Server.Tests" />
   </ItemGroup>
 
+  <!-- 1.53.0 "What's new": the repository's CHANGELOG.md is the admins' release notes, embedded so they always match the binary and work
+       offline (Features/WhatsNew/WhatsNewNotes.cs). A missing file fails the build (CS1566) instead of shipping a server without notes;
+       deploy/Dockerfile copies it into the build stage, the Windows publish builds from the checkout. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\CHANGELOG.md" LogicalName="CHANGELOG.md" Link="CHANGELOG.md" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\MangaPixer.Core\MangaPixer.Core.csproj" />
     <ProjectReference Include="..\MangaPixer.MediaWorker\MangaPixer.MediaWorker.csproj" />
