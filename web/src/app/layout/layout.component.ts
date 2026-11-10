@@ -16,6 +16,7 @@ import { MetadataReviewStateService } from '../features/metadata/metadata-review
 import { TrackerStateService } from '../features/trackers/tracker-state.service';
 import { LibrarySidebarComponent } from '../shared/library-sidebar.component';
 import { HeaderSearchComponent } from './header-search.component';
+import { WhatsNewService } from '../features/whats-new/whats-new.service';
 
 /**
  * Main layout shell. Toolbar + user menu, and (1.5.0) the persistent
@@ -126,6 +127,10 @@ import { HeaderSearchComponent } from './header-search.component';
                 <span class="menu-count">{{ adminAttention() }}</span>
               }
             </button>
+            <!-- 1.53.0 lane W: the running version's release notes, any time (the same dialog an admin sees once after an update). -->
+            <button mat-menu-item (click)="whatsNew.openCurrent()" data-testid="nav-whats-new">
+              <mat-icon>new_releases</mat-icon>What's new
+            </button>
           }
           <button mat-menu-item (click)="logout()">
             <mat-icon>logout</mat-icon>Logout
@@ -213,6 +218,8 @@ export class LayoutComponent {
   private readonly breakpointObserver = inject(BreakpointObserver);
   private readonly metadataReview = inject(MetadataReviewStateService);
   readonly trackers = inject(TrackerStateService);
+  /** 1.53.0: the account menu's "What's new"; injecting it here also starts the once-after-an-update check for admins. */
+  readonly whatsNew = inject(WhatsNewService);
 
   /** Series to review + open flags (admins only; 0 hides the badge). */
   readonly adminAttention = computed(() => (this.auth.isAdmin() ? this.metadataReview.attention() : 0));

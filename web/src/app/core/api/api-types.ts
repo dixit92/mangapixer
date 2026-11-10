@@ -4147,3 +4147,42 @@ export interface TakenDownSeriesDto {
   libraryId: string;
   displayName: string;
 }
+
+// --- What's new (1.53.0, admin only) ---
+
+/**
+ * `GET /api/v1/admin/whats-new[?current=true]`: the running version (`major.minor.patch`) and the release-note sections the admin has
+ * not seen yet (or, with `current=true`, the running version's section), newest first. Text only - inline formatting arrives as flagged
+ * parts; a link is always an in-app path.
+ */
+export interface WhatsNewDto {
+  current: string;
+  sections: WhatsNewSectionDto[];
+}
+
+/** One released version's notes. */
+export interface WhatsNewSectionDto {
+  version: string;
+  /** `yyyy-MM-dd`, or absent when the heading has none. */
+  date?: string | null;
+  groups: WhatsNewGroupDto[];
+}
+
+/** One `### Name` group (Added, Changed, Fixed ...). */
+export interface WhatsNewGroupDto {
+  name: string;
+  items: WhatsNewItemDto[];
+}
+
+/** One bullet as a run of inline parts. */
+export interface WhatsNewItemDto {
+  parts: WhatsNewInlineDto[];
+}
+
+/** A run of text: bold, code, or a link to an in-app path (`/admin`). */
+export interface WhatsNewInlineDto {
+  text: string;
+  bold?: boolean;
+  code?: boolean;
+  link?: string | null;
+}
