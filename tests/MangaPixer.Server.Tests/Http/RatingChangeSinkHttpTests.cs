@@ -25,11 +25,13 @@ public sealed class RatingChangeSinkHttpTests
     private static readonly DateTimeOffset T0 = new(2026, 5, 1, 0, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public void NoSinkIsRegisteredInProduction()
+    public void OnlyTheTrackerScoreSinkIsRegisteredInProduction()
     {
+        // 1.53.0 lane T: the tracker scores' sink is the one production sink (it enqueues only for a user who keeps their score in step).
         using var factory = new ApiTokenTestFactory();
         using var scope = factory.Services.CreateScope();
-        Assert.Empty(scope.ServiceProvider.GetServices<IRatingChangeSink>());
+        Assert.IsType<com.lifepixer.mangapixer.Server.Features.Trackers.TrackerScoreSink>(
+            Assert.Single(scope.ServiceProvider.GetServices<IRatingChangeSink>()));
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<RatingsService>());
     }
 

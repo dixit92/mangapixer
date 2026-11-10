@@ -16,6 +16,7 @@ import {
   TrackerFromTrackerResultDto,
   TrackerNodeOverrideDto,
   TrackerPreviewDto,
+  TrackerScoreImportResultDto,
   TrackerSeriesIdsDto,
   TrackerSeriesPageDto,
   TrackerSelectableSeriesListDto,
@@ -104,6 +105,16 @@ export class TrackersApiService {
   }
 
   /** First-connect preview: the server reads a batch from the tracker and writes nothing; call again while `remaining` > 0. */
+  /** 1.53.0 "Take my scores from <tracker>": reads the caller's scores there and fills their unrated series here (never overwrites). */
+  importScores(slug: string): Observable<TrackerScoreImportResultDto> {
+    return this.http.post<TrackerScoreImportResultDto>(`${this.base}/${slug}/scores/import`, {}, { withCredentials: true });
+  }
+
+  /** 1.53.0 "Use <tracker>'s" for one listed series: its MangaPixer rating becomes `score` (no request to the tracker). */
+  useTrackerScore(slug: string, seriesId: string, score: number): Observable<void> {
+    return this.http.put<void>(`${this.base}/${slug}/scores/${encodeURIComponent(seriesId)}`, { score }, { withCredentials: true });
+  }
+
   preview(slug: string): Observable<TrackerPreviewDto> {
     return this.http.post<TrackerPreviewDto>(`${this.base}/${slug}/preview`, {}, { withCredentials: true });
   }

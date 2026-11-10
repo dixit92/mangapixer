@@ -62,6 +62,12 @@ public sealed record TrackerAccountDto
     public required bool AddStartedSeries { get; init; }
     public required bool PrivateEntries { get; init; }
 
+    /// <summary>
+    /// 1.53.0: "Keep my score in step with my MangaPixer rating" - the user's rating of a linked series folder is sent when they set, change or
+    /// clear it, for a series already on their list (off by default).
+    /// </summary>
+    public required bool SyncScores { get; init; }
+
     /// <summary>Requests made today (UTC) for this account, and the daily cap.</summary>
     public required int RequestsToday { get; init; }
 
@@ -111,6 +117,60 @@ public sealed record UpdateTrackerUserSettingsRequest
 {
     public bool? AddStartedSeries { get; init; }
     public bool? PrivateEntries { get; init; }
+
+    /// <summary>1.53.0: "Keep my score in step with my MangaPixer rating".</summary>
+    public bool? SyncScores { get; init; }
+}
+
+/// <summary>
+/// 1.53.0 <c>POST /api/v1/trackers/{slug}/scores/import</c> ("Take my scores from &lt;tracker&gt;"): what reading the caller's own scores did.
+/// Series without a MangaPixer rating got the tracker's score; a different MangaPixer rating was KEPT and is listed in <see cref="Differ"/>.
+/// </summary>
+public sealed record TrackerScoreImportResultDto
+{
+    /// <summary>Scored entries read from the caller's list on the tracker.</summary>
+    public required int Scored { get; init; }
+
+    /// <summary>Of those, series here (linked folders the caller can open).</summary>
+    public required int Matched { get; init; }
+
+    /// <summary>Series that had no MangaPixer rating and now have the tracker's score.</summary>
+    public required int Filled { get; init; }
+
+    /// <summary>Series whose MangaPixer rating already was the tracker's score.</summary>
+    public required int Same { get; init; }
+
+    /// <summary>Series whose MangaPixer rating differs - kept as it is, by title.</summary>
+    public required IReadOnlyList<TrackerScoreDifferenceDto> Differ { get; init; }
+
+    /// <summary>Requests made to the tracker.</summary>
+    public required int Requests { get; init; }
+
+    /// <summary>Today's request limit stopped the read before the end of the list.</summary>
+    public required bool CapReached { get; init; }
+}
+
+/// <summary>One series whose MangaPixer rating differs from the caller's score on the tracker (both 1-10).</summary>
+public sealed record TrackerScoreDifferenceDto
+{
+    /// <summary>The linked series record's public id (the key of <c>PUT /api/v1/trackers/{slug}/scores/{seriesId}</c>).</summary>
+    public required string SeriesId { get; init; }
+
+    public required string Title { get; init; }
+
+    /// <summary>The folder whose rating it is.</summary>
+    public required string NodeId { get; init; }
+
+    public required int MyScore { get; init; }
+
+    public required int TrackerScore { get; init; }
+}
+
+/// <summary>1.53.0 <c>PUT /api/v1/trackers/{slug}/scores/{seriesId}</c>: "Use &lt;tracker&gt;'s" - set the MangaPixer rating to this score.</summary>
+public sealed record TrackerUseScoreRequest
+{
+    /// <summary>1-10.</summary>
+    public int? Score { get; init; }
 }
 
 /// <summary>One linked series in the caller's tracker list: MangaPixer's numbers next to the tracker's, and the outcome.</summary>

@@ -19,13 +19,16 @@ using com.lifepixer.mangapixer.Server.Logging;
 /// <see cref="TrackerEntryStatus.Rereading"/>) and - 1.43.0, owner A1 - <c>start_date</c> / <c>finish_date</c> (<c>yyyy-MM-dd</c>) when the
 /// write carries them. MAL's reference does not document the dates for this endpoint (Mihon sends them): when MAL answers a write WITH dates
 /// with a 4xx other than 401 / 403 / 404 / 429, the write is sent once more without them, and when that succeeds this server sends no dates
-/// to MAL again - also after a restart (<see cref="DatesRefused"/>, <see cref="ITrackerDatesMemory"/>). Never a score, tags, comments, priority or re-read counts; no private flag
-/// (MAL's API has none - <see cref="TrackerEntryWrite.Private"/> is ignored here).</item>
+/// to MAL again - also after a restart (<see cref="DatesRefused"/>, <see cref="ITrackerDatesMemory"/>). Never tags, comments, priority or re-read counts; no private flag
+/// (MAL's API has none - <see cref="TrackerEntryWrite.Private"/> is ignored here). A progress write never carries a score.</item>
+/// <item>1.53.0 (lane T) scores: the user's <c>my_list_status.score</c> (0-10, 0 = none) is read with the entry (MAL's default
+/// <c>my_list_status</c> fields) and with the whole list (<c>score</c> in <see cref="ListFields"/>); <see cref="WriteScoreAsync"/> sends a
+/// <c>PATCH .../my_list_status</c> with ONLY <c>score</c> (a clear is <c>score=0</c>), and only for an entry the engine read first.</item>
 /// <item>No revoke endpoint is documented: <see cref="RevokeAsync"/> sends nothing.</item>
 /// <item>1.43.0 "Check my list": the user's whole list, paged (<see cref="ReadListPageAsync"/>).</item>
 /// </list>
 /// </summary>
-public sealed class MyAnimeListTrackerClient : ITrackerClient, ITrackerDates, ITrackerListReader
+public sealed class MyAnimeListTrackerClient : ITrackerClient, ITrackerDates, ITrackerListReader, ITrackerScores
 {
     public const string AuthorizeUrl = "https://" + TrackerHttp.MyAnimeListSiteHost + "/v1/oauth2/authorize";
     public const string TokenUrl = "https://" + TrackerHttp.MyAnimeListSiteHost + "/v1/oauth2/token";
@@ -186,7 +189,8 @@ public sealed class MyAnimeListTrackerClient : ITrackerClient, ITrackerDates, IT
     }
 
     /// <summary>The fields of a whole-list read (1.43.0 "Check my list"): the user's list status of each entry and the series' totals.</summary>
-    public const string ListFields = "list_status{status,num_chapters_read,num_volumes_read,start_date,finish_date,is_rereading},num_chapters,num_volumes,status";
+    /// 1.53.0 (lane T): with the user's own <c>score</c>, for "Take my scores" and to compare before a score is sent.
+    public const string ListFields = "list_status{status,score,num_chapters_read,num_volumes_read,start_date,finish_date,is_rereading},num_chapters,num_volumes,status";
 
     /// <summary>Entries per page of the whole-list read (MAL's maximum).</summary>
     public const int ListPageSize = 1000;
@@ -236,7 +240,8 @@ public sealed class MyAnimeListTrackerClient : ITrackerClient, ITrackerDates, IT
                     Total(node, "num_volumes"),
                     Str(node, "status") == "finished",
                     DateOf(Str(mine, "start_date")),
-                    DateOf(Str(mine, "finish_date")))));
+                    DateOf(Str(mine, "finish_date")))
+                { Score = ScoreOf(mine) }));
             }
         }
         int? next = null;
@@ -313,7 +318,52 @@ public sealed class MyAnimeListTrackerClient : ITrackerClient, ITrackerDates, IT
             Total(root, "num_volumes"),
             Str(root, "status") == "finished",
             DateOf(Str(mine, "start_date")),
-            DateOf(Str(mine, "finish_date")));
+            DateOf(Str(mine, "finish_date")))
+        { Score = ScoreOf(mine) };
+    }
+
+    /// <summary>The user's score in a <c>my_list_status</c> / <c>list_status</c> object: 1-10, or null for MAL's 0 (none) or none at all.</summary>
+    private static int? ScoreOf(JsonElement mine) =>
+        mine.TryGetProperty("score", out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var score)
+            ? TrackerScoreRules.FromTracker(score)
+            : null;
+
+    /// <summary>MAL's score is part of <c>my_list_status</c>, read with the entry: no request of its own.</summary>
+    public bool ScoreInEntry => true;
+
+    public Task<int?> ReadScoreAsync(TrackerTokens tokens, string mediaId, TrackerEntry entry, CancellationToken ct) => Task.FromResult(entry.Score);
+
+    /// <summary><c>PATCH /v2/manga/{id}/my_list_status</c> with ONLY <c>score</c> (1-10; a clear sends 0, MAL's "no score").</summary>
+    public async Task WriteScoreAsync(TrackerTokens tokens, string mediaId, int? score, CancellationToken ct)
+    {
+        var id = MediaIdOf(mediaId);
+        using var request = new HttpRequestMessage(HttpMethod.Patch, $"{ApiBase}manga/{id}/my_list_status")
+        {
+            Content = new FormUrlEncodedContent(ScoreFormOf(score)),
+        }.WithBearer(tokens);
+        using var response = await SendAsync(request, "score", ct);
+        if (!response.IsSuccessStatusCode)
+            throw Failure(response);
+    }
+
+    /// <summary>The form of a score write: ONLY <c>score</c> - the score (1-10), or 0 to clear it.</summary>
+    public static IReadOnlyList<KeyValuePair<string, string>> ScoreFormOf(int? score) =>
+        TrackerScoreRules.IsSendable(score)
+            ? [new("score", (score ?? 0).ToString(CultureInfo.InvariantCulture))]
+            : throw new TrackerException(TrackerFailure.Rejected);
+
+    /// <summary>
+    /// One page of the user's scored entries: the whole-list read of "Check my list" (<see cref="ReadListPageAsync"/>, which reads
+    /// <c>score</c> too); the cursor is the page's offset. Entries without a score are left out.
+    /// </summary>
+    public async Task<TrackerScorePage> ReadScorePageAsync(TrackerTokens tokens, string? cursor, CancellationToken ct)
+    {
+        var offset = 0;
+        if (cursor is not null && (!int.TryParse(cursor, NumberStyles.None, CultureInfo.InvariantCulture, out offset) || offset < 0))
+            throw new TrackerException(TrackerFailure.Rejected);
+        var page = await ReadListPageAsync(tokens, offset, ct);
+        var items = page.Items.Where(i => i.Entry.Score is not null).Select(i => new TrackerScoreItem(i.MediaId, i.Entry.Score!.Value)).ToList();
+        return new TrackerScorePage(items, page.NextOffset is { } next && next > offset ? next.ToString(CultureInfo.InvariantCulture) : null);
     }
 
     /// <summary>A PKCE verifier / plain challenge: 43-128 characters of the RFC 7636 unreserved set.</summary>

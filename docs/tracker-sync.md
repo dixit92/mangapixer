@@ -54,7 +54,9 @@ For a series you read, MangaPixer first **reads** your entry for that series on 
 | Dates | the day you started and the day you finished the series (see [Dates](#dates-on-myanimelist)) | no |
 | Your sign-in | the token MyAnimeList gave MangaPixer | the token MangaUpdates gave MangaPixer |
 
-**Never sent:** titles, file or folder names, paths, which files you read, page positions, scores, your other activity on this server, anything about other users, or anything that identifies the server. Every request names MangaPixer and its version (the same for every MangaPixer server).
+**Your score**, *new in 1.53.0*, only if you turn on **Keep my score in step with my MangaPixer rating** for that tracker - see [Your score](#your-score).
+
+**Never sent:** titles, file or folder names, paths, which files you read, page positions, your ratings of single files, your other activity on this server, anything about other users, or anything that identifies the server. Every request names MangaPixer and its version (the same for every MangaPixer server).
 
 The requests come from the **server**, not from your browser: your browser only talks to MangaPixer (and to myanimelist.net once, when you sign in there - or when you open a series' page on the tracker from its link on the **Tracking** page, in a new tab and without a referrer).
 
@@ -179,6 +181,35 @@ MyAnimeList keeps a start and a finish date for each series on your list. MangaP
 ### Daily limit
 
 MangaPixer makes at most a set number of requests per day to each tracker for your account - reads, writes and sign-in renewals; **2000** unless your admin changed it. Your card shows how many were used today. When the limit is reached, syncing resumes the next day (UTC).
+
+## Your score
+
+*New in 1.53.0.* MangaPixer can keep your own score on the tracker - your MyAnimeList score, your MangaUpdates rating - the same as your rating here. It is **off by default**, per tracker: turn on **Keep my score in step with my MangaPixer rating** on the tracker's card on the **Tracking** page.
+
+### When you rate a series here
+
+With the switch on, MangaPixer sends your rating when you set, change or clear it - right away, from the server:
+
+- **Only a series folder** you rate: the folder that is linked to the series. Ratings of single files (a chapter, a volume file) are never sent.
+- **Only a series already on your list.** MangaPixer first reads your entry for the series on the tracker; when the series is on none of your lists, nothing is sent - a score never adds a series to your list.
+- **Nothing when it is already the same**: when your score there already matches, nothing is written.
+- **Clearing** your rating here removes your score there (MyAnimeList: no score; MangaUpdates: the rating is removed).
+- The same rules as for your progress: not for your **Private** libraries or **doujinshi** unless you turned sync on for that folder or series, never for a series you set to **Don't sync**, and only for series the tracker knows by number.
+- What is sent: the series' number on the tracker and the score (MangaPixer's half stars as 1 to 10: one star is 2, four and a half stars is 9).
+
+A score counts in your [daily limit](#daily-limit) like any other request: for MyAnimeList one read and at most one write; for MangaUpdates one read of the entry, one of the rating and at most one write. When the tracker asks MangaPixer to slow down, the score is sent again a little later; if the tracker no longer accepts MangaPixer's sign-in, the card asks you to connect again.
+
+### Take my scores from the tracker
+
+**Take my scores from *tracker*** on the card (offered right after you turn the switch on, and always there) reads your scores on the tracker once, when you press it, and compares them with your ratings here:
+
+- a series **you have not rated** here gets your score from the tracker (on its series folder);
+- a series with **the same** rating stays as it is;
+- a series with **a different** rating here **keeps your MangaPixer rating** - it is listed under the summary, with both ratings, and **Use *tracker*'s** takes the tracker's score for that one series.
+
+Nothing is changed on the tracker, and a score taken from a tracker is not sent back to it (with the switch on for the other tracker, your new rating is kept in step there too). Scores of series that are not here are read but not kept. Scores with decimals on MangaUpdates (7.5) are rounded to the nearest half star (7.5 becomes 8, four stars).
+
+How many requests it takes: **MyAnimeList** reads your whole list, 1000 entries per request (the same request as **Check my list**). **MangaUpdates** reads your lists (one request), then each list 100 entries per request - about one request per 100 series on your lists, plus one per list.
 
 ## Disconnect
 

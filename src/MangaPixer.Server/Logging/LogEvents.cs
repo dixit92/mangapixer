@@ -588,7 +588,7 @@ public static class LogEvents
         public const int ReadMarkObserverFailed = 10001;
 
         // Reserved, 1.43.0: 10010-10399 engine + API (lane E); 10400-10599 MyAnimeList adapter, 10600-10799 MangaUpdates adapter
-        // (lane A); 10800-10899 tracking redesign (lane G); 10900-10999 free.
+        // (lane A); 10800-10899 tracking redesign (lane G); 10900-10919 tracker scores (1.53.0 lane T); 10920-10999 free.
 
         // Engine + API (lane E, 1.43.0; 10010-10399). Information carries the internal user id, the tracker slug, outcome codes,
         // counts, HTTP status and timings only - never a tracker or series id (with a user id they are that user's reading history),
@@ -628,6 +628,15 @@ public static class LogEvents
 
         // 1.43.2 (Select mode, replaces Send all): one line per batch request - user id, slug, action, counts and timing only.
         public const int BatchApplied = 10807;
+
+        // 1.53.0 tracker scores (lane T; 10900-10919): user id, slug, outcome codes, counts, HTTP status and timings at Information - never a
+        // series or tracker id and never a score. Debug may add the MangaPixer record id.
+        public const int ScoreSent = 10900;
+        public const int ScoreFailed = 10901;
+        public const int ScoreRateLimited = 10902;
+        public const int ScoresImported = 10903;
+        public const int ScoreDebug = 10904;
+        public const int ScoreSinkSkipped = 10905;
     }
 
     /// <summary>

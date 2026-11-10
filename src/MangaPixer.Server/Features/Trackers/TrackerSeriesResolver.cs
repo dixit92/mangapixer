@@ -90,6 +90,29 @@ public sealed class TrackerSeriesResolver(MangaPixerDbContext db, LibraryAuthori
     }
 
     /// <summary>
+    /// 1.53.0 (lane T): whether the user's score of folder <paramref name="nodeId"/> (linked to <paramref name="recordId"/>) may be sent - the
+    /// progress sync's rule for that folder (<see cref="EligibleAsync"/>): the user can open its library, and its nearest sync switch is on, or
+    /// there is none and it is neither in a Private library of the user nor of a doujinshi record.
+    /// </summary>
+    public async Task<bool> MaySyncNodeAsync(long userId, long nodeId, long recordId, CancellationToken ct) =>
+        (await EligibleAsync(userId, new Dictionary<long, long> { [nodeId] = recordId }, ct)).Contains(nodeId);
+
+    /// <summary>
+    /// 1.53.0 (lane T): the record of a folder's OWN Confirmed / Auto link (no ancestor walk: a rated folder stands for a series only when the
+    /// link is its own - the series folder cards' rule), or null; also null for an archive, a tombstoned node or an unknown id.
+    /// </summary>
+    public async Task<long?> OwnLinkedRecordOfFolderAsync(long nodeId, CancellationToken ct)
+    {
+        var states = new[] { (int)SeriesLinkState.Confirmed, (int)SeriesLinkState.Auto };
+        var folder = (int)CatalogNodeKind.Folder;
+        var tombstoned = (int)CatalogNodeAvailability.Tombstoned;
+        return await (from n in db.CatalogNodes.AsNoTracking()
+                      join l in db.NodeSeriesLinks.AsNoTracking() on n.Id equals l.NodeId
+                      where n.Id == nodeId && n.Kind == folder && n.Availability != tombstoned && l.RecordId != null && states.Contains(l.State)
+                      select l.RecordId).FirstOrDefaultAsync(ct);
+    }
+
+    /// <summary>
     /// 1.44.0: why reading below <paramref name="nodeId"/> does not sync for <paramref name="userId"/> - the rule of <see cref="EligibleAsync"/>
     /// for that folder: its nearest switch off; or no switch and a Private library of the user, or a doujinshi record - else null.
     /// </summary>
