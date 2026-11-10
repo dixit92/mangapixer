@@ -86,7 +86,7 @@ Background work that runs without anyone asking:
 | Update check | Only if an admin turned on the Update Checker: at most once a day |
 | ComicInfo read | In the background for archives analyzed before 1.24.0 (new archives are read during analysis); local only |
 | Series matching and refresh | Only if an admin turned on **Automatic matching**: after scans and in the background, within the daily request budget |
-| Tracker sync | Only if an admin allowed a tracker and a user connected their own account: while that user reads, right after a chapter or volume is finished or marked read |
+| Tracker sync | Only if an admin allowed a tracker and a user connected their own account: while that user reads, right after a chapter or volume is finished or marked read; with **Keep my score in step** on (1.53.0), when that user rates a linked series |
 
 ## Privacy by design
 

@@ -6,6 +6,65 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Shared ratings - off until an administrator turns them on** (Administration > Shared ratings). Then every user sees, under their own
+  stars on the Info sheet and the series page, a **Server** line with the average of everyone's ratings and how many people rated (for
+  example "★ 4.0 · 3 ratings") - never who rated what. Turning it off hides every average at once without deleting any rating. Ratings in
+  a user's Private libraries never count. Each user can stop sharing in Settings > **Ratings and recommendations** (on by default). The
+  library view can be sorted by **Server rating** while it is on. On a small server an average can show what someone rated.
+- **What's new after an update.** The first time an admin opens MangaPixer after an update, a **What's new** window lists what changed
+  since the version that admin last saw - each version's notes, newest first. **Got it** (or Escape, or a tap outside) closes it for
+  good; it never opens over the reader. Open it again any time from the account menu > **What's new**. Readers never see it, and a new
+  install starts with nothing to show. The notes are built into the server, so nothing is fetched.
+- **Recommended for you** on Home: a row of up to twelve series from your own server that you have not read or started yet, picked from
+  what you rated three and a half stars or more, starred or finished - by shared authors, tags, genres and magazines, and by sequels,
+  side stories and spin-offs. Each card says why in one line ("Same author: ...", "Like <series>: horror, school life", "Sequel of ...").
+  It sits after Continue reading; turn it off in Settings > Ratings and recommendations. A series you rated low counts against similar
+  ones.
+- **More like this** on the series page, after About: series on your server that have the most in common with this one; ones you have
+  read come last. Recommendations are worked out on your server from your own ratings, favorites and reading - nothing is sent anywhere,
+  and no other user's activity is used.
+- **Your own score on MyAnimeList and MangaUpdates** (Tracking page, per tracker, off by default): turn on **Keep my score in step with my
+  MangaPixer rating** and your rating of a series folder is sent when you set, change or clear it - only for a series already on your
+  list there (MangaPixer reads your entry first, never adds a series for a score, and sends nothing when the score is already the same).
+  Your Private libraries and doujinshi stay out unless you turned sync on for them; ratings of single files are never sent.
+- **Take my scores from MyAnimeList / MangaUpdates**: one click reads your scores there and gives them to the series you have not rated
+  here. A different rating here is kept and listed, with **Use MyAnimeList's** (or MangaUpdates') for each one - nothing is overwritten
+  without your click, and nothing is changed on the tracker.
+- **Rate a folder that has no Info.** A **Rate** button in the library's top bar where a folder has no Info button, and **Rate...** in the
+  selection bar for one selected folder or archive.
+- `rating:` now also works in the quick results under the search box and in the tag view (always your own rating).
+
+### Changed
+
+- **Tracker sync asks again** (consent version 2 for both trackers): the texts now say that your own score is sent when you turn that on.
+  Syncing to a tracker pauses until an admin accepts the new text in Administration > Trackers, and then until each user reads the new
+  text and connects again on their Tracking page. Settings and series lists are kept.
+- Better contrast: the "Read" and "Reading" badges, the coloured library initials, the version line at the bottom of every page and the
+  item counts on Libraries now meet the WCAG AA contrast level in every theme. The "Read" badge is a deeper green, and the badges no
+  longer let the cover show through.
+- Cards look the same everywhere: the library cards on Home and Libraries and the cards in Settings and Administration are now flat with
+  a thin outline, like the browse bar and the Info sheet, instead of raised with a shadow. On the series page, the Details, In your
+  library and Sources blocks share the header's look.
+- Settings: one **Ratings and recommendations** card; the cards are evenly spaced (some touched), the Library display sliders use the
+  accent colour, and the "Stacks per library" label is no longer cut.
+- One Rate icon (a circled star) everywhere - the reader's top bar, the new Rate buttons and the "My rating" sorts - so it is never
+  mistaken for the favorite star.
+- The rating stars no longer jump when you rate: the caption always sits above them and "Clear rating" keeps its place.
+- List rows: the favorite star and the (i) line up in fixed columns, whatever badges a row carries.
+- The library's folder trail never leaves a "/" alone at the end of a line on a phone, and is no longer cut off on a tablet.
+- Home: the card-size slider moved from its own row above everything into the first row's heading line, and is no longer shown on a
+  phone (set the size in a library's View menu or in Settings).
+- Image and archive libraries updated: Magick.NET 15.1.0 (ImageMagick 7.1.2-35) and SharpCompress 0.50.8.
+
+### Fixed
+
+- Back after using a menu: when a menu (sort, filter, the account menu, ...) had been closed and you then opened something from the same
+  page - an archive from Favorites, say - Back skipped the page you came from and went to the one before it. It now returns to that
+  page.
+- Search page: the "Search libraries" label no longer overlaps the text you type.
+
 ## [1.52.0] - 2026-11-09
 
 ### Added
