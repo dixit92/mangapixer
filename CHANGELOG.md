@@ -57,9 +57,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Home: the card-size slider moved from its own row above everything into the first row's heading line, and is no longer shown on a
   phone (set the size in a library's View menu or in Settings).
 - Image and archive libraries updated: Magick.NET 15.1.0 (ImageMagick 7.1.2-35) and SharpCompress 0.50.8.
+- For other apps: `SeriesInfoDto.missingReportPossible` (additive) is true exactly when the series' Missing line exists, also while
+  series information is hidden for the library.
 
 ### Fixed
 
+- Browse, Home and Search no longer say "This folder is empty.", "No libraries yet" or "No results found." while the answer is still on
+  its way or when it failed. A slow first answer shows a spinner (after a moment, so a quick one shows nothing in between); a failed one
+  says "Could not load this folder." / "Could not load your libraries." / "The search did not answer." with a **Try again** button. The
+  empty line shows only after a real, empty answer.
+- An unknown address in the app opens Home instead of a blank page.
+- Home's "No libraries yet" line no longer sends a reader to Administration, which only admins can open; a reader sees "Ask an
+  administrator for access to a library."
+- The series page no longer asks for a Missing line that cannot exist (a 404 in the browser console on series pages without their own
+  series link); a linked series in a library whose series information is hidden keeps its Missing line.
 - Back after using a menu: when a menu (sort, filter, the account menu, ...) had been closed and you then opened something from the same
   page - an archive from Favorites, say - Back skipped the page you came from and went to the one before it. It now returns to that
   page.
