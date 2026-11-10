@@ -21,7 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   what you rated three and a half stars or more, starred or finished - by shared authors, tags, genres and magazines, and by sequels,
   side stories and spin-offs. Each card says why in one line ("Same author: ...", "Like <series>: horror, school life", "Sequel of ...").
   It sits after Continue reading; turn it off in Settings > Ratings and recommendations. A series you rated low counts against similar
-  ones.
+  ones, so they rank lower or are left out - a series by the same author may not be suggested at all.
 - **More like this** on the series page, after About: series on your server that have the most in common with this one; ones you have
   read come last. Recommendations are worked out on your server from your own ratings, favorites and reading - nothing is sent anywhere,
   and no other user's activity is used.
@@ -51,9 +51,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   accent colour, and the "Stacks per library" label is no longer cut.
 - One Rate icon (a circled star) everywhere - the reader's top bar, the new Rate buttons and the "My rating" sorts - so it is never
   mistaken for the favorite star.
-- The rating stars no longer jump when you rate: the caption always sits above them and "Clear rating" keeps its place.
+- The rating stars no longer jump when you rate: the caption always sits above them and the row keeps its size, also on a
+  phone, where the stars, the value and Clear rating share one line (Clear rating is a small X button when the row is narrow).
 - List rows: the favorite star and the (i) line up in fixed columns, whatever badges a row carries.
-- The library's folder trail never leaves a "/" alone at the end of a line on a phone, and is no longer cut off on a tablet.
+- The library's folder trail never leaves a "/" alone at the end of a line on a phone. On a tablet or a desktop a trail too long
+  for the bar shortens the library and parent folder names with "..." and always shows the folder you are in.
 - Home: the card-size slider moved from its own row above everything into the first row's heading line, and is no longer shown on a
   phone (set the size in a library's View menu or in Settings).
 - Image and archive libraries updated: Magick.NET 15.1.0 (ImageMagick 7.1.2-35) and SharpCompress 0.50.8.
