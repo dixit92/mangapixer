@@ -1,4 +1,6 @@
-import { isScore, keyScore, ratedLabel, scoreOf, starIcon, starsText, valueText } from './rating-scale';
+import {
+  averageStars, isScore, keyScore, ratedLabel, scoreOf, serverAverageLabel, serverAverageText, starIcon, starsText, valueText,
+} from './rating-scale';
 
 /** 1.52.0 lane R: the 1-10 score shown as 5 stars with halves (owner decision 5a). */
 describe('rating scale', () => {
@@ -40,5 +42,19 @@ describe('rating scale', () => {
     expect(keyScore('Backspace', 8)).toBeNull();
     expect(keyScore('Enter', 8)).toBeUndefined();
     expect(keyScore('ArrowRight', null)).toBe(1);
+  });
+});
+
+describe('server average text (1.53.0)', () => {
+  it('shows the average in stars with one decimal and the count', () => {
+    expect(averageStars(8)).toBe('4.0');
+    expect(averageStars(7.5)).toBe('3.8');
+    expect(averageStars(6.67)).toBe('3.3');
+    expect(averageStars(10)).toBe('5.0');
+    expect(serverAverageText({ average: 8, count: 3 })).toBe('4.0 · 3 ratings');
+    expect(serverAverageText({ average: 2, count: 1 })).toBe('1.0 · 1 rating');
+    expect(serverAverageText(null)).toBe('');
+    expect(serverAverageText({ average: 8, count: 0 })).toBe('');
+    expect(serverAverageLabel({ average: 9, count: 2 })).toBe('Server average 4.5 of 5, 2 ratings');
   });
 });

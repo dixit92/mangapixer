@@ -94,7 +94,12 @@ describe('RatingStarsComponent', () => {
       expect(slider(f).hasAttribute('aria-valuenow')).toBe(false);
       expect(slider(f).getAttribute('aria-valuetext')).toBe('Not rated');
       expect(icons(f).every((i) => i === 'star_border')).toBe(true);
-      expect(clearButton(f)).toBeNull();
+      // 1.53.0 (audit V4): the Clear button keeps its slot - hidden, out of the tab order and inert - so rating never re-flows the row.
+      const button = clearButton(f)!;
+      expect(button).not.toBeNull();
+      expect(button.classList.contains('unrated')).toBe(true);
+      expect(button.getAttribute('aria-hidden')).toBe('true');
+      expect(button.disabled).toBe(true);
     });
 
     it('a click on the left half sets the half star, on the right half the whole star', () => {
@@ -184,7 +189,19 @@ describe('RatingStarsComponent', () => {
       button.click();
       f.detectChanges();
       expect(fake.setRating).toHaveBeenCalledWith('node-1', null);
-      expect(clearButton(f)).toBeNull();
+      expect(clearButton(f)!.classList.contains('unrated')).toBe(true);
+    });
+
+    it('keeps the same elements rated and unrated (audit V4: the row does not re-flow when you rate)', () => {
+      const f = create(null);
+      const before = [...el(f).querySelector('.edit')!.children].map((c) => `${c.tagName}:${c.getAttribute('data-testid') ?? c.className}`);
+      expect(clearButton(f)!.classList.contains('unrated')).toBe(true);
+      half(f, 6).click();
+      f.detectChanges();
+      const after = [...el(f).querySelector('.edit')!.children].map((c) => `${c.tagName}:${c.getAttribute('data-testid') ?? c.className}`);
+      expect(after).toEqual(before);
+      expect(clearButton(f)!.classList.contains('unrated')).toBe(false);
+      expect(clearButton(f)!.hasAttribute('aria-hidden')).toBe(false);
     });
 
     it('reverts to the stored rating when the save fails', () => {

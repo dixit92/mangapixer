@@ -6,6 +6,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule, MatCheckboxChange } from '@angular/material/checkbox';
 import { MatSelectModule, MatSelectChange } from '@angular/material/select';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { AuthService } from '../../core/auth/auth.service';
 import { ApiService } from '../../core/api/api.service';
@@ -17,6 +18,7 @@ import {
   CARD_SIZE_MAX, CARD_SIZE_MIN, CARD_SIZE_STEP, DeviceDisplayPreferencesService, LIST_COLUMNS_MAX, LIST_COLUMNS_MIN, LIST_COLUMNS_STEP,
 } from '../../core/preferences/device-display-preferences.service';
 import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series-info-hover-preference.service';
+import { RatingSharingService } from '../ratings/rating-sharing.service';
 
 /**
  * Settings component. Allows the user to change their password and to mark
@@ -35,6 +37,7 @@ import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series
     MatButtonModule,
     MatCheckboxModule,
     MatSelectModule,
+    MatSnackBarModule,
     ReadingPreferencesCardComponent,
     AppearanceCardComponent,
     TrackingSettingsLinkComponent,
@@ -231,6 +234,47 @@ import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series
       </mat-card-content>
     </mat-card>
 
+    <!-- 1.53.0 (lane S, audit N4): one card for shared ratings and the Home recommendations row. -->
+    <mat-card class="ratings-card" data-testid="ratings-card">
+      <mat-card-header>
+        <mat-card-title>Ratings and recommendations</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <p class="hint">
+          When your administrator turns on shared ratings, other users of this server see an average of everyone's ratings on a
+          series or volume and how many people rated - never who rated what. Ratings in your Private libraries never count.
+        </p>
+        @if (sharingLoaded()) {
+          <div class="fav-toggle">
+            <mat-checkbox [checked]="shareRatings()" [disabled]="sharingSaving() || !serverSharing()"
+                          aria-describedby="share-ratings-hint" data-testid="share-ratings"
+                          (change)="setShareRatings($event)">
+              Share my ratings with other users of this server
+            </mat-checkbox>
+          </div>
+          @if (!serverSharing()) {
+            <p class="hint sub-hint" id="share-ratings-hint" data-testid="share-ratings-off">Your administrator has not turned on shared ratings.</p>
+          }
+          @if (sharingError()) {
+            <div class="error">{{ sharingError() }}</div>
+          }
+        } @else {
+          <p class="muted">Loading…</p>
+        }
+        @if (favoritesLoaded()) {
+          <div class="fav-toggle">
+            <mat-checkbox [checked]="showRecommendationsHomeRow()" [disabled]="recommendationsSaving()"
+                          data-testid="show-recommendations-row" (change)="setShowRecommendationsHomeRow($event)">
+              Show a "Recommended for you" row on the home page
+            </mat-checkbox>
+          </div>
+          @if (recommendationsError()) {
+            <div class="error">{{ recommendationsError() }}</div>
+          }
+        }
+      </mat-card-content>
+    </mat-card>
+
     <mat-card class="hover-info-card">
       <mat-card-header>
         <mat-card-title>Series information</mat-card-title>
@@ -314,19 +358,18 @@ import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series
     </mat-card>
   `,
   styles: [`
-    mat-card { max-width: 600px; margin: 0 auto; }
-    .private-libraries-card { margin-top: 24px; }
-    .home-window-card { margin-top: 24px; }
-    .home-window-card mat-form-field { width: 120px; }
+    /* 1.53.0 (audit V5): one rhythm - the page is a column of cards 24 px apart, so a new card needs no margin rule of its own. */
+    :host { display: flex; flex-direction: column; gap: 24px; max-width: 600px; margin: 0 auto; }
+    mat-card { margin: 0; max-width: none; }
+    mat-card-header { padding-bottom: 8px; }
+    .home-window-card mat-form-field { width: 180px; }
     .home-libraries { margin-top: 8px; }
     .home-libraries h4 { margin: 8px 0; font-size: 14px; }
     .home-library-list { display: flex; flex-direction: column; gap: 8px; }
-    .device-display-card { margin-top: 24px; }
     .display-row { display: flex; align-items: center; gap: 12px; margin: 8px 0; }
     .display-label { flex: 0 0 96px; font-size: 14px; }
-    .display-slider { flex: 1 1 auto; min-width: 0; }
+    .display-slider { flex: 1 1 auto; min-width: 0; accent-color: var(--mp-accent-strong); }
     .display-value { flex: 0 0 52px; text-align: right; font-size: 13px; color: var(--mp-text-muted); }
-    .performance-card { margin-top: 24px; }
     .performance-card mat-form-field { width: 160px; }
     form { display: flex; flex-direction: column; gap: 16px; }
     .error { color: var(--mp-error-strong); font-size: 14px; }
@@ -335,6 +378,8 @@ import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series
     .hint { color: var(--mp-text-muted); font-size: 13px; margin: 0 0 16px; }
     h3 { margin: 0 0 16px 0; }
     .private-library-list { display: flex; flex-direction: column; gap: 8px; }
+    .ratings-card .fav-toggle + .fav-toggle { margin-top: 4px; }
+    .sub-hint { margin: 0 0 8px 44px; } /* under the checkbox label, not under its box */
   `],
 })
 export class SettingsComponent implements OnInit {
@@ -342,6 +387,8 @@ export class SettingsComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly api = inject(ApiService);
   private readonly hoverPreference = inject(SeriesInfoHoverPreferenceService);
+  private readonly ratingSharing = inject(RatingSharingService);
+  private readonly snackBar = inject(MatSnackBar);
   /** Card size and list columns are per device (1.48.0): shown and edited here as this device's own values. */
   private readonly display = inject(DeviceDisplayPreferencesService);
   readonly cardSize = this.display.cardSize;
@@ -419,6 +466,18 @@ export class SettingsComponent implements OnInit {
   readonly favoritesSaving = signal(false);
   readonly favoritesError = signal<string | null>(null);
 
+  // Shared ratings (1.53.0): the user's own choice through its own route (never the blob), disabled while the admin switch is off.
+  readonly shareRatings = this.ratingSharing.share;
+  readonly serverSharing = this.ratingSharing.serverEnabled;
+  readonly sharingLoaded = signal(false);
+  readonly sharingSaving = signal(false);
+  readonly sharingError = signal<string | null>(null);
+
+  // The Home "Recommended for you" row (1.53.0): per-user, on the same blob, ON by default (lane C's row reads it).
+  readonly showRecommendationsHomeRow = signal(true);
+  readonly recommendationsSaving = signal(false);
+  readonly recommendationsError = signal<string | null>(null);
+
   // Series information on hover (1.27.0): per-user, on the same blob, ON by default.
   readonly seriesInfoOnHover = signal(true);
   readonly hoverSaving = signal(false);
@@ -431,6 +490,13 @@ export class SettingsComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.ratingSharing.reload().subscribe({
+      next: () => this.sharingLoaded.set(true),
+      error: () => {
+        this.sharingLoaded.set(true); // shown as the defaults: on, and disabled while the switch is unknown
+        this.sharingError.set('Could not load the shared ratings setting');
+      },
+    });
     this.api.getAllLibraries().subscribe({
       next: (libs) => { this.libraries.set(libs); this.librariesLoading.set(false); },
       error: () => this.librariesLoading.set(false),
@@ -455,6 +521,7 @@ export class SettingsComponent implements OnInit {
         this.showFavoritesHomeRow.set(p.showFavoritesHomeRow ?? false);
         this.favoritesSearchProminence.set(p.favoritesSearchProminence ?? false);
         this.seriesInfoOnHover.set(p.seriesInfoOnHover ?? true);
+        this.showRecommendationsHomeRow.set(p.showRecommendationsHomeRow ?? true);
         this.favoritesLoaded.set(true);
       },
       error: () => {
@@ -545,6 +612,48 @@ export class SettingsComponent implements OnInit {
       this.showFavoritesHomeRow,
       change.checked,
     );
+  }
+
+  /**
+   * Persist "Share my ratings" (1.53.0) through its own route. On needs no question (it is the default); off says so in a snackbar.
+   * Optimistic; reverts on failure.
+   */
+  setShareRatings(change: MatCheckboxChange): void {
+    const next = change.checked;
+    this.sharingSaving.set(true);
+    this.sharingError.set(null);
+    this.ratingSharing.setShare(next).subscribe({
+      next: () => {
+        this.sharingSaving.set(false);
+        if (!next) this.snackBar.open('Your ratings are no longer shared.', undefined, { duration: 4000 });
+      },
+      error: (err: ApiError) => {
+        change.source.checked = !next;
+        this.sharingSaving.set(false);
+        this.sharingError.set(err.message || 'Failed to save the shared ratings setting');
+      },
+    });
+  }
+
+  /** Persist the Home "Recommended for you" row (1.53.0), echoing the whole blob back like the favorites toggles. */
+  setShowRecommendationsHomeRow(change: MatCheckboxChange): void {
+    const next = change.checked;
+    const previous = this.showRecommendationsHomeRow();
+    this.showRecommendationsHomeRow.set(next);
+    this.recommendationsSaving.set(true);
+    this.recommendationsError.set(null);
+    const body: LibraryViewPreferencesDto = {
+      ...(this.libraryPrefs ?? { viewMode: 'card', density: 'comfortable', sort: 'name' }),
+      showRecommendationsHomeRow: next,
+    };
+    this.api.setLibraryPreferences(this.display.stamp(body)).subscribe({
+      next: () => { this.libraryPrefs = body; this.recommendationsSaving.set(false); },
+      error: (err: ApiError) => {
+        this.showRecommendationsHomeRow.set(previous);
+        this.recommendationsSaving.set(false);
+        this.recommendationsError.set(err.message || 'Failed to save the recommendations setting');
+      },
+    });
   }
 
   /** Persist the search-prominence opt-in, echoing the whole blob back (1.21.0). */

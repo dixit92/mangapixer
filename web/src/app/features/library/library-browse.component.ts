@@ -25,7 +25,7 @@ import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.compon
 import { ContinueRowComponent } from '../../shared/continue-row/continue-row.component';
 import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.component';
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
-import { SeriesInfoButtonComponent } from '../metadata/series-info-button.component';
+import { SeriesInfoButtonComponent, SeriesSlot } from '../metadata/series-info-button.component';
 import { SeriesSelectionActionsComponent } from '../metadata/series-selection-actions.component';
 import { CoverSelectionActionComponent } from '../../shared/cover-picker/cover-selection-action.component';
 import { CoverStateService } from '../../shared/cover-picker/cover-state.service';
@@ -47,6 +47,9 @@ import { TrackersApiService } from '../trackers/trackers-api.service';
 import { FolderCoverPreferenceActionComponent } from './folder-cover-preference-action.component';
 import { NodeRowComponent, directionShort as directionChip } from '../../shared/node-row/node-row.component';
 import { RatingStarsComponent } from '../ratings/rating-stars.component';
+import { FolderRateButtonComponent } from '../ratings/folder-rate-button.component';
+import { RateSelectionActionComponent } from '../ratings/rate-selection-action.component';
+import { RatingSharingService } from '../ratings/rating-sharing.service';
 import { SelectionBarComponent } from '../../shared/selection/selection-bar.component';
 import { NodeSelection } from '../../shared/selection/node-selection';
 import { JumpRailComponent, bucketOwners } from './jump-rail.component';
@@ -97,6 +100,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     CommonModule,
     RouterLink,
     RatingStarsComponent,
+    FolderRateButtonComponent,
+    RateSelectionActionComponent,
     MatIconModule,
     MatButtonModule,
     MatMenuModule,
@@ -146,16 +151,16 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
           <!-- Library root is always a clickable crumb. -->
           <a routerLink="/libraries/{{ libraryId() }}/browse">{{ libraryName() || 'Library' }}</a>
           <!-- Ancestors of the current folder (clickable). -->
+          <!-- 1.53.0 (audit V6): each separator travels with the crumb after it (one item, glued with no-break spaces), so a "/" never
+               sits alone or ends a line. -->
           @for (crumb of breadcrumbs(); track crumb.id) {
-            <span class="sep"> / </span>
-            <a routerLink="/libraries/{{ libraryId() }}/browse/{{ crumb.id }}">{{ crumb.displayName }}</a>
+            <span class="crumb"><span class="sep">&nbsp;/&nbsp;</span><a routerLink="/libraries/{{ libraryId() }}/browse/{{ crumb.id }}">{{ crumb.displayName }}</a></span>
           }
           <!-- The current folder itself: plain, non-clickable text (File Explorer
                behavior - you are already in it). Rendered whenever we are inside a
                folder, even at the first level where there are no ancestor crumbs. -->
           @if (currentFolderName()) {
-            <span class="sep"> / </span>
-            <span class="current" aria-current="page">{{ currentFolderName() }}</span>
+            <span class="crumb crumb-current"><span class="sep">&nbsp;/&nbsp;</span><span class="current" aria-current="page">{{ currentFolderName() }}</span></span>
           }
         </div>
         <!-- Card size slider (1.6.0): only meaningful for the Card view. Dragging
@@ -194,7 +199,11 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
         @if (parentId(); as folderId) {
           <!-- 1.43.0: the series' tracking (a gold button + popover) for a user with a connected tracker. -->
           <app-series-tracking-button [nodeId]="folderId" />
-          <app-series-info-button [nodeId]="folderId" />
+          <app-series-info-button [nodeId]="folderId" (slotChange)="folderSlot.set($event)" />
+          <!-- 1.53.0 (5b, audit N5): a folder with no Info button gets "Rate" in that slot (the Info sheet holds the rating otherwise). -->
+          @if (folderSlot() !== 'info') {
+            <app-folder-rate-button [nodeId]="folderId" [rating]="currentFolderRating()" />
+          }
           <!-- 1.48.0: favorite the folder being viewed (a library root has no node to star). -->
           <app-star-toggle [nodeId]="folderId" [favorite]="currentFolderFavorite()" [bar]="true" />
         } @else if (libraryId()) {
@@ -238,7 +247,7 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
           }
           <mat-divider></mat-divider>
           <span class="menu-caption">Sort by</span>
-          @for (opt of sortOptions; track opt.value) {
+          @for (opt of shownSortOptions(); track opt.value) {
             <button mat-menu-item role="menuitemradio"
                     [class.selected-option]="sort() === opt.value"
                     [attr.aria-checked]="sort() === opt.value"
@@ -382,6 +391,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
         <app-selection-bar [count]="selected().size" [busy]="busy()" [selectDisabled]="nodes().length === 0"
                            (selectAll)="selectAll()" (selectUnread)="selectAllUnread()" (selectRead)="selectAllRead()"
                            (markRead)="bulkMarkRead($event)" (favorite)="bulkFavorite($event)" (done)="toggleSelectMode()">
+          <!-- 1.53.0 (5b, audit N5): "Rate..." right after Favorites, for exactly one selected folder or archive. -->
+          <app-rate-selection-action [nodes]="nodes()" [selected]="selectedNodeIds()" [disabled]="busy()" />
           @if (auth.isAdmin()) {
             <button mat-button [matMenuTriggerFor]="dirMenu"
                     [disabled]="busy() || selectedFolderCount() === 0"
@@ -626,12 +637,15 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     /* 1.38.0: with the Volumes | Folders switch the controls squeezed the trail to a letter on a tablet (820 px). The bar
        may wrap: the trail keeps at least 240 px on the first row and the controls move to a second row, right-aligned.
        Where everything fits (desktop) nothing moves; the phone rule below still gives the trail its own row. */
-    .browse-bar.has-view-switch, .browse-bar.has-tracking { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; }
-    .browse-bar.has-view-switch .breadcrumbs, .browse-bar.has-tracking .breadcrumbs { flex: 1 1 240px; }
+    /* 1.53.0 (audit V6): the 1.38.0 rule made general - any bar may wrap, so a plain library root on a tablet no longer squeezes
+       the trail to ~90 px (cut mid-letter: no ellipsis can be drawn inside the touch crumbs' inline blocks). */
+    .browse-bar { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; }
     .breadcrumbs {
-      flex: 1 1 auto; min-width: 0;
+      flex: 1 1 240px; min-width: 0;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
+    /* A separator and the crumb after it are one item that never breaks, so a "/" can never sit alone or end a line. */
+    .breadcrumbs .crumb { white-space: nowrap; }
     .breadcrumbs a { text-decoration: none; color: var(--mp-accent); }
     /* Current folder: plain text, not a link. Slightly brighter than the muted
        ancestors' link color to read as "you are here", but no pointer/underline. */
@@ -792,8 +806,11 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
       /* The current folder: the brightest crumb — the mobile "you are here".
          1.10.1: bounded to two lines with an ellipsis (and a more moderate size)
          so a long folder name truncates instead of ballooning the whole top bar. */
+      /* 1.53.0 (V6): the current folder takes its own row (the item is .crumb-current now), with no separator in front of it. */
+      .breadcrumbs .crumb { white-space: normal; min-width: 0; overflow-wrap: anywhere; }
+      .breadcrumbs .crumb-current { flex-basis: 100%; }
+      .breadcrumbs .crumb-current .sep { display: none; }
       .breadcrumbs .current {
-        flex-basis: 100%;
         font-size: 16px; font-weight: 700; color: var(--mp-text);
         display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
         overflow: hidden;
@@ -862,6 +879,10 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   readonly currentFolderName = signal('');
   /** 1.48.0: the folder being viewed is a favorite (from `getNode`); the browse-bar star seeds from it and then follows `FavoritesStateService`. */
   readonly currentFolderFavorite = signal(false);
+  /** 1.53.0 (5b): the folder being viewed - its own rating (the "Rate" pill's label) and which Info slot it resolved to. */
+  readonly currentFolderRating = signal<number | null>(null);
+  readonly folderSlot = signal<SeriesSlot>('none');
+  private readonly ratingSharing = inject(RatingSharingService);
   readonly hasMore = signal(false);
   private cursor: string | null = null;
   /** True while a browse page (initial or append) is in flight; gates the sentinel. */
@@ -1077,8 +1098,15 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     { value: 'recentlyRead', label: 'Recently read', icon: 'menu_book' },
     { value: 'recentlyUpdated', label: 'Recently updated', icon: 'update', hint: 'Folders with new content' },
     // 1.52.0 (lane R): your own rating, highest first; not rated last.
-    { value: 'myRating', label: 'My rating', icon: 'star_half', hint: 'Your highest rated first' },
+    // 1.53.0 (audit V8): `stars` - the app's one Rate icon, never the favourite's star.
+    { value: 'myRating', label: 'My rating', icon: 'stars', hint: 'Your highest rated first' },
+    // 1.53.0 (shared ratings): the server average, highest first - offered only while the admin's switch is on (shownSortOptions).
+    { value: 'serverRating', label: 'Server rating', icon: 'groups', hint: 'Highest average of everyone\'s ratings first' },
   ];
+
+  /** 1.53.0: the sort list as offered - "Server rating" only while shared ratings are on (or while it is the chosen sort). */
+  readonly shownSortOptions = computed(() =>
+    this.sortOptions.filter((o) => o.value !== 'serverRating' || this.ratingSharing.serverEnabled() || this.sort() === 'serverRating'));
 
   // Ascending/descending toggle for the active sort (1.5.0). Named "sortDirection"
   // (not "direction") to stay distinct from the unrelated per-folder reading
@@ -1164,6 +1192,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.ratingSharing.ensureLoaded(); // 1.53.0: whether "Server rating" is offered
     // Scroll-spy listener (1.8.0). Registered outside the zone: scroll fires many
     // times per second and the handler only writes a signal (rAF-throttled), which
     // schedules change detection on its own; no per-event zone turn is needed.
@@ -1207,7 +1236,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     this.api.getLibraryPreferences().subscribe({
       next: (p) => {
         this.applyStoredView(p);
-        if (p.sort === 'recentlyAdded' || p.sort === 'recentlyRead' || p.sort === 'recentlyUpdated' || p.sort === 'myRating') this.sort.set(p.sort);
+        if (p.sort === 'recentlyAdded' || p.sort === 'recentlyRead' || p.sort === 'recentlyUpdated' || p.sort === 'myRating'
+          || p.sort === 'serverRating') this.sort.set(p.sort);
         // Direction is optional/tolerant like the other fields: an unset or
         // unrecognized value falls back to the sort-specific default (matches
         // CatalogController.ParseDirection) so pre-1.5.0 stored preferences
@@ -1698,7 +1728,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
    * gets none).
    */
   private shouldShowJumpRail(): boolean {
-    return this.sort() !== 'recentlyRead' && this.sort() !== 'myRating'; // 1.52.0: My rating is offset-paged too - no rail
+    // 1.52.0: My rating is offset-paged too - no rail; 1.53.0: so is Server rating.
+    return this.sort() !== 'recentlyRead' && this.sort() !== 'myRating' && this.sort() !== 'serverRating';
   }
 
   /** The hover-summary zone id (1.27.0): only items that show the (i), never in select mode. */
@@ -2449,10 +2480,13 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
    */
   private loadCurrentFolder(nodeId: string): void {
     this.currentFolderFavorite.set(false);
+    this.currentFolderRating.set(null);
+    this.folderSlot.set('none');
     this.api.getNode(nodeId).subscribe({
       next: (node) => {
         this.currentFolderName.set(node.displayName);
         this.currentFolderFavorite.set(!!node.isFavorite);
+        this.currentFolderRating.set(node.myRating ?? null);
       },
       error: () => this.currentFolderName.set(''),
     });

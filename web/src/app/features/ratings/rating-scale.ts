@@ -69,3 +69,25 @@ export function keyScore(key: string, score: number | null | undefined): number 
       return undefined;
   }
 }
+
+/** 1.53.0 (shared ratings): a server average (1-10) as stars with one decimal - 7.5 -> "3.8", 8 -> "4.0". */
+export function averageStars(average: number): string {
+  return (Math.round((average / 2) * 10) / 10).toFixed(1);
+}
+
+/** "3 ratings" / "1 rating". */
+function ratingCount(count: number): string {
+  return count === 1 ? '1 rating' : `${count} ratings`;
+}
+
+/** The server line's text (audit N1): "4.0 · 3 ratings"; '' without an average. */
+export function serverAverageText(server: { average?: number; count?: number } | null | undefined): string {
+  if (!server || typeof server.average !== 'number' || !server.count) return '';
+  return `${averageStars(server.average)} · ${ratingCount(server.count)}`;
+}
+
+/** The server line's accessible name and tooltip: "Server average 4.0 of 5, 3 ratings"; '' without an average. */
+export function serverAverageLabel(server: { average?: number; count?: number } | null | undefined): string {
+  if (!server || typeof server.average !== 'number' || !server.count) return '';
+  return `Server average ${averageStars(server.average)} of ${STAR_COUNT}, ${ratingCount(server.count)}`;
+}

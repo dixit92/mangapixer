@@ -722,4 +722,23 @@ public static class LogEvents
         /// </summary>
         public const int RatingSinkFailed = 3412;
     }
+
+    /// <summary>
+    /// 1.53.0 lane S: shared ratings (3420-3429, inside the 3xxx range; reserved for lane S). User ids, node ids, counts and timings only -
+    /// never a score of another user, a title or a path.
+    /// </summary>
+    public static class SharedRatings
+    {
+        public const int Min = 3420;
+        public const int Max = 3429;
+
+        /// <summary>A user turned "Share my ratings" on or off (Debug): user id and the new choice.</summary>
+        public const int UserSharingChanged = 3420;
+
+        /// <summary>An admin turned the server-wide "Shared ratings" switch on or off (Information): the new state.</summary>
+        public const int ServerSharingChanged = 3421;
+
+        /// <summary>A node's server average was computed (Debug): node id, rating count, milliseconds - never the average itself.</summary>
+        public const int AverageComputed = 3422;
+    }
 }

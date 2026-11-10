@@ -49,6 +49,7 @@ describe('LibraryBrowseComponent tankoubon stacks (1.37.0)', () => {
     const apiSpy = {
       getVolumeView: vi.fn().mockReturnValue(of(view)),
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: 'card', density: 'comfortable', sort: 'name', direction: 'asc' })),
+      getRatingSharing: vi.fn().mockReturnValue(of({ share: true, serverEnabled: false })), // 1.53.0
       setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary: vi.fn().mockReturnValue(of(page)),

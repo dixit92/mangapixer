@@ -56,6 +56,7 @@ describe('LibraryBrowseComponent Completion filter (1.44.0)', () => {
           provide: ApiService, useValue: {
             getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
             getLibraryPreferences: vi.fn().mockReturnValue(of(prefs)),
+            getRatingSharing: vi.fn().mockReturnValue(of({ share: true, serverEnabled: false })), // 1.53.0
             setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
             getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
             browseLibrary,

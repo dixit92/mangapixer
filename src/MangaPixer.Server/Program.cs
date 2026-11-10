@@ -244,6 +244,7 @@ public sealed partial class Program
             builder.Services.AddScoped<FavoritesService>();
             builder.Services.AddScoped<Features.Ratings.RatingsService>(); // 1.52.0 lane R: ratings writes
             builder.Services.AddSingleton<Features.WhatsNew.WhatsNewNotes>(); // 1.53.0 lane W: the embedded release notes for "What's new"
+            Features.Ratings.SharedRatingsRegistration.AddSharedRatings(builder.Services); // 1.53.0 lane S: shared ratings
             builder.Services.AddScoped<SpreadLayoutService>();
             builder.Services.AddScoped<CatalogIdResolver>();
             builder.Services.AddScoped<ReaderModeResolver>();

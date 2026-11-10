@@ -99,7 +99,7 @@ interface Swatch {
     </mat-card>
   `,
   styles: [`
-    mat-card { max-width: 600px; margin: 24px auto 0; }
+    mat-card { margin: 0; } /* 1.53.0 (audit V5): the Settings page spaces its cards (one 24 px gap) */
     h4 { margin: 4px 0 10px; font-size: 14px; font-weight: 500; }
     .bases { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 10px; }
     .base, .accent {

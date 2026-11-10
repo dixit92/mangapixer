@@ -109,6 +109,9 @@ import {
   FavoritesQuery,
   FavoritesJumpIndexDto,
   SetRatingRequest,
+  RatingSharingDto,
+  SetRatingSharingRequest,
+  AdminRatingSharingDto,
 } from './api-types';
 
 /** Options of {@link ApiService.search} (1.45.0). */
@@ -882,6 +885,26 @@ export class ApiService {
     return score === null
       ? this.delete<void>(`/nodes/${nodeId}/rating`)
       : this.put<void>(`/nodes/${nodeId}/rating`, { score } satisfies SetRatingRequest);
+  }
+
+  /** 1.53.0: the current user's "Share my ratings" choice and whether the admin switch is on. */
+  getRatingSharing(): Observable<RatingSharingDto> {
+    return this.get<RatingSharingDto>('/ratings/sharing');
+  }
+
+  /** 1.53.0: sets the current user's "Share my ratings" choice (its own route - never the library-preferences blob). */
+  setRatingSharing(share: boolean): Observable<void> {
+    return this.put<void>('/ratings/sharing', { share } satisfies SetRatingSharingRequest);
+  }
+
+  /** 1.53.0 (admin): the server-wide "Shared ratings" switch. */
+  getAdminRatingSharing(): Observable<AdminRatingSharingDto> {
+    return this.get<AdminRatingSharingDto>('/admin/ratings/sharing');
+  }
+
+  /** 1.53.0 (admin): turns the server-wide "Shared ratings" switch on or off; answers the new state. */
+  setAdminRatingSharing(enabled: boolean): Observable<AdminRatingSharingDto> {
+    return this.put<AdminRatingSharingDto>('/admin/ratings/sharing', { enabled } satisfies AdminRatingSharingDto);
   }
 
   // --- HTTP helpers ---

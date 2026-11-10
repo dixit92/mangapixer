@@ -547,7 +547,7 @@ export interface ReaderOptionsHost {
         <!-- 1.52.0 (lane R): Rate - opens its own sheet once this one has gone (one sheet at a time). -->
         <button type="button" class="chip action" (click)="rate()" aria-label="Rate this archive or its folder" aria-haspopup="dialog"
                 data-testid="reader-options-rate">
-          <mat-icon aria-hidden="true">star_half</mat-icon>
+          <mat-icon aria-hidden="true">stars</mat-icon>
           Rate
         </button>
         @if (host.seriesInfoAnchor()) {

@@ -8,9 +8,13 @@ import { ApiService } from '../../core/api/api.service';
 import { CatalogNodeDto } from '../../core/api/api-types';
 import { NodeRatingComponent } from './node-rating.component';
 
-/** What the Rate sheet rates: the open archive (its folder - the reader's breadcrumb parent - is read from the node). */
+/**
+ * What the Rate sheet rates: the open archive (its folder - the reader's breadcrumb parent - is read from the node), or (1.53.0, the
+ * "Rate..." entry of browse) one node alone - a folder or an archive, one row.
+ */
 export interface RatingSheetData {
-  archiveId: string;
+  archiveId?: string;
+  nodeId?: string;
 }
 
 /**
@@ -34,13 +38,16 @@ export interface RatingSheetData {
       @if (archive(); as a) {
         <section class="row" data-testid="rating-sheet-archive">
           <p class="name">{{ a.displayName }}</p>
-          <app-node-rating [nodeId]="a.id" [known]="a.myRating ?? null" caption="This archive" [name]="a.displayName" />
+          <app-node-rating [nodeId]="a.id" [known]="a.myRating ?? null" [knownServer]="a.serverRating ?? null"
+                           [caption]="single() ? (a.kind === 'Folder' ? 'This folder' : 'This archive') : 'This archive'"
+                           [name]="a.displayName" />
         </section>
       }
       @if (folder(); as f) {
         <section class="row" data-testid="rating-sheet-folder">
           <p class="name">{{ f.displayName }}</p>
-          <app-node-rating [nodeId]="f.id" [known]="f.myRating ?? null" caption="Its folder" [name]="f.displayName" />
+          <app-node-rating [nodeId]="f.id" [known]="f.myRating ?? null" [knownServer]="f.serverRating ?? null" caption="Its folder"
+                           [name]="f.displayName" />
         </section>
       }
       @if (error()) {
@@ -68,12 +75,15 @@ export class RatingSheetComponent implements OnInit {
   readonly archive = signal<CatalogNodeDto | null>(null);
   readonly folder = signal<CatalogNodeDto | null>(null);
   readonly error = signal(false);
+  /** 1.53.0: one node alone (browse's "Rate..."), no folder row. */
+  readonly single = signal(false);
 
   ngOnInit(): void {
-    this.api.getNode(this.data.archiveId).subscribe({
+    this.single.set(!this.data.archiveId && !!this.data.nodeId);
+    this.api.getNode(this.data.archiveId ?? this.data.nodeId ?? '').subscribe({
       next: (archive) => {
         this.archive.set(archive);
-        if (!archive.parentId) return;
+        if (this.single() || !archive.parentId) return;
         this.api.getNode(archive.parentId).subscribe({
           next: (folder) => this.folder.set(folder),
           error: () => this.folder.set(null),

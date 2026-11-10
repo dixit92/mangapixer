@@ -4693,6 +4693,221 @@
         }
       }
     },
+    "/api/v1/ratings/sharing": {
+      "get": {
+        "tags": [
+          "RatingSharing"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RatingSharingDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RatingSharingDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RatingSharingDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "RatingSharing"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SetRatingSharingRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SetRatingSharingRequest"
+                  }
+                ]
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SetRatingSharingRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/ratings/sharing": {
+      "get": {
+        "tags": [
+          "AdminRatingSharing"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRatingSharingDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRatingSharingDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRatingSharingDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "AdminRatingSharing"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AdminRatingSharingDto"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AdminRatingSharingDto"
+                  }
+                ]
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AdminRatingSharingDto"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRatingSharingDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRatingSharingDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRatingSharingDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/metadata/settings": {
       "get": {
         "tags": [
@@ -13712,6 +13927,14 @@
           }
         }
       },
+      "AdminRatingSharingDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
       "AdminTrackerAccountDto": {
         "required": [
           "userId",
@@ -14350,6 +14573,16 @@
               "string"
             ],
             "format": "int32"
+          },
+          "serverRating": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ServerRatingDto"
+              }
+            ]
           },
           "contextName": {
             "type": [
@@ -17751,6 +17984,9 @@
           "showFavoritesHomeRow": {
             "type": "boolean"
           },
+          "showRecommendationsHomeRow": {
+            "type": "boolean"
+          },
           "favoritesSearchProminence": {
             "type": "boolean"
           },
@@ -20995,6 +21231,17 @@
           }
         }
       },
+      "RatingSharingDto": {
+        "type": "object",
+        "properties": {
+          "share": {
+            "type": "boolean"
+          },
+          "serverEnabled": {
+            "type": "boolean"
+          }
+        }
+      },
       "ReachResolution": {
         "type": "integer"
       },
@@ -22613,6 +22860,27 @@
       "SeriesViewMode": {
         "type": "integer"
       },
+      "ServerRatingDto": {
+        "type": "object",
+        "properties": {
+          "average": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?(?:[eE][\u002B-]?\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "SetArtistFolderRequest": {
         "type": "object",
         "properties": {
@@ -22833,6 +23101,14 @@
               "string"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "SetRatingSharingRequest": {
+        "type": "object",
+        "properties": {
+          "share": {
+            "type": "boolean"
           }
         }
       },
@@ -26393,6 +26669,12 @@
     },
     {
       "name": "Ratings"
+    },
+    {
+      "name": "RatingSharing"
+    },
+    {
+      "name": "AdminRatingSharing"
     },
     {
       "name": "MetadataAdmin"
