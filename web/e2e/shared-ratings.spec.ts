@@ -397,6 +397,20 @@ async function rowLayout(block: Locator): Promise<{ starsY: number; height: numb
   return last;
 }
 
+/** The phone's Rate bottom sheet is no wider than the screen: nothing in it scrolls sideways, the close button inside (gate sweep item 6). */
+async function expectSheetFits(page: Page, where: string): Promise<void> {
+  const container = page.locator('.mat-bottom-sheet-container');
+  await expect(container).toBeVisible();
+  await page.waitForTimeout(400); // the sheet slides up
+  const fit = await container.evaluate((el) => {
+    const close = el.querySelector('button[aria-label="Close"]')!.getBoundingClientRect();
+    return { scroll: el.scrollWidth, client: el.clientWidth, closeRight: Math.round(close.right), width: window.innerWidth };
+  });
+  expect(fit.scroll, `${where} scrolls sideways (${fit.scroll} in ${fit.client})`).toBeLessThanOrEqual(fit.client);
+  expect(fit.closeRight, `${where}: the close button inside the screen`).toBeLessThanOrEqual(fit.width - 8);
+  await expectFitsScreen(page, where);
+}
+
 for (const width of [360, 390, 430]) {
   test.describe(`${width} px touch phone: the rating row (guide finding 1)`, () => {
     test.use({ viewport: { width, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
@@ -404,7 +418,7 @@ for (const width of [360, 390, 430]) {
     test('one line and one height, rated or not - Info sheet, series page and the reader\'s Rate sheet', async ({ page }) => {
       test.setTimeout(240_000);
       await login(page);
-      const { libraryId, series } = await ensureFixture(page);
+      const { libraryId, series, plain } = await ensureFixture(page);
       await restore(page);
       const archive = ((await (await page.request.get(`/api/v1/libraries/${libraryId}/browse?parentId=${series}&pageSize=10`)).json())
         .items as Node[]).find((n) => n.kind === 'Archive')!;
@@ -463,7 +477,19 @@ for (const width of [360, 390, 430]) {
         const sheetRated = await rowLayout(row);
         expectRow(sheetRated, 'Rate sheet, rated');
         expect(sheetRated, 'Rate sheet: the row keeps its height when you rate').toEqual(sheetUnrated);
+        await expectSheetFits(page, 'the reader\'s Rate sheet');
         await shots(page, 'touch-rating-sheet-rated');
+        await sheet.getByRole('button', { name: 'Close' }).click();
+        await expect(sheet).toHaveCount(0);
+
+        // Item 6 (the 1.53.0 gate sweep): the browse bar's "Rate this folder" opens the one-row sheet - it does not scroll sideways.
+        await page.goto(`/libraries/${libraryId}/browse/${plain}`);
+        await page.getByTestId('folder-rate-button').click();
+        const one = page.getByTestId('rating-sheet');
+        await expect(one.getByTestId('rating-sheet-archive')).toContainText('This folder');
+        expectRow(await rowLayout(one.getByTestId('node-rating')), 'one-row Rate sheet, unrated');
+        await expectSheetFits(page, 'the one-row Rate sheet');
+        await shots(page, 'touch-rate-this-folder');
       } finally {
         await page.request.delete(`/api/v1/nodes/${archive.id}/rating`, { headers: await csrf(page.request) });
         await restore(page);
