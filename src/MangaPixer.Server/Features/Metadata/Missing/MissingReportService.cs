@@ -12,6 +12,7 @@ using com.lifepixer.mangapixer.Server.Features.Covers;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MangaUpdates;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Reach;
 using com.lifepixer.mangapixer.Server.Persistence;
+using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -120,20 +121,48 @@ public sealed class MissingReportService
 
     private async Task<List<LinkedRow>> LinkedFoldersAsync(long? libraryId, long? nodeId, CancellationToken ct)
     {
+        var query =
+            from x in LinkedFolders(_db, libraryId, nodeId)
+            select new LinkedRow(x.Node.Id, x.Node.PublicId, x.Node.DisplayName, x.Node.LibraryId, x.Link.State, x.Record.Id,
+                x.Record.Provider, x.Record.ExternalId, x.Record.Title, x.Record.OriginVolumes, x.Record.LatestChapter, x.Record.StatusText,
+                x.Record.PublishersJson, x.Record.FetchedAt);
+        return await query.ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// 1.53.0 (lane V, the 1.52.0 C3 residue): whether <see cref="ForNodeAsync"/> would answer a row for this node - the series
+    /// information's <c>MissingReportPossible</c>, so the series page asks only when the Missing line can exist. The SAME query as the
+    /// report (<see cref="LinkedFolders"/>), so the flag and the endpoint cannot disagree. One indexed lookup; never a request.
+    /// </summary>
+    public static Task<bool> HasRowAsync(MangaPixerDbContext db, long nodeId, CancellationToken ct = default) =>
+        LinkedFolders(db, null, nodeId).AnyAsync(ct);
+
+    /// <summary>
+    /// The rows the report is made of: a FOLDER (not tombstoned) with its OWN confirmed or automatic link to a stored record. Access is
+    /// the caller's (the node endpoint checks the node's library first).
+    /// </summary>
+    private static IQueryable<LinkedFolder> LinkedFolders(MangaPixerDbContext db, long? libraryId, long? nodeId)
+    {
         var confirmed = (int)SeriesLinkState.Confirmed;
         var auto = (int)SeriesLinkState.Auto;
         var folder = (int)CatalogNodeKind.Folder;
         var tombstoned = (int)CatalogNodeAvailability.Tombstoned;
-        var query =
-            from l in _db.NodeSeriesLinks.AsNoTracking()
+        return
+            from l in db.NodeSeriesLinks.AsNoTracking()
             where (l.State == confirmed || l.State == auto) && l.RecordId != null
                 && (libraryId == null || l.LibraryId == libraryId) && (nodeId == null || l.NodeId == nodeId)
-            join n in _db.CatalogNodes.AsNoTracking() on l.NodeId equals n.Id
+            join n in db.CatalogNodes.AsNoTracking() on l.NodeId equals n.Id
             where n.Kind == folder && n.Availability != tombstoned
-            join r in _db.MetadataRecords.AsNoTracking() on l.RecordId equals r.Id
-            select new LinkedRow(n.Id, n.PublicId, n.DisplayName, n.LibraryId, l.State, r.Id,
-                r.Provider, r.ExternalId, r.Title, r.OriginVolumes, r.LatestChapter, r.StatusText, r.PublishersJson, r.FetchedAt);
-        return await query.ToListAsync(ct);
+            join r in db.MetadataRecords.AsNoTracking() on l.RecordId equals r.Id
+            select new LinkedFolder { Link = l, Node = n, Record = r };
+    }
+
+    // A member-init shape (not a positional record), so EF can compose the report's projection over it.
+    private sealed class LinkedFolder
+    {
+        public required NodeSeriesLinkEntity Link { get; init; }
+        public required CatalogNodeEntity Node { get; init; }
+        public required MetadataRecordEntity Record { get; init; }
     }
 
     /// <summary>
