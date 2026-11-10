@@ -9,6 +9,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatChipListbox, MatChipsModule } from '@angular/material/chips';
 
 import { ApiService } from '../../core/api/api.service';
@@ -19,6 +20,7 @@ import { ContextLineComponent } from '../../shared/context-line/context-line.com
 import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.component';
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { TOUCH_TARGET_CSS } from '../../shared/touch-targets';
+import { FirstAnswer } from '../../shared/first-answer';
 import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/folder-rollup-badge.component';
 import { MetadataStateService } from '../metadata/metadata-state.service';
 import { CatalogNodeDto, FacetBucketDto, FacetChipDto, LibraryReadStateFilter, SearchResultsDto, SeriesMatchDto } from '../../core/api/api-types';
@@ -113,6 +115,7 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
     MatFormFieldModule,
     MatButtonModule,
     MatTooltipModule,
+    MatProgressSpinnerModule,
     MatChipsModule,
     CoverImageDirective,
     StarToggleComponent,
@@ -641,6 +644,8 @@ export class SearchComponent {
   /** 1.49.0 "+N inside" per folder card, merged over the loaded pages. */
   readonly insideCounts = signal<Readonly<Record<string, number>>>({});
   readonly searched = signal(false);
+  /** 1.53.0 (audit V2): the first page of the current search - not answered yet (spinner after 300 ms), failed (Try again), or loaded. */
+  readonly searchAnswer = new FirstAnswer();
   /** Keyset paging (1.45.0): whether a next page exists, and a "Load more" request is running. */
   readonly hasMore = signal(false);
   readonly loadingMore = signal(false);
