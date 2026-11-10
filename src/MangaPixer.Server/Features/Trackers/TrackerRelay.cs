@@ -137,8 +137,8 @@ public sealed class TrackerRelayService(TrackerRelay relay, IServiceScopeFactory
                 {
                     // 1.53.0 (lane T): a score change. A rate-limited tracker is tried again after its delay (in-process, as the writes below).
                     var retries = await scope.ServiceProvider.GetRequiredService<TrackerScoreSync>().SendAsync(score, stoppingToken);
-                    foreach (var (tracker, at) in retries)
-                        ScheduleScoreRetry(score with { Trackers = [tracker], Attempt = score.Attempt + 1 }, at, stoppingToken);
+                    foreach (var (tracker, retryAt) in retries)
+                        ScheduleScoreRetry(score with { Trackers = [tracker], Attempt = score.Attempt + 1 }, retryAt, stoppingToken);
                     relay.Done();
                     continue;
                 }
