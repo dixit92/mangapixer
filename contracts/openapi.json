@@ -22435,6 +22435,9 @@
             "items": {
               "$ref": "#/components/schemas/SeriesInfoItemRowDto"
             }
+          },
+          "missingReportPossible": {
+            "type": "boolean"
           }
         }
       },

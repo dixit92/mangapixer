@@ -9,6 +9,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatChipListbox, MatChipsModule } from '@angular/material/chips';
 
 import { ApiService } from '../../core/api/api.service';
@@ -19,6 +20,7 @@ import { ContextLineComponent } from '../../shared/context-line/context-line.com
 import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.component';
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { TOUCH_TARGET_CSS } from '../../shared/touch-targets';
+import { FirstAnswer } from '../../shared/first-answer';
 import { FolderRollupBadgeComponent } from '../../shared/folder-rollup-badge/folder-rollup-badge.component';
 import { MetadataStateService } from '../metadata/metadata-state.service';
 import { CatalogNodeDto, FacetBucketDto, FacetChipDto, LibraryReadStateFilter, SearchResultsDto, SeriesMatchDto } from '../../core/api/api-types';
@@ -113,6 +115,7 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
     MatFormFieldModule,
     MatButtonModule,
     MatTooltipModule,
+    MatProgressSpinnerModule,
     MatChipsModule,
     CoverImageDirective,
     StarToggleComponent,
@@ -267,6 +270,18 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
       </details>
     }
 
+    <!-- 1.53.0 (audit V2): a search's first page - failed (the reader's error block), not answered yet (the series page's spinner, after
+         300 ms, in place of the previous search's results), else the results; "No results" only after a successful answer. "Load more"
+         keeps its own button state. -->
+    @if (searchAnswer.failed()) {
+      <div class="status error" role="alert" data-testid="search-failed">
+        <mat-icon>error_outline</mat-icon>
+        <p>The search did not answer.</p>
+        <button mat-stroked-button type="button" (click)="retrySearch()" data-testid="search-retry">Try again</button>
+      </div>
+    } @else if (searchAnswer.slow()) {
+      <div class="state" role="status" aria-label="Searching" data-testid="search-loading"><mat-spinner diameter="32" /></div>
+    } @else {
     @if (seriesMatches().length > 0) {
       <section class="series-matches" aria-labelledby="series-matches-heading">
         <h3 id="series-matches-heading" class="section-heading">Series matches</h3>
@@ -356,6 +371,7 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
     <!-- 1.49.0: a 1-2 character search matches names with a word starting with it - say so, it is not a typo search. -->
     @if (shortSearch() && searched() && works().length === 0) {
       <p class="search-hint" data-testid="search-short-hint">Names with a word starting with "{{ params().q.trim() }}". Type 3 or more characters to search inside words.</p>
+    }
     }
 
     <ng-template #card let-node="node" let-aka="aka">
@@ -549,6 +565,14 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .no-results { color: var(--mp-text-muted); padding: 32px; text-align: center; }
+    /* 1.53.0 (audit V2): the first page's spinner (the series page's) and error block (the reader's). */
+    .state { display: flex; justify-content: center; padding: 48px 0; color: var(--mp-text-muted); }
+    .status {
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+      color: var(--mp-text-muted); text-align: center; padding: 48px 24px;
+    }
+    .status p { margin: 0; }
+    .status.error mat-icon { font-size: 48px; width: 48px; height: 48px; color: var(--mp-error); }
     .search-hint { color: var(--mp-text-muted); font-size: 13px; margin: -8px 0 16px; overflow-wrap: anywhere; }
     .result-inside { margin-top: 2px; font-size: 12px; color: var(--mp-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     /* Read marks: the browse card badge (library-browse.component.ts), top-right - the kind badge has top-left, the star bottom-right. */
@@ -620,6 +644,8 @@ export class SearchComponent {
   /** 1.49.0 "+N inside" per folder card, merged over the loaded pages. */
   readonly insideCounts = signal<Readonly<Record<string, number>>>({});
   readonly searched = signal(false);
+  /** 1.53.0 (audit V2): the first page of the current search - not answered yet (spinner after 300 ms), failed (Try again), or loaded. */
+  readonly searchAnswer = new FirstAnswer();
   /** Keyset paging (1.45.0): whether a next page exists, and a "Load more" request is running. */
   readonly hasMore = signal(false);
   readonly loadingMore = signal(false);
@@ -1153,10 +1179,12 @@ export class SearchComponent {
       this.totalCount.set(0);
       this.takeCounts({ query: '', items: [], totalCount: 0, nextCursor: null, hasMore: false });
       this.searched.set(false);
+      this.searchAnswer.succeed(); // nothing to ask: no spinner, no error
       return;
     }
     // Until the answer names the filters, their chips show a placeholder (not "Unknown tag").
     this.searched.set(false);
+    this.searchAnswer.start();
 
     this.api.search(q, { readState: read, ...filterOption(f) }).subscribe({
       next: (answer) => {
@@ -1174,6 +1202,7 @@ export class SearchComponent {
           this.totalCount.set(response.totalCount);
           this.takePaging(response);
           this.searched.set(true);
+          this.searchAnswer.succeed();
           return;
         }
         this.works.set([]);
@@ -1188,6 +1217,7 @@ export class SearchComponent {
         this.dropAnchorCounts(response.items.filter((n) => this.matchedIds.has(n.id)));
         this.takePaging(response);
         this.searched.set(true);
+        this.searchAnswer.succeed();
       },
       error: () => {
         if (generation !== this.generation) return;
@@ -1198,9 +1228,17 @@ export class SearchComponent {
         this.tagAnswer.set(false);
         this.seriesMatches.set([]);
         this.totalCount.set(0);
-        this.searched.set(true);
+        // 1.53.0 (audit V2): not "No results found." - the error block says the search did not answer (and the filter chips keep
+        // their placeholder rather than "Unknown tag").
+        this.searched.set(false);
+        this.searchAnswer.fail();
       },
     });
+  }
+
+  /** 1.53.0 (audit V2): "Try again" - the same first page for the same text, filters and read filter. */
+  retrySearch(): void {
+    this.runSearch();
   }
 }
 

@@ -48,26 +48,22 @@ describe('missing labels, preferred language (1.29.0 RC)', () => {
   });
 });
 
-describe('mayHaveMissingLine (1.52.0, C3: no request the server can only answer 404)', () => {
+describe('mayHaveMissingLine (1.52.0 C3; 1.53.0: the server\'s missingReportPossible)', () => {
   const info = (over: Partial<SeriesInfoDto>): SeriesInfoDto => ({
     nodeId: 'f1', nodeKind: 'Folder', anchorNodeId: 'f1', anchorKind: 'Folder', anchorDisplayName: 'Synthetic Saga', libraryId: 'l1',
     state: 'Web', precedence: 'WebFirst', precedenceSource: 'Default', ...over,
   });
 
-  it('asks for a folder with its own confirmed or automatic link', () => {
-    expect(mayHaveMissingLine(info({ link: { state: 'Confirmed', nodeId: 'f1', inherited: false } }))).toBe(true);
-    expect(mayHaveMissingLine(info({ link: { state: 'Auto', nodeId: 'f1', inherited: false } }))).toBe(true);
+  it('asks exactly when the server says the line exists', () => {
+    expect(mayHaveMissingLine(info({ missingReportPossible: true, link: { state: 'Confirmed', nodeId: 'f1', inherited: false } }))).toBe(true);
+    // Series information hidden for the library: state None, no link - and still the line (1.52.0 kept asking here; now the flag says so).
+    expect(mayHaveMissingLine(info({ state: 'None', link: null, missingReportPossible: true }))).toBe(true);
   });
 
-  it('does not ask without such a link: ComicInfo only, a link on another folder, Don\'t match, a collection, an archive', () => {
-    expect(mayHaveMissingLine(info({ state: 'ComicInfo', link: null }))).toBe(false);
-    expect(mayHaveMissingLine(info({ link: { state: 'Confirmed', nodeId: 'parent', inherited: true } }))).toBe(false);
+  it('does not ask when the flag is false or absent - whatever the state looks like', () => {
+    expect(mayHaveMissingLine(info({ state: 'None', link: null, missingReportPossible: false }))).toBe(false);
+    expect(mayHaveMissingLine(info({ state: 'None', link: null }))).toBe(false);
+    expect(mayHaveMissingLine(info({ state: 'ComicInfo', link: null, missingReportPossible: false }))).toBe(false);
     expect(mayHaveMissingLine(info({ state: 'DontMatch', link: { state: 'DontMatch', nodeId: 'f1', inherited: false } }))).toBe(false);
-    expect(mayHaveMissingLine(info({ state: 'CollectionAbout', link: { state: 'CollectionAbout', nodeId: 'f1', inherited: false } }))).toBe(false);
-    expect(mayHaveMissingLine(info({ anchorKind: 'Archive', link: { state: 'Confirmed', nodeId: 'f1', inherited: false } }))).toBe(false);
-  });
-
-  it('still asks when the series information shows nothing (it may be hidden for the library)', () => {
-    expect(mayHaveMissingLine(info({ state: 'None', link: null }))).toBe(true);
   });
 });

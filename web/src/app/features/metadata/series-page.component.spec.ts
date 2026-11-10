@@ -36,6 +36,7 @@ describe('SeriesPageComponent', () => {
       getSeriesInfo: vi.fn(() => (info === 'error' ? throwError(() => ({ error: 'not_found' })) : of(info))),
       getMyFlag: vi.fn(() => of({ canFlag: true, flag: null })),
     };
+    const missing = { forNodeViewer: vi.fn(() => throwError(() => ({ status: 404 }))) };
     const api = {
       browseLibrary: vi.fn(() => of({ items: [], totalCount: 0, nextCursor: null, hasMore: false, nextUnread })),
       getNode: vi.fn(() => of(archiveNode as CatalogNodeDto)),
@@ -51,7 +52,7 @@ describe('SeriesPageComponent', () => {
         { provide: AuthService, useValue: { isAdmin: () => admin } },
         // 1.45.0: the Tags block under the summary.
         { provide: InfoApiService, useValue: { getInfo: vi.fn(() => of(tagsAnswer)) } },
-        { provide: MissingReportApiService, useValue: { forNodeViewer: vi.fn(() => throwError(() => ({ status: 404 }))) } },
+        { provide: MissingReportApiService, useValue: missing },
         {
           provide: RecommendationsApiService,
           useValue: { similar: vi.fn(() => (similarAnswer === 'error' ? throwError(() => ({ status: 500 })) : of(similarAnswer))) },
@@ -63,7 +64,7 @@ describe('SeriesPageComponent', () => {
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
     const fixture = TestBed.createComponent(SeriesPageComponent);
     fixture.detectChanges();
-    return { fixture, metadata, api, navigate, el: fixture.nativeElement as HTMLElement };
+    return { fixture, metadata, api, missing, navigate, el: fixture.nativeElement as HTMLElement };
   }
 
   it('redirects a descendant node id to the anchor, replacing the URL', () => {
@@ -172,6 +173,24 @@ describe('SeriesPageComponent', () => {
     expect(el.querySelector('[data-testid="series-none"]')).not.toBeNull();
     expect(el.querySelector('[data-testid="continue-reading"]')).toBeNull();
     expect(api.browseLibrary).not.toHaveBeenCalled();
+  });
+
+  it('1.53.0 (C3 residue): asks for the Missing line only when the series information says it exists', () => {
+    // state None with the flag: series information hidden for the library, the linked folder's line still shows.
+    const hidden = create('series-1', seriesInfo({ nodeId: 'series-1', anchorNodeId: 'series-1', state: 'None', title: null, missingReportPossible: true }));
+    expect(hidden.missing.forNodeViewer).toHaveBeenCalledWith('series-1');
+    TestBed.resetTestingModule();
+    // state None without it: nothing to ask (1.52.0 asked here and got a 404 in the console).
+    const none = create('series-2', seriesInfo({ nodeId: 'series-2', anchorNodeId: 'series-2', state: 'None', title: null, missingReportPossible: false }));
+    expect(none.missing.forNodeViewer).not.toHaveBeenCalled();
+    expect(none.el.querySelector('app-series-missing-line')).toBeNull();
+    TestBed.resetTestingModule();
+    const linked = create('series-3', seriesInfo({
+      nodeId: 'series-3', anchorNodeId: 'series-3', state: 'Web', missingReportPossible: true,
+      web: { provider: 'mangaupdates', providerName: 'MangaUpdates', fetchedAt: '2026-09-25T00:00:00Z' },
+      link: { state: 'Confirmed', nodeId: 'series-3', inherited: false },
+    }));
+    expect(linked.missing.forNodeViewer).toHaveBeenCalledWith('series-3');
   });
 
   it('shows the not-available state on 404', () => {

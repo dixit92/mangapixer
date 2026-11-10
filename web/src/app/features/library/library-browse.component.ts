@@ -6,6 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable, forkJoin, of, catchError, filter, map, switchMap } from 'rxjs';
@@ -52,6 +53,7 @@ import { RateSelectionActionComponent } from '../ratings/rate-selection-action.c
 import { RatingSharingService } from '../ratings/rating-sharing.service';
 import { SelectionBarComponent } from '../../shared/selection/selection-bar.component';
 import { NodeSelection } from '../../shared/selection/node-selection';
+import { FirstAnswer } from '../../shared/first-answer';
 import { JumpRailComponent, bucketOwners } from './jump-rail.component';
 import { isLongLevel } from './jump-scrub';
 import { COMPLETION_OPTIONS, CompletionOption, completionLabel, completionOptionLabel } from './completion-filter';
@@ -107,6 +109,7 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     MatMenuModule,
     MatTooltipModule,
     MatDividerModule,
+    MatProgressSpinnerModule,
     CoverImageDirective,
     FolderRollupBadgeComponent,
     StarToggleComponent,
@@ -570,8 +573,27 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
         </div>
         }
       } @empty {
-        <!-- 1.45.0 (UX review #6): a filter that leaves nothing says so, with the way back - never "This folder is empty". -->
-        @if (!loadingMore() && completionApplies()) {
+        <!-- 1.53.0 (audit V2): the first page's own states - the not-found line first (its words never depend on the answer), then a
+             failed answer (the reader's error block), then "not loaded yet" (the series page's spinner, after 300 ms); an empty line
+             only after a successful answer. Infinite scroll keeps its own "Loading more..." below. -->
+        @if (notFound()) {
+          <!-- 1.52.0 (sweep m8): a library that is not in this account's list - unknown, or not granted - shows the same words either
+               way, so nothing tells them apart (and nothing of it is shown). -->
+          <div class="empty" role="status" data-testid="browse-not-found">
+            <p>This library does not exist, or your account has no access to it.</p>
+            <a mat-stroked-button routerLink="/libraries">Your libraries</a>
+          </div>
+        } @else if (listAnswer.failed()) {
+          <div class="status error" role="alert" data-testid="browse-failed">
+            <mat-icon>error_outline</mat-icon>
+            <p>Could not load this folder.</p>
+            <button mat-stroked-button type="button" (click)="retryList()" data-testid="browse-retry">Try again</button>
+          </div>
+        } @else if (!listAnswer.loaded()) {
+          @if (listAnswer.slow()) {
+            <div class="state" role="status" aria-label="Loading" data-testid="browse-loading"><mat-spinner diameter="32" /></div>
+          }
+        } @else if (!loadingMore() && completionApplies()) {
           <div class="empty" data-testid="browse-empty-filtered">
             <p>No series here match "{{ completionText() }}".</p>
             <button mat-stroked-button type="button" (click)="setCompletionFilter(null)" data-testid="browse-empty-any">Show any</button>
@@ -581,15 +603,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
             <p>Nothing here matches the filter.</p>
             <button mat-stroked-button type="button" (click)="clearFilters()" data-testid="browse-empty-clear">Clear filter</button>
           </div>
-        } @else if (notFound()) {
-          <!-- 1.52.0 (sweep m8): a library that is not in this account's list - unknown, or not granted - shows the same words either
-               way, so nothing tells them apart (and nothing of it is shown). -->
-          <div class="empty" role="status" data-testid="browse-not-found">
-            <p>This library does not exist, or your account has no access to it.</p>
-            <a mat-stroked-button routerLink="/libraries">Your libraries</a>
-          </div>
         } @else {
-          <p class="empty">This folder is empty.</p>
+          <p class="empty" data-testid="browse-empty">This folder is empty.</p>
         }
       }
     </div>
@@ -758,6 +773,15 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     .empty p { margin: 0 0 12px; }
     /* 1.45.0: the empty line spans the whole card grid (it was squeezed into one card column on a phone). */
     .nodes > .empty { grid-column: 1 / -1; }
+    /* 1.53.0 (audit V2): the first page's spinner (the series page's) and error block (the reader's), across the whole grid. */
+    .nodes > .state, .nodes > .status { grid-column: 1 / -1; }
+    .state { display: flex; justify-content: center; padding: 48px 0; color: var(--mp-text-muted); }
+    .status {
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+      color: var(--mp-text-muted); text-align: center; padding: 48px 24px;
+    }
+    .status p { margin: 0; }
+    .status.error mat-icon { font-size: 48px; width: 48px; height: 48px; color: var(--mp-error); }
     .scroll-sentinel { min-height: 40px; text-align: center; color: var(--mp-text-muted); font-size: 12px; }
     /* --- PHONE breakpoint only (1.10.0, F3; folded into one media query - was three
        separate @media blocks). Desktop + iPad (>=561px) are untouched: every rule
@@ -887,6 +911,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   private cursor: string | null = null;
   /** True while a browse page (initial or append) is in flight; gates the sentinel. */
   readonly loadingMore = signal(false);
+  /** 1.53.0 (audit V2): the answer that fills an empty list - not loaded (spinner after 300 ms), failed (Try again), or loaded. */
+  readonly listAnswer = new FirstAnswer();
   /**
    * Backward/upward paging (1.11.0, D): after a mid-list jump the window no longer
    * starts at the listing's first item, so `hasPrevious` is true and `prevCursor`
@@ -2235,6 +2261,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     const initial = this.cursor === null;
     const gen = ++this.loadGen;
     this.loadingMore.set(true);
+    // 1.53.0 (audit V2): a load that fills an empty list (a folder, a filter, a jump) is the page's first answer; an append is not.
+    if (!isAppend) this.listAnswer.start();
     const preferVolumes = initial && this.preferVolumesOnce;
     this.api.browseLibrary(libId, this.parentId(), this.cursor, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders(), null, this.favoritesOnly(), this.groupParam(), preferVolumes, this.completionFilter()).subscribe({
       next: (response: PageResponse<CatalogNodeDto>) => {
@@ -2250,6 +2278,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
           }
         }
         this.nodes.update((current) => isAppend ? [...current, ...response.items] : [...response.items]);
+        if (!isAppend) this.listAnswer.succeed();
         this.hasMore.set(response.hasMore);
         this.cursor = response.nextCursor;
         this.loadingMore.set(false);
@@ -2268,8 +2297,17 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
         if (response.hasMore) this.rearmSentinel();
         if (this.hasPrevious()) this.rearmTopSentinel();
       },
-      error: () => { if (gen === this.loadGen) this.loadingMore.set(false); },
+      error: () => {
+        if (gen !== this.loadGen) return;
+        this.loadingMore.set(false);
+        if (!isAppend) this.listAnswer.fail();
+      },
     });
+  }
+
+  /** 1.53.0 (audit V2): "Try again" after a failed first page - the same request (cursor and filters are unchanged by a failure). */
+  retryList(): void {
+    this.loadNodes();
   }
 
   /**

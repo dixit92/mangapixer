@@ -75,7 +75,7 @@ import { RecommendationsApiService } from '../recommendations/recommendations-ap
               </a>
             }
           </div>
-          <!-- 1.52.0 (C3): only where the server can answer a row (no 404 on every other series page). -->
+          <!-- 1.52.0 (C3): only where the server can answer a row (no 404 on every other series page); 1.53.0: the server says so (missingReportPossible). -->
           @if (mayHaveMissingLine(i)) { <app-series-missing-line [nodeId]="i.anchorNodeId" [showReportLink]="auth.isAdmin()" /> }
         </header>
 

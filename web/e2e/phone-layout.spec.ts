@@ -809,3 +809,67 @@ test('the Home "Recommended for you" row and the series page\'s "More like this"
   }
   expect(failures, `the recommendation rows do not fit:\n${failures.join('\n')}`).toEqual([]);
 });
+
+/**
+ * 1.53.0 (lane V, audit V2): the first-answer states of browse, Home and Search - not loaded (the spinner) and failed (the error block
+ * with "Try again") - fit a phone (360 / 390) and a tablet. With E2E_SCREENSHOT_DIR: each state at 390 and 1280 px in dark and light (the
+ * theme comes from the page's own preferences answer; the stored preference is never changed).
+ */
+test('the loading and failed states of browse, Home and Search fit a phone and a tablet screen (1.53.0)', async ({ page }) => {
+  test.setTimeout(240_000);
+  const failures: string[] = [];
+  await login(page);
+  const [libraryId] = await ensureLibrary(page);
+  let theme = 'dark';
+  await page.route((u) => u.pathname === '/api/v1/reading/preferences', async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    const response = await route.fetch();
+    await route.fulfill({ response, json: { ...(await response.json()), theme } });
+  });
+  let mode: 'hold' | 'fail' | 'pass' = 'pass';
+  const held: Route[] = [];
+  const firstRequest = (u: URL) =>
+    /^\/api\/v1\/libraries\/[^/]+\/browse$/.test(u.pathname) || u.pathname === '/api/v1/libraries' || u.pathname === '/api/v1/search';
+  await page.route(firstRequest, async (route) => {
+    if (route.request().method() !== 'GET' || mode === 'pass') return route.fallback();
+    if (mode === 'fail') return route.fulfill({ status: 500, json: { error: 'synthetic_failure' } });
+    held.push(route); // let go once the state is checked
+  });
+  const pages = [
+    { name: 'browse', url: `/libraries/${libraryId}/browse`, loading: 'browse-loading', failed: 'browse-failed' },
+    { name: 'home', url: '/', loading: 'home-libraries-loading', failed: 'home-libraries-failed' },
+    { name: 'search', url: '/search?q=Stacked', loading: 'search-loading', failed: 'search-failed' },
+  ];
+  const sizes = [{ width: 360, height: 780 }, ...SIZES, { width: 1280, height: 900 }];
+  for (const t of ['dark', 'light']) {
+    theme = t;
+    for (const size of sizes) {
+      const checkLayout = t === 'dark' && size.width < 1280;
+      const shoot = !!SHOTS && (size.width === 390 || size.width === 1280);
+      if (!checkLayout && !shoot) continue;
+      await page.setViewportSize(size);
+      for (const p of pages) {
+        for (const state of ['loading', 'failed'] as const) {
+          mode = state === 'loading' ? 'hold' : 'fail';
+          await page.goto(p.url);
+          await expect(page.getByTestId(p[state])).toBeVisible();
+          await expect(page.locator('html')).toHaveAttribute('data-theme', t);
+          await page.waitForTimeout(300);
+          if (checkLayout) {
+            for (const problem of await layoutProblems(page)) {
+              failures.push(`${size.width} px ${p.name} ${state}: ${problem.kind}: ${problem.what} - ${problem.detail}`);
+            }
+          }
+          if (shoot) {
+            // Home's Libraries section sits under the other rows: bring the state into the shot.
+            await page.getByTestId(p[state]).scrollIntoViewIfNeeded();
+            await page.screenshot({ path: `${SHOTS}/states-${p.name}-${state}-${size.width}-${t}.png` });
+          }
+          mode = 'pass';
+          for (const route of held.splice(0)) await route.abort().catch(() => { /* the page moved on */ });
+        }
+      }
+    }
+  }
+  expect(failures, `the first-answer states do not fit:\n${failures.join('\n')}`).toEqual([]);
+});

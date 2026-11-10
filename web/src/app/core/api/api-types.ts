@@ -1473,6 +1473,11 @@ export interface SeriesInfoDto {
   precedence: MetadataPrecedence;
   precedenceSource: MetadataPrecedenceSource;
   items?: SeriesInfoItemRowDto[];
+  /**
+   * 1.53.0 (the 1.52.0 C3 residue): true exactly when `GET nodes/{anchorNodeId}/missing` answers a Missing line (the anchor folder has
+   * its own confirmed / automatic link to a stored record) - also while series information is hidden for the library. Ask only when true.
+   */
+  missingReportPossible?: boolean;
 }
 
 export interface MetadataComicInfoStatsDto {

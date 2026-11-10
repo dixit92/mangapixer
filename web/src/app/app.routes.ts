@@ -154,4 +154,9 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/trackers/tracker-callback.component').then((m) => m.TrackerCallbackComponent),
   },
+  {
+    // 1.53.0 (audit V2): an unknown address goes Home (it was a blank page with a router error in the console).
+    path: '**',
+    redirectTo: '',
+  },
 ];
