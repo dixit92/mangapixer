@@ -166,8 +166,11 @@ export class OverlayBackService {
         replace();
         this.entries = 0;
         this.open.length = 0;
-        this.page = null;
       }
+      // A new page visit: the old page's own entry (it keeps its key when its spent entries were tidied away) is another page's now,
+      // so a Back onto it reaches the router. Keeping the key made that Back look like one inside this page: it was swallowed and went
+      // on past the old page to the one before (1.53.0: Back from the reader skipped Favorites after a menu had been used there).
+      this.page = null;
       this.remember();
     });
   }
