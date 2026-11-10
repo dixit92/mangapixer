@@ -80,6 +80,7 @@ interface DifferRow extends TrackerScoreDifferenceDto {
     .use { flex: none; }
     @media (pointer: coarse) {
       .use, .actions button { min-height: 40px; }
+      .title { display: inline-flex; align-items: center; min-height: 40px; }
     }
   `],
 })
