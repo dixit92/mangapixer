@@ -18,7 +18,11 @@ using Microsoft.Extensions.Caching.Memory;
 /// </summary>
 public sealed class RecommendationIndexCache
 {
-    public static readonly TimeSpan TimeToLive = TimeSpan.FromMinutes(10);
+    /// <summary>
+    /// How long an index stays without a tag index write: 30 minutes - the generation already retires it at the next write, so the time
+    /// only bounds memory, and a rebuild is the costly step (about 0.1 s for a live-size library).
+    /// </summary>
+    public static readonly TimeSpan TimeToLive = TimeSpan.FromMinutes(30);
 
     private readonly IMemoryCache _cache;
     private readonly ILogger<RecommendationIndexCache> _logger;
