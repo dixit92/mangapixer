@@ -57,7 +57,11 @@ export interface RatingSheetData {
   `,
   styles: [`
     :host { display: block; }
-    .sheet { padding: 4px 16px 16px; background: var(--mp-surface); color: var(--mp-text); min-width: min(360px, 100%); }
+    /* 1.53.0 pre-cut (gate sweep item 6): border-box - the min-width counted WITHOUT the 32 px padding made the phone's bottom sheet
+       376 px wide in a 360 px screen (100% of its 328 px content box + 32), so it scrolled sideways and its close button sat at the edge. */
+    .sheet {
+      box-sizing: border-box; padding: 4px 16px 16px; background: var(--mp-surface); color: var(--mp-text); min-width: min(360px, 100%);
+    }
     .head { display: flex; align-items: center; justify-content: space-between; }
     .title { margin: 8px 0; font-size: 18px; font-weight: 500; }
     .row { padding: 6px 0; border-top: 1px solid rgb(var(--mp-ink-rgb) / 0.08); }
