@@ -180,6 +180,12 @@ test('the Favorites view: list, sizes, name sort, unread filter, and Back from t
     page.on('request', (r) => { if (r.url().includes('/api/v1/favorites')) favoritesRequests++; });
     await page.locator(`app-node-row a[href="/reader/${noInfo}"]`).click();
     await expect(page).toHaveURL(new RegExp(`/reader/${noInfo}`));
+    // This device opens the reader for the first time, so its help comes up once the archive is ready; Back would close that first
+    // (1.52.0) - wait for it and close it, so Back is the one from the reader whether or not the reader was quick.
+    const help = page.locator('.help-overlay');
+    await expect(help).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(help).toHaveCount(0);
     await page.goBack();
     await expect(page).toHaveURL(/\/favorites$/);
     await expect.poll(() => titles(page)).toEqual(['Plain Folder', 'Synthetic Anthology', expect.stringMatching(/^No Info 01/)]);
