@@ -15,8 +15,8 @@ import { FIRST_ANSWER_SPINNER_DELAY_MS } from '../../shared/first-answer';
 beforeEach(() => localStorage.clear());
 
 const node = (id: string, displayName: string): CatalogNodeDto => ({
-  id, parentId: null, libraryId: 'lib1', kind: 'Folder', displayName, availability: 'Available', coverUrl: null, childFolderCount: null,
-  childArchiveCount: null, pageCount: null, readingState: null, lastReadPage: null, readerDefault: null, isRead: false,
+  id, parentId: '', libraryId: 'lib1', kind: 'Folder', displayName, availability: 'Available', coverUrl: null, childFolderCount: null,
+  childArchiveCount: null, pageCount: null, readingState: null, lastReadPage: null, readerDefault: null, isRead: false, readRollup: null,
 } as CatalogNodeDto);
 
 const page = (items: CatalogNodeDto[], hasMore = false): PageResponse<CatalogNodeDto> =>
