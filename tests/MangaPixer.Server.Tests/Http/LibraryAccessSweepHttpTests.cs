@@ -153,6 +153,7 @@ public sealed class LibraryAccessSweepHttpTests
         ["PUT api/v1/reading/library-preferences"] = "the caller's own view settings; no library or node id",
         ["PUT api/v1/reading/preferences"] = "the caller's own reader settings; no library or node id",
         ["PUT api/v1/reading/preferences/appearance"] = "the caller's own theme; no library or node id",
+        ["PUT api/v1/ratings/sharing"] = "the caller's own \"Share my ratings\" choice (1.53.0); no library or node id",
         ["POST api/v1/trackers/{slug}/connect"] = "the caller's own tracker account (slug = tracker, not content)",
         ["POST api/v1/trackers/{slug}/connect/password"] = "the caller's own tracker account (slug = tracker, not content)",
         ["POST api/v1/trackers/{slug}/connect/start"] = "the caller's own tracker account (slug = tracker, not content)",
