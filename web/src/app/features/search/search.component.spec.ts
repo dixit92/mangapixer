@@ -83,7 +83,7 @@ describe('SearchComponent', () => {
   it('1.53.0 (audit V1): the "Search libraries" label floats above typed text (it was painted over it without a chip)', () => {
     setup([]);
     runSearch('saga');
-    const field = fixture.nativeElement.querySelector('[data-testid="search-field"]') as HTMLElement;
+    const field = fixture.nativeElement.querySelector('mat-form-field.search-field') as HTMLElement;
     expect(fixture.componentInstance.filterChips().length).toBe(0);
     expect(field.classList.contains('mat-form-field-should-float')).toBe(true);
     expect(field.querySelector('.mdc-floating-label--float-above')?.textContent?.trim()).toBe('Search libraries');

@@ -691,7 +691,7 @@ test('Settings keeps one 24 px rhythm, and the browse trail never strands a sepa
   for (const size of [{ width: 360, height: 780 }, ...SIZES, { width: 1280, height: 900 }]) {
     await page.setViewportSize(size);
     await page.goto('/settings');
-    await expect(page.getByTestId('ratings-card')).toBeVisible();
+    await expect(page.locator('app-settings mat-card').nth(4)).toBeVisible();
     await settle(page);
     const settings = await page.locator('app-settings').evaluate((host) => {
       const cards = Array.from(host.querySelectorAll('mat-card')).filter((c) => (c as HTMLElement).offsetHeight > 0)
