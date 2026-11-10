@@ -6,6 +6,7 @@ import {
 } from '@angular/core';
 import { provideRouter, withInMemoryScrolling, RouteReuseStrategy } from '@angular/router';
 import { provideAnimations } from '@angular/platform-browser/animations';
+import { MAT_CARD_CONFIG } from '@angular/material/card';
 import {
   provideHttpClient,
   withInterceptorsFromDi,
@@ -41,6 +42,9 @@ export const appConfig: ApplicationConfig = {
     // 1.52.0 (m1): a phone's back gesture / the browser's Back closes an open menu, sheet, dialog or list and stays on the page.
     provideOverlayBack(),
     provideAnimations(),
+    // 1.53.0 (audit V9): every Material card is flat with a hairline, like the app's own cards (the two outlined-card tokens are in
+    // styles.scss).
+    { provide: MAT_CARD_CONFIG, useValue: { appearance: 'outlined' } },
     provideHttpClient(
       withInterceptorsFromDi(),
       withInterceptors([xsrfInterceptor, incognitoInterceptor]),

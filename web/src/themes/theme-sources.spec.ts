@@ -138,6 +138,30 @@ describe('theme sources', () => {
     }
   });
 
+  it('the "Read" badge fill carries white text at WCAG AA on every painted base (1.53.0 audit V3)', () => {
+    const lum = (hex: string) => {
+      const h = hex.replace('#', '');
+      const full = h.length === 3 ? [...h].map((c) => c + c).join('') : h;
+      const [r, g, b] = [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16) / 255)
+        .map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const ratio = (a: string, b: string) => {
+      const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    /** A token's value on a painted base: the base's own block, else the `:root` default (black inherits dark's). */
+    const valueOn = (base: string, token: string) =>
+      (base === DEFAULT_THEME_BASE ? undefined : find(base).map((b) => b.props.get(token)).find((v) => !!v)) ??
+      find(undefined, undefined).map((b) => b.props.get(token)).find((v) => !!v);
+    for (const base of PAINTED) {
+      const fill = valueOn(base, '--mp-success-fill');
+      const text = valueOn(base, '--mp-on-scrim');
+      expect(fill, `${base} --mp-success-fill`).toMatch(/^#[0-9a-f]{6}$/);
+      expect(ratio(text!, fill!), `${base}: ${text} on ${fill}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
   it('the theme files only set tokens styles.scss defines, and only for vocabulary values', () => {
     const defined = new Set(find(undefined, undefined).flatMap((b) => [...b.props.keys()]));
     for (const b of ALL.filter((x) => x.file !== 'styles.scss')) {

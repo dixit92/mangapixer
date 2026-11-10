@@ -552,9 +552,9 @@ export const SYNTAX_EXAMPLES: readonly { example: string; meaning: string }[] = 
     .badge {
       position: absolute; top: 6px; right: 6px; z-index: 2;
       font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 10px;
-      background: rgb(var(--mp-accent-strong-rgb) / 0.9); color: var(--mp-on-accent);
+      background: var(--mp-accent-strong); color: var(--mp-on-accent);
     }
-    .badge.read { background: rgb(var(--mp-success-strong-rgb) / 0.95); }
+    .badge.read { background: var(--mp-success-fill); color: var(--mp-on-scrim); }
     .read-filter { display: block; margin: 0 0 8px; }
     .work-card { min-width: 0; }
     .work-link { display: block; text-decoration: none; color: inherit; }

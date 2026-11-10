@@ -451,15 +451,15 @@ import {
     .badge {
       position: absolute; top: 6px; right: 6px; z-index: 2;
       font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 10px;
-      background: rgb(var(--mp-accent-strong-rgb) / 0.92); color: var(--mp-on-accent); letter-spacing: 0.2px;
+      background: var(--mp-accent-strong); color: var(--mp-on-accent); letter-spacing: 0.2px;
     }
     /* Read-state marker (1.20.0): top-left (browse's own Read/Reading colours), so it never
        collides with the top-right "+N new" badge; Unread renders nothing (quiet default). */
     .badge.read-state, .badge.count { left: 6px; right: auto; }
     /* Favorites row (1.48.0): the read state sits top-right as on a browse card (Read green, Reading accent); a stack's count moves
        top-left for the folder's own read badge. */
-    .badge.read { background: rgb(var(--mp-success-strong-rgb) / 0.95); }
-    .badge.read-state.read { background: rgb(var(--mp-success-strong-rgb) / 0.95); }
+    .badge.read { background: var(--mp-success-fill); color: var(--mp-on-scrim); }
+    .badge.read-state.read { background: var(--mp-success-fill); color: var(--mp-on-scrim); }
     .library-grid {
       display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px;
     }

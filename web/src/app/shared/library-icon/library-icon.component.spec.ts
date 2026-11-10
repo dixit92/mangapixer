@@ -82,4 +82,25 @@ describe('deriveDefaultLibraryIcon', () => {
     const colors = new Set(names.map((n) => deriveDefaultLibraryIcon(n).bg));
     expect(colors.size).toBeGreaterThan(1);
   });
+
+  it('every palette entry carries its initial at WCAG AA (>= 4.5:1, audit V3)', () => {
+    // WCAG 2 relative luminance of a #rrggbb colour.
+    const lum = (hex: string) => {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+        .map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const ratio = (a: string, b: string) => {
+      const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    // Enough names to reach every entry of the (8-colour) palette through the public hash.
+    const entries = new Map<string, string>();
+    for (let i = 0; i < 400; i++) {
+      const { bg, fg } = deriveDefaultLibraryIcon(`Library ${i}`);
+      entries.set(bg, fg);
+    }
+    expect(entries.size).toBe(8);
+    for (const [bg, fg] of entries) expect(ratio(fg, bg), `${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5);
+  });
 });
