@@ -46,6 +46,29 @@ describe('FirstAnswer', () => {
     expect(a.slow()).toBe(true);
   });
 
+  it('1.53.0 pre-cut (guide finding 3): a start while still waiting keeps the clock - the spinner does not blink off', () => {
+    // Browse starts the wait when the page opens (its view settings come first), then starts again for the folder request.
+    const a = make();
+    a.start();
+    vi.advanceTimersByTime(FIRST_ANSWER_SPINNER_DELAY_MS);
+    expect(a.slow()).toBe(true);
+    a.start();
+    expect([a.state(), a.slow()]).toEqual(['pending', true]);
+    expect(vi.getTimerCount()).toBe(0);
+    // Not yet slow: the second start neither restarts nor doubles the timer.
+    const b = make();
+    b.start();
+    vi.advanceTimersByTime(200);
+    b.start();
+    expect(vi.getTimerCount()).toBe(1);
+    vi.advanceTimersByTime(FIRST_ANSWER_SPINNER_DELAY_MS - 200);
+    expect(b.slow()).toBe(true);
+    // After an answer, a new start is a new wait.
+    b.succeed();
+    b.start();
+    expect([b.state(), b.slow()]).toEqual(['pending', false]);
+  });
+
   it('clears its timer with the page', () => {
     const a = make();
     a.start();

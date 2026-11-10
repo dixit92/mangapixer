@@ -30,13 +30,13 @@ const page = (items: CatalogNodeDto[], hasMore = false): PageResponse<CatalogNod
 describe('LibraryBrowseComponent first-answer states', () => {
   let answers: Subject<PageResponse<CatalogNodeDto>>[];
 
-  function setup() {
+  function setup(prefsAnswer?: Subject<LibraryViewPreferencesDto>) {
     answers = [];
     const prefs: LibraryViewPreferencesDto = { viewMode: 'grid', density: 'comfortable', sort: 'name' };
     const libs: LibraryDto[] = [{ id: 'lib1', name: 'Test Lib', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }];
     const api = {
       getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
-      getLibraryPreferences: vi.fn().mockReturnValue(of(prefs)),
+      getLibraryPreferences: vi.fn().mockReturnValue(prefsAnswer ?? of(prefs)),
       getRatingSharing: vi.fn().mockReturnValue(of({ share: true, serverEnabled: false })),
       getLibraries: vi.fn().mockReturnValue(of(libs)),
       // Every browse is answered by the test, one Subject per request.
@@ -84,6 +84,29 @@ describe('LibraryBrowseComponent first-answer states', () => {
     expect(spinner!.querySelector('mat-spinner')).not.toBeNull();
     expect(el.textContent).not.toContain('This folder is empty.');
 
+    answer(0, page([node('a', 'Alpha')]));
+    fixture.detectChanges();
+    expect(q(el, 'browse-loading')).toBeNull();
+    expect(el.textContent).toContain('Alpha');
+  });
+
+  it('1.53.0 pre-cut (guide finding 3): the spinner also while the page waits for its view settings, and it does not blink off', () => {
+    const prefs = new Subject<LibraryViewPreferencesDto>();
+    const { fixture, el } = setup(prefs);
+    expect(answers.length).toBe(0); // the folder request waits for the view settings
+    vi.advanceTimersByTime(FIRST_ANSWER_SPINNER_DELAY_MS - 1);
+    fixture.detectChanges();
+    expect(q(el, 'browse-loading')).toBeNull(); // a fast answer shows nothing
+    vi.advanceTimersByTime(1);
+    fixture.detectChanges();
+    expect(q(el, 'browse-loading')).not.toBeNull();
+    expect(el.textContent).not.toContain('This folder is empty.');
+
+    prefs.next({ viewMode: 'grid', density: 'comfortable', sort: 'name' });
+    prefs.complete();
+    fixture.detectChanges();
+    expect(answers.length).toBe(1);
+    expect(q(el, 'browse-loading')).not.toBeNull(); // still waiting - the spinner stays
     answer(0, page([node('a', 'Alpha')]));
     fixture.detectChanges();
     expect(q(el, 'browse-loading')).toBeNull();
