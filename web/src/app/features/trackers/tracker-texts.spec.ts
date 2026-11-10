@@ -1,5 +1,5 @@
 import {
-  TRACKER_ADMIN_CONSENT_VERSION, TRACKER_USER_CONSENT_VERSION, accountProblem, actionBlockText, bucketText, dateText, decodeBase36,
+  TRACKER_ADMIN_CONSENT_VERSION, TRACKER_USER_CONSENT_VERSION, accountProblem, scoreImportNotice, actionBlockText, bucketText, dateText, decodeBase36,
   entryStateText, errorText, failureText, fromTrackerQuestion, numbersText, ofText, parseTrackerId, previewNotice, proposedRedirectUri,
   revokeHint, trackerName, trackingChips, encodeBase36, trackerSeriesUrl, batchActionsFor, batchQuestion, batchSummary, emptyBatchTotals,
   volumesFromChaptersLabel, volumesFromChaptersText,
@@ -22,9 +22,28 @@ describe('tracker texts', () => {
     expect(proposedRedirectUri('mal', 'https://manga.example.test:8443')).toBe('https://manga.example.test:8443/trackers/callback/mal');
   });
 
-  it('starts every consent stream at version 1', () => {
-    expect(TRACKER_ADMIN_CONSENT_VERSION).toEqual({ mal: 1, mangaupdates: 1 });
-    expect(TRACKER_USER_CONSENT_VERSION).toEqual({ mal: 1, mangaupdates: 1 });
+  it('shows version 2 of every consent stream (1.53.0: the user\'s own score), as the server', () => {
+    expect(TRACKER_ADMIN_CONSENT_VERSION).toEqual({ mal: 2, mangaupdates: 2 });
+    expect(TRACKER_USER_CONSENT_VERSION).toEqual({ mal: 2, mangaupdates: 2 });
+  });
+
+  it('sums up "Take my scores" without ever claiming a MangaPixer rating was replaced', () => {
+    const base = { scored: 12, matched: 6, filled: 3, same: 2, differ: [], requests: 1, capReached: false };
+    const one = { seriesId: 's', title: 'T', nodeId: 'n', myScore: 4, trackerScore: 8 };
+    expect(scoreImportNotice({ ...base, differ: [one] }, 'MyAnimeList'))
+      .toBe('3 unrated series now have your MyAnimeList score; 2 already the same; 1 differ - kept your MangaPixer rating. Nothing was changed on MyAnimeList.');
+    expect(scoreImportNotice({ ...base, filled: 1, same: 0 }, 'MangaUpdates'))
+      .toBe('1 unrated series now has your MangaUpdates score. Nothing was changed on MangaUpdates.');
+    expect(scoreImportNotice({ ...base, filled: 0, same: 0, matched: 0, scored: 1 }, 'MyAnimeList'))
+      .toBe('None of your 1 scored series on MyAnimeList is here. Nothing was changed on MyAnimeList.');
+    expect(scoreImportNotice({ ...base, filled: 0, same: 0 }, 'MyAnimeList')).toBe('Nothing to change. Nothing was changed on MyAnimeList.');
+    expect(scoreImportNotice({ ...base, capReached: true, requests: 0 }, 'MyAnimeList'))
+      .toBe('Today\'s MyAnimeList requests are used up - try again tomorrow.');
+    expect(scoreImportNotice({ ...base, capReached: true }, 'MyAnimeList')).toContain('Stopped early');
+    for (const text of [scoreImportNotice({ ...base, differ: [one, one] }, 'MyAnimeList')]) {
+      expect(text).not.toMatch(/replaced|overwr/i);
+      expect(text).toContain('2 differ - kept your MangaPixer ratings');
+    }
   });
 
   it('puts every entry state in words', () => {
