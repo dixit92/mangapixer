@@ -15,6 +15,11 @@ using Microsoft.EntityFrameworkCore;
 /// (<see cref="LibraryAuthorizationService.GetAccessibleLibraryIdsAsync"/>), so a node in a library the user marked Private can be rated
 /// under Incognito too (Incognito only hides listings, never blocks a write). An unknown or not accessible node answers
 /// <see cref="RatingResult.NodeNotFound"/>, so existence is not leaked. Logs carry the user id, node id and score only, at Debug.
+///
+/// Change sinks (1.53.0 step 0): after a rating was saved - set, changed or cleared; never when nothing changed - every registered
+/// <see cref="IRatingChangeSink"/> is called once with the new score (null = cleared). A sink that throws never fails the request: it is
+/// logged at Warning (<see cref="LogEvents.Ratings.RatingSinkFailed"/>: user id, node id and the exception type only) and the next sink
+/// still runs. None is registered by default.
 /// </summary>
 public sealed class RatingsService
 {
@@ -22,13 +27,17 @@ public sealed class RatingsService
     private readonly LibraryAuthorizationService _auth;
     private readonly TimeProvider _time;
     private readonly ILogger<RatingsService>? _logger;
+    private readonly IRatingChangeSink[] _sinks;
 
-    public RatingsService(MangaPixerDbContext db, LibraryAuthorizationService auth, TimeProvider? time = null, ILogger<RatingsService>? logger = null)
+    public RatingsService(
+        MangaPixerDbContext db, LibraryAuthorizationService auth, TimeProvider? time = null, ILogger<RatingsService>? logger = null,
+        IEnumerable<IRatingChangeSink>? sinks = null)
     {
         _db = db;
         _auth = auth;
         _time = time ?? TimeProvider.System;
         _logger = logger;
+        _sinks = sinks?.ToArray() ?? [];
     }
 
     public enum RatingResult
@@ -65,6 +74,7 @@ public sealed class RatingsService
         if (!accessible.Contains(node.LibraryId))
             return RatingResult.NodeNotFound;
 
+        var changed = false;
         for (var attempt = 0; ; attempt++)
         {
             var existing = await _db.UserRatings.FirstOrDefaultAsync(r => r.UserId == userId && r.CatalogNodeId == node.Id, ct);
@@ -75,6 +85,7 @@ public sealed class RatingsService
                     existing.Score = score;
                     existing.RatedAt = _time.GetUtcNow();
                     await _db.SaveChangesAsync(ct);
+                    changed = true;
                 }
                 break;
             }
@@ -91,6 +102,7 @@ public sealed class RatingsService
                 // The scope keeps EF's own error line for the lost race below out of the log (see ExpectedRaceScope).
                 using (ExpectedRaceScope.Begin())
                     await _db.SaveChangesAsync(ct);
+                changed = true;
                 break;
             }
             catch (DbUpdateException ex) when (attempt == 0 && ExpectedRaceScope.IsConstraintViolation(ex))
@@ -102,6 +114,8 @@ public sealed class RatingsService
         }
 
         _logger?.LogDebug(LogEvents.Ratings.RatingSet, "Rating set: user {UserId}, node {NodeId}, score {Score}", userId, node.Id, score);
+        if (changed)
+            await NotifySinksAsync(userId, node.Id, score, ct);
         return RatingResult.Ok;
     }
 
@@ -117,6 +131,33 @@ public sealed class RatingsService
 
         var removed = await _db.UserRatings.Where(r => r.UserId == userId && r.CatalogNodeId == nodeId.Value).ExecuteDeleteAsync(ct);
         _logger?.LogDebug(LogEvents.Ratings.RatingCleared, "Rating cleared: user {UserId}, node {NodeId}, removed {Removed}", userId, nodeId.Value, removed);
+        if (removed > 0)
+            await NotifySinksAsync(userId, nodeId.Value, null, ct);
         return RatingResult.Ok;
+    }
+
+    /// <summary>
+    /// Calls every <see cref="IRatingChangeSink"/> once, in registration order, after the change was saved. A sink's failure is logged
+    /// (Warning, ids and the exception type only - never its message, which may carry a title or a path) and swallowed, so the request
+    /// still succeeds and the next sink still runs; only the request's own cancellation propagates.
+    /// </summary>
+    private async Task NotifySinksAsync(long userId, long nodeId, int? score, CancellationToken ct)
+    {
+        foreach (var sink in _sinks)
+        {
+            try
+            {
+                await sink.RatingChangedAsync(userId, nodeId, score, ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(LogEvents.Ratings.RatingSinkFailed,
+                    "Rating change sink failed: user {UserId}, node {NodeId}, {ExceptionType}", userId, nodeId, ex.GetType().Name);
+            }
+        }
     }
 }

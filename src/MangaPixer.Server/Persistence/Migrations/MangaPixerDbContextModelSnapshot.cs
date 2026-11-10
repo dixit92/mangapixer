@@ -14,7 +14,7 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.12");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.14");
 
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.ApiTokenEntity", b =>
                 {
@@ -219,6 +219,9 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<long?>("PerformancePageCacheBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("RatingSharingEnabled")
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("TrashAutoCleanEnabled")
@@ -2597,7 +2600,13 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Property<int?>("SeriesViewMode")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("ShareRatings")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("ShowFavoritesHomeRow")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("ShowRecommendationsHomeRow")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("StackViewMode")
@@ -2940,6 +2949,9 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("State")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("SyncScores")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Tracker")
@@ -3315,6 +3327,10 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Property<long?>("LastLoginAt")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("LastSeenVersion")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("INTEGER");
 
@@ -3383,7 +3399,7 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
 
                     b.HasIndex("UserId", "Score");
 
-                    b.ToTable("user_ratings", t =>
+                    b.ToTable("user_ratings", null, t =>
                         {
                             t.HasCheckConstraint("CK_user_ratings_Score", "\"Score\" >= 1 AND \"Score\" <= 10");
                         });
@@ -4284,6 +4300,25 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.UserRatingEntity", b =>
+                {
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.CatalogNodeEntity", "Node")
+                        .WithMany()
+                        .HasForeignKey("CatalogNodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Node");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.VolumeContentEntity", b =>
                 {
                     b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.CatalogNodeEntity", null)
@@ -4351,25 +4386,6 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Navigation("PrivateLibraries");
 
                     b.Navigation("ReadingProgress");
-                });
-
-            modelBuilder.Entity("com.lifepixer.mangapixer.Server.Persistence.Entities.UserRatingEntity", b =>
-                {
-                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.CatalogNodeEntity", "Node")
-                        .WithMany()
-                        .HasForeignKey("CatalogNodeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("com.lifepixer.mangapixer.Server.Persistence.Entities.UserEntity", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Node");
-
-                    b.Navigation("User");
                 });
 #pragma warning restore 612, 618
         }

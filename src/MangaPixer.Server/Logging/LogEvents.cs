@@ -701,5 +701,11 @@ public static class LogEvents
 
         /// <summary>A user cleared a rating (Debug): user id, node id (and whether a rating was there).</summary>
         public const int RatingCleared = 3411;
+
+        /// <summary>
+        /// 1.53.0 step 0: an <c>IRatingChangeSink</c> threw after a rating was saved (Warning): user id, node id and the exception type
+        /// only. The request still succeeds.
+        /// </summary>
+        public const int RatingSinkFailed = 3412;
     }
 }

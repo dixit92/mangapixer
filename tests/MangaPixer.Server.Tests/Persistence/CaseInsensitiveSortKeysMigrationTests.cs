@@ -71,8 +71,8 @@ public sealed class CaseInsensitiveSortKeysMigrationTests : IDisposable
             SecurityStamp = Guid.NewGuid().ToString("N"),
             CreatedAt = DateTimeOffset.UtcNow,
         };
-        db.Users.Add(user);
-        await db.SaveChangesAsync();
+        // Through LegacySchemaSeed: a later migration (1.53.0 AddCycle153Settings, users.LastSeenVersion) added a users column.
+        await LegacySchemaSeed.InsertAsync(db, user);
 
         // The library row is written with SQL naming only the columns the PREVIOUS schema has: the current entity
         // carries later columns (1.29.0 added two), which an EF insert would name and the old table does not have.
