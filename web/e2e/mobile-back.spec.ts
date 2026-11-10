@@ -245,6 +245,26 @@ test.describe('desktop, mouse', () => {
     await expect.poll(() => path(page), { message: 'Back from the reader' }).toMatch(/^\/settings/);
   });
 
+  test('a menu closed, then a link once the page is quiet: one Back returns to the page, not to the page before it', async ({ page }) => {
+    await login(page);
+    await arrive(page, '/settings', '/');
+    await page.getByRole('button', { name: /^Account menu/ }).click();
+    await expect(menuPanel(page)).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(menuPanel(page)).toHaveCount(0);
+    // The page is quiet: the menu's spent entry has been stepped over - the browser stands on the page's own entry again (no fixed wait).
+    await expect.poll(() => page.evaluate(() => {
+      const s = (history.state ?? {}) as Record<string, unknown>;
+      return typeof s['mpOverlayPage'] === 'string' && !s['mpOverlayBack'];
+    }), { message: 'the spent entry is stepped over' }).toBe(true);
+    await page.getByRole('button', { name: 'Libraries', exact: true }).click();
+    await expect(page).toHaveURL(/\/libraries$/);
+    await back(page);
+    await expect.poll(() => path(page), { message: 'one Back from the page the link opened' }).toBe('/');
+    await back(page);
+    await expect.poll(() => path(page)).toMatch(/^\/settings/);
+  });
+
   test('menu: Back in a desktop browser closes the menu too', async ({ page }) => {
     await login(page);
     await arrive(page, '/settings', '/');
