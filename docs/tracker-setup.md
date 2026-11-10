@@ -15,6 +15,15 @@ Tracker sync is separate from the series information MangaPixer fetches ("Fetch 
 
 The text folds away after you accept it; **What is sent?** shows it again. If a later MangaPixer version changes what is sent, the tracker pauses until you accept the new text.
 
+### After the update to 1.53.0: accept the new text
+
+*New in 1.53.0.* The texts of both trackers changed (version 2): a user may now keep their **own score** on the tracker in step with their rating here - sent only for a user who turns that on, and only for a series already on their list - and may take their scores from the tracker with one click (see [Your score](tracker-sync.md#your-score)). Until you accept the new text, the tracker shows **Paused - accept the new text** in Administration > Trackers and **nothing is synced to it** for anyone:
+
+1. Open **Administration** > **Trackers**: the new text shows under the tracker. Read it.
+2. Tick **I have read this - allow MyAnimeList on this server** (or MangaUpdates) and turn **Allow users to sync to MyAnimeList** on again.
+
+Then **each user** sees on their **Tracking** page that what MangaPixer sends has changed; their syncing stays paused until they read the new text and connect again (**Connect again…** - MyAnimeList: a sign-in on its site; MangaUpdates: the username and password once more). Their settings and series list are kept. The score switch is off for everyone until they turn it on.
+
 Turning a tracker **off** stops all syncing to it at once. Users keep their connection, and syncing resumes when you turn it back on.
 
 **MyAnimeList also needs this server's own app registration** (next section) - users cannot connect until it is saved. **MangaUpdates needs no registration.**
