@@ -151,16 +151,16 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
           <!-- Library root is always a clickable crumb. -->
           <a routerLink="/libraries/{{ libraryId() }}/browse">{{ libraryName() || 'Library' }}</a>
           <!-- Ancestors of the current folder (clickable). -->
-          <!-- 1.53.0 (audit V6): each separator travels with the crumb after it (one nowrap item), so a "/" never sits alone or ends
-               a line. -->
+          <!-- 1.53.0 (audit V6): each separator travels with the crumb after it (one item, glued with no-break spaces), so a "/" never
+               sits alone or ends a line. -->
           @for (crumb of breadcrumbs(); track crumb.id) {
-            <span class="crumb"><span class="sep"> / </span><a routerLink="/libraries/{{ libraryId() }}/browse/{{ crumb.id }}">{{ crumb.displayName }}</a></span>
+            <span class="crumb"><span class="sep">&nbsp;/&nbsp;</span><a routerLink="/libraries/{{ libraryId() }}/browse/{{ crumb.id }}">{{ crumb.displayName }}</a></span>
           }
           <!-- The current folder itself: plain, non-clickable text (File Explorer
                behavior - you are already in it). Rendered whenever we are inside a
                folder, even at the first level where there are no ancestor crumbs. -->
           @if (currentFolderName()) {
-            <span class="crumb crumb-current"><span class="sep"> / </span><span class="current" aria-current="page">{{ currentFolderName() }}</span></span>
+            <span class="crumb crumb-current"><span class="sep">&nbsp;/&nbsp;</span><span class="current" aria-current="page">{{ currentFolderName() }}</span></span>
           }
         </div>
         <!-- Card size slider (1.6.0): only meaningful for the Card view. Dragging
@@ -807,7 +807,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
          1.10.1: bounded to two lines with an ellipsis (and a more moderate size)
          so a long folder name truncates instead of ballooning the whole top bar. */
       /* 1.53.0 (V6): the current folder takes its own row (the item is .crumb-current now), with no separator in front of it. */
-      .breadcrumbs .crumb-current { flex-basis: 100%; min-width: 0; white-space: normal; }
+      .breadcrumbs .crumb { white-space: normal; min-width: 0; overflow-wrap: anywhere; }
+      .breadcrumbs .crumb-current { flex-basis: 100%; }
       .breadcrumbs .crumb-current .sep { display: none; }
       .breadcrumbs .current {
         font-size: 16px; font-weight: 700; color: var(--mp-text);
