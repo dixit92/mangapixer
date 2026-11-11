@@ -40,6 +40,7 @@ describe('LibraryBrowseComponent tracker marks and the Tracking button', () => {
     const apiSpy = {
       getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'f1', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode, density: 'comfortable', sort: 'name' })),
+      getRatingSharing: vi.fn().mockReturnValue(of({ share: true, serverEnabled: false })), // 1.53.0
       getLibraries: vi.fn().mockReturnValue(of(libs)),
       browseLibrary: vi.fn().mockReturnValue(of(page)),
       getBreadcrumbs: vi.fn().mockReturnValue(of({ nodeId: 'f1', trail: [] })),

@@ -72,19 +72,26 @@ public enum TrackerIdSource
 /// </summary>
 public static class TrackerConsent
 {
-    /// <summary>The current admin consent version of <paramref name="tracker"/> (1 for both trackers in 1.43.0).</summary>
+    /// <summary>
+    /// The current admin consent version of <paramref name="tracker"/>: 1 in 1.43.0; 2 from 1.53.0 (the text adds the user's own score, sent
+    /// only for a user who turned on "Keep my score in step" and only for a series already on their list). A server that accepted an older
+    /// version stops syncing until an admin accepts the current text.
+    /// </summary>
     public static int AdminVersion(string tracker) => tracker switch
     {
-        TrackerSlugs.MyAnimeList => 1,
-        TrackerSlugs.MangaUpdates => 1,
+        TrackerSlugs.MyAnimeList => 2,
+        TrackerSlugs.MangaUpdates => 2,
         _ => throw new ArgumentOutOfRangeException(nameof(tracker)),
     };
 
-    /// <summary>The current user consent version of <paramref name="tracker"/> (1 for both trackers in 1.43.0).</summary>
+    /// <summary>
+    /// The current user consent version of <paramref name="tracker"/>: 1 in 1.43.0; 2 from 1.53.0 (the score, as above). An account that
+    /// accepted an older version stops syncing until its user connects again under the current text.
+    /// </summary>
     public static int UserVersion(string tracker) => tracker switch
     {
-        TrackerSlugs.MyAnimeList => 1,
-        TrackerSlugs.MangaUpdates => 1,
+        TrackerSlugs.MyAnimeList => 2,
+        TrackerSlugs.MangaUpdates => 2,
         _ => throw new ArgumentOutOfRangeException(nameof(tracker)),
     };
 }

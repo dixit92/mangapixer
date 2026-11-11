@@ -51,6 +51,7 @@ describe('SettingsComponent — Private libraries', () => {
     ]);
     httpMock.expectOne('/api/v1/reading/private-libraries').flush({ libraryIds: privateIds });
     httpMock.expectOne('/api/v1/reading/home-libraries').flush({ excludedLibraryIds: [] });
+    httpMock.expectOne('/api/v1/ratings/sharing').flush({ share: true, serverEnabled: false });
     // The Performance card (1.10.0) and New Chapters card (1.12.0 refinement) both load
     // the user's library-view preferences on init.
     httpMock.expectOne('/api/v1/reading/library-preferences').flush({
@@ -170,6 +171,7 @@ describe('SettingsComponent — Performance (items per load)', () => {
     httpMock.expectOne('/api/v1/libraries').flush([]);
     httpMock.expectOne('/api/v1/reading/private-libraries').flush({ libraryIds: [] });
     httpMock.expectOne('/api/v1/reading/home-libraries').flush({ excludedLibraryIds: [] });
+    httpMock.expectOne('/api/v1/ratings/sharing').flush({ share: true, serverEnabled: false });
     httpMock.expectOne('/api/v1/reading/library-preferences').flush({
       viewMode: 'list', density: 'compact', sort: 'recentlyAdded', direction: 'desc',
       cardSize: '180', libraryPageSize: 100, homeRecentWindowDays: 30,
@@ -260,6 +262,7 @@ describe('SettingsComponent — New Chapters (home window)', () => {
     httpMock.expectOne('/api/v1/libraries').flush([]);
     httpMock.expectOne('/api/v1/reading/private-libraries').flush({ libraryIds: [] });
     httpMock.expectOne('/api/v1/reading/home-libraries').flush({ excludedLibraryIds: [] });
+    httpMock.expectOne('/api/v1/ratings/sharing').flush({ share: true, serverEnabled: false });
     httpMock.expectOne('/api/v1/reading/library-preferences').flush({
       viewMode: 'card', density: 'comfortable', sort: 'name', direction: '',
       cardSize: '', libraryPageSize: 50, homeRecentWindowDays, homeStacksPerLibrary,
@@ -398,6 +401,7 @@ describe('SettingsComponent — New Chapters library picker', () => {
     ]);
     httpMock.expectOne('/api/v1/reading/private-libraries').flush({ libraryIds: [] });
     httpMock.expectOne('/api/v1/reading/home-libraries').flush({ excludedLibraryIds });
+    httpMock.expectOne('/api/v1/ratings/sharing').flush({ share: true, serverEnabled: false });
     httpMock.expectOne('/api/v1/reading/library-preferences').flush({
       viewMode: 'card', density: 'comfortable', sort: 'name', direction: '',
       cardSize: '', libraryPageSize: 50, homeRecentWindowDays: 30,
@@ -473,6 +477,7 @@ describe('SettingsComponent - Series information on hover', () => {
     httpMock.expectOne('/api/v1/libraries').flush([]);
     httpMock.expectOne('/api/v1/reading/private-libraries').flush({ libraryIds: [] });
     httpMock.expectOne('/api/v1/reading/home-libraries').flush({ excludedLibraryIds: [] });
+    httpMock.expectOne('/api/v1/ratings/sharing').flush({ share: true, serverEnabled: false });
     httpMock.expectOne('/api/v1/reading/library-preferences').flush({
       viewMode: 'card', density: 'comfortable', sort: 'name', listColumns: 3, showFavoritesHomeRow: true, ...prefs,
     });
@@ -560,6 +565,7 @@ describe('SettingsComponent — Library display (per device)', () => {
     httpMock.expectOne('/api/v1/libraries').flush([]);
     httpMock.expectOne('/api/v1/reading/private-libraries').flush({ libraryIds: [] });
     httpMock.expectOne('/api/v1/reading/home-libraries').flush({ excludedLibraryIds: [] });
+    httpMock.expectOne('/api/v1/ratings/sharing').flush({ share: true, serverEnabled: false });
     httpMock.expectOne('/api/v1/reading/library-preferences').flush({
       viewMode: 'card', density: 'comfortable', sort: 'name', cardSize: '240', listColumns: 3, libraryPageSize: 50, ...prefs,
     });
@@ -624,5 +630,104 @@ describe('SettingsComponent — Library display (per device)', () => {
     const put = httpMock.expectOne('/api/v1/reading/library-preferences');
     expect(put.request.body).toMatchObject({ libraryPageSize: 100, cardSize: '130', listColumns: 1 });
     put.flush(null);
+  });
+});
+
+/**
+ * 1.53.0 lane S (audit N4): the "Ratings and recommendations" card - "Share my ratings" through its own route (never the blob), disabled
+ * with the administrator hint while the server switch is off, a snackbar when turned off; and the Home "Recommended for you" row on the
+ * library-preferences blob (default on). Audit V5: one 24 px rhythm for the stack of cards.
+ */
+describe('SettingsComponent — Ratings and recommendations', () => {
+  let httpMock: HttpTestingController;
+
+  function createComponent(sharing: { share: boolean; serverEnabled: boolean }, showRecommendationsHomeRow?: boolean) {
+    TestBed.configureTestingModule({
+      imports: [SettingsComponent],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations(), provideRouter([])],
+    });
+    const fixture = TestBed.createComponent(SettingsComponent);
+    httpMock = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+    httpMock.expectOne('/api/v1/libraries').flush([]);
+    httpMock.expectOne('/api/v1/reading/private-libraries').flush({ libraryIds: [] });
+    httpMock.expectOne('/api/v1/reading/home-libraries').flush({ excludedLibraryIds: [] });
+    httpMock.expectOne('/api/v1/ratings/sharing').flush(sharing);
+    httpMock.expectOne('/api/v1/reading/library-preferences').flush({
+      viewMode: 'card', density: 'comfortable', sort: 'name', cardSize: '150', libraryPageSize: 50,
+      ...(showRecommendationsHomeRow === undefined ? {} : { showRecommendationsHomeRow }),
+    });
+    httpMock.expectOne('/api/v1/reading/preferences').flush({
+      defaultReaderMode: 'PagedLtr', preferDoubleSpread: false, reducedMotion: false, preferredBackground: null, alwaysOpenReadFromStart: false,
+    });
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  afterEach(() => httpMock.verify());
+
+  const shareBox = (el: HTMLElement) => el.querySelector<HTMLInputElement>('[data-testid="share-ratings"] input[type="checkbox"]')!;
+  const rowBox = (el: HTMLElement) => el.querySelector<HTMLInputElement>('[data-testid="show-recommendations-row"] input[type="checkbox"]')!;
+
+  it('is one card holding both choices, titled "Ratings and recommendations"', () => {
+    const el = createComponent({ share: true, serverEnabled: true }).nativeElement as HTMLElement;
+    const card = el.querySelector('[data-testid="ratings-card"]')!;
+    expect(card.querySelector('mat-card-title')!.textContent!.trim()).toBe('Ratings and recommendations');
+    expect(card.querySelector('[data-testid="share-ratings"]')).not.toBeNull();
+    expect(card.querySelector('[data-testid="show-recommendations-row"]')).not.toBeNull();
+    expect(card.textContent).toContain('Share my ratings with other users of this server');
+    expect(card.textContent).toContain('Show a "Recommended for you" row on the home page');
+  });
+
+  it('while the administrator switch is off the share box is disabled with the hint', () => {
+    const el = createComponent({ share: true, serverEnabled: false }).nativeElement as HTMLElement;
+    expect(shareBox(el).disabled).toBe(true);
+    expect(shareBox(el).checked).toBe(true); // on by default, it only does nothing yet
+    expect(el.querySelector('[data-testid="share-ratings-off"]')!.textContent).toContain(
+      'Your administrator has not turned on shared ratings.');
+  });
+
+  it('turning sharing off PUTs ratings/sharing (never the blob) and says so in a snackbar', () => {
+    const fixture = createComponent({ share: true, serverEnabled: true });
+    const el = fixture.nativeElement as HTMLElement;
+    expect(shareBox(el).disabled).toBe(false);
+    expect(el.querySelector('[data-testid="share-ratings-off"]')).toBeNull();
+    shareBox(el).click();
+    fixture.detectChanges();
+    httpMock.expectNone('/api/v1/reading/library-preferences');
+    const put = httpMock.expectOne('/api/v1/ratings/sharing');
+    expect(put.request.method).toBe('PUT');
+    expect(put.request.body).toEqual({ share: false });
+    put.flush(null, { status: 204, statusText: 'No Content' });
+    fixture.detectChanges();
+    expect(fixture.componentInstance.shareRatings()).toBe(false);
+    expect(document.body.textContent).toContain('Your ratings are no longer shared.');
+  });
+
+  it('the recommendations row defaults on and is saved on the blob with the rest of it', () => {
+    const fixture = createComponent({ share: true, serverEnabled: false });
+    const el = fixture.nativeElement as HTMLElement;
+    expect(rowBox(el).checked).toBe(true);
+    rowBox(el).click();
+    fixture.detectChanges();
+    const put = httpMock.expectOne('/api/v1/reading/library-preferences');
+    expect(put.request.body).toMatchObject({ showRecommendationsHomeRow: false, libraryPageSize: 50, viewMode: 'card' });
+    expect(put.request.body).not.toHaveProperty('shareRatings');
+    put.flush(null);
+  });
+
+  it('reads a stored "off" for the recommendations row', () => {
+    const el = createComponent({ share: false, serverEnabled: true }, false).nativeElement as HTMLElement;
+    expect(rowBox(el).checked).toBe(false);
+    expect(shareBox(el).checked).toBe(false);
+  });
+
+  it('spaces the cards with one 24 px gap (audit V5: no card touches the next)', () => {
+    const fixture = createComponent({ share: true, serverEnabled: true });
+    const host = fixture.nativeElement as HTMLElement;
+    const style = getComputedStyle(host);
+    expect(style.display).toBe('flex');
+    expect(style.flexDirection).toBe('column');
+    expect(style.rowGap || style.gap).toBe('24px');
   });
 });

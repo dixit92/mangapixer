@@ -61,6 +61,7 @@ describe('LibraryBrowseComponent Volumes view (1.29.0)', () => {
     const apiSpy = {
       getVolumeView: opts.viewOf ? vi.fn().mockImplementation((id: string) => of(opts.viewOf!(id))) : vi.fn().mockReturnValue(of(view)),
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode: opts.viewMode ?? 'card', density: 'comfortable', sort: 'name', direction: 'asc', ...opts.prefs })),
+      getRatingSharing: vi.fn().mockReturnValue(of({ share: true, serverEnabled: false })), // 1.53.0
       setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary: vi.fn().mockReturnValue(of(page)),

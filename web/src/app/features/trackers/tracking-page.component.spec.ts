@@ -97,7 +97,7 @@ describe('TrackingPageComponent', () => {
     fixture.detectChanges();
     connect.click();
     const req = http.expectOne(`${BASE}/mal/connect/start`);
-    expect(req.request.body).toEqual({ acceptedConsentVersion: 1 });
+    expect(req.request.body).toEqual({ acceptedConsentVersion: 2 });
     const url = 'https://myanimelist.net/v1/oauth2/authorize?response_type=code&client_id=c&state=s';
     req.flush({ authorizeUrl: url });
     expect(openSignIn).toHaveBeenCalledWith(url);
@@ -133,7 +133,7 @@ describe('TrackingPageComponent', () => {
     q(el, 'tracker-connect-mangaupdates').click();
     expect(p.password()).toBe('');
     const req = http.expectOne(`${BASE}/mangaupdates/connect/password`);
-    expect(req.request.body).toEqual({ username: 'reader', password: 'PW-SECRET', acceptedConsentVersion: 1 });
+    expect(req.request.body).toEqual({ username: 'reader', password: 'PW-SECRET', acceptedConsentVersion: 2 });
     req.flush({ error: 'connect_rejected', message: 'x' }, { status: 400, statusText: 'Bad Request' });
     fixture.detectChanges();
     await fixture.whenStable();

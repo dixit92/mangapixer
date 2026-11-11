@@ -57,11 +57,11 @@ async function expectTouchSize(page: Page, targets: Record<string, Locator>): Pr
 
 function connectedMal() {
   return {
-    slug: 'mal', name: 'MyAnimeList', allowed: true, networkDisabledByConfig: false, connectKind: 'OAuthPkce', currentConsentVersion: 1,
+    slug: 'mal', name: 'MyAnimeList', allowed: true, networkDisabledByConfig: false, connectKind: 'OAuthPkce', currentConsentVersion: 2,
     supportsPrivateEntries: false,
     account: {
       tracker: 'mal', state: 'Ok', displayName: 'a-reader', connectedAt: '2026-10-13T10:00:00Z', lastSuccessAt: '2026-10-13T11:00:00Z',
-      consentRenewalNeeded: false, addStartedSeries: true, privateEntries: true, requestsToday: 12, dailyRequestCap: 2000,
+      consentRenewalNeeded: false, addStartedSeries: true, privateEntries: true, syncScores: false, requestsToday: 12, dailyRequestCap: 2000,
     },
   };
 }

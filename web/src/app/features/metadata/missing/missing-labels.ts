@@ -119,13 +119,10 @@ export function batchSentence(r: MissingConversionBatchResultDto): string {
 
 /**
  * Whether the series page should ask for the folder's Missing line (1.52.0, sweep C3). The server answers a row only for a folder with
- * its OWN confirmed or automatic series link (else 404 - console noise on every other series page). The series information already
- * says so: no request when it is visible and shows no such link. When it shows nothing at all (state None - which is also what a
- * library with series information hidden answers), the page still asks, as before.
+ * its OWN confirmed or automatic series link (else 404 - console noise on every other series page). 1.53.0 (the C3 residue): the series
+ * information says so itself - `missingReportPossible` is computed by the server with the Missing line's own rule, also while series
+ * information is hidden for the library (state None), which the client alone could not tell from "no series information".
  */
 export function mayHaveMissingLine(info: SeriesInfoDto): boolean {
-  if (info.anchorKind !== 'Folder') return false;
-  if (info.state === 'None') return true;
-  const link = info.link;
-  return !!link && (link.state === 'Confirmed' || link.state === 'Auto') && link.nodeId === info.anchorNodeId;
+  return info.missingReportPossible === true;
 }

@@ -11,7 +11,7 @@ const LIST = '/api/v1/admin/trackers';
 
 function adminTracker(overrides: Partial<AdminTrackerSettingsDto> = {}): AdminTrackerSettingsDto {
   return {
-    slug: 'mal', name: 'MyAnimeList', enabled: false, acceptedConsentVersion: null, currentConsentVersion: 1, consentAt: null,
+    slug: 'mal', name: 'MyAnimeList', enabled: false, acceptedConsentVersion: null, currentConsentVersion: 2, consentAt: null,
     consentRenewalNeeded: false, networkDisabledByConfig: false, connectKind: 'OAuthPkce', needsAppRegistration: true,
     clientId: null, clientSecretSet: false, redirectUri: null, connectedUsers: 0, dailyRequestCap: 2000, ...overrides,
   };
@@ -79,7 +79,7 @@ describe('AdminTrackersCardComponent', () => {
     TestBed.resetTestingModule();
 
     // Allowed, app not set up: the registration form names it too.
-    ({ el } = create([adminTracker({ enabled: true, acceptedConsentVersion: 1, consentAt: '2026-10-14T00:00:00Z' }), MU()]));
+    ({ el } = create([adminTracker({ enabled: true, acceptedConsentVersion: 2, consentAt: '2026-10-14T00:00:00Z' }), MU()]));
     const inForm = links(q(el, 'admin-tracker-registration-mal'));
     expect(inForm.length).toBe(1);
     for (const link of [...inConsent, ...inForm]) {
@@ -101,8 +101,8 @@ describe('AdminTrackersCardComponent', () => {
     toggle.click();
     const req = http.expectOne(`${LIST}/mal`);
     expect(req.request.method).toBe('PUT');
-    expect(req.request.body).toEqual({ enabled: true, acceptedConsentVersion: 1 });
-    req.flush(adminTracker({ enabled: true, acceptedConsentVersion: 1, consentAt: '2026-10-14T00:00:00Z' }));
+    expect(req.request.body).toEqual({ enabled: true, acceptedConsentVersion: 2 });
+    req.flush(adminTracker({ enabled: true, acceptedConsentVersion: 2, consentAt: '2026-10-14T00:00:00Z' }));
     fixture.detectChanges();
     expect(q(el, 'admin-tracker-state-mal').textContent).toContain('Allowed - app not set up');
     expect(q(el, 'tracker-consent-admin-mal')).toBeNull();
@@ -110,7 +110,7 @@ describe('AdminTrackersCardComponent', () => {
   });
 
   it('refuses to accept a text the server no longer shows', () => {
-    const { el } = create([adminTracker({ currentConsentVersion: 2 }), MU()]);
+    const { el } = create([adminTracker({ currentConsentVersion: 3 }), MU()]);
     expect(el.textContent).toContain('older text than the server');
     expect(q(el, 'admin-tracker-consent-mal').querySelector('input')!.disabled).toBe(true);
   });
@@ -148,7 +148,7 @@ describe('AdminTrackersCardComponent', () => {
   });
 
   it('saves the per-user daily request limit (owner E5) and refuses one outside 100 - 20000 without a request', () => {
-    const { fixture, http, el } = create([adminTracker({ enabled: true, acceptedConsentVersion: 1, clientId: 'c', redirectUri: 'https://x.test/trackers/callback/mal' }), MU()]);
+    const { fixture, http, el } = create([adminTracker({ enabled: true, acceptedConsentVersion: 2, clientId: 'c', redirectUri: 'https://x.test/trackers/callback/mal' }), MU()]);
     const input = q(el, 'admin-tracker-cap-mal') as HTMLInputElement;
     const save = q(el, 'admin-tracker-cap-save-mal') as HTMLButtonElement;
     expect(save.disabled).toBe(true);
@@ -164,7 +164,7 @@ describe('AdminTrackersCardComponent', () => {
     const req = http.expectOne(`${LIST}/mal`);
     expect(req.request.method).toBe('PUT');
     expect(req.request.body).toEqual({ dailyRequestCap: 5000 });
-    req.flush(adminTracker({ enabled: true, acceptedConsentVersion: 1, clientId: 'c', redirectUri: 'https://x.test/trackers/callback/mal', dailyRequestCap: 5000 }));
+    req.flush(adminTracker({ enabled: true, acceptedConsentVersion: 2, clientId: 'c', redirectUri: 'https://x.test/trackers/callback/mal', dailyRequestCap: 5000 }));
     fixture.detectChanges();
     expect(q(el, 'admin-tracker-notice-mal').textContent).toContain('Up to 5000 requests per user per day to MyAnimeList');
   });
@@ -182,7 +182,7 @@ describe('AdminTrackersCardComponent', () => {
   });
 
   it('lists connected accounts and disconnects one after a confirm', () => {
-    const { fixture, http, el } = create([adminTracker({ enabled: true, acceptedConsentVersion: 1 }), MU()],
+    const { fixture, http, el } = create([adminTracker({ enabled: true, acceptedConsentVersion: 2 }), MU()],
       [account(), account({ userId: 'u2', username: 'other', tracker: 'mangaupdates', state: 'DisconnectedByAdmin' })]);
     expect(q(el, 'admin-tracker-account-mal-u1').textContent).toContain('Syncing');
     expect(q(el, 'admin-tracker-account-mangaupdates-u2').textContent).toContain('Disconnected by an admin');

@@ -94,7 +94,12 @@ describe('RatingStarsComponent', () => {
       expect(slider(f).hasAttribute('aria-valuenow')).toBe(false);
       expect(slider(f).getAttribute('aria-valuetext')).toBe('Not rated');
       expect(icons(f).every((i) => i === 'star_border')).toBe(true);
-      expect(clearButton(f)).toBeNull();
+      // 1.53.0 (audit V4): the Clear button keeps its slot - hidden, out of the tab order and inert - so rating never re-flows the row.
+      const button = clearButton(f)!;
+      expect(button).not.toBeNull();
+      expect(button.classList.contains('unrated')).toBe(true);
+      expect(button.getAttribute('aria-hidden')).toBe('true');
+      expect(button.disabled).toBe(true);
     });
 
     it('a click on the left half sets the half star, on the right half the whole star', () => {
@@ -184,7 +189,39 @@ describe('RatingStarsComponent', () => {
       button.click();
       f.detectChanges();
       expect(fake.setRating).toHaveBeenCalledWith('node-1', null);
-      expect(clearButton(f)).toBeNull();
+      expect(clearButton(f)!.classList.contains('unrated')).toBe(true);
+    });
+
+    it('keeps the same elements rated and unrated (audit V4: the row does not re-flow when you rate)', () => {
+      const f = create(null);
+      const before = [...el(f).querySelector('.edit')!.children].map((c) => `${c.tagName}:${c.getAttribute('data-testid') ?? c.className}`);
+      expect(clearButton(f)!.classList.contains('unrated')).toBe(true);
+      half(f, 6).click();
+      f.detectChanges();
+      const after = [...el(f).querySelector('.edit')!.children].map((c) => `${c.tagName}:${c.getAttribute('data-testid') ?? c.className}`);
+      expect(after).toEqual(before);
+      expect(clearButton(f)!.classList.contains('unrated')).toBe(false);
+      expect(clearButton(f)!.hasAttribute('aria-hidden')).toBe(false);
+    });
+
+    it('1.53.0 pre-cut (guide finding 1): "Not rated" takes the Clear button\'s slot, so the row is as wide unrated as rated', () => {
+      // A touch phone's 40 px stars + "Not rated" + the kept Clear slot did not fit 358 px, so only the unrated row wrapped (84 px vs
+      // 40 px). Now the value and Clear share one grid: unrated, "Not rated" spans both columns over the hidden button.
+      const f = create(null);
+      const tail = el(f).querySelector('.edit > .tail');
+      expect(tail).not.toBeNull(); // (a ?. below would pass on a row without it)
+      const value = tail!.querySelector('.value')!;
+      expect(value.textContent!.trim()).toBe('Not rated');
+      expect(value.classList.contains('unrated')).toBe(true);
+      expect(tail!.contains(clearButton(f))).toBe(true);
+      // The narrow layout's icon (drawn by CSS, so the button's text stays "Clear rating") and its label.
+      expect(clearButton(f)!.querySelector('.clear-icon')).not.toBeNull();
+      expect(clearButton(f)!.querySelector('.clear-lbl')!.textContent!.trim()).toBe('Clear rating');
+      half(f, 6).click();
+      f.detectChanges();
+      expect(value.textContent!.trim()).toBe('3');
+      expect(value.classList.contains('unrated')).toBe(false);
+      expect(clearButton(f)!.textContent!.trim()).toBe('Clear rating');
     });
 
     it('reverts to the stored rating when the save fails', () => {

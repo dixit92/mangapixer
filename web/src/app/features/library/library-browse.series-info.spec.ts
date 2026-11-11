@@ -44,6 +44,7 @@ describe('LibraryBrowseComponent series info (1.24.0)', () => {
     const apiSpy = {
       getVolumeView: vi.fn().mockReturnValue(of({ nodeId: 'x', available: false, active: false, consolidated: false, stackCount: 0 })),
       getLibraryPreferences: vi.fn().mockReturnValue(of({ viewMode, density: 'comfortable', sort: 'name', direction: 'asc', ...prefs })),
+      getRatingSharing: vi.fn().mockReturnValue(of({ share: true, serverEnabled: false })), // 1.53.0
       setLibraryPreferences: vi.fn().mockReturnValue(of(undefined)),
       getLibraries: vi.fn().mockReturnValue(of([{ id: 'lib1', name: 'L', isScanning: false, itemCount: 0, lastScanCompleted: null, defaultReaderMode: null, icon: null }])),
       browseLibrary: vi.fn().mockReturnValue(of(page)),

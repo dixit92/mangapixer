@@ -6,14 +6,14 @@ import {
 export function summary(overrides: Partial<TrackerSummaryDto> = {}): TrackerSummaryDto {
   return {
     slug: 'mal', name: 'MyAnimeList', allowed: true, networkDisabledByConfig: false, connectKind: 'OAuthPkce',
-    currentConsentVersion: 1, supportsPrivateEntries: false, account: null, ...overrides,
+    currentConsentVersion: 2, supportsPrivateEntries: false, account: null, ...overrides,
   };
 }
 
 export function trackerAccount(overrides: Partial<TrackerAccountDto> = {}): TrackerAccountDto {
   return {
     tracker: 'mal', state: 'Ok', displayName: 'reader', connectedAt: '2026-10-13T00:00:00Z', consentRenewalNeeded: false,
-    addStartedSeries: true, privateEntries: true, requestsToday: 3, dailyRequestCap: 2000, ...overrides,
+    addStartedSeries: true, privateEntries: true, syncScores: false, requestsToday: 3, dailyRequestCap: 2000, ...overrides,
   };
 }
 

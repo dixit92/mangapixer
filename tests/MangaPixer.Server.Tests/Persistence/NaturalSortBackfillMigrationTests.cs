@@ -153,6 +153,8 @@ public sealed class NaturalSortBackfillMigrationTests : IDisposable
             // 1.52.0 (lane R): browse reads the viewer's ratings with the favourite flag (user_ratings, migration 60) - an empty shim of
             // that later table, as the shims for the other later tables browse reads.
             await db.Database.ExecuteSqlRawAsync(CaseInsensitiveSortKeysMigrationTests.UserRatingsShim);
+            // 1.53.0 step 0: browse reads the viewer's user row through the current model - the later users.LastSeenVersion column.
+            await db.Database.ExecuteSqlRawAsync(CaseInsensitiveSortKeysMigrationTests.UsersLastSeenVersionShim);
 
             var browse = new CatalogBrowseService(db, new LibraryAuthorizationService(db));
             var page = await browse.BrowseAsync(userId, libraryId, seriesId, cursor: null, pageSize: 50, sort: "name");

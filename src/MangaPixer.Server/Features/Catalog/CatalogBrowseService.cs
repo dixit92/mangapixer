@@ -38,13 +38,15 @@ public sealed partial class CatalogBrowseService
     private readonly ILogger<CatalogBrowseService>? _logger;
     private readonly Microsoft.Extensions.Caching.Memory.IMemoryCache? _cache;
     private readonly TimeProvider _time;
+    private readonly Ratings.SharedRatingsService? _sharedRatings;
 
     public CatalogBrowseService(MangaPixerDbContext db, LibraryAuthorizationService auth, SeriesInfoFlagService? seriesInfoFlags = null,
         ICoverResolver? covers = null, VolumeEntryService? volumes = null, StackCoverService? stackCovers = null,
         CollectionStackCoverService? collectionCovers = null, Trackers.TrackerCardMarks? trackerMarks = null,
         ILogger<CatalogBrowseService>? logger = null, Microsoft.Extensions.Caching.Memory.IMemoryCache? cache = null,
-        TimeProvider? time = null)
+        TimeProvider? time = null, Ratings.SharedRatingsService? sharedRatings = null)
     {
+        _sharedRatings = sharedRatings; // 1.53.0 lane S: the single node's server average (CatalogBrowseService.ServerRating.cs)
         // 1.44.0 lane C: the Completion filter's log line, its 60 s memo of a level's answers and the clock that ages it.
         _logger = logger;
         _cache = cache;
@@ -90,10 +92,18 @@ public sealed partial class CatalogBrowseService
         SeriesAnswer? completion = null, // 1.44.0 lane C: keep only the linked series folders with this Completion answer
         CancellationToken ct = default)
     {
+        // 1.53.0 lane S: "Server rating" only while the shared-ratings switch is on; otherwise the plain Name order (A-Z - the
+        // direction the client sent was the one-directional sort's, so it is dropped).
+        if (sort == ServerRatingSort && !await ServerRatingSortAllowedAsync(ct))
+        {
+            sort = "name";
+            direction = null;
+        }
+
         // Validate sort — unknown values fall back to "name" (tolerant, like the DTO).
         sort = sort switch
         {
-            "recentlyAdded" or "recentlyRead" or "recentlyUpdated" or MyRatingSort => sort,
+            "recentlyAdded" or "recentlyRead" or "recentlyUpdated" or MyRatingSort or ServerRatingSort => sort,
             _ => "name",
         };
 
@@ -202,6 +212,7 @@ public sealed partial class CatalogBrowseService
                 "recentlyAdded" => await QueryRecentlyAddedAsync(baseQuery, cursor, pageSize, effectiveDirection, ct),
                 "recentlyRead" => await QueryRecentlyReadAsync(baseQuery, userId, cursor, pageSize, effectiveDirection, ct),
                 MyRatingSort => await QueryMyRatingAsync(baseQuery, userId, cursor, pageSize, ct),
+                ServerRatingSort => await QueryServerRatingAsync(baseQuery, libraryId, cursor, pageSize, ct),
                 "recentlyUpdated" => await QueryRecentlyUpdatedAsync(baseQuery, cursor, pageSize, ct),
                 _ => await QueryNameAsync(baseQuery, cursor, pageSize, effectiveDirection, ct),
             };
@@ -218,6 +229,7 @@ public sealed partial class CatalogBrowseService
                 && !cursor.StartsWith("a:", StringComparison.Ordinal)
                 && !cursor.StartsWith("r:", StringComparison.Ordinal)
                 && !cursor.StartsWith(MyRatingCursorPrefix, StringComparison.Ordinal)
+                && !cursor.StartsWith(ServerRatingCursorPrefix, StringComparison.Ordinal)
                 && !VolumePaging.IsVolumeCursor(cursor))
             {
                 var firstKey = rows[0].SortKey;
@@ -255,6 +267,7 @@ public sealed partial class CatalogBrowseService
             {
                 "recentlyRead" => $"r:{RecentlyReadOffset(cursor) + rows.Count}",
                 MyRatingSort => $"{MyRatingCursorPrefix}{MyRatingOffset(cursor) + rows.Count}",
+                ServerRatingSort => $"{ServerRatingCursorPrefix}{ServerRatingOffset(cursor) + rows.Count}",
                 _ => EncodeCursor(sort, rows[^1]),
             };
         }
@@ -421,6 +434,7 @@ public sealed partial class CatalogBrowseService
             && !cursor.StartsWith("a:", StringComparison.Ordinal)
             && !cursor.StartsWith("r:", StringComparison.Ordinal)
             && !cursor.StartsWith(MyRatingCursorPrefix, StringComparison.Ordinal)
+            && !cursor.StartsWith(ServerRatingCursorPrefix, StringComparison.Ordinal)
             && !VolumePaging.IsVolumeCursor(cursor))
         {
             if (direction == SortDirection.Ascending)
@@ -1113,6 +1127,7 @@ public sealed partial class CatalogBrowseService
             PageCount = node.ArchiveItem?.PageCount,
             IsFavorite = mine?.Favorite ?? false,
             MyRating = mine?.Rating,
+            ServerRating = await ServerRatingOfAsync(node.Id, node.LibraryId, ct), // 1.53.0 lane S: the single node only
         };
     }
 

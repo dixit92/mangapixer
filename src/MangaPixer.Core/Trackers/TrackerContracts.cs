@@ -80,11 +80,18 @@ public sealed record TrackerEntry(
     int? TotalVolumes,
     bool SeriesFinished,
     DateOnly? StartedOn,
-    DateOnly? FinishedOn);
+    DateOnly? FinishedOn)
+{
+    /// <summary>
+    /// 1.53.0 (lane T): the user's own score of the series (1-10) when the read carries it (MyAnimeList's <c>my_list_status.score</c>;
+    /// 0 there = none), null when it has none or the tracker keeps scores apart (MangaUpdates). Read only to compare and to import.
+    /// </summary>
+    public int? Score { get; init; }
+}
 
 /// <summary>
-/// One write to the user's entry. Only these fields are ever sent; null leaves a field as the tracker has it. Never a score, notes,
-/// tags, a title or anything about files.
+/// One write to the user's entry. Only these fields are ever sent; null leaves a field as the tracker has it. Never a score (1.53.0: a
+/// score goes alone through the tracker's own score call - <c>ITrackerScores</c>), notes, tags, a title or anything about files.
 /// </summary>
 public sealed record TrackerEntryWrite(
     TrackerEntryStatus Status,

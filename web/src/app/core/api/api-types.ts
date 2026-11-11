@@ -106,6 +106,12 @@ export interface CatalogNodeDto {
    */
   myRating?: number | null;
   /**
+   * 1.53.0 (shared ratings): the server average of this node - the mean of every sharing user's rating (1-10; stars = average / 2) and
+   * how many ratings it holds. Only on the single-node lookup (`GET nodes/{id}`); absent while the admin switch is off or when no
+   * shared rating exists.
+   */
+  serverRating?: ServerRatingDto | null;
+  /**
    * 1.50.0 (archive context line): the name of the folder an ARCHIVE belongs to - its nearest ancestor that is not a plain
    * Volumes / Chapters / Extras kind folder - so a found `Vol. 012` says which series it is. Name only, never a path. Null for
    * folders and archives in a library root; filled on search results, Continue reading and Favorites, not in browse.
@@ -583,8 +589,11 @@ export type LibraryViewMode = 'card' | 'list';
  * only so the stored preference round-trips unchanged for other/older frontends.
  */
 export type LibraryGridDensity = 'comfortable' | 'compact';
-/** 1.52.0: `myRating` - the viewer's own rating, highest first, then name; not rated last. */
-export type LibrarySortOrder = 'name' | 'recentlyAdded' | 'recentlyRead' | 'recentlyUpdated' | 'myRating';
+/**
+ * 1.52.0: `myRating` - the viewer's own rating, highest first, then name; not rated last. 1.53.0: `serverRating` - the server average,
+ * highest first, then the higher count, then name; offered only while the admin's shared-ratings switch is on (else browse sorts by name).
+ */
+export type LibrarySortOrder = 'name' | 'recentlyAdded' | 'recentlyRead' | 'recentlyUpdated' | 'myRating' | 'serverRating';
 
 /**
  * Browse sort direction (1.5.0). Optional/tolerant like the other library-view
@@ -630,6 +639,28 @@ export interface SetRatingRequest {
   score: number;
 }
 
+/** 1.53.0 (shared ratings): a node's server average - `average` on the 1-10 scale (stars = average / 2) and the rating count. */
+export interface ServerRatingDto {
+  average?: number;
+  count?: number;
+}
+
+/** `GET ratings/sharing` (1.53.0): the user's "Share my ratings" choice (on by default) and whether the admin switch is on. */
+export interface RatingSharingDto {
+  share?: boolean;
+  serverEnabled?: boolean;
+}
+
+/** Body of `PUT ratings/sharing` (1.53.0). */
+export interface SetRatingSharingRequest {
+  share?: boolean;
+}
+
+/** `GET` / `PUT admin/ratings/sharing` (1.53.0): the server-wide "Shared ratings" switch, off until an admin turns it on. */
+export interface AdminRatingSharingDto {
+  enabled?: boolean;
+}
+
 /** Per-user library browse presentation preferences (1.2.0). Strings for tolerance. */
 export interface LibraryViewPreferencesDto {
   viewMode: string;
@@ -666,6 +697,11 @@ export interface LibraryViewPreferencesDto {
    * the row is hidden (default). The star affordances everywhere else are always on.
    */
   showFavoritesHomeRow?: boolean;
+  /**
+   * Optional (1.53.0): the Home "Recommended for you" row. true (server default) shows it; Settings > Ratings and recommendations
+   * writes it. (The shared-ratings choice is NOT in this blob - `ratings/sharing`.)
+   */
+  showRecommendationsHomeRow?: boolean;
   /**
    * Optional (1.21.0): per-user opt-in for favorites prominence in search. false/omitted
    * → favorited results render normally. true → they get a star badge and are boosted to
@@ -1437,6 +1473,11 @@ export interface SeriesInfoDto {
   precedence: MetadataPrecedence;
   precedenceSource: MetadataPrecedenceSource;
   items?: SeriesInfoItemRowDto[];
+  /**
+   * 1.53.0 (the 1.52.0 C3 residue): true exactly when `GET nodes/{anchorNodeId}/missing` answers a Missing line (the anchor folder has
+   * its own confirmed / automatic link to a stored record) - also while series information is hidden for the library. Ask only when true.
+   */
+  missingReportPossible?: boolean;
 }
 
 export interface MetadataComicInfoStatsDto {
@@ -3676,6 +3717,8 @@ export interface TrackerAccountDto {
   consentRenewalNeeded: boolean;
   addStartedSeries: boolean;
   privateEntries: boolean;
+  /** 1.53.0: "Keep my score in step with my MangaPixer rating" (off by default). */
+  syncScores: boolean;
   requestsToday: number;
   dailyRequestCap: number;
 }
@@ -3707,6 +3750,40 @@ export interface TrackerConnectPasswordRequest {
 export interface UpdateTrackerUserSettingsRequest {
   addStartedSeries?: boolean | null;
   privateEntries?: boolean | null;
+  /** 1.53.0: "Keep my score in step with my MangaPixer rating". */
+  syncScores?: boolean | null;
+}
+
+/**
+ * 1.53.0 `POST /api/v1/trackers/{slug}/scores/import` ("Take my scores from <tracker>"): unrated series got the tracker's score; a
+ * different MangaPixer rating was kept and is listed in `differ`.
+ */
+export interface TrackerScoreImportResultDto {
+  /** Scored entries read from the caller's list on the tracker. */
+  scored: number;
+  /** Of those, series here. */
+  matched: number;
+  filled: number;
+  same: number;
+  /** Kept MangaPixer ratings that differ, by title. */
+  differ: TrackerScoreDifferenceDto[];
+  requests: number;
+  capReached: boolean;
+}
+
+/** One series whose MangaPixer rating differs from the caller's score on the tracker (both 1-10). */
+export interface TrackerScoreDifferenceDto {
+  seriesId: string;
+  title: string;
+  /** The folder whose rating it is. */
+  nodeId: string;
+  myScore: number;
+  trackerScore: number;
+}
+
+/** 1.53.0 `PUT /api/v1/trackers/{slug}/scores/{seriesId}`: "Use <tracker>'s". */
+export interface TrackerUseScoreRequest {
+  score?: number | null;
 }
 
 /** One linked series in the caller's tracker list. */
@@ -4146,4 +4223,65 @@ export interface TakenDownSeriesDto {
   nodeId: string;
   libraryId: string;
   displayName: string;
+}
+
+// --- What's new (1.53.0, admin only) ---
+
+/**
+ * `GET /api/v1/admin/whats-new[?current=true]`: the running version (`major.minor.patch`) and the release-note sections the admin has
+ * not seen yet (or, with `current=true`, the running version's section), newest first. Text only - inline formatting arrives as flagged
+ * parts; a link is always an in-app path.
+ */
+export interface WhatsNewDto {
+  current: string;
+  sections: WhatsNewSectionDto[];
+}
+
+/** One released version's notes. */
+export interface WhatsNewSectionDto {
+  version: string;
+  /** `yyyy-MM-dd`, or absent when the heading has none. */
+  date?: string | null;
+  groups: WhatsNewGroupDto[];
+}
+
+/** One `### Name` group (Added, Changed, Fixed ...). */
+export interface WhatsNewGroupDto {
+  name: string;
+  items: WhatsNewItemDto[];
+}
+
+/** One bullet as a run of inline parts. */
+export interface WhatsNewItemDto {
+  parts: WhatsNewInlineDto[];
+}
+
+/** A run of text: bold, code, or a link to an in-app path (`/admin`). */
+export interface WhatsNewInlineDto {
+  text: string;
+  bold?: boolean;
+  code?: boolean;
+  link?: string | null;
+}
+
+/** What a recommendation's reason is about (1.53.0). */
+export type RecommendationReasonKind = 'Creator' | 'SharedValues' | 'Relation';
+
+/** Why a pick appears (1.53.0): one line - "Same author: ...", "Like <series>: horror, school life", "Sequel of <series>". */
+export interface RecommendationReasonDto {
+  kind: RecommendationReasonKind;
+  display: string;
+  /** The seed series the reason names (its card's node); absent for a creator. */
+  relatedNodeId?: string | null;
+}
+
+/** One pick (1.53.0): the card of its best visible location, enriched like a browse card, and its reason. */
+export interface RecommendationDto {
+  node: CatalogNodeDto;
+  reason: RecommendationReasonDto;
+}
+
+/** `GET recommendations` (Home "Recommended for you") and `GET nodes/{nodeId}/similar` ("More like this"), 1.53.0. */
+export interface RecommendationsDto {
+  items: RecommendationDto[];
 }

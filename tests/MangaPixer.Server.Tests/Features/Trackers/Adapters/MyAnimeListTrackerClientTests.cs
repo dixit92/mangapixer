@@ -148,7 +148,8 @@ public sealed class MyAnimeListTrackerClientTests : IDisposable
 
         var entry = await _h.Mal.ReadEntryAsync(TrackerAdapterHarness.Tokens, "2", CancellationToken.None);
 
-        Assert.Equal(new TrackerEntry(TrackerEntryStatus.OnHold, 31, 3, null, 12, true, new DateOnly(2024, 2, 3), null), entry);
+        // 1.53.0 (lane T): the user's own score comes with the entry (read only; never part of a progress write).
+        Assert.Equal(new TrackerEntry(TrackerEntryStatus.OnHold, 31, 3, null, 12, true, new DateOnly(2024, 2, 3), null) { Score = 8 }, entry);
         var seen = Assert.Single(_h.Handler.Seen);
         Assert.Equal("https://api.myanimelist.net/v2/manga/2?fields=num_chapters,num_volumes,status,my_list_status", seen.Uri.ToString());
         Assert.Equal(HttpMethod.Get, seen.Method);

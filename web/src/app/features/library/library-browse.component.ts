@@ -6,6 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable, forkJoin, of, catchError, filter, map, switchMap } from 'rxjs';
@@ -25,7 +26,7 @@ import { StarToggleComponent } from '../../shared/star-toggle/star-toggle.compon
 import { ContinueRowComponent } from '../../shared/continue-row/continue-row.component';
 import { InfoToggleComponent } from '../../shared/info-toggle/info-toggle.component';
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
-import { SeriesInfoButtonComponent } from '../metadata/series-info-button.component';
+import { SeriesInfoButtonComponent, SeriesSlot } from '../metadata/series-info-button.component';
 import { SeriesSelectionActionsComponent } from '../metadata/series-selection-actions.component';
 import { CoverSelectionActionComponent } from '../../shared/cover-picker/cover-selection-action.component';
 import { CoverStateService } from '../../shared/cover-picker/cover-state.service';
@@ -47,8 +48,12 @@ import { TrackersApiService } from '../trackers/trackers-api.service';
 import { FolderCoverPreferenceActionComponent } from './folder-cover-preference-action.component';
 import { NodeRowComponent, directionShort as directionChip } from '../../shared/node-row/node-row.component';
 import { RatingStarsComponent } from '../ratings/rating-stars.component';
+import { FolderRateButtonComponent } from '../ratings/folder-rate-button.component';
+import { RateSelectionActionComponent } from '../ratings/rate-selection-action.component';
+import { RatingSharingService } from '../ratings/rating-sharing.service';
 import { SelectionBarComponent } from '../../shared/selection/selection-bar.component';
 import { NodeSelection } from '../../shared/selection/node-selection';
+import { FirstAnswer } from '../../shared/first-answer';
 import { JumpRailComponent, bucketOwners } from './jump-rail.component';
 import { isLongLevel } from './jump-scrub';
 import { COMPLETION_OPTIONS, CompletionOption, completionLabel, completionOptionLabel } from './completion-filter';
@@ -97,11 +102,14 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     CommonModule,
     RouterLink,
     RatingStarsComponent,
+    FolderRateButtonComponent,
+    RateSelectionActionComponent,
     MatIconModule,
     MatButtonModule,
     MatMenuModule,
     MatTooltipModule,
     MatDividerModule,
+    MatProgressSpinnerModule,
     CoverImageDirective,
     FolderRollupBadgeComponent,
     StarToggleComponent,
@@ -146,16 +154,16 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
           <!-- Library root is always a clickable crumb. -->
           <a routerLink="/libraries/{{ libraryId() }}/browse">{{ libraryName() || 'Library' }}</a>
           <!-- Ancestors of the current folder (clickable). -->
+          <!-- 1.53.0 (audit V6): each separator travels with the crumb after it (one item, glued with no-break spaces), so a "/" never
+               sits alone or ends a line. -->
           @for (crumb of breadcrumbs(); track crumb.id) {
-            <span class="sep"> / </span>
-            <a routerLink="/libraries/{{ libraryId() }}/browse/{{ crumb.id }}">{{ crumb.displayName }}</a>
+            <span class="crumb"><span class="sep">&nbsp;/&nbsp;</span><a routerLink="/libraries/{{ libraryId() }}/browse/{{ crumb.id }}">{{ crumb.displayName }}</a></span>
           }
           <!-- The current folder itself: plain, non-clickable text (File Explorer
                behavior - you are already in it). Rendered whenever we are inside a
                folder, even at the first level where there are no ancestor crumbs. -->
           @if (currentFolderName()) {
-            <span class="sep"> / </span>
-            <span class="current" aria-current="page">{{ currentFolderName() }}</span>
+            <span class="crumb crumb-current"><span class="sep">&nbsp;/&nbsp;</span><span class="current" aria-current="page">{{ currentFolderName() }}</span></span>
           }
         </div>
         <!-- Card size slider (1.6.0): only meaningful for the Card view. Dragging
@@ -194,7 +202,11 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
         @if (parentId(); as folderId) {
           <!-- 1.43.0: the series' tracking (a gold button + popover) for a user with a connected tracker. -->
           <app-series-tracking-button [nodeId]="folderId" />
-          <app-series-info-button [nodeId]="folderId" />
+          <app-series-info-button [nodeId]="folderId" (slotChange)="folderSlot.set($event)" />
+          <!-- 1.53.0 (5b, audit N5): a folder with no Info button gets "Rate" in that slot (the Info sheet holds the rating otherwise). -->
+          @if (folderSlot() !== 'info') {
+            <app-folder-rate-button [nodeId]="folderId" [rating]="currentFolderRating()" />
+          }
           <!-- 1.48.0: favorite the folder being viewed (a library root has no node to star). -->
           <app-star-toggle [nodeId]="folderId" [favorite]="currentFolderFavorite()" [bar]="true" />
         } @else if (libraryId()) {
@@ -238,7 +250,7 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
           }
           <mat-divider></mat-divider>
           <span class="menu-caption">Sort by</span>
-          @for (opt of sortOptions; track opt.value) {
+          @for (opt of shownSortOptions(); track opt.value) {
             <button mat-menu-item role="menuitemradio"
                     [class.selected-option]="sort() === opt.value"
                     [attr.aria-checked]="sort() === opt.value"
@@ -382,6 +394,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
         <app-selection-bar [count]="selected().size" [busy]="busy()" [selectDisabled]="nodes().length === 0"
                            (selectAll)="selectAll()" (selectUnread)="selectAllUnread()" (selectRead)="selectAllRead()"
                            (markRead)="bulkMarkRead($event)" (favorite)="bulkFavorite($event)" (done)="toggleSelectMode()">
+          <!-- 1.53.0 (5b, audit N5): "Rate..." right after Favorites, for exactly one selected folder or archive. -->
+          <app-rate-selection-action [nodes]="nodes()" [selected]="selectedNodeIds()" [disabled]="busy()" />
           @if (auth.isAdmin()) {
             <button mat-button [matMenuTriggerFor]="dirMenu"
                     [disabled]="busy() || selectedFolderCount() === 0"
@@ -559,8 +573,27 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
         </div>
         }
       } @empty {
-        <!-- 1.45.0 (UX review #6): a filter that leaves nothing says so, with the way back - never "This folder is empty". -->
-        @if (!loadingMore() && completionApplies()) {
+        <!-- 1.53.0 (audit V2): the first page's own states - the not-found line first (its words never depend on the answer), then a
+             failed answer (the reader's error block), then "not loaded yet" (the series page's spinner, after 300 ms); an empty line
+             only after a successful answer. Infinite scroll keeps its own "Loading more..." below. -->
+        @if (notFound()) {
+          <!-- 1.52.0 (sweep m8): a library that is not in this account's list - unknown, or not granted - shows the same words either
+               way, so nothing tells them apart (and nothing of it is shown). -->
+          <div class="empty" role="status" data-testid="browse-not-found">
+            <p>This library does not exist, or your account has no access to it.</p>
+            <a mat-stroked-button routerLink="/libraries">Your libraries</a>
+          </div>
+        } @else if (listAnswer.failed()) {
+          <div class="status error" role="alert" data-testid="browse-failed">
+            <mat-icon>error_outline</mat-icon>
+            <p>Could not load this folder.</p>
+            <button mat-stroked-button type="button" (click)="retryList()" data-testid="browse-retry">Try again</button>
+          </div>
+        } @else if (!listAnswer.loaded()) {
+          @if (listAnswer.slow()) {
+            <div class="state" role="status" aria-label="Loading" data-testid="browse-loading"><mat-spinner diameter="32" /></div>
+          }
+        } @else if (!loadingMore() && completionApplies()) {
           <div class="empty" data-testid="browse-empty-filtered">
             <p>No series here match "{{ completionText() }}".</p>
             <button mat-stroked-button type="button" (click)="setCompletionFilter(null)" data-testid="browse-empty-any">Show any</button>
@@ -570,15 +603,8 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
             <p>Nothing here matches the filter.</p>
             <button mat-stroked-button type="button" (click)="clearFilters()" data-testid="browse-empty-clear">Clear filter</button>
           </div>
-        } @else if (notFound()) {
-          <!-- 1.52.0 (sweep m8): a library that is not in this account's list - unknown, or not granted - shows the same words either
-               way, so nothing tells them apart (and nothing of it is shown). -->
-          <div class="empty" role="status" data-testid="browse-not-found">
-            <p>This library does not exist, or your account has no access to it.</p>
-            <a mat-stroked-button routerLink="/libraries">Your libraries</a>
-          </div>
         } @else {
-          <p class="empty">This folder is empty.</p>
+          <p class="empty" data-testid="browse-empty">This folder is empty.</p>
         }
       }
     </div>
@@ -626,16 +652,39 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     /* 1.38.0: with the Volumes | Folders switch the controls squeezed the trail to a letter on a tablet (820 px). The bar
        may wrap: the trail keeps at least 240 px on the first row and the controls move to a second row, right-aligned.
        Where everything fits (desktop) nothing moves; the phone rule below still gives the trail its own row. */
-    .browse-bar.has-view-switch, .browse-bar.has-tracking { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; }
-    .browse-bar.has-view-switch .breadcrumbs, .browse-bar.has-tracking .breadcrumbs { flex: 1 1 240px; }
+    /* 1.53.0 (audit V6): the 1.38.0 rule made general - any bar may wrap, so a plain library root on a tablet no longer squeezes
+       the trail to ~90 px (cut mid-letter: no ellipsis can be drawn inside the touch crumbs' inline blocks). */
+    /* 1.53.0 pre-cut (guide finding 2): NOT the selecting bar - there the wrap put "N selected", the actions (with "Rate..." too wide for
+       one line) and Done on rows of their own (four rows at 1280 px). The selecting bar stays one band: the count left, the actions
+       (wrapping inside their own box only when they do not fit) and Done right; the phone's open More wraps it itself. */
+    .browse-bar:not(.selecting) { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; }
     .breadcrumbs {
-      flex: 1 1 auto; min-width: 0;
+      flex: 1 1 240px; min-width: 0;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
+    /* A separator and the crumb after it are one item that never breaks, so a "/" can never sit alone or end a line. */
+    .breadcrumbs .crumb { white-space: nowrap; }
     .breadcrumbs a { text-decoration: none; color: var(--mp-accent); }
     /* Current folder: plain text, not a link. Slightly brighter than the muted
        ancestors' link color to read as "you are here", but no pointer/underline. */
     .breadcrumbs .current { color: var(--mp-text); font-weight: 500; }
+    /* 1.53.0 pre-cut (guide finding 4) - a tablet or a desktop (the phone layout below keeps its own wrapping trail): the trail is one
+       row of items, each cut with "..." on its own text (an ellipsis cannot be drawn into a touch crumb's inline block, so the trail
+       was cut bare). The library and the ancestors shrink (down to "J..."); the folder you are in never shrinks - it keeps its whole
+       name, cut with "..." only when it alone is wider than the trail - and its "/" travels with it. Packed to the start while it fits
+       (the last item's auto margin takes the free space); should even the shortest ancestors not fit, the row overflows at the START
+       (flex-end), so the cut falls on the library's name, never on the folder you are in. */
+    @media (min-width: 600px) and (min-height: 500px), (min-width: 600px) and (pointer: fine), (min-width: 600px) and (pointer: none) {
+      .breadcrumbs { display: flex; align-items: baseline; justify-content: flex-end; }
+      .breadcrumbs > :last-child { margin-right: auto; }
+      .breadcrumbs > a, .breadcrumbs .crumb a, .breadcrumbs .current {
+        min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .breadcrumbs > a { flex: 0 1 auto; min-width: 2.5em; }
+      .breadcrumbs .crumb { display: flex; align-items: baseline; flex: 0 1 auto; min-width: 3.5em; }
+      .breadcrumbs .crumb .sep { flex: none; }
+      .breadcrumbs .crumb-current { flex: none; min-width: 0; max-width: 100%; }
+    }
     /* The selection bar's own rules (.count, .actions, .done) live in the shared app-selection-bar (1.30.0). */
     .select-toggle mat-icon { margin-right: 4px; }
     /* Card size slider (1.6.0). Sits inline in the browse bar between the
@@ -709,9 +758,9 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     .badge {
       position: absolute; top: 6px; right: 6px; z-index: 2;
       font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 10px;
-      background: rgb(var(--mp-accent-strong-rgb) / 0.9); color: var(--mp-on-accent);
+      background: var(--mp-accent-strong); color: var(--mp-on-accent);
     }
-    .badge.read { background: rgb(var(--mp-success-strong-rgb) / 0.95); }
+    .badge.read { background: var(--mp-success-fill); color: var(--mp-on-scrim); }
     /* The star owns bottom-right (1.28.0); the direction badge takes the top-left the star left, and moves
        back to bottom-right in select mode, where the select check owns top-left and the star is hidden. */
     .badge.dir { right: auto; left: 6px; background: rgb(var(--mp-shade-rgb) / 0.65); }
@@ -744,6 +793,15 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
     .empty p { margin: 0 0 12px; }
     /* 1.45.0: the empty line spans the whole card grid (it was squeezed into one card column on a phone). */
     .nodes > .empty { grid-column: 1 / -1; }
+    /* 1.53.0 (audit V2): the first page's spinner (the series page's) and error block (the reader's), across the whole grid. */
+    .nodes > .state, .nodes > .status { grid-column: 1 / -1; }
+    .state { display: flex; justify-content: center; padding: 48px 0; color: var(--mp-text-muted); }
+    .status {
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+      color: var(--mp-text-muted); text-align: center; padding: 48px 24px;
+    }
+    .status p { margin: 0; }
+    .status.error mat-icon { font-size: 48px; width: 48px; height: 48px; color: var(--mp-error); }
     .scroll-sentinel { min-height: 40px; text-align: center; color: var(--mp-text-muted); font-size: 12px; }
     /* --- PHONE breakpoint only (1.10.0, F3; folded into one media query - was three
        separate @media blocks). Desktop + iPad (>=561px) are untouched: every rule
@@ -792,8 +850,11 @@ import { CatalogNodeDto, SeriesViewMode, VolumeViewDto, PageResponse, ReaderMode
       /* The current folder: the brightest crumb — the mobile "you are here".
          1.10.1: bounded to two lines with an ellipsis (and a more moderate size)
          so a long folder name truncates instead of ballooning the whole top bar. */
+      /* 1.53.0 (V6): the current folder takes its own row (the item is .crumb-current now), with no separator in front of it. */
+      .breadcrumbs .crumb { white-space: normal; min-width: 0; overflow-wrap: anywhere; }
+      .breadcrumbs .crumb-current { flex-basis: 100%; }
+      .breadcrumbs .crumb-current .sep { display: none; }
       .breadcrumbs .current {
-        flex-basis: 100%;
         font-size: 16px; font-weight: 700; color: var(--mp-text);
         display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
         overflow: hidden;
@@ -862,10 +923,16 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   readonly currentFolderName = signal('');
   /** 1.48.0: the folder being viewed is a favorite (from `getNode`); the browse-bar star seeds from it and then follows `FavoritesStateService`. */
   readonly currentFolderFavorite = signal(false);
+  /** 1.53.0 (5b): the folder being viewed - its own rating (the "Rate" pill's label) and which Info slot it resolved to. */
+  readonly currentFolderRating = signal<number | null>(null);
+  readonly folderSlot = signal<SeriesSlot>('none');
+  private readonly ratingSharing = inject(RatingSharingService);
   readonly hasMore = signal(false);
   private cursor: string | null = null;
   /** True while a browse page (initial or append) is in flight; gates the sentinel. */
   readonly loadingMore = signal(false);
+  /** 1.53.0 (audit V2): the answer that fills an empty list - not loaded (spinner after 300 ms), failed (Try again), or loaded. */
+  readonly listAnswer = new FirstAnswer();
   /**
    * Backward/upward paging (1.11.0, D): after a mid-list jump the window no longer
    * starts at the listing's first item, so `hasPrevious` is true and `prevCursor`
@@ -1077,8 +1144,15 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     { value: 'recentlyRead', label: 'Recently read', icon: 'menu_book' },
     { value: 'recentlyUpdated', label: 'Recently updated', icon: 'update', hint: 'Folders with new content' },
     // 1.52.0 (lane R): your own rating, highest first; not rated last.
-    { value: 'myRating', label: 'My rating', icon: 'star_half', hint: 'Your highest rated first' },
+    // 1.53.0 (audit V8): `stars` - the app's one Rate icon, never the favourite's star.
+    { value: 'myRating', label: 'My rating', icon: 'stars', hint: 'Your highest rated first' },
+    // 1.53.0 (shared ratings): the server average, highest first - offered only while the admin's switch is on (shownSortOptions).
+    { value: 'serverRating', label: 'Server rating', icon: 'groups', hint: 'Highest average of everyone\'s ratings first' },
   ];
+
+  /** 1.53.0: the sort list as offered - "Server rating" only while shared ratings are on (or while it is the chosen sort). */
+  readonly shownSortOptions = computed(() =>
+    this.sortOptions.filter((o) => o.value !== 'serverRating' || this.ratingSharing.serverEnabled() || this.sort() === 'serverRating'));
 
   // Ascending/descending toggle for the active sort (1.5.0). Named "sortDirection"
   // (not "direction") to stay distinct from the unrelated per-folder reading
@@ -1164,6 +1238,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.ratingSharing.ensureLoaded(); // 1.53.0: whether "Server rating" is offered
     // Scroll-spy listener (1.8.0). Registered outside the zone: scroll fires many
     // times per second and the handler only writes a signal (rAF-throttled), which
     // schedules change detection on its own; no per-event zone turn is needed.
@@ -1204,10 +1279,14 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     // routing. Sequencing matters: the sort must be known before the first browse so
     // it issues a single, correctly-ordered request. (Loading nodes from both the
     // prefs handler and the route subscription would double-append — duplicate rows.)
+    // 1.53.0 pre-cut (guide finding 3): the page's wait starts here - a slow view-settings answer shows the first-answer spinner too
+    // (after its 300 ms), not a bar over nothing; the folder request's own start keeps that clock.
+    this.listAnswer.start();
     this.api.getLibraryPreferences().subscribe({
       next: (p) => {
         this.applyStoredView(p);
-        if (p.sort === 'recentlyAdded' || p.sort === 'recentlyRead' || p.sort === 'recentlyUpdated' || p.sort === 'myRating') this.sort.set(p.sort);
+        if (p.sort === 'recentlyAdded' || p.sort === 'recentlyRead' || p.sort === 'recentlyUpdated' || p.sort === 'myRating'
+          || p.sort === 'serverRating') this.sort.set(p.sort);
         // Direction is optional/tolerant like the other fields: an unset or
         // unrecognized value falls back to the sort-specific default (matches
         // CatalogController.ParseDirection) so pre-1.5.0 stored preferences
@@ -1698,7 +1777,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
    * gets none).
    */
   private shouldShowJumpRail(): boolean {
-    return this.sort() !== 'recentlyRead' && this.sort() !== 'myRating'; // 1.52.0: My rating is offset-paged too - no rail
+    // 1.52.0: My rating is offset-paged too - no rail; 1.53.0: so is Server rating.
+    return this.sort() !== 'recentlyRead' && this.sort() !== 'myRating' && this.sort() !== 'serverRating';
   }
 
   /** The hover-summary zone id (1.27.0): only items that show the (i), never in select mode. */
@@ -2204,6 +2284,8 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
     const initial = this.cursor === null;
     const gen = ++this.loadGen;
     this.loadingMore.set(true);
+    // 1.53.0 (audit V2): a load that fills an empty list (a folder, a filter, a jump) is the page's first answer; an append is not.
+    if (!isAppend) this.listAnswer.start();
     const preferVolumes = initial && this.preferVolumesOnce;
     this.api.browseLibrary(libId, this.parentId(), this.cursor, this.pageSize(), this.sort(), this.sortDirection(), this.readStateFilter(), this.hideEmptyFolders(), null, this.favoritesOnly(), this.groupParam(), preferVolumes, this.completionFilter()).subscribe({
       next: (response: PageResponse<CatalogNodeDto>) => {
@@ -2219,6 +2301,7 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
           }
         }
         this.nodes.update((current) => isAppend ? [...current, ...response.items] : [...response.items]);
+        if (!isAppend) this.listAnswer.succeed();
         this.hasMore.set(response.hasMore);
         this.cursor = response.nextCursor;
         this.loadingMore.set(false);
@@ -2237,8 +2320,17 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
         if (response.hasMore) this.rearmSentinel();
         if (this.hasPrevious()) this.rearmTopSentinel();
       },
-      error: () => { if (gen === this.loadGen) this.loadingMore.set(false); },
+      error: () => {
+        if (gen !== this.loadGen) return;
+        this.loadingMore.set(false);
+        if (!isAppend) this.listAnswer.fail();
+      },
     });
+  }
+
+  /** 1.53.0 (audit V2): "Try again" after a failed first page - the same request (cursor and filters are unchanged by a failure). */
+  retryList(): void {
+    this.loadNodes();
   }
 
   /**
@@ -2449,10 +2541,13 @@ export class LibraryBrowseComponent implements OnInit, OnDestroy {
    */
   private loadCurrentFolder(nodeId: string): void {
     this.currentFolderFavorite.set(false);
+    this.currentFolderRating.set(null);
+    this.folderSlot.set('none');
     this.api.getNode(nodeId).subscribe({
       next: (node) => {
         this.currentFolderName.set(node.displayName);
         this.currentFolderFavorite.set(!!node.isFavorite);
+        this.currentFolderRating.set(node.myRating ?? null);
       },
       error: () => this.currentFolderName.set(''),
     });

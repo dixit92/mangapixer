@@ -17,6 +17,11 @@ html {
     density: 0,
   ));
   color-scheme: dark;
+  /* One card family (1.53.0 audit V9, with MAT_CARD_CONFIG `appearance: 'outlined'` in app.config.ts): Material's cards (Home and
+     /libraries library cards, Settings, Admin, login) paint like the app's own cards - the surface, a 1 px ink 8 % hairline, no
+     shadow. Token names checked against the installed Material 22.2.6 (`card/_m3-card.scss`, `fesm2022/card.mjs`). */
+  --mat-card-outlined-container-color: var(--mp-surface);
+  --mat-card-outlined-outline-color: rgb(var(--mp-ink-rgb) / 0.08);
 }
 
 html, body {
@@ -123,6 +128,8 @@ html, body {
   --mp-success-soft: #a5d6a7;
   --mp-success-strong: #4caf50;
   --mp-success-strong-rgb: 76 175 80;
+  /* a fill that carries white text (1.53.0 audit V3: the "Read" badge) - `--mp-success-strong` stays the status text colour */
+  --mp-success-fill: #2e7d32;
   --mp-info: #90caf9;
   --mp-info-rgb: 100 181 246;
   --mp-teal: #80cbc4;
@@ -163,6 +170,7 @@ html, body {
   --mp-success-soft: #33691e;
   --mp-success-strong: #388e3c;
   --mp-success-strong-rgb: 56 142 60;
+  --mp-success-fill: #2e7d32;
   --mp-info: #1565c0;
   --mp-info-rgb: 21 101 192;
   --mp-teal: #00796b;

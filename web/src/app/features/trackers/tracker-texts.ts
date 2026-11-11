@@ -10,6 +10,7 @@ import {
   TrackerListBucket,
   TrackerListCountsDto,
   TrackerPreviewDto,
+  TrackerScoreImportResultDto,
   TrackerSeriesRowDto,
 } from '../../core/api/api-types';
 
@@ -25,9 +26,10 @@ export const TRACKER_SLUGS = ['mal', 'mangaupdates'] as const;
  * (`TrackerConsent.AdminVersion` / `UserVersion`). The client sends its own version back, so a server that moved on refuses a
  * consent given to an older text. Bump with the text.
  * 1.43.0: version 1 of each stream is the owner-approved text (2026-10-15).
+ * 1.53.0: version 2 adds the user's own score ("Keep my score in step with my MangaPixer rating", "Take my scores from <tracker>").
  */
-export const TRACKER_ADMIN_CONSENT_VERSION: Record<string, number> = { mal: 1, mangaupdates: 1 };
-export const TRACKER_USER_CONSENT_VERSION: Record<string, number> = { mal: 1, mangaupdates: 1 };
+export const TRACKER_ADMIN_CONSENT_VERSION: Record<string, number> = { mal: 2, mangaupdates: 2 };
+export const TRACKER_USER_CONSENT_VERSION: Record<string, number> = { mal: 2, mangaupdates: 2 };
 
 /** The user-facing docs pages (the project's docs site; opened only when the user clicks, without a referrer). */
 export const TRACKER_SETUP_DOCS_URL = 'https://mangapixer.com/tracker-setup/';
@@ -51,6 +53,24 @@ export function previewNotice(p: TrackerPreviewDto, name: string): string {
   }
   if (p.capReached) return `Checked ${p.entries.length}. Today's request limit for ${name} is reached - try again tomorrow.`;
   return `Checked ${n(p.entries.length, 'series', 'series')}${p.remaining > 0 ? `, ${p.remaining} left` : ''}. Nothing was changed on ${name}.`;
+}
+
+/**
+ * The summary after "Take my scores from <tracker>" (1.53.0): what was filled, what was already the same, and how many differ (kept -
+ * the rows below it offer "Use <tracker>'s"). Never says a MangaPixer rating was replaced: none is.
+ */
+export function scoreImportNotice(r: TrackerScoreImportResultDto, name: string): string {
+  const n = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+  if (r.capReached && r.requests === 0) return `Today's ${name} requests are used up - try again tomorrow.`;
+  const parts: string[] = [];
+  if (r.filled > 0) parts.push(`${n(r.filled, 'unrated series', 'unrated series')} now ${r.filled === 1 ? 'has' : 'have'} your ${name} score`);
+  if (r.same > 0) parts.push(`${r.same} already the same`);
+  if (r.differ.length > 0) parts.push(`${r.differ.length} differ - kept your MangaPixer ${r.differ.length === 1 ? 'rating' : 'ratings'}`);
+  const head = r.matched === 0
+    ? `None of your ${n(r.scored, 'scored series', 'scored series')} on ${name} ${r.scored === 1 ? 'is' : 'are'} here.`
+    : parts.length > 0 ? `${parts.join('; ')}.` : 'Nothing to change.';
+  const tail = r.capReached ? ` Stopped early: today's ${name} requests are used up.` : ` Nothing was changed on ${name}.`;
+  return head + tail;
 }
 
 export const TRACKER_RING_LEGEND =

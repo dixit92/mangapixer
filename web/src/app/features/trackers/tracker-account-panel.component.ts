@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -9,6 +9,7 @@ import { MatSlideToggleChange, MatSlideToggleModule } from '@angular/material/sl
 import { TrackerSummaryDto, UpdateTrackerUserSettingsRequest } from '../../core/api/api-types';
 import { TrackersApiService } from './trackers-api.service';
 import { TrackerConsentTextComponent } from './tracker-consent-text.component';
+import { TrackerScoreImportComponent } from './tracker-score-import.component';
 import { TrackerNavigationService } from './tracker-navigation.service';
 import { TRACKER_USER_CONSENT_VERSION, accountProblem, failureText, revokeHint } from './tracker-texts';
 import { EscapeCancelsDirective } from '../../shared/escape-cancels.directive';
@@ -22,12 +23,14 @@ import { EscapeCancelsDirective } from '../../shared/escape-cancels.directive';
  *   password field never echoed and cleared after every submit, an empty password refused here without a request;
  * - connected: "Connected as ...", Disconnect (after a confirm that says where else access ends), the user's settings (add
  *   series I start; private entries only where the tracker supports them). The series list is the page's own section.
+ * - 1.53.0 (lane T): "Keep my score in step with my MangaPixer rating" (off by default; turning it on offers the import once) and
+ *   "Take my scores from <tracker>" (`app-tracker-score-import`: the summary and the per-row "Use <tracker>'s").
  */
 @Component({
   selector: 'app-tracker-account-panel',
   standalone: true,
   imports: [DatePipe, FormsModule, MatButtonModule, MatCheckboxModule, MatIconModule, MatSlideToggleModule, EscapeCancelsDirective,
-    TrackerConsentTextComponent],
+    TrackerConsentTextComponent, TrackerScoreImportComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @let t = tracker();
@@ -113,7 +116,16 @@ import { EscapeCancelsDirective } from '../../shared/escape-cancels.directive';
                 Add them as private entries
               </mat-slide-toggle>
             }
+            <mat-slide-toggle [checked]="a.syncScores" [disabled]="busy()" (change)="saveScores($event.checked, $event)"
+                              [attr.data-testid]="'tracker-sync-scores-' + t.slug">
+              Keep my score in step with my MangaPixer rating
+            </mat-slide-toggle>
+            @if (a.syncScores) {
+              <p class="muted small hint" [attr.data-testid]="'tracker-sync-scores-hint-' + t.slug">When you rate a series folder here, your
+                score on {{ t.name }} follows - only for series already on your {{ t.name }} list.</p>
+            }
           </div>
+          <app-tracker-score-import [slug]="t.slug" [name]="t.name" [offer]="scoresOffer()" [showButton]="false" />
         }
         @if (confirmDisconnect()) {
           <div class="confirm" role="alertdialog" [attr.aria-label]="'Disconnect ' + t.name" [attr.data-testid]="'tracker-disconnect-confirm-' + t.slug"
@@ -129,6 +141,11 @@ import { EscapeCancelsDirective } from '../../shared/escape-cancels.directive';
           </div>
         } @else {
           <div class="actions bottom">
+            @if (t.allowed && !needsConnect()) {
+              <!-- 1.53.0: "Take my scores" sits next to Disconnect (its summary and rows show above, in app-tracker-score-import). -->
+              <button mat-stroked-button type="button" [disabled]="busy() || scoresBusy()" (click)="takeScores()"
+                      [attr.data-testid]="'tracker-import-scores-' + t.slug">Take my scores from {{ t.name }}</button>
+            }
             <button mat-stroked-button type="button" [disabled]="busy()" (click)="confirmDisconnect.set(true)"
                     [attr.data-testid]="'tracker-disconnect-' + t.slug">Disconnect</button>
           </div>
@@ -160,7 +177,10 @@ import { EscapeCancelsDirective } from '../../shared/escape-cancels.directive';
     .field input { font: inherit; font-size: 14px; padding: 6px 8px; max-width: 100%; min-width: 0; box-sizing: border-box;
                    color: var(--mp-text); background: var(--mp-surface); border: 1px solid rgb(var(--mp-ink-rgb) / 0.2); border-radius: 4px; }
     .settings { display: flex; flex-direction: column; gap: 6px; }
+    .hint { margin: -2px 0 0 0; }
     .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .actions button { flex: none; }
+    @media (pointer: coarse) { .actions button { min-height: 40px; } }
     .actions.bottom { margin-top: auto; padding-top: 4px; }
     .actions mat-icon { margin-right: 4px; }
     .confirm { border: 1px solid rgb(var(--mp-error-strong-rgb) / 0.5); border-radius: 6px; padding: 8px 10px; font-size: 14px; }
@@ -186,6 +206,15 @@ export class TrackerAccountPanelComponent {
   readonly password = signal('');
   readonly notice = signal<string | null>(null);
   readonly error = signal<string | null>(null);
+  /** The user just turned "Keep my score in step" on: the import is offered once. */
+  readonly scoresOffer = signal(false);
+  private readonly scores = viewChild(TrackerScoreImportComponent);
+  readonly scoresBusy = computed(() => this.scores()?.busy() ?? false);
+
+  /** "Take my scores from <tracker>": the import component reads, sums up and lists. */
+  takeScores(): void {
+    this.scores()?.run();
+  }
 
   readonly textOutdated = computed(() => this.tracker().currentConsentVersion !== TRACKER_USER_CONSENT_VERSION[this.tracker().slug]);
   readonly problem = computed(() => {
@@ -291,13 +320,18 @@ export class TrackerAccountPanelComponent {
     });
   }
 
-  saveSetting(request: UpdateTrackerUserSettingsRequest, event?: Pick<MatSlideToggleChange, 'source'>): void {
+  /** "Keep my score in step": saved like the other settings; turning it on offers "Take my scores" once. */
+  saveScores(on: boolean, event?: Pick<MatSlideToggleChange, 'source'>): void {
+    this.saveSetting({ syncScores: on }, event, () => this.scoresOffer.set(on));
+  }
+
+  saveSetting(request: UpdateTrackerUserSettingsRequest, event?: Pick<MatSlideToggleChange, 'source'>, saved?: () => void): void {
     const t = this.tracker();
     if (this.busy()) return;
     this.busy.set(true);
     this.error.set(null);
     this.api.updateSettings(t.slug, request).subscribe({
-      next: () => { this.busy.set(false); this.changed.emit(); },
+      next: () => { this.busy.set(false); saved?.(); this.changed.emit(); },
       error: (err: unknown) => {
         this.busy.set(false);
         this.error.set(failureText(err, t.slug));

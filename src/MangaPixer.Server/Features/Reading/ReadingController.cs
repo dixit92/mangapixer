@@ -391,6 +391,7 @@ public sealed class ReadingController : ControllerBase
     [HttpPut("private-libraries")]
     public async Task<IActionResult> SetPrivateLibraries(
         [FromBody] SetPrivateLibrariesRequest request,
+        [FromServices] Ratings.RatingsGeneration ratingsGeneration,
         CancellationToken ct)
     {
         var userId = GetUserId();
@@ -398,6 +399,7 @@ public sealed class ReadingController : ControllerBase
 
         if (!await _stateService.SetPrivateLibrariesAsync(userId.Value, request.LibraryIds, ct))
             return NotFound(new ApiError { Error = "not_found", Message = "There is no such library." });
+        ratingsGeneration.Bump(); // 1.53.0 lane S: a rating in a library its rater made Private stops counting at once
         return NoContent();
     }
 

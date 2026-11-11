@@ -9,12 +9,16 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 import { ApiService } from '../../core/api/api.service';
+import { AuthService } from '../../core/auth/auth.service';
+import { FirstAnswer } from '../../shared/first-answer';
 import { CoverImageDirective } from '../../shared/cover-image.directive';
 import {
   CatalogNodeDto,
   LibraryDto,
+  RecommendationDto,
   ContinueReadingEntry,
   LibraryReadStateFilter,
   LibraryViewPreferencesDto,
@@ -35,6 +39,8 @@ import {
   CARD_SIZE_MAX, CARD_SIZE_MIN, CARD_SIZE_STEP, DEFAULT_CARD_SIZE, DeviceDisplayPreferencesService,
 } from '../../core/preferences/device-display-preferences.service';
 import { MetadataStateService } from '../metadata/metadata-state.service';
+import { RecommendationRowComponent } from '../recommendations/recommendation-row.component';
+import { RecommendationsApiService } from '../recommendations/recommendations-api.service';
 import {
   favoriteLink,
   favoriteQueryParams,
@@ -96,6 +102,7 @@ import {
     MatChipsModule,
     MatMenuModule,
     MatTooltipModule,
+    MatProgressSpinnerModule,
     CoverImageDirective,
     LibraryIconComponent,
     StarToggleComponent,
@@ -104,36 +111,31 @@ import {
     SeriesInfoHoverDirective,
     StackCardComponent,
     FolderRollupBadgeComponent,
+    RecommendationRowComponent,
   ],
   template: `
     <div class="home" [style.--card-size]="cardSize() + 'px'">
-      <!-- Home view toolbar (1.12.0; scope caption added 1.20.0): the card-size slider
-           lives here because it sizes BOTH cover strips (Continue reading + New chapters),
-           not just one row - mirroring the library browse view's top card-size control.
-           Shown once there is any card content to size. The "Card size" caption + page-level
-           icon label the control's SCOPE (all rows on Home) so it doesn't read as belonging
-           to whichever section happens to sit under it. -->
-      @if (continueReading().length > 0 || visibleGroups().length > 0) {
-        <div class="home-toolbar">
-          <div class="toolbar-scope" matTooltip="Applies to all rows on Home">
-            <mat-icon class="size-icon">dashboard</mat-icon>
-            <span class="scope-label">Card size</span>
-          </div>
-          <div class="size-control">
-            <mat-icon class="size-icon">zoom_out</mat-icon>
-            <input type="range" class="size-slider" aria-label="Card size"
-                   [min]="cardSizeMin" [max]="cardSizeMax" [step]="cardSizeStep"
-                   [value]="cardSize()"
-                   (input)="onCardSizeInput($event)"
-                   (change)="onCardSizeChange($event)">
-            <mat-icon class="size-icon">zoom_in</mat-icon>
-          </div>
+      <!-- Card size (1.12.0; audit V10, 1.53.0): the slider sizes EVERY cover strip on Home, so it sits at the right end of the FIRST
+           strip's heading row (tooltip and aria-label "Card size"; the old caption row above all content is gone). Hidden on a phone,
+           where the same per-device value is set in any library's View menu or Settings > Library display. -->
+      <ng-template #sizeControl>
+        <div class="size-control home-size" matTooltip="Card size - applies to all rows on Home">
+          <mat-icon class="size-icon">zoom_out</mat-icon>
+          <input type="range" class="size-slider" aria-label="Card size"
+                 [min]="cardSizeMin" [max]="cardSizeMax" [step]="cardSizeStep"
+                 [value]="cardSize()"
+                 (input)="onCardSizeInput($event)"
+                 (change)="onCardSizeChange($event)">
+          <mat-icon class="size-icon">zoom_in</mat-icon>
         </div>
-      }
+      </ng-template>
 
       @if (continueReading().length > 0) {
         <section class="strip-section">
-          <h3>Continue reading</h3>
+          <div class="strip-head">
+            <h3>Continue reading</h3>
+            @if (firstStrip() === 'continue') { <ng-container *ngTemplateOutlet="sizeControl" /> }
+          </div>
           <div class="strip">
             @for (item of continueReading(); track item.itemId) {
               <div class="cont-wrap">
@@ -166,11 +168,20 @@ import {
         </section>
       }
 
+      <!-- Recommended for you (1.53.0, audit N3): after Continue reading, before Favorites; hidden when empty (no seed, nothing above the
+           floor) or when the user turned the row off (Settings, showRecommendationsHomeRow). No dismiss, no chip, no accent. -->
+      <app-recommendation-row heading="Recommended for you" [items]="recommendations()" variant="home" testId="home-recommendations">
+        @if (firstStrip() === 'recommended') { <ng-container *ngTemplateOutlet="sizeControl" /> }
+      </app-recommendation-row>
+
       <!-- Favorites row (1.21.0): opt-in (showFavoritesHomeRow), rendered only when the
            user has favorites. Reuses the Continue-reading strip card styling. -->
       @if (showFavoritesRow() && favorites().length > 0) {
         <section class="strip-section">
-          <h3>Favorites</h3>
+          <div class="strip-head">
+            <h3>Favorites</h3>
+            @if (firstStrip() === 'favorites') { <ng-container *ngTemplateOutlet="sizeControl" /> }
+          </div>
           <div class="strip">
             @for (node of favorites(); track favTrack(node)) {
               <!-- Card controls (1.48.0), as the Continue / New chapters cards: the (i) bottom-left (anchored to the series, as
@@ -248,6 +259,7 @@ import {
                 </button>
               }
             </mat-menu>
+            @if (firstStrip() === 'recent') { <ng-container *ngTemplateOutlet="sizeControl" /> }
           </div>
 
           @for (group of visibleGroups(); track group.libraryId) {
@@ -322,11 +334,25 @@ import {
 
       <section>
         <h3>Libraries</h3>
-        @if (loading()) {
-          <p class="muted">Loading…</p>
+        <!-- 1.53.0 (audit V2): not loaded (the series page's spinner, after 300 ms), failed (the reader's error block), and the empty
+             line only after a successful answer - a reader is not sent to Administration, which it cannot open. -->
+        @if (librariesAnswer.failed()) {
+          <div class="status error" role="alert" data-testid="home-libraries-failed">
+            <mat-icon>error_outline</mat-icon>
+            <p>Could not load your libraries.</p>
+            <button mat-stroked-button type="button" (click)="loadLibraries()" data-testid="home-libraries-retry">Try again</button>
+          </div>
+        } @else if (!librariesAnswer.loaded()) {
+          @if (librariesAnswer.slow()) {
+            <div class="state" role="status" aria-label="Loading" data-testid="home-libraries-loading"><mat-spinner diameter="32" /></div>
+          }
         } @else if (libraries().length === 0) {
-          <p class="muted">No libraries yet. An administrator can add one under
-            <a routerLink="/admin">Administration</a>.</p>
+          @if (auth.isAdmin()) {
+            <p class="muted" data-testid="home-libraries-empty">No libraries yet. An administrator can add one under
+              <a routerLink="/admin">Administration</a>.</p>
+          } @else {
+            <p class="muted" data-testid="home-libraries-empty">Ask an administrator for access to a library.</p>
+          }
         } @else {
           <div class="library-grid">
             @for (lib of libraries(); track lib.id) {
@@ -358,6 +384,14 @@ import {
     h3 { margin: 8px 0 12px; }
     .muted { color: var(--mp-text-muted); font-size: 14px; }
     .error { color: var(--mp-error); font-size: 13px; margin: 0 0 8px; }
+    /* 1.53.0 (audit V2): the libraries' first answer - the series page's centred spinner and the reader's error block. */
+    .state { display: flex; justify-content: center; padding: 48px 0; color: var(--mp-text-muted); }
+    .status {
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+      color: var(--mp-text-muted); text-align: center; padding: 48px 24px;
+    }
+    .status p { margin: 0; font-size: 14px; }
+    .status.error mat-icon { font-size: 48px; width: 48px; height: 48px; color: var(--mp-error); }
     /* Home is a plain content page now (the shell provides the gutter padding and
        the library sidebar); no in-component sidebar/flex layout remains. */
     .strip-section { margin-bottom: 28px; }
@@ -392,21 +426,12 @@ import {
     }
     .cont-page { font-size: 12px; color: var(--mp-text-muted); }
     .latest { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    /* Home view toolbar: the card-size slider that sizes BOTH cover strips. Mirrors the
-       library browse view's top card-size control; wraps on narrow phones and the slider
-       stays wide enough to drag with a thumb. */
-    .home-toolbar {
-      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-      margin: 0 0 12px; padding: 0 8px 0 0;
-    }
-    /* Toolbar-scope caption (1.20.0): labels the slider's reach so it reads as page-level
-       chrome, not a control belonging to whichever section sits under it. */
-    .toolbar-scope {
-      display: flex; align-items: center; gap: 6px; flex: 0 0 auto;
-      color: var(--mp-text-dim); font-size: 11px; font-weight: 600; text-transform: uppercase;
-      letter-spacing: .4px; padding-right: 8px; border-right: 1px solid rgb(var(--mp-ink-rgb) / 0.1);
-    }
+    /* A strip's heading row (1.53.0, audit V10): the heading, and on the first strip the card-size slider at its right end. */
+    .strip-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .home-size { margin-left: auto; margin-bottom: 4px; }
     .size-control { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+    /* Audit V10: no card-size slider on a phone (after .size-control, which sets display). */
+    @media (max-width: 599.98px) { .size-control.home-size { display: none; } }
     .size-control .size-icon { font-size: 18px; width: 18px; height: 18px; color: var(--mp-text-dim); }
     .size-slider {
       width: 180px; max-width: 60vw; accent-color: var(--mp-accent-strong); cursor: pointer;
@@ -451,15 +476,15 @@ import {
     .badge {
       position: absolute; top: 6px; right: 6px; z-index: 2;
       font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 10px;
-      background: rgb(var(--mp-accent-strong-rgb) / 0.92); color: var(--mp-on-accent); letter-spacing: 0.2px;
+      background: var(--mp-accent-strong); color: var(--mp-on-accent); letter-spacing: 0.2px;
     }
     /* Read-state marker (1.20.0): top-left (browse's own Read/Reading colours), so it never
        collides with the top-right "+N new" badge; Unread renders nothing (quiet default). */
     .badge.read-state, .badge.count { left: 6px; right: auto; }
     /* Favorites row (1.48.0): the read state sits top-right as on a browse card (Read green, Reading accent); a stack's count moves
        top-left for the folder's own read badge. */
-    .badge.read { background: rgb(var(--mp-success-strong-rgb) / 0.95); }
-    .badge.read-state.read { background: rgb(var(--mp-success-strong-rgb) / 0.95); }
+    .badge.read { background: var(--mp-success-fill); color: var(--mp-on-scrim); }
+    .badge.read-state.read { background: var(--mp-success-fill); color: var(--mp-on-scrim); }
     .library-grid {
       display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px;
     }
@@ -478,12 +503,17 @@ export class HomeComponent implements OnInit {
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
 
-  readonly loading = signal(true);
+  readonly auth = inject(AuthService);
+  /** 1.53.0 (audit V2): the libraries' answer - Home's first request. */
+  readonly librariesAnswer = new FirstAnswer();
   readonly libraries = signal<LibraryDto[]>([]);
   readonly continueReading = signal<ContinueReadingEntry[]>([]);
   /** Opt-in Home "Favorites" row (1.21.0): hidden unless showFavoritesHomeRow is on. */
   readonly showFavoritesRow = signal(false);
   readonly favorites = signal<CatalogNodeDto[]>([]);
+  /** Recommended for you (1.53.0): the viewer's picks; empty = the row is not shown. */
+  readonly recommendations = signal<RecommendationDto[]>([]);
+  private readonly recommendationsApi = inject(RecommendationsApiService);
   /** New chapters (1.12.0): per-library groups of stacks, as returned by the server. */
   readonly recentGroups = signal<RecentChaptersLibraryGroup[]>([]);
 
@@ -494,6 +524,17 @@ export class HomeComponent implements OnInit {
    * only reads it here.
    */
   readonly excludedLibraryIds = signal<ReadonlySet<string>>(new Set());
+
+  /**
+   * The first cover strip on the page (audit V10): its heading row carries the card-size slider. Null when no strip has cards (then
+   * there is nothing to size, as before).
+   */
+  readonly firstStrip = computed<'continue' | 'recommended' | 'favorites' | 'recent' | null>(() => {
+    if (this.continueReading().length > 0) return 'continue';
+    if (this.recommendations().length > 0) return 'recommended';
+    if (this.showFavoritesRow() && this.favorites().length > 0) return 'favorites';
+    return this.visibleGroups().length > 0 ? 'recent' : null;
+  });
 
   /** Groups that have at least one stack and whose library is not hidden from home. */
   readonly visibleGroups = computed(() => {
@@ -548,6 +589,7 @@ export class HomeComponent implements OnInit {
     changes$.pipe(debounceTime(300)).subscribe(() => {
       if (this.continueReading().length > 0) this.loadContinueReading();
       if (this.showFavoritesRow() && this.favorites().length > 0) this.loadFavorites(); // anchored (i), like Continue
+      if (this.recommendations().length > 0) this.loadRecommendations(); // an archive pick's (i) is anchored too
     });
     // A node unstarred anywhere (this row's own star included) leaves the Favorites row in place, as on the Favorites page; a stack
     // stays (it stands for its starred children, not for the folder's own star). Starring elsewhere shows up on the next load.
@@ -559,10 +601,7 @@ export class HomeComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.api.getLibraries().subscribe({
-      next: (libs) => { this.libraries.set(libs); this.loading.set(false); },
-      error: () => this.loading.set(false),
-    });
+    this.loadLibraries();
     this.loadContinueReading();
     this.loadRecentChapters();
     this.api.getLibraryPreferences().subscribe({
@@ -572,12 +611,26 @@ export class HomeComponent implements OnInit {
         // Home "Favorites" row (1.21.0): opt-in, off by default. Only fetch when on.
         this.showFavoritesRow.set(p.showFavoritesHomeRow ?? false);
         if (this.showFavoritesRow()) this.loadFavorites();
+        // Recommended for you (1.53.0): on unless the user turned it off. The field is lane S's (Settings card); an older or absent blob
+        // reads as on, the server default.
+        if ((p as LibraryViewPreferencesDto & { showRecommendationsHomeRow?: boolean }).showRecommendationsHomeRow !== false) {
+          this.loadRecommendations();
+        }
       },
-      error: () => { /* keep the default size; the slider still works this session */ },
+      error: () => { this.loadRecommendations(); /* keep the default size; the slider still works this session */ },
     });
     this.api.getHomeLibraries().subscribe({
       next: (dto) => this.excludedLibraryIds.set(new Set(dto.excludedLibraryIds)),
       error: () => { /* leave the set empty: showing every library is the safe default */ },
+    });
+  }
+
+  /** The library grid (also "Try again" after a failed answer). */
+  loadLibraries(): void {
+    this.librariesAnswer.start();
+    this.api.getLibraries().subscribe({
+      next: (libs) => { this.libraries.set(libs); this.librariesAnswer.succeed(); },
+      error: () => this.librariesAnswer.fail(),
     });
   }
 
@@ -592,6 +645,13 @@ export class HomeComponent implements OnInit {
     this.api.getRecentChapters(undefined, this.recentReadStateFilter()).subscribe({
       next: (dto: RecentChaptersDto) => this.recentGroups.set(dto.libraries),
       error: () => this.recentGroups.set([]),
+    });
+  }
+
+  private loadRecommendations(): void {
+    this.recommendationsApi.forMe().subscribe({
+      next: (dto) => this.recommendations.set(dto.items),
+      error: () => this.recommendations.set([]), // an aid, not content: an error shows no row
     });
   }
 

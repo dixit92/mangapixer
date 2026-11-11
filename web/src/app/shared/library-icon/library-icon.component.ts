@@ -74,16 +74,18 @@ export interface DefaultLibraryBadge {
  * contrast against the app's dark surfaces), matching the violet/cyan accents
  * already used elsewhere (see `--mp-accent` in styles.scss) plus a few
  * distinguishable companions so libraries don't all collapse to one color.
+ * 1.53.0 (audit V3): cyan, red, green and teal are one Material step darker,
+ * so the initial reads at >= 4.5:1 on every entry.
  */
 const PALETTE: readonly { bg: string; fg: string }[] = [
   { bg: '#7c4dff', fg: '#ffffff' }, // theme-exempt: library identity colour (fixed in every theme), violet (app accent)
-  { bg: '#00acc1', fg: '#ffffff' }, // theme-exempt: library identity colour (fixed in every theme), cyan (app tertiary)
-  { bg: '#e53935', fg: '#ffffff' }, // theme-exempt: library identity colour (fixed in every theme), red
-  { bg: '#43a047', fg: '#ffffff' }, // theme-exempt: library identity colour (fixed in every theme), green
+  { bg: '#00838f', fg: '#ffffff' }, // theme-exempt: library identity colour (fixed in every theme), cyan (app tertiary)
+  { bg: '#d32f2f', fg: '#ffffff' }, // theme-exempt: library identity colour (fixed in every theme), red
+  { bg: '#2e7d32', fg: '#ffffff' }, // theme-exempt: library identity colour (fixed in every theme), green
   { bg: '#fb8c00', fg: '#1a1a1a' }, // theme-exempt: library identity colour (fixed in every theme), amber
   { bg: '#3949ab', fg: '#ffffff' }, // theme-exempt: library identity colour (fixed in every theme), indigo
   { bg: '#d81b60', fg: '#ffffff' }, // theme-exempt: library identity colour (fixed in every theme), pink
-  { bg: '#00897b', fg: '#ffffff' }, // theme-exempt: library identity colour (fixed in every theme), teal
+  { bg: '#00796b', fg: '#ffffff' }, // theme-exempt: library identity colour (fixed in every theme), teal
 ];
 
 /**

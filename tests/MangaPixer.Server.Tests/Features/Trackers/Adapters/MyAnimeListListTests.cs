@@ -41,7 +41,8 @@ public sealed class MyAnimeListListTests : IDisposable
         Assert.Equal("https://api.myanimelist.net/v2/users/@me/mangalist", seen.Uri.GetLeftPart(UriPartial.Path));
         var query = HttpUtility.ParseQueryString(seen.Uri.Query);
         Assert.Equal("fields,limit,offset,nsfw", string.Join(",", query.AllKeys));
-        Assert.Equal("list_status{status,num_chapters_read,num_volumes_read,start_date,finish_date,is_rereading},num_chapters,num_volumes,status",
+        // 1.53.0 (lane T): the user's own score is one of the fixed fields ("Take my scores" reads it; Check my list ignores it).
+        Assert.Equal("list_status{status,score,num_chapters_read,num_volumes_read,start_date,finish_date,is_rereading},num_chapters,num_volumes,status",
             query["fields"]);
         Assert.Equal(("1000", "0", "true"), (query["limit"], query["offset"], query["nsfw"]));
         Assert.Equal("Bearer " + TrackerAdapterHarness.Access, seen.Headers["Authorization"]);

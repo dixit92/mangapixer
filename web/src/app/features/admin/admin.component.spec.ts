@@ -79,6 +79,8 @@ describe('AdminComponent directory browser row', () => {
       browseLibraryPaths: vi.fn().mockReturnValue(of(listing)),
       getLoggingLevel: vi.fn().mockReturnValue(of(logLevel)),
       getUpdateCheck: vi.fn().mockReturnValue(of(updateStatus)),
+      // The Shared ratings card (1.53.0) loads its own switch; it stays loading here too.
+      getAdminRatingSharing: vi.fn().mockReturnValue(NEVER),
       // The Trash card (1.31.0) loads its own overview; these tests are about other cards, so it just stays loading.
       getTrash: vi.fn().mockReturnValue(NEVER),
       // The Scheduled jobs section (1.32.0) loads its own list; it stays loading here too.

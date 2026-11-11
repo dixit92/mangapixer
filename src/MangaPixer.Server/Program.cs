@@ -243,6 +243,8 @@ public sealed partial class Program
             builder.Services.AddScoped<ReadingStateService>();
             builder.Services.AddScoped<FavoritesService>();
             builder.Services.AddScoped<Features.Ratings.RatingsService>(); // 1.52.0 lane R: ratings writes
+            builder.Services.AddSingleton<Features.WhatsNew.WhatsNewNotes>(); // 1.53.0 lane W: the embedded release notes for "What's new"
+            Features.Ratings.SharedRatingsRegistration.AddSharedRatings(builder.Services); // 1.53.0 lane S: shared ratings
             builder.Services.AddScoped<SpreadLayoutService>();
             builder.Services.AddScoped<CatalogIdResolver>();
             builder.Services.AddScoped<ReaderModeResolver>();
@@ -271,6 +273,7 @@ public sealed partial class Program
             Features.Trackers.TrackerServicesExtensions.AddTrackers(builder.Services);
             Features.VolumeScan.VolumeScanServicesExtensions.AddVolumeScan(builder.Services);
             Features.Metadata.Facets.FacetServicesExtensions.AddFacets(builder.Services); // 1.45.0: the tag index (seam I0; lanes F / Q)
+            Features.Recommendations.RecommendationServicesExtensions.AddRecommendations(builder.Services); // 1.53.0 lane C
             AddMetadataExport(builder.Services);
             Features.Reading.Suggestions.ReadingModeSuggestionServices.AddReadingModeSuggestions(builder.Services); // 1.41.0 lane R
 

@@ -4,6 +4,7 @@ import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { Observable } from 'rxjs';
 
 import { isPhone } from '../metadata/series-info-overlay.service';
+import type { RatingSheetData } from './rating-sheet.component';
 
 /**
  * Opens the reader's Rate sheet (1.52.0): a bottom sheet on a phone, a small centred dialog on a wider screen. The sheet component is
@@ -15,8 +16,16 @@ export class RatingSheetService {
   private readonly bottomSheet = inject(MatBottomSheet);
 
   async open(archiveId: string): Promise<Observable<unknown>> {
+    return this.openWith({ archiveId });
+  }
+
+  /** 1.53.0 (follow-up 5b): the sheet for one node alone - browse's "Rate..." (a folder with no Info button, a selected card). */
+  async openNode(nodeId: string): Promise<Observable<unknown>> {
+    return this.openWith({ nodeId });
+  }
+
+  private async openWith(data: RatingSheetData): Promise<Observable<unknown>> {
     const { RatingSheetComponent } = await import('./rating-sheet.component');
-    const data = { archiveId };
     if (isPhone()) {
       const ref: MatBottomSheetRef = this.bottomSheet.open(RatingSheetComponent, { data, ariaLabel: 'Rate', panelClass: 'rating-bottom-sheet' });
       return ref.afterDismissed();

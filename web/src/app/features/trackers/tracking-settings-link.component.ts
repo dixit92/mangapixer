@@ -28,7 +28,7 @@ import { TRACKING_PATH } from './tracker-texts';
   styles: [`
     :host { display: block; min-width: 0; }
     /* The same width and spacing as the other Settings cards. */
-    mat-card { max-width: 600px; margin: 24px auto 0; }
+    mat-card { margin: 0; } /* 1.53.0 (audit V5): the Settings page spaces its cards (one 24 px gap) */
     .line { display: flex; align-items: center; gap: 10px; margin: 0; overflow-wrap: anywhere; color: var(--mp-text-secondary); }
     .line mat-icon { flex: none; color: var(--mp-warn); }
     .line a { color: var(--mp-accent); }
