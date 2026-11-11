@@ -466,7 +466,7 @@
          Enhance black-output guard; "Official Volume Available". Migrations AddTrackerSync, AddTrackingPage,
          AddVolumeMapReadableChapters (additive); tracker consents v1 (new third privacy exception, AGENTS.md); metadata consents
          unchanged (main 6 / automatic 5); worker protocol unchanged (5). -->
-    <MangaPixerVersionMinor>52</MangaPixerVersionMinor>
+    <MangaPixerVersionMinor>53</MangaPixerVersionMinor>
     <!-- 1.31.1 - PATCH (2026-10-01, integrator-direct, owner live check of 1.31.0): content signatures backfilled for archives
          analysed before 1.5.0 (their moves were never recognised); Re-attach to a folder in another library; "Episode N" next
          to a volume is a part label, not a chapter; the review list shows the file's own page 1, never the cover layer's;
@@ -553,6 +553,15 @@
          published twice at once no longer answers 500; the per-token request limiter owned in DI (the test hosts' heap growth); Angular
          22.2.4 / 22.2.6. Migration 60 (user_ratings, additive); consent unchanged (main 7 / automatic 5); worker protocol 6; OpenAPI 372
          schemas (additive). -->
+    <!-- 1.53.0 - MINOR over 1.52.0 (2026-11-11): shared ratings - an average and a count across users, off until an admin turns the
+         server switch on, then on per user by default (never who rated what; Private libraries never count; Server rating sort);
+         Recommended for you (Home) and More like this (series page) - content-based, local only (facet values + idf + stored
+         relations); the user's own MyAnimeList / MangaUpdates score in step with their rating (send on change, import on click, off
+         by default; tracker consents admin + user v2, AGENTS.md); What's new after an update for admins (embedded CHANGELOG); the
+         visual audit's fixes (contrast tokens, one card family, the rating row, list columns, the trail, one Rate icon, loading /
+         error / empty states, an unknown address goes Home); Back after a closed menu no longer skips a page; SeriesInfoDto
+         missingReportPossible; Magick.NET 15.1.0, SharpCompress 0.50.8, jsdom 31. Migration 61 AddCycle153Settings (additive);
+         metadata consent unchanged (main 7 / automatic 5); worker protocol 6; OpenAPI 388 schemas (additive). -->
     <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
