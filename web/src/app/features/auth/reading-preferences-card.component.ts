@@ -52,7 +52,7 @@ import { ApiError, UserPreferencesDto } from '../../core/api/api-types';
     </mat-card>
   `,
   styles: [`
-    mat-card { max-width: 600px; margin: 24px auto 0; }
+    mat-card { margin: 0; } /* 1.53.0 (audit V5): the Settings page spaces its cards (one 24 px gap) */
     .hint { color: var(--mp-text-muted); font-size: 13px; margin: 10px 0 0; }
     .muted { color: var(--mp-text-muted); font-size: 14px; }
     .error { color: var(--mp-error-strong); font-size: 14px; margin-top: 8px; }

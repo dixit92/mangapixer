@@ -204,6 +204,15 @@ public sealed record CatalogNodeDto
     public int? MyRating { get; init; }
 
     /// <summary>
+    /// The server average of this node (1.53.0 shared ratings): the mean of the ratings of every user who shares them (Settings), on the
+    /// 1-10 scale, and their count - never who rated what. Only on the single-node lookup (<c>GET nodes/{id}</c>), never on a list; left
+    /// out while the administrator's "Shared ratings" switch is off or when nobody who shares rated the node. A rating on a node in the
+    /// RATER's Private library never counts. No rollup: a folder's average is the folder's ratings only.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ServerRatingDto? ServerRating { get; init; }
+
+    /// <summary>
     /// The archive context line (1.50.0): the name of the folder this ARCHIVE belongs to - its nearest ancestor that is not a plain
     /// unit / kind folder (<c>Volumes</c>, <c>Vol 3</c>, <c>Chapters</c>, <c>Extras</c>, ...) - so a found <c>Vol. 012</c> says which
     /// series it is. A display name only, never a path. Null for folders, for archives directly in a library root, and wherever the
@@ -595,6 +604,12 @@ public sealed record LibraryViewPreferencesDto
     /// library-preferences endpoint, defaults preserve pre-1.21.0 behaviour.
     /// </summary>
     public bool ShowFavoritesHomeRow { get; init; }
+
+    /// <summary>
+    /// Per-user Home "Recommended for you" row (1.53.0). True (default) shows the row; a PUT from a client that predates this field keeps
+    /// it on. Stored verbatim, like <see cref="ShowFavoritesHomeRow"/>. (Shared ratings are NOT in this blob: they have their own route.)
+    /// </summary>
+    public bool ShowRecommendationsHomeRow { get; init; } = true;
 
     /// <summary>
     /// Per-user opt-in for favorites prominence in search (1.21.0). False (default) =

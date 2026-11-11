@@ -32,10 +32,10 @@ import { FolderReadRollup } from '../../core/api/api-types';
     .badge {
       position: absolute; top: 6px; right: 6px; z-index: 2;
       font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 10px;
-      background: rgb(var(--mp-accent-strong-rgb) / 0.9); color: var(--mp-on-accent);
+      background: var(--mp-accent-strong); color: var(--mp-on-accent);
       pointer-events: auto;
     }
-    .badge.read { background: rgb(var(--mp-success-strong-rgb) / 0.95); color: var(--mp-on-scrim); }
+    .badge.read { background: var(--mp-success-fill); color: var(--mp-on-scrim); }
     /* List view parity with the browse list's compact badge sizing. */
     :host-context(.nodes.list) .badge { font-size: 9px; padding: 1px 4px; top: 2px; right: 2px; }
   `],

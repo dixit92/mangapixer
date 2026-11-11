@@ -11,7 +11,7 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { By } from '@angular/platform-browser';
 
 import { HomeComponent } from './home.component';
-import { ContinueReadingEntry, LibraryViewPreferencesDto, RecentChaptersDto } from '../../core/api/api-types';
+import { ContinueReadingEntry, LibraryViewPreferencesDto, RecentChaptersDto, RecommendationDto } from '../../core/api/api-types';
 import { SeriesInfoHoverDirective } from '../../shared/hover-info/series-info-hover.directive';
 import { MetadataStateService } from '../metadata/metadata-state.service';
 
@@ -53,6 +53,8 @@ describe('HomeComponent', () => {
     libraries?: unknown[];
     favorites?: unknown[];
     continueReading?: ContinueReadingEntry[];
+    /** 1.53.0: the Recommended for you answer (fetched unless the pref is off). */
+    recommendations?: RecommendationDto[];
   }
 
   function createComponent(opts: Options = {}) {
@@ -81,6 +83,10 @@ describe('HomeComponent', () => {
     httpMock.expectOne('/api/v1/reading/library-preferences').flush(
       opts.prefs ?? { viewMode: 'list', density: 'comfortable', sort: 'name', direction: 'asc', cardSize: '180', libraryPageSize: 100 });
     httpMock.expectOne('/api/v1/reading/home-libraries').flush({ excludedLibraryIds: opts.excluded ?? [] });
+    // Recommended for you (1.53.0): fetched unless the pref is off (absent = on).
+    if ((opts.prefs as { showRecommendationsHomeRow?: boolean } | undefined)?.showRecommendationsHomeRow !== false) {
+      httpMock.expectOne((r) => r.url === '/api/v1/recommendations').flush({ items: opts.recommendations ?? [] });
+    }
     // The opt-in Home "Favorites" row (1.21.0) only fetches when the pref is on.
     if (opts.prefs?.showFavoritesHomeRow) {
       httpMock.expectOne((r) => r.url === '/api/v1/favorites').flush(
@@ -464,12 +470,67 @@ describe('HomeComponent', () => {
 
   // --- B2: card-size slider (shared library preference) ---
 
-  it('labels the toolbar slider\'s scope with a "Card size" caption (1.20.0)', () => {
+  it('puts the card-size slider at the end of the FIRST strip\'s heading row, with no caption row above the content (audit V10)', () => {
     const fixture = createComponent();
-    const scope = fixture.nativeElement.querySelector('.toolbar-scope') as HTMLElement;
-    expect(scope).not.toBeNull();
-    expect(scope.querySelector('.scope-label')!.textContent).toContain('Card size');
-    expect(scope.querySelector('mat-icon')).not.toBeNull();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.home-toolbar')).toBeNull();
+    expect(el.querySelector('.toolbar-scope')).toBeNull();
+    const sliders = el.querySelectorAll('.size-slider');
+    expect(sliders).toHaveLength(1);
+    const head = sliders[0].closest('.strip-head') as HTMLElement;
+    expect(head.querySelector('h3')!.textContent).toContain('Continue reading');
+    expect(sliders[0].getAttribute('aria-label')).toBe('Card size');
+  });
+
+  it('moves the slider to the next strip when Continue reading is empty (Recommended for you, then New chapters)', () => {
+    let fixture = createComponent({ continueReading: [], recommendations: [pick('r1', 'Monster', 'Same author: Naoki Urasawa')] });
+    let slider = (fixture.nativeElement as HTMLElement).querySelector('.size-slider') as HTMLElement;
+    expect(slider.closest('[data-testid="home-recommendations"]')).not.toBeNull();
+    TestBed.resetTestingModule();
+    fixture = createComponent({ continueReading: [] });
+    slider = (fixture.nativeElement as HTMLElement).querySelector('.size-slider') as HTMLElement;
+    expect(slider.closest('.recent-section')).not.toBeNull();
+  });
+
+  // --- 1.53.0: Recommended for you (audit N3) ---
+
+  function pick(id: string, name: string, reason: string): RecommendationDto {
+    return {
+      node: { id, parentId: '', libraryId: 'L1', kind: 'Folder', displayName: name, availability: 'Available', isRead: false, isFavorite: false },
+      reason: { kind: 'Creator', display: reason },
+    } as RecommendationDto;
+  }
+
+  it('shows Recommended for you after Continue reading and before Favorites, each card with its reason', () => {
+    const fixture = createComponent({
+      recommendations: [pick('r1', 'Monster', 'Same author: Naoki Urasawa'), pick('r2', 'Ghost', 'Like Pluto: Horror')],
+      prefs: { viewMode: 'card', density: 'comfortable', sort: 'name', showFavoritesHomeRow: true },
+      favorites: [{ id: 'f9', parentId: '', libraryId: 'L1', kind: 'Folder', displayName: 'Starred', availability: 'Available' }],
+    });
+    const el = fixture.nativeElement as HTMLElement;
+    const headings = Array.from(el.querySelectorAll('h3')).map((h) => h.textContent!.trim());
+    expect(headings.indexOf('Recommended for you')).toBe(headings.indexOf('Continue reading') + 1);
+    expect(headings.indexOf('Favorites')).toBe(headings.indexOf('Recommended for you') + 1);
+    const row = el.querySelector('[data-testid="home-recommendations"]') as HTMLElement;
+    const reasons = Array.from(row.querySelectorAll('[data-testid="recommendation-reason"]')) as HTMLElement[];
+    expect(reasons.map((r) => r.textContent!.trim())).toEqual(['Same author: Naoki Urasawa', 'Like Pluto: Horror']);
+    expect(reasons[1].getAttribute('title')).toBe('Like Pluto: Horror');
+    expect(row.querySelector('a.cont-card')!.getAttribute('href')).toBe('/libraries/L1/browse/r1');
+  });
+
+  it('renders no Recommended row (no heading) when the answer is empty', () => {
+    const fixture = createComponent();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="home-recommendations"]')).toBeNull();
+    expect(el.textContent).not.toContain('Recommended for you');
+  });
+
+  it('does not ask for recommendations when the user turned the row off', () => {
+    const fixture = createComponent({
+      prefs: { viewMode: 'card', density: 'comfortable', sort: 'name', showRecommendationsHomeRow: false } as LibraryViewPreferencesDto,
+    });
+    httpMock.expectNone((r) => r.url === '/api/v1/recommendations');
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Recommended for you');
   });
 
   it('groups the New-chapters Filter button with its heading via a section divider', () => {

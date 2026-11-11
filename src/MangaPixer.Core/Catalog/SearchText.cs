@@ -167,6 +167,47 @@ public static class SearchText
     public const string RatingPrefix = "rating:";
 
     /// <summary>
+    /// 1.53.0 (lane S, follow-up 5c): <paramref name="input"/> without its <c>rating:</c> term(s) and the term <see cref="Parse"/> reads
+    /// (the last one), for a search whose free text is matched elsewhere (the tag view's title words). The same rules as
+    /// <see cref="Parse"/>: only at the start of the text or after white space, never inside a quoted phrase, and a value it does not accept
+    /// stays text. Null rating when there is none.
+    /// </summary>
+    public static (string Text, SearchRatingTerm? Rating) SplitRating(string? input)
+    {
+        if (string.IsNullOrEmpty(input))
+            return (input ?? "", null);
+        var kept = new StringBuilder(input.Length);
+        SearchRatingTerm? rating = null;
+        var i = 0;
+        while (i < input.Length)
+        {
+            if (input[i] == '"')
+            {
+                var close = input.IndexOf('"', i + 1);
+                var end = close < 0 ? input.Length : close + 1;
+                kept.Append(input, i, end - i);
+                i = end;
+                continue;
+            }
+            if ((i == 0 || char.IsWhiteSpace(input[i - 1])) && input.AsSpan(i).StartsWith(RatingPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                var end = i + RatingPrefix.Length;
+                while (end < input.Length && !char.IsWhiteSpace(input[end]))
+                    end++;
+                if (TryParseRating(input.AsSpan(i + RatingPrefix.Length, end - i - RatingPrefix.Length), out var term))
+                {
+                    rating = term;
+                    i = end;
+                    continue;
+                }
+            }
+            kept.Append(input[i]);
+            i++;
+        }
+        return (System.Text.RegularExpressions.Regex.Replace(kept.ToString(), @"\s+", " ").Trim(), rating);
+    }
+
+    /// <summary>
     /// The value of a <c>rating:</c> term (1.52.0): <c>none</c> (case-insensitive), or a star count from 0.5 to 5 in half steps -
     /// <c>4</c>, <c>3.5</c>, <c>3,5</c>, <c>4.0</c> - the minimum, as the stored score (stars x 2). False for anything else (<c>6</c>,
     /// <c>3.3</c>, <c>0</c>, <c>-1</c>, <c>abc</c>, nothing).

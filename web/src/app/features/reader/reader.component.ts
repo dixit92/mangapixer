@@ -256,7 +256,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
           <app-star-toggle [nodeId]="itemId()" [favorite]="currentFavorite()" />
           <!-- 1.52.0 (lane R): Rate - this archive and its folder, in a small sheet. -->
           <button mat-icon-button (click)="openRating()" matTooltip="Rate" aria-label="Rate this archive or its folder"
-                  aria-haspopup="dialog" data-testid="reader-rate"><mat-icon>star_half</mat-icon></button>
+                  aria-haspopup="dialog" data-testid="reader-rate"><mat-icon>stars</mat-icon></button>
           <!-- Display: layout, image fit (page width in webtoon), direction, page transition (tap to scroll in
                webtoon). Quality: upscaling, enhance quality, page quality, downscale filter. Both pin the chrome
                while open. -->

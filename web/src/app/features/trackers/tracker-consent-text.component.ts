@@ -1,12 +1,15 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 /**
- * The consent texts of tracker sync (1.43.0), version 1 of each stream (`TRACKER_ADMIN_CONSENT_VERSION` /
- * `TRACKER_USER_CONSENT_VERSION` in `tracker-texts.ts` - bump them with any change here).
+ * The consent texts of tracker sync, version 2 of each stream (`TRACKER_ADMIN_CONSENT_VERSION` / `TRACKER_USER_CONSENT_VERSION` in
+ * `tracker-texts.ts`, `TrackerConsent` on the server - bump them with any change here).
  *
- * Owner-approved 2026-10-15 (T2 - T5 of the 1.43.0 cycle note): lane E's wording, corrected with lane A's adapter facts (MyAnimeList
- * documents no way for an app to end its sign-in) and lane W's changes (MyAnimeList receives start / finish dates, owner A1; users
- * connect on the Tracking page). Version 1 is the first shipped text - any change from here on bumps the version.
+ * Version 1 (1.43.0) owner-approved 2026-10-15 (T2 - T5 of the 1.43.0 cycle note): lane E's wording, corrected with lane A's adapter
+ * facts (MyAnimeList documents no way for an app to end its sign-in) and lane W's changes (MyAnimeList receives start / finish dates,
+ * owner A1; users connect on the Tracking page).
+ * Version 2 (1.53.0, lane T; owner decision 5 - for the owner's review at the cut): adds the user's own score - sent only with "Keep my
+ * score in step with my MangaPixer rating" on, only for a series already on the user's list - and "Take my scores" (reads them). An
+ * instance or account on version 1 stops syncing until the new text is accepted.
  */
 @Component({
   selector: 'app-tracker-consent-text',
@@ -25,7 +28,10 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
           <p><strong>What is sent, for a connected user only:</strong> the MyAnimeList number of a series they read a chapter or
             volume of, how many chapters and volumes they have read, a status (Reading, or Completed when they reach the end
             MyAnimeList lists for a finished series), and the dates they started and finished it (automatic, or the dates the user
-            set) - with their own MyAnimeList sign-in. Before each update MangaPixer reads that
+            set) - with their own MyAnimeList sign-in. A user who turns on "Keep my score in step with my MangaPixer rating" also
+            sends their own score (1 to 10) of a series when they rate it here, change or clear the rating - only for a series
+            already on their MyAnimeList list (MangaPixer never adds one for a score); "Take my scores from MyAnimeList", on their
+            click, reads their scores. Before each update MangaPixer reads that
             user's entry for the series to compare. Never titles, file or folder names, paths, other users, or anything that
             identifies this server. Requests go to api.myanimelist.net and, when connecting, myanimelist.net; they name MangaPixer
             and its version.</p>
@@ -40,7 +46,10 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
             while they read. Nothing is sent for a user who has not connected an account. This is separate from "Fetch from the web".</p>
           <p><strong>What is sent, for a connected user only:</strong> the MangaUpdates number of a series they read a chapter or
             volume of (the one this server's series link already uses), how many chapters and volumes they have read, and the list
-            it belongs on (Reading, or Complete for a finished series) - with their own MangaUpdates sign-in. No dates. Before each
+            it belongs on (Reading, or Complete for a finished series) - with their own MangaUpdates sign-in. No dates. A user who
+            turns on "Keep my score in step with my MangaPixer rating" also sends their own rating (1 to 10) of a series when they
+            rate it here, change or clear the rating - only for a series already on one of their MangaUpdates lists (MangaPixer
+            never adds one for a rating); "Take my scores from MangaUpdates", on their click, reads their ratings. Before each
             update MangaPixer reads that user's list entry to compare. Never titles, file or folder names, paths, other users, or
             anything that identifies this server. Requests go to api.mangaupdates.com.</p>
           <p><strong>Connecting asks each user for their MangaUpdates username and password once:</strong> MangaPixer passes them
@@ -56,6 +65,11 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
             series to compare.
             <strong>Never sent:</strong> titles, file names, which files you read, your other activity on this server, or anything
             about other users.</p>
+          <p><strong>Your score, only if you turn it on:</strong> with "Keep my score in step with my MangaPixer rating" on, your
+            rating (1 to 10) of a series folder here is sent to MyAnimeList when you set, change or clear it - only for a series
+            already on your MyAnimeList list. MangaPixer never adds a series to your list for a score, and reads your entry first, so
+            nothing is sent when the score there is already the same. "Take my scores from MyAnimeList" reads your scores there when
+            you click it and gives them to the series you have not rated here; a different rating here is kept, and you choose.</p>
           <p><strong>What MangaPixer will not do:</strong> lower a number on MyAnimeList without asking you; change a series you put
             on hold, dropped, completed or are rereading there; mark an ongoing series Completed; or sync your
             <strong>Private</strong> libraries or doujinshi, unless you turn sync on for that folder or series. Folders you mark
@@ -74,6 +88,11 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
             volumes you have read, and the list (Reading, or Complete). No dates. MangaPixer first reads your list entry to compare.
             <strong>Never sent:</strong> titles, file names, which files you read, your other activity on this server, or anything
             about other users.</p>
+          <p><strong>Your rating, only if you turn it on:</strong> with "Keep my score in step with my MangaPixer rating" on, your
+            rating (1 to 10) of a series folder here is sent to MangaUpdates when you set, change or clear it - only for a series
+            already on one of your MangaUpdates lists. MangaPixer never adds a series to a list for a rating, and reads your rating
+            first, so nothing is sent when it is already the same. "Take my scores from MangaUpdates" reads your ratings there when
+            you click it and gives them to the series you have not rated here; a different rating here is kept, and you choose.</p>
           <p><strong>What MangaPixer will not do:</strong> lower a number on MangaUpdates without asking you; change a series you
             put on hold, dropped or completed there; mark an ongoing series Complete; or sync your <strong>Private</strong>
             libraries or doujinshi, unless you turn sync on for that folder or series. Folders you mark read all at once, and

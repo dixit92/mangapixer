@@ -32,6 +32,7 @@ import { libraryPathCopy } from './library-path-copy';
 import { DebugLogCardComponent } from './debug-log-card.component';
 import { AuditTrailCardComponent } from './audit-trail-card.component';
 import { UpdateCheckCardComponent } from './update-check-card.component';
+import { AdminRatingSharingCardComponent } from '../ratings/admin-rating-sharing-card.component';
 import { PerformanceCardComponent } from './performance-card.component';
 import { VolumeScanCardComponent } from './volume-scan-card.component';
 import { BackupSettingsCardComponent } from './backup-settings-card.component';
@@ -66,6 +67,7 @@ import { ScanPhaseDirective } from './scan-phase.directive';
     DebugLogCardComponent,
     AuditTrailCardComponent,
     UpdateCheckCardComponent,
+    AdminRatingSharingCardComponent,
     PerformanceCardComponent,
     VolumeScanCardComponent,
     MoveConflictsLinkComponent,
@@ -587,6 +589,8 @@ import { ScanPhaseDirective } from './scan-phase.directive';
       <!-- Admin Analytics dashboard v1 (1.22.0 lane E) -->
       <app-analytics-card />
       <app-update-check-card />
+      <!-- Shared ratings (1.53.0 lane S): the server-wide switch, next to the other server-wide switch -->
+      <app-admin-rating-sharing-card />
     </div>
 
     <div class="col">

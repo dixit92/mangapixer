@@ -324,6 +324,23 @@ describe('OverlayBackService', () => {
       expect(dialog.closes).toBe(1);
     });
 
+    it('a navigation after the spent entry was stepped over: one Back returns to the page, not to the page before it', async () => {
+      const menu = await openSurface();
+      service.closed(menu);
+      await vi.advanceTimersByTimeAsync(OVERLAY_BACK_TIDY_MS);
+      await history.settle();
+      routerPush('/c', 3); // a link on the page, once it has been quiet (1.53.0: Favorites -> the reader)
+      await history.settle();
+      expect(history.picture).toBe('/a /b >/c');
+
+      history.user(-1);
+      expect(history.routerSaw).toEqual(['/b']);
+      await history.settle();
+      expect(history.picture).toBe('/a >/b /c');
+      expect(history.routerSaw).toEqual(['/b']);
+      expect(history.pendingSteps).toBe(0);
+    });
+
     it('a spent entry above an open sheet is stepped over; the sheet keeps its own', async () => {
       const sheet = await openSurface();
       const menu = await openSurface();

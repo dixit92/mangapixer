@@ -52,7 +52,10 @@ public sealed class SeriesInfoResolver
         var libraryPublicId = await _db.Libraries.Where(l => l.Id == node.LibraryId).Select(l => l.PublicId).FirstAsync(ct);
 
         if (await _settings.IsSeriesInfoHiddenAsync(node.LibraryId, ct))
-            return Empty(node, libraryPublicId);
+        {
+            // 1.53.0 (C3): the Missing line does not follow "Show series information" - the empty shape still says whether it exists.
+            return Empty(node, libraryPublicId) with { MissingReportPossible = await MissingReportPossibleAsync(node.Id, node.Kind, ct) };
+        }
 
         var chain = await WalkChainAsync(node, ct);
         var chainIds = chain.Select(c => c.Id).ToList();
@@ -209,8 +212,16 @@ public sealed class SeriesInfoResolver
             Precedence = precedence,
             PrecedenceSource = precedenceSource,
             Items = includeItems && ci is not null ? ci.Items : [],
+            MissingReportPossible = await MissingReportPossibleAsync(anchor.Id, anchor.Kind, ct),
         };
     }
+
+    /// <summary>
+    /// 1.53.0 (C3): whether the anchor's Missing line exists - the report's own rule (<see cref="Missing.MissingReportService.HasRowAsync"/>),
+    /// asked only for a folder (the report holds folders only).
+    /// </summary>
+    private async Task<bool> MissingReportPossibleAsync(long nodeId, int kind, CancellationToken ct) =>
+        kind == (int)CatalogNodeKind.Folder && await Missing.MissingReportService.HasRowAsync(_db, nodeId, ct);
 
     /// <summary>
     /// The MangaDex companion of a linked series record (1.41.0) for the Sources list: only an Auto / Confirmed companion

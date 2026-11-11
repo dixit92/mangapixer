@@ -83,6 +83,8 @@ public sealed class LibraryAccessSweepHttpTests
         ["GET api/v1/nodes/{nodeId}/missing"] = Answer(200, 404, 200),
         ["GET api/v1/nodes/{nodeId}/series-info"] = Answer(200, 404, 200),
         ["GET api/v1/nodes/{nodeId}/series-info/image"] = Answer(404, 404, 404),
+        // 1.53.0 lane C: "More like this" - a direct URL like the Info panel (404 for U; P reachable under Incognito, its picks leave P out).
+        ["GET api/v1/nodes/{nodeId}/similar"] = Answer(200, 404, 200),
         ["GET api/v1/nodes/{nodeId}/series-info/flags/mine"] = Answer(200, 404, 200),
         ["POST api/v1/nodes/{nodeId}/series-info/flags"] = Answer(201, 404, 201),
         ["GET api/v1/nodes/{nodeId}/volume-view"] = Answer(200, 404, 200),
@@ -126,6 +128,8 @@ public sealed class LibraryAccessSweepHttpTests
         ["POST api/v1/trackers/{slug}/entries/{seriesId}/volumes-from-chapters"] = Answer(200, 404, 200),
         ["PUT api/v1/trackers/{slug}/entries/{seriesId}/dont-sync"] = Answer(200, 404, 200),
         ["PUT api/v1/trackers/{slug}/entries/{seriesId}/dates"] = Answer(400, 400, 400),
+        // 1.53.0 lane T: "Use <tracker>'s" sets the caller's own rating of the series - a direct write like the rating route (P under Incognito too).
+        ["PUT api/v1/trackers/{slug}/scores/{seriesId}"] = Answer(204, 404, 204),
     };
 
     /// <summary>
@@ -153,12 +157,14 @@ public sealed class LibraryAccessSweepHttpTests
         ["PUT api/v1/reading/library-preferences"] = "the caller's own view settings; no library or node id",
         ["PUT api/v1/reading/preferences"] = "the caller's own reader settings; no library or node id",
         ["PUT api/v1/reading/preferences/appearance"] = "the caller's own theme; no library or node id",
+        ["PUT api/v1/ratings/sharing"] = "the caller's own \"Share my ratings\" choice (1.53.0); no library or node id",
         ["POST api/v1/trackers/{slug}/connect"] = "the caller's own tracker account (slug = tracker, not content)",
         ["POST api/v1/trackers/{slug}/connect/password"] = "the caller's own tracker account (slug = tracker, not content)",
         ["POST api/v1/trackers/{slug}/connect/start"] = "the caller's own tracker account (slug = tracker, not content)",
         ["POST api/v1/trackers/{slug}/disconnect"] = "the caller's own tracker account; would end the sweep's connection",
         ["POST api/v1/trackers/{slug}/preview"] = "the caller's own tracker list (first-connect preview); no library or node id",
         ["PUT api/v1/trackers/{slug}/settings"] = "the caller's own tracker settings; no library or node id",
+        ["POST api/v1/trackers/{slug}/scores/import"] = "the caller's own scores on the tracker, matched by tracker id among libraries they can open; no library or node id (TrackerScoresHttpTests)",
     };
 
     /// <summary>Writes that carry library / node / series ids in their BODY - checked one by one in <see cref="BodyIds_NeverReachAnUngrantedLibrary"/>.</summary>
@@ -537,6 +543,7 @@ public sealed class LibraryAccessSweepHttpTests
             "POST api/v1/nodes/{nodeId}/series-info/flags" => "{\"reason\":\"WrongDetails\",\"note\":\"sweep\"}",
             "POST api/v1/trackers/{slug}/entries/{seriesId}/set" => "{\"chapters\":1}",
             "PUT api/v1/trackers/{slug}/entries/{seriesId}/dont-sync" => "{\"dontSync\":true}",
+            "PUT api/v1/trackers/{slug}/scores/{seriesId}" => "{\"score\":8}",
             "PUT api/v1/nodes/{nodeId}/rating" => "{\"score\":7}",
             _ => null,
         };

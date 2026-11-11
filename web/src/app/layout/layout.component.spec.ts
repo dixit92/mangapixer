@@ -13,6 +13,7 @@ import { ApiService } from '../core/api/api.service';
 import { MetadataReviewSummaryDto } from '../core/api/api-types';
 import { MetadataReviewStateService } from '../features/metadata/metadata-review-state.service';
 import { TrackerStateService } from '../features/trackers/tracker-state.service';
+import { WhatsNewService } from '../features/whats-new/whats-new.service';
 
 /** Bare routed component so the outlet has something to activate. */
 @Component({ standalone: true, template: 'routed' })
@@ -82,6 +83,9 @@ describe('LayoutComponent sidebar visibility', () => {
       clear: vi.fn(),
     };
 
+    // 1.53.0: the account menu's "What's new" (its own spec covers the once-after-an-update check).
+    const whatsNew = { openCurrent: vi.fn() };
+
     TestBed.configureTestingModule({
       imports: [LayoutComponent],
       providers: [
@@ -100,11 +104,12 @@ describe('LayoutComponent sidebar visibility', () => {
         { provide: BreakpointObserver, useValue: breakpointObserver },
         { provide: MetadataReviewStateService, useValue: metadataReview },
         { provide: TrackerStateService, useValue: trackers },
+        { provide: WhatsNewService, useValue: whatsNew },
       ],
     });
     const fixture = TestBed.createComponent(LayoutComponent);
     const router = TestBed.inject(Router);
-    return { fixture, router, breakpointObserver, metadataReview, trackers };
+    return { fixture, router, breakpointObserver, metadataReview, trackers, whatsNew };
   }
 
   async function go(router: Router, url: string, fixture: ReturnType<typeof create>['fixture']) {
@@ -376,6 +381,26 @@ describe('LayoutComponent sidebar visibility', () => {
       await go(out.router, '/', out.fixture);
       expect(out.trackers.clear).toHaveBeenCalled();
       expect(out.trackers.ensureLoaded).not.toHaveBeenCalled();
+    });
+
+    // 1.53.0 lane W: "What's new" for admins only, after Metadata Manager; it reopens the running version's notes.
+    it("lists What's new for an admin after Metadata Manager and opens the running version's notes", async () => {
+      const { fixture, router, whatsNew } = create({ authenticated: true, admin: true });
+      await go(router, '/', fixture);
+      const items = await menuItems(fixture);
+      const at = items.findIndex((i) => i.getAttribute('data-testid') === 'nav-whats-new');
+      expect(at).toBeGreaterThan(0);
+      expect(items[at - 1].getAttribute('data-testid')).toBe('nav-metadata');
+      expect(items[at].textContent!.replace('new_releases', '').trim()).toBe("What's new");
+      items[at].click();
+      expect(whatsNew.openCurrent).toHaveBeenCalledTimes(1);
+    });
+
+    it("has no What's new entry for a reader", async () => {
+      const { fixture, router } = create({ authenticated: true, admin: false });
+      await go(router, '/', fixture);
+      const items = await menuItems(fixture);
+      expect(items.some((i) => i.getAttribute('data-testid') === 'nav-whats-new')).toBe(false);
     });
   });
 });

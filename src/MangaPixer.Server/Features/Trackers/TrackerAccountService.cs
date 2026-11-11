@@ -74,6 +74,7 @@ public sealed class TrackerAccountService(
         ConsentRenewalNeeded = a.ConsentVersion < TrackerConsent.UserVersion(a.Tracker),
         AddStartedSeries = a.AddStartedSeries,
         PrivateEntries = a.PrivateEntries,
+        SyncScores = a.SyncScores,
         RequestsToday = a.RequestsDay == DayOf(time.GetUtcNow()) ? a.RequestsUsed : 0,
         DailyRequestCap = dailyRequestCap,
     };
@@ -229,6 +230,8 @@ public sealed class TrackerAccountService(
             account.AddStartedSeries = add;
         if (request.PrivateEntries is { } priv)
             account.PrivateEntries = priv;
+        if (request.SyncScores is { } scores)
+            account.SyncScores = scores;
         await db.SaveChangesAsync(ct);
         return (ToDto(account, await CapOfAsync(tracker, ct)), null);
     }

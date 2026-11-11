@@ -312,11 +312,14 @@ public sealed class ApiTokenHttpTests
         // 1.44.0: "Set <tracker>'s volumes to N" (the user's click; cookie + CSRF like every tracker route).
         "POST api/v1/trackers/{slug}/entries/{seriesId}/volumes-from-chapters",
         "POST api/v1/trackers/{slug}/preview",
+        // 1.53.0 lane T: "Take my scores" and "Use <tracker>'s" (the user's click; cookie + CSRF like every tracker route).
+        "POST api/v1/trackers/{slug}/scores/import",
         "PUT api/v1/admin/trackers/nodes/{nodeId}/ids/{slug}",
         "PUT api/v1/admin/trackers/{slug}",
         "PUT api/v1/trackers/sync-overrides",
         "PUT api/v1/trackers/{slug}/entries/{seriesId}/dates",
         "PUT api/v1/trackers/{slug}/entries/{seriesId}/dont-sync",
+        "PUT api/v1/trackers/{slug}/scores/{seriesId}",
         "PUT api/v1/trackers/{slug}/settings",
     ];
 

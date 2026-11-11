@@ -40,6 +40,9 @@ ARG GIT_COMMIT_SHORT=""
 ARG GIT_IS_DIRTY="false"
 ENV GitCommitShort=${GIT_COMMIT_SHORT}
 ENV GitIsDirty=${GIT_IS_DIRTY}
+# 1.53.0: the release notes the server embeds for "What's new" (MangaPixer.Server.csproj; the build fails without them). Copied after
+# the restore so a CHANGELOG edit re-runs only the publish layers.
+COPY CHANGELOG.md ./
 RUN dotnet publish src/MangaPixer.Server/MangaPixer.Server.csproj -c Release -o /build/publish/server --no-restore
 RUN dotnet publish src/MangaPixer.MediaWorker/MangaPixer.MediaWorker.csproj -c Release -o /build/publish/worker --no-restore
 

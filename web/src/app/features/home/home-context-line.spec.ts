@@ -31,6 +31,7 @@ describe('HomeComponent Continue reading context line', () => {
     httpMock.expectOne('/api/v1/reading/library-preferences').flush(
       { viewMode: 'list', density: 'comfortable', sort: 'name', direction: 'asc', cardSize: '180', libraryPageSize: 100 });
     httpMock.expectOne('/api/v1/reading/home-libraries').flush({ excludedLibraryIds: [] });
+    httpMock.expectOne((r) => r.url === '/api/v1/recommendations').flush({ items: [] }); // 1.53.0
     fixture.detectChanges();
     return fixture;
   }

@@ -316,6 +316,41 @@ test('the declared-facts dialog and its type list fit a phone and a tablet scree
   expect(failures, `declared-facts dialog does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
 });
 
+test('the What\'s new dialog fits a phone and a tablet screen (1.53.0)', async ({ page }) => {
+  // Lane W: synthetic notes (two versions, wrapped bullets, code, a link) answered by page.route - never the real CHANGELOG - and the
+  // "seen" POST answered here, so the shared admin is left as it was.
+  test.setTimeout(90_000);
+  const notes = {
+    current: '9.1.0',
+    sections: ['9.1.0', '9.0.2'].map((version) => ({
+      version, date: '2031-02-01',
+      groups: ['Added', 'Changed', 'Fixed'].map((name) => ({
+        name,
+        items: [
+          { parts: [{ text: 'A synthetic note', bold: true }, { text: ' with a ' }, { text: 'code:term', code: true }, { text: ' and a ' },
+            { text: 'link', link: '/admin' }, { text: ', long enough to wrap over two or three lines on a phone screen.' }] },
+          { parts: [{ text: 'Another synthetic note.' }] },
+        ],
+      })),
+    })),
+  };
+  await page.route('**/api/v1/admin/whats-new**', (route) =>
+    route.request().method() === 'POST' ? route.fulfill({ status: 204 }) : route.fulfill({ json: notes }));
+  const failures: string[] = [];
+  await login(page);
+  for (const size of [{ width: 360, height: 780 }, ...SIZES]) {
+    await page.setViewportSize(size);
+    await page.goto('/libraries');
+    await expect(page.getByTestId('whats-new-title')).toBeVisible();
+    await settle(page);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-whats-new.png` });
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px what's new: ${p.kind}: ${p.what} - ${p.detail}`);
+    await page.getByTestId('whats-new-got-it').click();
+    await expect(page.getByTestId('whats-new-title')).toHaveCount(0);
+  }
+  expect(failures, `the What's new dialog does not fit the screen:\n${failures.join('\n')}`).toEqual([]);
+});
+
 test('a folder declares its own edition and turns completion tracking off; the declared line says so (1.39.0)', async ({ page }) => {
   test.setTimeout(120_000);
   await login(page);
@@ -677,4 +712,164 @@ test('the library bar keeps every icon inside its button and the name clear of t
     await rename(LIBRARY_NAME);
   }
   expect(failures, `the library bar does not fit:\n${failures.join('\n')}`).toEqual([]);
+});
+
+/**
+ * 1.53.0 lane S (audit V5, V6): Settings is one column of cards 24 px apart (two pairs used to touch) with the accent-coloured sliders;
+ * the browse trail never leaves a "/" alone or at the end of a line, and a tablet's library-root trail is not cut (it may wrap now).
+ */
+test('Settings keeps one 24 px rhythm, and the browse trail never strands a separator (audit V5, V6)', async ({ page }) => {
+  test.setTimeout(150_000);
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  const failures: string[] = [];
+  for (const size of [{ width: 360, height: 780 }, ...SIZES, { width: 1280, height: 900 }]) {
+    await page.setViewportSize(size);
+    await page.goto('/settings');
+    await expect(page.locator('app-settings mat-card').nth(4)).toBeVisible();
+    await settle(page);
+    const settings = await page.locator('app-settings').evaluate((host) => {
+      const cards = Array.from(host.querySelectorAll('mat-card')).filter((c) => (c as HTMLElement).offsetHeight > 0)
+        .map((c) => c.getBoundingClientRect());
+      cards.sort((a, b) => a.top - b.top);
+      const gaps = cards.slice(1).map((c, i) => Math.round(c.top - cards[i].bottom));
+      const sliders = Array.from(host.querySelectorAll('.display-slider')).map((s) => getComputedStyle(s).accentColor);
+      return { gaps, sliders };
+    });
+    if (settings.gaps.some((g) => g !== 24)) failures.push(`${size.width} px Settings: gaps between cards ${settings.gaps.join(', ')} (want 24)`);
+    if (settings.sliders.some((c) => c === 'auto')) failures.push(`${size.width} px Settings: a Library display slider has the browser's default colour`);
+
+    for (const url of [`/libraries/${libraryId}/browse`, `/libraries/${libraryId}/browse/${folderId}`]) {
+      await page.goto(url);
+      await expect(page.locator('.browse-bar .breadcrumbs a').first()).toBeVisible();
+      await settle(page);
+      const trail = await page.locator('.browse-bar .breadcrumbs').evaluate((el) => {
+        const seps = Array.from(el.querySelectorAll('.sep')).filter((s) => getComputedStyle(s).display !== 'none');
+        const stranded = seps.filter((s) => {
+          const next = s.nextElementSibling;
+          if (!next) return true;
+          const a = s.getBoundingClientRect();
+          const b = next.getBoundingClientRect();
+          return Math.abs(a.top - b.top) > 4 && Math.abs(a.bottom - b.bottom) > 4;
+        }).length;
+        return { stranded, clipped: el.scrollWidth > el.clientWidth + 1 };
+      });
+      if (trail.stranded > 0) failures.push(`${size.width} px ${url}: ${trail.stranded} separator(s) alone on a line`);
+      if (trail.clipped && size.width >= 600) failures.push(`${size.width} px ${url}: the trail is cut`);
+    }
+  }
+  expect(failures, failures.join('\n')).toEqual([]);
+});
+
+/** 1.53.0 (lane C): contract-shaped recommendation answers - long names and reasons, every card a real folder of the volume library. */
+function longRecommendations(libraryId: string, folderId: string) {
+  const reasons = [
+    { kind: 'Creator', display: `Same author: ${UNBROKEN}` },
+    { kind: 'SharedValues', display: 'Like Stacked Saga: Supernatural, Slice of Life', relatedNodeId: folderId },
+    { kind: 'Relation', display: `Sequel of ${UNBROKEN}`, relatedNodeId: folderId },
+  ];
+  return {
+    items: Array.from({ length: 12 }, (_, i) => ({
+      node: {
+        id: i === 0 ? folderId : `${folderId}rec${i}`, parentId: '', libraryId, kind: 'Folder', availability: 'Available', coverUrl: null,
+        displayName: i % 2 === 0 ? UNBROKEN : `Synthetic Recommended Series With A Long Title ${i}`,
+        isRead: i === 3, isFavorite: i === 4, myRating: i === 5 ? 7 : undefined, readRollup: i === 6 ? 'Read' : null, hasSeriesInfo: true,
+      },
+      reason: reasons[i % 3],
+    })),
+  };
+}
+
+test('the Home "Recommended for you" row and the series page\'s "More like this" fit a phone and a tablet screen (1.53.0)', async ({ page }) => {
+  test.setTimeout(120_000);
+  const failures: string[] = [];
+  await login(page);
+  const [libraryId, folderId] = await ensureLibrary(page);
+  await page.route('**/api/v1/recommendations?*', (route) => route.fulfill({ json: longRecommendations(libraryId, folderId) }));
+  await page.route('**/api/v1/nodes/*/similar?*', (route) => route.fulfill({ json: longRecommendations(libraryId, folderId) }));
+  // The series page of the volume library's folder (it has no series information of its own): a contract-shaped ComicInfo answer.
+  await page.route(`**/api/v1/nodes/${folderId}/series-info*`, (route) => route.fulfill({ json: {
+    nodeId: folderId, nodeKind: 'Folder', anchorNodeId: folderId, anchorKind: 'Folder', anchorDisplayName: 'Stacked Saga', libraryId,
+    state: 'ComicInfo', title: 'Stacked Saga', precedence: 'WebFirst', precedenceSource: 'Default',
+    description: 'A synthetic synopsis long enough to wrap over a few lines on a phone screen, so About has some height.',
+    genres: ['Action', 'Fantasy'],
+  } }));
+  for (const size of [{ width: 360, height: 780 }, ...SIZES, { width: 844, height: 390 }]) {
+    await page.setViewportSize(size);
+    await page.goto('/');
+    await expect(page.getByTestId('home-recommendations')).toBeVisible();
+    await settle(page);
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px Home recommendations: ${p.kind}: ${p.what} - ${p.detail}`);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-home-recommendations.png` });
+    await page.goto(`/series/${folderId}`);
+    await expect(page.getByTestId('series-more-like-this')).toBeVisible();
+    await settle(page);
+    for (const p of await layoutProblems(page)) failures.push(`${size.width} px More like this: ${p.kind}: ${p.what} - ${p.detail}`);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/layout-${size.width}-more-like-this.png` });
+  }
+  expect(failures, `the recommendation rows do not fit:\n${failures.join('\n')}`).toEqual([]);
+});
+
+/**
+ * 1.53.0 (lane V, audit V2): the first-answer states of browse, Home and Search - not loaded (the spinner) and failed (the error block
+ * with "Try again") - fit a phone (360 / 390) and a tablet. With E2E_SCREENSHOT_DIR: each state at 390 and 1280 px in dark and light (the
+ * theme comes from the page's own preferences answer; the stored preference is never changed).
+ */
+test('the loading and failed states of browse, Home and Search fit a phone and a tablet screen (1.53.0)', async ({ page }) => {
+  test.setTimeout(240_000);
+  const failures: string[] = [];
+  await login(page);
+  const [libraryId] = await ensureLibrary(page);
+  let theme = 'dark';
+  await page.route((u) => u.pathname === '/api/v1/reading/preferences', async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    const response = await route.fetch();
+    await route.fulfill({ response, json: { ...(await response.json()), theme } });
+  });
+  let mode: 'hold' | 'fail' | 'pass' = 'pass';
+  const held: Route[] = [];
+  const firstRequest = (u: URL) =>
+    /^\/api\/v1\/libraries\/[^/]+\/browse$/.test(u.pathname) || u.pathname === '/api/v1/libraries' || u.pathname === '/api/v1/search';
+  await page.route(firstRequest, async (route) => {
+    if (route.request().method() !== 'GET' || mode === 'pass') return route.fallback();
+    if (mode === 'fail') return route.fulfill({ status: 500, json: { error: 'synthetic_failure' } });
+    held.push(route); // let go once the state is checked
+  });
+  const pages = [
+    { name: 'browse', url: `/libraries/${libraryId}/browse`, loading: 'browse-loading', failed: 'browse-failed' },
+    { name: 'home', url: '/', loading: 'home-libraries-loading', failed: 'home-libraries-failed' },
+    { name: 'search', url: '/search?q=Stacked', loading: 'search-loading', failed: 'search-failed' },
+  ];
+  const sizes = [{ width: 360, height: 780 }, ...SIZES, { width: 1280, height: 900 }];
+  for (const t of ['dark', 'light']) {
+    theme = t;
+    for (const size of sizes) {
+      const checkLayout = t === 'dark' && size.width < 1280;
+      const shoot = !!SHOTS && (size.width === 390 || size.width === 1280);
+      if (!checkLayout && !shoot) continue;
+      await page.setViewportSize(size);
+      for (const p of pages) {
+        for (const state of ['loading', 'failed'] as const) {
+          mode = state === 'loading' ? 'hold' : 'fail';
+          await page.goto(p.url);
+          await expect(page.getByTestId(p[state])).toBeVisible();
+          await expect(page.locator('html')).toHaveAttribute('data-theme', t);
+          await page.waitForTimeout(300);
+          if (checkLayout) {
+            for (const problem of await layoutProblems(page)) {
+              failures.push(`${size.width} px ${p.name} ${state}: ${problem.kind}: ${problem.what} - ${problem.detail}`);
+            }
+          }
+          if (shoot) {
+            // Home's Libraries section sits under the other rows: bring the state into the shot.
+            await page.getByTestId(p[state]).scrollIntoViewIfNeeded();
+            await page.screenshot({ path: `${SHOTS}/states-${p.name}-${state}-${size.width}-${t}.png` });
+          }
+          mode = 'pass';
+          for (const route of held.splice(0)) await route.abort().catch(() => { /* the page moved on */ });
+        }
+      }
+    }
+  }
+  expect(failures, `the first-answer states do not fit:\n${failures.join('\n')}`).toEqual([]);
 });

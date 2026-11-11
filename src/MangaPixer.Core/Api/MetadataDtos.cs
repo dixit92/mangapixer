@@ -90,6 +90,14 @@ public sealed record SeriesInfoDto
     /// asked for <c>includeItems=true</c> (the series page); empty otherwise.
     /// </summary>
     public IReadOnlyList<SeriesInfoItemRowDto> Items { get; init; } = [];
+
+    /// <summary>
+    /// 1.53.0 (the 1.52.0 C3 residue): true exactly when <c>GET /api/v1/nodes/{AnchorNodeId}/missing</c> answers a Missing line - the
+    /// anchor is a folder (not tombstoned) with its OWN confirmed or automatic series link to a stored record. Also set when "Show series
+    /// information" is off for the library (the rest of this answer is then the empty <c>state: None</c> shape, but the Missing line
+    /// still shows), so the series page asks only when this is true. Additive: false (or absent) means "do not ask".
+    /// </summary>
+    public bool MissingReportPossible { get; init; }
 }
 
 public sealed record SeriesCreatorDto

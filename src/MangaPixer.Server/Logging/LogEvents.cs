@@ -409,6 +409,11 @@ public static class LogEvents
         public const int ReadingModeSuggestionsListed = 7050;
         public const int ReadingModeSuggestionsApplied = 7051;
         public const int ReadingModeSuggestionsRefused = 7052;
+
+        // 1.53.0 What's new (lane W, 7060-7069): counts, user ids and versions only - never note content.
+        public const int WhatsNewNotesParsed = 7060;
+        public const int WhatsNewNotesUnreadable = 7061;
+        public const int WhatsNewSeen = 7062;
     }
 
     /// <summary>App-level request pipeline errors (unhandled 500s).</summary>
@@ -583,7 +588,7 @@ public static class LogEvents
         public const int ReadMarkObserverFailed = 10001;
 
         // Reserved, 1.43.0: 10010-10399 engine + API (lane E); 10400-10599 MyAnimeList adapter, 10600-10799 MangaUpdates adapter
-        // (lane A); 10800-10899 tracking redesign (lane G); 10900-10999 free.
+        // (lane A); 10800-10899 tracking redesign (lane G); 10900-10919 tracker scores (1.53.0 lane T); 10920-10999 free.
 
         // Engine + API (lane E, 1.43.0; 10010-10399). Information carries the internal user id, the tracker slug, outcome codes,
         // counts, HTTP status and timings only - never a tracker or series id (with a user id they are that user's reading history),
@@ -623,6 +628,15 @@ public static class LogEvents
 
         // 1.43.2 (Select mode, replaces Send all): one line per batch request - user id, slug, action, counts and timing only.
         public const int BatchApplied = 10807;
+
+        // 1.53.0 tracker scores (lane T; 10900-10919): user id, slug, outcome codes, counts, HTTP status and timings at Information - never a
+        // series or tracker id and never a score. Debug may add the MangaPixer record id.
+        public const int ScoreSent = 10900;
+        public const int ScoreFailed = 10901;
+        public const int ScoreRateLimited = 10902;
+        public const int ScoresImported = 10903;
+        public const int ScoreDebug = 10904;
+        public const int ScoreSinkSkipped = 10905;
     }
 
     /// <summary>
@@ -701,5 +715,50 @@ public static class LogEvents
 
         /// <summary>A user cleared a rating (Debug): user id, node id (and whether a rating was there).</summary>
         public const int RatingCleared = 3411;
+
+        /// <summary>
+        /// 1.53.0 step 0: an <c>IRatingChangeSink</c> threw after a rating was saved (Warning): user id, node id and the exception type
+        /// only. The request still succeeds.
+        /// </summary>
+        public const int RatingSinkFailed = 3412;
+    }
+
+    /// <summary>
+    /// 1.53.0 lane S: shared ratings (3420-3429, inside the 3xxx range; reserved for lane S). User ids, node ids, counts and timings only -
+    /// never a score of another user, a title or a path.
+    /// </summary>
+    public static class SharedRatings
+    {
+        public const int Min = 3420;
+        public const int Max = 3429;
+
+        /// <summary>A user turned "Share my ratings" on or off (Debug): user id and the new choice.</summary>
+        public const int UserSharingChanged = 3420;
+
+        /// <summary>An admin turned the server-wide "Shared ratings" switch on or off (Information): the new state.</summary>
+        public const int ServerSharingChanged = 3421;
+
+        /// <summary>A node's server average was computed (Debug): node id, rating count, milliseconds - never the average itself.</summary>
+        public const int AverageComputed = 3422;
+    }
+
+    /// <summary>
+    /// 1.53.0 lane C: recommendations - the Home "Recommended for you" row and the series page's "More like this" (3430-3439, inside the
+    /// 3xxx range; reserved for lane C). User ids, node ids, counts and timings only - never a title, a tag, a seed or a path; Debug, as a
+    /// user's recommendations are derived from their private ratings and reading.
+    /// </summary>
+    public static class Recommendations
+    {
+        public const int Min = 3430;
+        public const int Max = 3439;
+
+        /// <summary>The scope index was built (Debug): works, values, entries, relation records, milliseconds.</summary>
+        public const int IndexBuilt = 3430;
+
+        /// <summary>A Home answer (Debug): user id, seeds, candidates scored, picks, cached or not, milliseconds.</summary>
+        public const int HomeAnswered = 3431;
+
+        /// <summary>A "More like this" answer (Debug): node id, picks, cached or not, milliseconds.</summary>
+        public const int SimilarAnswered = 3432;
     }
 }
