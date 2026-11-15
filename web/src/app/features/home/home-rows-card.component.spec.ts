@@ -8,7 +8,7 @@ import { DEFAULT_HOME_ROW_ORDER, HomeRowId } from './home-rows';
 @Component({
   standalone: true,
   imports: [HomeRowsCardComponent],
-  template: `<app-home-rows-card [order]="order()" (orderChange)="order.set($event)" (reset)="resets = resets + 1" />`,
+  template: `<app-home-rows-card [order]="order()" (orderChange)="order.set($event)" (resetOrder)="resets = resets + 1" />`,
 })
 class HostComponent {
   readonly order = signal<HomeRowId[]>([...DEFAULT_HOME_ROW_ORDER]);
@@ -46,7 +46,7 @@ describe('HomeRowsCardComponent', () => {
     expect(el.querySelector('[role="status"]')!.textContent).toContain('Libraries moved to position 4 of 5.');
   });
 
-  it('at an end the focus goes to the row\\'s other button (the pressed one is disabled now)', () => {
+  it("at an end the focus goes to the row's other button (the pressed one is disabled now)", () => {
     const { fixture, el } = create();
     button(el, 'Move Recommended for you up').click();
     fixture.detectChanges();

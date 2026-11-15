@@ -642,7 +642,8 @@ public sealed record LibraryViewPreferencesDto
     /// Per-user order of the Home rows (1.54.0): the ids of <see cref="com.lifepixer.mangapixer.Core.Reading.HomeRows"/>. A GET always
     /// answers the full order (every row once; the default order until the user changes it). On a PUT, null (and a client that predates
     /// the field) keeps the stored order; a list replaces it after the same normalization (unknown and repeated ids dropped, missing ids
-    /// appended in the default order; an empty list = the default order).
+    /// appended in the default order; an empty list = the default order). Note: record equality compares this list by reference - compare
+    /// two DTOs structurally (e.g. <c>Assert.Equivalent</c>).
     /// </summary>
     public IReadOnlyList<string>? HomeRowOrder { get; init; }
 }

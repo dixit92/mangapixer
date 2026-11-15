@@ -134,7 +134,7 @@ import { DEFAULT_HOME_ROW_ORDER, HomeRowId, normalizeHomeRowOrder } from '../hom
     <app-home-rows-card [order]="homeRowOrder()" [loaded]="favoritesLoaded()" [error]="homeRowOrderError() ?? favoritesError() ?? recommendationsError()"
                         [showFavorites]="showFavoritesHomeRow()" [favoritesDisabled]="favoritesSaving()"
                         [showRecommendations]="showRecommendationsHomeRow()" [recommendationsDisabled]="recommendationsSaving()"
-                        (orderChange)="setHomeRowOrder($event)" (reset)="resetHomeRowOrder()"
+                        (orderChange)="setHomeRowOrder($event)" (resetOrder)="resetHomeRowOrder()"
                         (showFavoritesChange)="setShowFavoritesHomeRow($event)"
                         (showRecommendationsChange)="setShowRecommendationsHomeRow($event)" />
 

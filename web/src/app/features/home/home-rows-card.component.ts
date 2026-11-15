@@ -32,10 +32,10 @@ import { DEFAULT_HOME_ROW_ORDER, HOME_ROW_LABELS, HomeRowId, moveHomeRow } from 
               <li class="row" data-testid="home-row-item" [attr.data-row]="row">
                 <span class="label">{{ labels[row] }}</span>
                 @if (row === 'favorites') {
-                  <mat-checkbox class="show" [checked]="showFavorites()" [disabled]="favoritesDisabled()" data-testid="show-favorites-row"
+                  <mat-checkbox class="show" [checked]="showFavorites()" [disabled]="favoritesDisabled()" data-testid="show-favorites-row" aria-label="Show the Favorites row on the home page"
                                 (change)="showFavoritesChange.emit($event)">Show</mat-checkbox>
                 } @else if (row === 'recommended') {
-                  <mat-checkbox class="show" [checked]="showRecommendations()" [disabled]="recommendationsDisabled()" data-testid="show-recommendations-row"
+                  <mat-checkbox class="show" [checked]="showRecommendations()" [disabled]="recommendationsDisabled()" data-testid="show-recommendations-row" aria-label="Show the Recommended for you row on the home page"
                                 (change)="showRecommendationsChange.emit($event)">Show</mat-checkbox>
                 }
                 <span class="moves">
@@ -52,7 +52,7 @@ import { DEFAULT_HOME_ROW_ORDER, HOME_ROW_LABELS, HomeRowId, moveHomeRow } from 
             }
           </ol>
           <div class="actions">
-            <button mat-stroked-button type="button" [disabled]="isDefault()" (click)="reset.emit()">Reset to default order</button>
+            <button mat-stroked-button type="button" [disabled]="isDefault()" (click)="resetOrder.emit()">Reset to default order</button>
           </div>
           <span class="sr-status" role="status" aria-live="polite">{{ announcement() }}</span>
           @if (error()) {
@@ -96,7 +96,7 @@ export class HomeRowsCardComponent {
   readonly showRecommendations = input(true);
 
   readonly orderChange = output<HomeRowId[]>();
-  readonly reset = output<void>();
+  readonly resetOrder = output<void>();
   readonly showFavoritesChange = output<MatCheckboxChange>();
   readonly showRecommendationsChange = output<MatCheckboxChange>();
 
