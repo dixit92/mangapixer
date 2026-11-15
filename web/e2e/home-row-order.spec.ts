@@ -13,6 +13,10 @@ const ADMIN_PASSWORD = process.env['E2E_ADMIN_PASSWORD'] ?? 'AdminPass123!';
 const DEFAULT = ['continue', 'recommended', 'favorites', 'recent', 'libraries'];
 const LABELS = ['Continue reading', 'Recommended for you', 'Favorites', 'New chapters', 'Libraries'];
 const SHOTS = process.env['E2E_SCREENSHOT_DIR'];
+// The synthetic volume library states.spec.ts uses (same name and root, so either spec may create it): Home then has New chapters too.
+const FIXTURE_ROOT = process.env['E2E_SERIES_FIXTURE_ROOT'];
+const VOLUMES_ROOT = FIXTURE_ROOT ? `${FIXTURE_ROOT}-volumes` : undefined;
+const LIBRARY_NAME = 'Volume Stacks';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -41,6 +45,24 @@ async function shots(page: Page, name: string, reopen: () => Promise<void>): Pro
   await page.screenshot({ path: `${SHOTS}/h-${name}-${width}-light.png` });
   await page.unroute('**/api/v1/reading/preferences');
   await page.reload();
+}
+
+/** Registers + scans the volume fixture library once (when the fixtures are mounted) and waits until Home's New chapters has it. */
+async function ensureLibrary(page: Page): Promise<boolean> {
+  if (!VOLUMES_ROOT) return false;
+  const { token } = await (await page.request.get('/api/v1/auth/csrf')).json();
+  const headers = { 'X-MangaPixer-Csrf': token };
+  const libs: { id: string; name: string }[] = await (await page.request.get('/api/v1/libraries')).json();
+  if (!libs.some((l) => l.name === LIBRARY_NAME)) {
+    const created = await page.request.post('/api/v1/admin/libraries', { headers, data: { displayName: LIBRARY_NAME, rootPath: VOLUMES_ROOT } });
+    expect(created.ok(), await created.text()).toBeTruthy();
+    await page.request.post(`/api/v1/admin/libraries/${(await created.json()).id}/scan`, { headers });
+  }
+  await expect.poll(async () => {
+    const recent = await (await page.request.get('/api/v1/home/recent-chapters')).json();
+    return (recent.libraries as { stacks: unknown[] }[]).some((g) => g.stacks.length > 0);
+  }, { timeout: 120_000, intervals: [1000, 2000, 5000] }).toBe(true);
+  return true;
 }
 
 async function homeOrder(page: Page): Promise<string[]> {
@@ -72,6 +94,7 @@ for (const vp of [{ name: '1280 px', width: 1280, height: 900, touch: false }, {
 
     test('reorder the Home rows in Settings; Home follows; the order is saved; Reset restores it', async ({ page }) => {
       await login(page);
+      const withLibrary = await ensureLibrary(page);
       const card = await openCard(page);
       expect(await cardOrder(card)).toEqual(DEFAULT);
       for (const [i, label] of LABELS.entries()) {
@@ -105,6 +128,7 @@ for (const vp of [{ name: '1280 px', width: 1280, height: 900, touch: false }, {
       const libraries = page.getByRole('heading', { name: 'Libraries', exact: true });
       const recent = page.getByRole('heading', { name: 'New chapters', exact: true });
       await expect(libraries).toBeVisible();
+      if (withLibrary) await expect(recent).toBeVisible();
       if (await recent.count()) {
         expect((await libraries.boundingBox())!.y).toBeLessThan((await recent.boundingBox())!.y);
       }

@@ -72,7 +72,8 @@ import { DEFAULT_HOME_ROW_ORDER, HOME_ROW_LABELS, HomeRowId, moveHomeRow } from 
     .rows { list-style: none; margin: 0; padding: 0; }
     .row { display: flex; align-items: center; gap: 8px; min-height: 44px; border-bottom: 1px solid rgb(var(--mp-ink-rgb) / 0.08); }
     .row:last-child { border-bottom: none; }
-    .label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+    /* The row's name wraps rather than truncates (a phone: "Recommended for you" next to Show and the two buttons). */
+    .label { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; font-size: 14px; padding: 6px 0; }
     .show { flex: none; }
     .moves { flex: none; display: flex; }
     .actions { display: flex; justify-content: flex-end; margin-top: 8px; }
