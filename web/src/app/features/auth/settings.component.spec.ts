@@ -669,14 +669,14 @@ describe('SettingsComponent — Ratings and recommendations', () => {
   const shareBox = (el: HTMLElement) => el.querySelector<HTMLInputElement>('[data-testid="share-ratings"] input[type="checkbox"]')!;
   const rowBox = (el: HTMLElement) => el.querySelector<HTMLInputElement>('[data-testid="show-recommendations-row"] input[type="checkbox"]')!;
 
-  it('is one card holding both choices, titled "Ratings and recommendations"', () => {
+  it('the ratings card holds the share choice; the recommendations row switch is in the Home card (1.54.0)', () => {
     const el = createComponent({ share: true, serverEnabled: true }).nativeElement as HTMLElement;
     const card = el.querySelector('[data-testid="ratings-card"]')!;
-    expect(card.querySelector('mat-card-title')!.textContent!.trim()).toBe('Ratings and recommendations');
+    expect(card.querySelector('mat-card-title')!.textContent!.trim()).toBe('Shared ratings');
     expect(card.querySelector('[data-testid="share-ratings"]')).not.toBeNull();
-    expect(card.querySelector('[data-testid="show-recommendations-row"]')).not.toBeNull();
     expect(card.textContent).toContain('Share my ratings with other users of this server');
-    expect(card.textContent).toContain('Show a "Recommended for you" row on the home page');
+    expect(card.querySelector('[data-testid="show-recommendations-row"]')).toBeNull();
+    expect(el.querySelector('[data-testid="home-rows-card"] [data-testid="show-recommendations-row"]')).not.toBeNull();
   });
 
   it('while the administrator switch is off the share box is disabled with the hint', () => {
@@ -729,5 +729,116 @@ describe('SettingsComponent — Ratings and recommendations', () => {
     expect(style.display).toBe('flex');
     expect(style.flexDirection).toBe('column');
     expect(style.rowGap || style.gap).toBe('24px');
+  });
+});
+
+/**
+ * 1.54.0 (owner decision 3): the Home card - the rows in the user's order with Move up / down, the Favorites and Recommended switches
+ * beside their rows, Reset. Settings stays the one writer of the blob: a move is written into the local blob at once (another switch's
+ * save echoes the new order), saves go one at a time (the latest order after the previous answer), and a failure reverts.
+ */
+describe('SettingsComponent — Home card', () => {
+  let httpMock: HttpTestingController;
+  const URL = '/api/v1/reading/library-preferences';
+
+  function createComponent(prefs: Record<string, unknown> = {}) {
+    TestBed.configureTestingModule({
+      imports: [SettingsComponent],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations(), provideRouter([])],
+    });
+    const fixture = TestBed.createComponent(SettingsComponent);
+    httpMock = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+    httpMock.expectOne('/api/v1/libraries').flush([]);
+    httpMock.expectOne('/api/v1/reading/private-libraries').flush({ libraryIds: [] });
+    httpMock.expectOne('/api/v1/reading/home-libraries').flush({ excludedLibraryIds: [] });
+    httpMock.expectOne('/api/v1/ratings/sharing').flush({ share: true, serverEnabled: true });
+    httpMock.expectOne(URL).flush({ viewMode: 'card', density: 'comfortable', sort: 'name', libraryPageSize: 50, ...prefs });
+    httpMock.expectOne('/api/v1/reading/preferences').flush({
+      defaultReaderMode: 'PagedLtr', preferDoubleSpread: false, reducedMotion: false, preferredBackground: null, alwaysOpenReadFromStart: false,
+    });
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  afterEach(() => httpMock.verify());
+
+  const card = (el: HTMLElement) => el.querySelector<HTMLElement>('[data-testid="home-rows-card"]')!;
+  const rows = (el: HTMLElement) => [...card(el).querySelectorAll('[data-testid="home-row-item"]')].map((r) => r.getAttribute('data-row'));
+  const button = (el: HTMLElement, label: string) => card(el).querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
+
+  it('lists the rows in the stored order with both show switches; the Favorites card no longer has the home-row switch', () => {
+    const el = createComponent({ homeRowOrder: ['libraries', 'continue', 'recommended', 'favorites', 'recent'], showFavoritesHomeRow: true })
+      .nativeElement as HTMLElement;
+    expect(rows(el)).toEqual(['libraries', 'continue', 'recommended', 'favorites', 'recent']);
+    expect(card(el).querySelector<HTMLInputElement>('[data-testid="show-favorites-row"] input')!.checked).toBe(true);
+    expect(card(el).querySelector<HTMLInputElement>('[data-testid="show-recommendations-row"] input')!.checked).toBe(true);
+    expect(el.querySelector('.favorites-card')!.textContent).not.toContain('Show a "Favorites" row');
+  });
+
+  it('a blob without the field (an older server) shows the default order', () => {
+    const el = createComponent().nativeElement as HTMLElement;
+    expect(rows(el)).toEqual(['continue', 'recommended', 'favorites', 'recent', 'libraries']);
+  });
+
+  it('a move PUTs the new order with the rest of the blob; a second move waits for the first answer, then sends the latest', () => {
+    const fixture = createComponent();
+    const el = fixture.nativeElement as HTMLElement;
+    button(el, 'Move Libraries up').click();
+    fixture.detectChanges();
+    const first = httpMock.expectOne(URL);
+    expect(first.request.body).toMatchObject({
+      homeRowOrder: ['continue', 'recommended', 'favorites', 'libraries', 'recent'], libraryPageSize: 50, viewMode: 'card',
+    });
+    button(el, 'Move Libraries up').click(); // while the first save is in flight
+    fixture.detectChanges();
+    expect(rows(el)).toEqual(['continue', 'recommended', 'libraries', 'favorites', 'recent']);
+    httpMock.expectNone(URL);
+    first.flush(null);
+    const second = httpMock.expectOne(URL);
+    expect(second.request.body.homeRowOrder).toEqual(['continue', 'recommended', 'libraries', 'favorites', 'recent']);
+    second.flush(null);
+  });
+
+  it('a failed save reverts to the last saved order and says so', () => {
+    const fixture = createComponent();
+    const el = fixture.nativeElement as HTMLElement;
+    button(el, 'Move Recommended for you down').click();
+    fixture.detectChanges();
+    expect(rows(el)).toEqual(['continue', 'favorites', 'recommended', 'recent', 'libraries']);
+    httpMock.expectOne(URL).flush({ error: 'x', message: 'Nope' }, { status: 500, statusText: 'Server Error' });
+    fixture.detectChanges();
+    expect(rows(el)).toEqual(['continue', 'recommended', 'favorites', 'recent', 'libraries']);
+    expect(card(el).querySelector('[role="alert"]')!.textContent).toContain('Nope');
+  });
+
+  it('another switch saved after a move echoes the NEW order, not the old one', () => {
+    const fixture = createComponent();
+    const el = fixture.nativeElement as HTMLElement;
+    button(el, 'Move Libraries up').click();
+    fixture.detectChanges();
+    const move = httpMock.expectOne(URL);
+    card(el).querySelector<HTMLInputElement>('[data-testid="show-recommendations-row"] input')!.click();
+    fixture.detectChanges();
+    const toggle = httpMock.match(URL);
+    expect(toggle.length).toBe(1);
+    expect(toggle[0].request.body).toMatchObject({
+      showRecommendationsHomeRow: false, homeRowOrder: ['continue', 'recommended', 'favorites', 'libraries', 'recent'],
+    });
+    move.flush(null);
+    toggle[0].flush(null);
+  });
+
+  it('Reset sends the default order (and is disabled while the order is the default)', () => {
+    const fixture = createComponent({ homeRowOrder: ['recent', 'continue', 'recommended', 'favorites', 'libraries'] });
+    const el = fixture.nativeElement as HTMLElement;
+    const reset = [...card(el).querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent!.includes('Reset to default order'))!;
+    expect(reset.disabled).toBe(false);
+    reset.click();
+    fixture.detectChanges();
+    httpMock.expectOne(URL).flush(null);
+    fixture.detectChanges();
+    expect(rows(el)).toEqual(['continue', 'recommended', 'favorites', 'recent', 'libraries']);
+    expect(reset.disabled).toBe(true);
   });
 });

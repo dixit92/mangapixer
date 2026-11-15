@@ -18104,6 +18104,15 @@
               "null",
               "string"
             ]
+          },
+          "homeRowOrder": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         }
       },

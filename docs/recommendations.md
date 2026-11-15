@@ -39,7 +39,7 @@ The rows need tags: a series without series information or ComicInfo has nothing
 
 ## Hide the Home row
 
-Settings > **Ratings and recommendations** > **Show a "Recommended for you" row on the home page**. It is on by default and applies to your account on every device. The series page's **More like this** row has no switch; it is only shown when there is something to show.
+Settings > **Home** > **Show** next to **Recommended for you** (*1.54.0*; it was under Ratings and recommendations in 1.53.0). It is on by default and applies to your account on every device; the same card moves the row up or down the home page. The series page's **More like this** row has no switch; it is only shown when there is something to show.
 
 ## Privacy
 

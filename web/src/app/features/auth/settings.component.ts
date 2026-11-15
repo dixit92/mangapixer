@@ -19,6 +19,8 @@ import {
 } from '../../core/preferences/device-display-preferences.service';
 import { SeriesInfoHoverPreferenceService } from '../../shared/hover-info/series-info-hover-preference.service';
 import { RatingSharingService } from '../ratings/rating-sharing.service';
+import { HomeRowsCardComponent } from '../home/home-rows-card.component';
+import { DEFAULT_HOME_ROW_ORDER, HomeRowId, normalizeHomeRowOrder } from '../home/home-rows';
 
 /**
  * Settings component. Allows the user to change their password and to mark
@@ -41,6 +43,7 @@ import { RatingSharingService } from '../ratings/rating-sharing.service';
     ReadingPreferencesCardComponent,
     AppearanceCardComponent,
     TrackingSettingsLinkComponent,
+    HomeRowsCardComponent,
   ],
   template: `
     <mat-card>
@@ -127,6 +130,14 @@ import { RatingSharingService } from '../ratings/rating-sharing.service';
     <!-- 1.43.0: tracker accounts live on the Tracking page (account menu > Tracking); Settings keeps a one-line link. -->
     <app-tracking-settings-link />
 
+    <!-- 1.54.0 (owner decision 3): the order of the Home rows, with the show / hide switches of Favorites and Recommended for you. -->
+    <app-home-rows-card [order]="homeRowOrder()" [loaded]="favoritesLoaded()" [error]="homeRowOrderError() ?? favoritesError() ?? recommendationsError()"
+                        [showFavorites]="showFavoritesHomeRow()" [favoritesDisabled]="favoritesSaving()"
+                        [showRecommendations]="showRecommendationsHomeRow()" [recommendationsDisabled]="recommendationsSaving()"
+                        (orderChange)="setHomeRowOrder($event)" (reset)="resetHomeRowOrder()"
+                        (showFavoritesChange)="setShowFavoritesHomeRow($event)"
+                        (showRecommendationsChange)="setShowRecommendationsHomeRow($event)" />
+
     <mat-card class="home-window-card">
       <mat-card-header>
         <mat-card-title>New Chapters</mat-card-title>
@@ -210,15 +221,9 @@ import { RatingSharingService } from '../ratings/rating-sharing.service';
       <mat-card-content>
         <p class="hint">
           Favorites are always available via the star on any archive or folder and the
-          sidebar "Favorites" view. These options control how prominently they surface.
+          sidebar "Favorites" view. The home page's Favorites row is under Home.
         </p>
         @if (favoritesLoaded()) {
-          <div class="fav-toggle">
-            <mat-checkbox [checked]="showFavoritesHomeRow()" [disabled]="favoritesSaving()"
-                          (change)="setShowFavoritesHomeRow($event)">
-              Show a "Favorites" row on the home page
-            </mat-checkbox>
-          </div>
           <div class="fav-toggle">
             <mat-checkbox [checked]="favoritesSearchProminence()" [disabled]="favoritesSaving()"
                           (change)="setFavoritesSearchProminence($event)">
@@ -234,10 +239,10 @@ import { RatingSharingService } from '../ratings/rating-sharing.service';
       </mat-card-content>
     </mat-card>
 
-    <!-- 1.53.0 (lane S, audit N4): one card for shared ratings and the Home recommendations row. -->
+    <!-- 1.53.0 (lane S, audit N4): shared ratings. (1.54.0: the Home recommendations row's switch moved to the Home card.) -->
     <mat-card class="ratings-card" data-testid="ratings-card">
       <mat-card-header>
-        <mat-card-title>Ratings and recommendations</mat-card-title>
+        <mat-card-title>Shared ratings</mat-card-title>
       </mat-card-header>
       <mat-card-content>
         <p class="hint">
@@ -260,17 +265,6 @@ import { RatingSharingService } from '../ratings/rating-sharing.service';
           }
         } @else {
           <p class="muted">Loading…</p>
-        }
-        @if (favoritesLoaded()) {
-          <div class="fav-toggle">
-            <mat-checkbox [checked]="showRecommendationsHomeRow()" [disabled]="recommendationsSaving()"
-                          data-testid="show-recommendations-row" (change)="setShowRecommendationsHomeRow($event)">
-              Show a "Recommended for you" row on the home page
-            </mat-checkbox>
-          </div>
-          @if (recommendationsError()) {
-            <div class="error">{{ recommendationsError() }}</div>
-          }
         }
       </mat-card-content>
     </mat-card>
@@ -378,7 +372,6 @@ import { RatingSharingService } from '../ratings/rating-sharing.service';
     .hint { color: var(--mp-text-muted); font-size: 13px; margin: 0 0 16px; }
     h3 { margin: 0 0 16px 0; }
     .private-library-list { display: flex; flex-direction: column; gap: 8px; }
-    .ratings-card .fav-toggle + .fav-toggle { margin-top: 4px; }
     .sub-hint { margin: 0 0 8px 44px; } /* under the checkbox label, not under its box */
   `],
 })
@@ -478,6 +471,14 @@ export class SettingsComponent implements OnInit {
   readonly recommendationsSaving = signal(false);
   readonly recommendationsError = signal<string | null>(null);
 
+  // The order of the Home rows (1.54.0): per-user, on the same blob; Settings > Home. Saves are serialized - one PUT at a time, the
+  // latest order sent when the previous one answers - so quick moves never arrive out of order.
+  readonly homeRowOrder = signal<HomeRowId[]>([...DEFAULT_HOME_ROW_ORDER]);
+  readonly homeRowOrderError = signal<string | null>(null);
+  private homeRowOrderSaved: HomeRowId[] = [...DEFAULT_HOME_ROW_ORDER];
+  private homeRowOrderInFlight = false;
+  private homeRowOrderPending = false;
+
   // Series information on hover (1.27.0): per-user, on the same blob, ON by default.
   readonly seriesInfoOnHover = signal(true);
   readonly hoverSaving = signal(false);
@@ -522,6 +523,8 @@ export class SettingsComponent implements OnInit {
         this.favoritesSearchProminence.set(p.favoritesSearchProminence ?? false);
         this.seriesInfoOnHover.set(p.seriesInfoOnHover ?? true);
         this.showRecommendationsHomeRow.set(p.showRecommendationsHomeRow ?? true);
+        this.homeRowOrderSaved = normalizeHomeRowOrder(p.homeRowOrder);
+        this.homeRowOrder.set(this.homeRowOrderSaved);
         this.favoritesLoaded.set(true);
       },
       error: () => {
@@ -652,6 +655,51 @@ export class SettingsComponent implements OnInit {
         this.showRecommendationsHomeRow.set(previous);
         this.recommendationsSaving.set(false);
         this.recommendationsError.set(err.message || 'Failed to save the recommendations setting');
+      },
+    });
+  }
+
+  /**
+   * A new order of the Home rows (1.54.0): shown at once and written into the local blob at once, so a save of any other switch on this
+   * page echoes the new order (not the old one); saved one PUT at a time; reverted to the last saved order on failure.
+   */
+  setHomeRowOrder(next: HomeRowId[]): void {
+    if (!this.libraryPrefs) {
+      this.homeRowOrderError.set('Could not load your Home settings - reload the page to try again');
+      return; // never PUT defaults over the user's other preferences
+    }
+    this.homeRowOrder.set(next);
+    this.libraryPrefs = { ...this.libraryPrefs, homeRowOrder: next };
+    this.homeRowOrderError.set(null);
+    this.saveHomeRowOrder();
+  }
+
+  resetHomeRowOrder(): void {
+    this.setHomeRowOrder([...DEFAULT_HOME_ROW_ORDER]);
+  }
+
+  private saveHomeRowOrder(): void {
+    if (this.homeRowOrderInFlight) {
+      this.homeRowOrderPending = true;
+      return;
+    }
+    const order = this.homeRowOrder();
+    this.homeRowOrderInFlight = true;
+    this.api.setLibraryPreferences(this.display.stamp({ ...this.libraryPrefs!, homeRowOrder: order })).subscribe({
+      next: () => {
+        this.homeRowOrderSaved = order;
+        this.homeRowOrderInFlight = false;
+        if (this.homeRowOrderPending) {
+          this.homeRowOrderPending = false;
+          this.saveHomeRowOrder();
+        }
+      },
+      error: (err: ApiError) => {
+        this.homeRowOrderInFlight = false;
+        this.homeRowOrderPending = false;
+        this.homeRowOrder.set(this.homeRowOrderSaved);
+        this.libraryPrefs = { ...this.libraryPrefs!, homeRowOrder: this.homeRowOrderSaved };
+        this.homeRowOrderError.set(err.message || 'Failed to save the order of the Home rows');
       },
     });
   }
