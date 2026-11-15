@@ -47,6 +47,19 @@ describe('AdminRatingSharingCardComponent', () => {
     expect(box(el).checked).toBe(false);
   });
 
+  // 1.54.0 (the owner's switch "did not save" on the live server): a tick that only opened the question looked like a saved switch,
+  // with the confirm button below the fold. The box shows the SAVED state; the question comes into view with Cancel focused.
+  it('a tick that only asks leaves the box unticked and focuses Cancel', () => {
+    const { fixture, el } = create(false);
+    box(el).click();
+    fixture.detectChanges();
+    TestBed.tick(); // runs the afterNextRender that focuses Cancel
+    expect(el.querySelector('[data-testid="admin-rating-sharing-confirm"]')).not.toBeNull();
+    expect(box(el).checked).toBe(false);
+    expect(document.activeElement).toBe(el.querySelector('[data-testid="admin-rating-sharing-cancel"]'));
+    httpMock!.expectNone(URL);
+  });
+
   it('"Turn on shared ratings" PUTs enabled and tells the client state', () => {
     const { fixture, el } = create(false);
     box(el).click();
