@@ -2556,6 +2556,9 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Property<int>("HomeRecentWindowDays")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("HomeRowOrder")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("HomeStacksPerLibrary")
                         .HasColumnType("INTEGER");
 
