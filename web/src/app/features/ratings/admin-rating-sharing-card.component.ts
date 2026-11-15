@@ -81,7 +81,8 @@ export class AdminRatingSharingCardComponent implements OnInit {
   private readonly api = inject(ApiService);
   private readonly sharing = inject(RatingSharingService);
   private readonly injector = inject(Injector);
-  private readonly cancelButton = viewChild<ElementRef<HTMLButtonElement>>('cancelButton');
+  // read: ElementRef - on a MatButton host the template ref is the component, not the element
+  private readonly cancelButton = viewChild('cancelButton', { read: ElementRef });
 
   readonly confirmation = SHARED_RATINGS_CONFIRMATION;
   readonly loading = signal(true);
@@ -112,7 +113,7 @@ export class AdminRatingSharingCardComponent implements OnInit {
       change.source.checked = false; // [checked] is still false, so Angular would not redraw it
       this.confirming.set(true);
       afterNextRender(() => {
-        const cancel = this.cancelButton()?.nativeElement;
+        const cancel: HTMLButtonElement | undefined = this.cancelButton()?.nativeElement;
         cancel?.closest('.confirm')?.scrollIntoView?.({ block: 'nearest' });
         cancel?.focus({ preventScroll: true });
       }, { injector: this.injector });
