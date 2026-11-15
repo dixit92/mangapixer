@@ -360,7 +360,7 @@ import {
       </ng-template>
 
       <ng-template #librariesRow>
-      <section>
+      <section class="libraries-section">
         <h3>Libraries</h3>
         <!-- 1.53.0 (audit V2): not loaded (the series page's spinner, after 300 ms), failed (the reader's error block), and the empty
              line only after a successful answer - a reader is not sent to Administration, which it cannot open. -->
@@ -424,6 +424,8 @@ import {
     /* Home is a plain content page now (the shell provides the gutter padding and
        the library sidebar); no in-component sidebar/flex layout remains. */
     .strip-section { margin-bottom: 28px; }
+    /* 1.54.0: Libraries can sit above a strip now (Settings > Home), so it keeps the strips' spacing below it. */
+    .libraries-section { margin-bottom: 28px; }
     /* Both cover strips size their cards from the shared --card-size custom property
        (the library browse card-size preference), so home and library cards match.
        The top/right padding leaves room for the stacked-paper edges behind a card. */
