@@ -190,6 +190,10 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
       await box.click();
       const confirm = admin.getByTestId('admin-rating-sharing-confirm');
       await expect(confirm).toContainText(CONFIRMATION);
+      // 1.54.0: the tick alone saves nothing, so the box does not look on; the question is on screen with Cancel focused.
+      await expect(box).not.toBeChecked();
+      await expect(admin.getByTestId('admin-rating-sharing-confirm-yes')).toBeInViewport();
+      await expect(admin.getByTestId('admin-rating-sharing-cancel')).toBeFocused();
       if (phone) await expectFitsScreen(page, 'Administration with the shared ratings confirmation');
       await shots(page, 'admin-shared-ratings-confirm');
       await admin.getByTestId('admin-rating-sharing-cancel').click();
