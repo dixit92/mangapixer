@@ -86,11 +86,13 @@ Settings saved to **your account** follow you to every device:
   - **Appearance**: the theme and the accent colour (see [Appearance](#appearance))
   - **Always open read archives from the start** (**Reading** card)
   - **Private Libraries**
+  - **Home** (*new in 1.54.0*): the order of the home page's rows (**Move up** / **Move down**, **Reset to default order**), with **Show** for the Favorites row (off by default) and the Recommended for you row (on by default)
   - **New Chapters**: how many **Days** count as new (default 30, 1–365) and which libraries contribute to the home row (**Show new chapters from**)
   - **Library display**: **Card size** and **List columns**, for this browser or device only
   - **Items per load** (**Performance** card): 25, 50 (default), 100 or 200
-  - **Favorites**: **Show a "Favorites" row on the home page** and **Highlight favorited results in search**, both off by default
+  - **Favorites**: **Highlight favorited results in search**, off by default (the Favorites row's switch is in **Home**)
   - **Series information**: **Show series information on hover**, on by default (see [Series information](series-information.md#summary-on-hover))
+  - **Shared ratings**: **Share my ratings with other users of this server**, on by default (see [Ratings](ratings.md))
 - **Library view:** view mode, sort and sort order. (Card size and list columns are kept per browser, below.)
 - **Favorites** themselves (see [Library layout](library-layout.md#favorites)).
 

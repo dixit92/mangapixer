@@ -968,7 +968,8 @@ public sealed class ReadingStateTests : IDisposable
             await service.SetLibraryPreferencesAsync(userId, current with { SeriesInfoOnHover = false });
             var off = await service.GetLibraryPreferencesAsync(userId);
             Assert.False(off.SeriesInfoOnHover);
-            Assert.Equal(current with { SeriesInfoOnHover = false }, off);
+            // Structural: since 1.54.0 the DTO holds a list (HomeRowOrder), which record equality compares by reference.
+            Assert.Equivalent(current with { SeriesInfoOnHover = false }, off, strict: true);
 
             await service.SetLibraryPreferencesAsync(userId, off with { SeriesInfoOnHover = true });
             Assert.True((await service.GetLibraryPreferencesAsync(userId)).SeriesInfoOnHover);

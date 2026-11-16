@@ -5,7 +5,7 @@ import { expectFitsScreen, openSelectionMore } from './layout';
 /**
  * Shared ratings and the ratings follow-ups (1.53.0 lane S), in a real browser on the synthetic ComicInfo library:
  * - Administration's "Shared ratings" card (off by default; ticking asks first with the owner's text; Cancel leaves it off);
- * - Settings' "Ratings and recommendations" card (the share box disabled with the administrator hint while the switch is off);
+ * - Settings' "Shared ratings" card (the share box disabled with the administrator hint while the switch is off);
  * - the Info sheet / series page: the one-star "SERVER ★ 4.0 · 1 rating" line under the user's own stars, and a rating row that keeps
  *   its layout when you rate (audit V4: the stars do not move);
  * - the browse "Server rating" sort, offered only while the switch is on;
@@ -169,8 +169,10 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
       await card.scrollIntoViewIfNeeded();
       await expect(card.getByRole('checkbox', { name: 'Share my ratings with other users of this server' })).toBeDisabled();
       await expect(card.getByTestId('share-ratings-off')).toHaveText('Your administrator has not turned on shared ratings.');
-      await expect(card.getByRole('checkbox', { name: 'Show a "Recommended for you" row on the home page' })).toBeChecked();
-      if (phone) await expectFitsScreen(page, 'Settings with the Ratings and recommendations card');
+      // 1.54.0: the recommendations row's switch moved to the Home card.
+      await expect(page.getByTestId('home-rows-card')
+        .getByRole('checkbox', { name: 'Show the Recommended for you row on the home page' })).toBeChecked();
+      if (phone) await expectFitsScreen(page, 'Settings with the Shared ratings card');
       await shots(page, 'settings-ratings-off', async () => { await card.scrollIntoViewIfNeeded(); });
 
       // The browse View menu offers no "Server rating" while the switch is off.

@@ -698,8 +698,8 @@ export interface LibraryViewPreferencesDto {
    */
   showFavoritesHomeRow?: boolean;
   /**
-   * Optional (1.53.0): the Home "Recommended for you" row. true (server default) shows it; Settings > Ratings and recommendations
-   * writes it. (The shared-ratings choice is NOT in this blob - `ratings/sharing`.)
+   * Optional (1.53.0): the Home "Recommended for you" row. true (server default) shows it; Settings > Home writes it (1.54.0).
+   * (The shared-ratings choice is NOT in this blob - `ratings/sharing`.)
    */
   showRecommendationsHomeRow?: boolean;
   /**
@@ -721,6 +721,11 @@ export interface LibraryViewPreferencesDto {
   seriesViewMode?: SeriesViewMode | null;
   /** 1.30.0: the viewer's view of a volume's page ('card' | 'list'); null = follow `viewMode`. */
   stackViewMode?: string | null;
+  /**
+   * 1.54.0: the user's order of the Home rows (`HomeRowId`s). A GET always carries the full order (the default until the user changes
+   * it); on a PUT, null / absent keeps the stored order and a list replaces it (normalized by the server; empty = the default).
+   */
+  homeRowOrder?: string[] | null;
 }
 
 // --- YACReader progress import (1.2.0, admin-only) ---

@@ -533,6 +533,56 @@ describe('HomeComponent', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Recommended for you');
   });
 
+  // --- 1.54.0: the user's order of the Home rows (owner decision 3) ---
+
+  const rowIds = (el: HTMLElement) => Array.from(el.querySelectorAll('[data-home-row]')).map((r) => r.getAttribute('data-home-row'));
+
+  it('draws the rows in the stored order - in the DOM, so a screen reader and Tab follow it', () => {
+    const fixture = createComponent({
+      prefs: { viewMode: 'card', density: 'comfortable', sort: 'name', homeRowOrder: ['libraries', 'recent', 'continue'] },
+    });
+    const el = fixture.nativeElement as HTMLElement;
+    expect(rowIds(el)).toEqual(['libraries', 'recent', 'continue', 'recommended', 'favorites']);
+    const headings = Array.from(el.querySelectorAll('h3')).map((h) => h.textContent!.trim());
+    expect(headings.indexOf('Libraries')).toBeLessThan(headings.indexOf('New chapters'));
+    expect(headings.indexOf('New chapters')).toBeLessThan(headings.indexOf('Continue reading'));
+  });
+
+  it('draws the default order for a blob without the field', () => {
+    const el = createComponent().nativeElement as HTMLElement;
+    expect(rowIds(el)).toEqual(['continue', 'recommended', 'favorites', 'recent', 'libraries']);
+  });
+
+  it('puts the card-size slider on the first VISIBLE strip of the stored order (Libraries is not a strip)', () => {
+    const fixture = createComponent({
+      prefs: { viewMode: 'card', density: 'comfortable', sort: 'name', homeRowOrder: ['libraries', 'favorites', 'recent', 'continue'] },
+    });
+    const sliders = (fixture.nativeElement as HTMLElement).querySelectorAll('.size-slider');
+    expect(sliders).toHaveLength(1);
+    expect(sliders[0].closest('.recent-section')).not.toBeNull(); // Favorites is off; New chapters comes before Continue reading
+  });
+
+  it('draws no row before the preferences answer, and the default order when they fail', () => {
+    TestBed.configureTestingModule({
+      imports: [HomeComponent],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]), provideNoopAnimations()],
+    });
+    const fixture = TestBed.createComponent(HomeComponent);
+    httpMock = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    httpMock.expectOne('/api/v1/libraries').flush([]);
+    httpMock.expectOne((r) => r.url === '/api/v1/reading/continue').flush([]);
+    httpMock.expectOne((r) => r.url === '/api/v1/home/recent-chapters').flush({ libraries: [] });
+    httpMock.expectOne('/api/v1/reading/home-libraries').flush({ excludedLibraryIds: [] });
+    fixture.detectChanges();
+    expect(rowIds(el)).toEqual([]);
+    httpMock.expectOne('/api/v1/reading/library-preferences').flush({ error: 'x' }, { status: 500, statusText: 'Server Error' });
+    httpMock.expectOne((r) => r.url === '/api/v1/recommendations').flush({ items: [] });
+    fixture.detectChanges();
+    expect(rowIds(el)).toEqual(['continue', 'recommended', 'favorites', 'recent', 'libraries']);
+  });
+
   it('groups the New-chapters Filter button with its heading via a section divider', () => {
     const fixture = createComponent();
     const head = fixture.nativeElement.querySelector('.section-head') as HTMLElement;

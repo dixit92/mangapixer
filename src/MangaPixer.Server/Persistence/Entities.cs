@@ -584,6 +584,13 @@ public sealed class ReaderPreferencesEntity
     /// gives every existing row true.
     /// </summary>
     public bool ShowRecommendationsHomeRow { get; set; } = true;
+
+    /// <summary>
+    /// Per-user order of the Home rows (1.54.0, migration AddHomeRowOrder): the row ids joined by commas, always normalized by
+    /// <see cref="com.lifepixer.mangapixer.Core.Reading.HomeRows"/>; null = the default order (every existing row and every user who never
+    /// reordered Home).
+    /// </summary>
+    public string? HomeRowOrder { get; set; }
 }
 
 /// <summary>
