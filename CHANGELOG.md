@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Admins: if you turned on Shared ratings in 1.53.0 and no averages appeared, turn it on again** (Administration > Shared ratings):
+  ticking the box only opens the question, and sharing starts when you press **Turn on shared ratings**. Before, the box looked ticked
+  while the question waited below the edge of the screen, so leaving the page turned nothing on. Now the box stays unticked until you
+  confirm, and the question scrolls into view with **Cancel** selected.
+
+### Added
+
+- **Reorder the home page.** Settings > **Home** lists the home page's rows - Continue reading, Recommended for you, Favorites, New
+  chapters and Libraries - with **Move up** / **Move down** and **Reset to default order**. Your order is saved for your account, so every
+  device shows the same home page. The switches that show or hide the Favorites and Recommended for you rows are in the same card now.
+
+### Changed
+
+- Settings: the **Ratings and recommendations** card is now **Shared ratings**; its "Recommended for you" switch moved to the new
+  **Home** card, and so did the Favorites card's "Favorites row" switch.
+
 ## [1.53.0] - 2026-11-11
 
 ### Added
