@@ -176,10 +176,14 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
   ],
   template: `
     <div class="reader-container">
-      <!-- 1.53.1: iPadOS 26 paints a Liquid Glass band under the status bar of a Home Screen web app, coloured from the fixed element at
-           the top edge. That was this container (the backdrop) while the bar showed - a dark glass over the bar. This strip is always
-           the colour drawn at the top - the bar's while the top bar shows, the backdrop's while it is hidden - so the band matches. -->
-      <div class="edge-tint" [class.chrome]="topChromeShown()" data-testid="reader-edge-tint" aria-hidden="true"></div>
+      <!-- 1.53.1: iPadOS 26 draws a Liquid Glass blur over the top of a Home Screen web app unless the point 4 px inside the top edge
+           hit-tests to an opaque, full-width, fixed box more than 10 px tall - then it uses that box's colour. The bar itself is in
+           flow (windowed) or absolute (fullscreen), so this strip in the bar's colour stands in for it while the bar is on screen.
+           It takes taps (it must, to count); it covers only the bar's top padding. While the controls are hidden in fullscreen the
+           page lies under the status bar, where no page can turn the blur off - nothing is drawn over the page then. -->
+      @if (topChromeShown()) {
+        <div class="edge-tint" data-testid="reader-edge-tint" aria-hidden="true"></div>
+      }
       <!-- Top chrome: the toolbar plus, on narrow screens, a one-line row with the archive's
            name. One wrapper carries the fullscreen overlay + auto-hide so both fade together. -->
       <div class="reader-top" [class.immersive]="isFullscreen()"
@@ -552,12 +556,11 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
       position: fixed; inset: 0;
       background: var(--mp-reader-backdrop); z-index: 1000;
     }
-    /* 1.53.1: see the template - a real element (a pseudo-element is not sampled), above the bar (1001), under the help overlay (1003). */
+    /* 1.53.1: see the template - a real, hit-testable element over 10 px tall, above the bar (1001), under the help overlay (1003). */
     .edge-tint {
-      position: fixed; top: 0; left: 0; right: 0; height: 8px; z-index: 1002; pointer-events: none;
-      background: var(--mp-reader-backdrop); transition: background-color .2s ease;
+      position: fixed; top: 0; left: 0; right: 0; height: 12px; z-index: 1002;
+      background: var(--mp-reader-chrome);
     }
-    .edge-tint.chrome { background: var(--mp-reader-chrome); }
     .reader-top {
       flex-shrink: 0;
       transition: transform .2s ease, opacity .2s ease;
@@ -847,7 +850,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
       to   { clip-path: inset(0 0 0 0); }
     }
     @media (prefers-reduced-motion: reduce) {
-      .reader-top, .progress-fill, .edge-tint { transition: none; }
+      .reader-top, .progress-fill { transition: none; }
       /* Fall back to an instant page swap when the reader prefers reduced motion,
          regardless of the chosen transition. !important so this reliably wins over
          the per-direction rules above, which are otherwise more specific. */
