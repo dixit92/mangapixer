@@ -190,6 +190,46 @@ test.describe('the Display menu on a short screen (1.47.0)', () => {
   }
 });
 
+/**
+ * What iPadOS 26 samples for the Liquid Glass band under the status bar of a Home Screen web app (1.53.1): the fixed or sticky,
+ * full-width, visible element with a background at the top edge - the last one in paint order. Null when there is none.
+ */
+async function topEdgeSample(page: Page): Promise<string | null> {
+  return page.evaluate(() => {
+    const hits = Array.from(document.querySelectorAll<HTMLElement>('body *')).filter((el) => {
+      const cs = getComputedStyle(el);
+      if ((cs.position !== 'fixed' && cs.position !== 'sticky') || cs.display === 'none') return false;
+      const r = el.getBoundingClientRect();
+      return r.top <= 4 && r.bottom > 0 && r.width >= window.innerWidth * 0.8 && cs.backgroundColor !== 'rgba(0, 0, 0, 0)';
+    });
+    return hits.length ? getComputedStyle(hits[hits.length - 1]).backgroundColor : null;
+  });
+}
+
+test.describe('the colour at the top edge (1.53.1, iPadOS 26 Liquid Glass band)', () => {
+  test.use({ viewport: { width: 1180, height: 820 }, hasTouch: true, isMobile: true });
+
+  test('what iPadOS samples at the top is the colour drawn there: the bar, in and out of fullscreen; the backdrop while hidden', async ({ page }) => {
+    await openReader(page);
+    const bar = await page.locator('.reader-toolbar').evaluate((el) => getComputedStyle(el).backgroundColor);
+    const backdrop = await page.locator('.reader-container').evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(bar).not.toBe(backdrop);
+    expect(await topEdgeSample(page), 'windowed: the bar').toBe(bar);
+
+    await page.getByRole('button', { name: 'Enter fullscreen' }).click();
+    await expect(page.locator('.reader-top.immersive')).toHaveCount(1);
+    await expect.poll(() => topEdgeSample(page), { message: 'fullscreen, controls shown: the bar' }).toBe(bar);
+
+    await page.locator('.tap-toggle').click();
+    await expect(page.locator('.reader-top.chrome-hidden')).toHaveCount(1);
+    await expect.poll(() => topEdgeSample(page), { message: 'fullscreen, controls hidden: the backdrop' }).toBe(backdrop);
+
+    await page.locator('.tap-toggle').click();
+    await expect(page.locator('.reader-top.chrome-hidden')).toHaveCount(0);
+    await expect.poll(() => topEdgeSample(page), { message: 'controls back: the bar' }).toBe(bar);
+  });
+});
+
 test.describe('double click / double tap in the centre', () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
