@@ -562,7 +562,12 @@
          error / empty states, an unknown address goes Home); Back after a closed menu no longer skips a page; SeriesInfoDto
          missingReportPossible; Magick.NET 15.1.0, SharpCompress 0.50.8, jsdom 31. Migration 61 AddCycle153Settings (additive);
          metadata consent unchanged (main 7 / automatic 5); worker protocol 6; OpenAPI 388 schemas (additive). -->
-    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
+    <!-- 1.53.1 - PATCH over 1.53.0 (2026-11-20, owner: "the most urgent fix", tested by the owner on an iPad): iPadOS 26 drew a Liquid
+         Glass blur over the top of the Home Screen web app (the reader's bar, the header). WebKit leaves it off only when the point 4 px
+         inside the top edge hit-tests to an opaque, full-width fixed box over 10 px tall: a 12 px strip in the bar's colour in the
+         reader (while its bar shows) and inside the shell header. Web client only; no migration; consents, worker protocol 6 and
+         OpenAPI 388 unchanged. -->
+    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->

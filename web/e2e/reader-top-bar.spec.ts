@@ -190,6 +190,57 @@ test.describe('the Display menu on a short screen (1.47.0)', () => {
   }
 });
 
+/**
+ * The iPadOS 26 Liquid Glass band under the status bar of a Home Screen web app (1.53.1): WebKit leaves it off only when the point
+ * 4 px inside the top edge hit-tests to an opaque, full-width, fixed or sticky box more than 10 px tall - and that box's colour is what
+ * the band shows (public reports, one confirmed on a device; a `pointer-events: none` overlay or an 8 px strip does not count - the first
+ * 1.53.1 build failed on an iPad that way). Returns that box's colour, or why there is none.
+ */
+async function topEdgeBox(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    // The box hit there must itself be fixed or sticky: a fixed ancestor does not count (the reader's full-screen container is fixed
+    // too, and the device still blurred over the bar in it).
+    const el = document.elementFromPoint(window.innerWidth / 2, 4) as HTMLElement | null;
+    if (!el || !['fixed', 'sticky'].includes(getComputedStyle(el).position)) {
+      return `the top edge hits ${el ? `<${el.tagName.toLowerCase()} class="${el.className}">` : 'nothing'}, not a fixed or sticky box`;
+    }
+    const cs = getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    if (r.top > 0 || r.height <= 10 || r.width < window.innerWidth * 0.8) return `box too small: ${r.width}x${r.height} at ${r.top}`;
+    const alpha = /rgba\([^)]*,\s*([\d.]+)\)/.exec(cs.backgroundColor);
+    if (alpha && Number(alpha[1]) < 1) return `box not opaque: ${cs.backgroundColor}`;
+    return cs.backgroundColor;
+  });
+}
+
+test.describe('the top edge for the iPadOS 26 Liquid Glass band (1.53.1)', () => {
+  test.use({ viewport: { width: 1180, height: 820 }, hasTouch: true, isMobile: true });
+
+  test('reader: an opaque fixed box in the bar\'s colour takes the top edge, windowed and in fullscreen with the controls', async ({ page }) => {
+    await openReader(page);
+    const bar = await page.locator('.reader-toolbar').evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(await topEdgeBox(page), 'windowed').toBe(bar);
+    await page.getByRole('button', { name: 'Enter fullscreen' }).click();
+    await expect(page.locator('.reader-top.immersive')).toHaveCount(1);
+    await expect.poll(() => topEdgeBox(page), { message: 'fullscreen, controls shown' }).toBe(bar);
+    // Hidden controls in fullscreen: the page lies under the status bar there, where (per the reports) no page can turn the band off;
+    // nothing is drawn over the page's top edge.
+    await page.locator('.tap-toggle').click();
+    await expect(page.locator('.reader-top.chrome-hidden')).toHaveCount(1);
+    await expect(page.getByTestId('reader-edge-tint')).toHaveCount(0);
+    await page.locator('.tap-toggle').click();
+    await expect(page.locator('.reader-top.chrome-hidden')).toHaveCount(0);
+    await expect.poll(() => topEdgeBox(page), { message: 'controls back' }).toBe(bar);
+  });
+
+  test('library pages: an opaque fixed box in the header\'s colour takes the top edge', async ({ page }) => {
+    await login(page);
+    await page.goto('/');
+    const header = await page.locator('app-layout mat-toolbar').first().evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(await topEdgeBox(page)).toBe(header);
+  });
+});
+
 test.describe('double click / double tap in the centre', () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 

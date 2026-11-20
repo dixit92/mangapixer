@@ -53,6 +53,10 @@ import { WhatsNewService } from '../features/whats-new/whats-new.service';
   ],
   template: `
     <mat-toolbar color="primary">
+      <!-- 1.53.1: iPadOS 26 draws a Liquid Glass blur over the top of a Home Screen web app unless the point 4 px inside the top edge
+           hit-tests to an opaque, full-width, fixed box more than 10 px tall. This header scrolls with the page, so a strip that stays
+           at the top in the header's own colour (inherited) stands in for it; it covers only the header's top padding. -->
+      <div class="edge-strip" aria-hidden="true"></div>
       @if (auth.isAuthenticated() && isPhone() && showSidebar()) {
         <button mat-icon-button class="mobile-nav-btn" (click)="toggleLibraryNav()"
                 [attr.aria-label]="onLibraryNav() ? 'Close library navigation' : 'Open library navigation'"
@@ -175,6 +179,7 @@ import { WhatsNewService } from '../features/whats-new/whats-new.service';
     .brand-text { position: relative; top: -2px; }
     .spacer { flex: 1 1 auto; }
     /* The page the link points to: a soft pill behind it (also on the icon buttons), on top of aria-current. */
+    .edge-strip { position: fixed; top: 0; left: 0; right: 0; height: 12px; z-index: 999; background-color: inherit; }
     .nav-link.active-link { background: rgb(var(--mp-ink-rgb) / 0.16); }
     /* Phones (390px): menu + brand + two text links + the account button overflowed the toolbar by ~12px, so every
        page scrolled sideways and the account button was clipped; the links are icon buttons now, so only the gap
