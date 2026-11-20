@@ -6,7 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-## [1.53.0] - 2026-11-11
+## [1.53.1] - 2026-11-20
+
+### Fixed
+
+- **iPad and iPhone Home Screen app: the blur over the top of the screen is gone.** Since the iPadOS 26 / iOS 26 update, a frosted
+  "glass" band covered the top of the reader's bar and the page header (the search field and buttons looked blurred). The top of
+  MangaPixer now gives the system a solid bar to match, so it no longer blurs it - on Home, in the library and in the reader in every
+  reading mode. Nothing to do: open the app again after the update; no need to add it to the Home Screen again.
+
 
 ### Added
 
