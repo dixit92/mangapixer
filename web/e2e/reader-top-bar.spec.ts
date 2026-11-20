@@ -198,9 +198,12 @@ test.describe('the Display menu on a short screen (1.47.0)', () => {
  */
 async function topEdgeBox(page: Page): Promise<string> {
   return page.evaluate(() => {
-    let el = document.elementFromPoint(window.innerWidth / 2, 4) as HTMLElement | null;
-    while (el && !['fixed', 'sticky'].includes(getComputedStyle(el).position)) el = el.parentElement;
-    if (!el) return 'no fixed or sticky box at the top edge';
+    // The box hit there must itself be fixed or sticky: a fixed ancestor does not count (the reader's full-screen container is fixed
+    // too, and the device still blurred over the bar in it).
+    const el = document.elementFromPoint(window.innerWidth / 2, 4) as HTMLElement | null;
+    if (!el || !['fixed', 'sticky'].includes(getComputedStyle(el).position)) {
+      return `the top edge hits ${el ? `<${el.tagName.toLowerCase()} class="${el.className}">` : 'nothing'}, not a fixed or sticky box`;
+    }
     const cs = getComputedStyle(el);
     const r = el.getBoundingClientRect();
     if (r.top > 0 || r.height <= 10 || r.width < window.innerWidth * 0.8) return `box too small: ${r.width}x${r.height} at ${r.top}`;
