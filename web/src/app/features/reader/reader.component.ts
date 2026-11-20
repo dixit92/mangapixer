@@ -176,6 +176,14 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
   ],
   template: `
     <div class="reader-container">
+      <!-- 1.53.1: iPadOS 26 draws a Liquid Glass blur over the top of a Home Screen web app unless the point 4 px inside the top edge
+           hit-tests to an opaque, full-width, fixed box more than 10 px tall - then it uses that box's colour. The bar itself is in
+           flow (windowed) or absolute (fullscreen), so this strip in the bar's colour stands in for it while the bar is on screen.
+           It takes taps (it must, to count); it covers only the bar's top padding. While the controls are hidden in fullscreen the
+           page lies under the status bar, where no page can turn the blur off - nothing is drawn over the page then. -->
+      @if (topChromeShown()) {
+        <div class="edge-tint" data-testid="reader-edge-tint" aria-hidden="true"></div>
+      }
       <!-- Top chrome: the toolbar plus, on narrow screens, a one-line row with the archive's
            name. One wrapper carries the fullscreen overlay + auto-hide so both fade together. -->
       <div class="reader-top" [class.immersive]="isFullscreen()"
@@ -547,6 +555,11 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
       display: flex; flex-direction: column;
       position: fixed; inset: 0;
       background: var(--mp-reader-backdrop); z-index: 1000;
+    }
+    /* 1.53.1: see the template - a real, hit-testable element over 10 px tall, above the bar (1001), under the help overlay (1003). */
+    .edge-tint {
+      position: fixed; top: 0; left: 0; right: 0; height: 12px; z-index: 1002;
+      background: var(--mp-reader-chrome);
     }
     .reader-top {
       flex-shrink: 0;
@@ -981,6 +994,8 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   // reveal on interaction, matching well-known manga readers. `chromeVisible`
   // drives both; `menuOpen`/`toolbarHover` lock it visible mid-interaction.
   readonly chromeVisible = signal(true);
+  /** 1.53.1: the top bar is on screen - always when windowed; in fullscreen while the controls show (the edge strip's colour). */
+  readonly topChromeShown = computed(() => !this.isFullscreen() || this.chromeVisible());
   readonly menuOpen = signal(false);
   readonly toolbarHover = signal(false);
   readonly progressPct = computed(() =>
