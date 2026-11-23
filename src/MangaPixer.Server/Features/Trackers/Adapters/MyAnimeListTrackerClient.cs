@@ -28,8 +28,24 @@ using com.lifepixer.mangapixer.Server.Logging;
 /// <item>1.43.0 "Check my list": the user's whole list, paged (<see cref="ReadListPageAsync"/>).</item>
 /// </list>
 /// </summary>
-public sealed class MyAnimeListTrackerClient : ITrackerClient, ITrackerDates, ITrackerListReader, ITrackerScores
+/// <summary>1.54.0: one MyAnimeList entry's community score - its mean (0-10; null = not rated or not found) and its scoring users.</summary>
+public sealed record MalCommunityScore(double? Mean, int? ScoringUsers);
+
+/// <summary>
+/// 1.54.0 (community scores): MyAnimeList's public mean score of a manga by its MyAnimeList id, read with the app an admin registered (its
+/// client id in <c>X-MAL-CLIENT-ID</c>) - no user, no token. A seam so the score pass can be tested without HTTP.
+/// </summary>
+public interface IMalCommunityScores
 {
+    /// <summary>The score; null without a client id or a valid id (nothing sent). Throws <see cref="TrackerException"/> on a failure.</summary>
+    Task<MalCommunityScore?> CommunityScoreAsync(TrackerAppSettings app, string malId, CancellationToken ct);
+}
+
+public sealed class MyAnimeListTrackerClient : ITrackerClient, ITrackerDates, ITrackerListReader, ITrackerScores, IMalCommunityScores
+{
+    /// <summary>1.54.0: the fixed fields of the community-score request.</summary>
+    public const string CommunityScoreFields = "mean,num_scoring_users";
+
     public const string AuthorizeUrl = "https://" + TrackerHttp.MyAnimeListSiteHost + "/v1/oauth2/authorize";
     public const string TokenUrl = "https://" + TrackerHttp.MyAnimeListSiteHost + "/v1/oauth2/token";
     public const string ApiBase = "https://" + TrackerHttp.MyAnimeListApiHost + "/v2/";
@@ -392,6 +408,31 @@ public sealed class MyAnimeListTrackerClient : ITrackerClient, ITrackerDates, IT
             ? _time.GetUtcNow().AddSeconds(seconds)
             : (DateTimeOffset?)null;
         return new TrackerTokens(access, Str(root, "refresh_token") is { Length: > 0 } next ? next : refresh, expiresAt);
+    }
+
+    /// <summary>
+    /// 1.54.0: exactly <c>GET /v2/manga/{id}?fields=mean,num_scoring_users</c> with the app's client id in <c>X-MAL-CLIENT-ID</c> and the fixed
+    /// <c>User-Agent</c> - no <c>Authorization</c>, no user, nothing else. A 404 is "no score" (the id is gone).
+    /// </summary>
+    public async Task<MalCommunityScore?> CommunityScoreAsync(TrackerAppSettings app, string malId, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(app);
+        if (string.IsNullOrWhiteSpace(app.ClientId) || !TrackerFacts.IsValidRemoteId(malId))
+            return null;
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"{ApiBase}manga/{malId}?fields={CommunityScoreFields}");
+        request.Headers.TryAddWithoutValidation("X-MAL-CLIENT-ID", app.ClientId.Trim());
+        using var response = await SendAsync(request, "community-score", ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return new MalCommunityScore(null, null);
+        if (!response.IsSuccessStatusCode)
+            throw Failure(response);
+        using var json = await TrackerHttp.ReadJsonAsync(response, ct);
+        var root = json.RootElement;
+        double? mean = root.TryGetProperty("mean", out var m) && m.ValueKind == JsonValueKind.Number && m.TryGetDouble(out var value)
+            && value is > 0 and <= 10 ? value : null;
+        int? users = mean is not null && root.TryGetProperty("num_scoring_users", out var u) && u.ValueKind == JsonValueKind.Number
+            && u.TryGetInt32(out var n) && n > 0 ? n : null;
+        return new MalCommunityScore(mean, users);
     }
 
     private Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, string operation, CancellationToken ct) =>

@@ -18,6 +18,7 @@ public static class TrackerAdapterServicesExtensions
         services.TryAddSingleton<TrackerPacing>();
         services.TryAddSingleton<ITrackerDatesMemory, JobRunTrackerDatesMemory>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ITrackerClient, MyAnimeListTrackerClient>());
+        services.TryAddSingleton<IMalCommunityScores, MyAnimeListTrackerClient>(); // 1.54.0: community scores (the admin's app, no user)
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ITrackerClient, MangaUpdatesTrackerClient>());
         AddTrackerClient(services, TrackerHttp.MyAnimeListClient, TrackerHttp.MyAnimeListApiHost, TrackerHttp.MyAnimeListSiteHost);
         AddTrackerClient(services, TrackerHttp.MangaUpdatesClient, MetadataHttp.MangaUpdatesApiHost);

@@ -438,6 +438,12 @@ public sealed record NodeSeriesLinkChangeDto
 }
 
 /// <summary>Purge scope: null library = everything.</summary>
+/// <summary>1.54.0: "Delete stored MyAnimeList scores" - how many records held one.</summary>
+public sealed record MalScoresDeletedDto
+{
+    public int Records { get; init; }
+}
+
 public sealed record MetadataPurgeRequest
 {
     public string? LibraryId { get; init; }
