@@ -16,9 +16,19 @@ using com.lifepixer.mangapixer.Core.Metadata.Facets;
 /// Each pick carries its <see cref="ReasonSpec"/>: the largest contributor - the relation when its bonus is at least the cosine part,
 /// else the top shared value: a creator gives "Same author", anything else the seed sharing the most with the pick and the top two
 /// non-creator values they share.
+/// 1.54.0 (community scores, owner q5 "Yes"): a candidate's community score (<see cref="RecommendationIndex.CommunityScores"/>) is a weak
+/// QUALITY PRIOR - <c>score x (1 + <see cref="QualityPriorWeight"/> x q)</c>, q the score's distance from the candidates' median in standard
+/// deviations, clipped to -1..1 (0 when unknown) - so it breaks near-ties and never lifts a poor taste match (it multiplies). And a
+/// COLD START (<see cref="ColdStart"/>): without seeds, the best-rated candidates, "Well rated on MangaUpdates: 9.0".
 /// </summary>
 public static class RecommendationScorer
 {
+    /// <summary>1.54.0: the most the community score moves a pick's score (+/- 15 %).</summary>
+    public const double QualityPriorWeight = 0.15;
+
+    /// <summary>1.54.0: below this many scored candidates (or with no spread) there is no prior.</summary>
+    public const int QualityPriorMinCandidates = 3;
+
     /// <summary>The lowest score a pick may have (below it the row would show noise).</summary>
     public const double Floor = 0.05;
 
@@ -34,13 +44,14 @@ public static class RecommendationScorer
     /// </summary>
     public sealed record Seed(IReadOnlyList<int> Values, double Weight, long? RecordId, int? Work);
 
-    public enum ReasonKind { Creator, SharedValues, Relation }
+    public enum ReasonKind { Creator, SharedValues, Relation, CommunityScore }
 
     /// <summary>
     /// Why a pick appears: the seed it names (index into the seed list; null for a creator), the values (value ids) it names, and for a
     /// relation the relation word and its direction.
     /// </summary>
-    public sealed record ReasonSpec(ReasonKind Kind, int? SeedIndex, IReadOnlyList<long> ValueIds, string? Relation = null, bool SeedListsPick = false);
+    public sealed record ReasonSpec(ReasonKind Kind, int? SeedIndex, IReadOnlyList<long> ValueIds, string? Relation = null, bool SeedListsPick = false,
+        double? CommunityScore = null, string? CommunitySource = null);
 
     public sealed record Pick(int Work, double Score, ReasonSpec Reason);
 
@@ -112,13 +123,14 @@ public static class RecommendationScorer
             }
         }
 
+        var prior = QualityPrior(index, isCandidate);
         var scored = new List<(int Work, double Score, double Cosine)>();
         foreach (var w in reachedList.Union(bonus.Keys))
         {
             if (!isCandidate(w))
                 continue;
             var cosine = reached[w] && index.WorkNorms[w] > 0 ? dot[w] / (profileNorm * index.WorkNorms[w]) : 0;
-            var total = cosine + (bonus.TryGetValue(w, out var b) ? b.Value : 0);
+            var total = (cosine + (bonus.TryGetValue(w, out var b) ? b.Value : 0)) * (1 + QualityPriorWeight * prior(w));
             if (total >= Floor)
                 scored.Add((w, total, cosine));
         }
@@ -199,6 +211,51 @@ public static class RecommendationScorer
     /// The words of a relation reason, from the PICK's side: "Sequel of" when the seed lists the pick as its sequel, or the pick lists the
     /// seed as its prequel; "Related to" for any relation without a clear reading.
     /// </summary>
+    /// <summary>
+    /// 1.54.0: q of a candidate - its community score's distance from the median of the scored candidates, in standard deviations, clipped
+    /// to -1..1; 0 without a score, or when fewer than <see cref="QualityPriorMinCandidates"/> candidates have one or they barely differ.
+    /// </summary>
+    public static Func<int, double> QualityPrior(RecommendationIndex index, Func<int, bool> isCandidate)
+    {
+        var scores = new List<double>();
+        for (var w = 0; w < index.CommunityScores.Length; w++)
+        {
+            if (index.CommunityScores[w] is { } s && isCandidate(w))
+                scores.Add(s);
+        }
+        if (scores.Count < QualityPriorMinCandidates)
+            return _ => 0;
+        scores.Sort();
+        var median = scores.Count % 2 == 1 ? scores[scores.Count / 2] : (scores[(scores.Count / 2) - 1] + scores[scores.Count / 2]) / 2;
+        var mean = scores.Average();
+        var spread = Math.Sqrt(scores.Sum(s => (s - mean) * (s - mean)) / scores.Count);
+        if (spread < 1e-6)
+            return _ => 0;
+        return w => w < index.CommunityScores.Length && index.CommunityScores[w] is { } s ? Math.Clamp((s - median) / spread, -1, 1) : 0;
+    }
+
+    /// <summary>
+    /// 1.54.0 (the cold start): the candidates with a community score, best first (ties to the lower work id), at most
+    /// <paramref name="limit"/>, each with the <see cref="ReasonKind.CommunityScore"/> reason. Empty when no candidate has a score.
+    /// </summary>
+    public static IReadOnlyList<Pick> ColdStart(RecommendationIndex index, Func<int, bool> isCandidate, int limit)
+    {
+        limit = Math.Clamp(limit, 1, MaxLimit);
+        var picks = new List<(int Work, double Score)>();
+        for (var w = 0; w < index.CommunityScores.Length; w++)
+        {
+            if (index.CommunityScores[w] is { } s && isCandidate(w))
+                picks.Add((w, s));
+        }
+        return picks
+            .OrderByDescending(p => p.Score)
+            .ThenBy(p => index.WorkIds[p.Work])
+            .Take(limit)
+            .Select(p => new Pick(p.Work, p.Score, new ReasonSpec(ReasonKind.CommunityScore, null, [],
+                CommunityScore: p.Score, CommunitySource: index.CommunityScoreSources[p.Work] ?? "the web")))
+            .ToList();
+    }
+
     public static string RelationWords(string relation, bool seedListsPick)
     {
         var r = relation.Trim().ToLowerInvariant();

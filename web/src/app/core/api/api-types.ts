@@ -4286,7 +4286,7 @@ export interface WhatsNewInlineDto {
 }
 
 /** What a recommendation's reason is about (1.53.0). */
-export type RecommendationReasonKind = 'Creator' | 'SharedValues' | 'Relation';
+export type RecommendationReasonKind = 'Creator' | 'SharedValues' | 'Relation' | 'CommunityScore';
 
 /** Why a pick appears (1.53.0): one line - "Same author: ...", "Like <series>: horror, school life", "Sequel of <series>". */
 export interface RecommendationReasonDto {

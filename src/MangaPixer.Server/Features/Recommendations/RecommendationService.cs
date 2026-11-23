@@ -143,6 +143,10 @@ public sealed class RecommendationService
     /// <summary>A node the viewer signalled, mapped to the work location at it or its nearest ancestor (internal ids).</summary>
     private sealed record Signal(int Kind, long NodeId, int Score);
 
+    /// <summary>1.54.0: below this many positive seeds the cold start fills the Home row (owner design: "as soon as there are 3 seeds the
+    /// content row takes over").</summary>
+    internal const int ColdStartSeeds = 3;
+
     private async Task<(List<PickedNode> Picks, int Seeds)> ScoreHomeAsync(
         RecommendationIndex index, FacetViewerScope scope, long userId, HashSet<long> excludedLibraries, int limit, CancellationToken ct)
     {
@@ -156,8 +160,13 @@ public sealed class RecommendationService
             UNION ALL SELECT 2, ItemId, 0 FROM read_marks WHERE UserId = @u
             UNION ALL SELECT 3, ItemId, 0 FROM reading_progress WHERE UserId = @u
             """, new Dictionary<string, object?> { ["@u"] = userId }, r => new Signal(r.GetInt32(0), r.GetInt64(1), r.GetInt32(2)), ct);
+        int NodeOf(int w) => index.Locations[w].First(l => !excludedLibraries.Contains(l.LibraryId)).NodeId;
         if (signals.Count == 0)
-            return ([], 0);
+        {
+            // 1.54.0: a viewer with no signal yet gets the best community-rated series (the cold start), not an empty row.
+            bool Visible(int w) => index.Locations[w].Any(l => !excludedLibraries.Contains(l.LibraryId));
+            return (await ReasonsAsync(index, [], RecommendationScorer.ColdStart(index, Visible, limit), similar: false, NodeOf, ct), 0);
+        }
 
         var locationOf = await NearestLocationsAsync(userId, ct);
 
@@ -213,14 +222,18 @@ public sealed class RecommendationService
             if (Math.Abs(weight) > 1e-12)
                 seeds.Add(new RecommendationScorer.Seed(index.WorkValues[work], weight, index.RecordIds[work], work));
         }
-        if (!seeds.Any(s => s.Weight > 0))
-            return ([], seeds.Count);
-
         var known = ratingWeights.Keys.Concat(favorite).Concat(touched).ToHashSet();
         bool IsCandidate(int w) => !known.Contains(w) && index.Locations[w].Any(l => !excludedLibraries.Contains(l.LibraryId));
-        var scored = RecommendationScorer.Score(index, seeds, IsCandidate, limit);
-        var picks = await ReasonsAsync(index, seeds, scored, similar: false,
-            w => index.Locations[w].First(l => !excludedLibraries.Contains(l.LibraryId)).NodeId, ct);
+        var positive = seeds.Count(s => s.Weight > 0);
+        IReadOnlyList<RecommendationScorer.Pick> scored = positive == 0 ? [] : RecommendationScorer.Score(index, seeds, IsCandidate, limit);
+        // 1.54.0 (the cold start): with fewer than ColdStartSeeds positive seeds, the best community-rated series fill the row after the
+        // taste picks (all of it with none); from ColdStartSeeds on, the taste row stands alone.
+        if (positive < ColdStartSeeds && scored.Count < limit)
+        {
+            var taken = scored.Select(p => p.Work).ToHashSet();
+            scored = [.. scored, .. RecommendationScorer.ColdStart(index, w => IsCandidate(w) && !taken.Contains(w), limit - scored.Count)];
+        }
+        var picks = await ReasonsAsync(index, seeds, scored, similar: false, NodeOf, ct);
         return (picks, seeds.Count);
     }
 
@@ -447,6 +460,11 @@ public sealed class RecommendationService
                 {
                     Kind = RecommendationReasonKind.Creator,
                     Display = names.Count > 0 ? $"Same author: {names[0]}" : "Same author",
+                },
+                RecommendationScorer.ReasonKind.CommunityScore => new RecommendationReasonDto
+                {
+                    Kind = RecommendationReasonKind.CommunityScore,
+                    Display = string.Create(CultureInfo.InvariantCulture, $"Well rated on {spec.CommunitySource}: {spec.CommunityScore:0.0}"),
                 },
                 _ => new RecommendationReasonDto
                 {

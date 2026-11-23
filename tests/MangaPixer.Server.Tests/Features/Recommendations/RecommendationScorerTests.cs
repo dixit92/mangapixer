@@ -32,7 +32,7 @@ public sealed class RecommendationScorerTests
         (5, G2, FacetBucket.Genres), (6, G2, FacetBucket.Genres),
     ];
 
-    private static RecommendationIndex Index(bool shuffle = false, bool incoming = false)
+    private static RecommendationIndex Index(bool shuffle = false, bool incoming = false, IReadOnlyDictionary<long, double>? scores = null)
     {
         var entries = Rows.Select(r => new RecommendationIndex.EntryRow(r.Work, 1000 + r.Work, 1, r.Value, (int)r.Bucket)).ToList();
         if (shuffle)
@@ -49,6 +49,14 @@ public sealed class RecommendationScorerTests
                 new RecommendationIndex.RecordRow(1, R1, [(R6, "sequel")]),
                 new RecommendationIndex.RecordRow(6, R6, []),
             };
+        if (scores is not null)
+        {
+            // 1.54.0: community scores ride on the record rows (works 2-5 get a record of their own to carry one).
+            var withScores = records.Select(r => r with { CommunityScore = scores.GetValueOrDefault(r.WorkId), CommunityScoreSource = "MangaUpdates" }).ToList();
+            foreach (var w in new long[] { 2, 3, 4, 5 }.Where(scores.ContainsKey))
+                withScores.Add(new RecommendationIndex.RecordRow(w, 9000 + w, [], scores[w], "MangaUpdates"));
+            return RecommendationIndex.Build(entries, locations, withScores);
+        }
         return RecommendationIndex.Build(entries, locations, records);
     }
 
@@ -256,4 +264,60 @@ public sealed class RecommendationScorerTests
     [InlineData("doujinshi", false, "Related to")]
     public void RelationWords_ReadFromThePicksSide(string relation, bool seedListsPick, string words) =>
         Assert.Equal(words, RecommendationScorer.RelationWords(relation, seedListsPick));
+
+    // --- 1.54.0 community scores: the quality prior and the cold start ---
+
+    private static int W(RecommendationIndex index, long workId) => index.TryWork(workId, out var w) ? w : -1;
+
+    private static readonly Dictionary<long, double> Scores = new() { [2] = 8.0, [3] = 7.0, [4] = 9.5, [5] = 6.0, [6] = 9.0 };
+
+    [Fact]
+    public void QualityPrior_BreaksANearTie_ButNeverLiftsAPoorMatch()
+    {
+        var plain = Index();
+        var before = RecommendationScorer.Score(plain, [SeedOf(plain, 1, 1.0)], w => plain.WorkIds[w] != 1, 10);
+        Assert.Equal([2L, 3, 6, 4], before.Select(p => WorkId(plain, p)));
+
+        var index = Index(scores: Scores);
+        var after = RecommendationScorer.Score(index, [SeedOf(index, 1, 1.0)], w => index.WorkIds[w] != 1, 10);
+
+        // Candidates' scores 6, 7, 8, 9, 9.5: median 8, spread 1.28. W6 (9.0, +0.78) now passes W3 (7.0, -0.78); W4 (9.5, clipped to +1) gains
+        // 15 % and stays far below; W2 (the median) does not move; W5 (nothing in common) is still not picked.
+        Assert.Equal([2L, 6, 3, 4], after.Select(p => WorkId(index, p)));
+        Assert.Equal(0.861, after[0].Score, 3);
+        Assert.Equal(0.559, after[1].Score, 3);
+        Assert.Equal(0.449, after[2].Score, 3);
+        Assert.Equal(0.313, after[3].Score, 3);
+        Assert.All(after, p => Assert.NotEqual(RecommendationScorer.ReasonKind.CommunityScore, p.Reason.Kind));
+    }
+
+    [Fact]
+    public void QualityPrior_NeedsThreeScoredCandidates_AndSomeSpread()
+    {
+        var two = Index(scores: new Dictionary<long, double> { [3] = 7.0, [6] = 9.0 });
+        Assert.Equal(0, RecommendationScorer.QualityPrior(two, _ => true)(W(two, 6)));
+        var flat = Index(scores: new Dictionary<long, double> { [3] = 8.0, [4] = 8.0, [6] = 8.0 });
+        Assert.Equal(0, RecommendationScorer.QualityPrior(flat, _ => true)(W(flat, 6)));
+    }
+
+    [Fact]
+    public void ColdStart_ListsTheBestRatedCandidates_WithTheirSourceAsTheReason()
+    {
+        var index = Index(scores: Scores);
+        var picks = RecommendationScorer.ColdStart(index, w => index.WorkIds[w] != 4, 3);
+
+        Assert.Equal([6L, 2, 3], picks.Select(p => WorkId(index, p))); // 9.5 (W4) is not a candidate
+        Assert.All(picks, p => Assert.Equal(RecommendationScorer.ReasonKind.CommunityScore, p.Reason.Kind));
+        Assert.Equal((9.0, "MangaUpdates"), (picks[0].Reason.CommunityScore!.Value, picks[0].Reason.CommunitySource));
+        Assert.Empty(RecommendationScorer.ColdStart(Index(), _ => true, 10)); // no scores: nothing
+    }
+
+    [Fact]
+    public void TheRecommendationScore_IsMangaUpdates_ElseMangaDex_NeverMyAnimeList()
+    {
+        Assert.Equal((8.9, "MangaUpdates"), RecommendationIndexCache.CommunityScoreOf("mangaupdates", 8.9, 7.0));
+        Assert.Equal((7.0, "MangaDex"), RecommendationIndexCache.CommunityScoreOf("mangaupdates", null, 7.0));
+        Assert.Equal((7.5, "MangaDex"), RecommendationIndexCache.CommunityScoreOf("mangadex", 7.5, null));
+        Assert.Null(RecommendationIndexCache.CommunityScoreOf("gcd", null, null));
+    }
 }

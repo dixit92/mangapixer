@@ -35,6 +35,9 @@ public enum RecommendationReasonKind
 
     /// <summary>"Sequel of &lt;series&gt;", "Side story of ...", "Related to ..." - the linked records name each other.</summary>
     Relation,
+
+    /// <summary>1.54.0: "Well rated on MangaUpdates: 9.0" - the cold start (fewer than 3 seeds): the best community-rated series.</summary>
+    CommunityScore,
 }
 
 /// <summary>

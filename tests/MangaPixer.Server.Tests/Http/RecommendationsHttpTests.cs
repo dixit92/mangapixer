@@ -275,6 +275,29 @@ public sealed class RecommendationsHttpTests
     }
 
     [Fact]
+    public async Task Home_ForAViewerWithoutSignals_ListsTheBestCommunityRatedSeries_WithTheirSource()
+    {
+        // 1.54.0 (the cold start): reader B has no signal. Before, the row was empty; with community scores it lists the best-rated series
+        // B can see, "Well rated on MangaUpdates: 9.0".
+        var w = await SeedAsync();
+        await using var _ = w.Factory;
+        Assert.Empty((await HomeAsync(w.B.Client)).Items);
+        await w.S.WithDbAsync(async db =>
+        {
+            foreach (var r in await db.MetadataRecords.Where(r => r.ExternalId == "5001" || r.ExternalId == "6001").ToListAsync())
+                (r.CommunityScore, r.CommunityScoreAt) = (r.ExternalId == "5001" ? 8.98 : 7.04, DateTimeOffset.UtcNow);
+            return await db.SaveChangesAsync();
+        });
+        w.S.Bump(); // a new index (the scores are read with it)
+
+        var home = await HomeAsync(w.B.Client);
+
+        Assert.Equal(["rcW1", "rcW5"], Ids(home));
+        Assert.Equal(["Well rated on MangaUpdates: 9.0", "Well rated on MangaUpdates: 7.0"], home.Items.Select(i => i.Reason.Display));
+        Assert.All(home.Items, i => Assert.Equal(RecommendationReasonKind.CommunityScore, i.Reason.Kind));
+    }
+
+    [Fact]
     public async Task SeriesInformationHidden_EmptiesBothAnswers()
     {
         var w = await SeedAsync();
