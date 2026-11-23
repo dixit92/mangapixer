@@ -86,6 +86,7 @@ export class JumpBackButtonComponent {
       display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 0;
       border-radius: 50%; background: transparent; color: var(--mp-reader-text-secondary); cursor: pointer;
     }
+    button { -webkit-tap-highlight-color: transparent; }
     button:focus-visible { outline: 2px solid var(--mp-accent-strong); outline-offset: 1px; }
     .short { display: none; }
     @media (max-width: 599.98px) {
