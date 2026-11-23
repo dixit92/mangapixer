@@ -174,6 +174,7 @@ public sealed class CommunityScorePassTests : IAsyncLifetime
             var record = await _t.AddRecordAsync(external, "Record " + external);
             record.OriginStatus = (int)MetadataOriginStatus.Ongoing;
             record.FetchedAt = Now - TimeSpan.FromDays(3);
+            record.CommunityScoreAt = null; // fetched before 1.54.0
             await _t.Db.SaveChangesAsync();
             await _t.AddLinkAsync(folder, record, SeriesLinkState.Confirmed);
             _h.Auto.Records[long.Parse(external, System.Globalization.CultureInfo.InvariantCulture)] =
