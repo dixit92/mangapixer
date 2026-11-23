@@ -7,7 +7,8 @@ using com.lifepixer.mangapixer.Server.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>What one tick of the new-chapter checks did (null = that step was not due or waited for the gate).</summary>
-public sealed record NewChapterTickResult(LatestUploadSweepResult? Sweep, ReleasesFeedResult? Feed, int BackfillLists, RefreshPassResult? DuePass);
+public sealed record NewChapterTickResult(LatestUploadSweepResult? Sweep, ReleasesFeedResult? Feed, int BackfillLists, RefreshPassResult? DuePass,
+    CommunityScorePassResult? Scores = null, MalScorePassResult? MalScores = null);
 
 /// <summary>
 /// One tick of the new-chapter checks (1.45.0, lane R), run by <see cref="Hosting.MetadataAutoMatchHostedService"/> on its minute tick
@@ -17,7 +18,7 @@ public sealed record NewChapterTickResult(LatestUploadSweepResult? Sweep, Releas
 /// </summary>
 public sealed class NewChapterChecksRunner(
     MangaPixerDbContext db, LatestUploadSweep sweep, ReleasesFeedPoll feed, ReadableBackfill backfill, MetadataRefreshService refresh,
-    TimeProvider time, ILogger<NewChapterChecksRunner> logger)
+    CommunityScorePass scores, MalScorePass malScores, TimeProvider time, ILogger<NewChapterChecksRunner> logger)
 {
     public async Task<NewChapterTickResult> RunTickAsync(CancellationToken ct = default)
     {
@@ -25,7 +26,10 @@ public sealed class NewChapterChecksRunner(
         var feedResult = await StepAsync("feed", async () => await feed.IsDueAsync(ct) ? await feed.RunAsync(ct) : null);
         var lists = await StepAsync("backfill", async () => (int?)await backfill.RunIfDueAsync(ct)) ?? 0;
         var pass = await StepAsync("due-pass", async () => await DuePassDueAsync(feedResult is { Matched: > 0 }, ct) ? await RunDuePassAsync(ct) : null);
-        return new NewChapterTickResult(sweepResult, feedResult, lists, pass);
+        // 1.54.0: the MangaDex community scores of the same records, every few hours (most passes find nothing stale).
+        var scoreResult = await StepAsync("community-scores", async () => await scores.IsDueAsync(ct) ? await scores.RunAsync(ct) : null);
+        var malResult = await StepAsync("mal-scores", async () => await malScores.IsDueAsync(ct) ? await malScores.RunAsync(ct) : null);
+        return new NewChapterTickResult(sweepResult, feedResult, lists, pass, scoreResult, malResult);
     }
 
     /// <summary>True when the last refresh pass (the daily job or one of these) started at least <see cref="NewChapterChecks.DuePassInterval"/> ago.</summary>

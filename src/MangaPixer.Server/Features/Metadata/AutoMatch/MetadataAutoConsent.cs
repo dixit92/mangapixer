@@ -13,11 +13,13 @@ using com.lifepixer.mangapixer.Core.Metadata.AutoMatch;
 /// comics go to the Grand Comics Database first (cleaned names + a start year, the transient cover comparison of its two
 /// closest series) and Wikipedia volume -> chapter lists for linked series (owner-approved text, 2026-10-02). v5 (1.42.0): a work no site
 /// found a candidate close enough to review for is searched on MangaDex by the same cleaned name - only ever proposed in Needs review
-/// (owner-approved text, 2026-10-12).
+/// (owner-approved text, 2026-10-12). v6 (1.54.0, owner "Bump, ship all three", 2026-11-23): community scores - MangaDex statistics of
+/// linked records by id, the MyAnimeList score of linked series that name a MyAnimeList id (with the admin's app, only while MyAnimeList
+/// is allowed), and the one-time MangaUpdates refresh of linked series fetched before 1.54.0.
 /// </summary>
 public static class MetadataAutoConsent
 {
-    public const int CurrentVersion = 5;
+    public const int CurrentVersion = 6;
 }
 
 /// <summary>Threshold DTO mapping and validation (bounds from <see cref="MatchThresholds"/>).</summary>

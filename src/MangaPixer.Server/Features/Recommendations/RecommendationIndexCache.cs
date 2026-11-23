@@ -1,6 +1,7 @@
 namespace com.lifepixer.mangapixer.Server.Features.Recommendations;
 
 using System.Diagnostics;
+using com.lifepixer.mangapixer.Core.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Metadata;
 using com.lifepixer.mangapixer.Server.Features.Metadata.Facets;
 using com.lifepixer.mangapixer.Server.Hosting;
@@ -93,16 +94,23 @@ public sealed class RecommendationIndexCache
 
         // The linked records of the scope's works, with their stored relations (the first reader of RelationsJson): each relation names a
         // record of the same provider by its external id, mapped to this server's record id when it is stored here.
+        // 1.54.0: with each record's community score and its found MangaDex companion's (the quality prior and the cold-start row).
+        var found = $"{(int)CompanionState.Auto},{(int)CompanionState.Confirmed}";
         var linked = await QuerySql.ReadAsync(db, $"""
-            SELECT w.Id, r.Id, r.Provider, r.RelationsJson
+            SELECT w.Id, r.Id, r.Provider, r.RelationsJson, r.CommunityScore,
+              (SELECT md.CommunityScore FROM metadata_companions c JOIN metadata_records md ON md.Id = c.CompanionRecordId
+               WHERE c.RecordId = r.Id AND c.Provider = 'mangadex' AND c.State IN ({found}) AND md.Provider = 'mangadex'
+               ORDER BY md.Id LIMIT 1)
             FROM facet_works w
             JOIN metadata_records r ON r.Id = w.RecordId
             WHERE w.RecordId IS NOT NULL
             AND EXISTS (SELECT 1 FROM facet_entries e WHERE e.WorkId = w.Id AND e.LibraryId IN ({shown}))
-            """, null, r => (WorkId: r.GetInt64(0), RecordId: r.GetInt64(1), Provider: r.GetString(2), Relations: r.IsDBNull(3) ? null : r.GetString(3)), ct);
+            """, null, r => (WorkId: r.GetInt64(0), RecordId: r.GetInt64(1), Provider: r.GetString(2), Relations: r.IsDBNull(3) ? null : r.GetString(3),
+                Own: r.IsDBNull(4) ? (double?)null : r.GetDouble(4), Companion: r.IsDBNull(5) ? (double?)null : r.GetDouble(5)), ct);
 
         var related = linked
-            .Select(l => (l.WorkId, l.RecordId, l.Provider, Items: MetadataJson.ReadList<MetadataJson.RelatedRecord>(l.Relations)))
+            .Select(l => (l.WorkId, l.RecordId, l.Provider, Items: MetadataJson.ReadList<MetadataJson.RelatedRecord>(l.Relations),
+                Score: CommunityScoreOf(l.Provider, l.Own, l.Companion)))
             .ToList();
         var wanted = related.SelectMany(l => l.Items.Select(i => i.ExternalId)).Where(id => !string.IsNullOrEmpty(id)).ToHashSet(StringComparer.Ordinal);
         var recordByExternal = new Dictionary<(string Provider, string ExternalId), long>();
@@ -118,8 +126,19 @@ public sealed class RecommendationIndexCache
             l.Items
                 .Where(i => !string.IsNullOrEmpty(i.ExternalId) && recordByExternal.ContainsKey((l.Provider, i.ExternalId)))
                 .Select(i => (recordByExternal[(l.Provider, i.ExternalId)], string.IsNullOrWhiteSpace(i.Relation) ? "related" : i.Relation))
-                .ToList()));
+                .ToList(),
+            l.Score?.Score, l.Score?.Source));
 
         return RecommendationIndex.Build(entries, locations, records);
     }
+
+    /// <summary>
+    /// 1.54.0: the community score a work's recommendation uses - MangaUpdates' (its own record), else MangaDex's (a series linked to
+    /// MangaDex, or the MangaUpdates record's MangaDex companion). Never MyAnimeList's (its licence limits the purpose, 2(a)).
+    /// </summary>
+    internal static (double Score, string Source)? CommunityScoreOf(string provider, double? own, double? companion) =>
+        provider == MetadataProviderAllowlist.MangaUpdates && own is { } mu ? (mu, "MangaUpdates")
+        : provider == MetadataProviderAllowlist.MangaDex && own is { } md ? (md, "MangaDex")
+        : companion is { } c ? (c, "MangaDex")
+        : null;
 }

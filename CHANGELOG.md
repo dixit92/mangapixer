@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Admin actions
+
+- **Admins: accept the two web-lookup consent texts again** (Metadata Manager > Settings; versions 8 and 6). They now name the new
+  community scores: MangaDex's statistics of your linked series (by MangaDex number) and, only while MyAnimeList is allowed under
+  Trackers with your app, MyAnimeList's score of linked series that name a MyAnimeList number. Until you accept, **every web lookup
+  pauses** - Identify, Refresh, Choose cover, Missing-report lookups, Automatic matching, the volume covers and the new-chapter checks.
+  Accepting **Fetch from the web** resumes your own lookups; Automatic matching and its background work resume when you accept its text too.
+
 ### Fixed
 
 - **Admins: if you turned on Shared ratings in 1.53.0 and no averages appeared, turn it on again** (Administration > Shared ratings):
@@ -22,6 +30,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Community scores.** The series page and the Info sheet show how a series is rated on the web, each with its source - "MangaUpdates
+  9.0", "MangaDex 8.7", "MyAnimeList 8.6" - under your own stars and the server average. MangaUpdates' comes with the information MangaPixer
+  already fetches; with Automatic matching on, MangaDex's is read for linked series, and MyAnimeList's only while MyAnimeList is allowed
+  under Trackers with the app you registered. Series fetched before this version get their MangaUpdates score over the next days (at most
+  400 a day). **Delete stored MyAnimeList scores** is under Metadata Manager > Settings > Stored data.
+- **Recommended for you uses community scores.** Among series that match your taste about equally, the better rated one comes first; and
+  when you have rated or finished fewer than three series - or none yet - the row shows the best rated series you have not started ("Well
+  rated on MangaUpdates: 9.0") instead of staying empty. MyAnimeList's score is only shown, never used for this.
+- **Metadata export:** `record.communityScore` and `record.communityVotes` (left out when unknown; listed in `recordFields`).
 - **Reorder the home page.** Settings > **Home** lists the home page's rows - Continue reading, Recommended for you, Favorites, New
   chapters and Libraries - with **Move up** / **Move down** and **Reset to default order**. Your order is saved for your account, so every
   device shows the same home page. The switches that show or hide the Favorites and Recommended for you rows are in the same card now.
@@ -33,6 +50,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Settings: the **Ratings and recommendations** card is now **Shared ratings**; its "Recommended for you" switch moved to the new
   **Home** card, and so did the Favorites card's "Favorites row" switch.
+- **Upgrade note:** this version adds three database migrations (`AddHomeRowOrder`: one column on the reader preferences;
+  `AddVolumeContentCompared`: one column on the volume contents answers; `AddCommunityScores`: six columns on the stored series records -
+  all optional, every existing row keeps its values). The web-lookup consents move to versions 8 and 6 (see Admin actions). The volume
+  contents scan checks every folder once more from the page fingerprints it already stored (no file is read again). The media worker
+  protocol is unchanged (6).
 
 ## [1.53.1] - 2026-11-20
 

@@ -105,7 +105,7 @@ public sealed class ExportTokenEndToEndHttpTests
         Assert.Equal(["Token Series 1", "Token Series 2"], trails);
 
         // 1.47.0: the page says the server exports creators, so an item without any simply has no key.
-        Assert.Equal(["creators"], page.GetProperty("recordFields").EnumerateArray().Select(f => f.GetString()));
+        Assert.Equal(["creators", "communityScore"], page.GetProperty("recordFields").EnumerateArray().Select(f => f.GetString()));
         var records = page.GetProperty("items").EnumerateArray().ToDictionary(
             i => i.GetProperty("trail")[0].GetString()!, i => i.GetProperty("record"));
         var creator = Assert.Single(records["Token Series 1"].GetProperty("creators").EnumerateArray());

@@ -163,6 +163,9 @@ public sealed class MetadataTestDb : IAsyncDisposable
             OriginVolumes = 12,
             SiteUrl = "https://www.mangaupdates.com/series/abc/synthetic",
             FetchedAt = DateTimeOffset.UtcNow,
+            // 1.54.0: a record fetched by this version has had its community score read (here: not rated) - so the one-time catch-up
+            // for records fetched before 1.54.0 leaves it alone; a test of the catch-up clears it.
+            CommunityScoreAt = DateTimeOffset.UtcNow,
         };
         Db.MetadataRecords.Add(record);
         await Db.SaveChangesAsync();

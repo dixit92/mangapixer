@@ -222,6 +222,8 @@ public static class MetadataConsent
     /// (MangaDex as a site) is sent to MangaDex. The automatic consent moves to 5 with it.
     /// 7 (1.45.0): the search text an admin confirms may also be sent to MangaUpdates' author search when the admin looks for an
     /// artist, and the author numbers of artists the admin picked (artists' other names). The automatic consent stays 5.
+    /// 8 (1.54.0, owner "Bump, ship all three"): community scores - with Automatic matching, MangaDex statistics of linked records and the
+    /// MyAnimeList score of linked series that name a MyAnimeList id (only while MyAnimeList is allowed with an admin's app). Automatic 6.
     /// </summary>
-    public const int CurrentVersion = 7;
+    public const int CurrentVersion = 8;
 }

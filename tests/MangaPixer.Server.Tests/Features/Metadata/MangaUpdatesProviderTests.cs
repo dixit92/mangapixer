@@ -161,6 +161,28 @@ public sealed class MangaUpdatesProviderTests : IAsyncLifetime
         Assert.Single(_h.Handler.Seen); // the non-numeric id never left
     }
 
+    // 1.54.0 community scores (owner: MangaUpdates + MangaDex + MAL): MangaUpdates' Bayesian rating and vote count, from the series answer
+    // MangaPixer already receives - no new request. 0 / null = not rated.
+    [Fact]
+    public async Task Get_CommunityScore_IsTheBayesianRating_WithItsVotesWhenStated()
+    {
+        var berserk = await _h.Provider.GetSeriesAsync(MuFixtures.BerserkId.ToString(), CancellationToken.None);
+        Assert.Equal(8.98, berserk!.CommunityScore);
+        Assert.Null(berserk.CommunityVotes); // the recorded fixture is trimmed: no rating_votes
+
+        _h.Handler.Respond = _ => ScriptedHandler.Json("{\"series_id\":7,\"title\":\"Synthetic\",\"bayesian_rating\":7.51,\"rating_votes\":1234}");
+        var rated = await _h.Provider.GetSeriesAsync("7", CancellationToken.None);
+        Assert.Equal((7.51, 1234), (rated!.CommunityScore!.Value, rated.CommunityVotes!.Value));
+
+        foreach (var unrated in new[] { "0", "null", "-1", "10.5" })
+        {
+            _h.Handler.Respond = _ => ScriptedHandler.Json("{\"series_id\":7,\"title\":\"Synthetic\",\"bayesian_rating\":" + unrated + ",\"rating_votes\":0}");
+            var r = await _h.Provider.GetSeriesAsync("7", CancellationToken.None);
+            Assert.Null(r!.CommunityScore);
+            Assert.Null(r.CommunityVotes);
+        }
+    }
+
     [Fact]
     public async Task Get_UnknownFieldsAndMissingFields_AreTolerated()
     {

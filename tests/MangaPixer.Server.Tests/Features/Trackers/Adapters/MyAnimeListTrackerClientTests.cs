@@ -296,4 +296,44 @@ public sealed class MyAnimeListTrackerClientTests : IDisposable
             Assert.DoesNotContain(secret, text, StringComparison.Ordinal);
         Assert.Contains("[redacted]", tokens.ToString(), StringComparison.Ordinal);
     }
+
+    // 1.54.0 community scores: the admin's app, no user.
+    [Fact]
+    public async Task CommunityScore_SendsOnlyTheIdTheFixedFieldsAndTheClientId_NeverAToken()
+    {
+        _h.Answer(_ => TrackerAdapterHarness.Json("""{"id":70001,"title":"Synthetic","mean":8.62,"num_scoring_users":51000}"""));
+
+        var score = await _h.Mal.CommunityScoreAsync(TrackerAdapterHarness.App(), "70001", CancellationToken.None);
+
+        Assert.Equal(new MalCommunityScore(8.62, 51000), score);
+        var seen = Assert.Single(_h.Handler.Seen);
+        Assert.Equal(HttpMethod.Get, seen.Method);
+        Assert.Equal("https://api.myanimelist.net/v2/manga/70001?fields=mean,num_scoring_users", seen.Uri.AbsoluteUri);
+        Assert.Equal("synthetic-client-id", seen.Headers["X-MAL-CLIENT-ID"]);
+        Assert.False(seen.Headers.ContainsKey("Authorization"));
+        Assert.Null(seen.Body);
+    }
+
+    [Fact]
+    public async Task CommunityScore_NotRatedOrGone_IsNoScore_AndNothingIsSentWithoutAClientIdOrAValidId()
+    {
+        _h.Answer(_ => TrackerAdapterHarness.Json("""{"id":70001,"title":"Synthetic","num_scoring_users":0}"""));
+        Assert.Equal(new MalCommunityScore(null, null), await _h.Mal.CommunityScoreAsync(TrackerAdapterHarness.App(), "70001", CancellationToken.None));
+        _h.Answer(_ => new HttpResponseMessage(System.Net.HttpStatusCode.NotFound));
+        Assert.Equal(new MalCommunityScore(null, null), await _h.Mal.CommunityScoreAsync(TrackerAdapterHarness.App(), "70001", CancellationToken.None));
+        Assert.Equal(2, _h.Handler.Seen.Count);
+
+        Assert.Null(await _h.Mal.CommunityScoreAsync(new TrackerAppSettings(null, null, null), "70001", CancellationToken.None));
+        Assert.Null(await _h.Mal.CommunityScoreAsync(TrackerAdapterHarness.App(), "0", CancellationToken.None));
+        Assert.Null(await _h.Mal.CommunityScoreAsync(TrackerAdapterHarness.App(), "../users", CancellationToken.None));
+        Assert.Equal(2, _h.Handler.Seen.Count);
+    }
+
+    [Fact]
+    public async Task CommunityScore_SlowDown_Throws_ForThePassToStop()
+    {
+        _h.Answer(_ => new HttpResponseMessage(System.Net.HttpStatusCode.Forbidden));
+        var ex = await Assert.ThrowsAsync<TrackerException>(() => _h.Mal.CommunityScoreAsync(TrackerAdapterHarness.App(), "70001", CancellationToken.None));
+        Assert.Equal(TrackerFailure.RateLimited, ex.Failure);
+    }
 }

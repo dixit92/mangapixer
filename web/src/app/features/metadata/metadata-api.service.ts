@@ -30,7 +30,7 @@ import {
   MetadataMyFlagDto,
   MetadataMyFlagStateDto,
   MetadataPrecedence,
-  MetadataPurgeResultDto,
+  MalScoresDeletedDto, MetadataPurgeResultDto,
   MetadataReattachResultDto,
   MetadataRefreshResultDto,
   MetadataReviewAuthorsDto,
@@ -100,6 +100,11 @@ export class MetadataApiService {
   /** "Delete fetched web data" - one library, or everything when libraryId is null. */
   purge(libraryId: string | null): Observable<MetadataPurgeResultDto> {
     return this.post<MetadataPurgeResultDto>('/admin/metadata/purge', { libraryId });
+  }
+
+  /** 1.54.0: deletes every stored MyAnimeList community score (the MAL API licence's deletion on request). */
+  deleteMalScores(): Observable<MalScoresDeletedDto> {
+    return this.delete<MalScoresDeletedDto>('/admin/metadata/community-scores/myanimelist');
   }
 
   // --- Admin: node links ---

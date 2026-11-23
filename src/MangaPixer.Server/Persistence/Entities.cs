@@ -1197,6 +1197,23 @@ public sealed class MetadataRecordEntity
     /// <summary><c>{provider: id}</c> cross references (aggregators / dumps).</summary>
     public string? CrossIdsJson { get; set; }
 
+    /// <summary>
+    /// 1.54.0: the provider's community score of this record, as the provider states it (0-10): MangaUpdates' Bayesian rating (from its series
+    /// answer), MangaDex's Bayesian rating (from its statistics) - null when not rated; with its vote count when the provider states one, and
+    /// when it was last read (also when it read no score).
+    /// </summary>
+    public double? CommunityScore { get; set; }
+    public int? CommunityVotes { get; set; }
+    public DateTimeOffset? CommunityScoreAt { get; set; }
+
+    /// <summary>
+    /// 1.54.0, on a MangaDex record only: MyAnimeList's mean score of the MyAnimeList id this record names (<c>CrossIdsJson["mal"]</c>) and
+    /// its scoring users, read with the app an admin registered. Deleted with "Delete stored MyAnimeList scores" (the MAL API terms, 3(e)).
+    /// </summary>
+    public double? MalScore { get; set; }
+    public int? MalVotes { get; set; }
+    public DateTimeOffset? MalScoreAt { get; set; }
+
     /// <summary>Canonical provider page (https, provider host only).</summary>
     public string? SiteUrl { get; set; }
 

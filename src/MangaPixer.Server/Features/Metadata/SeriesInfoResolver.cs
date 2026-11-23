@@ -133,6 +133,10 @@ public sealed class SeriesInfoResolver
         IReadOnlyList<SeriesInfoCompanionDto> companions = record is not null && !ownCollection
             ? await CompanionsAsync(record.Id, ct)
             : [];
+        // 1.54.0: the community scores of the record and of its MangaDex companion (a collection's would not be the series').
+        IReadOnlyList<SeriesCommunityScoreDto> scores = record is not null && !ownCollection
+            ? await CommunityScoresAsync(record, ct)
+            : [];
 
         // A collection's items are other works: their ComicInfo never fills the series' fields.
         var dto = Merge(record, mixed || ownCollection || ownArtistFolder ? null : ci, ownCollection ? MetadataPrecedence.WebFirst : precedence);
@@ -195,6 +199,7 @@ public sealed class SeriesInfoResolver
                     : null,
             },
             Companions = companions,
+            CommunityScores = scores,
             ComicInfo = ci is null ? null : new SeriesInfoComicInfoDto
             {
                 ItemsWithComicInfo = ci.ItemsWithComicInfo,
@@ -250,6 +255,36 @@ public sealed class SeriesInfoResolver
             })
             .Take(1)
             .ToList();
+    }
+
+    /// <summary>
+    /// 1.54.0: the stored community scores of a linked record: its own (MangaUpdates', or MangaDex's for a series linked to MangaDex), and
+    /// from its found MangaDex companion MangaDex's and the MyAnimeList score that record's MyAnimeList id has. Stored rows only.
+    /// </summary>
+    private async Task<IReadOnlyList<SeriesCommunityScoreDto>> CommunityScoresAsync(MetadataRecordEntity record, CancellationToken ct)
+    {
+        var mangaDexId = MetadataProviderAllowlist.MangaDex;
+        var mangaDex = record.Provider == mangaDexId
+            ? new { record.CommunityScore, record.CommunityVotes, record.MalScore, record.MalVotes }
+            : await (
+                from c in _db.MetadataCompanions.AsNoTracking()
+                where c.RecordId == record.Id && c.Provider == mangaDexId
+                    && (c.State == (int)CompanionState.Auto || c.State == (int)CompanionState.Confirmed)
+                join r in _db.MetadataRecords.AsNoTracking() on c.CompanionRecordId equals r.Id
+                where r.Provider == mangaDexId
+                select new { r.CommunityScore, r.CommunityVotes, r.MalScore, r.MalVotes })
+                .FirstOrDefaultAsync(ct);
+        var scores = new List<SeriesCommunityScoreDto>();
+        if (record.Provider == MetadataProviderAllowlist.MangaUpdates && record.CommunityScore is { } mu)
+            scores.Add(Score(MetadataProviderAllowlist.MangaUpdates, "MangaUpdates", mu, record.CommunityVotes));
+        if (mangaDex?.CommunityScore is { } md)
+            scores.Add(Score(mangaDexId, "MangaDex", md, mangaDex.CommunityVotes));
+        if (mangaDex?.MalScore is { } mal)
+            scores.Add(Score("myanimelist", "MyAnimeList", mal, mangaDex.MalVotes));
+        return scores;
+
+        static SeriesCommunityScoreDto Score(string source, string name, double score, int? votes) =>
+            new() { Source = source, SourceName = name, Score = Math.Round(score, 2), Votes = votes };
     }
 
     private static bool IsMangaDexPage(string? url) =>

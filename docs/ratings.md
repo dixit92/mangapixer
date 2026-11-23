@@ -27,6 +27,7 @@ Rating a series rates that folder only - its volumes keep their own ratings, and
 - **Cards:** a rated folder or archive shows a small star with the number (for example **4.5**) on its cover, just above the favorite star - in the library view, on search results and on the Favorites page. Unrated items show nothing.
 - **List view:** the same star and number in the row, next to the read badges.
 - On the Favorites page a stack of starred archives shows its **folder's** rating.
+- *New in 1.54.0:* the **Info** sheet and the series page also show the series' **community scores** from the web under your stars and the server average - "MangaUpdates 9.0", with a globe, not stars: each is the site's own 0-10 number, never mixed with ratings given here ([Community scores](series-information.md#community-scores)).
 
 ## Sort and filter by rating
 

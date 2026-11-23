@@ -237,6 +237,17 @@ public sealed record ExportRecordDto
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<ExportCreatorDto>? Creators { get; init; }
+
+    /// <summary>
+    /// 1.54.0: the record's community score as its provider states it (0-10: MangaUpdates' Bayesian rating, or MangaDex's for a record linked to
+    /// MangaDex) and its vote count. Left out when unknown (so an item without one keeps its exact form); listed in the page's
+    /// <c>recordFields</c>. MyAnimeList's score is never exported (its API licence does not allow passing it on).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? CommunityScore { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? CommunityVotes { get; init; }
 }
 
 /// <summary>One credited person of a record (1.47.0).</summary>
