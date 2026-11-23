@@ -32,6 +32,10 @@ import { targetMaxDim, withMaxDim, VariantFitMode } from './page-variant';
 import { UpscaleDirective, UpscaleSupportService } from './upscale.directive';
 import { nextUpscaler } from './upscale-engine';
 import { isNearEnd } from './near-end';
+import {
+  afterPageChange, isLeaveGuarded, JumpChipMs, jumpStorageKey, JumpState, parseJump, recordJump, restoreJump, useJump,
+} from './jump-back';
+import { JumpBackButtonComponent, JumpBackChipComponent, JumpChipKind } from './jump-back-controls.component';
 import { WebtoonEnhanceHostDirective, WebtoonUpscaleDirective } from './webtoon-upscale.directive';
 import { PageLoadIndicatorComponent, WebtoonPageComponent } from './page-load-state.component';
 import {
@@ -160,6 +164,8 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     CommonModule,
     MatButtonModule,
     MatIconModule,
+    JumpBackButtonComponent,
+    JumpBackChipComponent,
     MatToolbarModule,
     MatTooltipModule,
     MatProgressSpinnerModule,
@@ -435,10 +441,14 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
         <div class="reader-nav" [class.immersive]="isFullscreen()"
              [class.chrome-hidden]="!chromeVisible()" [class.help-lit]="helpVisible()"
              (mouseenter)="lockChrome(true)" (mouseleave)="lockChrome(false)">
+          <!-- Jump back (1.54.0): the way back after a jump of 3+ pages, for as long as it can be undone. -->
+          @if (jump(); as j) {
+            <app-jump-back-button [state]="j" (back)="useJumpBack()" />
+          }
           <span class="nav-end" aria-hidden="true">{{ direction() === 'rtl' ? pageCount() : 1 }}</span>
           <div class="scrub" [class.scrubbing]="scrubbing()" [class.rtl]="direction() === 'rtl'"
                (pointerdown)="onScrubStart($event)" (pointermove)="onScrubMove($event)"
-               (pointerup)="onScrubEnd($event)" (pointercancel)="onScrubEnd($event)"
+               (pointerup)="onScrubEnd($event)" (pointercancel)="onScrubCancel($event)"
                (keydown)="onRailKey($event)"
                role="slider" tabindex="0" aria-label="Page slider (drag or tap to jump to a page)"
                [attr.aria-valuemin]="1" [attr.aria-valuemax]="pageCount()"
@@ -447,6 +457,9 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
             <div class="scrub-track" aria-hidden="true">
               <div class="scrub-fill" [style.width.%]="scrubFillPct()"></div>
             </div>
+            @if (jumpTickLeft(); as tick) {
+              <div class="scrub-tick" [style.left]="tick" aria-hidden="true"><span>{{ jumpTargetPage() }}</span></div>
+            }
             <div class="scrub-thumb" [style.left]="scrubThumbLeft()" aria-hidden="true"></div>
             @if (scrubbing()) {
               <div class="scrub-bubble" [style.left]="scrubThumbLeft()" aria-hidden="true">
@@ -456,6 +469,13 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
           </div>
           <span class="nav-end" aria-hidden="true">{{ direction() === 'rtl' ? 1 : pageCount() }}</span>
         </div>
+        <!-- Jump back chip (1.54.0): ~10 s after a jump, above the bar (low on the screen while the controls are hidden). -->
+        @if (jumpChip(); as kind) {
+          @if (jump(); as j) {
+            <app-jump-back-chip [state]="j" [kind]="kind" [low]="!chromeVisible()"
+                                (back)="useJumpBack()" (dismissed)="dismissJumpChip()" />
+          }
+        }
         <!-- Persistent minimal cue while the chrome is hidden (fullscreen): the thin
              progress rail, now PASSIVE (pointer-events: none) so it never competes
              with the OS bottom-edge gesture. RTL fills from the right. -->
@@ -508,6 +528,9 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
                   <b>Double tap the centre</b> (or double click): fullscreen.</li>
                 <li><kbd>←</kbd> <kbd>→</kbd> previous / next page (follows reading direction) ·
                   <kbd>Home</kbd> <kbd>End</kbd> first / last</li>
+                <li>After a jump of 3 or more pages (slider, bookmark, <kbd>Home</kbd> / <kbd>End</kbd>), the bar's
+                  <b>back</b> button or <kbd>Backspace</kbd> returns to the page you came from; press it again to go
+                  forward to where you jumped.</li>
                 <li><b>Mouse wheel</b> down / up: next / previous page, one page per scroll, when the page
                   fits the screen. A page taller than the screen scrolls instead.</li>
                 <li>On the last (first) page, turn the page <b>twice</b> - tap, click, swipe, key or wheel - to
@@ -743,6 +766,15 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
       border-radius: 8px; padding: 6px 12px; font-size: 15px; font-weight: 600;
       font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none;
       box-shadow: 0 4px 14px rgb(var(--mp-shade-rgb) / 0.4);
+    }
+    /* Jump back (1.54.0): the slider tick at the page the bar's button leads to (button + chip: jump-back-controls). */
+    .scrub-tick {
+      position: absolute; top: 15px; width: 3px; height: 14px; margin-left: -1.5px; border-radius: 1px;
+      background: var(--mp-reader-text); pointer-events: none;
+    }
+    .scrub-tick span {
+      position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);
+      font-size: 10px; line-height: 1; color: var(--mp-reader-text-secondary); font-variant-numeric: tabular-nums;
     }
     /* Passive thin progress cue at the bottom edge while the chrome is hidden. */
     .progress-rail {
@@ -1131,6 +1163,20 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     return `calc(${r}px + (100% - ${2 * r}px) * ${this.scrubThumbPct() / 100})`;
   });
 
+  // Jump back (1.54.0, vault "MangaPixer - Reader Jump Back"): after a jump of 3+ pages (a slider tap or drag, a bookmark,
+  // Home / End) the bar offers the page jumped FROM (`jump().origin`); using it swaps the pages, so Back flips to Return.
+  // The rules are in jump-back.ts; the chip shows ~10 s of visible time; the offer is kept per archive in sessionStorage
+  // (an iPad may reload a suspended Home Screen app) and dropped when the reader leaves the archive.
+  readonly jump = signal<JumpState | null>(null);
+  readonly jumpChip = signal<JumpChipKind | null>(null);
+  /** The page number (1-based) the bar's button and the chip lead to, and their label. */
+  readonly jumpTargetPage = computed(() => { const j = this.jump(); return j ? j.origin + 1 : 0; });
+  /** The slider tick at the page the button leads to (a passive cue, not a target). */
+  readonly jumpTickLeft = computed(() => {
+    const j = this.jump();
+    return j ? this.railLeftFor(j.origin) : null;
+  });
+
   // Full-surface swipe (added 1.8.0). `swipeDx` is the live horizontal
   // finger offset while a page swipe is in progress (the spread row follows it);
   // 0 when idle. The help legend labels are phrased by FINGER direction ("swipe
@@ -1304,6 +1350,14 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   private pollAttempts = 0;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private webtoonSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  // Jump back: the chip's timer and how much of its time is left while the app is hidden.
+  private jumpChipTimer: ReturnType<typeof setTimeout> | null = null;
+  private jumpChipLeftMs = 0;
+  private jumpChipStartedAt = 0;
+  // The slider touch: the page it started on, where the finger landed, and whether it became a drag.
+  private scrubStartPage = 0;
+  private scrubStartX = 0;
+  private scrubDragging = false;
   // The strip's scrollTop right after the reader itself restored the position (1.27.0):
   // the scroll event that causes is not the reader scrolling, so it neither moves the
   // page nor saves it.
@@ -1325,6 +1379,8 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   private static readonly SwipeClickSuppressMs = 400; // swallow the ghost click after a swipe
   private static readonly SwipeSlopPx = 8;           // below this it's a tap, not a drag (no axis lock yet)
   private static readonly SwipeEdgeResistance = 0.35; // rubber-band factor when there's no page that way
+  /** A slider touch that moves this far is a drag (scrubs live); less is a tap (jumps when the finger lifts). */
+  private static readonly ScrubDragSlopPx = 6;
   private static readonly ScrubThumbRadiusPx = 11;   // slider thumb radius (track inset) — mirrors the CSS
   private swipePointerId: number | null = null;
   private swipeStartX = 0;
@@ -1492,6 +1548,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
       this.spreadLayout.set(null);
       this.disarmEdge();
       this.resetSeriesInfo();
+      if (this.itemId() && this.itemId() !== id) this.dropJumpOffer(); // leaving an archive ends its offer
       this.itemId.set(id);
       this.pollAttempts = 0;
       // Reset the page-prefetch cache for the new chapter (URLs are per-item).
@@ -1593,10 +1650,12 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     if (this.commitTimer) clearTimeout(this.commitTimer);
     if (this.outgoingTimer) clearTimeout(this.outgoingTimer);
     this.clearHideTimer();
+    this.clearJumpChipTimer();
     this.centerTaps.cancel();
     this.seriesInfoSub?.unsubscribe();
     this.flushSpreadSave();
     this.saveProgress();
+    this.dropJumpOffer();
     // 1.7.1: tell the retained browse view this item's read/progress state may
     // have changed, so it can patch the card in place on the next reattach
     // without a full re-fetch or losing the 1.6.2 scroll retention.
@@ -1705,6 +1764,8 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     // Upscaling applies to webtoon too since 1.24.0 (banded Enhance), so like 's'
     // it acts before the webtoon early-return.
     if (key === 'e') { this.cycleRendering(); return; }
+    // Jump back (1.54.0): Backspace does what the bar's Back / Return button does, in every view.
+    if (key === 'Backspace') { if (this.jump()) { event.preventDefault(); this.useJumpBack(); } return; }
     if (this.view() === 'webtoon') { this.onWebtoonEdgeKey(event, key); return; } // native scroll drives webtoon
 
     // A held arrow key auto-repeats through the pages; at an edge only a NEW press counts,
@@ -1716,8 +1777,8 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     switch (key) {
       case 'ArrowLeft': this.direction() === 'rtl' ? this.nextPage() : this.prevPage(); break;
       case 'ArrowRight': this.direction() === 'rtl' ? this.prevPage() : this.nextPage(); break;
-      case 'Home': this.goToPage(0); break;
-      case 'End': this.goToPage(this.pageCount() - 1); break;
+      case 'Home': this.jumpTo(0); break;
+      case 'End': this.jumpTo(this.pageCount() - 1); break;
       case 'f': this.toggleFullscreen(); break;
       case 'Escape': this.isFullscreen() ? this.toggleFullscreen() : this.goBack(); break;
       case 'd': this.toggleDoublePage(); break;
@@ -1893,7 +1954,126 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
 
   /** BookmarksPanelHost: jump to a bookmark's page (panel row tap). */
   jumpToBookmark(bookmark: BookmarkDto): void {
-    this.seekToPage(bookmark.ordinal);
+    this.jumpTo(bookmark.ordinal);
+  }
+
+  // --- Jump back (1.54.0) ---
+
+  /** A deliberate jump (a bookmark, Home / End): go there, then offer the way back when it moved 3+ pages. */
+  private jumpTo(index: number): void {
+    const from = this.currentPage();
+    this.seekToPage(index);
+    this.noteJump(from, this.currentPage());
+  }
+
+  /** Back / Return - the bar's button, the chip's button and Backspace: go to the offered page and offer the other one. */
+  useJumpBack(): void {
+    const j = this.jump();
+    if (!j) return;
+    const next = useJump(j, Date.now());
+    this.seekToPage(j.origin);
+    this.setJump(next);
+    this.showJumpChip(next.mode === 'return' ? 'returned' : 'jumped');
+  }
+
+  /** The chip's x: the chip goes, the bar's button stays. */
+  dismissJumpChip(): void {
+    this.clearJumpChipTimer();
+    this.jumpChip.set(null);
+  }
+
+  private noteJump(from: number, to: number): void {
+    const current = this.jump();
+    const next = recordJump(current, from, to, Date.now());
+    if (next === current) return;
+    this.setJump(next);
+    this.showJumpChip('jumped');
+  }
+
+  /** A page turn / scroll: reading on 3 pages from the landing page ends the offer. */
+  private noteReadingPage(page: number): void {
+    const j = this.jump();
+    if (j && !afterPageChange(j, page)) this.dropJumpOffer();
+  }
+
+  private dropJumpOffer(): void {
+    this.setJump(null);
+    this.dismissJumpChip();
+  }
+
+  /** Keeps the offer and its sessionStorage copy (per archive) in step. */
+  private setJump(state: JumpState | null): void {
+    this.jump.set(state);
+    const key = jumpStorageKey(this.itemId());
+    try {
+      if (state) sessionStorage.setItem(key, JSON.stringify(state));
+      else sessionStorage.removeItem(key);
+    } catch { /* storage unavailable (private mode): the offer lives in memory only */ }
+  }
+
+  /** The archive opened on `page`: pick up an offer this session kept for it (a reload of a suspended app). */
+  private restoreJumpOffer(page: number): void {
+    let stored: JumpState | null = null;
+    try { stored = parseJump(sessionStorage.getItem(jumpStorageKey(this.itemId()))); } catch { /* none */ }
+    const j = restoreJump(stored, page);
+    this.setJump(j ? { ...j, leftAfterJump: false } : null);
+    if (j && stored?.leftAfterJump) this.showJumpChip(j.mode === 'return' ? 'returned' : 'left');
+  }
+
+  /**
+   * The app is being hidden / left within 2 s of a jump (the iPad swipe-up that also hit the slider): the saved place stays the
+   * page jumped FROM, and the chip asks on return. True when it acted (then nothing else is flushed).
+   */
+  private guardJumpOnLeave(): boolean {
+    const j = this.jump();
+    if (!j || j.leftAfterJump || !isLeaveGuarded(j, Date.now())) return false;
+    this.clearWebtoonSaveTimer();
+    this.saveProgress(true, j.origin);
+    this.setJump({ ...j, leftAfterJump: true });
+    return true;
+  }
+
+  /** The app is visible again: ask about a jump made just before leaving, else let a paused chip run out its time. */
+  private onJumpReturn(): void {
+    const j = this.jump();
+    if (j?.leftAfterJump) {
+      this.setJump({ ...j, leftAfterJump: false });
+      this.showJumpChip('left');
+      return;
+    }
+    if (this.jumpChip() && !this.jumpChipTimer) this.startJumpChipTimer(Math.max(0, this.jumpChipLeftMs));
+  }
+
+  private showJumpChip(kind: JumpChipKind): void {
+    this.jumpChip.set(kind);
+    this.startJumpChipTimer(JumpChipMs);
+  }
+
+  private startJumpChipTimer(ms: number): void {
+    this.clearJumpChipTimer();
+    this.jumpChipLeftMs = ms;
+    this.jumpChipStartedAt = Date.now();
+    this.jumpChipTimer = setTimeout(() => { this.jumpChipTimer = null; this.jumpChip.set(null); }, ms);
+  }
+
+  /** Hidden: the chip's time stops counting. */
+  private pauseJumpChip(): void {
+    if (!this.jumpChipTimer) return;
+    this.clearJumpChipTimer();
+    this.jumpChipLeftMs -= Date.now() - this.jumpChipStartedAt;
+  }
+
+  private clearJumpChipTimer(): void {
+    if (this.jumpChipTimer) { clearTimeout(this.jumpChipTimer); this.jumpChipTimer = null; }
+  }
+
+  /** The slider's CSS left for a page (the thumb's own inset math), for the tick. */
+  private railLeftFor(page: number): string {
+    const n = this.pageCount();
+    let frac = n <= 1 ? 0 : page / (n - 1);
+    if (this.direction() === 'rtl') frac = 1 - frac;
+    const r = ReaderComponent.ScrubThumbRadiusPx;
+    return `calc(${r}px + (100% - ${2 * r}px) * ${frac})`;
   }
 
   /** BookmarksPanelHost: remove a bookmark (toolbar toggle or panel delete). */
@@ -2079,6 +2259,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     this.currentPage.set(index);
     this.startPageLoad();
     this.phase.set('ready');
+    this.restoreJumpOffer(index);
     // Show the chrome briefly on entry, then let it auto-hide for immersion.
     this.revealChrome();
     // Onboarding (1.9.0): auto-show the help overlay the FIRST time this device
@@ -2388,6 +2569,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     this.startPageLoad();
     this.prefetchAround(clamped);
     this.saveProgress();
+    this.noteReadingPage(clamped);
   }
 
   /**
@@ -2420,30 +2602,53 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     return Math.round(f * (n - 1));
   }
 
-  /** Begin scrubbing: reveal the prominent bubble and land the first position. */
+  /**
+   * A finger / button lands on the slider. 1.54.0 (jump back): nothing moves yet - a TAP jumps when the finger lifts
+   * (`onScrubEnd`), a DRAG scrubs live once it moves past the slop. Before, the page jumped on touch-down, so an iPadOS
+   * swipe-up that began on the slider jumped (and, through `pointercancel`, saved the jumped-to page as the reading place).
+   */
   onScrubStart(event: PointerEvent): void {
     if (this.pageCount() === 0) return;
     this.scrubbing.set(true);
+    this.scrubStartPage = this.currentPage();
+    this.scrubStartX = event.clientX;
+    this.scrubDragging = false;
     this.clearWebtoonSaveTimer(); // the release saves
     const el = event.currentTarget as HTMLElement;
     el.setPointerCapture?.(event.pointerId); // keep receiving moves outside the strip
-    this.scrubFromClientX(event.clientX, el);
     event.preventDefault();
   }
 
   /** While dragging, update the current page LIVE (no progress save on each tick). */
   onScrubMove(event: PointerEvent): void {
     if (!this.scrubbing()) return;
+    if (!this.scrubDragging && Math.abs(event.clientX - this.scrubStartX) < ReaderComponent.ScrubDragSlopPx) return;
+    this.scrubDragging = true;
     this.scrubFromClientX(event.clientX, event.currentTarget as HTMLElement);
   }
 
-  /** Release: land on the current page and persist progress once. */
+  /** Release: land where the finger lifted (a tap's jump, a drag's end), persist progress once, offer the way back. */
   onScrubEnd(event: PointerEvent): void {
     if (!this.scrubbing()) return;
+    const el = event.currentTarget as HTMLElement;
+    this.scrubFromClientX(event.clientX, el);
     this.scrubbing.set(false);
-    (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
+    el.releasePointerCapture?.(event.pointerId);
     this.clearWebtoonSaveTimer();
     this.saveProgress();
+    this.noteJump(this.scrubStartPage, this.currentPage());
+  }
+
+  /**
+   * The browser / OS took the touch (`pointercancel`, e.g. the iPadOS swipe-up to the Home Screen): undo - back to the page
+   * the touch started on, and save nothing.
+   */
+  onScrubCancel(event: PointerEvent): void {
+    if (!this.scrubbing()) return;
+    this.scrubbing.set(false);
+    (event.currentTarget as HTMLElement)?.releasePointerCapture?.(event.pointerId);
+    this.clearWebtoonSaveTimer();
+    if (this.currentPage() !== this.scrubStartPage) this.scrubApply(this.scrubStartPage);
   }
 
   private clearWebtoonSaveTimer(): void {
@@ -2456,6 +2661,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
    */
   @HostListener('window:pagehide')
   flushPendingSave(): void {
+    if (this.guardJumpOnLeave()) return;
     if (!this.webtoonSaveTimer) return;
     this.clearWebtoonSaveTimer();
     this.saveProgress();
@@ -2463,7 +2669,12 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
 
   @HostListener('document:visibilitychange')
   onVisibilityChange(): void {
-    if (document.visibilityState === 'hidden') this.flushPendingSave();
+    if (document.visibilityState === 'hidden') {
+      this.flushPendingSave();
+      this.pauseJumpChip();
+    } else {
+      this.onJumpReturn();
+    }
   }
 
   private scrubFromClientX(clientX: number, el: HTMLElement): void {
@@ -2509,7 +2720,8 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     // Stop the window-level reader shortcuts from ALSO handling the arrow (that was
     // a two-page step per press on the focused slider, browser-verified 1.8.0).
     event.stopPropagation();
-    this.seekToPage(target);
+    if (event.key === 'Home' || event.key === 'End') this.jumpTo(target);
+    else this.seekToPage(target);
   }
 
   /** Applies a seek target (clamped) across all view modes. */
@@ -3078,6 +3290,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
       // Debounce progress writes while scrolling. A scrub saves once on release.
       if (this.webtoonSaveTimer) clearTimeout(this.webtoonSaveTimer);
       this.webtoonSaveTimer = this.scrubbing() ? null : setTimeout(() => this.saveProgress(), 600);
+      if (!this.scrubbing()) this.noteReadingPage(idx);
     }
     // 1.7.1 (owner revert): webtoon no longer auto-advances chapters on scroll —
     // the scroll-up-at-top gesture fought the fullscreen-exit gesture on touch.
@@ -3216,9 +3429,9 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     return spread ? spread[spread.length - 1] : this.currentPage();
   }
 
-  private saveProgress(retryOnConflict = true): void {
+  private saveProgress(retryOnConflict = true, page?: number): void {
     if (this.phase() !== 'ready' || this.pageCount() === 0) return;
-    const pageIndex = this.effectivePageIndex();
+    const pageIndex = page ?? this.effectivePageIndex();
     // Suppress the save while parked at the end of a chapter we merely landed on via
     // previous-chapter back-navigation — persisting it would complete (and, per the
     // sticky read-mark feature, mark read) a chapter the reader never actually read.
@@ -3246,7 +3459,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
               // 1.27.0: the save lost a race (an earlier save of ours still in flight,
               // or another device) - send it once more on the fresh revision, with the
               // page on screen now, instead of dropping the latest position.
-              if (retryOnConflict && this.itemId() === itemId) this.saveProgress(false);
+              if (retryOnConflict && this.itemId() === itemId) this.saveProgress(false, page);
             },
             error: () => { /* leave revision as-is */ },
           });
