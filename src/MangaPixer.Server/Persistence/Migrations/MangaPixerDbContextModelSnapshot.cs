@@ -2051,6 +2051,15 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                     b.Property<string>("CategoriesJson")
                         .HasColumnType("TEXT");
 
+                    b.Property<double?>("CommunityScore")
+                        .HasColumnType("REAL");
+
+                    b.Property<long?>("CommunityScoreAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("CommunityVotes")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("CreatorsJson")
                         .HasColumnType("TEXT");
 
@@ -2094,6 +2103,15 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                         .HasColumnType("REAL");
 
                     b.Property<bool?>("LicensedEn")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double?>("MalScore")
+                        .HasColumnType("REAL");
+
+                    b.Property<long?>("MalScoreAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("MalVotes")
                         .HasColumnType("INTEGER");
 
                     b.Property<int?>("Origin")
