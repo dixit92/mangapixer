@@ -61,6 +61,12 @@ public sealed class VolumeContentEntity
 
     public string ChaptersJson { get; set; } = "[]";
 
+    /// <summary>
+    /// 1.54.0: the chapter files the match compared (the folder's hashed candidates, <c>[[node id, content version], ...]</c>), or null for an
+    /// answer stored before 1.54.0. A compared chapter file not found inside is not in this volume (the Volumes view drops an estimate).
+    /// </summary>
+    public string? ComparedJson { get; set; }
+
     public int NearMisses { get; set; }
     public int CoveredPages { get; set; }
 

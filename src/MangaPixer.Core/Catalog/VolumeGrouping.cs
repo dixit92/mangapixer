@@ -24,6 +24,7 @@ public enum GroupingRowKind
 /// set by <see cref="VolumeGrouping.WithSeriesHeads"/> only on a row whose reading it changes. <see cref="InVolumeFile"/> (1.44.0): the
 /// number of the volume whose FILE in this folder holds this chapter file, as the volume contents scan proved it
 /// (<see cref="VolumeContents.Apply"/>) - the chapter then sits in that volume's stack (<see cref="VolumePlacement.Scanned"/>).
+/// <see cref="NotInVolumeFiles"/> (1.54.0): the volume files of this folder the scan compared this chapter file with and did not find it in.
 /// </summary>
 public sealed record GroupingRow(
     string Id,
@@ -34,7 +35,17 @@ public sealed record GroupingRow(
     int? ComicInfoVolume = null,
     string? ComicInfoNumber = null,
     string? SeriesHead = null,
-    decimal? InVolumeFile = null);
+    decimal? InVolumeFile = null)
+{
+    /// <summary>
+    /// 1.54.0: the volume files of this folder the volume contents scan compared this chapter file with without finding it inside (null =
+    /// none, or unknown). An ESTIMATE that places the chapter in such a volume, outside the run of chapters its file holds, is dropped.
+    /// </summary>
+    public IReadOnlyList<VolumeFileMiss>? NotInVolumeFiles { get; init; }
+}
+
+/// <summary>A volume file a chapter file is not in (1.54.0): its volume and the first and last chapter the scan found inside it.</summary>
+public sealed record VolumeFileMiss(decimal Volume, decimal FirstFound, decimal LastFound);
 
 /// <summary>One volume of a stored map: its number and the chapters the provider places in it (ascending, extras included).</summary>
 public sealed record VolumeMapVolume(decimal Volume, IReadOnlyList<decimal> Chapters);
@@ -413,7 +424,7 @@ public static class VolumeGrouping
                 Bucket(stated).Chapters.Add(new StackMember(row, false, chapter, u.IsExtra, VolumePlacement.Local));
                 continue;
             }
-            if (resolver.HasData && resolver.Resolve(chapter) is { } placed)
+            if (resolver.HasData && resolver.Resolve(chapter) is { } placed && !RuledOutByScan(row, placed, chapter))
             {
                 Bucket(placed.Volume).Chapters.Add(new StackMember(row, false, chapter, u.IsExtra, placed.Placement));
                 continue;
@@ -638,6 +649,16 @@ public static class VolumeGrouping
     /// A loose archive ("not in a volume yet"), by name. 1.34.0: in chapter mode (<see cref="VolumeMapInput.ChaptersOnly"/>) the chapters
     /// are listed in CHAPTER order (keyed by their number), archives without a chapter number after them.
     /// </summary>
+    /// <summary>
+    /// 1.54.0 (owner, "(1) automatic first"): an estimate (or the adjacent rule) that places a chapter in a volume whose file in this folder
+    /// the volume contents scan compared it with - and found other chapters in, but not this one, and not between them - is wrong: the
+    /// chapter is not in a volume yet. The provider's own list (Exact, Bounded) is never overruled.
+    /// </summary>
+    private static bool RuledOutByScan(GroupingRow row, (decimal Volume, VolumePlacement Placement) placed, decimal chapter) =>
+        placed.Placement is VolumePlacement.Estimated or VolumePlacement.Adjacent
+        && row.NotInVolumeFiles is { } misses
+        && misses.Any(m => m.Volume == placed.Volume && (chapter < m.FirstFound || chapter > m.LastFound));
+
     private static VolumeEntry LooseArchive(GroupingRow row, VolumeMapInput map, decimal? chapter = null) =>
         new()
         {
