@@ -3370,6 +3370,9 @@ export interface ExportRecordDto {
   fetchedAt: string;
   /** 1.47.0: one entry per credited person; left out when the record has none. */
   creators?: ExportCreatorDto[] | null;
+  /** 1.54.0: the record's community score (0-10) and vote count; left out when unknown. */
+  communityScore?: number | null;
+  communityVotes?: number | null;
 }
 
 /** 1.47.0: one credited person of a record. */
