@@ -94,6 +94,34 @@ public sealed class MalCommunityScoreHttpTests
     }
 
     [Fact]
+    public async Task SeriesInformation_ListsTheStoredCommunityScores_WithTheirSource_InOrder()
+    {
+        await using var h = new TrackerTestHarness();
+        var seed = await h.SeedSeriesAsync();
+        await h.DbAsync(async db =>
+        {
+            var mu = await db.MetadataRecords.SingleAsync(r => r.Id == seed.RecordId);
+            (mu.CommunityScore, mu.CommunityVotes, mu.CommunityScoreAt) = (8.98, 1200, DateTimeOffset.UtcNow);
+            var md = await db.MetadataRecords.SingleAsync(r => r.Provider == "mangadex");
+            (md.CommunityScore, md.CommunityVotes, md.CommunityScoreAt) = (8.1, 300, DateTimeOffset.UtcNow);
+            (md.MalScore, md.MalVotes, md.MalScoreAt) = (8.62, null, DateTimeOffset.UtcNow);
+            return await db.SaveChangesAsync();
+        });
+        var admin = await h.AdminAsync();
+
+        var info = (await admin.GetFromJsonAsync<SeriesInfoDto>($"/api/v1/nodes/{seed.FolderPublicId}/series-info", TestJson.Web))!;
+
+        Assert.Equal(
+            [("mangaupdates", "MangaUpdates", 8.98, (int?)1200), ("mangadex", "MangaDex", 8.1, 300), ("myanimelist", "MyAnimeList", 8.62, null)],
+            info.CommunityScores.Select(c => (c.Source, c.SourceName, c.Score, c.Votes)));
+
+        // Without stored scores: none listed.
+        await h.DbAsync(db => db.MetadataRecords.ExecuteUpdateAsync(u => u.SetProperty(r => r.CommunityScore, (double?)null)
+            .SetProperty(r => r.MalScore, (double?)null)));
+        Assert.Empty((await admin.GetFromJsonAsync<SeriesInfoDto>($"/api/v1/nodes/{seed.FolderPublicId}/series-info", TestJson.Web))!.CommunityScores);
+    }
+
+    [Fact]
     public async Task DeletingTheScores_IsForAdminsOnly()
     {
         await using var h = new TrackerTestHarness();
