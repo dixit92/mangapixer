@@ -30,7 +30,17 @@ The name of the open archive shows with the controls, in fullscreen as well: in 
 
 In a normal window the controls stay visible. In fullscreen they hide after 3 seconds without input. Tap the center of the page, press `m`, or (with a mouse) move to the top of the screen to bring them back. **Double tap the center** (or double click it) to enter or leave fullscreen.
 
-The bottom bar has a **page slider**: tap to jump, or drag to scrub, with a bubble showing where you will land. When the controls are hidden, a thin progress line shows how far through the archive you are.
+The bottom bar has a **page slider**: tap to jump, or drag to scrub, with a bubble showing where you will land. A tap jumps when your finger lifts, so a touch the system takes over - such as the swipe up to leave the app on iPad - jumps nowhere. When the controls are hidden, a thin progress line shows how far through the archive you are.
+
+### Jumping back
+
+After a jump of 3 pages or more - with the slider, a bookmark, or `Home` / `End` - the reader offers the way back to the page you came from:
+
+- A note above the bar, "Jumped from page 42", with a **Back to page 42** button, for about 10 seconds (it waits while the app is in the background). The x closes it.
+- A **back button** with the page number at the left end of the bottom bar, and a small mark on the slider at that page. They stay until you read 3 pages on from where you landed, or leave the archive.
+- After going back, the same button offers **Return to page 187**, so a quick look ahead costs one tap. `Backspace` does the same as the button.
+
+If you leave the app within 2 seconds of a jump - for example when the swipe up to the Home Screen also touched the slider - your saved place stays the page you jumped from, and the note asks again when you come back. Jump back works in every page mode, including vertical, and is kept for the archive while the app stays open.
 
 ### Fullscreen on iPad and iPhone
 
@@ -211,6 +221,7 @@ The choice is remembered by this browser. Animations are skipped in vertical mod
 |---|---|
 | `←` / `→` | Previous / next page (swapped in right-to-left). At the end or start of an archive, moves to the next or previous archive. |
 | `Home` / `End` | First / last page |
+| `Backspace` | After a jump: back to the page you came from, then forward again (see [Jumping back](#jumping-back)) |
 | `f` | Toggle fullscreen |
 | `d` | Switch between single and double page. Keeps the archive's pairing; switching to double page makes the page you are on start a spread. |
 | `o` | Double page: shift the pairing by one page from the current spread (saved for the archive, see [Fixing double-page pairing](#fixing-double-page-pairing)) |
@@ -220,7 +231,7 @@ The choice is remembered by this browser. Animations are skipped in vertical mod
 | `Esc` | Close an open menu or help. Otherwise exit fullscreen, or go back to the folder if not in fullscreen. |
 | `?` | Show / hide the help overlay |
 
-- In vertical mode only `m`, `s`, `e`, `?` and `Esc` (to close help) apply. Scroll with the mouse wheel, trackpad or the usual scroll keys.
+- In vertical mode only `m`, `s`, `e`, `Backspace`, `?` and `Esc` (to close help) apply. Scroll with the mouse wheel, trackpad or the usual scroll keys.
 - Shortcuts are ignored while you type in a text field.
 - When the page slider has keyboard focus, the arrow keys step one page and `Home` / `End` jump to the ends.
 

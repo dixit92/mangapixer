@@ -12,12 +12,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   ticking the box only opens the question, and sharing starts when you press **Turn on shared ratings**. Before, the box looked ticked
   while the question waited below the edge of the screen, so leaving the page turned nothing on. Now the box stays unticked until you
   confirm, and the question scrolls into view with **Cancel** selected.
+- Reader: a touch on the page slider that the system takes over - on iPad, the swipe up to leave the app - no longer jumps to another page
+  and saves it as your place. A tap on the slider now jumps when the finger lifts, and leaving the app within 2 seconds of a jump keeps
+  your place on the page you jumped from.
 
 ### Added
 
 - **Reorder the home page.** Settings > **Home** lists the home page's rows - Continue reading, Recommended for you, Favorites, New
   chapters and Libraries - with **Move up** / **Move down** and **Reset to default order**. Your order is saved for your account, so every
   device shows the same home page. The switches that show or hide the Favorites and Recommended for you rows are in the same card now.
+- **Jump back in the reader.** After a jump of 3 pages or more (the page slider, a bookmark, Home / End), a note and a back button in the
+  bottom bar lead back to the page you came from; after going back, the same button returns to where you jumped. `Backspace` does the
+  same.
 
 ### Changed
 
