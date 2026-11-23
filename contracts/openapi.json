@@ -5270,6 +5270,35 @@
         }
       }
     },
+    "/api/v1/admin/metadata/community-scores/myanimelist": {
+      "delete": {
+        "tags": [
+          "MetadataAdmin"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/MalScoresDeletedDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MalScoresDeletedDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MalScoresDeletedDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/metadata/nodes/{nodeId}/link": {
       "put": {
         "tags": [
@@ -18201,6 +18230,19 @@
           }
         }
       },
+      "MalScoresDeletedDto": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "MatchLevel": {
         "type": "integer"
       },
@@ -22146,6 +22188,39 @@
       "SeriesAnswerReason": {
         "type": "integer"
       },
+      "SeriesCommunityScoreDto": {
+        "required": [
+          "source",
+          "sourceName",
+          "score"
+        ],
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "sourceName": {
+            "type": "string"
+          },
+          "score": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?(?:[eE][\u002B-]?\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "votes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "SeriesCompletion": {
         "type": "integer"
       },
@@ -22411,6 +22486,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/SeriesInfoCompanionDto"
+            }
+          },
+          "communityScores": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SeriesCommunityScoreDto"
             }
           },
           "comicInfo": {

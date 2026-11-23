@@ -201,6 +201,16 @@ describe('MetadataSettingsComponent', () => {
     expect(c.message()).toContain('Deleted 2 link(s)');
   });
 
+  it('deletes the stored MyAnimeList scores from Stored data (1.54.0)', () => {
+    const { c, fixture, el } = create();
+    fixture.detectChanges();
+    (el.querySelector('[data-testid="md-delete-mal-scores"]') as HTMLButtonElement).click();
+    const del = http.expectOne({ method: 'DELETE', url: '/api/v1/admin/metadata/community-scores/myanimelist' });
+    del.flush({ records: 3 });
+    http.expectOne({ method: 'GET', url: SETTINGS }).flush(settings());
+    expect(c.message()).toBe('Deleted 3 MyAnimeList scores');
+  });
+
   it('sets a library precedence (default clears it)', () => {
     const { c } = create();
     c.setPrecedence(c.settings()!.libraries[0], 'default');

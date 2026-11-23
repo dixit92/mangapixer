@@ -571,6 +571,11 @@ export function validateThresholds(
               <button mat-stroked-button type="button" [disabled]="saving() || s.webRecordCount === 0" (click)="confirming.set('all')"
                       data-testid="md-purge">Delete all fetched web data</button>
             }
+            <!-- 1.54.0: MyAnimeList's community scores are read with this server's MyAnimeList app; its API terms ask that they can be
+                 deleted on request. They are read again only while MyAnimeList stays allowed under Trackers. -->
+            <p class="muted small">Community scores from MyAnimeList are read again later while MyAnimeList is allowed under Trackers.
+              <button mat-button type="button" [disabled]="saving()" (click)="deleteMalScores()" data-testid="md-delete-mal-scores">
+                Delete stored MyAnimeList scores</button></p>
           </section>
 
         </div>
@@ -873,6 +878,15 @@ export class MetadataSettingsComponent implements OnInit {
     this.confirming.set(null);
     this.api.purge(libraryId).subscribe({
       next: (r) => this.reload(`Deleted ${r.linksRemoved} link(s) and ${r.recordsRemoved} record(s)`),
+      error: (err: ApiError) => this.fail(err),
+    });
+  }
+
+  deleteMalScores(): void {
+    this.saving.set(true);
+    this.error.set(null);
+    this.api.deleteMalScores().subscribe({
+      next: (r) => this.reload(`Deleted ${r.records ?? 0} MyAnimeList score${r.records === 1 ? '' : 's'}`),
       error: (err: ApiError) => this.fail(err),
     });
   }

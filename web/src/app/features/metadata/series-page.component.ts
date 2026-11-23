@@ -19,6 +19,7 @@ import { InfoPanelDto } from './info/info-types';
 import { SeriesMissingLineComponent } from './missing/series-missing-line.component';
 import { mayHaveMissingLine } from './missing/missing-labels';
 import { SeriesRefreshCadenceComponent } from './series-refresh-cadence/series-refresh-cadence.component';
+import { CommunityScoresComponent } from '../ratings/community-scores.component';
 import { NodeRatingComponent } from '../ratings/node-rating.component';
 import { RecommendationRowComponent } from '../recommendations/recommendation-row.component';
 import { RecommendationsApiService } from '../recommendations/recommendations-api.service';
@@ -37,7 +38,7 @@ import { RecommendationsApiService } from '../recommendations/recommendations-ap
 @Component({
   selector: 'app-series-page',
   standalone: true,
-  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressSpinnerModule, SeriesInfoSummaryComponent, SeriesAdminActionsComponent, WrongSeriesFlagComponent, SeriesMissingLineComponent, SeriesRefreshCadenceComponent, InfoTagsComponent, NodeRatingComponent, RecommendationRowComponent],
+  imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressSpinnerModule, SeriesInfoSummaryComponent, SeriesAdminActionsComponent, WrongSeriesFlagComponent, SeriesMissingLineComponent, SeriesRefreshCadenceComponent, InfoTagsComponent, NodeRatingComponent, RecommendationRowComponent, CommunityScoresComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page" data-testid="series-page">
@@ -54,6 +55,8 @@ import { RecommendationsApiService } from '../recommendations/recommendations-ap
           <app-series-info-summary [info]="i" [showDescription]="false" [shortAltTitles]="true" [tagsPanel]="tags()" />
           <!-- 1.52.0 (lane R): the viewer's own rating of the series (its anchor node). -->
           <app-node-rating [nodeId]="i.anchorNodeId" [name]="i.title || i.anchorDisplayName" />
+          <!-- 1.54.0: community scores from the web, each with its source. -->
+          <app-community-scores [scores]="i.communityScores ?? []" />
           <!-- 1.45.0: the Tags block, as in the Info overlay. -->
           <app-info-tags [nodeId]="i.nodeId" (loaded)="tags.set($event)" />
           <div class="hero-actions">

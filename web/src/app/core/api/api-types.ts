@@ -1437,6 +1437,20 @@ export interface SeriesLinkInfoDto {
 
 /** GET /nodes/{nodeId}/series-info - one DTO for the overlay and the series page. */
 /** A companion source of a linked series (1.41.0): today its MangaDex record, listed under Sources. */
+/** 1.54.0: one community score of a series as its source states it (0-10; never converted to stars). */
+export interface SeriesCommunityScoreDto {
+  /** Provider slug: mangaupdates, mangadex or myanimelist. */
+  source: string;
+  sourceName: string;
+  score: number;
+  votes?: number | null;
+}
+
+/** 1.54.0: DELETE /admin/metadata/community-scores/myanimelist - how many records held a MyAnimeList score. */
+export interface MalScoresDeletedDto {
+  records?: number;
+}
+
 export interface SeriesInfoCompanionDto {
   provider: string;
   providerName: string;
@@ -1473,6 +1487,8 @@ export interface SeriesInfoDto {
   mixedSeries?: SeriesMixedEntryDto[];
   web?: SeriesInfoWebDto | null;
   companions?: SeriesInfoCompanionDto[];
+  /** 1.54.0: MangaUpdates', MangaDex's and MyAnimeList's scores, in that order, each only when stored. */
+  communityScores?: SeriesCommunityScoreDto[];
   comicInfo?: SeriesInfoComicInfoDto | null;
   link?: SeriesLinkInfoDto | null;
   precedence: MetadataPrecedence;
