@@ -35,6 +35,7 @@ import { isNearEnd } from './near-end';
 import {
   afterPageChange, isLeaveGuarded, JumpChipMs, jumpStorageKey, JumpState, parseJump, recordJump, restoreJump, useJump,
 } from './jump-back';
+import { JumpBackButtonComponent, JumpBackChipComponent, JumpChipKind } from './jump-back-controls.component';
 import { WebtoonEnhanceHostDirective, WebtoonUpscaleDirective } from './webtoon-upscale.directive';
 import { PageLoadIndicatorComponent, WebtoonPageComponent } from './page-load-state.component';
 import {
@@ -163,6 +164,8 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     CommonModule,
     MatButtonModule,
     MatIconModule,
+    JumpBackButtonComponent,
+    JumpBackChipComponent,
     MatToolbarModule,
     MatTooltipModule,
     MatProgressSpinnerModule,
@@ -440,10 +443,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
              (mouseenter)="lockChrome(true)" (mouseleave)="lockChrome(false)">
           <!-- Jump back (1.54.0): the way back after a jump of 3+ pages, for as long as it can be undone. -->
           @if (jump(); as j) {
-            <button type="button" class="jump-btn" (click)="useJumpBack()" [attr.aria-label]="jumpLabel()"
-                    [matTooltip]="jumpLabel() + ' (Backspace)'">
-              <mat-icon aria-hidden="true">{{ j.mode === 'back' ? 'undo' : 'redo' }}</mat-icon>{{ jumpTargetPage() }}
-            </button>
+            <app-jump-back-button [state]="j" (back)="useJumpBack()" />
           }
           <span class="nav-end" aria-hidden="true">{{ direction() === 'rtl' ? pageCount() : 1 }}</span>
           <div class="scrub" [class.scrubbing]="scrubbing()" [class.rtl]="direction() === 'rtl'"
@@ -472,21 +472,8 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
         <!-- Jump back chip (1.54.0): ~10 s after a jump, above the bar (low on the screen while the controls are hidden). -->
         @if (jumpChip(); as kind) {
           @if (jump(); as j) {
-            <div class="jump-chip" [class.low]="!chromeVisible()">
-              <span class="jump-chip-text" role="status">
-                <span class="long">{{ kind === 'left' ? 'You jumped just before leaving'
-                  : kind === 'returned' ? 'Back on page ' + (j.landing + 1) : 'Jumped from page ' + (j.origin + 1) }}</span>
-                <span class="short">{{ kind === 'returned' ? 'Back on p. ' + (j.landing + 1) : 'From p. ' + (j.origin + 1) }}</span>
-              </span>
-              <button type="button" class="jump-chip-go" (click)="useJumpBack()" [attr.aria-label]="jumpLabel()">
-                <mat-icon aria-hidden="true">{{ j.mode === 'back' ? 'undo' : 'redo' }}</mat-icon>
-                <span class="long">{{ jumpLabel() }}</span>
-                <span class="short">{{ j.mode === 'back' ? 'Back' : 'p. ' + jumpTargetPage() }}</span>
-              </button>
-              <button type="button" class="jump-chip-x" (click)="dismissJumpChip()" aria-label="Dismiss">
-                <mat-icon aria-hidden="true">close</mat-icon>
-              </button>
-            </div>
+            <app-jump-back-chip [state]="j" [kind]="kind" [low]="!chromeVisible()"
+                                (back)="useJumpBack()" (dismissed)="dismissJumpChip()" />
           }
         }
         <!-- Persistent minimal cue while the chrome is hidden (fullscreen): the thin
@@ -780,15 +767,7 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
       font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none;
       box-shadow: 0 4px 14px rgb(var(--mp-shade-rgb) / 0.4);
     }
-    /* Jump back (1.54.0): the bar's button, the slider tick and the chip. */
-    .jump-btn {
-      flex: none; display: inline-flex; align-items: center; gap: 2px; height: 40px; min-width: 40px; padding: 0 10px 0 6px;
-      border: 1px solid rgb(var(--mp-ink-rgb) / 0.22); border-radius: 20px; background: rgb(var(--mp-ink-rgb) / 0.08);
-      color: var(--mp-reader-text); font: inherit; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums;
-      cursor: pointer; -webkit-tap-highlight-color: transparent;
-    }
-    .jump-btn mat-icon { font-size: 18px; width: 18px; height: 18px; }
-    .jump-btn:focus-visible { outline: 2px solid var(--mp-accent-strong); outline-offset: 1px; }
+    /* Jump back (1.54.0): the slider tick at the page the bar's button leads to (button + chip: jump-back-controls). */
     .scrub-tick {
       position: absolute; top: 15px; width: 3px; height: 14px; margin-left: -1.5px; border-radius: 1px;
       background: var(--mp-reader-text); pointer-events: none;
@@ -796,31 +775,6 @@ type ReaderPhase = 'preparing' | 'ready' | 'error';
     .scrub-tick span {
       position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);
       font-size: 10px; line-height: 1; color: var(--mp-reader-text-secondary); font-variant-numeric: tabular-nums;
-    }
-    .jump-chip {
-      position: absolute; left: 50%; transform: translateX(-50%); z-index: 1002;
-      bottom: calc(60px + env(safe-area-inset-bottom, 0px));
-      display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 14px; max-width: calc(100% - 32px);
-      border-radius: 24px; background: var(--mp-reader-chrome); color: var(--mp-reader-text-secondary);
-      border: 1px solid rgb(var(--mp-ink-rgb) / 0.2); box-shadow: 0 4px 14px rgb(var(--mp-shade-rgb) / 0.4);
-      font-size: 13px; white-space: nowrap;
-    }
-    .jump-chip.low { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
-    .jump-chip-go {
-      display: inline-flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 14px 0 10px; border: 0;
-      border-radius: 20px; background: var(--mp-accent-strong); color: var(--mp-on-accent); font: inherit;
-      font-weight: 600; cursor: pointer;
-    }
-    .jump-chip-go mat-icon, .jump-chip-x mat-icon { font-size: 18px; width: 18px; height: 18px; }
-    .jump-chip-x {
-      display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 0;
-      border-radius: 50%; background: transparent; color: var(--mp-reader-text-secondary); cursor: pointer;
-    }
-    .jump-chip button:focus-visible { outline: 2px solid var(--mp-accent-strong); outline-offset: 1px; }
-    .jump-chip .short { display: none; }
-    @media (max-width: 599.98px) {
-      .jump-chip .long { display: none; }
-      .jump-chip .short { display: inline; }
     }
     /* Passive thin progress cue at the bottom edge while the chrome is hidden. */
     .progress-rail {
@@ -1214,14 +1168,9 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
   // The rules are in jump-back.ts; the chip shows ~10 s of visible time; the offer is kept per archive in sessionStorage
   // (an iPad may reload a suspended Home Screen app) and dropped when the reader leaves the archive.
   readonly jump = signal<JumpState | null>(null);
-  readonly jumpChip = signal<'jumped' | 'returned' | 'left' | null>(null);
+  readonly jumpChip = signal<JumpChipKind | null>(null);
   /** The page number (1-based) the bar's button and the chip lead to, and their label. */
   readonly jumpTargetPage = computed(() => { const j = this.jump(); return j ? j.origin + 1 : 0; });
-  readonly jumpLabel = computed(() => {
-    const j = this.jump();
-    if (!j) return '';
-    return (j.mode === 'back' ? 'Back to page ' : 'Return to page ') + (j.origin + 1);
-  });
   /** The slider tick at the page the button leads to (a passive cue, not a target). */
   readonly jumpTickLeft = computed(() => {
     const j = this.jump();
@@ -2095,7 +2044,7 @@ export class ReaderComponent implements OnInit, OnDestroy, ReaderOptionsHost, Bo
     if (this.jumpChip() && !this.jumpChipTimer) this.startJumpChipTimer(Math.max(0, this.jumpChipLeftMs));
   }
 
-  private showJumpChip(kind: 'jumped' | 'returned' | 'left'): void {
+  private showJumpChip(kind: JumpChipKind): void {
     this.jumpChip.set(kind);
     this.startJumpChipTimer(JumpChipMs);
   }
