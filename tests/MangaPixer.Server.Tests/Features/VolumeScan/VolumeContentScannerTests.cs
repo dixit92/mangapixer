@@ -153,7 +153,8 @@ public sealed class VolumeContentScannerTests : IDisposable
     public async Task A_ChapterTheScanComparedAndDidNotFind_LeavesTheEstimatedVolume_ANewerOneWaitsForTheNextSweep()
     {
         // 1.54.0 (owner: "a chapter in the wrong estimated volume", "(1) automatic first"). The list maps volumes 1-6 (chapters 1-48), so
-        // volume 8 is ESTIMATED as chapters 57-64. Volume 8's file holds 57-62 and 10 pages after them (room at its end: Partial).
+        // volume 8 is ESTIMATED as chapters 57-64. Volume 8's file holds 57-62 and 40 pages after them (more than the 16 back-matter pages
+        // the matcher allows: room at its end, Partial).
         var (db, lib) = await SetupAsync();
         using var _ = db;
         var series = await VolumeTestData.AddFolderAsync(db, lib.Id, null, "Synthetic Series");
@@ -165,7 +166,7 @@ public sealed class VolumeContentScannerTests : IDisposable
             chapterPages[c] = Pages(18);
             await PagesOfAsync(db, lib, node, chapterPages[c]);
         }
-        await PagesOfAsync(db, lib, volume8, [.. Pages(2), .. Enumerable.Range(57, 6).SelectMany(c => chapterPages[c]), .. Pages(10)]);
+        await PagesOfAsync(db, lib, volume8, [.. Pages(2), .. Enumerable.Range(57, 6).SelectMany(c => chapterPages[c]), .. Pages(40)]);
         var record = await VolumeTestData.AddRecordAsync(db, originVolumes: 12, status: MetadataOriginStatus.Ongoing);
         await VolumeTestData.LinkAsync(db, series, record.Id);
         await VolumeTestData.AddMapAsync(db, record.Id, 1, 12, 8, VolumeMapState.Ok, VolumeMapSource.MangaDexAggregate,

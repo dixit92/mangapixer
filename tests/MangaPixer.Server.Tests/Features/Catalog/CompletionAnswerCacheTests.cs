@@ -25,6 +25,9 @@ using Xunit;
 /// a new volume map. Invalidation: for each input, a first page right after a change the way production writes it serves the answer the
 /// old loader computes from the changed rows (red on a constant stamp). Synthetic names.
 /// </summary>
+// 1.54.0: the cache's inputs include VolumeContentReader.Generation, a process-wide counter every volume contents scan raises - a scanner
+// test running in parallel made "unchanged inputs" recompute (2 of 16 failed once a third scan joined VolumeContentScannerTests).
+[Collection(SerialCollection.Name)]
 public sealed class CompletionAnswerCacheTests : IDisposable
 {
     private static readonly JsonSerializerOptions WithFields = new() { IncludeFields = true };
