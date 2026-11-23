@@ -9,6 +9,7 @@ public static class FreshnessServicesExtensions
         services.AddScoped<LatestUploadSweep>();
         services.AddScoped<ReleasesFeedPoll>();
         services.AddScoped<ReadableBackfill>();
+        services.AddScoped<CommunityScorePass>(); // 1.54.0: MangaDex community scores
         services.AddScoped<NewChapterChecksRunner>();
         services.AddScoped<TakenDownRecordsService>(); // 1.47.0: the Runs tab's taken-down list (stored rows only)
         return services;

@@ -46,10 +46,20 @@ public interface IMangaDexProvider
     /// records by id, in one request (<see cref="MangaDexProvider.LatestUploadsUrl"/>). Records MangaDex does not return are left out.
     /// </summary>
     Task<IReadOnlyList<MangaDexLatestUpload>> LatestUploadsAsync(IReadOnlyList<string> mangaIds, CancellationToken ct);
+
+    /// <summary>
+    /// 1.54.0 (community scores): the public statistics of up to <see cref="MangaDexProvider.StatisticsBatch"/> records by id, in one request
+    /// (<see cref="MangaDexProvider.StatisticsUrl"/>) - the Bayesian rating and the number of ratings. Records MangaDex does not return are
+    /// left out.
+    /// </summary>
+    Task<IReadOnlyList<MangaDexStatistics>> StatisticsAsync(IReadOnlyList<string> mangaIds, CancellationToken ct);
 }
 
 /// <summary>1.45.0: one record's latest uploaded chapter (any language) - the chapter's id, or null when MangaDex lists none.</summary>
 public sealed record MangaDexLatestUpload(string MangaId, string? ChapterId);
+
+/// <summary>1.54.0: one record's statistics - its Bayesian rating (1-10; null = not rated) and how many ratings it has.</summary>
+public sealed record MangaDexStatistics(string MangaId, double? Bayesian, int? Votes);
 
 /// <summary>A MangaDex record, as much of it as the companion needs. Titles are data: bounded, never logged.</summary>
 public sealed record MangaDexManga
@@ -166,6 +176,9 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
 
     /// <summary>1.45.0: ids per latest-upload request (MangaDex's <c>ids[]</c> and <c>limit</c> maximum).</summary>
     public const int LatestUploadBatch = 100;
+
+    /// <summary>1.54.0: ids per statistics request (the same 100 as the latest-upload call).</summary>
+    public const int StatisticsBatch = 100;
 
     /// <summary>The highest search offset MangaDex accepts with a page of 10 (offset + limit &lt;= 10000; Identify pages 1-100).</summary>
     public const int MaxSearchOffset = 990;
@@ -328,6 +341,57 @@ public sealed partial class MangaDexProvider : IMangaDexProvider
             return [];
         using var doc = await GetJsonAsync(LatestUploadsUrl(mangaIds), ct);
         return doc is null ? [] : ReadLatestUploads(doc.RootElement);
+    }
+
+    /// <summary>
+    /// 1.54.0: the statistics address - exactly <c>GET /statistics/manga?manga[]=..</c> with the record ids, nothing else. Only valid ids, at
+    /// most <see cref="StatisticsBatch"/>.
+    /// </summary>
+    public static string StatisticsUrl(IReadOnlyList<string> mangaIds)
+    {
+        var ids = mangaIds.Where(IsValidId).Distinct(StringComparer.Ordinal).Take(StatisticsBatch).Select(id => "manga%5B%5D=" + id);
+        return ApiBase + "/statistics/manga?" + string.Join('&', ids);
+    }
+
+    public async Task<IReadOnlyList<MangaDexStatistics>> StatisticsAsync(IReadOnlyList<string> mangaIds, CancellationToken ct)
+    {
+        if (!mangaIds.Any(IsValidId))
+            return [];
+        using var doc = await GetJsonAsync(StatisticsUrl(mangaIds), ct);
+        return doc is null ? [] : ReadStatistics(doc.RootElement);
+    }
+
+    /// <summary>1.54.0: <c>statistics.{id}.rating.bayesian</c> (0 or absent = not rated) and the sum of <c>rating.distribution</c>.</summary>
+    internal static IReadOnlyList<MangaDexStatistics> ReadStatistics(JsonElement root)
+    {
+        if (!root.TryGetProperty("statistics", out var stats) || stats.ValueKind != JsonValueKind.Object)
+            return [];
+        var result = new List<MangaDexStatistics>();
+        foreach (var entry in stats.EnumerateObject())
+        {
+            if (!IsValidId(entry.Name) || entry.Value.ValueKind != JsonValueKind.Object)
+                continue;
+            double? bayesian = null;
+            int? votes = null;
+            if (entry.Value.TryGetProperty("rating", out var rating) && rating.ValueKind == JsonValueKind.Object)
+            {
+                if (rating.TryGetProperty("bayesian", out var b) && b.ValueKind == JsonValueKind.Number && b.TryGetDouble(out var value)
+                    && value is > 0 and <= 10)
+                    bayesian = Math.Round(value, 2);
+                if (rating.TryGetProperty("distribution", out var d) && d.ValueKind == JsonValueKind.Object)
+                {
+                    long sum = 0;
+                    foreach (var bucket in d.EnumerateObject())
+                    {
+                        if (bucket.Value.ValueKind == JsonValueKind.Number && bucket.Value.TryGetInt64(out var n) && n > 0)
+                            sum += n;
+                    }
+                    votes = sum > 0 ? (int)Math.Min(sum, int.MaxValue) : null;
+                }
+            }
+            result.Add(new MangaDexStatistics(entry.Name, bayesian, bayesian is null ? null : votes));
+        }
+        return result;
     }
 
     public async Task<IReadOnlyList<MangaDexManga>> SearchAsync(string title, CancellationToken ct)

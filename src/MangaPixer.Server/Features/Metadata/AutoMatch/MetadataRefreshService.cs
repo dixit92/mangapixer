@@ -186,6 +186,8 @@ public sealed class MetadataRefreshService
         catchUp.UnionWith(await _db.MetadataRefreshNudges.AsNoTracking().Select(n => n.RecordId).ToListAsync(ct));
         // 1.43.0 (tracker sync, lane G - owner A2): the one-time links.mal catch-up, under the same gate and budget.
         catchUp.UnionWith(await MalCatchUpAsync(now, ct));
+        // 1.54.0 (owner q3): the one-time community-score catch-up - at most a day's share of linked MangaUpdates records without a score.
+        catchUp.UnionWith(await CommunityScoreCatchUpAsync(now, ct));
         var due = candidates
             .Where(r => catchUp.Contains(r.Id)
                 || r.FetchedAt + TimeSpan.FromDays(cadences.TryGetValue(r.Id, out var d) ? d : (int)RefreshCadence.AgeFor(r.OriginStatus).TotalDays) <= now)
@@ -306,6 +308,12 @@ public sealed class MetadataRefreshService
     /// <summary>The <c>job_runs</c> key of the one-time MyAnimeList id catch-up (1.43.0).</summary>
     internal const string MalCatchUpKey = "tracker-mal-catchup";
 
+    /// <summary>1.54.0: the job row of the one-time community-score catch-up.</summary>
+    internal const string CommunityScoreCatchUpKey = "metadata-community-score-catchup";
+
+    /// <summary>1.54.0 (owner q3): records made due per day by the catch-up (the default daily budget is 5000).</summary>
+    internal const int CommunityScoreCatchUpPerDay = 400;
+
     /// <summary>
     /// The one-time MyAnimeList id catch-up (1.43.0, owner A2: "on every instance that accepted the consent; it queues when it would exceed
     /// that server's budget"). Before 1.43.0 a stored MangaDex record kept no <c>links.mal</c>, so MyAnimeList sync would know no series id
@@ -344,6 +352,49 @@ public sealed class MetadataRefreshService
         _logger.LogInformation(LogEvents.Trackers.MalCatchUp, "Tracker MAL id catch-up started: {Companions} MangaDex companions due for their re-check",
             pulled);
         return pulled;
+    }
+
+    /// <summary>
+    /// 1.54.0 (community scores, owner q3 "Yes"): a linked MangaUpdates record fetched before 1.54.0 carries no community score until its next
+    /// refresh (up to 90 days). This catch-up makes up to <see cref="CommunityScoreCatchUpPerDay"/> of them due once a day - oldest fetch
+    /// first - so the refresh reads them by their id (part of the metadata fetcher: its gate, consent, budget and pacing; no new kind of
+    /// request). Once none is left the job row says "ok" and it never runs again.
+    /// </summary>
+    private async Task<IReadOnlySet<long>> CommunityScoreCatchUpAsync(DateTimeOffset now, CancellationToken ct)
+    {
+        var run = await _db.JobRuns.FirstOrDefaultAsync(j => j.Key == CommunityScoreCatchUpKey, ct);
+        if (run?.LastOutcome == "ok")
+            return new HashSet<long>();
+        if (run is null)
+        {
+            run = new JobRunEntity { Key = CommunityScoreCatchUpKey, LastStartedAt = now, LastDetail = "community score catch-up started" };
+            _db.JobRuns.Add(run);
+        }
+        else if (run.LastFinishedAt is { } last && last <= now && now - last < TimeSpan.FromDays(1))
+        {
+            return new HashSet<long>(); // today's share was already made due
+        }
+        var mangaUpdates = MetadataProviderAllowlist.MangaUpdates;
+        var ids = await LinkedRecords().AsNoTracking()
+            .Where(r => r.Provider == mangaUpdates && r.FetchState != 1 && r.CommunityScoreAt == null)
+            .OrderBy(r => r.FetchedAt).ThenBy(r => r.Id)
+            .Select(r => r.Id)
+            .Take(CommunityScoreCatchUpPerDay)
+            .ToListAsync(ct);
+        run.LastFinishedAt = now;
+        if (ids.Count == 0)
+        {
+            run.LastOutcome = "ok";
+            run.LastDetail = "community scores caught up";
+        }
+        else
+        {
+            run.LastDetail = $"{ids.Count} records due";
+            _logger.LogInformation(LogEvents.Metadata.CommunityScoreCatchUp, "Metadata refresh: {Count} MangaUpdates records due for the one-time community score catch-up",
+                ids.Count);
+        }
+        await _db.SaveChangesAsync(ct);
+        return ids.ToHashSet();
     }
 
     private async Task<IReadOnlySet<long>> MalCatchUpAsync(DateTimeOffset now, CancellationToken ct)

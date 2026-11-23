@@ -135,7 +135,8 @@ public static class MuJson
     });
 
     public static string Get(long id, string title, string[]? alt = null, string type = "Manga", string status = "5 Volumes (Ongoing)",
-        string? image = null, long? relatedId = null, (long Id, string Type)[]? related = null, string[]? authors = null, long[]? authorIds = null) => JsonSerializer.Serialize(new
+        string? image = null, long? relatedId = null, (long Id, string Type)[]? related = null, string[]? authors = null, long[]? authorIds = null,
+        double? rating = null) => JsonSerializer.Serialize(new
         {
             series_id = id,
             title,
@@ -151,6 +152,7 @@ public static class MuJson
             related_series = relatedId is { } r ? new object[] { new { relation_type = "Sequel", related_series_id = r } }
                 : (related ?? []).Select(x => (object)new { relation_type = x.Type, related_series_id = x.Id }).ToArray(),
             image = image is null ? null : new { url = new { original = image, thumb = image } },
+            bayesian_rating = rating, // 1.54.0: the community score
         });
 }
 
