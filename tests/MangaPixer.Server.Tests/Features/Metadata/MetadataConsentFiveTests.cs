@@ -29,12 +29,13 @@ public sealed class MetadataConsentFiveTests : IAsyncLifetime
     }
 
     [Fact]
-    public void TheMainConsentIsVersion7_AndTheAutomaticConsentIs5()
+    public void TheMainConsentIsVersion8_AndTheAutomaticConsentIs6()
     {
         // 1.42.0 (lane D): MangaDex as the series record moved both (main 5 -> 6, automatic 4 -> 5); 1.45.0 (seam I0): author search by
-        // name moves the main consent 6 -> 7, the automatic consent stays 5.
-        Assert.Equal(7, MetadataConsent.CurrentVersion);
-        Assert.Equal(5, MetadataAutoConsent.CurrentVersion);
+        // name moves the main consent 6 -> 7, the automatic consent stays 5; 1.54.0: community scores (MangaDex statistics, the
+        // MyAnimeList score) move both (main 7 -> 8, automatic 5 -> 6).
+        Assert.Equal(8, MetadataConsent.CurrentVersion);
+        Assert.Equal(6, MetadataAutoConsent.CurrentVersion);
     }
 
     [Fact]
