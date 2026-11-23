@@ -16,7 +16,11 @@ public sealed class CommunityScoreStorageTests
 
     private static ProviderSeriesRecord Fetched(string provider, double? score = null, int? votes = null) => new()
     {
-        Provider = provider, ExternalId = "x", Title = "Synthetic", CommunityScore = score, CommunityVotes = votes,
+        Provider = provider,
+        ExternalId = "x",
+        Title = "Synthetic",
+        CommunityScore = score,
+        CommunityVotes = votes,
     };
 
     [Fact]
@@ -37,8 +41,14 @@ public sealed class CommunityScoreStorageTests
     {
         var record = new MetadataRecordEntity
         {
-            Provider = "mangadex", ExternalId = "x", CommunityScore = 8.1, CommunityVotes = 300, CommunityScoreAt = Now,
-            MalScore = 8.62, MalVotes = 51000, MalScoreAt = Now,
+            Provider = "mangadex",
+            ExternalId = "x",
+            CommunityScore = 8.1,
+            CommunityVotes = 300,
+            CommunityScoreAt = Now,
+            MalScore = 8.62,
+            MalVotes = 51000,
+            MalScoreAt = Now,
         };
         MetadataIdentifyService.Apply(record, Fetched("mangadex"), Now.AddDays(1));
         Assert.Equal((8.1, 300, Now), (record.CommunityScore!.Value, record.CommunityVotes!.Value, record.CommunityScoreAt!.Value));

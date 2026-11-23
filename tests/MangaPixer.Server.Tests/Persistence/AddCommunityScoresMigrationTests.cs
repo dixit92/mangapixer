@@ -45,11 +45,23 @@ public sealed class AddCommunityScoresMigrationTests : IDisposable
             await db.GetService<IMigrator>().MigrateAsync(all[index - 1]);
             await LegacySchemaSeed.InsertAsync(db, new MetadataRecordEntity
             {
-                Id = 5, PublicId = "rec5", Provider = "mangaupdates", ExternalId = "5", Title = "T", CrossIdsJson = "{\"x\":\"1\"}", FetchedAt = at,
+                Id = 5,
+                PublicId = "rec5",
+                Provider = "mangaupdates",
+                ExternalId = "5",
+                Title = "T",
+                CrossIdsJson = "{\"x\":\"1\"}",
+                FetchedAt = at,
             });
             await LegacySchemaSeed.InsertAsync(db, new MetadataRecordEntity
             {
-                Id = 6, PublicId = "rec6", Provider = "mangadex", ExternalId = "6", Title = "U", CrossIdsJson = "{\"mal\":\"2\"}", FetchedAt = at,
+                Id = 6,
+                PublicId = "rec6",
+                Provider = "mangadex",
+                ExternalId = "6",
+                Title = "U",
+                CrossIdsJson = "{\"mal\":\"2\"}",
+                FetchedAt = at,
             });
         }
 
