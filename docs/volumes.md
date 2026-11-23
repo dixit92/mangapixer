@@ -50,12 +50,18 @@ in the volume file, in the same order (another release of the same pages counts:
   is **known**: it is shown as **Volume 8**, not **~ Volume 8**, and the volumes around it are placed from it (a volume between a listed
   volume and a known one is no longer an estimate);
 - when room is left at its start, its end or between the chapters found (a chapter that is not here, for example), the chapters found
-  still join its stack, but its range stays estimated.
+  still join its stack, but its range stays estimated;
+- *new in 1.54.0:* a chapter file that was compared with the volume file and is **not** inside it leaves that volume when only an
+  estimate put it there - for example a new chapter 36 that the estimate added to **~ Volume 6** although volume 6's file ends at
+  chapter 35. It is listed as not in a volume yet, until a volume list places it. A chapter between two chapters found inside the volume
+  stays (the volume holds the pages around it), a chapter the comparison has not looked at yet (added since) keeps its estimate until
+  the next check, and a volume list is never overruled.
 
 What it never does: it never reads a folder marked **Don't match** (or anything inside one), a folder whose **Content** is
 "Doujinshi & adult one-shots", a series whose record is a doujinshi, or a webtoon / manhwa / manhua listed as chapters; it never changes a
 volume that a volume list maps (the list stays the authority); a chapter with fewer than 5 pages, or one whose pages differ too much from
-the volume's (redrawn, censored, coloured), is never found - it simply stays where the list or the estimate put it. Nothing is moved,
+the volume's (redrawn, censored, coloured), is never found - it stays where the list put it, or, outside the chapters found, is listed
+as not in a volume yet. Nothing is moved,
 renamed or deleted, and nothing leaves the server: the files are only read. The work runs on the background helper processes and
 follows **Background work while someone reads** (Pause / Slow / Normal); a library scan that adds or changes files starts it, and it
 checks again every hour. A folder you open in the Volumes view goes first. Admins can switch it off on the **Volume contents** card in

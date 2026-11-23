@@ -3422,6 +3422,9 @@ namespace com.lifepixer.mangapixer.Server.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ComparedJson")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("CoveredPages")
                         .HasColumnType("INTEGER");
 
