@@ -294,7 +294,10 @@ public sealed class VolumeContentMatcherTests
     public void A_ChapterBetweenTheFoundOnes_StaysInItsVolume()
     {
         var scan = new ScannedVolume("id:Series v08", 8m, VolumeContentState.Partial,
-            [new("id:Series - Chapter 073", 73m), new("id:Series - Chapter 074", 74m), new("id:Series - Chapter 076", 76m)]) { Compared = Compared(61, 80) };
+            [new("id:Series - Chapter 073", 73m), new("id:Series - Chapter 074", 74m), new("id:Series - Chapter 076", 76m)])
+        {
+            Compared = Compared(61, 80),
+        };
         var (rows, map) = VolumeContents.Apply(LinkedFolderRows(), SixListedVolumes(), [scan]);
         var r = VolumeGrouping.Group(rows, map);
 
