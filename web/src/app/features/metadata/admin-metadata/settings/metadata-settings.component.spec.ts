@@ -47,9 +47,9 @@ describe('MetadataSettingsComponent', () => {
     expect(q('[data-testid="md-comicinfo"]')!.textContent).toContain('90 of 100 archives read');
   });
 
-  it('consent 7 (1.45.0): the MangaUpdates bullet and "When:" name the approved author search; the automatic consent stays 5', () => {
-    expect(CONSENT_TEXT_VERSION).toBe(7);
-    expect(AUTO_CONSENT_TEXT_VERSION).toBe(5);
+  it('consent 8 / 6 (1.54.0): the texts keep the author search and name the community scores (MangaDex statistics, MyAnimeList)', () => {
+    expect(CONSENT_TEXT_VERSION).toBe(8);
+    expect(AUTO_CONSENT_TEXT_VERSION).toBe(6);
     const { q } = create();
     const text = (q('[data-testid="md-consent-text"]')!.textContent ?? '').replace(/\s+/g, ' ');
     expect(text).toContain(
@@ -62,6 +62,10 @@ describe('MetadataSettingsComponent', () => {
       + "asks for artists' other names, or searches MangaUpdates for an artist. Nothing happens automatically unless you also turn "
       + 'on Automatic matching.',
     );
+    expect(text).toContain('and, for community scores only, on MyAnimeList while it is allowed under Trackers - and nowhere else.');
+    expect(text).toContain('the community score (rating and number of ratings) of your linked series\' MangaDex records - by MangaDex number only.');
+    expect(text).toContain('the MyAnimeList number a linked series\' MangaDex record names - never a title or a folder or file name - and your '
+      + 'app\'s client id. No user account or sign-in is used.');
   });
 
   it('keeps the Fetch switch disabled until consent is ticked', () => {

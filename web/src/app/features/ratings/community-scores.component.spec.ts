@@ -11,7 +11,8 @@ describe('CommunityScoresComponent (1.54.0)', () => {
     ]);
     f.detectChanges();
     const items = Array.from((f.nativeElement as HTMLElement).querySelectorAll('li'));
-    expect(items.map((li) => li.textContent!.replace(/\s+/g, ' ').trim())).toEqual(['public MangaUpdates 9.0', 'public MangaDex 8.1', 'public MyAnimeList 8.6']);
+    expect(items.map((li) => [li.querySelector('.name')!.textContent!.trim(), li.querySelector('.value')!.textContent!.trim()]))
+      .toEqual([['MangaUpdates', '9.0'], ['MangaDex', '8.1'], ['MyAnimeList', '8.6']]);
     expect(items.map((li) => li.getAttribute('aria-label'))).toEqual([
       'MangaUpdates community score 8.98 of 10, 1,200 ratings',
       'MangaDex community score 8.1 of 10, 1 rating',
