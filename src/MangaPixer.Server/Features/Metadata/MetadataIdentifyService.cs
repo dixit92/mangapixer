@@ -696,6 +696,9 @@ public sealed class MetadataIdentifyService
         record.OriginStatus = (int?)fetched.OriginStatus;
         record.OriginVolumes = fetched.OriginVolumes;
         record.LatestChapter = fetched.LatestChapter;
+        // 1.54.0: MangaUpdates' community score comes with every series answer; MangaDex's from the statistics pass (a GET never has it).
+        if (fetched.Provider == MetadataProviderAllowlist.MangaUpdates)
+            (record.CommunityScore, record.CommunityVotes, record.CommunityScoreAt) = (fetched.CommunityScore, fetched.CommunityVotes, now);
         record.StatusText = fetched.StatusText;
         record.LicensedEn = fetched.LicensedEn;
         record.TranslationComplete = fetched.TranslationComplete;
