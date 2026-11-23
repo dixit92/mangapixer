@@ -4332,3 +4332,178 @@ describe('ReaderComponent prefetch concurrency', () => {
     expect(started.length).toBe(2);
   });
 });
+
+// 1.54.0 reader jump back (vault "MangaPixer - Reader Jump Back", owner answers 2026-11-22: build all of 1-9, threshold 3 pages,
+// chip ~10 s paused while away, bookmark and Home / End jumps included, Backspace).
+describe('ReaderComponent jump back (1.54.0)', () => {
+  interface JumpApi {
+    jump: () => { origin: number; landing: number; mode: 'back' | 'return' } | null;
+    jumpChip: () => 'jumped' | 'returned' | 'left' | null;
+    useJumpBack: () => void;
+    dismissJumpChip: () => void;
+    onScrubCancel: (e: PointerEvent) => void;
+    nextPage: () => void;
+  }
+  const ProgressUrl = '/api/v1/reading/progress/item-1';
+  // A 222 px rail: the thumb travels 11..211 (200 px) over 200 pages.
+  const rail = {
+    getBoundingClientRect: () => ({ left: 0, width: 222, top: 0, height: 44 }),
+    setPointerCapture: () => undefined, releasePointerCapture: () => undefined,
+  } as unknown as HTMLElement;
+  const at = (page: number) => pointer({ pointerId: 1, clientX: 11 + (page / 199) * 200, currentTarget: rail });
+  const key = (k: string) => ({
+    key: k, target: document.body, defaultPrevented: false, repeat: false,
+    preventDefault: () => undefined, stopPropagation: () => undefined,
+  }) as unknown as KeyboardEvent;
+  let visibility: DocumentVisibilityState = 'visible';
+
+  function create() {
+    TestBed.configureTestingModule({ imports: [ReaderComponent], providers: baseProviders() });
+    const c = TestBed.createComponent(ReaderComponent).componentInstance;
+    c.itemId.set('item-1');
+    c.pages.set(makePages(200));
+    c.view.set('paged');
+    c.phase.set('ready');
+    c.currentPage.set(41);
+    const http = TestBed.inject(HttpTestingController);
+    return { c, j: c as unknown as JumpApi, http };
+  }
+  function saved(http: HttpTestingController): number[] {
+    return http.match(ProgressUrl).map((r) => { r.flush({ revision: 1, alreadyApplied: false }); return r.request.body.pageIndex as number; });
+  }
+  function tapTo(c: ReaderComponent, page: number): void {
+    c.onScrubStart(at(page));
+    c.onScrubEnd(at(page));
+  }
+
+  beforeEach(() => {
+    visibility = 'visible';
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => visibility });
+    sessionStorage.clear();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    delete (document as unknown as { visibilityState?: unknown }).visibilityState;
+    sessionStorage.clear();
+  });
+
+  it('a tap on the slider jumps when the finger lifts, not when it lands', () => {
+    const { c, http } = create();
+    c.onScrubStart(at(186));
+    expect(c.currentPage()).toBe(41);
+    c.onScrubEnd(at(186));
+    expect(c.currentPage()).toBe(186);
+    expect(saved(http)).toEqual([186]);
+  });
+
+  it('a cancelled touch (the OS took it) goes back to where it started and saves nothing', () => {
+    const { c, j, http } = create();
+    c.onScrubStart(at(41));
+    c.onScrubMove(at(186)); // a drag scrubs live
+    expect(c.currentPage()).toBe(186);
+    j.onScrubCancel(at(186));
+    expect(c.scrubbing()).toBe(false);
+    expect(c.currentPage()).toBe(41);
+    // Touch-down then the swipe-up: nothing moved, nothing saved.
+    c.onScrubStart(at(150));
+    j.onScrubCancel(at(150));
+    expect(c.currentPage()).toBe(41);
+    expect(saved(http)).toEqual([]);
+    expect(j.jump()).toBeNull();
+  });
+
+  it('after a jump of 3+ pages Back returns to the page jumped from, and flips to Return', () => {
+    const { c, j, http } = create();
+    tapTo(c, 186);
+    expect(j.jump()).toMatchObject({ origin: 41, landing: 186, mode: 'back' });
+    expect(j.jumpChip()).toBe('jumped');
+    saved(http);
+    j.useJumpBack();
+    expect(c.currentPage()).toBe(41);
+    expect(saved(http)).toEqual([41]);
+    expect(j.jump()).toMatchObject({ origin: 186, landing: 41, mode: 'return' });
+    expect(j.jumpChip()).toBe('returned');
+    j.useJumpBack();
+    expect(c.currentPage()).toBe(186);
+    expect(j.jump()).toMatchObject({ origin: 41, landing: 186, mode: 'back' });
+  });
+
+  it('a move of fewer than 3 pages offers nothing; reading on 3 pages ends the offer', () => {
+    const { c, j } = create();
+    tapTo(c, 43);
+    expect(j.jump()).toBeNull();
+    tapTo(c, 100);
+    j.nextPage();
+    j.nextPage();
+    expect(j.jump()).toMatchObject({ origin: 43, landing: 100 });
+    j.nextPage();
+    expect(j.jump()).toBeNull();
+  });
+
+  it('bookmark jumps, Home / End and Backspace', () => {
+    const { c, j } = create();
+    c.jumpToBookmark({ id: 'b', itemId: 'item-1', ordinal: 150, normalizedAnchor: 0, label: null, createdAt: '2026-01-01T00:00:00Z' });
+    expect(j.jump()).toMatchObject({ origin: 41, landing: 150 });
+    c.onKeyDown(key('End'));
+    expect(j.jump()).toMatchObject({ origin: 150, landing: 199 });
+    c.onKeyDown(key('Backspace'));
+    expect(c.currentPage()).toBe(150);
+    c.onKeyDown(key('Home'));
+    expect(j.jump()).toMatchObject({ origin: 150, landing: 0 });
+    j.dismissJumpChip();
+    expect(j.jumpChip()).toBeNull();
+    expect(j.jump()).not.toBeNull(); // the bar's button stays
+  });
+
+  it('leaving the app within 2 s of a jump keeps the saved place on the page jumped from; the chip asks on return', () => {
+    vi.useFakeTimers();
+    const { c, j, http } = create();
+    tapTo(c, 186);
+    saved(http);
+    vi.advanceTimersByTime(1500);
+    visibility = 'hidden';
+    c.onVisibilityChange();
+    expect(saved(http)).toEqual([41]);
+    visibility = 'visible';
+    c.onVisibilityChange();
+    expect(j.jumpChip()).toBe('left');
+    expect(c.currentPage()).toBe(186);
+  });
+
+  it('leaving later than 2 s after a jump saves nothing extra', () => {
+    vi.useFakeTimers();
+    const { c, http } = create();
+    tapTo(c, 186);
+    saved(http);
+    vi.advanceTimersByTime(2500);
+    visibility = 'hidden';
+    c.onVisibilityChange();
+    expect(saved(http)).toEqual([]);
+  });
+
+  it('the chip shows about 10 s, counted only while the app is visible', () => {
+    vi.useFakeTimers();
+    const { c, j } = create();
+    tapTo(c, 186);
+    vi.advanceTimersByTime(9000);
+    visibility = 'hidden';
+    c.onVisibilityChange();
+    vi.advanceTimersByTime(60_000);
+    visibility = 'visible';
+    c.onVisibilityChange();
+    expect(j.jumpChip()).toBe('jumped');
+    vi.advanceTimersByTime(999);
+    expect(j.jumpChip()).toBe('jumped');
+    vi.advanceTimersByTime(2);
+    expect(j.jumpChip()).toBeNull();
+    expect(j.jump()).not.toBeNull();
+  });
+
+  it('the offer is kept per archive for the session and dropped on leaving the archive', () => {
+    const { c } = create();
+    tapTo(c, 186);
+    expect(JSON.parse(sessionStorage.getItem('mp.reader.jumpBack.item-1')!)).toMatchObject({ origin: 41, landing: 186, mode: 'back' });
+    c.ngOnDestroy();
+    expect(sessionStorage.getItem('mp.reader.jumpBack.item-1')).toBeNull();
+  });
+});
