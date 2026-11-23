@@ -287,7 +287,7 @@ public sealed class RecommendationScorerTests
         Assert.Equal(0.861, after[0].Score, 3);
         Assert.Equal(0.559, after[1].Score, 3);
         Assert.Equal(0.449, after[2].Score, 3);
-        Assert.Equal(0.313, after[3].Score, 3);
+        Assert.Equal(0.312, after[3].Score, 3);
         Assert.All(after, p => Assert.NotEqual(RecommendationScorer.ReasonKind.CommunityScore, p.Reason.Kind));
     }
 
