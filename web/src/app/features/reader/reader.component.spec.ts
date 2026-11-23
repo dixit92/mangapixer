@@ -1556,9 +1556,9 @@ describe('ReaderComponent page scrubber', () => {
     c.currentPage.set(0);
     const rail = fakeRail();
 
-    c.onScrubStart(pointer({ pointerId: 1, clientX: 50, currentTarget: rail })); // frac .5 → page 2
+    c.onScrubStart(pointer({ pointerId: 1, clientX: 50, currentTarget: rail })); // frac .5 → page 2, but only on lift (1.54.0)
     expect(c.scrubbing()).toBe(true);
-    expect(c.currentPage()).toBe(2);
+    expect(c.currentPage()).toBe(0);
 
     c.onScrubMove(pointer({ pointerId: 1, clientX: 100, currentTarget: rail })); // frac 1 → page 4
     expect(c.currentPage()).toBe(4);
