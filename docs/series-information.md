@@ -193,6 +193,23 @@ Automatic matching leaves doujinshi out of its searches, because they otherwise 
 
 Like the folder reading direction, the value applies to everything below the folder until a subfolder sets its own; the menu says whether it is **set here**, **inherited** or the **default**, and **Inherit (clear)** removes a folder's own value. When MangaPixer's folder check thinks a folder looks like doujinshi (from its name), the menu marks that choice **suggested**; it never applies it by itself. Content only changes what automatic matching searches for; the Identify dialog has its own **Hide doujinshi & novels** box.
 
+## Community scores
+
+*New in 1.54.0.* The **Info** sheet and the series page show how a series is rated on the web, one line per site under your own stars and
+the server average: **MangaUpdates 9.0**, **MangaDex 8.7**, **MyAnimeList 8.6** - with a globe, not stars, because each is the site's own
+number from 0 to 10 (point at it, or a screen reader reads it, for the exact score and how many rated). A site without a score for the
+series shows no line.
+
+- **MangaUpdates** - from the series information MangaPixer already fetches; series linked before 1.54.0 get theirs over the next days (at
+  most 400 a day, with Automatic matching on).
+- **MangaDex** - with Automatic matching on, read for your linked series that have a MangaDex record, about once a month each.
+- **MyAnimeList** - only while an admin allows MyAnimeList under **Trackers** with the app registered there, for linked series whose
+  MangaDex record names a MyAnimeList number. An admin can remove them all with **Delete stored MyAnimeList scores** (Metadata Manager >
+  Settings > Stored data).
+
+What is sent for them: [Community scores](privacy-and-security.md#community-scores-mangaupdates-mangadex-and-myanimelist). MangaUpdates' score
+(else MangaDex's) also helps **Recommended for you** ([Recommendations](recommendations.md)); MyAnimeList's is only shown.
+
 ## Reporting a wrong series
 
 Anyone who can see a series' MangaUpdates information can tell the admins it is wrong: **Wrong series?** in the series panel or on the series page. Choose what is wrong (a different series; right series, wrong details; the folder is not one series; something else) and, if you like, add a note of up to 500 characters. Only admins see the report and the note. Nothing changes for anyone until an admin looks at it.

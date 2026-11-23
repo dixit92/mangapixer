@@ -19,7 +19,7 @@ A rating, star or read mark on a single volume counts for its series. What it le
 - your Private libraries while Incognito is on;
 - libraries whose series information an admin turned off, and libraries you cannot open.
 
-The row does not show until you have rated something three and a half stars or more, starred a series, or finished one - there is no "popular" list. It is also hidden when nothing on the server has enough in common with what you liked.
+Until you have rated something three and a half stars or more, starred a series, or finished one, the row has nothing of yours to learn from. *New in 1.54.0:* it then shows the best rated series on your server you have not started, by their [community score](series-information.md#community-scores) on MangaUpdates (or MangaDex) - "Well rated on MangaUpdates: 9.0". With one or two such series of yours, those picks come after the ones matching your taste; from three on, only your taste counts. Without community scores (no series information from the web) the row stays hidden until you have rated, starred or finished something, and also when nothing on the server has enough in common with what you liked.
 
 ## More like this (series page)
 
@@ -32,8 +32,9 @@ Each card says why, in one line under its title - the biggest reason it was pick
 - **Same author: ...** - a writer or artist of one of your favorites (or of this series).
 - **Like *series*: horror, school life** - the series of yours it shares the most with, and the two strongest things they share. On a series page it is just the shared things, for example **Horror, School Life**.
 - **Sequel of ...**, **Prequel of ...**, **Side story of ...**, **Main story of ...**, **Spin-off of ...**, **Related to ...** - the two series' web records name each other (this needs [series information](series-information.md) from the web for both).
+- **Well rated on MangaUpdates: 9.0** (*new in 1.54.0*) - a pick from the best rated series, while you have rated, starred or finished fewer than three series.
 
-How the score works: every series is described by its authors, tags, genres, magazine, type and publisher. Authors count most, then tags, then genres and magazine; type and publisher only a little. A tag almost every series on the server has counts for little; a rare tag or an author counts for much. A pick's score is how closely its description matches yours (or this series'), plus a bonus for a related series. Reasons only name series, authors and tags that you can see on this server.
+How the score works: every series is described by its authors, tags, genres, magazine, type and publisher. Authors count most, then tags, then genres and magazine; type and publisher only a little. A tag almost every series on the server has counts for little; a rare tag or an author counts for much. A pick's score is how closely its description matches yours (or this series'), plus a bonus for a related series. Reasons only name series, authors and tags that you can see on this server. *New in 1.54.0:* a series' community score from MangaUpdates (else MangaDex) nudges its score by at most 15 % - up when it is rated above the middle of the series you could be offered, down when below - so between two equally close matches the better rated one comes first; it never lifts a series that has little in common with yours. MyAnimeList's score is only shown, never used here.
 
 The rows need tags: a series without series information or ComicInfo has nothing to match on and is never picked. The more series carry web data or ComicInfo, the better the suggestions.
 
