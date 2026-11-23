@@ -160,7 +160,7 @@ public sealed class RecommendationService
             UNION ALL SELECT 2, ItemId, 0 FROM read_marks WHERE UserId = @u
             UNION ALL SELECT 3, ItemId, 0 FROM reading_progress WHERE UserId = @u
             """, new Dictionary<string, object?> { ["@u"] = userId }, r => new Signal(r.GetInt32(0), r.GetInt64(1), r.GetInt32(2)), ct);
-        int NodeOf(int w) => index.Locations[w].First(l => !excludedLibraries.Contains(l.LibraryId)).NodeId;
+        long NodeOf(int w) => index.Locations[w].First(l => !excludedLibraries.Contains(l.LibraryId)).NodeId;
         if (signals.Count == 0)
         {
             // 1.54.0: a viewer with no signal yet gets the best community-rated series (the cold start), not an empty row.
