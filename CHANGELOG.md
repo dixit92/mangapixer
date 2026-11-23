@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   ticking the box only opens the question, and sharing starts when you press **Turn on shared ratings**. Before, the box looked ticked
   while the question waited below the edge of the screen, so leaving the page turned nothing on. Now the box stays unticked until you
   confirm, and the question scrolls into view with **Cancel** selected.
+- Volumes view: a chapter no longer sits in the wrong estimated volume when that volume's file is in the folder. When the volume contents
+  scan compared the chapter with the volume file and did not find it inside, an estimate that put it there (such as a new chapter 36 in
+  "~ Volume 6" whose file ends at chapter 35) is dropped, and the chapter is listed as not in a volume yet. After the update the scan
+  checks every folder once more from the page fingerprints it already stored; no file is read again.
 
 ### Added
 
