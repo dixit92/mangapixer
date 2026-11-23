@@ -163,7 +163,7 @@ public sealed class ExportHttpTests : IClassFixture<MangaPixerWebApplicationFact
         var page = await OkAsync(await admin.GetAsync($"/api/v1/export/metadata?library={LibPubId}"));
 
         Assert.Equal(1, page.GetProperty("schemaVersion").GetInt32());
-        Assert.Equal(["creators"], page.GetProperty("recordFields").EnumerateArray().Select(f => f.GetString()));
+        Assert.Equal(["creators", "communityScore"], page.GetProperty("recordFields").EnumerateArray().Select(f => f.GetString()));
         var records = page.GetProperty("items").EnumerateArray().ToDictionary(i => i.GetProperty("nodeId").GetString()!, i => i.GetProperty("record"));
         var creators = records["exSeries1"].GetProperty("creators").EnumerateArray().ToList();
         Assert.Equal([("Http Writer", "Author, Artist", 515L), ("Http Hand", "Artist", 516L)],

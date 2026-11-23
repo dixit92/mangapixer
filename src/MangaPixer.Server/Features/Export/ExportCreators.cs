@@ -13,7 +13,7 @@ using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MangaUpdates;
 public static class ExportCreators
 {
     /// <summary>The page's list of optional record fields this server exports (<see cref="ExportMetadataPageDto.RecordFields"/>).</summary>
-    public static readonly IReadOnlyList<string> RecordFields = ["creators"];
+    public static readonly IReadOnlyList<string> RecordFields = ["creators", "communityScore"];
 
     /// <summary>Other names per creator in the export.</summary>
     public const int MaxOtherNames = 50;
