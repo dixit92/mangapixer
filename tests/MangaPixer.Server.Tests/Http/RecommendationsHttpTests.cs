@@ -8,6 +8,7 @@ using com.lifepixer.mangapixer.Core.Metadata.Facets;
 using com.lifepixer.mangapixer.Core.Ordering;
 using com.lifepixer.mangapixer.Core.Reading;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
+using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 /// <summary>
