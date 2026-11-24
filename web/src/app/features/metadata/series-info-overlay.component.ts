@@ -16,6 +16,7 @@ import { SeriesInfoOverlayData } from './series-info-overlay.service';
 import { SeriesInfoSummaryComponent } from './series-info-summary.component';
 import { InfoTagsComponent } from './info/info-tags.component';
 import { InfoPanelDto } from './info/info-types';
+import { CommunityScoresComponent } from '../ratings/community-scores.component';
 import { NodeRatingComponent } from '../ratings/node-rating.component';
 
 /**
@@ -30,7 +31,7 @@ import { NodeRatingComponent } from '../ratings/node-rating.component';
 @Component({
   selector: 'app-series-info-overlay',
   standalone: true,
-  imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule, SeriesInfoSummaryComponent, SeriesAdminActionsComponent, WrongSeriesFlagComponent, InfoTagsComponent, NodeRatingComponent],
+  imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule, SeriesInfoSummaryComponent, SeriesAdminActionsComponent, WrongSeriesFlagComponent, InfoTagsComponent, NodeRatingComponent, CommunityScoresComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="sheet" data-testid="series-overlay">
@@ -60,6 +61,7 @@ import { NodeRatingComponent } from '../ratings/node-rating.component';
           <app-series-info-summary [info]="i" [compact]="true" [tagsPanel]="tags()" />
           <!-- 1.52.0 (lane R): the viewer's own rating of this node. -->
           <app-node-rating [nodeId]="i.nodeId" [name]="i.title || i.anchorDisplayName" />
+          <app-community-scores [scores]="i.communityScores ?? []" />
           <!-- 1.45.0: the Tags block (a chip opens the tag search and closes this overlay). -->
           <app-info-tags [nodeId]="i.nodeId" (loaded)="tags.set($event)" />
         </div>

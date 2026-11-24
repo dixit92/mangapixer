@@ -12,7 +12,12 @@ using com.lifepixer.mangapixer.Server.Features.Metadata.Providers.MangaUpdates;
 using com.lifepixer.mangapixer.Server.Persistence.Entities;
 using com.lifepixer.mangapixer.Tests.Server.Features.Metadata.AutoMatch;
 using com.lifepixer.mangapixer.Tests.Server.Features.Metadata.Volumes;
+using com.lifepixer.mangapixer.Server.Features.Admin;
+using com.lifepixer.mangapixer.Server.Features.Trackers;
+using com.lifepixer.mangapixer.Server.Features.Trackers.Adapters;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -752,12 +757,22 @@ public sealed class NewChapterFreshnessTests : IAsyncLifetime
         _h.Auto.Records[761] = MuJson.Get(761, "Synthetic Series 761");
         _t.Db.JobRuns.Add(new JobRunEntity { Key = "metadata-refresh", LastStartedAt = Now - TimeSpan.FromHours(3), LastOutcome = "ok" });
         await _t.Db.SaveChangesAsync();
-        NewChapterChecksRunner Runner() => new(_t.Db, Sweep(), Feed(), new ReadableBackfill(_t.Db, _h.Time, Log<ReadableBackfill>()), _h.Auto.Refresh(), _h.Time,
-            Log<NewChapterChecksRunner>());
+        NewChapterChecksRunner Runner() => new(_t.Db, Sweep(), Feed(), new ReadableBackfill(_t.Db, _h.Time, Log<ReadableBackfill>()), _h.Auto.Refresh(),
+            new CommunityScorePass(_t.Db, _h.Auto.Net.Gateway(), new MangaDexProvider(_h.Auto.Net.HttpFactory), _h.Auto.Service(), Sweep(), _h.Time,
+                Log<CommunityScorePass>()),
+            new MalScorePass(_t.Db, _h.Auto.Service(), Sweep(),
+                new TrackerSettingsService(_t.Db, new TrackerTokenProtector(new EphemeralDataProtectionProvider()), new AuditService(_t.Db),
+                    new ConfigurationBuilder().Build(), _h.Time, Log<TrackerSettingsService>()),
+                new MyAnimeListTrackerClient(_h.Auto.Net.HttpFactory, new TrackerPacing(new MetadataGatewayState(new MetadataRateLimitOptions()),
+                    new TrackerRateLimitOptions()), _h.Time, Log<MyAnimeListTrackerClient>()),
+                _h.Time, Log<MalScorePass>()),
+            _h.Time, Log<NewChapterChecksRunner>());
 
         var early = await Runner().RunTickAsync();
         Assert.Null(early.DuePass); // the daily pass ran 3 hours ago
         Assert.NotNull(early.Sweep);
+        Assert.NotNull(early.Scores); // 1.54.0: the community scores run on the same tick
+        Assert.Null(early.MalScores); // MyAnimeList is not allowed for this server: nothing is sent
 
         _h.Time.Advance(TimeSpan.FromHours(1));
         s.Record.FetchedAt = Now - TimeSpan.FromDays(400); // due by any cadence

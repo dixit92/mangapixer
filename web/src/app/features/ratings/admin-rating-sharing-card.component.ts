@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, OnInit, afterNextRender, inject, signal, viewChild } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxChange, MatCheckboxModule } from '@angular/material/checkbox';
@@ -18,6 +18,8 @@ export const SHARED_RATINGS_CONFIRMATION =
  * asks first (an inline confirmation with the owner's text, Cancel focused); turning it off needs no question - every average is hidden at
  * once and no rating is deleted. The change is written to the audit trail by the server. Sits with the Update Checker (the server-wide
  * switches column). Admins never see who rated what: this switch is their only control.
+ * 1.54.0: the box shows the SAVED state only - a tick that opens the question leaves it unticked, and the question scrolls into view with
+ * Cancel focused (on the live server a ticked box with the confirm button below the fold looked on and was never saved).
  */
 @Component({
   selector: 'app-admin-rating-sharing-card',
@@ -34,7 +36,7 @@ export const SHARED_RATINGS_CONFIRMATION =
         @if (loading()) {
           <p class="muted">Loading…</p>
         } @else {
-          <mat-checkbox [checked]="enabled() || confirming()" [disabled]="saving() || loadFailed()" data-testid="admin-rating-sharing"
+          <mat-checkbox [checked]="enabled()" [disabled]="saving() || loadFailed()" data-testid="admin-rating-sharing"
                         (change)="toggle($event)">
             Share ratings between users
           </mat-checkbox>
@@ -47,7 +49,7 @@ export const SHARED_RATINGS_CONFIRMATION =
                  appEscapeCancels [escapeDisabled]="saving()" (escapeCancel)="cancel()">
               <p id="rating-sharing-confirm-text">{{ confirmation }}</p>
               <div class="confirm-actions">
-                <button mat-button type="button" [disabled]="saving()" (click)="cancel()" data-testid="admin-rating-sharing-cancel">Cancel</button>
+                <button #cancelButton mat-button type="button" [disabled]="saving()" (click)="cancel()" data-testid="admin-rating-sharing-cancel">Cancel</button>
                 <button mat-flat-button type="button" [disabled]="saving()" (click)="save(true)"
                         data-testid="admin-rating-sharing-confirm-yes">Turn on shared ratings</button>
               </div>
@@ -78,6 +80,9 @@ export const SHARED_RATINGS_CONFIRMATION =
 export class AdminRatingSharingCardComponent implements OnInit {
   private readonly api = inject(ApiService);
   private readonly sharing = inject(RatingSharingService);
+  private readonly injector = inject(Injector);
+  // read: ElementRef - on a MatButton host the template ref is the component, not the element
+  private readonly cancelButton = viewChild('cancelButton', { read: ElementRef });
 
   readonly confirmation = SHARED_RATINGS_CONFIRMATION;
   readonly loading = signal(true);
@@ -101,15 +106,17 @@ export class AdminRatingSharingCardComponent implements OnInit {
     });
   }
 
-  /** Ticking asks first; unticking turns it off at once. */
+  /** Ticking asks first (the box stays unticked until confirmed); unticking turns it off at once. */
   toggle(change: MatCheckboxChange): void {
     this.error.set(null);
     if (change.checked) {
+      change.source.checked = false; // [checked] is still false, so Angular would not redraw it
       this.confirming.set(true);
-      return;
-    }
-    if (this.confirming()) {
-      this.confirming.set(false);
+      afterNextRender(() => {
+        const cancel: HTMLButtonElement | undefined = this.cancelButton()?.nativeElement;
+        cancel?.closest('.confirm')?.scrollIntoView?.({ block: 'nearest' });
+        cancel?.focus({ preventScroll: true });
+      }, { injector: this.injector });
       return;
     }
     this.save(false);

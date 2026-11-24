@@ -110,6 +110,13 @@ public sealed record ProviderSeriesRecord
     public double? LatestChapter { get; init; }
 
     /// <summary>
+    /// 1.54.0: the community score the answer carries (0-10, null = not rated) and its vote count - MangaUpdates' Bayesian rating. Other
+    /// providers leave it null (MangaDex's comes from its statistics, read separately).
+    /// </summary>
+    public double? CommunityScore { get; init; }
+    public int? CommunityVotes { get; init; }
+
+    /// <summary>
     /// The chapter total the provider states (MangaUpdates status "195 Chapters (Hiatus)", 1.27.0). Read by the
     /// auto-match count rule only; not persisted (the status text is).
     /// </summary>

@@ -205,6 +205,9 @@ public static class AuditActions
     public const string MetadataPrecedenceClear = "metadata.precedence.clear";
     public const string MetadataPurge = "metadata.purge";
 
+    /// <summary>1.54.0: an admin deleted every stored MyAnimeList community score (the MAL API licence, 3(e)); the count only.</summary>
+    public const string MetadataMalScoresDelete = "metadata.mal_scores.delete";
+
     /// <summary>1.45.0 (reserved by seam I0, written by lane F): an admin merged one creator into another / split a creator (ids only).</summary>
     public const string MetadataCreatorMerge = "metadata.creator_merge";
     public const string MetadataCreatorSplit = "metadata.creator_split";

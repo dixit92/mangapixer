@@ -63,6 +63,9 @@ Everything MangaPixer does today, by area. The [README](../README.md) has the sh
 - *New in 1.53.0:* **Shared ratings** - once an admin turns them on in **Administration**, the **Info** sheet and the series page show a **Server** line with the average of everyone's ratings and how many rated - never who rated what; Private libraries never count, and each user can stop sharing in **Settings** > **Ratings and recommendations**. Sort a library by **Server rating** ([Ratings](ratings.md)).
 - *New in 1.53.0:* **Recommended for you** on Home and **More like this** on the series page - series on your server that share authors, tags, genres, magazines or a sequel / spin-off with what you rated well, starred or finished, each with a one-line reason; worked out on your server ([Recommendations](recommendations.md)).
 - *New in 1.53.0:* **Your score on MyAnimeList and MangaUpdates** - keep your score there in step with your rating here (per tracker, off by default), or take your scores from there for the series you have not rated ([Tracker sync](tracker-sync.md)).
+- *New in 1.54.0:* **Community scores** - the **Info** sheet and the series page show how a series is rated on MangaUpdates, MangaDex and (only while an admin allows MyAnimeList under Trackers) MyAnimeList, each with its source; **Recommended for you** puts the better rated of two equally close matches first, and shows the best rated series you have not started while it has little of yours to go on ([Community scores](series-information.md#community-scores)).
+- *New in 1.54.0:* **Jump back in the reader** - after a jump of 3 pages or more, a back button and a short note lead back to the page you came from; a touch on the page slider that the system takes over no longer moves your place ([Reader](reader.md#jumping-back)).
+- *New in 1.54.0:* **Reorder the home page** in Settings > **Home**, saved for your account.
 - *New in 1.53.0:* **What's new** - after an update, admins see what changed since the version they last saw (account menu > **What's new** opens it again).
 
 ## Home
@@ -73,6 +76,7 @@ Everything MangaPixer does today, by area. The [README](../README.md) has the sh
 - A New chapters card of a linked series, and a Continue reading card of one of its chapters, show the series cover (for example your volume 1's cover) rather than a chapter's first page - see [Covers](covers.md#on-the-home-page). *New in 1.39.0:* **Choose cover…** on a folder linked to a series also offers the series poster (see [The series poster](covers.md#the-series-poster)).
 - Tapping a New chapters card of a linked series opens it in the Volumes view (by name, the Continue row on top); other folders open sorted by Recently updated.
 - A grid of your libraries.
+- *New in 1.54.0:* **your order** - Settings > **Home** lists the rows (Continue reading, Recommended for you, Favorites, New chapters, Libraries) with **Move up** / **Move down**, the switches that show or hide Favorites and Recommended for you, and **Reset to default order**. The order is saved for your account, so every device you sign in on shows the same Home.
 
 ## Multi-user, privacy and access
 

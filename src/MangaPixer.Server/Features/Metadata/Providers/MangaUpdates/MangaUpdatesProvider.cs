@@ -339,6 +339,8 @@ public static class MangaUpdatesMapping
             OriginStatus = status.Status,
             OriginVolumes = status.Volumes,
             LatestChapter = s.LatestChapter is > 0 ? s.LatestChapter : null,
+            CommunityScore = s.BayesianRating is > 0 and <= 10 ? s.BayesianRating : null,
+            CommunityVotes = s.BayesianRating is > 0 and <= 10 && s.RatingVotes is > 0 ? s.RatingVotes : null,
             TotalChapters = status.Chapters,
             EnglishVolumes = englishVolumes,
             EnglishChapters = englishChapters,

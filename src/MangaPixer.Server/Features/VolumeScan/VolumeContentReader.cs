@@ -55,6 +55,25 @@ public static class VolumeContentReader
         }
     }
 
+    /// <summary>1.54.0: the compared chapter files as stored (<c>[[node id, content version], ...]</c>).</summary>
+    public static string SerializeCompared(IEnumerable<(long NodeId, long ContentVersion)> files) =>
+        JsonSerializer.Serialize(files.OrderBy(f => f.NodeId).Select(f => new[] { f.NodeId, f.ContentVersion }), Json);
+
+    /// <summary>The compared chapter files of a stored answer; null when it does not say (stored before 1.54.0) or cannot be read.</summary>
+    public static IReadOnlyList<(long NodeId, long ContentVersion)>? ParseCompared(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return null;
+        try
+        {
+            return JsonSerializer.Deserialize<List<long[]>>(json, Json)?.Where(p => p.Length == 2).Select(p => (p[0], p[1])).ToList();
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>
     /// The scans of the volume files among <paramref name="archives"/> (internal node id -> the row id the caller uses), with the chapter
     /// rows among the same archives. Empty when nothing was scanned (one indexed query).
@@ -69,7 +88,8 @@ public static class VolumeContentReader
     /// <summary>Ids per query (<see cref="LoadManyAsync"/>); a scope's rows keep the order they had when each scope was read in chunks of this size.</summary>
     internal const int Chunk = 500;
 
-    private sealed record StoredRow(long VolumeNodeId, long VolumeContentVersion, double Volume, int State, IReadOnlyList<StoredFoundChapter> Chapters);
+    private sealed record StoredRow(long VolumeNodeId, long VolumeContentVersion, double Volume, int State, IReadOnlyList<StoredFoundChapter> Chapters,
+        IReadOnlyList<(long NodeId, long ContentVersion)>? Compared = null);
 
     /// <summary>
     /// 1.46.0 lane C: the answers of several scopes at once (one per series of a folder level) - for each scope exactly what
@@ -91,10 +111,13 @@ public static class VolumeContentReader
         {
             var part = await db.VolumeContents.AsNoTracking()
                 .Where(v => chunk.Contains(v.VolumeNodeId) && (v.State == known || v.State == partial))
-                .Select(v => new { v.VolumeNodeId, v.VolumeContentVersion, v.Volume, v.State, v.ChaptersJson })
+                .Select(v => new { v.VolumeNodeId, v.VolumeContentVersion, v.Volume, v.State, v.ChaptersJson, v.ComparedJson })
                 .ToListAsync(ct);
             foreach (var p in part)
-                rows[p.VolumeNodeId] = new StoredRow(p.VolumeNodeId, p.VolumeContentVersion, p.Volume, p.State, ParseChapters(p.ChaptersJson));
+            {
+                rows[p.VolumeNodeId] = new StoredRow(p.VolumeNodeId, p.VolumeContentVersion, p.Volume, p.State, ParseChapters(p.ChaptersJson),
+                    ParseCompared(p.ComparedJson));
+            }
         }
         if (rows.Count == 0)
         {
@@ -104,6 +127,7 @@ public static class VolumeContentReader
 
         var involved = rows.Values.Select(r => r.VolumeNodeId)
             .Concat(rows.Values.SelectMany(r => r.Chapters).Select(c => c.NodeId))
+            .Concat(rows.Values.SelectMany(r => r.Compared ?? []).Select(c => c.NodeId))
             .Distinct()
             .ToList();
         var versions = new Dictionary<long, long>();
@@ -150,7 +174,12 @@ public static class VolumeContentReader
             var state = row.State == (int)VolumeContentRowState.Known && chapters.Count == stored.Count
                 ? VolumeContentState.Known
                 : VolumeContentState.Partial;
-            result.Add(new ScannedVolume(volumeRowId, (decimal)row.Volume, state, chapters));
+            // 1.54.0: the compared chapter files still here and unchanged (a changed one was not compared in its current form).
+            var compared = row.Compared?
+                .Where(c => archives.ContainsKey(c.NodeId) && versions.GetValueOrDefault(c.NodeId, -1) == c.ContentVersion)
+                .Select(c => archives[c.NodeId])
+                .ToList();
+            result.Add(new ScannedVolume(volumeRowId, (decimal)row.Volume, state, chapters) { Compared = compared });
         }
         return result;
     }

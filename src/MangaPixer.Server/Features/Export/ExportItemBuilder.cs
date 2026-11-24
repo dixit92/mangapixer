@@ -188,6 +188,8 @@ public sealed class ExportItemBuilder(MangaPixerDbContext db)
             StatusText = r.StatusText,
             LicensedEn = r.LicensedEn,
             TranslationComplete = r.TranslationComplete,
+            CommunityScore = r.CommunityScore is { } score ? Math.Round(score, 2) : null,
+            CommunityVotes = r.CommunityScore is null ? null : r.CommunityVotes,
             CompletedInOrigin = status switch
             {
                 MetadataOriginStatus.Complete => true,

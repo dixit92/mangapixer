@@ -4,7 +4,14 @@ namespace com.lifepixer.mangapixer.Core.Catalog;
 /// One volume file's stored scan answer for a folder's rows (1.44.0): its row id, its volume number, the state and the chapter rows
 /// proven inside it (row id + chapter number). A row id is the public node id the readers use for <see cref="GroupingRow.Id"/>.
 /// </summary>
-public sealed record ScannedVolume(string VolumeRowId, decimal Volume, VolumeContentState State, IReadOnlyList<ScannedChapter> Chapters);
+public sealed record ScannedVolume(string VolumeRowId, decimal Volume, VolumeContentState State, IReadOnlyList<ScannedChapter> Chapters)
+{
+    /// <summary>
+    /// 1.54.0: the chapter rows the scan compared with the folder's volume files (still unchanged), or null when the stored answer does not
+    /// say (stored before 1.54.0): only a compared chapter can be ruled out of this volume (<see cref="GroupingRow.NotInVolumeFiles"/>).
+    /// </summary>
+    public IReadOnlyList<string>? Compared { get; init; }
+}
 
 /// <summary>A chapter file proven inside a volume file.</summary>
 public sealed record ScannedChapter(string RowId, decimal? Number);
@@ -45,9 +52,13 @@ public static class VolumeContents
             foreach (var chapter in scan.Chapters)
                 volumeOf.TryAdd(chapter.RowId, scan.Volume);
         }
-        var applied = volumeOf.Count == 0
+        var missOf = Misses(scans, volumeOf);
+        var applied = volumeOf.Count == 0 && missOf.Count == 0
             ? rows
-            : rows.Select(r => r.Kind == GroupingRowKind.Archive && volumeOf.TryGetValue(r.Id, out var v) ? r with { InVolumeFile = v } : r).ToList();
+            : rows.Select(r => r.Kind != GroupingRowKind.Archive ? r
+                : volumeOf.TryGetValue(r.Id, out var v) ? r with { InVolumeFile = v }
+                : missOf.TryGetValue(r.Id, out var misses) ? r with { NotInVolumeFiles = misses }
+                : r).ToList();
 
         if (map is null || !map.HasData)
             return (applied, map);
@@ -62,5 +73,32 @@ public static class VolumeContents
         if (known.Count == 0)
             return (applied, map);
         return (applied, map with { Volumes = map.Volumes.Concat(known).OrderBy(v => v.Volume).ToList() });
+    }
+
+    /// <summary>
+    /// 1.54.0: per chapter row the scan compared and found in no volume file, the volume files it is not in, with the run of chapters each
+    /// holds (first - last found). A scan that found nothing in a volume (sources differ) rules nothing out.
+    /// </summary>
+    private static Dictionary<string, List<VolumeFileMiss>> Misses(IReadOnlyList<ScannedVolume> scans, Dictionary<string, decimal> volumeOf)
+    {
+        var result = new Dictionary<string, List<VolumeFileMiss>>(StringComparer.Ordinal);
+        foreach (var scan in scans)
+        {
+            if (scan.Compared is not { Count: > 0 } compared)
+                continue;
+            var numbers = scan.Chapters.Select(c => c.Number).OfType<decimal>().ToList();
+            if (numbers.Count == 0)
+                continue;
+            var miss = new VolumeFileMiss(scan.Volume, numbers.Min(), numbers.Max());
+            foreach (var id in compared)
+            {
+                if (volumeOf.ContainsKey(id))
+                    continue;
+                if (!result.TryGetValue(id, out var list))
+                    result[id] = list = [];
+                list.Add(miss);
+            }
+        }
+        return result;
     }
 }

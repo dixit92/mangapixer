@@ -110,6 +110,19 @@ public sealed class MetadataAdminController : ControllerBase
         return code == MetadataLinkResultCode.Ok ? Ok(result) : ToResult(code);
     }
 
+    /// <summary>
+    /// 1.54.0: deletes every stored MyAnimeList community score at once (the MAL API licence, 3(e): on request, within 24 hours). They are
+    /// read again only while MyAnimeList stays allowed for this server.
+    /// </summary>
+    [HttpDelete("community-scores/myanimelist")]
+    [ProducesResponseType<MalScoresDeletedDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> DeleteMalScores([FromServices] Freshness.MalScorePass mal, [FromServices] Admin.AuditService audit, CancellationToken ct)
+    {
+        var records = await mal.DeleteAllAsync(ct);
+        await audit.RecordAsync(Admin.AuditActions.MetadataMalScoresDelete, Admin.AuditResults.Success, Actor, ct: ct);
+        return Ok(new MalScoresDeletedDto { Records = records });
+    }
+
     // --- Node links ---
 
     [HttpPut("nodes/{nodeId}/link")]

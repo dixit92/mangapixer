@@ -258,6 +258,78 @@ public sealed class VolumeContentMatcherTests
         Assert.Equal(6, map!.Volumes.Count);
     }
 
+    // 1.54.0 (owner, backlog "a chapter placed in the wrong estimated volume", answer "(1) automatic first"): the scan compared a chapter file
+    // with the volume file and did not find it inside, so an ESTIMATE that puts it in that volume is wrong - it leaves the stack ("not in a
+    // volume yet"). Only chapters outside the run the scan found; only estimates (and the adjacent rule), never the provider's list.
+
+    private static IReadOnlyList<string> Compared(int from, int to) =>
+        Enumerable.Range(from, to - from + 1).Select(c => $"id:Series - Chapter {c:000}").ToList();
+
+    private static List<decimal> ChaptersOf(VolumeStack stack) =>
+        stack.Members.Where(m => !m.IsVolumeArchive).Select(m => m.Chapter!.Value).Order().ToList();
+
+    private static List<decimal> LooseChapters(VolumeGroupingResult r) =>
+        r.Entries.Where(e => e.Kind == VolumeEntryKind.Archive && e.Row is { } row && row.Name.Contains("Chapter", StringComparison.Ordinal))
+            .Select(e => decimal.Parse(e.Row!.Name[^3..], System.Globalization.CultureInfo.InvariantCulture)).Order().ToList();
+
+    [Fact]
+    public void A_ChapterTheScanComparedAndDidNotFind_LeavesTheEstimatedVolume()
+    {
+        var (rows, map) = VolumeContents.Apply(LinkedFolderRows(), SixListedVolumes(),
+            [Scan("id:Series v08", 8m, VolumeContentState.Partial, 73, 76) with { Compared = Compared(61, 80) }]);
+        var r = VolumeGrouping.Group(rows, map);
+
+        var stack8 = r.Entries.Single(e => e.Kind == VolumeEntryKind.Stack && e.Stack!.Key == "8").Stack!;
+        Assert.Equal([73m, 74m, 75m, 76m], ChaptersOf(stack8));
+        Assert.Equal("~ Volume 8", stack8.Label);
+        // 71, 72 and 77-80 were compared with volume 8's file and are not inside it: not in a volume yet (loose), and never "missing".
+        Assert.Equal([71m, 72m, 77m, 78m, 79m, 80m], LooseChapters(r));
+        Assert.DoesNotContain(77m, r.MissingChapterUnits);
+        // Volume 7's estimate is untouched: its chapters were never compared with a volume 7 file (there is none).
+        var stack7 = r.Entries.Single(e => e.Kind == VolumeEntryKind.Stack && e.Stack!.Key == "7").Stack!;
+        Assert.Equal(Enumerable.Range(61, 10).Select(c => (decimal)c), ChaptersOf(stack7));
+    }
+
+    [Fact]
+    public void A_ChapterBetweenTheFoundOnes_StaysInItsVolume()
+    {
+        var scan = new ScannedVolume("id:Series v08", 8m, VolumeContentState.Partial,
+            [new("id:Series - Chapter 073", 73m), new("id:Series - Chapter 074", 74m), new("id:Series - Chapter 076", 76m)])
+        {
+            Compared = Compared(61, 80),
+        };
+        var (rows, map) = VolumeContents.Apply(LinkedFolderRows(), SixListedVolumes(), [scan]);
+        var r = VolumeGrouping.Group(rows, map);
+
+        // 75 sits between chapters proven inside the file: the scan missed it, it did not rule it out.
+        var stack8 = r.Entries.Single(e => e.Kind == VolumeEntryKind.Stack && e.Stack!.Key == "8").Stack!;
+        Assert.Equal([73m, 74m, 75m, 76m], ChaptersOf(stack8));
+    }
+
+    [Fact]
+    public void A_ChapterTheScanDidNotCompare_KeepsItsEstimate()
+    {
+        // Chapter 80 came after the scan (not among the compared files), and a scan stored before 1.54.0 compared nothing on record.
+        var (rows, map) = VolumeContents.Apply(LinkedFolderRows(), SixListedVolumes(),
+            [Scan("id:Series v08", 8m, VolumeContentState.Partial, 73, 76) with { Compared = Compared(61, 79) }]);
+        Assert.Contains(80m, ChaptersOf(VolumeGrouping.Group(rows, map).Entries.Single(e => e.Stack?.Key == "8").Stack!));
+
+        var (oldRows, oldMap) = VolumeContents.Apply(LinkedFolderRows(), SixListedVolumes(), [Scan("id:Series v08", 8m, VolumeContentState.Partial, 73, 76)]);
+        Assert.Equal(Enumerable.Range(71, 10).Select(c => (decimal)c), ChaptersOf(VolumeGrouping.Group(oldRows, oldMap).Entries.Single(e => e.Stack?.Key == "8").Stack!));
+    }
+
+    [Fact]
+    public void TheProvidersList_IsNeverOverruledByAScan()
+    {
+        // Volume 6 is LISTED (51-60); its file holds only 51-55 by the scan: 56-60 stay in volume 6 - the list is the authority.
+        List<GroupingRow> rows = [Row("Series v06"), .. Enumerable.Range(51, 10).Select(c => Row($"Series - Chapter {c:000}"))];
+        var (applied, map) = VolumeContents.Apply(rows, SixListedVolumes(),
+            [Scan("id:Series v06", 6m, VolumeContentState.Partial, 51, 55) with { Compared = Compared(51, 60) }]);
+        var r = VolumeGrouping.Group(applied, map);
+
+        Assert.Equal(Enumerable.Range(51, 10).Select(c => (decimal)c), ChaptersOf(r.Entries.Single(e => e.Stack?.Key == "6").Stack!));
+    }
+
     [Fact]
     public void A_VolumeTheListMaps_IsNeverChangedByAScan()
     {

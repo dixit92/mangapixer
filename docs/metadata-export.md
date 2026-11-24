@@ -54,7 +54,7 @@ All endpoints below are `GET`, under `/api/v1/export/`, and answer JSON. Times a
   "schemaVersion": 1,
   "serverTime": "2026-10-04T12:00:00.000Z",
   "sweeps": { "mangadexLatestUpload": "2026-10-04T09:00:00.000Z" },
-  "recordFields": ["creators"],
+  "recordFields": ["creators", "communityScore"],
   "library": { "id": "lib0manga", "displayName": "Manga", "kind": "manga" },
   "items": [ { "nodeId": "...", "...": "..." } ],
   "removed": [ { "nodeId": "...", "reason": "linkCleared", "at": "2026-10-04T12:00:00.000Z" } ],
@@ -78,7 +78,7 @@ checks every 6 hours by default (an admin can choose every 1 to 6 hours: **Sched
 for new chapters**).
 
 *1.47.0:* `recordFields` (on every page, next to `sweeps`) lists the **optional fields of `items[].record`** this server exports - today
-`["creators"]`. An optional field is left out of a record that has no value for it, so the key being absent means either "this record has
+`["creators", "communityScore"]` (*1.54.0* added `communityScore`). An optional field is left out of a record that has no value for it, so the key being absent means either "this record has
 none" or "this MangaPixer is older than the field". Read the page: when the field's name is in `recordFields`, an absent key means **none
 known**; when it is not (or `recordFields` itself is missing - a MangaPixer before 1.47.0), the server does not export that field at all.
 The list is about the server, not the item, so it never changes an item's `updatedAt`.
@@ -149,6 +149,13 @@ MangaUpdates itself:
   incremental call; items without creators are unchanged.
 - A **Collection about** item's `record` is the series the folder is about, so its `creators` are that series' creators (a label, like
   the rest of that `record`).
+
+**Community score (1.54.0).** `record.communityScore` is the linked record's community score as its provider states it - a number from 0 to
+10 with up to two decimals: MangaUpdates' Bayesian rating for a MangaUpdates record, MangaDex's for a record linked to MangaDex - and
+`record.communityVotes` how many rated (left out when the provider does not say). Both are **left out** when no score is known, like
+`creators`, so an item without one keeps its exact form; `communityScore` is in the page's `recordFields`. An item comes again from
+`updatedSince` when its score changes (MangaPixer reads it with the record, at most once a month per record in the background). The
+MyAnimeList score MangaPixer may show is never exported.
 
 ### Volumes
 

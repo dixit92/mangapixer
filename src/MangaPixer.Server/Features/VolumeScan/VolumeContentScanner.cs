@@ -71,8 +71,9 @@ public sealed class VolumeContentScanner(
     /// <summary>The page hasher's version: a change re-hashes every archive (1 = the reduced-decode CoverHash of protocol v6).</summary>
     public const int HashAlgorithm = 1;
 
-    /// <summary>The matcher's rules (T 16, run 5, edges 8 / 16, gap 8): a change re-matches every folder from the stored hashes.</summary>
-    public const int RulesVersion = 1;
+    /// <summary>The matcher's rules (T 16, run 5, edges 8 / 16, gap 8): a change re-matches every folder from the stored hashes.
+    /// 2 (1.54.0): the answer also stores the chapter files it compared (<see cref="VolumeContentEntity.ComparedJson"/>).</summary>
+    public const int RulesVersion = 2;
 
     private const int MaxDepth = 64;
 
@@ -155,6 +156,8 @@ public sealed class VolumeContentScanner(
             .Select(c => new HashedArchive(c.NodeId.ToString(CultureInfo.InvariantCulture), c.Number, hashes[c.NodeId])).ToList();
         var results = VolumeContentMatcher.MatchFolder(volumes, chapters);
         var byId = scope.Chapters.ToDictionary(c => c.NodeId);
+        // 1.54.0: what the match compared - the hashed candidates (a file that could not be hashed was not compared).
+        var compared = VolumeContentReader.SerializeCompared(scope.Chapters.Where(c => hashes.ContainsKey(c.NodeId)).Select(c => (c.NodeId, c.ContentVersion)));
         var now = time.GetUtcNow();
         var found = 0;
         foreach (var volume in scope.Volumes)
@@ -195,6 +198,7 @@ public sealed class VolumeContentScanner(
             };
             row.Error = null;
             row.ChaptersJson = JsonSerializer.Serialize(chapterRows, VolumeContentReader.Json);
+            row.ComparedJson = compared;
             row.NearMisses = result.NearMisses;
             row.CoveredPages = result.CoveredPages;
         }

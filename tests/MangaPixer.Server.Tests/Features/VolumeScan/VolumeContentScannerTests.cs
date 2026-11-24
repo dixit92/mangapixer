@@ -150,6 +150,57 @@ public sealed class VolumeContentScannerTests : IDisposable
     }
 
     [Fact]
+    public async Task A_ChapterTheScanComparedAndDidNotFind_LeavesTheEstimatedVolume_ANewerOneWaitsForTheNextSweep()
+    {
+        // 1.54.0 (owner: "a chapter in the wrong estimated volume", "(1) automatic first"). The list maps volumes 1-6 (chapters 1-48), so
+        // volume 8 is ESTIMATED as chapters 57-64. Volume 8's file holds 57-62 and 40 pages after them (more than the 16 back-matter pages
+        // the matcher allows: room at its end, Partial).
+        var (db, lib) = await SetupAsync();
+        using var _ = db;
+        var series = await VolumeTestData.AddFolderAsync(db, lib.Id, null, "Synthetic Series");
+        var volume8 = await VolumeTestData.AddArchiveAsync(db, lib.Id, series.Id, "Synthetic Series v08");
+        var chapterPages = new Dictionary<int, ulong?[]>();
+        for (var c = 49; c <= 63; c++)
+        {
+            var node = await VolumeTestData.AddArchiveAsync(db, lib.Id, series.Id, $"Synthetic Series - Chapter {c:000}");
+            chapterPages[c] = Pages(18);
+            await PagesOfAsync(db, lib, node, chapterPages[c]);
+        }
+        await PagesOfAsync(db, lib, volume8, [.. Pages(2), .. Enumerable.Range(57, 6).SelectMany(c => chapterPages[c]), .. Pages(40)]);
+        var record = await VolumeTestData.AddRecordAsync(db, originVolumes: 12, status: MetadataOriginStatus.Ongoing);
+        await VolumeTestData.LinkAsync(db, series, record.Id);
+        await VolumeTestData.AddMapAsync(db, record.Id, 1, 12, 8, VolumeMapState.Ok, VolumeMapSource.MangaDexAggregate,
+            (1, 1, 8), (2, 9, 16), (3, 17, 24), (4, 25, 32), (5, 33, 40), (6, 41, 48));
+        static List<decimal> Chapters(VolumeStack s) => s.Members.Where(m => !m.IsVolumeArchive).Select(m => m.Chapter!.Value).Order().ToList();
+        static List<string> Loose(FolderVolumeEntries v) =>
+            v.Entries.Where(e => e.Kind == VolumeEntryKind.Archive && e.Row!.Name.Contains("Chapter", StringComparison.Ordinal)).Select(e => e.Row!.Name[^3..]).ToList();
+
+        var before = (await new VolumeEntryService(db).GetEntriesAsync(series.Id, default))!;
+        Assert.Equal(Enumerable.Range(57, 7).Select(c => (decimal)c), Chapters(StackOf(before, "8"))); // the estimate: 57-63
+
+        Assert.Equal(FolderScanOutcome.Scanned, await Scanner(db).ScanFolderAsync(series.Id, () => true, default));
+        var row = await db.VolumeContents.SingleAsync();
+        Assert.Equal((int)VolumeContentRowState.Partial, row.State);
+        Assert.Equal(15, VolumeContentReader.ParseCompared(row.ComparedJson)!.Count); // chapters 49-63, every hashed candidate
+
+        var after = (await new VolumeEntryService(db).GetEntriesAsync(series.Id, default))!;
+        Assert.Equal(Enumerable.Range(57, 6).Select(c => (decimal)c), Chapters(StackOf(after, "8")));
+        Assert.Equal(["063"], Loose(after)); // compared with volume 8's file and not inside: not in a volume yet
+
+        // Chapter 64 arrives after the scan: nothing compared it yet, so the estimate stands - until the next sweep re-matches the folder.
+        var ch64 = await VolumeTestData.AddArchiveAsync(db, lib.Id, series.Id, "Synthetic Series - Chapter 064");
+        await PagesOfAsync(db, lib, ch64, Pages(18));
+        var added = (await new VolumeEntryService(db).GetEntriesAsync(series.Id, default))!;
+        Assert.Contains(64m, Chapters(StackOf(added, "8")));
+        Assert.Equal(["063"], Loose(added));
+
+        Assert.Equal(FolderScanOutcome.Scanned, await Scanner(db).ScanFolderAsync(series.Id, () => true, default));
+        var rescanned = (await new VolumeEntryService(db).GetEntriesAsync(series.Id, default))!;
+        Assert.Equal(["063", "064"], Loose(rescanned));
+        Assert.Equal(Enumerable.Range(57, 6).Select(c => (decimal)c), Chapters(StackOf(rescanned, "8")));
+    }
+
+    [Fact]
     public async Task A_SecondRun_WithNothingChanged_IsUpToDate_AndHashesNothing()
     {
         var (db, lib) = await SetupAsync();

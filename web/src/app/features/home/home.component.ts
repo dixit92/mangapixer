@@ -41,6 +41,7 @@ import {
 import { MetadataStateService } from '../metadata/metadata-state.service';
 import { RecommendationRowComponent } from '../recommendations/recommendation-row.component';
 import { RecommendationsApiService } from '../recommendations/recommendations-api.service';
+import { DEFAULT_HOME_ROW_ORDER, HomeRowId, normalizeHomeRowOrder } from './home-rows';
 import {
   favoriteLink,
   favoriteQueryParams,
@@ -130,6 +131,22 @@ import {
         </div>
       </ng-template>
 
+      <!-- Home row order (1.54.0, owner decision 3): the rows in the user's order (Settings > Home), each drawn from its template below.
+           The DOM order IS the screen order, so a screen reader and Tab follow it (no CSS order). Each row keeps its own rules for when
+           it shows; the wrapper is a plain block (an empty one when its row has nothing to show). -->
+      @for (row of rowOrder() ?? []; track row) {
+        <div class="home-row" [attr.data-home-row]="row">
+          @switch (row) {
+            @case ('continue') { <ng-container *ngTemplateOutlet="continueRow" /> }
+            @case ('recommended') { <ng-container *ngTemplateOutlet="recommendedRow" /> }
+            @case ('favorites') { <ng-container *ngTemplateOutlet="favoritesRow" /> }
+            @case ('recent') { <ng-container *ngTemplateOutlet="recentRow" /> }
+            @case ('libraries') { <ng-container *ngTemplateOutlet="librariesRow" /> }
+          }
+        </div>
+      }
+
+      <ng-template #continueRow>
       @if (continueReading().length > 0) {
         <section class="strip-section">
           <div class="strip-head">
@@ -168,14 +185,19 @@ import {
         </section>
       }
 
-      <!-- Recommended for you (1.53.0, audit N3): after Continue reading, before Favorites; hidden when empty (no seed, nothing above the
+      </ng-template>
+
+      <!-- Recommended for you (1.53.0, audit N3): after Continue reading in the default order; hidden when empty (no seed, nothing above the
            floor) or when the user turned the row off (Settings, showRecommendationsHomeRow). No dismiss, no chip, no accent. -->
+      <ng-template #recommendedRow>
       <app-recommendation-row heading="Recommended for you" [items]="recommendations()" variant="home" testId="home-recommendations">
         @if (firstStrip() === 'recommended') { <ng-container *ngTemplateOutlet="sizeControl" /> }
       </app-recommendation-row>
+      </ng-template>
 
       <!-- Favorites row (1.21.0): opt-in (showFavoritesHomeRow), rendered only when the
            user has favorites. Reuses the Continue-reading strip card styling. -->
+      <ng-template #favoritesRow>
       @if (showFavoritesRow() && favorites().length > 0) {
         <section class="strip-section">
           <div class="strip-head">
@@ -227,9 +249,12 @@ import {
         </section>
       }
 
+      </ng-template>
+
       <!-- New chapters (1.12.0): shown whenever the user can see at least one library
            (so the picker stays reachable even when every library is hidden or nothing
            is new); the body is the stacked cards or a one-line empty state. -->
+      <ng-template #recentRow>
       @if (libraries().length > 0 || visibleGroups().length > 0) {
         <section class="strip-section recent-section">
           <div class="section-head">
@@ -297,6 +322,8 @@ import {
         </section>
       }
 
+      </ng-template>
+
       <!-- One stacked card. The "stacked" paper edges behind the cover appear only
            when the unit holds more than one new chapter; the +N badge says how many. -->
       <ng-template #stackBody let-stack let-anchor="anchor">
@@ -332,7 +359,8 @@ import {
         }
       </ng-template>
 
-      <section>
+      <ng-template #librariesRow>
+      <section class="libraries-section">
         <h3>Libraries</h3>
         <!-- 1.53.0 (audit V2): not loaded (the series page's spinner, after 300 ms), failed (the reader's error block), and the empty
              line only after a successful answer - a reader is not sent to Administration, which it cannot open. -->
@@ -378,6 +406,7 @@ import {
           </div>
         }
       </section>
+      </ng-template>
     </div>
   `,
   styles: [`
@@ -395,6 +424,8 @@ import {
     /* Home is a plain content page now (the shell provides the gutter padding and
        the library sidebar); no in-component sidebar/flex layout remains. */
     .strip-section { margin-bottom: 28px; }
+    /* 1.54.0: Libraries can sit above a strip now (Settings > Home), so it keeps the strips' spacing below it. */
+    .libraries-section { margin-bottom: 28px; }
     /* Both cover strips size their cards from the shared --card-size custom property
        (the library browse card-size preference), so home and library cards match.
        The top/right padding leaves room for the stacked-paper edges behind a card. */
@@ -526,14 +557,23 @@ export class HomeComponent implements OnInit {
   readonly excludedLibraryIds = signal<ReadonlySet<string>>(new Set());
 
   /**
-   * The first cover strip on the page (audit V10): its heading row carries the card-size slider. Null when no strip has cards (then
+   * The user's order of the Home rows (1.54.0). Null until the preferences answer (then the rows are drawn once, in the right order - no
+   * jump from the default order to the user's); the default order when they fail to load.
+   */
+  readonly rowOrder = signal<HomeRowId[] | null>(null);
+
+  /**
+   * The first cover strip on the page in the user's order (audit V10; 1.54.0): its heading row carries the card-size slider. Null when no strip has cards (then
    * there is nothing to size, as before).
    */
-  readonly firstStrip = computed<'continue' | 'recommended' | 'favorites' | 'recent' | null>(() => {
-    if (this.continueReading().length > 0) return 'continue';
-    if (this.recommendations().length > 0) return 'recommended';
-    if (this.showFavoritesRow() && this.favorites().length > 0) return 'favorites';
-    return this.visibleGroups().length > 0 ? 'recent' : null;
+  readonly firstStrip = computed<Exclude<HomeRowId, 'libraries'> | null>(() => {
+    for (const row of this.rowOrder() ?? []) {
+      if (row === 'continue' && this.continueReading().length > 0) return row;
+      if (row === 'recommended' && this.recommendations().length > 0) return row;
+      if (row === 'favorites' && this.showFavoritesRow() && this.favorites().length > 0) return row;
+      if (row === 'recent' && this.visibleGroups().length > 0) return row;
+    }
+    return null; // Libraries is a grid, not a cover strip
   });
 
   /** Groups that have at least one stack and whose library is not hidden from home. */
@@ -608,6 +648,7 @@ export class HomeComponent implements OnInit {
       next: (p) => {
         this.libraryPrefs = p;
         this.display.seedFrom(p);
+        this.rowOrder.set(normalizeHomeRowOrder(p.homeRowOrder));
         // Home "Favorites" row (1.21.0): opt-in, off by default. Only fetch when on.
         this.showFavoritesRow.set(p.showFavoritesHomeRow ?? false);
         if (this.showFavoritesRow()) this.loadFavorites();
@@ -617,7 +658,10 @@ export class HomeComponent implements OnInit {
           this.loadRecommendations();
         }
       },
-      error: () => { this.loadRecommendations(); /* keep the default size; the slider still works this session */ },
+      error: () => {
+        this.rowOrder.set([...DEFAULT_HOME_ROW_ORDER]);
+        this.loadRecommendations(); /* keep the default size; the slider still works this session */
+      },
     });
     this.api.getHomeLibraries().subscribe({
       next: (dto) => this.excludedLibraryIds.set(new Set(dto.excludedLibraryIds)),

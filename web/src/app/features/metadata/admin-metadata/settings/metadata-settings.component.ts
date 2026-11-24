@@ -45,8 +45,11 @@ import { TOUCH_LINK_CSS } from '../../../../shared/touch-targets';
  * author numbers of artists you picked; with Automatic matching on, MangaDex is asked for the latest uploaded chapter of linked series
  * (MangaDex ids only, 100 at a time) and MangaUpdates' public list of the day's releases is read (page number only); the automatic
  * consent stays 5.
+ * 8 (1.54.0, owner "Bump, ship all three"): community scores - MangaUpdates' comes with the answers already received; with Automatic
+ * matching on, MangaDex's statistics of linked records (MangaDex ids only) and MyAnimeList's score of linked series that name a MyAnimeList
+ * number (only while MyAnimeList is allowed under Trackers, with the app registered there); the automatic consent moves to 6 with it.
  */
-export const CONSENT_TEXT_VERSION = 7;
+export const CONSENT_TEXT_VERSION = 8;
 
 /**
  * Automatic-lookups consent text version (stage 2, owner decisions 2 + 3); must equal the
@@ -55,8 +58,10 @@ export const CONSENT_TEXT_VERSION = 7;
  * v3 (1.29.0): volume covers and volume lists from MangaDex (AniList totals as the fallback).
  * v4 (1.32.0): comics go to the Grand Comics Database first; volume lists from Wikipedia for linked series.
  * v5 (1.42.0): a work neither site found anything close for is searched on MangaDex - only ever proposed under Needs review.
+ * v6 (1.54.0): community scores - MangaDex statistics and MyAnimeList scores of linked series, and a one-time refresh of linked
+ * MangaUpdates series fetched before 1.54.0 (400 a day) to read their score.
  */
-export const AUTO_CONSENT_TEXT_VERSION = 5;
+export const AUTO_CONSENT_TEXT_VERSION = 6;
 
 /** Integer-only daily budget in 1..1,000,000 (the server validates the same range). */
 export function parseDailyBudget(raw: string | number | null | undefined): number | null {
@@ -160,11 +165,12 @@ export function validateThresholds(
             @if (!consentCurrent() || showConsent()) {
             <div class="consent" data-testid="md-consent-text">
               <p>When on, MangaPixer can look up series information for the libraries you enable below, on the
-                <strong>allowed sites</strong> listed here - and nowhere else.</p>
+                <strong>allowed sites</strong> listed here - and, for community scores only, on MyAnimeList while it is allowed
+                under Trackers - and nowhere else.</p>
               <p><strong>What is sent:</strong></p>
               <ul>
                 <li><strong>MangaUpdates</strong> (description, authors, genres, publication status, English release totals,
-                  cover art): the search text you confirm in the Identify dialog or in Match folders by name (usually a folder or
+                  community score, cover art): the search text you confirm in the Identify dialog or in Match folders by name (usually a folder or
                   file name) - to find a series, or, when you look for an artist, to find an author -, MangaUpdates record numbers,
                   and, when you ask for artists' other names, the MangaUpdates author numbers of the creators of series you have
                   stored and of the artists you picked.</li>
@@ -176,7 +182,13 @@ export function validateThresholds(
                   series information - title, status, latest chapter, description, authors, cover - of a series MangaUpdates does not
                   list, when you choose MangaDex in the Identify dialog): the search text you confirm there (usually a folder or file
                   name), the MangaUpdates title of a series linked to MangaUpdates, MangaDex record numbers and your cover languages.
-                  Cover images are downloaded from MangaDex's image server (uploads.mangadex.org).</li>
+                  Cover images are downloaded from MangaDex's image server (uploads.mangadex.org). With Automatic matching on, also
+                  the community score (rating and number of ratings) of your linked series' MangaDex records - by MangaDex number
+                  only.</li>
+                <li><strong>MyAnimeList</strong> (the community score - average rating and number of ratings - of linked series; only
+                  with Automatic matching on, and only while MyAnimeList is allowed for this server under Trackers with the app you
+                  registered there): the MyAnimeList number a linked series' MangaDex record names - never a title or a folder or file
+                  name - and your app's client id. No user account or sign-in is used.</li>
                 <li><strong>AniList</strong> (volume and chapter totals, to convert chapters to volumes): the AniList record
                   number when it is known, otherwise the MangaUpdates title of a series that is already linked - never a folder
                   or file name.</li>
@@ -199,7 +211,10 @@ export function validateThresholds(
                 your linked series that have a MangaDex record - by their MangaDex ids only, 100 at a time - and reads MangaUpdates'
                 public list of the day's releases - by page number only - to notice new chapters sooner. It keeps each MangaDex
                 record's latest chapter id and when it changed, and which of your series had a release; nothing from the releases list
-                is kept beyond that. These requests count in the daily budget and are paced like every other.</p>
+                is kept beyond that. These requests count in the daily budget and are paced like every other. It also reads the
+                community scores of your linked series: MangaDex's by MangaDex number (100 at a time) and MyAnimeList's by MyAnimeList
+                number (at most 400 a day, paced like tracker sync); MangaUpdates' comes with the information it already fetches.
+                Community scores are shown with their source on the series and kept on this server.</p>
               <p>Fetched information and covers are stored on this server as-is. You can switch this off at any time; stored
                 information stays until you delete it.</p>
             </div>
@@ -298,6 +313,12 @@ export function validateThresholds(
                 linked series' MangaUpdates title, never a folder or file name - to learn which chapters make up each volume
                 where MangaDex's list has gaps, with English release dates and ISBNs. It checks the page again on the refresh
                 schedule and downloads it only when it has changed.</p>
+              <p><strong>Community scores:</strong> every few hours MangaPixer reads the community score of your linked series that
+                have a MangaDex record from MangaDex's public statistics - by MangaDex number only, 100 at a time - and, only while
+                MyAnimeList is allowed for this server under Trackers with the app you registered there, the MyAnimeList score of
+                linked series whose MangaDex record names a MyAnimeList number - by that number only, with your app's client id, at
+                most 400 a day. Each score is read again after a month. Once after this update, linked series fetched from
+                MangaUpdates before it are refreshed by record number - at most 400 a day - to read their MangaUpdates score.</p>
               <p><strong>What is never sent:</strong> file paths, your file list, user accounts, reading progress, or anything
                 that identifies this server. Folders marked "Don't match", and everything inside them, are never looked up.</p>
               <p><strong>Budget:</strong> automatic requests come out of the same daily budget as Identify. When it is spent,
@@ -550,6 +571,11 @@ export function validateThresholds(
               <button mat-stroked-button type="button" [disabled]="saving() || s.webRecordCount === 0" (click)="confirming.set('all')"
                       data-testid="md-purge">Delete all fetched web data</button>
             }
+            <!-- 1.54.0: MyAnimeList's community scores are read with this server's MyAnimeList app; its API terms ask that they can be
+                 deleted on request. They are read again only while MyAnimeList stays allowed under Trackers. -->
+            <p class="muted small">Community scores from MyAnimeList are read again later while MyAnimeList is allowed under Trackers.
+              <button mat-button type="button" [disabled]="saving()" (click)="deleteMalScores()" data-testid="md-delete-mal-scores">
+                Delete stored MyAnimeList scores</button></p>
           </section>
 
         </div>
@@ -852,6 +878,15 @@ export class MetadataSettingsComponent implements OnInit {
     this.confirming.set(null);
     this.api.purge(libraryId).subscribe({
       next: (r) => this.reload(`Deleted ${r.linksRemoved} link(s) and ${r.recordsRemoved} record(s)`),
+      error: (err: ApiError) => this.fail(err),
+    });
+  }
+
+  deleteMalScores(): void {
+    this.saving.set(true);
+    this.error.set(null);
+    this.api.deleteMalScores().subscribe({
+      next: (r) => this.reload(`Deleted ${r.records ?? 0} MyAnimeList score${r.records === 1 ? '' : 's'}`),
       error: (err: ApiError) => this.fail(err),
     });
   }

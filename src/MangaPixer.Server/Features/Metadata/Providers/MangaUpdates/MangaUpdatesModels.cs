@@ -49,6 +49,10 @@ internal sealed record MuSeries
     [JsonPropertyName("last_updated")] public MuTime? LastUpdated { get; init; }
     [JsonPropertyName("publications")] public List<MuPublication>? Publications { get; init; }
     [JsonPropertyName("related_series")] public List<MuRelatedSeries>? RelatedSeries { get; init; }
+
+    /// <summary>1.54.0: the community score (Bayesian rating, 0-10; 0 = not rated) and its vote count.</summary>
+    [JsonPropertyName("bayesian_rating")] public double? BayesianRating { get; init; }
+    [JsonPropertyName("rating_votes")] public int? RatingVotes { get; init; }
 }
 
 internal sealed record MuPublication

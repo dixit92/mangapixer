@@ -158,4 +158,30 @@ public sealed class ChangelogParserTests
         Assert.NotEmpty(result.Sections);
         Assert.All(result.Sections, s => Assert.All(s.Groups, g => Assert.NotEmpty(g.Items)));
     }
+
+    /// <summary>
+    /// 1.53.1 shipped with the <c>## [1.53.0]</c> heading lost (a release-commit edit swallowed it): every 1.53.0 group then read as part of
+    /// 1.53.1, and What's new showed both releases under one title. That file still parsed. Two checks catch it: no version repeats a
+    /// group name (two versions merged into one), and no version is missing between neighbours (a patch x.y.z is followed by x.y.z-1,
+    /// an x.y.0 by some x.(y-1).*, an x.0.0 by some (x-1).*.*).
+    /// </summary>
+    [Fact]
+    public void TheEmbeddedChangelog_HasEveryVersionOnce_WithItsOwnGroups()
+    {
+        var sections = ChangelogParser.Parse(WhatsNewNotes.ReadEmbedded()!).Sections;
+
+        Assert.All(sections, s => Assert.True(s.Groups.Select(g => g.Name).Distinct().Count() == s.Groups.Count,
+            $"[{s.Version}] repeats a group name: {string.Join(", ", s.Groups.Select(g => g.Name))} - a lost version heading above?"));
+        for (var i = 0; i + 1 < sections.Count; i++)
+        {
+            var newer = WhatsNewSelection.Core(sections[i].Version)!.Value;
+            var older = WhatsNewSelection.Core(sections[i + 1].Version)!.Value;
+            var expected = newer.Patch > 0
+                ? older == (newer.Major, newer.Minor, newer.Patch - 1)
+                : newer.Minor > 0
+                    ? older.Major == newer.Major && older.Minor == newer.Minor - 1
+                    : older.Major == newer.Major - 1;
+            Assert.True(expected, $"[{sections[i].Version}] is followed by [{sections[i + 1].Version}] - a version heading is missing between them");
+        }
+    }
 }

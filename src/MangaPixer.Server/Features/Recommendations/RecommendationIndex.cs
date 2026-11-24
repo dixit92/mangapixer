@@ -47,7 +47,8 @@ public sealed class RecommendationIndex
     public readonly record struct LocationRow(long WorkId, long NodeId, long LibraryId, string LibraryName, string SortKey);
 
     /// <summary>A work's linked record (works of kind Record), with the related records its stored relations name (already resolved).</summary>
-    public readonly record struct RecordRow(long WorkId, long RecordId, IReadOnlyList<(long RecordId, string Relation)> Related);
+    public readonly record struct RecordRow(long WorkId, long RecordId, IReadOnlyList<(long RecordId, string Relation)> Related,
+        double? CommunityScore = null, string? CommunityScoreSource = null);
 
     private RecommendationIndex() { }
 
@@ -56,6 +57,13 @@ public sealed class RecommendationIndex
 
     /// <summary>Each work's linked record id, or null.</summary>
     public long?[] RecordIds { get; private init; } = [];
+
+    /// <summary>
+    /// 1.54.0: each work's community score (0-10: MangaUpdates', else MangaDex's - never MyAnimeList's, whose licence limits the purpose)
+    /// and its source's display name; null when none is stored.
+    /// </summary>
+    public double?[] CommunityScores { get; private init; } = [];
+    public string?[] CommunityScoreSources { get; private init; } = [];
 
     /// <summary>Each work's visible locations, best first.</summary>
     public Location[][] Locations { get; private init; } = [];
@@ -228,10 +236,21 @@ public sealed class RecommendationIndex
             }
         }
 
+        var communityScores = new double?[n];
+        var communitySources = new string?[n];
+        foreach (var r in recordList.Where(r => r.CommunityScore is > 0 and <= 10 && workById.ContainsKey(r.WorkId)).OrderBy(r => r.WorkId))
+        {
+            var w = workById[r.WorkId];
+            communityScores[w] ??= r.CommunityScore;
+            communitySources[w] ??= r.CommunityScoreSource;
+        }
+
         return new RecommendationIndex
         {
             WorkIds = workIds,
             RecordIds = recordIds,
+            CommunityScores = communityScores,
+            CommunityScoreSources = communitySources,
             Locations = sortedLocations,
             WorkValues = workValues.Select(l => l.ToArray()).ToArray(),
             WorkNorms = norms,

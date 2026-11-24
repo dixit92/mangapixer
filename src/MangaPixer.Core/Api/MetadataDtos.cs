@@ -76,6 +76,12 @@ public sealed record SeriesInfoDto
     /// </summary>
     public IReadOnlyList<SeriesInfoCompanionDto> Companions { get; init; } = [];
 
+    /// <summary>
+    /// 1.54.0: the series' community scores - MangaUpdates', MangaDex's and MyAnimeList's, in that order, each only when stored. Empty for a
+    /// collection or without a web link. Shown with their source; never converted to stars.
+    /// </summary>
+    public IReadOnlyList<SeriesCommunityScoreDto> CommunityScores { get; init; } = [];
+
     /// <summary>ComicInfo coverage, when any item carries ComicInfo.</summary>
     public SeriesInfoComicInfoDto? ComicInfo { get; init; }
 
@@ -169,6 +175,19 @@ public sealed record SeriesInfoWebDto
 }
 
 /// <summary>A companion source of a linked series (1.41.0): provider id, display name and its public page (https).</summary>
+/// <summary>
+/// 1.54.0: one community score of a series, as its source states it (0-10, not converted to stars): <see cref="Source"/> is the provider
+/// slug (<c>mangaupdates</c>, <c>mangadex</c>, <c>myanimelist</c>), <see cref="SourceName"/> its display name, <see cref="Votes"/> how many rated
+/// (null when the source does not say).
+/// </summary>
+public sealed record SeriesCommunityScoreDto
+{
+    public required string Source { get; init; }
+    public required string SourceName { get; init; }
+    public required double Score { get; init; }
+    public int? Votes { get; init; }
+}
+
 public sealed record SeriesInfoCompanionDto
 {
     public required string Provider { get; init; }
@@ -438,6 +457,12 @@ public sealed record NodeSeriesLinkChangeDto
 }
 
 /// <summary>Purge scope: null library = everything.</summary>
+/// <summary>1.54.0: "Delete stored MyAnimeList scores" - how many records held one.</summary>
+public sealed record MalScoresDeletedDto
+{
+    public int Records { get; init; }
+}
+
 public sealed record MetadataPurgeRequest
 {
     public string? LibraryId { get; init; }

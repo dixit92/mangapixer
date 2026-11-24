@@ -116,7 +116,7 @@ public sealed class ExportCreatorsUnitTests
     [Fact]
     public void TheRecordFieldsMarker_ListsTheCreators()
     {
-        Assert.Equal(["creators"], ExportCreators.RecordFields);
+        Assert.Equal(["creators", "communityScore"], ExportCreators.RecordFields);
     }
 }
 
@@ -178,6 +178,32 @@ public sealed class ExportCreatorsRebuildTests
         var items = await kit.ItemsAsync();
         Assert.Equal(ExportTestKit.Start, items[plain.PublicId].UpdatedAt);
         Assert.Equal(ExportTestKit.Start, items[credited.PublicId].UpdatedAt);
+    }
+
+    [Fact]
+    public async Task AnItemThatGainsACommunityScore_MovesAlone_AndOneWithoutKeepsItsExactForm()
+    {
+        // 1.54.0: communityScore / communityVotes are left out when unknown, like creators.
+        await using var kit = await ExportTestKit.CreateAsync();
+        var a = await kit.Db.AddFolderAsync(null, "Series A");
+        var b = await kit.Db.AddFolderAsync(null, "Series B");
+        var recordA = await RecordAsync(kit, "1", null);
+        await kit.Db.AddLinkAsync(a, recordA);
+        await kit.Db.AddLinkAsync(b, await RecordAsync(kit, "2", null));
+        await kit.RebuildAsync();
+        var before = (await kit.Db.Db.ExportItems.AsNoTracking().SingleAsync(i => i.NodePublicId == b.PublicId)).Json;
+        Assert.DoesNotContain("communityScore", before, StringComparison.Ordinal);
+
+        kit.Clock.Advance(TimeSpan.FromHours(1));
+        await kit.Db.Db.MetadataRecords.Where(r => r.Id == recordA.Id)
+            .ExecuteUpdateAsync(u => u.SetProperty(r => r.CommunityScore, 8.978).SetProperty(r => r.CommunityVotes, 1200));
+        Assert.Equal(1, (await kit.RebuildAsync()).Written);
+
+        var items = await kit.ItemsAsync();
+        Assert.Equal(ExportTestKit.Start.AddHours(1), items[a.PublicId].UpdatedAt);
+        Assert.Equal(ExportTestKit.Start, items[b.PublicId].UpdatedAt);
+        Assert.Equal((8.98, 1200), (items[a.PublicId].Record!.CommunityScore!.Value, items[a.PublicId].Record!.CommunityVotes!.Value));
+        Assert.Equal(before, (await kit.Db.Db.ExportItems.AsNoTracking().SingleAsync(i => i.NodePublicId == b.PublicId)).Json);
     }
 
     [Fact]
@@ -282,7 +308,7 @@ public sealed class ExportCreatorsRebuildTests
 
         var page = await kit.PageAsync();
 
-        Assert.Equal(["creators"], page.GetProperty("recordFields").EnumerateArray().Select(e => e.GetString()));
+        Assert.Equal(["creators", "communityScore"], page.GetProperty("recordFields").EnumerateArray().Select(e => e.GetString()));
         Assert.Equal(1, page.GetProperty("schemaVersion").GetInt32());
         var items = page.GetProperty("items").EnumerateArray().ToDictionary(i => i.GetProperty("nodeId").GetString()!);
         Assert.True(items[folder.PublicId].GetProperty("record").TryGetProperty("creators", out _));

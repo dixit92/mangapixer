@@ -977,7 +977,7 @@ public sealed class ReadingStateService
         var prefs = await _db.ReaderPreferences
             .FirstOrDefaultAsync(p => p.UserId == userId, ct);
         if (prefs is null)
-            return new LibraryViewPreferencesDto();
+            return new LibraryViewPreferencesDto { HomeRowOrder = HomeRows.DefaultOrder };
 
         return new LibraryViewPreferencesDto
         {
@@ -996,6 +996,7 @@ public sealed class ReadingStateService
             SeriesInfoOnHover = prefs.SeriesInfoOnHover,
             SeriesViewMode = (Core.Metadata.SeriesViewMode?)prefs.SeriesViewMode,
             StackViewMode = prefs.StackViewMode,
+            HomeRowOrder = HomeRows.FromStored(prefs.HomeRowOrder), // 1.54.0: always the full normalized order
         };
     }
 
@@ -1032,6 +1033,9 @@ public sealed class ReadingStateService
         prefs.SeriesInfoOnHover = preferences.SeriesInfoOnHover;
         prefs.SeriesViewMode = preferences.SeriesViewMode is { } seriesView && Enum.IsDefined(seriesView) ? (int)seriesView : null;
         prefs.StackViewMode = preferences.StackViewMode is "card" or "list" ? preferences.StackViewMode : null;
+        // 1.54.0: null (an older client, or a body without the field) keeps the user's order; a list replaces it (empty = default).
+        if (preferences.HomeRowOrder is { } homeRowOrder)
+            prefs.HomeRowOrder = HomeRows.ToStored(homeRowOrder);
 
         await _db.SaveChangesAsync(ct);
     }

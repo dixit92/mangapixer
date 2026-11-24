@@ -540,6 +540,9 @@ public static class LogEvents
         public const int CrossTrigger = 9468;
         public const int LatestUploadMissing = 9469; // owner follow-up 2026-10-19: records MangaDex left out of the sweep answer
         public const int TakenDownListed = 9470; // 1.47.0 (lane F, 9469-9479): the admin list of taken-down MangaDex records (counts only)
+        public const int CommunityScorePass = 9471; // 1.54.0: the MangaDex statistics pass (counts only)
+        public const int CommunityScoreCatchUp = 9472; // 1.54.0: the one-time MangaUpdates score catch-up (counts only)
+        public const int MalScoresDeleted = 9473; // 1.54.0: an admin deleted the stored MyAnimeList scores (counts only)
 
         // Tag query (1.45.0, lane Q, 9450-9459). Counts, ids and timings only - never search text, tag values or names.
         public const int FacetCountsComputed = 9450;

@@ -698,8 +698,8 @@ export interface LibraryViewPreferencesDto {
    */
   showFavoritesHomeRow?: boolean;
   /**
-   * Optional (1.53.0): the Home "Recommended for you" row. true (server default) shows it; Settings > Ratings and recommendations
-   * writes it. (The shared-ratings choice is NOT in this blob - `ratings/sharing`.)
+   * Optional (1.53.0): the Home "Recommended for you" row. true (server default) shows it; Settings > Home writes it (1.54.0).
+   * (The shared-ratings choice is NOT in this blob - `ratings/sharing`.)
    */
   showRecommendationsHomeRow?: boolean;
   /**
@@ -721,6 +721,11 @@ export interface LibraryViewPreferencesDto {
   seriesViewMode?: SeriesViewMode | null;
   /** 1.30.0: the viewer's view of a volume's page ('card' | 'list'); null = follow `viewMode`. */
   stackViewMode?: string | null;
+  /**
+   * 1.54.0: the user's order of the Home rows (`HomeRowId`s). A GET always carries the full order (the default until the user changes
+   * it); on a PUT, null / absent keeps the stored order and a list replaces it (normalized by the server; empty = the default).
+   */
+  homeRowOrder?: string[] | null;
 }
 
 // --- YACReader progress import (1.2.0, admin-only) ---
@@ -1432,6 +1437,20 @@ export interface SeriesLinkInfoDto {
 
 /** GET /nodes/{nodeId}/series-info - one DTO for the overlay and the series page. */
 /** A companion source of a linked series (1.41.0): today its MangaDex record, listed under Sources. */
+/** 1.54.0: one community score of a series as its source states it (0-10; never converted to stars). */
+export interface SeriesCommunityScoreDto {
+  /** Provider slug: mangaupdates, mangadex or myanimelist. */
+  source: string;
+  sourceName: string;
+  score: number;
+  votes?: number | null;
+}
+
+/** 1.54.0: DELETE /admin/metadata/community-scores/myanimelist - how many records held a MyAnimeList score. */
+export interface MalScoresDeletedDto {
+  records?: number;
+}
+
 export interface SeriesInfoCompanionDto {
   provider: string;
   providerName: string;
@@ -1468,6 +1487,8 @@ export interface SeriesInfoDto {
   mixedSeries?: SeriesMixedEntryDto[];
   web?: SeriesInfoWebDto | null;
   companions?: SeriesInfoCompanionDto[];
+  /** 1.54.0: MangaUpdates', MangaDex's and MyAnimeList's scores, in that order, each only when stored. */
+  communityScores?: SeriesCommunityScoreDto[];
   comicInfo?: SeriesInfoComicInfoDto | null;
   link?: SeriesLinkInfoDto | null;
   precedence: MetadataPrecedence;
@@ -3349,6 +3370,9 @@ export interface ExportRecordDto {
   fetchedAt: string;
   /** 1.47.0: one entry per credited person; left out when the record has none. */
   creators?: ExportCreatorDto[] | null;
+  /** 1.54.0: the record's community score (0-10) and vote count; left out when unknown. */
+  communityScore?: number | null;
+  communityVotes?: number | null;
 }
 
 /** 1.47.0: one credited person of a record. */
@@ -4265,7 +4289,7 @@ export interface WhatsNewInlineDto {
 }
 
 /** What a recommendation's reason is about (1.53.0). */
-export type RecommendationReasonKind = 'Creator' | 'SharedValues' | 'Relation';
+export type RecommendationReasonKind = 'Creator' | 'SharedValues' | 'Relation' | 'CommunityScore';
 
 /** Why a pick appears (1.53.0): one line - "Same author: ...", "Like <series>: horror, school life", "Sequel of <series>". */
 export interface RecommendationReasonDto {
