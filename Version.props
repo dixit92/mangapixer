@@ -466,7 +466,7 @@
          Enhance black-output guard; "Official Volume Available". Migrations AddTrackerSync, AddTrackingPage,
          AddVolumeMapReadableChapters (additive); tracker consents v1 (new third privacy exception, AGENTS.md); metadata consents
          unchanged (main 6 / automatic 5); worker protocol unchanged (5). -->
-    <MangaPixerVersionMinor>53</MangaPixerVersionMinor>
+    <MangaPixerVersionMinor>54</MangaPixerVersionMinor>
     <!-- 1.31.1 - PATCH (2026-10-01, integrator-direct, owner live check of 1.31.0): content signatures backfilled for archives
          analysed before 1.5.0 (their moves were never recognised); Re-attach to a folder in another library; "Episode N" next
          to a volume is a part label, not a chapter; the review list shows the file's own page 1, never the cover layer's;
@@ -567,7 +567,16 @@
          inside the top edge hit-tests to an opaque, full-width fixed box over 10 px tall: a 12 px strip in the bar's colour in the
          reader (while its bar shows) and inside the shell header. Web client only; no migration; consents, worker protocol 6 and
          OpenAPI 388 unchanged. -->
-    <MangaPixerVersionPatch>1</MangaPixerVersionPatch>
+    <!-- 1.54.0 - MINOR over 1.53.1 (2026-11-24, owner "Cut it"): community scores - MangaUpdates' Bayesian rating from its series answer,
+         MangaDex statistics of linked records and the MyAnimeList mean of linked MAL ids (the admin's app; display only, never
+         exported or used for recommendations), shown with their source on the Info sheet and the series page, a weak quality prior and
+         a cold start in Recommended for you, export record.communityScore; metadata consents main 8 / automatic 6 (AGENTS.md); reader
+         jump back (a tap jumps on lift, a cancelled touch undoes, Back / Return, a 2 s guard on the saved place, Backspace); a chapter
+         the volume contents scan compared and did not find leaves an estimated volume (matcher rules 2); Home row order per user; the
+         Shared ratings switch shows what is saved; What's new per version again; .NET 10.0.15, Angular 22.3.0, Microsoft.OpenApi
+         2.13.1. Migrations 62 AddHomeRowOrder, 63 AddVolumeContentCompared, 64 AddCommunityScores (all additive); worker protocol 6;
+         OpenAPI 390 schemas (additive). -->
+    <MangaPixerVersionPatch>0</MangaPixerVersionPatch>
     <MangaPixerVersionPrerelease></MangaPixerVersionPrerelease>
 
     <!-- Composed SemVer without build metadata (used for PackageVersion) -->

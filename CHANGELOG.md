@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.54.0] - 2026-11-24
+
 ### Admin actions
 
 - **Admins: accept the two web-lookup consent texts again** (Metadata Manager > Settings; versions 8 and 6). They now name the new
